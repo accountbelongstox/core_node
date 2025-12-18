@@ -254,11 +254,11 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}  4. Track PHP version for automatic correction${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Auto-Correction Features:${NC}"
-    echo -e "${CYAN}  ï¿½?Detects old/incompatible Composer versions${NC}"
-    echo -e "${CYAN}  ï¿½?Reinstalls if PHP version changes${NC}"
-    echo -e "${CYAN}  ï¿½?Fixes missing/broken wrapper scripts${NC}"
-    echo -e "${CYAN}  ï¿½?Checks for deprecation warnings${NC}"
-    echo -e "${CYAN}  ï¿½?Validates installation completeness${NC}"
+    echo -e "${CYAN}  ï¿?Detects old/incompatible Composer versions${NC}"
+    echo -e "${CYAN}  ï¿?Reinstalls if PHP version changes${NC}"
+    echo -e "${CYAN}  ï¿?Fixes missing/broken wrapper scripts${NC}"
+    echo -e "${CYAN}  ï¿?Checks for deprecation warnings${NC}"
+    echo -e "${CYAN}  ï¿?Validates installation completeness${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Created files:${NC}"
     echo -e "${CYAN}  /usr/local/bin/composer            (main wrapper)${NC}"
@@ -267,10 +267,10 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}  /usr/local/etc/.composer_php_version (PHP version tracking)${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Server-Optimized Features:${NC}"
-    echo -e "${CYAN}  ï¿½?Automatic retry on download failures${NC}"
-    echo -e "${CYAN}  ï¿½?Non-interactive mode by default${NC}"
-    echo -e "${CYAN}  ï¿½?Root user handling without prompts${NC}"
-    echo -e "${CYAN}  ï¿½?Comprehensive error detection${NC}"
+    echo -e "${CYAN}  ï¿?Automatic retry on download failures${NC}"
+    echo -e "${CYAN}  ï¿?Non-interactive mode by default${NC}"
+    echo -e "${CYAN}  ï¿?Root user handling without prompts${NC}"
+    echo -e "${CYAN}  ï¿?Comprehensive error detection${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     exit 0
 fi
@@ -308,11 +308,11 @@ main() {
         echo -e "${YELLOW}$SCRIPT_INDEX [AUTO-CORRECTION] Issues detected, automatic reinstall triggered${NC}"
         auto_fix_needed=true
     elif [ "$current_version" != "not_installed" ] && is_composer_installation_complete; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Composer $current_version is properly installed and working${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Safe wrapper: /usr/local/bin/composer-safe${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP version tracking: $php_version${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Composer $current_version is properly installed and working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP version tracking: $php_version${NC}"
         echo -e "${CYAN}$SCRIPT_INDEX All checks passed - no corrections needed${NC}"
         exit 0
     else
@@ -345,7 +345,7 @@ main() {
     $USE_SUDO rm -f "/usr/bin/composer" 2>/dev/null || true
     $USE_SUDO rm -f "/usr/local/bin/composer.phar" 2>/dev/null || true
 
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Cleanup completed${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?Cleanup completed${NC}"
 
     # Download and install Composer
     echo -e "${CYAN}============================================================================${NC}"
@@ -368,7 +368,7 @@ main() {
 
         if curl -fsSL "$COMPOSER_DOWNLOAD_URL" -o composer-setup.php 2>/dev/null; then
             download_success=true
-            echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Download successful${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX ï¿?Download successful${NC}"
             break
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Download attempt $download_attempts failed${NC}"
@@ -390,11 +390,11 @@ main() {
     local install_status=$?
 
     if [ $install_status -eq 0 ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Composer installed successfully${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Composer installed successfully${NC}"
 
         # Show installed version
         local installed_version=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 "$PHP_BINARY" -d "open_basedir=none" /usr/local/bin/composer --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Installed version: $installed_version${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Installed version: $installed_version${NC}"
 
         if ! version_compare "$installed_version" "$MIN_COMPOSER_VERSION"; then
             echo -e "${RED}$SCRIPT_INDEX WARNING: Installed version $installed_version may be too old for PHP 8.5${NC}"
@@ -424,7 +424,7 @@ main() {
     if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
         echo -e "${CYAN}$SCRIPT_INDEX Moving Composer to original location...${NC}"
         $USE_SUDO mv "$COMPOSER_TARGET_PATH" "${COMPOSER_TARGET_PATH}.original"
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Original binary saved${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Original binary saved${NC}"
     fi
 
     # Create global wrapper to handle root warnings and open_basedir
@@ -473,34 +473,34 @@ EOF
     # Test main composer wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing main composer wrapper...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Main composer wrapper: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Main composer wrapper: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿½?Main composer wrapper: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?Main composer wrapper: FAILED${NC}"
         all_checks_passed=false
     fi
 
     # Test composer-safe wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing composer-safe wrapper...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 /usr/local/bin/composer-safe --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Composer-safe wrapper: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Composer-safe wrapper: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿½?Composer-safe wrapper: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?Composer-safe wrapper: FAILED${NC}"
         all_checks_passed=false
     fi
 
     # Test original composer binary
     echo -e "${CYAN}$SCRIPT_INDEX Testing original composer binary...${NC}"
     if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Original composer binary: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Original composer binary: OK${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX ï¿½?Original composer binary: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX ï¿?Original composer binary: FAILED${NC}"
         all_checks_passed=false
     fi
 
     # Check for deprecation warnings
     echo -e "${CYAN}$SCRIPT_INDEX Checking for deprecation warnings...${NC}"
     if check_composer_errors; then
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿½?No deprecation warnings detected${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX ï¿?No deprecation warnings detected${NC}"
     else
         echo -e "${YELLOW}$SCRIPT_INDEX ! Deprecation warnings present (may need newer Composer version)${NC}"
     fi
@@ -516,24 +516,24 @@ EOF
     # Final verification with environment variables
     local final_version=$(get_composer_version)
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX âœ“âœ“ï¿½?INSTALLATION SUCCESSFUL âœ“âœ“ï¿½?{NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX âœ“âœ“ï¿?INSTALLATION SUCCESSFUL âœ“âœ“ï¿?{NC}"
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Composer Version: $final_version${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP Version: $(get_current_php_version)${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Main wrapper: $COMPOSER_TARGET_PATH${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Safe wrapper: /usr/local/bin/composer-safe${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?Composer Version: $final_version${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP Version: $(get_current_php_version)${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?Main wrapper: $COMPOSER_TARGET_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX Usage:${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX   composer --version         (auto-handles root + open_basedir)${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX   composer-safe --version    (explicit safe wrapper)${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX Features:${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿½?Automatic root warning suppression${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿½?open_basedir=none for maximum compatibility${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿½?PHP version tracking for auto-correction${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿½?Automatic reinstall on version/error detection${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿?Automatic root warning suppression${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿?open_basedir=none for maximum compatibility${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿?PHP version tracking for auto-correction${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   ï¿?Automatic reinstall on version/error detection${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 }
 

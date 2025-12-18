@@ -15,6 +15,62 @@ export enum TaskStatus {
 }
 
 /**
+ * Error type enum (for retry logic)
+ */
+export enum ErrorType {
+  RETRIABLE = 'retriable',         // Network error, timeout (can retry)
+  NON_RETRIABLE = 'non_retriable', // Validation error, permission error (cannot retry)
+  FATAL = 'fatal',                 // System error (stop processing)
+}
+
+/**
+ * Task error with type information
+ */
+export class TaskError extends Error {
+  constructor(
+    message: string,
+    public readonly type: ErrorType = ErrorType.RETRIABLE,
+    public readonly details?: any,
+  ) {
+    super(message);
+    this.name = 'TaskError';
+
+    // Maintain proper stack trace in V8 environments
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, TaskError);
+    }
+  }
+
+  /**
+   * Check if error is retriable
+   */
+  isRetriable(): boolean {
+    return this.type === ErrorType.RETRIABLE;
+  }
+
+  /**
+   * Create retriable error
+   */
+  static retriable(message: string, details?: any): TaskError {
+    return new TaskError(message, ErrorType.RETRIABLE, details);
+  }
+
+  /**
+   * Create non-retriable error
+   */
+  static nonRetriable(message: string, details?: any): TaskError {
+    return new TaskError(message, ErrorType.NON_RETRIABLE, details);
+  }
+
+  /**
+   * Create fatal error
+   */
+  static fatal(message: string, details?: any): TaskError {
+    return new TaskError(message, ErrorType.FATAL, details);
+  }
+}
+
+/**
  * Task type enum
  * Add new task types here
  */

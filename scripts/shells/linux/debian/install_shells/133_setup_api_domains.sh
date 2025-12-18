@@ -516,10 +516,10 @@ if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
 
         if [ $? -eq 0 ]; then
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ï¿½?Octane File Watcher installed successfully"
+            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installed successfully"
         else
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ï¿½?Octane File Watcher installation failed"
+            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installation failed"
         fi
     else
         echo "[$SCRIPT_INDEX] Error: Watcher installation script not found"

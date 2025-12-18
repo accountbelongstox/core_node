@@ -157,6 +157,20 @@ from pycore.pyutils.native_ui.step9_frontend import (
     start_frontend_if_needed
 )
 
+# Platform Adapter - Linux/Windows/macOS difference handling
+from pycore.pyutils.native_ui.platform_adapter import (
+    PlatformAdapter,
+    get_platform_adapter,
+    Platform,
+    TrayBackend,
+    PlatformCapabilities,
+    is_linux,
+    is_windows,
+    is_macos,
+    can_use_tray,
+    get_recommended_tray_backend
+)
+
 __all__ = [
     # I18n Manager (core utility)
     'I18nManager',
@@ -175,6 +189,18 @@ __all__ = [
     'FrontendConfig',
     'FrontendLauncherThread',
     'start_frontend_if_needed',
+
+    # Platform Adapter - Cross-platform compatibility
+    'PlatformAdapter',
+    'get_platform_adapter',
+    'Platform',
+    'TrayBackend',
+    'PlatformCapabilities',
+    'is_linux',
+    'is_windows',
+    'is_macos',
+    'can_use_tray',
+    'get_recommended_tray_backend',
 ]
 
 # Note: Other utilities (TimerManager, ShutdownManager, CallbackManager, etc.)

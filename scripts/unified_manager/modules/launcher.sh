@@ -162,7 +162,7 @@ install_as_system_service() {
 
     if [ $result -eq 0 ]; then
         echo ""
-        echo -e "\033[32mâœ“ System service installation completed!\033[0m"
+        echo -e "\033[32mâœ?System service installation completed!\033[0m"
         echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
         echo -e "\033[36mPort: $port\033[0m"
         echo ""
@@ -175,7 +175,7 @@ install_as_system_service() {
         echo ""
         echo -e "\033[36mDirect access: http://localhost:$port\033[0m"
     else
-        echo -e "\033[31mâœ— System service installation failed\033[0m"
+        echo -e "\033[31mâœ?System service installation failed\033[0m"
     fi
 
     echo ""
@@ -232,7 +232,7 @@ install_with_laravel_proxy() {
 
     if [ $result -eq 0 ]; then
         echo ""
-        echo -e "\033[32mâœ“ Laravel reverse proxy installation completed!\033[0m"
+        echo -e "\033[32mâœ?Laravel reverse proxy installation completed!\033[0m"
         echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
         echo -e "\033[36mDomain: http://$domain\033[0m"
         echo -e "\033[36mPort: $port\033[0m"
@@ -250,7 +250,7 @@ install_with_laravel_proxy() {
         echo -e "\033[33mAdd to your /etc/hosts file for local testing:\033[0m"
         echo -e "\033[90m127.0.0.1 $domain\033[0m"
     else
-        echo -e "\033[31mâœ— Laravel reverse proxy installation failed\033[0m"
+        echo -e "\033[31mâœ?Laravel reverse proxy installation failed\033[0m"
     fi
 
     echo ""
@@ -403,67 +403,67 @@ launch_current_app() {
             echo ""
             echo -e "\033[36m=== Project Files Detected ==============\033[0m"
             if [ -f "$app_path/package.json" ]; then
-                echo -e "\033[32mâœ“ package.json found\033[0m"
+                echo -e "\033[32mâœ?package.json found\033[0m"
                 if grep -q '"react"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†’ React dependency detected\033[0m"
+                    echo -e "  \033[90mâ†?React dependency detected\033[0m"
                 fi
                 if grep -q '"vue"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†’ Vue dependency detected\033[0m"
+                    echo -e "  \033[90mâ†?Vue dependency detected\033[0m"
                 fi
                 if grep -q '"nuxt"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†’ Nuxt dependency detected\033[0m"
+                    echo -e "  \033[90mâ†?Nuxt dependency detected\033[0m"
                 fi
                 if grep -q '"react-native"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†’ React Native dependency detected\033[0m"
+                    echo -e "  \033[90mâ†?React Native dependency detected\033[0m"
                 fi
 
                 echo -e "  \033[90mAvailable scripts:\033[0m"
                 if grep -q '"start"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€¢ start\033[0m"
+                    echo -e "    \033[90mâ€?start\033[0m"
                 fi
                 if grep -q '"dev"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€¢ dev\033[0m"
+                    echo -e "    \033[90mâ€?dev\033[0m"
                 fi
                 if grep -q '"build"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€¢ build\033[0m"
+                    echo -e "    \033[90mâ€?build\033[0m"
                 fi
                 if grep -q '"serve"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€¢ serve\033[0m"
+                    echo -e "    \033[90mâ€?serve\033[0m"
                 fi
             fi
 
             if [ -f "$app_path/vite.config.ts" ]; then
-                echo -e "\033[32mâœ“ vite.config.ts found\033[0m"
+                echo -e "\033[32mâœ?vite.config.ts found\033[0m"
             elif [ -f "$app_path/vite.config.js" ]; then
-                echo -e "\033[32mâœ“ vite.config.js found\033[0m"
+                echo -e "\033[32mâœ?vite.config.js found\033[0m"
             fi
 
             if [ -f "$app_path/tsconfig.json" ]; then
-                echo -e "\033[32mâœ“ tsconfig.json found (TypeScript)\033[0m"
+                echo -e "\033[32mâœ?tsconfig.json found (TypeScript)\033[0m"
             fi
 
             if [ -f "$app_path/composer.json" ]; then
-                echo -e "\033[32mâœ“ composer.json found (PHP/Laravel)\033[0m"
+                echo -e "\033[32mâœ?composer.json found (PHP/Laravel)\033[0m"
             fi
 
             if [ -f "$app_path/artisan" ]; then
-                echo -e "\033[32mâœ“ artisan found (Laravel)\033[0m"
+                echo -e "\033[32mâœ?artisan found (Laravel)\033[0m"
             fi
 
             if [ -f "$app_path/pubspec.yaml" ]; then
-                echo -e "\033[32mâœ“ pubspec.yaml found (Flutter)\033[0m"
+                echo -e "\033[32mâœ?pubspec.yaml found (Flutter)\033[0m"
             fi
 
             if [ -f "$app_path/nuxt.config.ts" ]; then
-                echo -e "\033[32mâœ“ nuxt.config.ts found\033[0m"
+                echo -e "\033[32mâœ?nuxt.config.ts found\033[0m"
             elif [ -f "$app_path/nuxt.config.js" ]; then
-                echo -e "\033[32mâœ“ nuxt.config.js found\033[0m"
+                echo -e "\033[32mâœ?nuxt.config.js found\033[0m"
             fi
 
             if [ -d "$app_path/node_modules" ]; then
-                echo -e "\033[32mâœ“ node_modules exists\033[0m"
+                echo -e "\033[32mâœ?node_modules exists\033[0m"
             else
-                echo -e "\033[33mâš  node_modules missing (will install)\033[0m"
+                echo -e "\033[33mâš?node_modules missing (will install)\033[0m"
             fi
 
             echo -e "\033[36m========================================\033[0m"

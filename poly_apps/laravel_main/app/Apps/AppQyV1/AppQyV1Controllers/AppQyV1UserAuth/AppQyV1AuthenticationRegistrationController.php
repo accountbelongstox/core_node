@@ -23,6 +23,10 @@ use App\Models\InviteCode;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Services\UnifiedAuthService;
+use App\Services\AvatarService;
+use App\Http\Common\CommonAuthService;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
@@ -169,8 +173,6 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user);
         event(new \Illuminate\Auth\Events\Registered($user));
 
-        $token = $user->createToken('auth_token')->plainTextToken;
-
         if ($inviteCode && isset($invite)) {
             $invite->use($user);
 
@@ -183,6 +185,56 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ]);
         }
 
+        AppQyV1WordGroupPublicController::ensureDefaultGroupIfNotExist($user->id, $user->username);
+
+        $loginToken = $user->createToken('auth_token')->plainTextToken;
+        $userTokenData = CommonAuthService::generateUserToken($user->id, 'AppQyV1');
+
+        $learningLanguages = ['en'];
+        if (isset($user->learning_languages)) {
+            $learningLanguages = $user->learning_languages;
+        }
+        $nativeLanguage = 'zh';
+        if (isset($user->native_language)) {
+            $nativeLanguage = $user->native_language;
+        }
+
+        $langCode = !empty($learningLanguages) ? $learningLanguages[0] : 'en';
+        $learningStats = AppQyV1UserLearningProgressModel::getUserStats($user->id, $langCode);
+
+        $responseData = [
+            'login_token' => $loginToken,
+            'user_token' => $userTokenData['token'],
+            'user_token_expires_at' => $userTokenData['expires_at'],
+            'token_type' => 'Bearer',
+            'token' => $loginToken,
+            'expiration' => config('sanctum.expiration'),
+            'uid' => $user->id,
+            'login_by' => 'registration',
+            'multi_device_enabled' => CommonAuthService::isMultiDeviceLoginAllowed('AppQyV1'),
+            'user' => $user,
+        ];
+
+        $responseData['user']->learning_languages = $learningLanguages;
+        $responseData['user']->native_language = $nativeLanguage;
+        $responseData['user']->learning_stats = $learningStats;
+
+        if (isset($user->avatar)) {
+            $responseData['user']->avatar_url = AvatarService::getAvatarUrl($user->avatar);
+        }
+
+        if (isset($learningStats['stats'])) {
+            $stats = $learningStats['stats'];
+            $responseData['user']->total_words = $stats['total'] ?? $stats['total_words'] ?? 0;
+            $responseData['user']->learned_words = $stats['learned'] ?? $stats['learned_words'] ?? 0;
+            $responseData['user']->mastered_words = $stats['mastered'] ?? $stats['mastered_words'] ?? 0;
+            $responseData['user']->review_due_words = $stats['review_due'] ?? $stats['review_due_words'] ?? 0;
+            $responseData['user']->today_new_words = $stats['today_learned'] ?? 0;
+            $responseData['user']->today_review_words = $stats['today_reviewed'] ?? 0;
+            $responseData['user']->streak_days = $stats['streak_days'] ?? 0;
+            $responseData['user']->study_days = $stats['study_days'] ?? 0;
+        }
+
         \Log::info('[AppQyV1Registration] Registration successful', [
             'user_id' => $user->id,
             'username' => $user->username,
@@ -190,12 +242,6 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             'role_name' => $roleName
         ]);
 
-        return $this->success([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            'expiration' => config('sanctum.expiration'),
-            'uid' => $user->id,
-            'user' => $user,
-        ], 'User registered successfully');
+        return $this->success($responseData, 'User registered successfully');
     }
 }

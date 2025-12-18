@@ -33,18 +33,31 @@ def check_proprietary_codec_support() -> bool:
         qt_version = qVersion()
         ColorPrint.blue(f"[CodecDiagnostic] Qt version: {qt_version}")
 
-        # Check for ffmpeg libraries (indicator of proprietary codec support)
-        qt_lib_path = Path(qt_path) / "bin"
+        # Check multiple possible locations for codec libraries
+        qt_root = Path(qt_path)
+        search_paths = [
+            qt_root,                # Root directory (PySide6 6.10+ places them here)
+            qt_root / "bin",        # Bin subdirectory (older versions)
+            qt_root / "Qt" / "bin", # Qt subdirectory
+        ]
 
         # Windows: look for avcodec DLL
         windows_codecs = [
             "avcodec-*.dll",
+            "avformat-*.dll",
+            "avutil-*.dll",
+            "swscale-*.dll",
+            "swresample-*.dll",
             "ffmpeg.dll",
         ]
 
         # Linux: look for .so files
         linux_codecs = [
             "libavcodec.so*",
+            "libavformat.so*",
+            "libavutil.so*",
+            "libswscale.so*",
+            "libswresample.so*",
             "libffmpeg.so*",
         ]
 
@@ -55,18 +68,40 @@ def check_proprietary_codec_support() -> bool:
             codec_files = linux_codecs
 
         found_codecs = []
-        for pattern in codec_files:
-            matches = list(qt_lib_path.glob(pattern))
-            found_codecs.extend(matches)
+        found_in_path = None
+
+        # Search in all possible locations
+        for search_path in search_paths:
+            if not search_path.exists():
+                continue
+
+            ColorPrint.blue(f"[CodecDiagnostic] Searching in: {search_path}")
+
+            for pattern in codec_files:
+                matches = list(search_path.glob(pattern))
+                if matches:
+                    found_codecs.extend(matches)
+                    if not found_in_path:
+                        found_in_path = search_path
+
+            # If we found codecs in this path, no need to check others
+            if found_codecs:
+                break
 
         if found_codecs:
-            ColorPrint.green(f"[CodecDiagnostic] ✓ Found codec libraries:")
+            ColorPrint.green(f"[CodecDiagnostic] ✓ Found {len(found_codecs)} codec libraries in: {found_in_path}")
             for codec in found_codecs:
                 ColorPrint.green(f"  - {codec.name}")
+            ColorPrint.green("[CodecDiagnostic] ✓ Qt WebEngine has proprietary codec support")
+            ColorPrint.green("[CodecDiagnostic] ✓ H.264, AAC, and other proprietary codecs are available")
             ColorPrint.blue("=" * 80)
             return True
         else:
-            ColorPrint.red(f"[CodecDiagnostic] ✗ No proprietary codec libraries found in {qt_lib_path}")
+            ColorPrint.yellow(f"[CodecDiagnostic] ✗ No codec libraries found in any search path")
+            ColorPrint.yellow("[CodecDiagnostic] Searched paths:")
+            for path in search_paths:
+                if path.exists():
+                    ColorPrint.yellow(f"  - {path}")
             ColorPrint.yellow("[CodecDiagnostic] This Qt WebEngine build likely does NOT support H.264")
             ColorPrint.yellow("[CodecDiagnostic] Proprietary codecs require Qt to be built with:")
             ColorPrint.yellow("[CodecDiagnostic]   -webengine-proprietary-codecs flag")
