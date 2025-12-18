@@ -1,0 +1,72 @@
+在路径 D:\programing\core_node\apps\VoiceClientAndCaddy 中，分析 Edge TTS 后，按照 D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md 规范，在 D:\programing\core_node\pycore\pyutils 中实现一个目录类库。具体要求如下：
+
+按规范放置第三方包，自动初始化 Edge TTS
+
+注意处理 Windows/Linux 的系统差异。
+
+提供句子和文章的转换功能
+
+如果是文档，先解析为句子。
+
+实现一个强大的类库
+
+包含语言识别、句子拆分、单词提取等功能。
+
+参考现有实现。
+
+建立常用语言映射
+
+参考 D:\programing\core_node\apps\VoiceClientAndCaddy\provider\mate_data\soundQuality.js 中的结构。
+
+建立线程安全的队列
+
+支持向队列中添加文章、句子、单词。
+
+设计数据模型，如文档数据模型、句子数据模型、单词数据模型等，这些模型均添加到全局队列中。
+
+使用线程实现转换器
+
+提供主接口，通过传入数字启动对应线程。
+
+线程定时检查全局队列中是否有任务。
+
+实现翻译与缓存机制
+
+文章翻译按句子进行，每个句子和单词的翻译结果以 MD5 对应表保存到 SQLite 数据库。
+
+已存在的翻译直接返回结果，不存在的翻译如果是文章，最终得到句子的映射结果。
+
+翻译任务添加方式
+
+调用全局的 add_queue 方法添加翻译任务，线程仅负责执行翻译。
+
+建立全局常量
+
+包括数据库目录、缓存目录等。
+
+句子语音、单词、文章映射按语言标识命名空间存放。
+
+实现网络线程
+
+定时请求指定 API，获取模型数据，完成任务后上传。
+
+共享本地全局队列。
+
+提供强大的文件解析功能
+
+支持传入文件、网页，自动下载或转换为文章后加入队列。
+
+所有解析结果均进行缓存。
+
+在 D:\programing\core_node\pycore\pyfoundations 中实现数据库基类
+
+作为整个系统的基础数据库组件。
+
+
+up:2
+参考  D:\programing\core_node\scripts\shells\linux\common\gvar_common.sh map_web_path 在D:\programing\core_node\pycore\pyfoundations\system_paths.py实现 路径映射，windows对应d：applications   d：programing   d：www    compile_dir d：.dev_win11/10 之后提供给      D:\programing\core_node\pycore\pyutils\tts 其中的缓存全部在 wwwroot 目录下创建一个命名空间。
+2：thread的extend 要在启动tts的那个类库，而不是启动tts的写一个文件，然后且一个多线程去启动它，因为这样的话被 调用的那个类库启动的tts始终是一个。
+3 将全局queue.py 放在 D:\programing\core_node\pycore\pyfoundations\encyclopedia.py 中方便其他语言类共享，同时将模理，操作方法放到 共公区。D:\programing\core_node\pycore\pyutils\common 这是所有utils 的共公区（添加到文档规范）
+4:根据 D:\programing\core_node\scripts\azure\voice-speech.py 建立一个新的util，共享和edage_tts 一样的queue和数据模型，
+5：D:\programing\core_node\pycore\pyutils\tts 更名为 edage_tts.
+6:参考 D:\programing\core_node\__misc__\_pycore\practical\wdoc.py 来实现common中强大的word处理类库。 D:\programing\core_node\__misc__\_pycore\practical\voice.py  D:\programing\core_node\__misc__\_pycore\practical\bdict.py

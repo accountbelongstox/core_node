@@ -314,7 +314,7 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    # Trust that pnpm is available via global variables (信任式编程)
+    # Trust that pnpm is available via global variables (信任式编�?
     pnpm_cmd="${PNPM_BIN:-$NODE_BIN_DIR/pnpm}"
     echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
 

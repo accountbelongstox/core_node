@@ -137,7 +137,7 @@ show_script_menu() {
 
     # Show current startup method
     echo -e "\033[36m=== Current Startup Method ===\033[0m"
-    echo -e "\033[32mâž¤ $current_script\033[0m"
+    echo -e "\033[32mâž?$current_script\033[0m"
 
     # Show alternative methods if available
     if [ ${#scripts[@]} -gt 1 ]; then
@@ -217,7 +217,7 @@ show_script_menu() {
                             APPS_SCRIPT_INDEX[$app_index]=$method_index
                             APPS_CURRENT_SCRIPT[$app_index]="${scripts[$method_index]}"
                             save_cache
-                            echo -e "\033[32mâœ“ Switched to: ${scripts[$method_index]}\033[0m"
+                            echo -e "\033[32mâœ?Switched to: ${scripts[$method_index]}\033[0m"
                             sleep 1
                             # Refresh the menu
                             show_script_menu "$app_index"

@@ -50,17 +50,17 @@ function Write-Header {
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "âœ“ $Message" -ForegroundColor $Colors.Success
+    Write-Host "âœ?$Message" -ForegroundColor $Colors.Success
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-Host "âš  $Message" -ForegroundColor $Colors.Warning
+    Write-Host "âš?$Message" -ForegroundColor $Colors.Warning
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-Host "âœ— $Message" -ForegroundColor $Colors.Error
+    Write-Host "âœ?$Message" -ForegroundColor $Colors.Error
 }
 
 function Write-Info {

@@ -466,7 +466,7 @@ EOF
     # Make desktop entry executable
     chmod +x "$desktop_file"
 
-    echo -e "${COLOR_GREEN}  ï¿½?Created: $display_name${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}  ï¿?Created: $display_name${COLOR_RESET}"
 }
 
 # Scan scripts directory
@@ -573,7 +573,7 @@ EOF
 
     chmod +x "$manager_desktop"
 
-    echo -e "${COLOR_GREEN}ï¿½?Desktop manager shortcut created${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}ï¿?Desktop manager shortcut created${COLOR_RESET}"
     echo ""
 }
 
@@ -913,7 +913,7 @@ EOF
         echo -e "${COLOR_GRAY}  Set ownership to: $DESKTOP_USER${COLOR_RESET}" >&2
     fi
     
-    echo -e "${COLOR_GREEN}  ï¿½?Created: $app_display_name${COLOR_RESET}" >&2
+    echo -e "${COLOR_GREEN}  ï¿?Created: $app_display_name${COLOR_RESET}" >&2
     echo -e "${COLOR_GREEN}Desktop entry created successfully${COLOR_RESET}" >&2
     return 0
 }
