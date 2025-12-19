@@ -101,10 +101,10 @@ int Config::columnNum = 4;
 Config::Config(QObject *parent) : QObject(parent)
 {
     m_settings = new QSettings(getConfigPath() + "/config.ini", QSettings::IniFormat);
-    m_settings->setIniCodec("UTF-8");
+    // Qt 6 uses UTF-8 encoding by default for INI files, setIniCodec() removed
 
     m_userData = new QSettings(getConfigPath() + "/userdata.ini", QSettings::IniFormat);
-    m_userData->setIniCodec("UTF-8");
+    // Qt 6 uses UTF-8 encoding by default for INI files, setIniCodec() removed
 
     qDebug()<<m_userData->childGroups();
 }
