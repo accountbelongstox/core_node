@@ -65,7 +65,8 @@ void InputConvertNormal::wheelEvent(const QWheelEvent *from, const QSize &frameS
     qint32 vScroll = from->angleDelta().y() == 0 ? 0 : from->angleDelta().y() / abs(from->angleDelta().y()) * 2;
 
     // pos
-    QPointF pos = from->posF();
+    // Qt 6: posF() replaced with position()
+    QPointF pos = from->position();
     // convert pos
     pos.setX(pos.x() * frameSize.width() / showSize.width());
     pos.setY(pos.y() * frameSize.height() / showSize.height());
