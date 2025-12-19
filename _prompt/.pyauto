@@ -1,6 +1,0 @@
-> D:\programing\core_node\apps\d3check\utils\window_activator.py 提取该文件以及依赖文件到 D:\programing\core_node\ncore\pytools 下面合适 │
-│     的目录中，并使用windows_activator 成为一个独立 的py 脚本，使用时py win actor py title参数名，title可以传入多个，这样就使用            │
-│    title逐个查找，以找到的第一个为准 。并有一个title匹配参数 模 式，全匹配，开头匹配，未尾匹配，中间匹配，默认为未尾匹配模 式。   
-
-
-同时为独立成为文件，同样传title or tilts and mode.default is endswith.                                                       
