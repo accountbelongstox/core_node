@@ -134,7 +134,8 @@ AndroidMotioneventButtons InputConvertNormal::convertMouseButtons(Qt::MouseButto
     if (buttonState & Qt::RightButton) {
         buttons |= AMOTION_EVENT_BUTTON_SECONDARY;
     }
-    if (buttonState & Qt::MidButton) {
+    // Qt 6: MidButton renamed to MiddleButton
+    if (buttonState & Qt::MiddleButton) {
         buttons |= AMOTION_EVENT_BUTTON_TERTIARY;
     }
     if (buttonState & Qt::XButton1) {

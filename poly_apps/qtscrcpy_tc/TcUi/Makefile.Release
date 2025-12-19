@@ -4307,9 +4307,10 @@ release\moc_devicemsg.cpp: device\controller\receiver\devicemsg.h \
 	D:\.dev_win10\Qt\6.10.1\msvc2022_64\bin\moc.exe $(DEFINES) --compiler-flavor=msvc --include D:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/release/moc_predefs.h -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/mkspecs/win32-msvc -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert/keymap -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/receiver -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/third_party/ffmpeg/include -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/server -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/decoder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/render -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/stream -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/android -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/filehandler -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/recorder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/ui -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/customtreewidget -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/devicegroups -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/common -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/adb -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/uibase -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/util -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/devicemanage -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/fontawesome -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGLWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGL -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtGui -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtNetwork -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtCore -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\include" -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\VS\include" -I"C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\um" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\shared" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\winrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\cppwinrt" -I"C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um" device\controller\receiver\devicemsg.h -o release\moc_devicemsg.cpp
 
 release\moc_receiver.cpp: device\controller\receiver\receiver.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QPointer \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qpointer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcompare.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QObject \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobject.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobjectdefs.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qnamespace.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qglobal.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtcoreglobal.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtversionchecks.h \
@@ -4357,18 +4358,17 @@ release\moc_receiver.cpp: device\controller\receiver\receiver.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtresource.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qttranslation.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qversiontagging.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcompare.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstdlibdetection.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcomparehelpers.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qsharedpointer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qshareddata.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qhashfunctions.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtmetamacros.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobjectdefs_impl.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qfunctionaltools_impl.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstring.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qchar.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringview.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbytearray.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qrefcount.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qnamespace.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtmetamacros.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qarraydata.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qpair.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qarraydatapointer.h \
@@ -4390,23 +4390,37 @@ release\moc_receiver.cpp: device\controller\receiver\receiver.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringbuilder.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringconverter.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringconverter_base.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qsharedpointer_impl.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qlist.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qhashfunctions.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qiterator.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbytearraylist.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringlist.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qalgorithms.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qstringmatcher.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcoreevent.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbasictimer.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstracteventdispatcher.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qeventloop.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qdeadlinetimer.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qmetatype.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qdatastream.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qiodevicebase.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qscopedpointer.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qfloat16.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qmath.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qalgorithms.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtformat_impl.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qiterable.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtaggedpointer.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qmetacontainer.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcontainerinfo.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobjectdefs.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobjectdefs_impl.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qfunctionaltools_impl.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qscopeguard.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qobject_impl.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbindingstorage.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QPointer \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qpointer.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qsharedpointer.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qshareddata.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qsharedpointer_impl.h \
 		release\moc_predefs.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\bin\moc.exe
 	D:\.dev_win10\Qt\6.10.1\msvc2022_64\bin\moc.exe $(DEFINES) --compiler-flavor=msvc --include D:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/release/moc_predefs.h -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/mkspecs/win32-msvc -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert/keymap -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/receiver -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/third_party/ffmpeg/include -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/server -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/decoder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/render -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/stream -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/android -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/filehandler -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/recorder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/ui -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/customtreewidget -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/devicegroups -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/common -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/adb -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/uibase -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/util -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/devicemanage -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/fontawesome -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGLWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGL -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtGui -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtNetwork -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtCore -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\include" -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\VS\include" -I"C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\um" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\shared" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\winrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\cppwinrt" -I"C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um" device\controller\receiver\receiver.h -o release\moc_receiver.cpp
@@ -5661,91 +5675,6 @@ release\moc_videoform.cpp: device\ui\videoform.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qboxlayout.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
 		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyleoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractspinbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qvalidator.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qregularexpression.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyle.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qrubberband.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qframe.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstractitemmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		device\ui\toolform.h \
-		groupmanage\devicegroups\devicegroups.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonObject \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonobject.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborcommon.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qdatetime.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcalendar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\quuid.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsondocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonparseerror.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonArray \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonarray.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
-		devicemanage\devicemanage.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QMap \
-		device\device.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QElapsedTimer \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qelapsedtimer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QTime \
-		device\controller\inputconvert\controlmsg.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QBuffer \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbuffer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QString \
-		device\android\input.h \
-		device\android\keycodes.h \
-		common\qscrcpyevent.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QEvent \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLabel \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlabel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpicture.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextdocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QPainter \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpainter.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpen.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QMouseEvent \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QTimer \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtimer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		adb\adbprocess.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QProcess \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qprocess.h \
-		util\config.h \
 		release\moc_predefs.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\bin\moc.exe
 	D:\.dev_win10\Qt\6.10.1\msvc2022_64\bin\moc.exe $(DEFINES) --compiler-flavor=msvc --include D:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/release/moc_predefs.h -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/mkspecs/win32-msvc -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert/keymap -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/receiver -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller/inputconvert -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/third_party/ffmpeg/include -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/server -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/decoder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/render -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/stream -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/android -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/controller -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/filehandler -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/recorder -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device/ui -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/customtreewidget -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/groupmanage/devicegroups -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/common -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/adb -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/uibase -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/util -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/device -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/devicemanage -ID:/programing/core_node/poly_apps/qtscrcpy_tc/TcUi/fontawesome -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGLWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtWidgets -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtOpenGL -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtGui -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtNetwork -ID:/.dev_win10/Qt/6.10.1/msvc2022_64/include/QtCore -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.34.31933\include" -I"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\VS\include" -I"C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\ucrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\um" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\shared" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\winrt" -I"C:\Program Files (x86)\Windows Kits\10\\include\10.0.19041.0\\cppwinrt" -I"C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um" device\ui\videoform.h -o release\moc_videoform.cpp
@@ -7467,42 +7396,15 @@ release\mainwindow.obj: mainwindow.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\inclu
 		common\qscrcpyevent.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QEvent \
 		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyleoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractspinbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qvalidator.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qregularexpression.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyle.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qrubberband.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qframe.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstractitemmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
 		device\ui\toolform.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
 		groupmanage\devicegroups\devicegroups.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonObject \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonobject.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonvalue.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborvalue.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborcommon.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qregularexpression.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\quuid.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsondocument.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonparseerror.h \
@@ -7511,30 +7413,6 @@ release\mainwindow.obj: mainwindow.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\inclu
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
 		devicemanage\devicemanage.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QMap \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLabel \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlabel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpicture.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextdocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QPainter \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpainter.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpen.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QMouseEvent \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		adb\adbprocess.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QProcess \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qprocess.h \
-		util\config.h \
 		dialog.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QDialog \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qdialog.h \
@@ -7542,6 +7420,28 @@ release\mainwindow.obj: mainwindow.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\inclu
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmessagebox.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qdialogbuttonbox.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenu \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qframe.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstractitemmodel.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyleoption.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractspinbox.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qvalidator.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qslider.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractslider.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyle.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabbar.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qrubberband.h \
+		adb\adbprocess.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QProcess \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qprocess.h \
+		util\config.h \
 		util\languagemanager.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QTranslator \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtranslator.h
@@ -7831,54 +7731,10 @@ release\dialog.obj: dialog.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCor
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVector \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qvector.h \
 		ui_dialog.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QGroupBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qgroupbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLabel \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlabel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpicture.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextdocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLineEdit \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlineedit.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextcursor.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextformat.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpen.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QSpacerItem \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QTextEdit \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtextedit.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
 		device\ui\videoform.h \
-		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		device\ui\toolform.h \
-		groupmanage\devicegroups\devicegroups.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonArray \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonarray.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QPainter \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpainter.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QMouseEvent \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
+		ui_mainwindow.h
 
 release\CustomTreeWidget.obj: groupmanage\customtreewidget\CustomTreeWidget.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QDebug \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qdebug.h \
@@ -8165,23 +8021,9 @@ release\CustomTreeWidget.obj: groupmanage\customtreewidget\CustomTreeWidget.cpp 
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
 		util\config.h \
 		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
+		mainwindow.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		device\ui\toolform.h \
-		mainwindow.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QSystemTrayIcon \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qsystemtrayicon.h
 
@@ -10425,76 +10267,14 @@ release\device.obj: device\device.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\includ
 		device\decoder\videobuffer.h \
 		device\decoder\fpscounter.h \
 		ui_videoform.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLabel \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlabel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qframe.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpicture.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextdocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
-		uibase\keepratiowidget.h \
 		device\ui\videoform.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
 		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyleoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractspinbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qvalidator.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qregularexpression.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyle.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qrubberband.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstractitemmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
+		mainwindow.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		device\ui\toolform.h \
-		groupmanage\devicegroups\devicegroups.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonObject \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonobject.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborcommon.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\quuid.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsondocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonparseerror.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonArray \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonarray.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
-		devicemanage\devicemanage.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QMap \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QPainter \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpainter.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpen.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		mainwindow.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabwidget.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QSystemTrayIcon \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qsystemtrayicon.h \
 		third_party\ffmpeg\include\libavutil\imgutils.h \
@@ -12573,6 +12353,7 @@ release\receiver.obj: device\controller\receiver\receiver.cpp D:\.dev_win10\Qt\6
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QBuffer \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qbuffer.h \
 		device\controller\receiver\receiver.h \
+		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QObject \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QPointer \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qpointer.h
 
@@ -14140,37 +13921,11 @@ release\videoform.obj: device\ui\videoform.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_
 		devicemanage\devicemanage.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QMap \
 		ui_videoform.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		uibase\keepratiowidget.h \
 		device\ui\videoform.h \
 		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
+		mainwindow.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		adb\adbprocess.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QProcess \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qprocess.h \
-		mainwindow.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QSystemTrayIcon \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qsystemtrayicon.h \
 		third_party\ffmpeg\include\libavutil\frame.h \
@@ -14445,9 +14200,7 @@ release\toolform.obj: device\ui\toolform.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
 		devicemanage\devicemanage.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QMap \
-		ui_toolform.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout
+		ui_toolform.h
 
 release\devicemanage.obj: devicemanage\devicemanage.cpp D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QDebug \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qdebug.h \
@@ -14695,72 +14448,7 @@ release\devicemanage.obj: devicemanage\devicemanage.cpp D:\.dev_win10\Qt\6.10.1\
 		device\ui\videoform.h \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QWidget \
 		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QHBoxLayout \
-		ui_mainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QVariant \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QApplication \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qapplication.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QComboBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcombobox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemdelegate.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyleoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractspinbox.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qvalidator.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qregularexpression.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractslider.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstyle.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qtabwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qrubberband.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qframe.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qabstractitemmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QFrame \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMainWindow \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmainwindow.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QMenuBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenubar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qmenu.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QPushButton \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qpushbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractbutton.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QStatusBar \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qstatusbar.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QVBoxLayout \
-		device\ui\toolform.h \
-		groupmanage\devicegroups\devicegroups.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonObject \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonobject.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborvalue.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qcborcommon.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\quuid.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsondocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonparseerror.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonArray \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qjsonarray.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QJsonDocument \
-		groupmanage\customtreewidget\CustomTreeWidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QLabel \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlabel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpicture.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextdocument.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\QPainter \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpainter.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qtextoption.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtGui\qpen.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QListWidget \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistwidget.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qlistview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractitemview.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qabstractscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qitemselectionmodel.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QScrollArea \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qscrollarea.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\QTimer \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtCore\qtimer.h \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\QCheckBox \
-		D:\.dev_win10\Qt\6.10.1\msvc2022_64\include\QtWidgets\qcheckbox.h \
-		util\config.h
+		ui_mainwindow.h
 
 release\qrc_res.obj: release\qrc_res.cpp 
 
