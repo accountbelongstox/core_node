@@ -157,9 +157,10 @@ QString AdbProcess::getDeviceIPByIpFromStdOut()
     QString ip = "";
 
     QString strIPExp = "wlan0    inet [\\d.]*";
-    QRegExp ipRegExp(strIPExp, Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 14);
     }
     qDebug() << "get ip: " << ip;
