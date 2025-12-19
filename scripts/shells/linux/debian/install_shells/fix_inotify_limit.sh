@@ -20,7 +20,7 @@ echo "fs.inotify.max_user_watches=524288" | sudo tee /etc/sysctl.d/60-inotify-wa
 sudo sysctl -p /etc/sysctl.d/60-inotify-watches.conf
 
 echo ""
-echo "âœ“ inotify watch limit increased successfully"
+echo "âœ?inotify watch limit increased successfully"
 echo ""
 echo "New limit:"
 cat /proc/sys/fs/inotify/max_user_watches
@@ -30,4 +30,4 @@ echo "Restarting laravel_dashboard service..."
 sudo systemctl restart webapp-laravel_dashboard
 
 echo ""
-echo "âœ“ Done! File watching should now work properly"
+echo "âœ?Done! File watching should now work properly"
