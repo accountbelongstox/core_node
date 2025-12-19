@@ -16,11 +16,7 @@ from pycore.pyfoundations.pybasecommon import exec_silent
 
 class ADBExecutor:
     """
-    ADB command executor 
-
-    IMPORTANT: This is a singleton class. Use ADBExecutor.instance() to get the global instance.
-    DO NOT instantiate with ADBExecutor() directly.
-    """
+    ADB command executor    """
     def __init__(self, adb_path: str = "adb", timeout: int = 10):
         """
         Initialize ADB executor
@@ -290,7 +286,22 @@ class ADBExecutor:
         return None
 
 
-# ✅ 创建全局唯一实例（模块级别单例）
+# ✅ Create global singleton instance (module-level singleton)
+# Note: Initialized with default value, call set_adb_path() on app startup to set correct path
 adb_executor = ADBExecutor(adb_path="adb")
 
-__all__ = ["ADBExecutor", "adb_executor"]
+def set_adb_path(adb_path: str):
+    """
+    Set ADB path for global ADBExecutor instance
+
+    Should be called on app startup after getting correct ADB path from Config
+
+    Args:
+        adb_path: Full path to ADB executable
+    """
+    global adb_executor
+    adb_executor.adb_path = adb_path
+    from pycore import ColorPrint
+    ColorPrint.green(f"[ADBExecutor] ADB path updated: {adb_path}")
+
+__all__ = ["ADBExecutor", "adb_executor", "set_adb_path"]

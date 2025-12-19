@@ -14,7 +14,7 @@ from typing import Optional, Dict
 from pathlib import Path
 from datetime import datetime
 from pycore.pyutils.device import ADBManager
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager
 from pyapps.matrix.matrix_config import Config
 
 
@@ -34,7 +34,7 @@ class RecordingService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.device_manager = DeviceManager.instance()
+        self.device_manager = device_manager
         self.recordings_dir = Path("recordings")  # Can be configured
         self.screenshots_dir = Path("screenshots")  # Can be configured
 

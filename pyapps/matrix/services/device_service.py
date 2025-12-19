@@ -17,7 +17,7 @@ from typing import List, Dict, Optional
 
 # Use pycore centralized services
 from pycore import ColorPrint
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager
 from pycore.pyutils.device import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 
@@ -45,7 +45,7 @@ class DeviceService:
         self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
 
         # Use centralized device manager from pycore
-        self.device_manager = DeviceManager.instance()
+        self.device_manager = device_manager
 
         # Use event bus for cross-app communication
         self.event_bus = EventBus.instance()

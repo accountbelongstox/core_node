@@ -374,4 +374,40 @@ class ConnectionManager:
         return list(self.connections.keys())
 
 
-__all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState']
+# ✅ 延迟初始化（需要先初始化依赖组件）
+_connection_manager: Optional[ConnectionManager] = None
+
+def get_connection_manager(
+    device_manager=None,
+    port_pool=None,
+    server_manager=None,
+    adb_path: str = "adb"
+) -> ConnectionManager:
+    """
+    获取全局ConnectionManager实例（延迟初始化）
+
+    Args:
+        device_manager: DeviceManager实例（首次调用时必需）
+        port_pool: PortPool实例（首次调用时必需）
+        server_manager: ScrcpyServerManager实例（首次调用时必需）
+        adb_path: ADB路径
+
+    Returns:
+        ConnectionManager全局实例
+    """
+    global _connection_manager
+    if _connection_manager is None:
+        if device_manager is None or port_pool is None or server_manager is None:
+            raise ValueError(
+                "首次调用get_connection_manager()需要提供 "
+                "device_manager, port_pool, server_manager"
+            )
+        _connection_manager = ConnectionManager(
+            device_manager=device_manager,
+            port_pool=port_pool,
+            server_manager=server_manager,
+            adb_path=adb_path
+        )
+    return _connection_manager
+
+__all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState', 'get_connection_manager']

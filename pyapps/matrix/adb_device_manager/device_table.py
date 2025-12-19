@@ -92,17 +92,10 @@ class DeviceTable:
     Thread-safe device registry 
 
     Maintains a central table of all discovered devices with their states.
-    Provides methods for adding, removing, updating, and querying devices.
-
-    IMPORTANT: This is a singleton class. Use DeviceTable.instance() to get the global instance.
-    DO NOT instantiate with DeviceTable() directly.
-    """
+    Provides methods for adding, removing, updating, and querying devices.    """
     def __init__(self):
         """
-        Initialize device table
-
-        WARNING: Do not call directly. Use DeviceTable.instance() instead.
-        """
+        Initialize device table        """
         self._devices: Dict[str, DeviceInfo] = {}
         self._lock = threading.RLock()
 

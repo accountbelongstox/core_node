@@ -41,7 +41,11 @@ class ADBHeartbeatService:
         Args:
             adb_path: Path to adb executable
         """
-        # ✅ 使用全局导出的实例（模块级别单例）
+        # ✅ Set global ADB path (must be set before use)
+        from pyapps.matrix.adb_device_manager.adb_executor import set_adb_path
+        set_adb_path(adb_path)
+
+        # ✅ Use globally exported instances (module-level singletons)
         self.device_table = device_table
         self.adb = adb_executor
         self.network_scanner = network_scanner
