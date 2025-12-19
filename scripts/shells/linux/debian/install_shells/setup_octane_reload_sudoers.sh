@@ -16,7 +16,7 @@ echo ""
 
 # Check if already configured
 if [ -f "$SUDOERS_FILE" ]; then
-    echo "âš  Sudoers file already exists: $SUDOERS_FILE"
+    echo "âš?Sudoers file already exists: $SUDOERS_FILE"
     read -p "Overwrite? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -42,15 +42,15 @@ EOF
 sudo chmod 0440 $SUDOERS_FILE
 
 echo ""
-echo "âœ“ Sudoers configuration created: $SUDOERS_FILE"
+echo "âœ?Sudoers configuration created: $SUDOERS_FILE"
 echo ""
 
 # Test the configuration
 echo "Testing configuration..."
 if sudo -n systemctl status $SERVICE_NAME > /dev/null 2>&1; then
-    echo "âœ“ Test passed! No password required"
+    echo "âœ?Test passed! No password required"
 else
-    echo "âœ— Test failed! Configuration may have issues"
+    echo "âœ?Test failed! Configuration may have issues"
     exit 1
 fi
 
