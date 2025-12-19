@@ -6,6 +6,21 @@ This document lists all changes made to migrate the codebase from Qt 5 to Qt 6.1
 
 The project has been fully migrated to Qt 6.10.1 with MSVC 2022 64-bit. All deprecated Qt 5 APIs have been replaced with Qt 6 equivalents.
 
+### Quick Reference Table
+
+| Qt 5 API | Qt 6 Replacement | Module Required | Files Affected |
+|----------|------------------|-----------------|----------------|
+| `QRegExp` | `QRegularExpression` | Qt Core | adbprocess.cpp, dialog.cpp |
+| `QSettings::setIniCodec()` | Removed (UTF-8 default) | Qt Core | config.cpp |
+| `QLayout::setMargin()` | `setContentsMargins()` | Qt Widgets | CustomTreeWidget.cpp |
+| `QX11Info` | `QPlatformNativeInterface` | Qt Gui | xmousetap.cpp |
+| `QDesktopWidget` | `QScreen` | Qt Gui | videoform.cpp |
+| `QFileInfo = QString` | `setFile()` | Qt Core | adbprocess.cpp |
+| `QOpenGLWidget` | Same (new module) | **Qt OpenGL Widgets** | qyuvopenglwidget.h/cpp |
+| `QOpenGLTexture` | Same (new module) | **Qt OpenGL** | qyuvopenglwidget.cpp |
+| `QString::SkipEmptyParts` | `Qt::SkipEmptyParts` | Qt Core | adbprocess.cpp |
+| `version` file | `version.txt` | - | 17_TcUi.pro |
+
 ## Critical Changes
 
 ### 1. QRegExp → QRegularExpression (Qt 6 Removal)
@@ -52,7 +67,38 @@ QSettings settings("config.ini", QSettings::IniFormat);
 
 **Reason:** Qt 6 uses UTF-8 encoding by default for all text operations, including INI files.
 
-### 3. QLayout::setMargin() → setContentsMargins()
+### 3. Qt OpenGL Module Separation
+
+**Affected Files:**
+- `17_TcUi.pro`
+- `device/render/qyuvopenglwidget.h`
+- `device/render/qyuvopenglwidget.cpp`
+
+**Changes:**
+```qmake
+# Qt 5 (Old):
+QT += core gui widgets network
+
+# Qt 6 (New):
+QT += core gui widgets network
+QT += opengl openglwidgets  # OpenGL classes moved to separate modules
+```
+
+**Class Migrations:**
+- `QOpenGLWidget` - Moved from Qt Gui to **Qt OpenGL Widgets** module
+- `QOpenGLTexture` - Requires **Qt OpenGL** module
+- `QOpenGLBuffer` - Requires **Qt OpenGL** module
+- `QOpenGLFunctions` - Requires **Qt OpenGL** module
+- `QOpenGLShaderProgram` - Requires **Qt OpenGL** module
+- All `QGL*` classes (e.g., `QGLWidget`, `QGLFormat`) - **Removed**, use `QOpenGL*` equivalents
+
+**Reason:** In Qt 6, OpenGL functionality was split into separate modules:
+- `Qt OpenGL` - Core OpenGL classes and utilities
+- `Qt OpenGL Widgets` - QOpenGLWidget for integrating OpenGL with Qt Widgets
+
+This separation provides better modularity and allows applications that don't use OpenGL to have smaller binaries.
+
+### 4. QLayout::setMargin() → setContentsMargins()
 
 **Affected Files:**
 - `groupmanage/customtreewidget/CustomTreeWidget.cpp`
@@ -221,10 +267,11 @@ msvc{
 
 ## Migration Statistics
 
-- **Total Files Modified:** 12
-- **API Replacements:** 9 major categories
-- **Lines Changed:** ~100+
+- **Total Files Modified:** 14
+- **API Replacements:** 10 major categories
+- **Lines Changed:** ~150+
 - **Build Errors Fixed:** All resolved
+- **New Modules Added:** 2 (opengl, openglwidgets)
 
 ## References
 
@@ -232,6 +279,8 @@ msvc{
 - [Qt 6.10 Official Documentation](https://doc.qt.io/qt-6/qt-releases.html)
 - [Qt 6 Migration Guide](https://doc.qt.io/qt-6/portingguide.html)
 - [Changes to Qt Core in Qt 6](https://doc.qt.io/qt-6/qtcore-changes-qt6.html)
+- [Changes to Qt OpenGL in Qt 6](https://doc.qt.io/qt-6/opengl-changes-qt6.html)
+- [Qt OpenGL Module Documentation](https://doc.qt.io/qt-6/qtopengl-index.html)
 
 ## Contact
 

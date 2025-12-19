@@ -43,7 +43,7 @@
 
 <script setup>
 import Arrange from './components/Arrange/index.vue'
-import Log from './components/Log/index.vue'
+import LogView from './components/LogView/index.vue'
 import Restart from './components/Restart/index.vue'
 import Search from './components/Search/index.vue'
 import Task from './components/Task/index.vue'
@@ -70,7 +70,7 @@ const actionModel = [
   {
     label: 'device.log.name',
     elIcon: 'View',
-    component: Log,
+    component: LogView,
   },
   {
     label: 'device.restart.name',
