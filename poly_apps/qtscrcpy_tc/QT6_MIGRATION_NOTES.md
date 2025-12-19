@@ -19,6 +19,10 @@ The project has been fully migrated to Qt 6.10.1 with MSVC 2022 64-bit. All depr
 | `QOpenGLWidget` | Same (new module) | **Qt OpenGL Widgets** | qyuvopenglwidget.h/cpp |
 | `QOpenGLTexture` | Same (new module) | **Qt OpenGL** | qyuvopenglwidget.cpp |
 | `QString::SkipEmptyParts` | `Qt::SkipEmptyParts` | Qt Core | adbprocess.cpp |
+| `QMouseEvent::localPos()` | `position()` | Qt Gui | inputconvertgame.cpp, inputconvertnormal.cpp |
+| `QMouseEvent::globalPos()` | `globalPosition().toPoint()` | Qt Gui | inputconvertgame.cpp |
+| `QWheelEvent::posF()` | `position()` | Qt Gui | inputconvertnormal.cpp |
+| `Qt::MidButton` | `Qt::MiddleButton` | Qt Core | inputconvertnormal.cpp |
 | `version` file | `version.txt` | - | 17_TcUi.pro |
 
 ## Critical Changes
@@ -237,6 +241,35 @@ msvc{
 
 **Reason:** Qt 6.10+ automatically adds the `-utf-8` compiler flag. Adding `-source-charset:utf-8` manually causes compilation error.
 
+### 10. Mouse and Wheel Event API Changes
+
+**Affected Files:**
+- `device/controller/inputconvert/inputconvertgame.cpp`
+- `device/controller/inputconvert/inputconvertnormal.cpp`
+
+**Changes:**
+```cpp
+// Qt 5 (Old):
+QPointF localPos = mouseEvent->localPos();
+QPoint globalPos = mouseEvent->globalPos();
+QPointF wheelPos = wheelEvent->posF();
+if (buttons & Qt::MidButton) { ... }
+
+// Qt 6 (New):
+QPointF localPos = mouseEvent->position();
+QPoint globalPos = mouseEvent->globalPosition().toPoint();
+QPointF wheelPos = wheelEvent->position();
+if (buttons & Qt::MiddleButton) { ... }
+```
+
+**Specific Changes:**
+- `QMouseEvent::localPos()` → `position()` (returns QPointF)
+- `QMouseEvent::globalPos()` → `globalPosition().toPoint()` (returns QPointF, need .toPoint() for QPoint)
+- `QWheelEvent::posF()` → `position()` (unified with mouse events)
+- `Qt::MidButton` → `Qt::MiddleButton` (renamed for consistency)
+
+**Reason:** Qt 6 unified the mouse event API to use `position()` consistently across all event types. The old methods were deprecated in Qt 5.15 and removed in Qt 6. `MidButton` was renamed to `MiddleButton` for better clarity.
+
 ## Build Configuration
 
 ### Qt Version
@@ -267,9 +300,9 @@ msvc{
 
 ## Migration Statistics
 
-- **Total Files Modified:** 14
-- **API Replacements:** 10 major categories
-- **Lines Changed:** ~150+
+- **Total Files Modified:** 16
+- **API Replacements:** 11 major categories
+- **Lines Changed:** ~180+
 - **Build Errors Fixed:** All resolved
 - **New Modules Added:** 2 (opengl, openglwidgets)
 
