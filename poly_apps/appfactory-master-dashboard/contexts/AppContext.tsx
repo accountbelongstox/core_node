@@ -6,6 +6,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { storageService, UserInfo, AppSettings, STORAGE_KEYS } from '../services/storageService';
 import { i18nService, SupportedLanguage } from '../services/i18nService';
 import { themeService, Theme } from '../services/themeService';
+import { modelService } from '../services/modelService';
+import { MOCK_PROMOTION_TRACKS, MOCK_APP_RELEASES, MOCK_PROMOTERS, MOCK_PROMOTION_RECORDS, MOCK_CS } from '../constants';
 
 // Context State Interface
 interface AppContextState {
@@ -74,6 +76,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
     // Initialize theme
     themeService.initializeTheme(theme);
+
+    // Initialize modelService data if not exists
+    if (!modelService.getPromotionTracks() || modelService.getPromotionTracks()?.length === 0) {
+      modelService.setPromotionTracks(MOCK_PROMOTION_TRACKS);
+    }
+    if (!modelService.getAppReleases() || modelService.getAppReleases()?.length === 0) {
+      modelService.setAppReleases(MOCK_APP_RELEASES);
+    }
+    if (!modelService.getPromoters() || modelService.getPromoters()?.length === 0) {
+      modelService.setPromoters(MOCK_PROMOTERS);
+    }
+    if (!modelService.getPromotionRecords() || modelService.getPromotionRecords()?.length === 0) {
+      modelService.setPromotionRecords(MOCK_PROMOTION_RECORDS);
+    }
+    if (!modelService.getCSTeam() || modelService.getCSTeam()?.length === 0) {
+      modelService.setCSTeam(MOCK_CS);
+    }
   }, [language, theme]);
 
   // Listen to storage changes for immediate updates

@@ -117,6 +117,110 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         ]);
     }
 
+    public function getLibraryWords(Request $request, int $libraryId): JsonResponse
+    {
+        $library = AppQyV1VocabularyLibraryModel::query()
+            ->public()
+            ->findOrFail($libraryId);
+
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = max(1, min((int) $request->query('per_page', 1000), 2000));
+        $offset = ($page - 1) * $perPage;
+
+        $connection = 'appqyv1';
+        $wordsTable = 'app_qy_v1_vocabulary_words';
+
+        $total = \DB::connection($connection)
+            ->table($wordsTable)
+            ->where('library_id', $libraryId)
+            ->count();
+
+        $languageCode = $this->getLanguageCode($library->language);
+        $dictionaryTable = "app_qy_v1_{$languageCode}_dictionaries";
+
+        $words = \DB::connection($connection)
+            ->table($wordsTable . ' as w')
+            ->leftJoin($dictionaryTable . ' as d', 'w.word', '=', 'd.content')
+            ->where('w.library_id', $libraryId)
+            ->orderBy('w.word_index')
+            ->skip($offset)
+            ->take($perPage)
+            ->get([
+                'w.word_index',
+                'w.word',
+                'd.translations',
+                'd.us_phonetic',
+                'd.uk_phonetic',
+                'd.image_files as word_details',
+            ])
+            ->map(function ($item) {
+                $translations = null;
+                $hasTranslation = false;
+
+                if ($item->translations) {
+                    $decodedTranslations = json_decode($item->translations, true);
+                    if (is_array($decodedTranslations)) {
+                        $simpleTranslations = [];
+                        if (isset($decodedTranslations['word_translation']) && is_array($decodedTranslations['word_translation'])) {
+                            foreach ($decodedTranslations['word_translation'] as $trans) {
+                                if (is_array($trans) && count($trans) >= 2) {
+                                    $simpleTranslations[] = $trans[1];
+                                }
+                            }
+                        }
+
+                        if (!empty($simpleTranslations)) {
+                            $translations = $simpleTranslations;
+                            $hasTranslation = true;
+                        }
+                    }
+                }
+
+                $wordDetails = null;
+                if ($item->word_details) {
+                    $decodedDetails = json_decode($item->word_details, true);
+                    if (is_array($decodedDetails)) {
+                        $wordDetails = $decodedDetails;
+                    }
+                }
+
+                return [
+                    'index' => (int) $item->word_index,
+                    'word' => $item->word,
+                    'translations' => $translations,
+                    'us_phonetic' => $item->us_phonetic,
+                    'uk_phonetic' => $item->uk_phonetic,
+                    'word_details' => $wordDetails,
+                    'has_translation' => $hasTranslation,
+                ];
+            })
+            ->values();
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+
+        return $this->success([
+            'library' => [
+                'id' => (int) $library->id,
+                'name' => $library->name,
+                'total_words' => (int) $library->total_words,
+                'language' => $library->language,
+            ],
+            'words' => $words,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'last_page' => $lastPage,
+                'has_more' => $page < $lastPage,
+            ],
+        ]);
+    }
+
+    private function getLanguageCode(string $language): string
+    {
+        return strtolower($language);
+    }
+
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library): array
     {
         $cover = $this->coverService->getCoverData($library);

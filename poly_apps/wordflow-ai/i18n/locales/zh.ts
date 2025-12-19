@@ -192,6 +192,58 @@ export const zh: TranslationKey = {
     words: '个单词',
   },
 
+  vocabulary: {
+    title: '词库',
+    libraries: '词库列表',
+    libraryDetails: '词库详情',
+    wordList: '单词列表',
+    totalWords: '总词数',
+    difficulty: '难度',
+    category: '分类',
+    language: '语言',
+    recommended: '推荐',
+    selectLibrary: '选择一个词库开始学习',
+    noWordsFound: '未找到单词',
+    loadingWords: '加载单词中...',
+    viewOptions: '查看选项',
+    displaySettings: '显示设置',
+
+    // Display options
+    showIndex: '显示序号',
+    showTranslation: '显示翻译',
+    fontSize: '字体大小',
+    columnCount: '列数',
+    wordsPerPage: '每页单词数',
+    translationProvider: '翻译服务',
+    autoTranslate: '自动翻译',
+
+    // Translation providers
+    none: '无',
+    bing: '必应翻译',
+    google: '谷歌翻译',
+    deepl: 'DeepL',
+
+    // Actions
+    startLearning: '开始学习',
+    addToMyLibrary: '添加到我的词库',
+    removeFromLibrary: '从词库移除',
+    export: '导出',
+    share: '分享',
+  },
+
+  recommendations: {
+    title: '为你推荐',
+    allRecommendations: '全部推荐',
+    basedOnYourLevel: '基于你的水平',
+    popularThisWeek: '本周热门',
+    newAdditions: '新增内容',
+    forBeginners: '适合初学者',
+    forAdvanced: '适合进阶学习',
+    noRecommendations: '暂无推荐',
+    filter: '筛选',
+    sortBy: '排序',
+  },
+
   profile: {
     profile: '个人资料',
     myProfile: '我的',

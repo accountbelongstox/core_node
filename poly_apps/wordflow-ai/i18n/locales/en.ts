@@ -190,6 +190,58 @@ export const en = {
     words: 'words',
   },
 
+  vocabulary: {
+    title: 'Vocabulary',
+    libraries: 'Vocabulary Libraries',
+    libraryDetails: 'Library Details',
+    wordList: 'Word List',
+    totalWords: 'Total Words',
+    difficulty: 'Difficulty',
+    category: 'Category',
+    language: 'Language',
+    recommended: 'Recommended',
+    selectLibrary: 'Select a library to start learning',
+    noWordsFound: 'No words found',
+    loadingWords: 'Loading words...',
+    viewOptions: 'View Options',
+    displaySettings: 'Display Settings',
+
+    // Display options
+    showIndex: 'Show Index',
+    showTranslation: 'Show Translation',
+    fontSize: 'Font Size',
+    columnCount: 'Columns',
+    wordsPerPage: 'Words Per Page',
+    translationProvider: 'Translation Provider',
+    autoTranslate: 'Auto Translate',
+
+    // Translation providers
+    none: 'None',
+    bing: 'Bing Translator',
+    google: 'Google Translate',
+    deepl: 'DeepL',
+
+    // Actions
+    startLearning: 'Start Learning',
+    addToMyLibrary: 'Add to My Library',
+    removeFromLibrary: 'Remove from Library',
+    export: 'Export',
+    share: 'Share',
+  },
+
+  recommendations: {
+    title: 'Recommended for You',
+    allRecommendations: 'All Recommendations',
+    basedOnYourLevel: 'Based on your level',
+    popularThisWeek: 'Popular this week',
+    newAdditions: 'New additions',
+    forBeginners: 'For beginners',
+    forAdvanced: 'For advanced learners',
+    noRecommendations: 'No recommendations available',
+    filter: 'Filter',
+    sortBy: 'Sort by',
+  },
+
   profile: {
     profile: 'Profile',
     myProfile: 'My Profile',

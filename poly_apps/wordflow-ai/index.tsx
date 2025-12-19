@@ -16,7 +16,7 @@ const AppRouter = () => {
   const showBottomNav = !isImmersive;
 
   return (
-    <div className="h-full w-full max-w-md mx-auto relative flex flex-col bg-transparent overflow-hidden">
+    <div className="h-full w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto relative flex flex-col bg-transparent overflow-hidden">
       <main className="flex-1 relative z-10 overflow-hidden">
         <Routes>
           {ROUTE_REGISTRY.map((route) => (

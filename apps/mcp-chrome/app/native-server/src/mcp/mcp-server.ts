@@ -14,7 +14,9 @@ export const getMcpServer = () => {
     },
     {
       capabilities: {
-        tools: {},
+        tools: {
+          listChanged: true, // Server supports tool list change notifications
+        },
       },
     },
   );

@@ -373,4 +373,65 @@ class AppQyV1LearningController extends Controller
             ]
         ]);
     }
+
+    public function getReviewQueue(Request $request)
+    {
+        $user = Auth::user();
+        $langCode = $request->input('lang_code');
+
+        if (!$langCode) {
+            $learningLanguages = [];
+            if (isset($user->learning_languages)) {
+                $learningLanguages = $user->learning_languages;
+            }
+            $langCode = 'en';
+            if (isset($learningLanguages[0])) {
+                $langCode = $learningLanguages[0];
+            }
+        }
+
+        $reviewWords = AppQyV1UserLearningProgressModel::where('user_id', $user->id)
+            ->where('lang_code', $langCode)
+            ->whereIn('learning_status', ['learning', 'reviewing'])
+            ->where('next_review_at', '<=', now())
+            ->orderBy('next_review_at')
+            ->limit(100)
+            ->get();
+
+        $newWords = AppQyV1UserLearningProgressModel::where('user_id', $user->id)
+            ->where('lang_code', $langCode)
+            ->where('learning_status', 'new')
+            ->orderBy('created_at')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'review_words' => $reviewWords->map(function($word) {
+                    return [
+                        'id' => $word->id,
+                        'word' => $word->word_content,
+                        'word_md5' => $word->word_md5,
+                        'learning_status' => $word->learning_status,
+                        'familiarity_level' => $word->familiarity_level,
+                        'review_count' => $word->review_count,
+                        'next_review_at' => $word->next_review_at,
+                    ];
+                }),
+                'new_words' => $newWords->map(function($word) {
+                    return [
+                        'id' => $word->id,
+                        'word' => $word->word_content,
+                        'word_md5' => $word->word_md5,
+                        'learning_status' => $word->learning_status,
+                    ];
+                }),
+                'review_count' => $reviewWords->count(),
+                'new_count' => $newWords->count(),
+                'total_count' => $reviewWords->count() + $newWords->count(),
+                'lang_code' => $langCode,
+            ]
+        ]);
+    }
 }

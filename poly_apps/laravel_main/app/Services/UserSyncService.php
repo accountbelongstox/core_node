@@ -385,74 +385,112 @@ class UserSyncService
         $results = [];
         $connection = 'appqyv1';
 
+        // Language mappings: langKey => [code, name]
         $languages = [
-            'lao' => 'Lao',
-            'japanese' => 'Japanese',
-            'vietnamese' => 'Vietnamese',
+            'lao' => ['lo', 'Lao'],
+            'japanese' => ['ja', 'Japanese'],
+            'vietnamese' => ['vi', 'Vietnamese'],
+            'english' => ['en', 'English'],
         ];
 
-        foreach ($languages as $langKey => $langName) {
-            $tableName = "app_qy_v1_words_{$langKey}";
+        foreach ($languages as $langKey => $langInfo) {
+            list($langCode, $langName) = $langInfo;
+            $tableName = "app_qy_v1_{$langCode}_dictionaries";
 
-            DB::connection($connection)->statement("
-                CREATE TABLE IF NOT EXISTS {$tableName} (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word_id INTEGER NOT NULL,
-                    word TEXT NOT NULL,
-                    pronunciation TEXT,
-                    meaning_en TEXT,
-                    meaning_zh TEXT,
-                    ai_reviewed INTEGER DEFAULT 0,
-                    tts_generated INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ");
+            // Check if table already exists and has the correct structure
+            $tableExists = DB::connection($connection)
+                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [$tableName]);
 
-            DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_{$langKey}_word_id ON {$tableName}(word_id)
-            ");
+            if (!empty($tableExists)) {
+                $results[$tableName] = 'exists';
+                continue;
+            }
 
-            DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_{$langKey}_word ON {$tableName}(word)
-            ");
+            // Create dictionary table with standardized structure
+            if ($langKey === 'english') {
+                DB::connection($connection)->statement("
+                    CREATE TABLE IF NOT EXISTS {$tableName} (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        content TEXT NOT NULL,
+                        md5 VARCHAR NOT NULL,
+                        translations TEXT,
+                        has_translation TINYINT(1) DEFAULT 0,
+                        translation_provider VARCHAR,
+                        phonetic TEXT,
+                        us_phonetic TEXT,
+                        uk_phonetic TEXT,
+                        tts_files TEXT,
+                        tts_provider VARCHAR,
+                        image_files TEXT,
+                        image_provider VARCHAR,
+                        word_details TEXT,
+                        is_exist_local TINYINT(1) DEFAULT 0,
+                        has_operations TINYINT(1) DEFAULT 1,
+                        query_count INTEGER DEFAULT 0,
+                        last_modified DATETIME,
+                        last_query_time DATETIME,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                ");
 
-            DB::connection($connection)->statement("
-                CREATE INDEX IF NOT EXISTS idx_{$langKey}_ai_reviewed ON {$tableName}(ai_reviewed)
-            ");
+                DB::connection($connection)->statement("
+                    CREATE UNIQUE INDEX IF NOT EXISTS unique_{$langCode}_content_md5 ON {$tableName}(content, md5)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_content ON {$tableName}(content)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_query_count ON {$tableName}(query_count)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_has_translation ON {$tableName}(has_translation)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_last_query_time ON {$tableName}(last_query_time)
+                ");
+            } else {
+                // For other languages, use similar structure
+                DB::connection($connection)->statement("
+                    CREATE TABLE IF NOT EXISTS {$tableName} (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        content TEXT NOT NULL,
+                        md5 VARCHAR NOT NULL,
+                        pronunciation TEXT,
+                        meaning_en TEXT,
+                        meaning_zh TEXT,
+                        translations TEXT,
+                        has_translation TINYINT(1) DEFAULT 0,
+                        phonetic TEXT,
+                        tts_files TEXT,
+                        image_files TEXT,
+                        word_details TEXT,
+                        query_count INTEGER DEFAULT 0,
+                        last_query_time DATETIME,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE UNIQUE INDEX IF NOT EXISTS unique_{$langCode}_content_md5 ON {$tableName}(content, md5)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_content ON {$tableName}(content)
+                ");
+
+                DB::connection($connection)->statement("
+                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_has_translation ON {$tableName}(has_translation)
+                ");
+            }
 
             $results[$tableName] = 'created';
         }
-
-        DB::connection($connection)->statement("
-            CREATE TABLE IF NOT EXISTS app_qy_v1_words_english (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                word_id INTEGER NOT NULL,
-                word TEXT NOT NULL,
-                us_phonetic TEXT,
-                uk_phonetic TEXT,
-                translation TEXT,
-                sample_images TEXT,
-                ai_reviewed INTEGER DEFAULT 0,
-                tts_generated INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ");
-
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_english_word_id ON app_qy_v1_words_english(word_id)
-        ");
-
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_english_word ON app_qy_v1_words_english(word)
-        ");
-
-        DB::connection($connection)->statement("
-            CREATE INDEX IF NOT EXISTS idx_english_ai_reviewed ON app_qy_v1_words_english(ai_reviewed)
-        ");
-
-        $results['app_qy_v1_words_english'] = 'created';
 
         return $results;
     }
@@ -477,7 +515,7 @@ class UserSyncService
         $mdFiles = glob("{$dataDir}/*.md");
         $results['total_files'] = count($mdFiles);
         
-        $existingCount = DB::connection($connection)->table('app_qy_v1_words_english')->count();
+        $existingCount = DB::connection($connection)->table('app_qy_v1_en_dictionaries')->count();
         if ($existingCount > 0) {
             $results['skipped'] = true;
             $results['message'] = "Tables already have {$existingCount} records, skipping import";
@@ -530,34 +568,37 @@ class UserSyncService
                 
                 
                 $laoData[] = [
-                    'word_id' => $wordId,
-                    'word' => $lao,
+                    'content' => $lao,
+                    'md5' => md5($lao),
                     'pronunciation' => $laoPronunciation,
                     'meaning_en' => $meaningEn,
                     'meaning_zh' => $meaningZh,
-                    'ai_reviewed' => 0,
+                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
-                
+
                 $japaneseData[] = [
-                    'word_id' => $wordId,
-                    'word' => $japanese,
+                    'content' => $japanese,
+                    'md5' => md5($japanese),
                     'pronunciation' => $japanesePronunciation,
                     'meaning_en' => $meaningEn,
                     'meaning_zh' => $meaningZh,
-                    'ai_reviewed' => 0,
+                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
-                
+
                 $vietnameseData[] = [
-                    'word_id' => $wordId,
-                    'word' => $vietnamese,
+                    'content' => $vietnamese,
+                    'md5' => md5($vietnamese),
                     'pronunciation' => $vietnamesePronunciation,
                     'meaning_en' => $meaningEn,
                     'meaning_zh' => $meaningZh,
-                    'ai_reviewed' => 0,
+                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
@@ -568,21 +609,21 @@ class UserSyncService
         
         try {
             $chunkSize = 500;
-            
+
             foreach (array_chunk($laoData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_words_lao')->insert($chunk);
+                DB::connection($connection)->table('app_qy_v1_lo_dictionaries')->insert($chunk);
             }
-            
+
             foreach (array_chunk($japaneseData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_words_japanese')->insert($chunk);
+                DB::connection($connection)->table('app_qy_v1_ja_dictionaries')->insert($chunk);
             }
-            
+
             foreach (array_chunk($vietnameseData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_words_vietnamese')->insert($chunk);
+                DB::connection($connection)->table('app_qy_v1_vi_dictionaries')->insert($chunk);
             }
-            
+
             $results['imported'] = $results['total_words'];
-            
+
         } catch (\Exception $e) {
             Log::error("[UserSync] Failed to import multilingual words: " . $e->getMessage());
             $results['errors'][] = $e->getMessage();
@@ -683,11 +724,13 @@ class UserSyncService
                 }
                 
                 $batch[] = [
-                    'word' => $word,
+                    'content' => $word,
+                    'md5' => md5($word),
                     'us_phonetic' => $usPhonetic,
                     'uk_phonetic' => $ukPhonetic,
-                    'translation' => json_encode($translation, JSON_UNESCAPED_UNICODE),
-                    'sample_images' => json_encode($sampleImages, JSON_UNESCAPED_UNICODE),
+                    'translations' => json_encode($translation, JSON_UNESCAPED_UNICODE),
+                    'image_files' => json_encode($sampleImages, JSON_UNESCAPED_UNICODE),
+                    'has_translation' => !empty($translation) ? 1 : 0,
                 ];
                 
                 $processed++;
@@ -722,47 +765,46 @@ class UserSyncService
         $updated = 0;
         $inserted = 0;
         $now = now();
-        
+
         foreach ($batch as $item) {
             $existing = DB::connection($connection)
-                ->table('app_qy_v1_words_english')
-                ->where('word', $item['word'])
+                ->table('app_qy_v1_en_dictionaries')
+                ->where('content', $item['content'])
+                ->where('md5', $item['md5'])
                 ->first();
-            
+
             if ($existing) {
                 DB::connection($connection)
-                    ->table('app_qy_v1_words_english')
+                    ->table('app_qy_v1_en_dictionaries')
                     ->where('id', $existing->id)
                     ->update([
                         'us_phonetic' => $item['us_phonetic'],
                         'uk_phonetic' => $item['uk_phonetic'],
-                        'translation' => $item['translation'],
-                        'sample_images' => $item['sample_images'],
+                        'translations' => $item['translations'],
+                        'image_files' => $item['image_files'],
+                        'has_translation' => $item['has_translation'],
                         'updated_at' => $now,
                     ]);
                 $updated++;
             } else {
-                $maxWordId = DB::connection($connection)
-                    ->table('app_qy_v1_words_english')
-                    ->max('word_id') ?? 0;
-                
                 DB::connection($connection)
-                    ->table('app_qy_v1_words_english')
+                    ->table('app_qy_v1_en_dictionaries')
                     ->insert([
-                        'word_id' => $maxWordId + 1,
-                        'word' => $item['word'],
+                        'content' => $item['content'],
+                        'md5' => $item['md5'],
                         'us_phonetic' => $item['us_phonetic'],
                         'uk_phonetic' => $item['uk_phonetic'],
-                        'translation' => $item['translation'],
-                        'sample_images' => $item['sample_images'],
-                        'ai_reviewed' => 0,
+                        'translations' => $item['translations'],
+                        'image_files' => $item['image_files'],
+                        'has_translation' => $item['has_translation'],
+                        'query_count' => 0,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ]);
                 $inserted++;
             }
         }
-        
+
         return ['updated' => $updated, 'inserted' => $inserted];
     }
 
@@ -854,60 +896,59 @@ class UserSyncService
             return ['error' => 'output.txt not found'];
         }
         
-        $existingCount = DB::connection($connection)->table('app_qy_v1_words_english')->count();
+        $existingCount = DB::connection($connection)->table('app_qy_v1_en_dictionaries')->count();
         if ($existingCount > 50000) {
             return [
                 'skipped' => true,
                 'message' => "Already imported {$existingCount} words, skipping",
             ];
         }
-        
+
         $handle = fopen($outputFile, 'r');
         if (!$handle) {
             return ['error' => 'Failed to open output.txt'];
         }
-        
+
         $batch = [];
         $imported = 0;
-        $wordId = DB::connection($connection)->table('app_qy_v1_words_english')->max('word_id') ?? 0;
         $now = now();
-        
+
         while (($line = fgets($handle)) !== false) {
             $word = trim($line);
             if (empty($word)) {
                 continue;
             }
-            
-            $wordId++;
+
             $batch[] = [
-                'word_id' => $wordId,
-                'word' => $word,
+                'content' => $word,
+                'md5' => md5($word),
                 'us_phonetic' => null,
                 'uk_phonetic' => null,
-                'translation' => null,
-                'sample_images' => null,
-                'ai_reviewed' => 0,
+                'translations' => null,
+                'image_files' => null,
+                'has_translation' => 0,
+                'query_count' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
-            
+
             if (count($batch) >= 1000) {
-                DB::connection($connection)->table('app_qy_v1_words_english')->insert($batch);
+                DB::connection($connection)->table('app_qy_v1_en_dictionaries')->insert($batch);
                 $imported += count($batch);
                 $batch = [];
             }
         }
-        
+
         if (!empty($batch)) {
-            DB::connection($connection)->table('app_qy_v1_words_english')->insert($batch);
+            DB::connection($connection)->table('app_qy_v1_en_dictionaries')->insert($batch);
             $imported += count($batch);
         }
         
         fclose($handle);
-        
+
         return [
             'imported' => $imported,
-            'total_words' => $wordId,
+            'total_words' => $imported,
         ];
     }
 

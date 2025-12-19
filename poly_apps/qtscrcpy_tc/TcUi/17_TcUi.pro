@@ -40,8 +40,8 @@ FORMS += \
     dialog.ui
 
 TRANSLATIONS = \
-    $$PWD/QtScrcpy/res/i18n/QtScrcpy_en.ts \
-#    $$PWD/QtScrcpy/res/i18n/myTc_zh_CN.ts
+    $$PWD/translations/XingCanMatrix_zh_CN.ts \
+    $$PWD/translations/XingCanMatrix_en.ts
 
 # Sub-projects
 include ($$PWD/groupmanage/customtreewidget/customtreewidget.pri)

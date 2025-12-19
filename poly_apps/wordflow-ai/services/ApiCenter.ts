@@ -1168,6 +1168,43 @@ class ApiCenterClass {
         method: 'GET',
       }, false);
     },
+
+    getLibraryWords: async (
+      libraryId: number,
+      params?: {
+        page?: number;
+        per_page?: number;
+      }
+    ): Promise<ApiResponse<{
+      library: {
+        id: number;
+        name: string;
+        total_words: number;
+        language: string;
+      };
+      words: Array<{
+        index: number;
+        word: string;
+      }>;
+      pagination: {
+        current_page: number;
+        per_page: number;
+        total: number;
+        last_page: number;
+        has_more: boolean;
+      };
+    }>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
+
+      const queryString = queryParams.toString();
+      const endpoint = `/vocabulary/libraries/${libraryId}/words${queryString ? `?${queryString}` : ''}`;
+
+      return this.request<any>(endpoint, {
+        method: 'GET',
+      }, false); // Public API
+    },
   };
 
   /**
