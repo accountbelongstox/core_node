@@ -4,7 +4,7 @@
   "appId": "org.viarotel.escrcpy",
   "directories": {
     "output": "dist-release",
-    "buildResources": "electron/resources/build"
+    "buildResources": "electron/resources/assets"
   },
   "files": ["dist", "dist-electron"],
   "win": {
