@@ -224,7 +224,7 @@ void CustomTreeWidget::showWidget()
     // Actual content area of the entire left sidebar
     vBackWidget = new QVBoxLayout(m_deviceBackWidget);
     vBackWidget->setSpacing(0);
-    vBackWidget->setMargin(0);
+    vBackWidget->setContentsMargins(0, 0, 0, 0);
     // Layout interface based on prepared data;
     int deviceCount = m_nodeDataList.size();
     for (int i = 0; i < deviceCount; i++)
@@ -261,7 +261,7 @@ void CustomTreeWidget::showWidget()
     // Entire left sidebar layout
     hMainLayout = new QHBoxLayout(this);
     hMainLayout->addWidget(m_scrollArea);
-    hMainLayout->setMargin(0);
+    hMainLayout->setContentsMargins(0, 0, 0, 0);
 }
 
 void CustomTreeWidget::onGroupNameChanged(int srcGroup, QString name)
@@ -658,7 +658,7 @@ void DeviceListWidget::initWidget()
     vMainLayout->addWidget(m_listWidget);
     vMainLayout->addStretch();
     vMainLayout->setSpacing(0);
-    vMainLayout->setMargin(0);
+    vMainLayout->setContentsMargins(0, 0, 0, 0);
 }
 
 bool DeviceListWidget::eventFilter(QObject *watched, QEvent *event)
