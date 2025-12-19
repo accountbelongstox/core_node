@@ -26,21 +26,21 @@ class Device : public QObject
 public:
     struct DeviceParams
     {
-        QString recordFileName = "";      // 视频录制文件名
-        QString recordPath = "";          // 视频保存路径
-        QString serial = "";              // 设备序列号
-        quint16 localPort = 27183;        // reverse时本地监听端口
-        quint16 maxSize = 720;            // 视频分辨率
-        quint32 bitRate = 8000000;        // 视频比特率
-        quint32 maxFps = 60;              // 视频最大帧率
-        bool closeScreen = false;         // 启动时自动息屏
-        bool useReverse = true;           // true:先使用adb reverse，失败后自动使用adb forward；false:直接使用adb forward
-        bool display = true;              // 是否显示画面（或者仅仅后台录制）
-        QString gameScript = "";          // 游戏映射脚本
-        bool renderExpiredFrames = false; // 是否渲染延迟视频帧
-        int lockVideoOrientation = -1;    // 是否锁定视频方向
-        bool stayAwake = false;           // 是否保持唤醒
-        bool framelessWindow = false;     // 是否无边框窗口
+        QString recordFileName = "";      // Video recording file name
+        QString recordPath = "";          // Video save path
+        QString serial = "";              // Device serial number
+        quint16 localPort = 27183;        // Local listening port for reverse mode
+        quint16 maxSize = 720;            // Video resolution
+        quint32 bitRate = 8000000;        // Video bit rate
+        quint32 maxFps = 60;              // Maximum video frame rate
+        bool closeScreen = false;         // Auto turn off screen at startup
+        bool useReverse = true;           // true: use adb reverse first, auto fallback to adb forward on failure; false: use adb forward directly
+        bool display = true;              // Whether to display screen (or only record in background)
+        QString gameScript = "";          // Game mapping script
+        bool renderExpiredFrames = false; // Whether to render expired video frames
+        int lockVideoOrientation = -1;    // Whether to lock video orientation
+        bool stayAwake = false;           // Whether to keep awake
+        bool framelessWindow = false;     // Whether to use frameless window
         QString nickname = "";
     };
     enum GroupControlState

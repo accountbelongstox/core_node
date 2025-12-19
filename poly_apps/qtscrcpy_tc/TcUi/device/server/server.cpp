@@ -359,7 +359,7 @@ void Server::onConnectTimer()
 
     videoSocket->connectToHost(QHostAddress::LocalHost, m_params.localPort);
     if (!videoSocket->waitForConnected(1000)) {
-        // 连接到adb很快的，这里失败不重试
+        // Connecting to adb is fast, don't retry on failure
         m_connectCount = MAX_CONNECT_COUNT;
         qWarning("video socket connect to server failed");
         goto result;
@@ -367,7 +367,7 @@ void Server::onConnectTimer()
 
     controlSocket->connectToHost(QHostAddress::LocalHost, m_params.localPort);
     if (!controlSocket->waitForConnected(1000)) {
-        // 连接到adb很快的，这里失败不重试
+        // Connecting to adb is fast, don't retry on failure
         m_connectCount = MAX_CONNECT_COUNT;
         qWarning("control socket connect to server failed");
         goto result;
@@ -464,7 +464,7 @@ void Server::onWorkProcessResult(AdbProcess::ADB_EXEC_RESULT processResult)
                     m_serverStartStep = SSS_EXECUTE_SERVER;
                     startServerByStep();
                 } else if (AdbProcess::AER_SUCCESS_START != processResult) {
-                    // 有一些设备reverse会报错more than o'ne device，adb的bug
+                    // Some devices will report "more than one device" error on reverse, adb bug
                     // https://github.com/Genymobile/scrcpy/issues/5
                     qCritical("adb reverse failed");
                     m_tunnelForward = true;

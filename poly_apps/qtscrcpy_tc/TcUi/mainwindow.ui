@@ -52,7 +52,7 @@
        <item>
         <widget class="QPushButton" name="configbutton">
          <property name="text">
-          <string>设置</string>
+          <string>Settings</string>
          </property>
         </widget>
        </item>
@@ -120,14 +120,14 @@
              <item>
               <widget class="QPushButton" name="pushButton_2">
                <property name="text">
-                <string>保存列表信息</string>
+                <string>Save List Info</string>
                </property>
               </widget>
              </item>
              <item>
               <widget class="QPushButton" name="pushButton">
                <property name="text">
-                <string>新增相同设备（测试）</string>
+                <string>Add Same Device (Test)</string>
                </property>
               </widget>
              </item>

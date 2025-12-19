@@ -50,21 +50,21 @@
       <item>
        <widget class="QLabel" name="nicknameLabel">
         <property name="text">
-         <string>昵称</string>
+         <string>Nickname</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QLabel" name="nameLabel">
         <property name="text">
-         <string>设备名</string>
+         <string>Device Name</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QLabel" name="serialLabel">
         <property name="text">
-         <string>序列号</string>
+         <string>Serial Number</string>
         </property>
        </widget>
       </item>
