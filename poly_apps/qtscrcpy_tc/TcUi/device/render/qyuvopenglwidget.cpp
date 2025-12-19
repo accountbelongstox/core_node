@@ -51,12 +51,12 @@ static const QString s_vertShader = R"(
     }
 )";
 
-// 片段着色器
+// Fragment shader
 static QString s_fragShader = R"(
-    varying vec2 textureOut;        // 由顶点着色器传递过来的纹理坐标
-    uniform sampler2D textureY;     // uniform 纹理单元，利用纹理单元可以使用多个纹理
-    uniform sampler2D textureU;     // sampler2D是2D采样器
-    uniform sampler2D textureV;     // 声明yuv三个纹理单元
+    varying vec2 textureOut;        // Texture coordinates passed from vertex shader
+    uniform sampler2D textureY;     // uniform texture unit, can use multiple textures
+    uniform sampler2D textureU;     // sampler2D is a 2D sampler
+    uniform sampler2D textureV;     // Declare three YUV texture units
     void main(void)
     {
         vec3 yuv;
@@ -68,18 +68,18 @@ static QString s_fragShader = R"(
         const vec3 Gcoeff = vec3(1.1644, -0.2132, -0.5329);
         const vec3 Bcoeff = vec3(1.1644,  2.1124,  0.000);
 
-        // 根据指定的纹理textureY和坐标textureOut来采样
+        // Sample based on specified texture textureY and coordinates textureOut
         yuv.x = texture2D(textureY, textureOut).r;
         yuv.y = texture2D(textureU, textureOut).r - 0.5;
         yuv.z = texture2D(textureV, textureOut).r - 0.5;
 
-        // 采样完转为rgb
-        // 减少一些亮度
+        // Convert to RGB after sampling
+        // Reduce brightness slightly
         yuv.x = yuv.x - 0.0625;
         rgb.r = dot(yuv, Rcoeff);
         rgb.g = dot(yuv, Gcoeff);
         rgb.b = dot(yuv, Bcoeff);
-        // 输出颜色值
+        // Output color value
         gl_FragColor = vec4(rgb, 1.0);
     }
 )";
@@ -144,14 +144,14 @@ void QYUVOpenGLWidget::initializeGL()
     initializeOpenGLFunctions();
     glDisable(GL_DEPTH_TEST);
 
-    // 顶点缓冲对象初始化
+    // Initialize vertex buffer object
     m_vbo.create();
     m_vbo.bind();
     m_vbo.allocate(coordinate, sizeof(coordinate));
     initShader();
-    // 设置背景清理色为黑色
+    // Set background clear color to black
     glClearColor(0.0, 0.0, 0.0, 0.0);
-    // 清理颜色背景
+    // Clear color background
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
@@ -185,7 +185,7 @@ void QYUVOpenGLWidget::resizeGL(int width, int height)
 
 void QYUVOpenGLWidget::initShader()
 {
-    // opengles的float、int等要手动指定精度
+    // OpenGL ES requires manual precision specification for float, int, etc.
     if (QCoreApplication::testAttribute(Qt::AA_UseOpenGLES)) {
         s_fragShader.prepend(R"(
                              precision mediump int;
@@ -197,18 +197,18 @@ void QYUVOpenGLWidget::initShader()
     m_shaderProgram.link();
     m_shaderProgram.bind();
 
-    // 指定顶点坐标在vbo中的访问方式
-    // 参数解释：顶点坐标在shader中的参数名称，顶点坐标为float，起始偏移为0，顶点坐标类型为vec3，步幅为3个float
+    // Specify vertex coordinate access method in vbo
+    // Parameters: parameter name in shader, vertex coordinates are float, starting offset 0, vertex coordinate type vec3, stride 3 floats
     m_shaderProgram.setAttributeBuffer("vertexIn", GL_FLOAT, 0, 3, 3 * sizeof(float));
-    // 启用顶点属性
+    // Enable vertex attribute
     m_shaderProgram.enableAttributeArray("vertexIn");
 
-    // 指定纹理坐标在vbo中的访问方式
-    // 参数解释：纹理坐标在shader中的参数名称，纹理坐标为float，起始偏移为12个float（跳过前面存储的12个顶点坐标），纹理坐标类型为vec2，步幅为2个float
+    // Specify texture coordinate access method in vbo
+    // Parameters: parameter name in shader, texture coordinates are float, starting offset 12 floats (skip 12 vertex coordinates stored before), texture coordinate type vec2, stride 2 floats
     m_shaderProgram.setAttributeBuffer("textureIn", GL_FLOAT, 12 * sizeof(float), 2, 2 * sizeof(float));
     m_shaderProgram.enableAttributeArray("textureIn");
 
-    // 关联片段着色器中的纹理单元和opengl中的纹理单元（opengl一般提供16个纹理单元）
+    // Associate texture units in fragment shader with texture units in OpenGL (OpenGL generally provides 16 texture units)
     m_shaderProgram.setUniformValue("textureY", 0);
     m_shaderProgram.setUniformValue("textureU", 1);
     m_shaderProgram.setUniformValue("textureV", 2);
@@ -216,13 +216,13 @@ void QYUVOpenGLWidget::initShader()
 
 void QYUVOpenGLWidget::initTextures()
 {
-    // 创建纹理
+    // Create texture
     glGenTextures(1, &m_texture[0]);
     glBindTexture(GL_TEXTURE_2D, m_texture[0]);
-    // 设置纹理缩放时的策略
+    // Set texture scaling strategy
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // 设置st方向上纹理超出坐标时的显示策略
+    // Set display strategy when texture exceeds coordinates in st directions
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, m_frameSize.width(), m_frameSize.height(), 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
@@ -237,10 +237,10 @@ void QYUVOpenGLWidget::initTextures()
 
     glGenTextures(1, &m_texture[2]);
     glBindTexture(GL_TEXTURE_2D, m_texture[2]);
-    // 设置纹理缩放时的策略
+    // Set texture scaling strategy
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // 设置st方向上纹理超出坐标时的显示策略
+    // Set display strategy when texture exceeds coordinates in st directions
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, m_frameSize.width() / 2, m_frameSize.height() / 2, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
