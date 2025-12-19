@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # ============================================
-# Binary Files Preparation Script
+# 星灿传媒 测试版 - Binary Files Manager
 # ============================================
-# This script copies binary files with .py suffix for git compatibility
-# and restores them before running the application
+# This script manages binary files backup and restoration
 
 ACTION="${1:-restore}"  # "backup" or "restore"
 
@@ -41,6 +40,40 @@ BINARY_DIRS=(
     "electron/resources/extra/linux-x64/scrcpy"
     "electron/resources/extra/linux-arm64/scrcpy"
 )
+
+test_binaries_exist() {
+    print_info "Checking if binaries exist..."
+
+    # Check for binaries (look for .py backups)
+    local win_adb="$PROJECT_ROOT/electron/resources/extra/win/scrcpy/adb.exe.py"
+
+    if [ -f "$win_adb" ]; then
+        print_success "Found backup binaries"
+        return 0
+    fi
+
+    print_warning "Backup binaries not found"
+    return 1
+}
+
+download_binaries() {
+    print_info "Binaries not found, downloading..."
+    echo ""
+
+    local download_script="$SCRIPT_DIR/download-binaries.sh"
+    if [ -f "$download_script" ]; then
+        bash "$download_script"
+        if [ $? -eq 0 ]; then
+            print_success "Download completed successfully"
+            return 0
+        fi
+    else
+        print_warning "Download script not found: $download_script"
+        print_info "Please download binaries manually or run download-binaries.sh"
+    fi
+
+    return 1
+}
 
 backup_binaries() {
     print_info "Creating .py copies of binary files for git..."
@@ -157,6 +190,22 @@ case "$ACTION" in
         backup_binaries
         ;;
     restore)
+        # Check if binaries exist, if not, download them
+        if ! test_binaries_exist; then
+            print_warning "No backup binaries found"
+            read -p "Download binaries now? (Y/n): " download
+            if [ "$download" != "n" ] && [ "$download" != "N" ]; then
+                if download_binaries; then
+                    # After download, create .py backups
+                    echo ""
+                    print_info "Creating .py backups after download..."
+                    backup_binaries
+                fi
+            else
+                print_warning "Skipped download. Please ensure binaries are available."
+            fi
+        fi
+
         restore_binaries
         ;;
     *)

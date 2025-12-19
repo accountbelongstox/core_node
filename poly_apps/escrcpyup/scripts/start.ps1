@@ -1,5 +1,5 @@
 # ============================================
-# Escrcpy Start Script (PowerShell)
+# 星灿传媒 测试版 - Start Script (PowerShell)
 # ============================================
 
 # Set encoding to UTF-8
@@ -46,8 +46,9 @@ function Show-Banner {
     Write-ColorText @"
 ================================================
 
-        Escrcpy Development Toolkit
-        Scrcpy Powered by Electron
+        星灿传媒 测试版
+        Android Screen Mirroring Tool
+        Powered by Scrcpy & Electron
 
 ================================================
 "@ "Cyan"
@@ -220,6 +221,43 @@ function Start-DevServer {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
     Write-Info "Development server stopped"
+    Write-Host ""
+    Read-Host "Press Enter to return to main menu"
+}
+
+# Launch application directly
+function Start-Application {
+    Show-Banner
+    Write-ColorText "=== Launch Application ===" "Yellow"
+    Write-Host ""
+
+    Write-Info "Preparing environment..."
+    Write-Host ""
+    Install-Dependencies | Out-Null
+    Write-Host ""
+
+    Test-ElectronVersion | Out-Null
+    Write-Host ""
+
+    Write-Info "Launching 星灿传媒 测试版..."
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Build first if needed
+    if (-not (Test-Path "dist") -or -not (Test-Path "dist-electron")) {
+        Write-Info "First launch, building application..."
+        & pnpm run build
+        Write-Host ""
+    }
+
+    # Start electron directly
+    & pnpm exec electron .
+
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Info "Application closed"
     Write-Host ""
     Read-Host "Press Enter to return to main menu"
 }
@@ -418,22 +456,32 @@ function Show-MainMenu {
         Write-Host "  5. Fix Code Issues"
         Write-Host "  6. Clean Project"
         Write-Host "  7. Project Information"
+        Write-Host "  8. Launch Application"
         Write-Host "  0. Exit"
         Write-Host ""
 
-        $choice = Read-Host "Please select (0-7)"
+        $choice = Read-Host "Please select (0-8)"
 
         switch ($choice) {
             "1" { Start-DevServer }
             "2" { Select-BuildPlatform }
-            "3" { Initialize-Environment }
+            "3" {
+                Initialize-Environment
+                # Ask to launch after initialization
+                Write-Host ""
+                $launch = Read-Host "Environment initialized. Launch application now? (Y/n)"
+                if ($launch -ne 'n' -and $launch -ne 'N') {
+                    Start-Application
+                }
+            }
             "4" { Run-Lint }
             "5" { Fix-Lint }
             "6" { Clear-Project }
             "7" { Show-ProjectInfo }
+            "8" { Start-Application }
             "0" {
                 Write-Host ""
-                Write-ColorText "Thank you for using Escrcpy Development Toolkit!" "Cyan"
+                Write-ColorText "Thank you for using 星灿传媒 测试版!" "Cyan"
                 Write-Host ""
                 exit 0
             }
