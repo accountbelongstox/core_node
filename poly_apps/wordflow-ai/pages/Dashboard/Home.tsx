@@ -8,6 +8,7 @@ import { WordGroup, Word } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../services/mockData';
 import { IconMappingService } from '../../services/IconMappingService';
 import { ApiCenter } from '../../services/ApiCenter';
+import { mapLanguageCode } from '../../services/languageMapper';
 
 const DashboardPage = () => {
   const { user, navigate, t, activeGroupId, settings } = useContext(AppContext);
@@ -90,10 +91,11 @@ const DashboardPage = () => {
     console.log('[Home] Learning languages:', settings.language.learningLanguages);
     setLoadingLibraries(true);
     try {
-      const language = settings.language.learningLanguages?.[0] || 'english';
-      console.log('[Home] Using language:', language);
+      const langCode = settings.language.learningLanguages?.[0] || 'en';
+      const language = mapLanguageCode(langCode);
+      console.log('[Home] Language code:', langCode, '-> Backend format:', language);
 
-      const response = await ApiCenter.vocabulary.getLibraries({ language, per_page: 10 });
+      const response = await ApiCenter.vocabulary.getLibraries({ language, per_page: 20 });
       console.log('[Home] API response:', response);
 
       if (response.success && response.data) {
@@ -106,7 +108,7 @@ const DashboardPage = () => {
           return 0;
         });
 
-        setRecommendedLibraries(sorted.slice(0, 6));
+        setRecommendedLibraries(sorted.slice(0, 10));
         console.log('[Home] Set libraries count:', sorted.length);
       } else {
         console.log('[Home] API failed or no data:', response);
@@ -356,7 +358,7 @@ const DashboardPage = () => {
             </h2>
             {recommendedLibraries.length > 0 && (
               <button
-                onClick={() => navigate('recommendations')}
+                onClick={() => navigate('courses')}
                 className="text-xs font-bold text-purple-500 bg-purple-50 px-2 py-1 rounded-lg"
               >
                 {t('home.viewMore') || 'More'}
@@ -373,7 +375,7 @@ const DashboardPage = () => {
               {recommendedLibraries.map((library) => (
                 <div
                   key={library.id}
-                  onClick={() => navigate('recommendations')}
+                  onClick={() => navigate(`vocabulary_library/${library.id}`)}
                   className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-purple-50/80 to-pink-50/80 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200/50 dark:border-purple-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">

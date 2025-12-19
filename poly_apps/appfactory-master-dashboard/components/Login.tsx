@@ -109,15 +109,15 @@ export const Login: React.FC = () => {
           <form onSubmit={handleLogin} className="p-8 space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                {t('login.email')}
+                账号
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={getExampleAccount()?.email || t('login.emailPlaceholder')}
+                  placeholder={getExampleAccount()?.email || '请输入账号（如：123）'}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
                 />
               </div>

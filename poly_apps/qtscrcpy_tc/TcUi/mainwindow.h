@@ -28,9 +28,19 @@ private slots:
 
     void on_pushButton_2_clicked();
 
+    void on_languageComboBox_currentIndexChanged(int index);
+
 public:
     Ui::MainWindow *ui;
     static MainWindow *mainwin;
+
+private:
+    void setupLanguageUI();
+    void updateWindowTitle();
+    void retranslateUI();
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
     QSystemTrayIcon *m_hideIcon;

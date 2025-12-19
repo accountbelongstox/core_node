@@ -17,11 +17,11 @@ import {
   BarChart3,
   Users
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { useApp } from '../contexts/AppContext';
 import { UserRole, AppStatus } from '../types';
 import { StatCard } from './StatCard';
 import { MOCK_APPS, MOCK_CS, MOCK_CS_APP_REVENUE } from '../constants';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 const CSOverview = () => {
   const { t, user } = useApp();
@@ -44,15 +44,15 @@ const CSOverview = () => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="My Revenue" value={`$${csData.cs.totalEarnings.toLocaleString()}`} change="+8.2%" isPositive icon={<DollarSign size={20} />} />
-        <StatCard title="Promotions" value={csData.totalPromotions.toString()} change="+12" isPositive icon={<TrendingUp size={20} />} />
-        <StatCard title="Active Apps" value={csData.assignedApps.length.toString()} icon={<Smartphone size={20} />} />
-        <StatCard title="Commission Rate" value={`${csData.cs.commissionRate}%`} icon={<Target size={20} />} />
+        <StatCard title={t('csDashboard.myRevenue')} value={`$${csData.cs.totalEarnings.toLocaleString()}`} change="+8.2%" isPositive icon={<DollarSign size={20} />} />
+        <StatCard title={t('csDashboard.promotions')} value={csData.totalPromotions.toString()} change="+12" isPositive icon={<TrendingUp size={20} />} />
+        <StatCard title={t('csDashboard.activeApps')} value={csData.assignedApps.length.toString()} icon={<Smartphone size={20} />} />
+        <StatCard title={t('csDashboard.commissionRate')} value={`${csData.cs.commissionRate}%`} icon={<Target size={20} />} />
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">My Assigned Apps</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">{t('csDashboard.myAssignedApps')}</h3>
           <div className="space-y-3">
             {csData.assignedApps.slice(0, 5).map(app => (
               <div key={app.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
@@ -62,21 +62,21 @@ const CSOverview = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{app.visits} visits</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{app.visits} {t('csDashboard.visits')}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Performance Summary</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">{t('csDashboard.performanceSummary')}</h3>
           <div className="space-y-4">
             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Total Earnings</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('csDashboard.totalEarnings')}</p>
               <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">${csData.cs.totalEarnings.toLocaleString()}</p>
             </div>
             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Successful Promotions</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('csDashboard.successfulPromotions')}</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{csData.totalPromotions}</p>
             </div>
           </div>
@@ -102,7 +102,7 @@ const MyApps = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">My Apps</h2>
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('csDashboard.myApps')}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {csData.assignedApps.map(app => (
           <div key={app.id} className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
@@ -113,17 +113,17 @@ const MyApps = () => {
                 app.status === AppStatus.PENDING ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
                 'bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-400'
               }`}>
-                {app.status}
+                {t(`apps.${app.status.toLowerCase()}`)}
               </span>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{app.description}</p>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Today's Revenue</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t('csDashboard.todayRevenue')}</p>
                 <p className="text-lg font-bold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Visits</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t('csDashboard.visits')}</p>
                 <p className="text-lg font-bold text-slate-800 dark:text-white">{app.visits.toLocaleString()}</p>
               </div>
             </div>
@@ -138,7 +138,7 @@ const MyApps = () => {
               className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
             >
               <Eye size={16} />
-              View Details
+              {t('csDashboard.viewDetails')}
             </button>
           </div>
         ))}
@@ -169,10 +169,10 @@ const Promotions = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Promotion Records</h2>
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('csDashboard.promotionRecords')}</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Promotion Trends</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('csDashboard.promotionTrends')}</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={promotionData}>
@@ -186,7 +186,7 @@ const Promotions = () => {
           </div>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Commission Trends</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('csDashboard.commissionTrends')}</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={promotionData}>
@@ -202,17 +202,17 @@ const Promotions = () => {
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Promotion History</h3>
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-white">{t('csDashboard.promotionHistory')}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">App</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Promotions</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Revenue</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Commission</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Last Updated</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{t('csDashboard.app')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{t('csDashboard.promotions')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{t('apps.revenue')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{t('csDashboard.commission')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{t('csDashboard.lastUpdated')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -250,7 +250,7 @@ const Performance = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Performance Analytics</h2>
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('csDashboard.performanceAnalytics')}</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
@@ -258,11 +258,11 @@ const Performance = () => {
               <BarChart3 size={24} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">My Ranking</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('csDashboard.myRanking')}</p>
               <p className="text-2xl font-bold text-slate-800 dark:text-white">#{csData.rank}</p>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Out of {csData.totalCS} CS members</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('csDashboard.outOf')} {csData.totalCS} {t('csDashboard.csMembers')}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
@@ -270,11 +270,11 @@ const Performance = () => {
               <DollarSign size={24} className="text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Total Earnings</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('csDashboard.totalEarnings')}</p>
               <p className="text-2xl font-bold text-slate-800 dark:text-white">${csData.cs.totalEarnings.toLocaleString()}</p>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">All time revenue</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('csDashboard.allTimeRevenue')}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
@@ -282,11 +282,11 @@ const Performance = () => {
               <Target size={24} className="text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Commission Rate</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('csDashboard.commissionRate')}</p>
               <p className="text-2xl font-bold text-slate-800 dark:text-white">{csData.cs.commissionRate}%</p>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Average commission</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('csDashboard.averageCommission')}</p>
         </div>
       </div>
     </div>
@@ -300,9 +300,9 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
 
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
-    { icon: <Smartphone size={20} />, label: 'My Apps', path: '/my-apps' },
-    { icon: <History size={20} />, label: 'Promotions', path: '/promotions' },
-    { icon: <BarChart3 size={20} />, label: 'Performance', path: '/performance' },
+    { icon: <Smartphone size={20} />, label: t('csDashboard.myApps'), path: '/my-apps' },
+    { icon: <History size={20} />, label: t('csDashboard.promotions'), path: '/promotions' },
+    { icon: <BarChart3 size={20} />, label: t('csDashboard.performanceAnalytics'), path: '/performance' },
   ];
 
   return (
@@ -339,8 +339,8 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
             {user ? user.name.substring(0, 2).toUpperCase() : 'CS'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || 'CS User'}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">CS Specialist</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || t('user.csUser')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('user.csSpecialist')}</p>
           </div>
           <button onClick={onOpenSettings} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
             <Settings size={18} />
@@ -363,16 +363,22 @@ const Header = () => {
     <header className="h-16 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 px-8 flex items-center justify-between">
       <div className="flex items-center gap-4 text-slate-400">
         <div className="flex items-center gap-1 text-sm">
-          <span>CS Portal</span>
+          <span>{t('nav.csPortal')}</span>
           <ChevronRight size={14} />
           <span className="text-slate-800 dark:text-white font-medium">{t('nav.overview')}</span>
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+        <Link to="/notifications" className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
-        </button>
+        </Link>
+        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
+        <Link to="/profile" className="flex items-center gap-2 group">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs group-hover:ring-2 ring-emerald-500 transition-all">
+            CS
+          </div>
+        </Link>
       </div>
     </header>
   );

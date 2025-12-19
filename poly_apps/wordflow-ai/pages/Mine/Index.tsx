@@ -81,7 +81,7 @@ export default function MineIndex() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
         {/* Header */}
-        <div className="pt-20 px-6 pb-8 max-w-md mx-auto">
+        <div className="pt-20 px-6 pb-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
             {t('home.welcomeGuest')}
           </h1>
@@ -90,7 +90,7 @@ export default function MineIndex() {
           </p>
         </div>
 
-        <div className="max-w-md mx-auto px-6">
+        <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6">
           <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
             <div className="text-center py-4">
               <svg className="w-16 h-16 mx-auto mb-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,7 +141,7 @@ export default function MineIndex() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header with User Info */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <Card className="bg-gradient-to-br from-blue-500 to-purple-600 text-white border-none shadow-xl">
           <div className="flex items-center gap-4">
             <img
@@ -164,7 +164,7 @@ export default function MineIndex() {
         </Card>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-3">
           <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">

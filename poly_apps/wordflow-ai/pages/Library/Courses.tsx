@@ -279,7 +279,7 @@ const CoursesPage = () => {
       {/* Create Group Dialog */}
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-5" onClick={() => setShowCreateDialog(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-2xl font-bold dark:text-white mb-6">{t('library.createNewGroup') || 'Create New Group'}</h2>
 
             {createError && (

@@ -41,6 +41,9 @@ import CourseDetailPage from '../pages/Library/CourseDetail';
 import WordDetailPage from '../pages/Library/WordDetail';
 import RecommendationsPage from '../pages/Library/Recommendations';
 
+// Pages - Vocabulary
+import VocabularyLibraryDetailPage from '../pages/Vocabulary/LibraryDetail';
+
 // Pages - Documents
 import UploadPage from '../pages/Documents/Upload';
 
@@ -355,6 +358,13 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     name: 'Word Detail',
     category: 'library',
     isProtected: true,
+  },
+  {
+    path: '/vocabulary_library/:id',
+    element: <VocabularyLibraryDetailPage />,
+    name: 'Vocabulary Library Detail',
+    category: 'library',
+    isProtected: false,
   },
 
   // Documents Routes

@@ -155,7 +155,39 @@ export const TRANSLATIONS = {
         tasks: "Task Dispatch",
         placeholder: "Placeholder",
         voice: "Voice Subtitle",
+        ocr: "OCR",
         settings: "Settings"
+      },
+      screenshots: {
+        upload: "Upload",
+        refresh: "Refresh",
+        latest: "Latest",
+        clear_all: "Clear All",
+        search_placeholder: "Search screenshots...",
+        no_screenshots: "No screenshots found",
+        upload_hint: "Click Upload button, drag & drop, or paste (Ctrl+V) images here",
+        view: "View",
+        download: "Download",
+        delete: "Delete",
+        copy_url: "Copy URL",
+        image_url: "Image URL",
+        description: "Description",
+        delete_confirm: "Delete this screenshot?",
+        clear_all_confirm: "⚠️ DANGER: This will permanently delete ALL screenshots. This action cannot be undone. Are you sure?",
+        clear_all_final: "Final confirmation: Delete ALL screenshots?",
+        upload_mode: "Upload Mode",
+        single_upload: "Single Upload",
+        batch_upload: "Batch Upload",
+        batch_desc: "Upload each image separately",
+        merge_upload: "Merge Upload",
+        merge_desc: "Merge multiple images into one",
+        drop_here: "Drop images here",
+        paste_hint: "or paste with Ctrl+V / Cmd+V",
+        toast: {
+          copied: "Copied to clipboard!",
+          copy_failed: "Copy failed",
+          copy_failed_manual: "Copy failed, please copy manually"
+        }
       }
     },
     octane: {
@@ -478,7 +510,39 @@ export const TRANSLATIONS = {
         tasks: "任务分发",
         placeholder: "占位图",
         voice: "语音字幕",
+        ocr: "OCR识别",
         settings: "设置"
+      },
+      screenshots: {
+        upload: "上传",
+        refresh: "刷新",
+        latest: "最新",
+        clear_all: "清空全部",
+        search_placeholder: "搜索截图...",
+        no_screenshots: "未找到截图",
+        upload_hint: "点击上传按钮、拖放或粘贴（Ctrl+V）图片到这里",
+        view: "查看",
+        download: "下载",
+        delete: "删除",
+        copy_url: "复制链接",
+        image_url: "图片链接",
+        description: "描述",
+        delete_confirm: "确定删除此截图？",
+        clear_all_confirm: "⚠️ 危险操作：这将永久删除所有截图，此操作无法撤销。确定继续？",
+        clear_all_final: "最终确认：删除所有截图？",
+        upload_mode: "上传模式",
+        single_upload: "单图上传",
+        batch_upload: "批量上传",
+        batch_desc: "每张图片分别保存",
+        merge_upload: "合并上传",
+        merge_desc: "多张图片合成一张",
+        drop_here: "拖放图片到这里",
+        paste_hint: "或使用 Ctrl+V / Cmd+V 粘贴",
+        toast: {
+          copied: "已复制到剪贴板！",
+          copy_failed: "复制失败",
+          copy_failed_manual: "复制失败，请手动复制"
+        }
       }
     },
     octane: {

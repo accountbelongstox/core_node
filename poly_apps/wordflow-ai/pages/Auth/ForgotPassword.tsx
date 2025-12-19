@@ -39,7 +39,7 @@ const ForgotPassword = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-5">
-      <div className="w-full max-w-md">
+      <div className="w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
         {/* Back Button */}
         <button
           onClick={() => navigate('/login')}

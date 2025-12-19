@@ -235,22 +235,22 @@ class InitializeApps extends Command
         
         $this->newLine();
         
-        $this->info('AppQyV1 word tables summary (learning vocabulary):');
+        $this->info('AppQyV1 dictionary tables summary:');
         try {
             $connection = 'appqyv1';
             $tables = [
-                'app_qy_v1_words_english',
-                'app_qy_v1_words_lao',
-                'app_qy_v1_words_japanese',
-                'app_qy_v1_words_vietnamese',
+                'app_qy_v1_en_dictionaries' => 'English',
+                'app_qy_v1_lo_dictionaries' => 'Lao',
+                'app_qy_v1_ja_dictionaries' => 'Japanese',
+                'app_qy_v1_vi_dictionaries' => 'Vietnamese',
             ];
 
-            foreach ($tables as $table) {
+            foreach ($tables as $table => $language) {
                 try {
                     $count = \DB::connection($connection)->table($table)->count();
-                    $this->line("  • {$table}: {$count} rows");
+                    $this->line("  • {$language} ({$table}): {$count} entries");
                 } catch (\Exception $e) {
-                    $this->line("  • {$table}: <fg=red>not exists</>");
+                    $this->line("  • {$language} ({$table}): <fg=red>not exists</>");
                 }
             }
         } catch (\Exception $e) {

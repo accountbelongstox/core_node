@@ -12,6 +12,7 @@ import {
 } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
+import { useToast } from '../admin/Toast';
 import {
   Image,
   ListTodo,
@@ -51,6 +52,7 @@ interface MCPManagerProps {
 type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'ocr' | 'settings';
 
 const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<MCPTab>('screenshots');
   const [screenshots, setScreenshots] = useState<AsyncState<Screenshot[]>>({
     data: [],
@@ -109,7 +111,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [uploadMode, setUploadMode] = useState<'single' | 'batch' | 'merge'>('single');
   const [isDragging, setIsDragging] = useState(false);
-  
+  const [showUploadModeDialog, setShowUploadModeDialog] = useState(false);
+  const [showMultiFileUploadPanel, setShowMultiFileUploadPanel] = useState(false);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<Screenshot | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+
   // Placeholder Generator State
   const [placeholderWidth, setPlaceholderWidth] = useState(800);
   const [placeholderHeight, setPlaceholderHeight] = useState(600);
@@ -188,6 +194,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     error: null,
     status: 'idle'
   });
+  const [voiceBackgroundTasks, setVoiceBackgroundTasks] = useState<AsyncState<any[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
 
   // OCR State
   const [ocrEngines, setOcrEngines] = useState<AsyncState<any[]>>({
@@ -213,8 +225,47 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [ocrBatchPreviewUrls, setOcrBatchPreviewUrls] = useState<string[]>([]);
+  const [ocrEngineInfo, setOcrEngineInfo] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
 
   const t = TRANSLATIONS[lang].mcp;
+
+  // Copy to clipboard helper function
+  const copyToClipboard = async (text: string): Promise<void> => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        // Modern async clipboard API
+        await navigator.clipboard.writeText(text);
+        toast.success(t.screenshots.toast.copied);
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          toast.success(t.screenshots.toast.copied);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+          toast.error(t.screenshots.toast.copy_failed_manual);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (err) {
+      console.error('Copy to clipboard failed:', err);
+      toast.error(t.screenshots.toast.copy_failed);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'screenshots') {
@@ -230,6 +281,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       loadCurrentVoiceTrack();
       loadVoiceStats();
       loadVoiceGroups();
+      loadSupportedLanguages();
+      loadVoiceCategories();
+      loadVoiceBackgroundTasks();
     } else if (activeTab === 'ocr') {
       loadOcrEngines();
     }
@@ -259,7 +313,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     if (activeTab === 'voice') {
       loadVoiceQueue();
     }
-  }, [voiceQueueFilter, selectedVoiceGroup, activeTab]);
+  }, [voiceQueueFilter, selectedVoiceGroup, selectedVoiceCategory, activeTab]);
 
   // Task search effect
   useEffect(() => {
@@ -275,6 +329,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       return () => clearTimeout(timeoutId);
     }
   }, [taskSearchQuery, selectedCategory, activeTab]);
+
+  // OCR engine info effect
+  useEffect(() => {
+    if (activeTab === 'ocr' && selectedEngine) {
+      loadOcrEngineInfo(selectedEngine);
+    }
+  }, [selectedEngine, activeTab]);
 
   const loadScreenshots = async () => {
     setScreenshots(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -676,6 +737,98 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+
+    // Extract image files from clipboard
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a new file with a meaningful name
+          const timestamp = new Date().toISOString().replace(/[:.-]/g, '').slice(0, 14);
+          const ext = file.type.split('/')[1] || 'png';
+          const newFile = new File([file], `pasted-screenshot-${timestamp}.${ext}`, { type: file.type });
+          imageFiles.push(newFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      const dataTransfer = new DataTransfer();
+      imageFiles.forEach(file => dataTransfer.items.add(file));
+      handleScreenshotUpload(dataTransfer.files);
+
+      // Show success feedback
+      console.log(`📋 Pasted ${imageFiles.length} image(s) from clipboard`);
+    }
+  };
+
+  // Build image URL from screenshot ID using Laravel MCP API
+  const getImageUrl = (screenshot: Screenshot): string => {
+    // Get the base URL from the API config
+    const baseUrl = api.mcpV1['baseURL'] || '';
+
+    // Extract file extension from mime_type or original_name
+    let ext = 'png'; // default
+    if (screenshot.mime_type) {
+      const mimeMap: { [key: string]: string } = {
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'image/bmp': 'bmp'
+      };
+      ext = mimeMap[screenshot.mime_type] || ext;
+    } else if (screenshot.original_name) {
+      const match = screenshot.original_name.match(/\.([a-z0-9]+)$/i);
+      if (match) {
+        ext = match[1].toLowerCase();
+      }
+    }
+
+    // Use MCP API route with extension for better AI compatibility
+    // GET /api/mcp/v1/screenshots/{id}.{ext}
+    return `${baseUrl}/api/mcp/v1/screenshots/${screenshot.id}.${ext}`;
+  };
+
+  const handleViewScreenshot = (screenshot: Screenshot) => {
+    setSelectedScreenshot(screenshot);
+    setShowImageModal(true);
+  };
+
+  const handleDownloadScreenshot = (screenshot: Screenshot) => {
+    const url = getImageUrl(screenshot);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = screenshot.original_name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDeleteScreenshot = async (screenshot: Screenshot) => {
+    if (!confirm(t.screenshots.delete_confirm)) return;
+
+    try {
+      const response = await api.mcpV1.deleteScreenshot(screenshot.id);
+      if (response.success) {
+        loadScreenshots();
+        loadScreenshotStats();
+      }
+    } catch (error) {
+      console.error('Failed to delete screenshot:', error);
+    }
+  };
+
   const handleLoadLatestScreenshot = async () => {
     try {
       const response = await api.mcpV1.getLatestScreenshot();
@@ -694,12 +847,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   };
 
   const handleClearAllScreenshots = async () => {
-    if (!confirm('⚠️ DANGER: This will permanently delete ALL screenshots. This action cannot be undone. Are you sure?')) {
+    if (!confirm(t.screenshots.clear_all_confirm)) {
       return;
     }
 
     // Second confirmation
-    if (!confirm('Final confirmation: Delete ALL screenshots?')) {
+    if (!confirm(t.screenshots.clear_all_final)) {
       return;
     }
 
@@ -729,6 +882,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onPaste={handlePaste}
+      tabIndex={0}
     >
       {/* Drag Overlay */}
       {isDragging && (
@@ -736,10 +891,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-2xl border-4 border-dashed border-indigo-500">
             <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
             <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
-              Drop images here
+              {t.screenshots.drop_here}
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Mode: {uploadMode === 'single' ? 'Single Upload' : uploadMode === 'batch' ? 'Batch Upload' : 'Merge Upload'}
+              {t.screenshots.upload_mode}: {uploadMode === 'single' ? t.screenshots.single_upload : uploadMode === 'batch' ? t.screenshots.batch_upload : t.screenshots.merge_upload}
             </p>
           </div>
         </div>
@@ -751,50 +906,43 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <input
             type="file"
             accept="image/*"
-            multiple={uploadMode !== 'single'}
-            onChange={(e) => handleScreenshotUpload(e.target.files)}
+            onChange={(e) => {
+              handleScreenshotUpload(e.target.files);
+              e.target.value = '';
+            }}
             className="hidden"
-            id="screenshot-upload"
+            id="screenshot-upload-single"
           />
-          <label
-            htmlFor="screenshot-upload"
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 cursor-pointer`}
+          <button
+            onClick={() => setShowUploadModeDialog(true)}
+            className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
+            title={`${t.screenshots.upload} ${t.screenshots.paste_hint}`}
           >
             <Upload className="w-4 h-4" />
-            Upload
-          </label>
-          <select
-            value={uploadMode}
-            onChange={(e) => setUploadMode(e.target.value as any)}
-            className={`${commonClasses.input} w-auto text-sm`}
-            title="Upload mode"
-          >
-            <option value="single">Single</option>
-            <option value="batch">Batch (Multiple)</option>
-            <option value="merge">Merge (Combine)</option>
-          </select>
+            {t.screenshots.upload}
+          </button>
           <button
             onClick={loadScreenshots}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
+            {t.screenshots.refresh}
           </button>
           <button
             onClick={handleLoadLatestScreenshot}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-            title="Show latest screenshot"
+            title={t.screenshots.latest}
           >
             <Clock className="w-4 h-4" />
-            Latest
+            {t.screenshots.latest}
           </button>
           <button
             onClick={handleClearAllScreenshots}
             className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-2`}
-            title="Delete all screenshots (dangerous)"
+            title={t.screenshots.clear_all_confirm}
           >
             <Trash2 className="w-4 h-4" />
-            Clear All
+            {t.screenshots.clear_all}
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -891,46 +1039,130 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {screenshots.data && screenshots.data.length > 0 && (
         <div className={`flex-1 overflow-auto ${
           viewMode === 'grid'
-            ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
-            : 'space-y-2'
+            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6'
+            : 'space-y-4 p-6'
         }`}>
           {screenshots.data.map((screenshot) => (
               <div
                 key={screenshot.id}
-                className={`${commonClasses.card} ${commonClasses.cardHover} ${
-                  viewMode === 'list' ? 'flex items-center gap-4 p-4' : 'p-2'
+                className={`group relative ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700 p-5 flex items-center gap-5'
+                    : 'bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-200 dark:border-slate-700'
                 }`}
               >
                 {viewMode === 'grid' ? (
                   <>
-                    <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded mb-2 flex items-center justify-center">
-                      <Image className="w-8 h-8 text-slate-400" />
+                    {/* Image Container with Overlay */}
+                    <div
+                      className="relative aspect-video bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 overflow-hidden cursor-pointer rounded-t-xl"
+                      onClick={() => handleViewScreenshot(screenshot)}
+                    >
+                      <img
+                        src={getImageUrl(screenshot)}
+                        alt={screenshot.original_name}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          // Fallback to icon on error
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center');
+                          const icon = document.createElement('div');
+                          icon.innerHTML = '<svg class="w-12 h-12 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+                          e.currentTarget.parentElement!.appendChild(icon);
+                        }}
+                      />
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="flex gap-3">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleViewScreenshot(screenshot); }}
+                            className="p-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl hover:bg-white dark:hover:bg-slate-700 transition-all transform hover:scale-110 shadow-xl"
+                            title={t.screenshots.view}
+                          >
+                            <Eye className="w-6 h-6 text-slate-700 dark:text-slate-300" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDownloadScreenshot(screenshot); }}
+                            className="p-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl hover:bg-white dark:hover:bg-slate-700 transition-all transform hover:scale-110 shadow-xl"
+                            title={t.screenshots.download}
+                          >
+                            <Download className="w-6 h-6 text-slate-700 dark:text-slate-300" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteScreenshot(screenshot); }}
+                            className="p-4 bg-red-500/95 backdrop-blur-sm rounded-xl hover:bg-red-600 transition-all transform hover:scale-110 shadow-xl"
+                            title={t.screenshots.delete}
+                          >
+                            <Trash2 className="w-6 h-6 text-white" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs truncate mb-1">{screenshot.original_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(screenshot.created_at).toLocaleDateString()}
-                    </p>
+
+                    {/* Info Section */}
+                    <div className="p-4">
+                      <p className="text-sm font-medium truncate text-slate-800 dark:text-slate-200 mb-3" title={screenshot.original_name}>
+                        {screenshot.original_name}
+                      </p>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(screenshot.created_at).toLocaleDateString()} {new Date(screenshot.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center flex-shrink-0">
-                      <Image className="w-6 h-6 text-slate-400" />
+                    {/* Thumbnail */}
+                    <div
+                      className="relative w-24 h-24 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all shadow-sm"
+                      onClick={() => handleViewScreenshot(screenshot)}
+                    >
+                      <img
+                        src={getImageUrl(screenshot)}
+                        alt={screenshot.original_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to icon on error
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center');
+                          const icon = document.createElement('div');
+                          icon.innerHTML = '<svg class="w-10 h-10 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+                          e.currentTarget.parentElement!.appendChild(icon);
+                        }}
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{screenshot.original_name}</p>
-                      <p className="text-sm text-slate-500">
-                        {screenshot.mime_type} • {new Date(screenshot.created_at).toLocaleDateString()}
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 truncate text-base" title={screenshot.original_name}>
+                        {screenshot.original_name}
                       </p>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
+                        {new Date(screenshot.created_at).toLocaleDateString()} • {new Date(screenshot.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
+
+                    {/* Actions */}
                     <div className="flex items-center gap-2">
-                      <button className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-                        <Eye className="w-4 h-4" />
+                      <button
+                        onClick={() => handleViewScreenshot(screenshot)}
+                        className="p-3 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 transition-colors"
+                        title={t.screenshots.view}
+                      >
+                        <Eye className="w-5 h-5" />
                       </button>
-                      <button className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-                        <Download className="w-4 h-4" />
+                      <button
+                        onClick={() => handleDownloadScreenshot(screenshot)}
+                        className="p-3 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors"
+                        title={t.screenshots.download}
+                      >
+                        <Download className="w-5 h-5" />
                       </button>
-                      <button className="p-2 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400">
-                        <Trash2 className="w-4 h-4" />
+                      <button
+                        onClick={() => handleDeleteScreenshot(screenshot)}
+                        className="p-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
+                        title={t.screenshots.delete}
+                      >
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </>
@@ -943,12 +1175,157 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {screenshots.data && screenshots.data.length === 0 && (
         <div className="flex flex-col items-center justify-center h-64 text-slate-400">
           <Upload className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium mb-2">No screenshots found</p>
-          <p className="text-sm mb-4">Drag & drop images here or click Upload button</p>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
-              {uploadMode === 'single' ? '📄 Single' : uploadMode === 'batch' ? '📚 Batch' : '🔗 Merge'} mode
-            </span>
+          <p className="text-lg font-medium mb-2">{t.screenshots.no_screenshots}</p>
+          <p className="text-sm mb-2">{t.screenshots.upload_hint}</p>
+          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.drop_here}</span>
+            <span>•</span>
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">Ctrl + V</span>
+            <span>•</span>
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.upload}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Mode Selection Dialog */}
+      {showUploadModeDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowUploadModeDialog(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl w-96" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-slate-200">选择上传模式</h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setUploadMode('single');
+                  setShowUploadModeDialog(false);
+                  document.getElementById('screenshot-upload-single')?.click();
+                }}
+                className="w-full p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all flex items-center gap-4 group"
+              >
+                <div className="p-3 rounded-full bg-indigo-100 dark:bg-indigo-900/30 group-hover:bg-indigo-200 dark:group-hover:bg-indigo-900/50">
+                  <Image className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">单文件上传</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">上传一张图片</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setUploadMode('batch'); // Set default to batch mode
+                  setShowUploadModeDialog(false);
+                  setShowMultiFileUploadPanel(true);
+                }}
+                className="w-full p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all flex items-center gap-4 group"
+              >
+                <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-900/30 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50">
+                  <Grid className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">多文件上传</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">批量上传或合并多张图片</div>
+                </div>
+              </button>
+            </div>
+            <button
+              onClick={() => setShowUploadModeDialog(false)}
+              className="mt-4 w-full px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-File Upload Panel */}
+      {showMultiFileUploadPanel && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowMultiFileUploadPanel(false)}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl w-[600px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">多文件上传</h3>
+              <button
+                onClick={() => setShowMultiFileUploadPanel(false)}
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Upload Mode Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">上传模式</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setUploadMode('batch')}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    uploadMode === 'batch'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+                  }`}
+                >
+                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">批量上传</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">每张图片分别保存</div>
+                </button>
+                <button
+                  onClick={() => setUploadMode('merge')}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    uploadMode === 'merge'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                      : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
+                  }`}
+                >
+                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">合并上传</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">多张图片合成一张</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Drag & Drop Area */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                  const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                  if (imageFiles.length > 0) {
+                    const dataTransfer = new DataTransfer();
+                    imageFiles.forEach(file => dataTransfer.items.add(file));
+                    handleScreenshotUpload(dataTransfer.files);
+                    setShowMultiFileUploadPanel(false);
+                  }
+                }
+              }}
+              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-12 text-center hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all cursor-pointer"
+              onClick={() => document.getElementById('screenshot-upload-multi')?.click()}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  handleScreenshotUpload(e.target.files);
+                  setShowMultiFileUploadPanel(false);
+                  e.target.value = '';
+                }}
+                className="hidden"
+                id="screenshot-upload-multi"
+              />
+              <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
+              <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                拖拽图片到这里或点击上传
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                支持 JPG, PNG, GIF, WebP 等格式
+              </p>
+              <div className="inline-block px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-sm font-medium">
+                {uploadMode === 'batch' ? '📚 批量模式' : '🔗 合并模式'}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1479,9 +1856,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       let response;
 
-      // Apply filters
+      // Apply filters (priority: group > category > filter > all)
       if (selectedVoiceGroup) {
         response = await api.mcpV1.vsGetQueueByGroup(selectedVoiceGroup);
+      } else if (selectedVoiceCategory) {
+        response = await api.mcpV1.vsGetQueueByCategory(selectedVoiceCategory);
       } else if (voiceQueueFilter === 'today') {
         response = await api.mcpV1.vsGetQueueToday();
       } else if (voiceQueueFilter === 'latest') {
@@ -1578,6 +1957,60 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     } catch (error: any) {
       console.error('Failed to load voice groups:', error);
       setVoiceGroups({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadSupportedLanguages = async () => {
+    setSupportedLanguages(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsGetSupportedLanguages();
+      if (response.success && response.data) {
+        setSupportedLanguages({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load supported languages');
+      }
+    } catch (error: any) {
+      console.error('Failed to load supported languages:', error);
+      setSupportedLanguages({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadVoiceCategories = async () => {
+    setVoiceCategories(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsGetCategories();
+      if (response.success && response.data) {
+        const categoriesData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).categories || []);
+
+        setVoiceCategories({
+          data: categoriesData,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load voice categories');
+      }
+    } catch (error: any) {
+      console.error('Failed to load voice categories:', error);
+      setVoiceCategories({
         data: [],
         loading: false,
         error: error.message,
@@ -1777,6 +2210,50 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const loadVoiceBackgroundTasks = async () => {
+    setVoiceBackgroundTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsListTasks();
+      if (response.success && response.data) {
+        const tasksData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).tasks || []);
+
+        setVoiceBackgroundTasks({
+          data: tasksData,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load background tasks');
+      }
+    } catch (error: any) {
+      console.error('Failed to load voice background tasks:', error);
+      setVoiceBackgroundTasks({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleDeleteVoiceBackgroundTasks = async (taskIds: string[]) => {
+    if (!confirm(`Delete ${taskIds.length} background task(s)?`)) {
+      return;
+    }
+
+    try {
+      const response = await api.mcpV1.vsDeleteTasks(taskIds);
+      if (response.success) {
+        loadVoiceBackgroundTasks();
+      }
+    } catch (error) {
+      console.error('Failed to delete voice background tasks:', error);
+    }
+  };
+
   // OCR Functions
   const loadOcrEngines = async () => {
     setOcrEngines(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -1796,6 +2273,31 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       console.error('Failed to load OCR engines:', error);
       setOcrEngines({
         data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadOcrEngineInfo = async (engine: string) => {
+    setOcrEngineInfo(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.getOcrEngineInfo(engine);
+      if (response.success && response.data) {
+        setOcrEngineInfo({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load engine info');
+      }
+    } catch (error: any) {
+      console.error('Failed to load OCR engine info:', error);
+      setOcrEngineInfo({
+        data: null,
         loading: false,
         error: error.message,
         status: 'error'
@@ -2296,13 +2798,38 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               <option value="image">Image</option>
             </select>
             {newVoiceType !== 'image' && (
-              <input
-                type="text"
+              <select
                 value={newVoiceLanguage}
                 onChange={(e) => setNewVoiceLanguage(e.target.value)}
-                placeholder="Language (e.g., en)"
                 className={`${commonClasses.input} w-32`}
-              />
+                disabled={supportedLanguages.loading}
+              >
+                {supportedLanguages.loading ? (
+                  <option value="en">Loading...</option>
+                ) : supportedLanguages.data ? (
+                  <>
+                    {Array.isArray(supportedLanguages.data) ? (
+                      supportedLanguages.data.map((lang: any) => (
+                        <option key={typeof lang === 'string' ? lang : lang.code} value={typeof lang === 'string' ? lang : lang.code}>
+                          {typeof lang === 'string' ? lang : (lang.name || lang.code)}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="en">en</option>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <option value="en">en</option>
+                    <option value="zh">zh</option>
+                    <option value="ja">ja</option>
+                    <option value="ko">ko</option>
+                    <option value="es">es</option>
+                    <option value="fr">fr</option>
+                    <option value="de">de</option>
+                  </>
+                )}
+              </select>
             )}
           </div>
 
@@ -2484,6 +3011,22 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 ))}
               </select>
             )}
+
+            {/* Category Filter */}
+            {voiceCategories.data && voiceCategories.data.length > 0 && (
+              <select
+                value={selectedVoiceCategory || ''}
+                onChange={(e) => setSelectedVoiceCategory(e.target.value || null)}
+                className={`${commonClasses.input} w-48`}
+              >
+                <option value="">All Categories</option>
+                {voiceCategories.data.map((category: any) => (
+                  <option key={typeof category === 'string' ? category : category.id} value={typeof category === 'string' ? category : category.id}>
+                    {typeof category === 'string' ? category : (category.name || category.id)}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Batch Operations */}
@@ -2658,6 +3201,90 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           </div>
         )}
       </div>
+
+      {/* Background Tasks Panel */}
+      <div className={`${commonClasses.card} p-4`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Background Tasks</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={loadVoiceBackgroundTasks}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 text-xs`}
+            >
+              <RefreshCw className="w-3 h-3" />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {voiceBackgroundTasks.loading && (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+          </div>
+        )}
+
+        {voiceBackgroundTasks.error && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
+            {voiceBackgroundTasks.error}
+          </div>
+        )}
+
+        {voiceBackgroundTasks.data && voiceBackgroundTasks.data.length > 0 ? (
+          <div className="space-y-2">
+            {voiceBackgroundTasks.data.map((task: any) => (
+              <div
+                key={task.id}
+                className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium">{task.name || task.id}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${
+                        task.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
+                        task.status === 'running' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' :
+                        task.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                        'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}>
+                        {task.status}
+                      </span>
+                    </div>
+                    {task.description && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{task.description}</p>
+                    )}
+                    {task.progress !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                          <div
+                            className="bg-indigo-500 h-1.5 rounded-full transition-all"
+                            style={{ width: `${task.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500">{task.progress}%</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">
+                      {task.created_at && `Created: ${new Date(task.created_at).toLocaleString()}`}
+                      {task.updated_at && ` • Updated: ${new Date(task.updated_at).toLocaleString()}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteVoiceBackgroundTasks([task.id])}
+                    className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                    title="Delete task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : voiceBackgroundTasks.data && voiceBackgroundTasks.data.length === 0 ? (
+          <div className="text-center py-8 text-slate-400">
+            <p className="text-sm">No background tasks</p>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 
@@ -2685,6 +3312,47 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 <option value="tesseract">Tesseract</option>
                 <option value="easyocr">EasyOCR</option>
               </select>
+            )}
+
+            {/* Engine Info */}
+            {ocrEngineInfo.loading && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Loading engine info...
+              </div>
+            )}
+            {ocrEngineInfo.data && (
+              <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="text-sm space-y-1">
+                  {ocrEngineInfo.data.description && (
+                    <p className="text-slate-700 dark:text-slate-300">{ocrEngineInfo.data.description}</p>
+                  )}
+                  {ocrEngineInfo.data.accuracy && (
+                    <p className="text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">Accuracy:</span> {ocrEngineInfo.data.accuracy}
+                    </p>
+                  )}
+                  {ocrEngineInfo.data.supported_languages && (
+                    <p className="text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">Languages:</span> {
+                        Array.isArray(ocrEngineInfo.data.supported_languages)
+                          ? ocrEngineInfo.data.supported_languages.join(', ')
+                          : ocrEngineInfo.data.supported_languages
+                      }
+                    </p>
+                  )}
+                  {ocrEngineInfo.data.speed && (
+                    <p className="text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">Speed:</span> {ocrEngineInfo.data.speed}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {ocrEngineInfo.error && (
+              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
+                {ocrEngineInfo.error}
+              </div>
             )}
           </div>
 
@@ -2941,6 +3609,134 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         {activeTab === 'ocr' && renderOcrTab()}
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
+
+      {/* Image Detail Modal - Enhanced */}
+      {showImageModal && selectedScreenshot && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header - Enhanced */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900 dark:to-slate-800">
+              <div className="flex-1 min-w-0 mr-4">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-2">
+                  <Image className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  {selectedScreenshot.original_name}
+                </h3>
+                <div className="flex items-center gap-3 mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg font-medium">
+                    {selectedScreenshot.mime_type.split('/')[1]?.toUpperCase()}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(selectedScreenshot.created_at).toLocaleDateString()}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {new Date(selectedScreenshot.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadScreenshot(selectedScreenshot)}
+                  className="p-3 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-all hover:scale-110 active:scale-95"
+                  title={t.screenshots.download}
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => copyToClipboard(getImageUrl(selectedScreenshot))}
+                  className="p-3 rounded-xl hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition-all hover:scale-110 active:scale-95"
+                  title={t.screenshots.copy_url}
+                >
+                  <Copy className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setShowImageModal(false)}
+                  className="p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-all hover:scale-110 active:scale-95"
+                  title={lang === 'zh' ? '关闭' : 'Close'}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Image - Enhanced */}
+            <div className="flex-1 overflow-auto p-8 bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+              <img
+                src={getImageUrl(selectedScreenshot)}
+                alt={selectedScreenshot.original_name}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+                onError={(e) => {
+                  e.currentTarget.src = '';
+                  e.currentTarget.alt = 'Failed to load image';
+                  e.currentTarget.className = 'text-red-500';
+                }}
+              />
+            </div>
+
+            {/* Footer - Enhanced */}
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
+              <div className="space-y-4">
+                {/* URL Section */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2 block">
+                    {t.screenshots.image_url}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 relative group">
+                      <input
+                        type="text"
+                        value={getImageUrl(selectedScreenshot)}
+                        readOnly
+                        onClick={(e) => e.currentTarget.select()}
+                        className="block w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-text"
+                      />
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(getImageUrl(selectedScreenshot))}
+                      className="p-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+                      title={t.screenshots.copy_url}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Description Section */}
+                {selectedScreenshot.description && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2 block">
+                      {t.screenshots.description}
+                    </label>
+                    <p className="px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                      {selectedScreenshot.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <span className="flex items-center gap-1">
+                    <HardDrive className="w-3 h-3" />
+                    ID: <code className="font-mono">{selectedScreenshot.id}</code>
+                  </span>
+                  {selectedScreenshot.size && (
+                    <span className="flex items-center gap-1">
+                      Size: {(selectedScreenshot.size / 1024).toFixed(2)} KB
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

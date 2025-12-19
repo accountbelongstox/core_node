@@ -4,7 +4,6 @@ import MediaBrowser from './components/views/MediaBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
-import SystemInfo from './components/views/SystemInfo';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AITools from './components/views/AITools';
 import MCPManager from './components/views/MCPManager';
@@ -116,8 +115,6 @@ const AppContent: React.FC = () => {
         return <UnifiedToolsPage lang={lang} />;
       case ViewType.API_TESTER:
         return <ApiTester />;
-      case ViewType.SYSTEM_INFO:
-        return <SystemInfo />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning />;
       case ViewType.AI_TOOLS:
@@ -175,7 +172,6 @@ const AppContent: React.FC = () => {
       case ViewType.CODE_BROWSER: return t.header.titles.code;
       case ViewType.TOOLS: return t.header.titles.tools;
       case ViewType.API_TESTER: return t.header.titles.api;
-      case ViewType.SYSTEM_INFO: return t.header.titles.system;
       case ViewType.VOCABULARY: return t.header.titles.vocabulary;
       case ViewType.AI_TOOLS: return t.header.titles.ai_tools;
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
