@@ -15,10 +15,10 @@
 #define COMMON_PUSHFILE_DEF "/sdcard/"
 
 #define COMMON_SERVER_VERSION_KEY "ServerVersion"
-#define COMMON_SERVER_VERSION_DEF "1.17"
+#define COMMON_SERVER_VERSION_DEF "3.3.3"
 
 #define COMMON_SERVER_PATH_KEY "ServerPath"
-#define COMMON_SERVER_PATH_DEF "/data/local/tmp/scrcpy-server.jar"
+#define COMMON_SERVER_PATH_DEF "/data/local/tmp/scrcpy-server-v3.3.3"
 
 #define COMMON_MAX_FPS_KEY "MaxFps"
 #define COMMON_MAX_FPS_DEF 60
