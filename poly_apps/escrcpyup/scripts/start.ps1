@@ -99,6 +99,13 @@ function Install-Pnpm {
 
 # Check and install dependencies
 function Install-Dependencies {
+    Write-Info "Restoring binary files from .py backups..."
+    Write-Host ""
+
+    # Restore binaries (adb.exe, scrcpy.exe, etc.) from .exe.py, .dll.py files
+    & "$PSScriptRoot\prepare-binaries.ps1" -Action restore
+
+    Write-Host ""
     Write-Info "Cleaning old dependencies..."
     Write-Host ""
 
