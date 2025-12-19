@@ -14,7 +14,7 @@ public:
     enum DeviceMsgType
     {
         DMT_NULL = -1,
-        // 和服务端对应
+        // Corresponds to server side
         DMT_GET_CLIPBOARD = 0,
     };
     explicit DeviceMsg(QObject *parent = nullptr);

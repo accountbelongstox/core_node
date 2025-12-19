@@ -51,7 +51,7 @@ void InputConvertGame::wheelEvent(const QWheelEvent *from, const QSize &frameSiz
 
 void InputConvertGame::keyEvent(const QKeyEvent *from, const QSize &frameSize, const QSize &showSize)
 {
-    // 处理开关按键
+    // Handle switch key
     if (m_keyMap.isSwitchOnKeyboard() && m_keyMap.getSwitchKey() == from->key()) {
         if (QEvent::KeyPress != from->type()) {
             return;
@@ -63,7 +63,7 @@ void InputConvertGame::keyEvent(const QKeyEvent *from, const QSize &frameSize, c
     }
 
     const KeyMap::KeyMapNode &node = m_keyMap.getKeyMapNodeKey(from->key());
-    // 处理特殊按键：可以释放出鼠标的按键
+    // Handle special keys: keys that can release the mouse
     if (m_needBackMouseMove && KeyMap::KMT_CLICK == node.type && node.data.click.switchMap) {
         updateSize(frameSize, showSize);
         // Qt::Key_Tab Qt::Key_M for PUBG mobile
@@ -99,11 +99,11 @@ void InputConvertGame::keyEvent(const QKeyEvent *from, const QSize &frameSize, c
         }
 
         switch (node.type) {
-        // 处理方向盘
+        // Handle steering wheel
         case KeyMap::KMT_STEER_WHEEL:
             processSteerWheel(node, from);
             return;
-        // 处理普通按键
+        // Handle normal keys
         case KeyMap::KMT_CLICK:
             processKeyClick(node.data.click.keyNode.pos, false, node.data.click.switchMap, from);
             return;
