@@ -164,13 +164,14 @@ class ScrcpyServerDownloader:
                                 mb_downloaded = downloaded / 1024 / 1024
                                 mb_total = total_size / 1024 / 1024
 
-                                # Create progress bar (50 characters wide)
+                                # Create progress bar (50 characters wide) - Use ASCII for Windows compatibility
                                 bar_width = 50
                                 filled = int(bar_width * downloaded / total_size)
-                                bar = '█' * filled + '░' * (bar_width - filled)
+                                bar = '=' * filled + '-' * (bar_width - filled)
 
                                 # Real-time progress output with \r to overwrite same line
-                                print(f"\r[INFO] [{bar}] {percent:.1f}% | {mb_downloaded:.2f}/{mb_total:.2f} MB | {speed_mbps:.2f} MB/s | ETA: {eta_str}", end='', flush=True)
+                                sys.stdout.write(f"\r[INFO] [{bar}] {percent:.1f}% | {mb_downloaded:.2f}/{mb_total:.2f} MB | {speed_mbps:.2f} MB/s | ETA: {eta_str}")
+                                sys.stdout.flush()
 
                             last_update_time = current_time
                             last_downloaded = downloaded
