@@ -8,7 +8,7 @@ echo "Restarting Laravel Octane (ncore-laravel_main)..."
 sudo systemctl restart ncore-laravel_main
 
 if [ $? -eq 0 ]; then
-    echo "âœ“ Laravel Octane restarted successfully"
+    echo "âœ?Laravel Octane restarted successfully"
     echo ""
     echo "Waiting for service to be ready..."
     sleep 2
@@ -16,6 +16,6 @@ if [ $? -eq 0 ]; then
     # Check status
     sudo systemctl status ncore-laravel_main --no-pager
 else
-    echo "âœ— Failed to restart Laravel Octane"
+    echo "âœ?Failed to restart Laravel Octane"
     exit 1
 fi
