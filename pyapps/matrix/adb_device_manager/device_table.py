@@ -89,14 +89,24 @@ class DeviceInfo:
 
 class DeviceTable:
     """
-    Thread-safe device registry
+    Thread-safe device registry (Singleton)
 
     Maintains a central table of all discovered devices with their states.
     Provides methods for adding, removing, updating, and querying devices.
+
+    IMPORTANT: This is a singleton class. Use DeviceTable.instance() to get the global instance.
+    DO NOT instantiate with DeviceTable() directly.
     """
 
+    _instance: Optional['DeviceTable'] = None
+    _instance_lock = threading.Lock()
+
     def __init__(self):
-        """Initialize device table"""
+        """
+        Initialize device table
+
+        WARNING: Do not call directly. Use DeviceTable.instance() instead.
+        """
         self._devices: Dict[str, DeviceInfo] = {}
         self._lock = threading.RLock()
 
@@ -104,6 +114,25 @@ class DeviceTable:
         self._total_added = 0
         self._total_removed = 0
         self._total_state_changes = 0
+
+    @classmethod
+    def instance(cls) -> 'DeviceTable':
+        """
+        Get global singleton instance of DeviceTable
+
+        Returns:
+            DeviceTable: The global singleton instance
+
+        Example:
+            device_table = DeviceTable.instance()
+            device_table.add_device(device_info)
+        """
+        if cls._instance is None:
+            with cls._instance_lock:
+                # Double-check pattern for thread safety
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
 
     def add_device(self, device_info: DeviceInfo) -> bool:
         """

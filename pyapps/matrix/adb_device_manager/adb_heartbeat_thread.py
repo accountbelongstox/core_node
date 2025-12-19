@@ -64,14 +64,11 @@ class ADBHeartbeatThread(threading.Thread):
         self._running = False
         self.rpc_server = None
 
-        self.device_table = DeviceTable()
-        self.adb = ADBExecutor(adb_path=adb_path)
-        self.network_scanner = NetworkScanner(port=5555, timeout=0.2)
-        self.usb_monitor = USBMonitor(
-            adb_executor=self.adb,
-            device_table=self.device_table,
-            auto_convert=True
-        )
+        # ✅ Use global singleton instances (DO NOT instantiate with ClassName())
+        self.device_table = DeviceTable.instance()
+        self.adb = ADBExecutor.instance(adb_path=adb_path)
+        self.network_scanner = NetworkScanner.instance(port=5555, timeout=0.2)
+        self.usb_monitor = USBMonitor.instance(auto_convert=True)
 
         self._last_network_scan = 0.0
         self._last_usb_scan = 0.0
