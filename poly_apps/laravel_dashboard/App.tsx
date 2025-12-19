@@ -213,26 +213,26 @@ const AppContent: React.FC = () => {
         
         <main className="flex-1 flex flex-col min-w-0 bg-transparent relative">
           {/* Top Header */}
-          <header className="h-16 flex items-center justify-between px-6 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
-             <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
+          <header className="min-h-16 flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-3 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
+             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 min-w-0">
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-white truncate">
                    {getPageTitle()}
                 </h1>
-                <span className="hidden md:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0">
                   {APP_NAME} {APP_VERSION}
                 </span>
              </div>
 
-             <div className="flex items-center gap-4 md:gap-6 text-xs font-medium">
+             <div className="flex items-center gap-2 sm:gap-4 text-xs font-medium flex-wrap">
                 {/* System Status */}
-                <div className="hidden md:flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                    <span className={isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'}>
+                    <span className={`${isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'} whitespace-nowrap`}>
                       {isLoggedIn ? t.header.system_online : t.header.system_offline}
                     </span>
                 </div>
 
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block"></div>
+                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
 
                 {/* Controls */}
                 <div className="flex items-center gap-2">
@@ -258,33 +258,33 @@ const AppContent: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10"></div>
+                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
 
                 {/* User Info / Auth */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 flex-shrink-0">
                     {isLoggedIn && (
-                      <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                          <span>{t.header.logged_in_as}</span>
-                          <span className="text-slate-800 dark:text-white font-bold">adminroot</span>
+                      <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          <span className="text-xs">{t.header.logged_in_as}</span>
+                          <span className="text-slate-800 dark:text-white font-bold text-xs">adminroot</span>
                       </div>
                     )}
-                    
-                    <button 
+
+                    <button
                       onClick={handleAuthAction}
                       className={`
-                        px-4 py-2 rounded-lg transition-all flex items-center gap-2 border font-semibold
-                        ${isLoggedIn 
-                          ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20' 
+                        px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all flex items-center gap-1.5 border font-semibold text-xs sm:text-sm flex-shrink-0
+                        ${isLoggedIn
+                          ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20'
                           : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-lg shadow-indigo-500/20'}
                       `}
                     >
                         {isLoggedIn ? (
                           <>
-                            <Power size={14} /> <span className="hidden sm:inline">{t.header.logout}</span>
+                            <Power size={14} /> <span className="hidden sm:inline whitespace-nowrap">{t.header.logout}</span>
                           </>
                         ) : (
                           <>
-                            <LogIn size={14} /> <span>{t.header.login}</span>
+                            <LogIn size={14} /> <span className="whitespace-nowrap">{t.header.login}</span>
                           </>
                         )}
                     </button>

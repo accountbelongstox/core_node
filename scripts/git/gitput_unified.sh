@@ -1067,7 +1067,7 @@ invoke_force_overwrite() {
     write_color_text "" "White"
     write_color_text "To delete the backup branch:" "Cyan"
     write_color_text "  git branch -D $backup_branch" "White"
-    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
+    write_color_text "══════════════════════════════════════════════════════════════" "Green"
 
     return 0
 }

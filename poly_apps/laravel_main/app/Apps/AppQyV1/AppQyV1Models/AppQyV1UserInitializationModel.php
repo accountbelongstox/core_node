@@ -9,7 +9,7 @@ class AppQyV1UserInitializationModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table = 'app_qy_v1_user_initializations';
 
     protected $fillable = [

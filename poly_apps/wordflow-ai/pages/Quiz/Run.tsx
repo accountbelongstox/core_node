@@ -8,7 +8,7 @@ import { LearningProgressTracker } from '../../services/LearningProgressTracker'
 
 const QuizRunPage = () => {
   // [i18n] Added `t` function for multi-language support
-  const { navigate, t, currentParams } = useContext(AppContext);
+  const { navigate, t, currentParams, user } = useContext(AppContext);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -18,6 +18,11 @@ const QuizRunPage = () => {
   const [gameOver, setGameOver] = useState(false);
 
   useEffect(() => {
+    if (!user) {
+      navigate('login');
+      return;
+    }
+
     api.getQuizSession().then(data => {
       setQuestions(data);
 
@@ -26,6 +31,8 @@ const QuizRunPage = () => {
         currentParams?.groupId,
         currentParams?.language || 'en'
       );
+    }).catch(err => {
+      console.error('[Quiz] Failed to load quiz session:', err);
     });
 
     // [Learning Progress] End session on unmount

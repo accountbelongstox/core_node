@@ -3,6 +3,8 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EscrowModel;
@@ -15,37 +17,30 @@ use Illuminate\Support\Facades\Validator;
 
 class CodeMartV1PaymentCtl extends Controller
 {
+    use ApiResponse;
+
     public function getWallet(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $wallet = CodeMartV1WalletModel::firstOrCreate(
             ['user_id' => $user->id],
             ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
         );
 
-        return response()->json([
-            'success' => true,
-            'data' => $wallet,
-        ], 200);
+        return $this->success($wallet);
     }
 
     public function getWalletTransactions(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
 
         if (!$wallet) {
-            return response()->json(['success' => false, 'message' => 'Wallet not found'], 404);
+            return $this->notFound('Wallet not found');
         }
 
         $page = $request->get('page', 1);
@@ -56,25 +51,19 @@ class CodeMartV1PaymentCtl extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate($pageSize, ['*'], 'page', $page);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'items' => $transactions->items(),
-                'total' => $total,
-                'page' => $page,
-                'pageSize' => $pageSize,
-                'totalPages' => ceil($total / $pageSize),
-            ],
-        ], 200);
+        return $this->success([
+            'items' => $transactions->items(),
+            'total' => $total,
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'totalPages' => ceil($total / $pageSize),
+        ]);
     }
 
     public function createPayment(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'payee_id' => 'required|exists:users,id',
@@ -87,70 +76,54 @@ class CodeMartV1PaymentCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $payer_wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
+        $payer_wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
 
-            if ($request->payment_method === 'wallet') {
-                if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Insufficient wallet balance',
-                    ], 422);
-                }
-
-                $payer_wallet->holdFunds($request->amount, "Payment hold for " . ($request->description ?? "project payment"));
+        if ($request->payment_method === 'wallet') {
+            if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
+                DB::rollBack();
+                return $this->error('Insufficient wallet balance', 422);
             }
 
-            $payment = CodeMartV1PaymentModel::create([
-                'payer_id' => $user->id,
-                'payee_id' => $request->payee_id,
-                'project_id' => $request->project_id,
-                'milestone_id' => $request->milestone_id,
-                'amount' => $request->amount,
-                'currency' => 'CNY',
-                'type' => $request->type,
-                'payment_method' => $request->payment_method,
-                'description' => $request->description,
-                'status' => $request->payment_method === 'wallet' ? 'completed' : 'pending',
-            ]);
-
-            if ($request->payment_method === 'wallet' && $payment->status === 'completed') {
-                $payer_wallet->withdrawal($request->amount, "Payment to user {$request->payee_id}");
-                $payee_wallet = CodeMartV1WalletModel::firstOrCreate(
-                    ['user_id' => $request->payee_id],
-                    ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
-                );
-                $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
-            }
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Payment created successfully',
-                'data' => $payment->load(['payer', 'payee']),
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create payment: ' . $e->getMessage(),
-            ], 500);
+            $payer_wallet->holdFunds($request->amount, "Payment hold for " . ($request->description ?? "project payment"));
         }
+
+        $payment = CodeMartV1PaymentModel::create([
+            'payer_id' => $user->id,
+            'payee_id' => $request->payee_id,
+            'project_id' => $request->project_id,
+            'milestone_id' => $request->milestone_id,
+            'amount' => $request->amount,
+            'currency' => 'CNY',
+            'type' => $request->type,
+            'payment_method' => $request->payment_method,
+            'description' => $request->description,
+            'status' => $request->payment_method === 'wallet' ? 'completed' : 'pending',
+        ]);
+
+        if ($request->payment_method === 'wallet' && $payment->status === 'completed') {
+            $payer_wallet->withdrawal($request->amount, "Payment to user {$request->payee_id}");
+            $payee_wallet = CodeMartV1WalletModel::firstOrCreate(
+                ['user_id' => $request->payee_id],
+                ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
+            );
+            $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
+        }
+
+        DB::commit();
+
+        return $this->success($payment->load(['payer', 'payee']), 'Payment created successfully', 201);
     }
 
-    public function getPayment(int $paymentId): JsonResponse
+    public function getPayment(Request $request, int $paymentId): JsonResponse
     {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $payment = CodeMartV1PaymentModel::with([
             'payer',
             'payee',
@@ -159,22 +132,16 @@ class CodeMartV1PaymentCtl extends Controller
         ])->find($paymentId);
 
         if (!$payment) {
-            return response()->json(['success' => false, 'message' => 'Payment not found'], 404);
+            return $this->notFound('Payment not found');
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $payment,
-        ], 200);
+        return $this->success($payment);
     }
 
     public function getPayments(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $query = CodeMartV1PaymentModel::query()
             ->where(function ($q) use ($user) {
@@ -196,25 +163,19 @@ class CodeMartV1PaymentCtl extends Controller
         $payments = $query->orderBy('created_at', 'desc')
             ->paginate($pageSize, ['*'], 'page', $page);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'items' => $payments->items(),
-                'total' => $total,
-                'page' => $page,
-                'pageSize' => $pageSize,
-                'totalPages' => ceil($total / $pageSize),
-            ],
-        ], 200);
+        return $this->success([
+            'items' => $payments->items(),
+            'total' => $total,
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'totalPages' => ceil($total / $pageSize),
+        ]);
     }
 
     public function createInvoice(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'payment_id' => 'required|exists:codemart_payments,id',
@@ -224,59 +185,39 @@ class CodeMartV1PaymentCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            $payment = CodeMartV1PaymentModel::find($request->payment_id);
+        $payment = CodeMartV1PaymentModel::find($request->payment_id);
 
-            if (!$payment || $payment->payee_id !== $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized',
-                ], 403);
-            }
-
-            $tax = $request->tax ?? 0;
-            $subtotal = $payment->amount;
-            $total = $subtotal + $tax;
-
-            $invoice = CodeMartV1InvoiceModel::create([
-                'payment_id' => $request->payment_id,
-                'invoice_number' => 'INV-' . now()->format('YmdHis') . '-' . $user->id,
-                'issued_by' => $user->id,
-                'description' => $request->description,
-                'line_items' => $request->line_items,
-                'subtotal' => $subtotal,
-                'tax' => $tax,
-                'total' => $total,
-                'issued_date' => now()->date(),
-                'status' => 'sent',
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Invoice created successfully',
-                'data' => $invoice->load('payment'),
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create invoice: ' . $e->getMessage(),
-            ], 500);
+        if (!$payment || $payment->payee_id !== $user->id) {
+            return $this->forbidden('You do not have permission to create invoice for this payment');
         }
+
+        $tax = $request->tax ?? 0;
+        $subtotal = $payment->amount;
+        $total = $subtotal + $tax;
+
+        $invoice = CodeMartV1InvoiceModel::create([
+            'payment_id' => $request->payment_id,
+            'invoice_number' => 'INV-' . now()->format('YmdHis') . '-' . $user->id,
+            'issued_by' => $user->id,
+            'description' => $request->description,
+            'line_items' => $request->line_items,
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'total' => $total,
+            'issued_date' => now()->toDateString(),
+            'status' => 'sent',
+        ]);
+
+        return $this->success($invoice->load('payment'), 'Invoice created successfully', 201);
     }
 
     public function requestRefund(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'payment_id' => 'required|exists:codemart_payments,id',
@@ -285,113 +226,76 @@ class CodeMartV1PaymentCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            $payment = CodeMartV1PaymentModel::find($request->payment_id);
+        $payment = CodeMartV1PaymentModel::find($request->payment_id);
 
-            if (!$payment || $payment->payer_id !== $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized',
-                ], 403);
-            }
-
-            $refund = CodeMartV1RefundModel::create([
-                'payment_id' => $request->payment_id,
-                'amount' => $payment->amount,
-                'reason' => $request->reason,
-                'notes' => $request->notes,
-                'requested_at' => now(),
-                'status' => 'pending',
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Refund request created successfully',
-                'data' => $refund,
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create refund request: ' . $e->getMessage(),
-            ], 500);
+        if (!$payment || $payment->payer_id !== $user->id) {
+            return $this->forbidden('You do not have permission to request refund for this payment');
         }
+
+        $refund = CodeMartV1RefundModel::create([
+            'payment_id' => $request->payment_id,
+            'amount' => $payment->amount,
+            'reason' => $request->reason,
+            'notes' => $request->notes,
+            'requested_at' => now(),
+            'status' => 'pending',
+        ]);
+
+        return $this->success($refund, 'Refund request created successfully', 201);
     }
 
     public function approveRefund(Request $request, int $refundId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
-        if (!$user || $user->rolelevel < 2) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        if ($user->rolelevel < 2) {
+            return $this->forbidden('Insufficient permissions to approve refund');
         }
 
         $refund = CodeMartV1RefundModel::find($refundId);
 
         if (!$refund) {
-            return response()->json(['success' => false, 'message' => 'Refund not found'], 404);
+            return $this->notFound('Refund not found');
         }
 
         if (!$refund->approve()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot approve refund in current status',
-            ], 422);
+            return $this->error('Cannot approve refund in current status', 422);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Refund approved successfully',
-            'data' => $refund,
-        ], 200);
+        return $this->success($refund, 'Refund approved successfully');
     }
 
     public function processRefund(Request $request, int $refundId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
-        if (!$user || $user->rolelevel < 2) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        if ($user->rolelevel < 2) {
+            return $this->forbidden('Insufficient permissions to process refund');
         }
 
         $refund = CodeMartV1RefundModel::find($refundId);
 
         if (!$refund) {
-            return response()->json(['success' => false, 'message' => 'Refund not found'], 404);
+            return $this->notFound('Refund not found');
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            if (!$refund->complete()) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot process refund in current status',
-                ], 422);
-            }
-
-            $payment = $refund->payment;
-            $payment->update(['status' => 'cancelled']);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Refund processed successfully',
-                'data' => $refund,
-            ], 200);
-        } catch (\Exception $e) {
+        if (!$refund->complete()) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to process refund: ' . $e->getMessage(),
-            ], 500);
+            return $this->error('Cannot process refund in current status', 422);
         }
+
+        $payment = $refund->payment;
+        $payment->update(['status' => 'cancelled']);
+
+        DB::commit();
+
+        return $this->success($refund, 'Refund processed successfully');
     }
 }

@@ -346,6 +346,33 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
         try:
             _wrapped_main_entry()
+
+            # If no GUI (server mode), wait for shutdown signal
+            adapter = get_platform_adapter()
+            if not (adapter.has_gui and (config.show_on_start or config.enable_tray)):
+                import signal
+                import time
+
+                ColorPrint.green("[NativeLauncher] Server mode: Running in background (no GUI)")
+                ColorPrint.blue("[NativeLauncher] Press Ctrl+C to stop, or use THREAD_BUS.request_shutdown()")
+
+                # Setup Ctrl+C handler
+                def signal_handler(signum, frame):
+                    if not THREAD_BUS.is_shutdown_requested():
+                        ColorPrint.yellow("\n[NativeLauncher] Keyboard interrupt (Ctrl+C)")
+                        THREAD_BUS.request_shutdown(reason="Keyboard interrupt", execute_handlers=True)
+                    else:
+                        ColorPrint.yellow("\n[NativeLauncher] Already shutting down, please wait...")
+
+                signal.signal(signal.SIGINT, signal_handler)
+                signal.signal(signal.SIGTERM, signal_handler)
+
+                # Wait for shutdown signal
+                while not THREAD_BUS.is_shutdown_requested():
+                    time.sleep(0.5)
+
+                ColorPrint.blue("[NativeLauncher] Shutdown signal received, cleaning up...")
+
         except KeyboardInterrupt:
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
@@ -383,10 +410,10 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
         if not config.tray_menu_items:
             ColorPrint.blue("[NativeLauncher] No tray menu items provided, creating default menu...")
 
-            # Default menu items
-            # 1. Open Frontend
+            # Default menu items (using i18n keys for multi-language support)
+            # 1. Open Frontend / Show Window
             open_item = TrayMenuItem(
-                text="Open Frontend",
+                text="tray.menu.show",  # i18n key - will be translated by TkinterSystemTray
                 action_signal="tray_action_open",
                 default=True
             )
@@ -406,7 +433,7 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
 
             # 3. Exit
             exit_item = TrayMenuItem(
-                text="Exit",
+                text="tray.menu.exit",  # i18n key - will be translated by TkinterSystemTray
                 action_signal="tray_action_exit"
             )
             tray_menu_items.append(exit_item)
@@ -419,7 +446,7 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
 
             THREAD_BUS.register_event_handler('tray_action_exit', handle_exit)
 
-            ColorPrint.green(f"[NativeLauncher] Created default tray menu with {len(tray_menu_items)} items")
+            ColorPrint.green(f"[NativeLauncher] Created default tray menu with {len(tray_menu_items)} items (i18n support)")
         else:
             # Convert user-provided menu items
             for item in config.tray_menu_items:

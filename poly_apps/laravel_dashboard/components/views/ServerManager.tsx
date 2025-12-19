@@ -56,6 +56,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<ServerTab>('nginx');
   const [octaneRestarting, setOctaneRestarting] = useState(false);
   const [restartProgress, setRestartProgress] = useState('');
+  const [servicesSummary, setServicesSummary] = useState<any>(null);
 
   // Nginx Sites State
   const [nginxSites, setNginxSites] = useState<AsyncState<NginxSite[]>>({
@@ -328,15 +329,53 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         if (Array.isArray(response.data)) {
           servicesArray = response.data;
         } else if (typeof response.data === 'object') {
-          servicesArray = Object.entries(response.data)
-            .filter(([key]) => key !== 'certbot')
-            .map(([key, service]: [string, any]) => ({
-              name: service.name || key,
-              status: service.active ? 'running' : 'stopped',
-              active: service.active || false,
-              enabled: service.enabled || false,
-              status_output: service.status_output || ''
-            }));
+          // New structure: { system_services: {...}, octane_services: {...}, application_services: {...} }
+          const data = response.data as any;
+
+          // Process system_services
+          if (data.system_services && typeof data.system_services === 'object') {
+            Object.entries(data.system_services).forEach(([key, service]: [string, any]) => {
+              if (key !== 'certbot' && service && typeof service === 'object') {
+                servicesArray.push({
+                  name: service.name || key,
+                  status: service.active ? 'running' : 'stopped',
+                  active: service.active || false,
+                  enabled: service.enabled || false,
+                  status_output: service.status_output || ''
+                });
+              }
+            });
+          }
+
+          // Process octane_services
+          if (data.octane_services && typeof data.octane_services === 'object') {
+            Object.entries(data.octane_services).forEach(([key, service]: [string, any]) => {
+              if (service && typeof service === 'object') {
+                servicesArray.push({
+                  name: service.name || key,
+                  status: service.status || (service.active ? 'running' : 'stopped'),
+                  active: service.active || false,
+                  enabled: service.enabled || false,
+                  status_output: service.status_output || `PID: ${service.pid || 'N/A'}, Memory: ${service.memory || 'N/A'}, Uptime: ${service.uptime || 'N/A'}`
+                });
+              }
+            });
+          }
+
+          // Process application_services
+          if (data.application_services && typeof data.application_services === 'object') {
+            Object.entries(data.application_services).forEach(([key, service]: [string, any]) => {
+              if (service && typeof service === 'object') {
+                servicesArray.push({
+                  name: service.name || key,
+                  status: service.status || (service.active ? 'running' : 'stopped'),
+                  active: service.active || false,
+                  enabled: service.enabled || false,
+                  status_output: service.status_output || `PID: ${service.pid || 'N/A'}, Memory: ${service.memory || 'N/A'}, Uptime: ${service.uptime || 'N/A'}`
+                });
+              }
+            });
+          }
         }
 
         setSystemServices({
@@ -345,6 +384,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           error: null,
           status: 'success'
         });
+
+        // Save summary information
+        if (data.summary) {
+          setServicesSummary(data.summary);
+        }
       }
     } catch (error: any) {
       setSystemServices({
@@ -353,6 +397,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         error: error.message,
         status: 'error'
       });
+      setServicesSummary(null);
     }
   };
 
@@ -943,10 +988,37 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               </div>
             )}
 
+            {/* Services Summary */}
+            {servicesSummary && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className={`${commonClasses.card} p-4 bg-blue-50 dark:bg-blue-900/20`}>
+                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">System Services</h4>
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {servicesSummary.system_running} / {servicesSummary.system_total}
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Running</p>
+                </div>
+                <div className={`${commonClasses.card} p-4 bg-purple-50 dark:bg-purple-900/20`}>
+                  <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">Octane Services</h4>
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    {servicesSummary.octane_running} / {servicesSummary.octane_total}
+                  </div>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Running</p>
+                </div>
+                <div className={`${commonClasses.card} p-4 bg-green-50 dark:bg-green-900/20`}>
+                  <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">Application Services</h4>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {servicesSummary.apps_running} / {servicesSummary.apps_total}
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Running</p>
+                </div>
+              </div>
+            )}
+
             {/* System Services */}
             {systemServices.data && systemServices.data.length > 0 && (
               <div className={`${commonClasses.card} p-4`}>
-                <h3 className="font-semibold mb-3">{t.system.services}</h3>
+                <h3 className="font-semibold mb-3">{t.system.services} ({systemServices.data.length})</h3>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {systemServices.data.map((service, idx) => (
                     <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
@@ -1606,16 +1678,75 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                   </button>
                 </div>
               </div>
-              {app.service_name && (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {t.service_name}: {app.service_name}
-                </p>
-              )}
-              {app.port && (
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {t.port}: {app.port}
-                </p>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  {app.port && (
+                    <p className="text-slate-600 dark:text-slate-400">
+                      <span className="font-medium">{t.port}:</span> {app.port}
+                    </p>
+                  )}
+                  {app.service_status && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">Service:</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          app.service_status.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                          app.service_status.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
+                          app.service_status.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
+                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>
+                          {app.service_status.installed ? app.service_status.status : 'Not Installed'}
+                        </span>
+                      </div>
+                      {app.service_status.installed && (
+                        <>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {app.service_status.service_name}
+                            {app.service_status.enabled && ' (enabled)'}
+                          </p>
+                          {app.service_status.pid && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              PID: {app.service_status.pid}
+                              {app.service_status.uptime && ` • ${app.service_status.uptime}`}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {app.nginx_proxy && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">Nginx Proxy:</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          app.nginx_proxy.enabled ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                          app.nginx_proxy.configured ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        }`}>
+                          {app.nginx_proxy.enabled ? 'Enabled' : app.nginx_proxy.configured ? 'Configured' : 'Not Configured'}
+                        </span>
+                      </div>
+                      {app.nginx_proxy.domains && app.nginx_proxy.domains.length > 0 && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <span className="font-medium">Domains:</span>
+                          <div className="mt-1 space-y-0.5">
+                            {app.nginx_proxy.domains.map((domain, idx) => (
+                              <div key={idx} className="ml-2">• {domain}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {app.nginx_proxy.config_file && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Config: {app.nginx_proxy.config_file}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>

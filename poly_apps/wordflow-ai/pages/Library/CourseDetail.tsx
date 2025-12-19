@@ -12,8 +12,13 @@ const CourseDetailPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     const groupId = currentParams.groupId || 'g1';
-    
+
     // Fetch group info and analysis parallel
     Promise.all([
         api.getWordGroups().then(gs => gs.find(g => g.id === groupId)),
@@ -22,8 +27,11 @@ const CourseDetailPage = () => {
         setGroup(g || null);
         setAnalysis(a || null);
         setLoading(false);
+    }).catch(err => {
+        console.error('[CourseDetail] Failed to load course:', err);
+        setLoading(false);
     });
-  }, [currentParams]);
+  }, [currentParams, user]);
 
   const handleAddToLibrary = async () => {
       if (!user) {

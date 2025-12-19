@@ -20,7 +20,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table;
     protected $langCode;
 
