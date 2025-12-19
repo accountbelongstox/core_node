@@ -38,11 +38,11 @@
       <property name="styleSheet">
        <string notr="true">border: 1px solid #CDCDCD; border-radius: 5px;</string>
       </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,6,1">
+      <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="2,6,1,0">
        <item>
         <widget class="QPushButton" name="pushButton_3">
          <property name="text">
-          <string>TcUi</string>
+          <string>XingCan Cloud Matrix</string>
          </property>
         </widget>
        </item>
@@ -54,6 +54,29 @@
          <property name="text">
           <string>Settings</string>
          </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="languageComboBox">
+         <property name="minimumSize">
+          <size>
+           <width>100</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Switch Language</string>
+         </property>
+         <item>
+          <property name="text">
+           <string>English</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>简体中文</string>
+          </property>
+         </item>
         </widget>
        </item>
       </layout>
