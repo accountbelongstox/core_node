@@ -332,7 +332,12 @@ class AppQyV1VocabularyService
         } elseif (Str::contains($slug, 'coca_20000')) {
             $difficulty = 'intermediate';
             $category = 'frequency';
-        } elseif (Str::contains($slug, 'coca_60000') || Str::contains($slug, 'general_all')) {
+            $isRecommended = true;
+        } elseif (Str::contains($slug, 'coca_60000')) {
+            $difficulty = 'advanced';
+            $category = 'frequency';
+            $isRecommended = true;
+        } elseif (Str::contains($slug, 'general_all')) {
             $difficulty = 'advanced';
             $category = 'frequency';
         }

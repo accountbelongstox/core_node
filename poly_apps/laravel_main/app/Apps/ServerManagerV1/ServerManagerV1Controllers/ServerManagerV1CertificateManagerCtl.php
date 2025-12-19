@@ -140,17 +140,115 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $domain = $request->input('domain');
         $all = $request->input('all', false);
 
-        if ($all) {
-            $result = ServerManagerV1Utils::executeCommand('certbot', ['renew', '--quiet']);
-        } elseif ($domain) {
-            $result = ServerManagerV1Utils::executeCommand('certbot', ['renew', '--cert-name', $domain, '--quiet']);
-        } else {
-            return $this->errorResponse('Either domain or all parameter is required', 400);
+        // Find certbot binary using absolute paths
+        $certbotPaths = [
+            '/usr/bin/certbot',
+            '/usr/local/bin/certbot',
+            '/usr/sbin/certbot',
+            '/sbin/certbot'
+        ];
+
+        $certbotPath = null;
+        foreach ($certbotPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $certbotPath = $path;
+                break;
+            }
         }
+
+        // Fallback to which command
+        if (!$certbotPath) {
+            $whichResult = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+            if ($whichResult['success']) {
+                $certbotPath = trim($whichResult['output']);
+            }
+        }
+
+        if (!$certbotPath) {
+            return $this->errorResponse('Certbot not found. Please install certbot first.', 404);
+        }
+
+        // Check current user for diagnostic purposes
+        $currentUser = posix_getpwuid(posix_geteuid());
+
+        // List all certificates first
+        $listCmd = $certbotPath . ' certificates 2>&1';
+        exec($listCmd, $listOutput, $listCode);
+
+        // If no certificates found, return early with helpful message
+        if ($listCode !== 0 || empty($listOutput) || strpos(implode("\n", $listOutput), 'No certificates found') !== false) {
+            return $this->successResponse([
+                'renewed' => 0,
+                'certificates' => [],
+                'message' => 'No certificates found to renew',
+                'current_user' => $currentUser['name']
+            ], 'No certificates to renew');
+        }
+
+        // Try with --dry-run first to check if renewal would work
+        $dryRunCmd = $certbotPath . ' renew --dry-run --no-random-sleep-on-renew 2>&1';
+        exec($dryRunCmd, $dryRunOutput, $dryRunCode);
+        $dryRunResult = implode("\n", $dryRunOutput);
+
+        // If dry-run fails with filesystem error, return informative message
+        if (strpos($dryRunResult, 'Read-only file system') !== false ||
+            strpos($dryRunResult, '.certbot.lock') !== false) {
+
+            Log::warning('ServerManagerV1: Certbot renewal blocked by filesystem restrictions', [
+                'error' => $dryRunResult,
+                'current_user' => $currentUser['name'],
+                'uid' => posix_geteuid()
+            ]);
+
+            return $this->errorResponse(
+                'Certificate renewal is currently unavailable due to system restrictions. Please run certbot manually as root or check system logs.',
+                503,
+                [
+                    'diagnostic' => 'Filesystem restrictions prevent certbot from creating lock files',
+                    'suggestion' => 'Run manually: sudo certbot renew',
+                    'current_user' => $currentUser['name'],
+                    'certbot_path' => $certbotPath,
+                    'error_detail' => $dryRunResult
+                ]
+            );
+        }
+
+        // If dry-run shows no renewal needed, return success
+        if (strpos($dryRunResult, 'No renewals were attempted') !== false ||
+            strpos($dryRunResult, 'not yet due for renewal') !== false) {
+            return $this->successResponse([
+                'renewed' => 0,
+                'message' => 'All certificates are up to date. No renewal needed.',
+                'next_check' => 'Certificates will be checked again in 30 days',
+                'dry_run_output' => $dryRunResult
+            ], 'No certificates need renewal');
+        }
+
+        // If dry-run succeeded, proceed with actual renewal
+        $cmd = $certbotPath . ' renew --no-random-sleep-on-renew --non-interactive 2>&1';
+        if (!$all && $domain) {
+            $cmd = $certbotPath . ' renew --cert-name ' . escapeshellarg($domain) . ' --non-interactive 2>&1';
+        }
+
+        exec($cmd, $output, $exitCode);
+
+        $result = [
+            'success' => $exitCode === 0,
+            'output' => implode("\n", $output),
+            'error' => $exitCode !== 0 ? implode("\n", $output) : '',
+            'exit_code' => $exitCode,
+            'current_user' => $currentUser['name']
+        ];
 
         if ($result['success']) {
             // Reload nginx after successful renewal
-            $reloadResult = ServerManagerV1Utils::executeCommand('nginx', ['-s', 'reload']);
+            $reloadResult = ServerManagerV1Utils::executeCommand('sudo', ['nginx', '-s', 'reload']);
+
+            Log::info('ServerManagerV1: Certificate renewal completed', [
+                'domain' => $domain,
+                'all' => $all,
+                'nginx_reloaded' => $reloadResult['success']
+            ]);
 
             return $this->successResponse([
                 'domain' => $domain,
@@ -159,6 +257,13 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'output' => $result['output']
             ], 'Certificate renewal completed successfully');
         } else {
+            Log::error('ServerManagerV1: Certificate renewal failed', [
+                'domain' => $domain,
+                'all' => $all,
+                'error' => $result['error'],
+                'exit_code' => $result['exit_code']
+            ]);
+
             return $this->errorResponse('Certificate renewal failed', 500, [
                 'error' => $result['error'],
                 'exit_code' => $result['exit_code']
@@ -366,26 +471,63 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
      */
     private function generateCertificateWithDns(string $domain, string $provider, array $credentials, bool $staging): array
     {
+        // Find certbot binary using absolute paths
+        $certbotPaths = [
+            '/usr/bin/certbot',
+            '/usr/local/bin/certbot',
+            '/usr/sbin/certbot',
+            '/sbin/certbot'
+        ];
+
+        $certbotPath = null;
+        foreach ($certbotPaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $certbotPath = $path;
+                break;
+            }
+        }
+
+        // Fallback to which command
+        if (!$certbotPath) {
+            $whichResult = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+            if ($whichResult['success']) {
+                $certbotPath = trim($whichResult['output']);
+            }
+        }
+
+        if (!$certbotPath) {
+            return [
+                'success' => false,
+                'error' => 'Certbot not found. Please install certbot first.',
+                'exit_code' => 1
+            ];
+        }
+
         $command = ['certonly', '--dns-' . $provider];
-        
+
         if ($staging) {
             $command[] = '--staging';
         }
-        
+
         $command = array_merge($command, [
             '--email', $credentials['email'],
             '--agree-tos',
             '--non-interactive',
             '-d', $domain
         ]);
-        
+
         // Set environment variables for DNS provider
         $env = [];
         if ($provider === 'dnspod') {
-            $env['CERTBOT_DNS_DNSPOD_CREDENTIALS'] = $this->createDnspodCredentialsFile($credentials);
+            $credFile = $this->createDnspodCredentialsFile($credentials);
+            $env['CERTBOT_DNS_DNSPOD_CREDENTIALS'] = $credFile;
+            $command[] = '--dns-dnspod-credentials';
+            $command[] = $credFile;
         }
-        
-        return ServerManagerV1Utils::executeCommand('certbot', $command, 300, $env);
+
+        // Execute certbot with sudo
+        $fullCommand = array_merge([$certbotPath], $command);
+        return ServerManagerV1Utils::executeCommand('sudo', $fullCommand, 300, $env);
     }
     
     /**

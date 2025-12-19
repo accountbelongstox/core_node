@@ -21,7 +21,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 
 class AppQyV1ArticleWord extends Model
 {
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table = 'app_qy_v1_article_words';
 
     protected $fillable = [

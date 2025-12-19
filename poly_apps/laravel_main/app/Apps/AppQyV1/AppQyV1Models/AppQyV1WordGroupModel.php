@@ -28,7 +28,7 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var string
      */
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
 
     /**
      * The table associated with the model.

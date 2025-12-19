@@ -22,7 +22,10 @@ const CoursesPage = () => {
   const [createError, setCreateError] = useState('');
 
   const loadGroups = () => {
-    api.getWordGroups().then(setGroups);
+    if (!user) return;
+    api.getWordGroups().then(setGroups).catch(err => {
+      console.error('[Courses] Failed to load groups:', err);
+    });
   };
 
   const loadSelectedCollections = async () => {
@@ -32,10 +35,11 @@ const CoursesPage = () => {
     try {
       const response = await ApiCenter.learning.getSelectedCollections();
       if (response.success && response.data) {
-        setSelectedCollections(response.data.data);
+        setSelectedCollections(response.data.data || []);
       }
     } catch (err) {
       console.error('[Courses] Failed to load selected collections:', err);
+      setSelectedCollections([]);
     } finally {
       setLoadingCollections(false);
     }

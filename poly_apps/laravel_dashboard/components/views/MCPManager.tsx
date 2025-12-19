@@ -12,10 +12,10 @@ import {
 } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
-import { 
-  Image, 
-  ListTodo, 
-  ImagePlus, 
+import {
+  Image,
+  ListTodo,
+  ImagePlus,
   Settings,
   Upload,
   Search,
@@ -34,7 +34,13 @@ import {
   SkipForward,
   Volume2,
   Plus,
-  X
+  X,
+  HardDrive,
+  Calendar,
+  Clock,
+  Edit2,
+  Check,
+  XCircle
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 
@@ -42,12 +48,18 @@ interface MCPManagerProps {
   lang?: Language;
 }
 
-type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'settings';
+type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'ocr' | 'settings';
 
 const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [activeTab, setActiveTab] = useState<MCPTab>('screenshots');
   const [screenshots, setScreenshots] = useState<AsyncState<Screenshot[]>>({
     data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [screenshotStats, setScreenshotStats] = useState<AsyncState<any>>({
+    data: null,
     loading: false,
     error: null,
     status: 'idle'
@@ -74,6 +86,17 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [newTaskContent, setNewTaskContent] = useState('');
   const [newTaskFileName, setNewTaskFileName] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState(2);
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryFiles, setCategoryFiles] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [viewingFilesForCategory, setViewingFilesForCategory] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [promptMapping, setPromptMapping] = useState<AsyncState<any>>({
     data: null,
     loading: false,
@@ -84,6 +107,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [promptContent, setPromptContent] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [uploadMode, setUploadMode] = useState<'single' | 'batch' | 'merge'>('single');
+  const [isDragging, setIsDragging] = useState(false);
   
   // Placeholder Generator State
   const [placeholderWidth, setPlaceholderWidth] = useState(800);
@@ -100,7 +125,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [placeholderHistory, setPlaceholderHistory] = useState<any[]>([]);
-  
+  const [placeholderStats, setPlaceholderStats] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+
   // Voice Subtitle State
   const [voiceQueue, setVoiceQueue] = useState<AsyncState<VoiceQueueItem[]>>({
     data: [],
@@ -115,23 +146,79 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [newVoiceContent, setNewVoiceContent] = useState('');
-  const [newVoiceType, setNewVoiceType] = useState<'text' | 'url' | 'voice'>('text');
+  const [newVoiceType, setNewVoiceType] = useState<'text' | 'url' | 'voice' | 'image'>('text');
   const [newVoiceLanguage, setNewVoiceLanguage] = useState('en');
+  const [newVoiceImageFile, setNewVoiceImageFile] = useState<File | null>(null);
+  const [newVoiceImageDescription, setNewVoiceImageDescription] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [voiceStats, setVoiceStats] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [voiceQueueFilter, setVoiceQueueFilter] = useState<'all' | 'today' | 'latest'>('all');
+  const [voiceGroups, setVoiceGroups] = useState<AsyncState<string[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [selectedVoiceGroup, setSelectedVoiceGroup] = useState<string | null>(null);
+  const [selectedVoiceItems, setSelectedVoiceItems] = useState<Set<string>>(new Set());
+  const [editingGroupItemId, setEditingGroupItemId] = useState<string | null>(null);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [voiceSettings, setVoiceSettings] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+
+  // OCR State
+  const [ocrEngines, setOcrEngines] = useState<AsyncState<any[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [selectedEngine, setSelectedEngine] = useState<string>('paddleocr');
+  const [ocrImage, setOcrImage] = useState<File | null>(null);
+  const [ocrResult, setOcrResult] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [ocrPreviewUrl, setOcrPreviewUrl] = useState<string | null>(null);
+  const [ocrBatchImages, setOcrBatchImages] = useState<File[]>([]);
+  const [ocrBatchResults, setOcrBatchResults] = useState<AsyncState<any[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [ocrBatchPreviewUrls, setOcrBatchPreviewUrls] = useState<string[]>([]);
 
   const t = TRANSLATIONS[lang].mcp;
 
   useEffect(() => {
     if (activeTab === 'screenshots') {
       loadScreenshots();
+      loadScreenshotStats();
     } else if (activeTab === 'tasks') {
       loadCategories();
     } else if (activeTab === 'placeholder') {
       loadPlaceholderHistory();
+      loadPlaceholderStats();
     } else if (activeTab === 'voice') {
       loadVoiceQueue();
       loadCurrentVoiceTrack();
+      loadVoiceStats();
+      loadVoiceGroups();
+    } else if (activeTab === 'ocr') {
+      loadOcrEngines();
     }
   }, [activeTab]);
 
@@ -142,6 +229,39 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       loadPromptMapping(selectedCategory);
     }
   }, [selectedCategory, activeTab]);
+
+  // Debounced search for screenshots
+  useEffect(() => {
+    if (activeTab !== 'screenshots') return;
+
+    const timeoutId = setTimeout(() => {
+      searchScreenshots(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, activeTab]);
+
+  // Voice queue filter effect
+  useEffect(() => {
+    if (activeTab === 'voice') {
+      loadVoiceQueue();
+    }
+  }, [voiceQueueFilter, selectedVoiceGroup, activeTab]);
+
+  // Task search effect
+  useEffect(() => {
+    if (activeTab === 'tasks' && selectedCategory) {
+      const timeoutId = setTimeout(() => {
+        if (taskSearchQuery.trim()) {
+          searchTasksInCategory(selectedCategory, taskSearchQuery);
+        } else {
+          loadTasks(selectedCategory);
+        }
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [taskSearchQuery, selectedCategory, activeTab]);
 
   const loadScreenshots = async () => {
     setScreenshots(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -164,6 +284,65 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error: any) {
       console.error('Failed to load screenshots:', error);
+      setScreenshots({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadScreenshotStats = async () => {
+    setScreenshotStats(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.getScreenshotStats();
+      if (response.success && response.data) {
+        setScreenshotStats({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load screenshot statistics');
+      }
+    } catch (error: any) {
+      console.error('Failed to load screenshot stats:', error);
+      setScreenshotStats({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const searchScreenshots = async (query: string) => {
+    if (!query.trim()) {
+      loadScreenshots();
+      return;
+    }
+
+    setScreenshots(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.searchScreenshots({ query, page: 1, limit: 20 });
+      if (response.success && response.data) {
+        const screenshotsData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).screenshots || (response.data as any).items || []);
+
+        setScreenshots({
+          data: screenshotsData,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Search failed');
+      }
+    } catch (error: any) {
+      console.error('Screenshot search failed:', error);
       setScreenshots({
         data: [],
         loading: false,
@@ -239,6 +418,50 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const searchTasksInCategory = async (categoryId: string, query: string) => {
+    setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.searchTasks(categoryId, query);
+      if (response.success && response.data) {
+        const tasksData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).tasks || (response.data as any).items || []);
+
+        setTasks({
+          data: tasksData,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Search failed');
+      }
+    } catch (error: any) {
+      console.error('Task search failed:', error);
+      setTasks({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    try {
+      const response = await api.mcpV1.createTaskCategory(newCategoryName.trim());
+      if (response.success) {
+        setNewCategoryName('');
+        setIsCreatingCategory(false);
+        loadCategories();
+      }
+    } catch (error) {
+      console.error('Failed to create category:', error);
+    }
+  };
+
   const loadQueueStats = async (categoryId: string) => {
     setQueueStats(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
@@ -277,6 +500,49 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     } catch (error) {
       console.error('Failed to add task:', error);
     }
+  };
+
+  const loadCategoryFiles = async (categoryId: string) => {
+    setCategoryFiles(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.getCategoryFiles(categoryId);
+      if (response.success && response.data) {
+        setCategoryFiles({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error: any) {
+      console.error('Failed to load category files:', error);
+      setCategoryFiles({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleUpdateTaskStatus = async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed' | 'failed') => {
+    if (!selectedCategory) return;
+
+    try {
+      const response = await api.mcpV1.updateTaskStatus(selectedCategory, taskId, newStatus);
+      if (response.success) {
+        setEditingTaskId(null);
+        loadTasks(selectedCategory);
+        loadQueueStats(selectedCategory);
+      }
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+    }
+  };
+
+  const handleViewCategoryFiles = (categoryId: string) => {
+    setViewingFilesForCategory(categoryId);
+    loadCategoryFiles(categoryId);
   };
 
   const loadPromptMapping = async (categoryId: string) => {
@@ -334,17 +600,66 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     if (!files || files.length === 0) return;
 
     try {
-      const file = files[0];
-      const response = await api.mcpV1.uploadScreenshot({
-        image: file,
-        description: ''
-      });
+      let response;
 
-      if (response.success) {
+      if (uploadMode === 'single') {
+        // Single upload - only upload first file
+        const file = files[0];
+        response = await api.mcpV1.uploadScreenshot({
+          image: file,
+          description: ''
+        });
+      } else if (uploadMode === 'batch') {
+        // Batch upload - upload each file separately
+        const filesArray = Array.from(files);
+        response = await api.mcpV1.uploadBatch({
+          images: filesArray,
+          keyword: ''
+        });
+      } else if (uploadMode === 'merge') {
+        // Merge upload - merge all files into one
+        const filesArray = Array.from(files);
+        response = await api.mcpV1.uploadMerge({
+          images: filesArray,
+          keyword: ''
+        });
+      }
+
+      if (response && response.success) {
         loadScreenshots();
+        loadScreenshotStats();
       }
     } catch (error) {
       console.error('Upload failed:', error);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // Filter only image files
+      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+      if (imageFiles.length > 0) {
+        const dataTransfer = new DataTransfer();
+        imageFiles.forEach(file => dataTransfer.items.add(file));
+        handleScreenshotUpload(dataTransfer.files);
+      }
     }
   };
 
@@ -353,18 +668,39 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     { id: 'tasks' as MCPTab, label: t.tabs.tasks, icon: ListTodo },
     { id: 'placeholder' as MCPTab, label: t.tabs.placeholder, icon: ImagePlus },
     { id: 'voice' as MCPTab, label: t.tabs.voice, icon: Settings },
+    { id: 'ocr' as MCPTab, label: 'OCR', icon: Eye },
     { id: 'settings' as MCPTab, label: t.tabs.settings, icon: Settings },
   ];
 
   const renderScreenshotsTab = () => (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag Overlay */}
+      {isDragging && (
+        <div className="fixed inset-0 bg-indigo-500/20 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-2xl border-4 border-dashed border-indigo-500">
+            <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
+            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
+              Drop images here
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Mode: {uploadMode === 'single' ? 'Single Upload' : uploadMode === 'batch' ? 'Batch Upload' : 'Merge Upload'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <input
             type="file"
             accept="image/*"
-            multiple
+            multiple={uploadMode !== 'single'}
             onChange={(e) => handleScreenshotUpload(e.target.files)}
             className="hidden"
             id="screenshot-upload"
@@ -376,6 +712,16 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             <Upload className="w-4 h-4" />
             Upload
           </label>
+          <select
+            value={uploadMode}
+            onChange={(e) => setUploadMode(e.target.value as any)}
+            className={`${commonClasses.input} w-auto text-sm`}
+            title="Upload mode"
+          >
+            <option value="single">Single</option>
+            <option value="batch">Batch (Multiple)</option>
+            <option value="merge">Merge (Combine)</option>
+          </select>
           <button
             onClick={loadScreenshots}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
@@ -402,6 +748,44 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         </div>
       </div>
 
+      {/* Statistics */}
+      {screenshotStats.data && (
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Image className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total Screenshots</span>
+            </div>
+            <p className="text-2xl font-bold">{screenshotStats.data.total_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <HardDrive className="w-4 h-4 text-green-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Storage Used</span>
+            </div>
+            <p className="text-2xl font-bold">
+              {screenshotStats.data.total_size
+                ? `${(screenshotStats.data.total_size / 1024 / 1024).toFixed(2)} MB`
+                : '0 MB'}
+            </p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-4 h-4 text-blue-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">This Week</span>
+            </div>
+            <p className="text-2xl font-bold">{screenshotStats.data.weekly_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-purple-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+            </div>
+            <p className="text-2xl font-bold">{screenshotStats.data.daily_count || 0}</p>
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="mb-4">
         <div className="relative">
@@ -410,9 +794,17 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search screenshots..."
-            className={`${commonClasses.input} pl-10 w-full`}
+            placeholder="Search screenshots by filename..."
+            className={`${commonClasses.input} pl-10 pr-10 w-full`}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+            >
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -431,13 +823,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {screenshots.data && screenshots.data.length > 0 && (
         <div className={`flex-1 overflow-auto ${
-          viewMode === 'grid' 
-            ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' 
+          viewMode === 'grid'
+            ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
             : 'space-y-2'
         }`}>
-          {screenshots.data
-            .filter(s => !searchQuery || s.original_name.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((screenshot) => (
+          {screenshots.data.map((screenshot) => (
               <div
                 key={screenshot.id}
                 className={`${commonClasses.card} ${commonClasses.cardHover} ${
@@ -485,8 +875,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {screenshots.data && screenshots.data.length === 0 && (
         <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-          <Image className="w-16 h-16 mb-4 opacity-50" />
-          <p>No screenshots found</p>
+          <Upload className="w-16 h-16 mb-4 opacity-50" />
+          <p className="text-lg font-medium mb-2">No screenshots found</p>
+          <p className="text-sm mb-4">Drag & drop images here or click Upload button</p>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">
+              {uploadMode === 'single' ? '📄 Single' : uploadMode === 'batch' ? '📚 Batch' : '🔗 Merge'} mode
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -496,7 +892,53 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     <div className="flex h-full gap-4">
       {/* Categories Sidebar */}
       <div className={`w-64 ${commonClasses.card} p-4 overflow-y-auto`}>
-        <h3 className="font-semibold mb-4">Categories</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Categories</h3>
+          <button
+            onClick={() => setIsCreatingCategory(!isCreatingCategory)}
+            className={`p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 ${
+              isCreatingCategory ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
+            }`}
+            title="Create Category"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Create Category Form */}
+        {isCreatingCategory && (
+          <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="Category name..."
+              className={`${commonClasses.input} w-full mb-2`}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') handleCreateCategory();
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateCategory}
+                disabled={!newCategoryName.trim()}
+                className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 text-sm`}
+              >
+                Create
+              </button>
+              <button
+                onClick={() => {
+                  setIsCreatingCategory(false);
+                  setNewCategoryName('');
+                }}
+                className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex-1 text-sm`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {categories.loading && (
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
@@ -505,20 +947,41 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         {categories.data && categories.data.length > 0 && (
           <div className="space-y-2">
             {categories.data.map((category) => (
-              <button
+              <div
                 key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
+                className={`p-3 rounded-lg transition-colors ${
                   selectedCategory === category.id
-                    ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    ? 'bg-indigo-100 dark:bg-indigo-900/30'
                     : 'hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
-                <div className="font-medium">{category.name}</div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {category.file_count} tasks
+                <div
+                  className="w-full text-left cursor-pointer"
+                  onClick={() => setSelectedCategory(category.id)}
+                >
+                  <div className={`font-medium ${
+                    selectedCategory === category.id
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : ''
+                  }`}>
+                    {category.name}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {category.file_count} tasks
+                  </div>
                 </div>
-              </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewCategoryFiles(category.id);
+                  }}
+                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  title="View files in this category"
+                >
+                  <HardDrive className="w-3 h-3" />
+                  View Files
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -609,8 +1072,27 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               </div>
             </div>
 
+            {/* Task Queue Header with Search */}
             <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-2">Task Queue ({tasks.data?.length || 0})</h3>
+              <h3 className="text-lg font-semibold mb-3">Task Queue ({tasks.data?.length || 0})</h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={taskSearchQuery}
+                  onChange={(e) => setTaskSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                  className={`${commonClasses.input} pl-10 pr-10 w-full`}
+                />
+                {taskSearchQuery && (
+                  <button
+                    onClick={() => setTaskSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                  >
+                    <X className="w-4 h-4 text-slate-400" />
+                  </button>
+                )}
+              </div>
             </div>
             {tasks.loading && (
               <div className="flex items-center justify-center py-8">
@@ -626,17 +1108,49 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          task.status === 'completed' ? commonClasses.badgeSuccess :
-                          task.status === 'failed' ? commonClasses.badgeError :
-                          task.status === 'processing' ? commonClasses.badgeInfo :
-                          commonClasses.badgeWarning
-                        }`}>
-                          {task.status}
-                        </span>
+                        {editingTaskId === task.id ? (
+                          <select
+                            value={task.status}
+                            onChange={(e) => handleUpdateTaskStatus(task.id, e.target.value as any)}
+                            className="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
+                            autoFocus
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                          </select>
+                        ) : (
+                          <>
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              task.status === 'completed' ? commonClasses.badgeSuccess :
+                              task.status === 'failed' ? commonClasses.badgeError :
+                              task.status === 'processing' || task.status === 'in_progress' ? commonClasses.badgeInfo :
+                              commonClasses.badgeWarning
+                            }`}>
+                              {task.status}
+                            </span>
+                            <button
+                              onClick={() => setEditingTaskId(task.id)}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
+                              title="Edit status"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
                         <span className="font-medium">{task.original_name}</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {editingTaskId === task.id && (
+                          <button
+                            onClick={() => setEditingTaskId(null)}
+                            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
+                            title="Cancel"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                         <button className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
                           <Eye className="w-4 h-4" />
                         </button>
@@ -731,6 +1245,67 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           </div>
         )}
       </div>
+
+      {/* Category Files Modal */}
+      {viewingFilesForCategory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setViewingFilesForCategory(null)}>
+          <div className={`${commonClasses.card} w-full max-w-2xl max-h-[80vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold">Category Files</h3>
+              <button
+                onClick={() => setViewingFilesForCategory(null)}
+                className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {categoryFiles.loading && (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                </div>
+              )}
+              {categoryFiles.data && categoryFiles.data.files && (
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                    Total: {categoryFiles.data.total} files
+                  </p>
+                  {categoryFiles.data.files.map((file: any, index: number) => (
+                    <div
+                      key={index}
+                      className="p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{file.name || file}</p>
+                          {file.path && (
+                            <p className="text-xs text-slate-500 mt-1">{file.path}</p>
+                          )}
+                          {file.size && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Size: {(file.size / 1024).toFixed(2)} KB
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {categoryFiles.data && categoryFiles.data.files && categoryFiles.data.files.length === 0 && (
+                <div className="text-center text-slate-400 py-8">
+                  <p>No files in this category</p>
+                </div>
+              )}
+              {categoryFiles.error && (
+                <div className="text-center text-red-500 py-8">
+                  <p>Error: {categoryFiles.error}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -742,6 +1317,43 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error) {
       console.error('Failed to load placeholder history:', error);
+    }
+  };
+
+  const loadPlaceholderStats = async () => {
+    setPlaceholderStats(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.getPlaceholderStats();
+      if (response.success && response.data) {
+        setPlaceholderStats({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load placeholder statistics');
+      }
+    } catch (error: any) {
+      console.error('Failed to load placeholder stats:', error);
+      setPlaceholderStats({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleDeletePlaceholder = async (uuid: string) => {
+    try {
+      const response = await api.mcpV1.deletePlaceholder(uuid);
+      if (response.success) {
+        loadPlaceholderHistory();
+        loadPlaceholderStats();
+      }
+    } catch (error) {
+      console.error('Failed to delete placeholder:', error);
     }
   };
 
@@ -782,7 +1394,19 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const loadVoiceQueue = async () => {
     setVoiceQueue(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await api.mcpV1.getVoiceQueue();
+      let response;
+
+      // Apply filters
+      if (selectedVoiceGroup) {
+        response = await api.mcpV1.vsGetQueueByGroup(selectedVoiceGroup);
+      } else if (voiceQueueFilter === 'today') {
+        response = await api.mcpV1.vsGetQueueToday();
+      } else if (voiceQueueFilter === 'latest') {
+        response = await api.mcpV1.vsGetQueueLatest();
+      } else {
+        response = await api.mcpV1.vsGetQueue();
+      }
+
       if (response.success && response.data) {
         // Ensure data is an array - handle multiple response formats
         const voiceQueueData = Array.isArray(response.data)
@@ -811,7 +1435,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const loadCurrentVoiceTrack = async () => {
     try {
-      const response = await api.mcpV1.getCurrentVoiceTrack();
+      const response = await api.mcpV1.vsGetCurrent();
       if (response.success && response.data) {
         setCurrentVoiceTrack({
           data: response.data,
@@ -825,30 +1449,431 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
-  const handleAddToVoiceQueue = async () => {
-    if (!newVoiceContent.trim()) return;
+  const loadVoiceStats = async () => {
+    setVoiceStats(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsGetStats();
+      if (response.success && response.data) {
+        setVoiceStats({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load voice statistics');
+      }
+    } catch (error: any) {
+      console.error('Failed to load voice stats:', error);
+      setVoiceStats({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadVoiceGroups = async () => {
+    setVoiceGroups(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsGetAllGroups();
+      if (response.success && response.data) {
+        const groupsData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).groups || []);
+
+        setVoiceGroups({
+          data: groupsData,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load voice groups');
+      }
+    } catch (error: any) {
+      console.error('Failed to load voice groups:', error);
+      setVoiceGroups({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleRemoveVoiceItem = async (id: string) => {
+    try {
+      const response = await api.mcpV1.vsRemoveItem(id);
+      if (response.success) {
+        loadVoiceQueue();
+        loadVoiceStats();
+      }
+    } catch (error) {
+      console.error('Failed to remove voice item:', error);
+    }
+  };
+
+  const handlePlayVoiceItem = async (index: number) => {
+    try {
+      const response = await api.mcpV1.vsSetIndex(index);
+      if (response.success) {
+        loadCurrentVoiceTrack();
+      }
+    } catch (error) {
+      console.error('Failed to play voice item:', error);
+    }
+  };
+
+  const handleVoicePrevious = async () => {
+    try {
+      await api.mcpV1.vsPrevious();
+      loadCurrentVoiceTrack();
+      loadVoiceQueue();
+    } catch (error) {
+      console.error('Failed to play previous:', error);
+    }
+  };
+
+  const handleVoiceNext = async () => {
+    try {
+      await api.mcpV1.vsNext();
+      loadCurrentVoiceTrack();
+      loadVoiceQueue();
+    } catch (error) {
+      console.error('Failed to play next:', error);
+    }
+  };
+
+  const toggleVoiceItemSelection = (id: string) => {
+    setSelectedVoiceItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBatchDeleteVoiceItems = async () => {
+    if (selectedVoiceItems.size === 0) return;
+
+    if (!confirm(`Delete ${selectedVoiceItems.size} selected item(s)?`)) return;
 
     try {
-      const request = {
-        type: newVoiceType,
-        content: newVoiceContent,
-        language: newVoiceLanguage,
-        auto_play: false
-      };
-      const response = await api.mcpV1.addToVoiceQueue(request);
+      const ids = Array.from(selectedVoiceItems);
+      const response = await api.mcpV1.vsRemoveItems(ids);
       if (response.success) {
-        setNewVoiceContent('');
+        setSelectedVoiceItems(new Set());
         loadVoiceQueue();
+        loadVoiceStats();
+      }
+    } catch (error) {
+      console.error('Failed to batch delete voice items:', error);
+    }
+  };
+
+  const handleClearVoiceQueue = async () => {
+    if (!confirm('Clear entire voice queue? This cannot be undone.')) return;
+
+    try {
+      const response = await api.mcpV1.vsClearQueue();
+      if (response.success) {
+        setSelectedVoiceItems(new Set());
+        loadVoiceQueue();
+        loadVoiceStats();
+      }
+    } catch (error) {
+      console.error('Failed to clear voice queue:', error);
+    }
+  };
+
+  const handleUpdateVoiceItemGroup = async (id: string, group: string) => {
+    try {
+      const response = await api.mcpV1.vsUpdateItemGroup({ id, group });
+      if (response.success) {
+        setEditingGroupItemId(null);
+        setNewGroupName('');
+        loadVoiceQueue();
+        loadVoiceGroups();
+      }
+    } catch (error) {
+      console.error('Failed to update voice item group:', error);
+    }
+  };
+
+  const loadVoiceSettings = async () => {
+    setVoiceSettings(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.vsGetUserSettings();
+      if (response.success && response.data) {
+        setVoiceSettings({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load voice settings');
+      }
+    } catch (error: any) {
+      console.error('Failed to load voice settings:', error);
+      setVoiceSettings({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleUpdateVoiceSettings = async (settings: any) => {
+    try {
+      const response = await api.mcpV1.vsUpdateUserSettings(settings);
+      if (response.success) {
+        loadVoiceSettings();
+      }
+    } catch (error) {
+      console.error('Failed to update voice settings:', error);
+    }
+  };
+
+  const handleAddToVoiceQueue = async () => {
+    try {
+      let response;
+
+      if (newVoiceType === 'image') {
+        // Handle image upload
+        if (!newVoiceImageFile) return;
+        response = await api.mcpV1.vsAddImage({
+          image: newVoiceImageFile,
+          description: newVoiceImageDescription,
+          group: ''
+        });
+        if (response.success) {
+          setNewVoiceImageFile(null);
+          setNewVoiceImageDescription('');
+        }
+      } else {
+        // Handle text/url/voice
+        if (!newVoiceContent.trim()) return;
+        const request = {
+          type: newVoiceType,
+          content: newVoiceContent,
+          language: newVoiceLanguage,
+          auto_play: false
+        };
+        response = await api.mcpV1.vsAddToQueue(request);
+        if (response.success) {
+          setNewVoiceContent('');
+        }
+      }
+
+      if (response.success) {
+        loadVoiceQueue();
+        loadVoiceStats();
       }
     } catch (error) {
       console.error('Failed to add to voice queue:', error);
     }
   };
 
+  // OCR Functions
+  const loadOcrEngines = async () => {
+    setOcrEngines(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.getOcrEngines();
+      if (response.success && response.data) {
+        setOcrEngines({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load OCR engines');
+      }
+    } catch (error: any) {
+      console.error('Failed to load OCR engines:', error);
+      setOcrEngines({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleOcrImageSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    setOcrImage(file);
+
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setOcrPreviewUrl(url);
+
+    // Clear previous result
+    setOcrResult({
+      data: null,
+      loading: false,
+      error: null,
+      status: 'idle'
+    });
+  };
+
+  const handleOcrRecognize = async () => {
+    if (!ocrImage) return;
+
+    setOcrResult(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.ocrRecognize({
+        image: ocrImage,
+        engine: selectedEngine
+      });
+
+      if (response.success && response.data) {
+        setOcrResult({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'OCR recognition failed');
+      }
+    } catch (error: any) {
+      console.error('OCR recognition failed:', error);
+      setOcrResult({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleOcrSmartRecognize = async () => {
+    if (!ocrImage) return;
+
+    setOcrResult(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.ocrSmartRecognize({ image: ocrImage });
+
+      if (response.success && response.data) {
+        setOcrResult({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Smart OCR recognition failed');
+      }
+    } catch (error: any) {
+      console.error('Smart OCR recognition failed:', error);
+      setOcrResult({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleOcrBatchImageSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const filesArray = Array.from(files);
+    setOcrBatchImages(filesArray);
+
+    // Create preview URLs
+    const urls = filesArray.map(file => URL.createObjectURL(file));
+    setOcrBatchPreviewUrls(urls);
+
+    // Clear previous results
+    setOcrBatchResults({
+      data: [],
+      loading: false,
+      error: null,
+      status: 'idle'
+    });
+  };
+
+  const handleOcrBatchRecognize = async () => {
+    if (ocrBatchImages.length === 0) return;
+
+    setOcrBatchResults(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.mcpV1.ocrBatch({ images: ocrBatchImages });
+
+      if (response.success && response.data) {
+        setOcrBatchResults({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Batch OCR recognition failed');
+      }
+    } catch (error: any) {
+      console.error('Batch OCR recognition failed:', error);
+      setOcrBatchResults({
+        data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
   const renderPlaceholderTab = () => (
-    <div className="flex gap-4 h-full">
-      {/* Generator Panel */}
-      <div className={`w-96 ${commonClasses.card} p-4 overflow-y-auto`}>
+    <div className="flex flex-col h-full gap-4">
+      {/* Statistics */}
+      {placeholderStats.data && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <ImagePlus className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total Generated</span>
+            </div>
+            <p className="text-2xl font-bold">{placeholderStats.data.total_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <HardDrive className="w-4 h-4 text-green-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Storage Used</span>
+            </div>
+            <p className="text-2xl font-bold">
+              {placeholderStats.data.total_size
+                ? `${(placeholderStats.data.total_size / 1024 / 1024).toFixed(2)} MB`
+                : '0 MB'}
+            </p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-4 h-4 text-blue-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">This Week</span>
+            </div>
+            <p className="text-2xl font-bold">{placeholderStats.data.weekly_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-purple-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+            </div>
+            <p className="text-2xl font-bold">{placeholderStats.data.daily_count || 0}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4 flex-1 overflow-hidden">
+        {/* Generator Panel */}
+        <div className={`w-96 ${commonClasses.card} p-4 overflow-y-auto`}>
         <h3 className="font-semibold mb-4">Generate Placeholder</h3>
         
         <div className="space-y-4">
@@ -1059,16 +2084,44 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             {placeholderHistory.slice(0, 10).map((item: any) => (
               <div
                 key={item.uuid}
-                className="p-2 border border-slate-200 dark:border-slate-700 rounded cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-                onClick={() => {
-                  setPlaceholderWidth(item.width);
-                  setPlaceholderHeight(item.height);
-                  setPlaceholderText(item.text || '');
-                  setPlaceholderFormat(item.format);
-                }}
+                className="p-3 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800"
               >
-                <div className="text-xs font-medium">{item.width}x{item.height}</div>
-                <div className="text-xs text-slate-500">{item.format.toUpperCase()}</div>
+                <div
+                  className="cursor-pointer mb-2"
+                  onClick={() => {
+                    setPlaceholderWidth(item.width);
+                    setPlaceholderHeight(item.height);
+                    setPlaceholderText(item.text || '');
+                    setPlaceholderFormat(item.format);
+                  }}
+                >
+                  <div className="text-xs font-medium">{item.width}x{item.height}</div>
+                  <div className="text-xs text-slate-500">{item.format.toUpperCase()}</div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {new Date(item.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <a
+                    href={`/api/mcp/v1/placeholders/${item.uuid}/download`}
+                    download
+                    className="flex-1 p-1.5 rounded text-center text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-3 h-3 inline" />
+                  </a>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm('Delete this placeholder?')) {
+                        handleDeletePlaceholder(item.uuid);
+                      }
+                    }}
+                    className="flex-1 p-1.5 rounded text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  >
+                    <Trash2 className="w-3 h-3 inline" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -1076,46 +2129,138 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <p className="text-sm text-slate-400 text-center py-4">No history</p>
         )}
       </div>
+      </div>
     </div>
   );
 
   const renderVoiceTab = () => (
     <div className="flex flex-col h-full gap-4">
+      {/* Statistics */}
+      {voiceStats.data && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Volume2 className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total Items</span>
+            </div>
+            <p className="text-2xl font-bold">{voiceStats.data.total_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Play className="w-4 h-4 text-green-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Completed</span>
+            </div>
+            <p className="text-2xl font-bold">{voiceStats.data.completed_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-blue-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Pending</span>
+            </div>
+            <p className="text-2xl font-bold">{voiceStats.data.pending_count || 0}</p>
+          </div>
+          <div className={`${commonClasses.card} p-4`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-4 h-4 text-purple-500" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+            </div>
+            <p className="text-2xl font-bold">{voiceStats.data.daily_count || 0}</p>
+          </div>
+        </div>
+      )}
+
       {/* Add to Queue */}
       <div className={`${commonClasses.card} p-4`}>
         <h3 className="font-semibold mb-4">Add to Voice Queue</h3>
-        <div className="flex gap-2">
-          <select
-            value={newVoiceType}
-            onChange={(e) => setNewVoiceType(e.target.value as any)}
-            className={commonClasses.input}
-          >
-            <option value="text">Text</option>
-            <option value="url">URL</option>
-            <option value="voice">Voice</option>
-          </select>
-          <input
-            type="text"
-            value={newVoiceLanguage}
-            onChange={(e) => setNewVoiceLanguage(e.target.value)}
-            placeholder="Language (e.g., en)"
-            className={`${commonClasses.input} w-32`}
-          />
-          <input
-            type="text"
-            value={newVoiceContent}
-            onChange={(e) => setNewVoiceContent(e.target.value)}
-            placeholder="Enter text or URL..."
-            className={`${commonClasses.input} flex-1`}
-          />
-          <button
-            onClick={handleAddToVoiceQueue}
-            disabled={!newVoiceContent.trim()}
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
-          >
-            <Plus className="w-4 h-4" />
-            Add
-          </button>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <select
+              value={newVoiceType}
+              onChange={(e) => {
+                setNewVoiceType(e.target.value as any);
+                setNewVoiceContent('');
+                setNewVoiceImageFile(null);
+                setNewVoiceImageDescription('');
+              }}
+              className={commonClasses.input}
+            >
+              <option value="text">Text</option>
+              <option value="url">URL</option>
+              <option value="voice">Voice</option>
+              <option value="image">Image</option>
+            </select>
+            {newVoiceType !== 'image' && (
+              <input
+                type="text"
+                value={newVoiceLanguage}
+                onChange={(e) => setNewVoiceLanguage(e.target.value)}
+                placeholder="Language (e.g., en)"
+                className={`${commonClasses.input} w-32`}
+              />
+            )}
+          </div>
+
+          {newVoiceType === 'image' ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <label className={`${commonClasses.button} ${commonClasses.buttonSecondary} cursor-pointer`}>
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  {newVoiceImageFile ? newVoiceImageFile.name : 'Choose Image'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setNewVoiceImageFile(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                {newVoiceImageFile && (
+                  <button
+                    onClick={() => setNewVoiceImageFile(null)}
+                    className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                value={newVoiceImageDescription}
+                onChange={(e) => setNewVoiceImageDescription(e.target.value)}
+                placeholder="Description (optional)..."
+                className={commonClasses.input}
+              />
+              <button
+                onClick={handleAddToVoiceQueue}
+                disabled={!newVoiceImageFile}
+                className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 w-full`}
+              >
+                <Plus className="w-4 h-4" />
+                Add Image to Queue
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newVoiceContent}
+                onChange={(e) => setNewVoiceContent(e.target.value)}
+                placeholder={`Enter ${newVoiceType}...`}
+                className={`${commonClasses.input} flex-1`}
+              />
+              <button
+                onClick={handleAddToVoiceQueue}
+                disabled={!newVoiceContent.trim()}
+                className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1124,21 +2269,35 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         <div className={`${commonClasses.card} p-4`}>
           <h3 className="font-semibold mb-4">Now Playing</h3>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                if (audioRef.current) {
-                  if (isPlaying) {
-                    audioRef.current.pause();
-                  } else {
-                    audioRef.current.play();
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleVoicePrevious}
+                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+              >
+                <SkipBack className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  if (audioRef.current) {
+                    if (isPlaying) {
+                      audioRef.current.pause();
+                    } else {
+                      audioRef.current.play();
+                    }
+                    setIsPlaying(!isPlaying);
                   }
-                  setIsPlaying(!isPlaying);
-                }
-              }}
-              className="p-3 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </button>
+                }}
+                className="p-3 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={handleVoiceNext}
+                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+              >
+                <SkipForward className="w-5 h-5" />
+              </button>
+            </div>
             <div className="flex-1">
               <p className="font-medium">{currentVoiceTrack.data.queue_item?.content}</p>
               <p className="text-sm text-slate-500">
@@ -1157,15 +2316,105 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {/* Queue List */}
       <div className={`flex-1 ${commonClasses.card} p-4 overflow-y-auto`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Queue</h3>
-          <button
-            onClick={loadVoiceQueue}
-            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Queue</h3>
+            <button
+              onClick={loadVoiceQueue}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1 border border-slate-200 dark:border-slate-700 rounded-lg p-1">
+              <button
+                onClick={() => setVoiceQueueFilter('all')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  voiceQueueFilter === 'all'
+                    ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setVoiceQueueFilter('today')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  voiceQueueFilter === 'today'
+                    ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => setVoiceQueueFilter('latest')}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  voiceQueueFilter === 'latest'
+                    ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                Latest
+              </button>
+            </div>
+
+            {/* Group Filter */}
+            {voiceGroups.data && voiceGroups.data.length > 0 && (
+              <select
+                value={selectedVoiceGroup || ''}
+                onChange={(e) => setSelectedVoiceGroup(e.target.value || null)}
+                className={`${commonClasses.input} w-48`}
+              >
+                <option value="">All Groups</option>
+                {voiceGroups.data.map((group) => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Batch Operations */}
+          {voiceQueue.data && voiceQueue.data.length > 0 && (
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => {
+                  if (selectedVoiceItems.size === voiceQueue.data!.length) {
+                    setSelectedVoiceItems(new Set());
+                  } else {
+                    setSelectedVoiceItems(new Set(voiceQueue.data!.map(item => item.id)));
+                  }
+                }}
+                className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs`}
+              >
+                {selectedVoiceItems.size === voiceQueue.data.length ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedVoiceItems.size > 0 && (
+                <>
+                  <button
+                    onClick={handleBatchDeleteVoiceItems}
+                    className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete ({selectedVoiceItems.size})
+                  </button>
+                </>
+              )}
+              <button
+                onClick={handleClearVoiceQueue}
+                className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 ml-auto`}
+                title="Clear entire queue"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
         </div>
         {voiceQueue.loading && (
           <div className="flex items-center justify-center py-8">
@@ -1174,45 +2423,122 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         )}
         {voiceQueue.data && voiceQueue.data.length > 0 ? (
           <div className="space-y-2">
-            {voiceQueue.data.map((item) => (
+            {voiceQueue.data.map((item, index) => (
               <div
                 key={item.id}
-                className={`p-3 rounded-lg border ${
-                  item.status === 'playing' 
-                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' 
-                    : 'border-slate-200 dark:border-slate-700'
+                className={`p-3 rounded-lg border transition-all ${
+                  selectedVoiceItems.has(item.id)
+                    ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30'
+                    : item.status === 'playing'
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      item.status === 'playing' ? commonClasses.badgeInfo :
-                      item.status === 'completed' ? commonClasses.badgeSuccess :
-                      item.status === 'error' ? commonClasses.badgeError :
-                      commonClasses.badgeWarning
-                    }`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedVoiceItems.has(item.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleVoiceItemSelection(item.id);
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span
+                      className={`px-2 py-1 rounded text-xs cursor-pointer ${
+                        item.status === 'playing' ? commonClasses.badgeInfo :
+                        item.status === 'completed' ? commonClasses.badgeSuccess :
+                        item.status === 'error' ? commonClasses.badgeError :
+                        commonClasses.badgeWarning
+                      }`}
+                      onClick={() => handlePlayVoiceItem(index)}
+                    >
                       {item.status}
                     </span>
-                    <span className="text-sm font-medium">{item.type}</span>
+                    <span className="text-sm font-medium cursor-pointer" onClick={() => handlePlayVoiceItem(index)}>{item.type}</span>
+                    {editingGroupItemId === item.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                          placeholder="Group name"
+                          className="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 w-24"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.stopPropagation();
+                              handleUpdateVoiceItemGroup(item.id, newGroupName);
+                            } else if (e.key === 'Escape') {
+                              e.stopPropagation();
+                              setEditingGroupItemId(null);
+                              setNewGroupName('');
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUpdateVoiceItemGroup(item.id, newGroupName);
+                          }}
+                          className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400"
+                          title="Save"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingGroupItemId(null);
+                            setNewGroupName('');
+                          }}
+                          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                          title="Cancel"
+                        >
+                          <XCircle className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {item.group && (
+                          <span className="px-2 py-1 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
+                            {item.group}
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingGroupItemId(item.id);
+                            setNewGroupName(item.group || '');
+                          }}
+                          className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          title="Edit group"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => api.mcpV1.playPreviousVoice()}
-                      className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveVoiceItem(item.id);
+                      }}
+                      className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                      title="Delete"
                     >
-                      <SkipBack className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => api.mcpV1.playNextVoice()}
-                      className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
-                    >
-                      <SkipForward className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{item.content}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1 line-clamp-2">{item.content}</p>
                 <p className="text-xs text-slate-500">
                   {item.language} • {new Date(item.created_at).toLocaleString()}
+                  {item.play_count > 0 && ` • Played ${item.play_count}x`}
                 </p>
               </div>
             ))}
@@ -1229,77 +2555,275 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     </div>
   );
 
-  const renderSettingsTab = () => (
-    <div className={`${commonClasses.card} p-6`}>
-      <h3 className="text-lg font-semibold mb-4">MCP Settings</h3>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">Screenshot Storage Path</label>
-          <input
-            type="text"
-            defaultValue="/storage/screenshots"
-            className={commonClasses.input}
-            readOnly
-          />
+  const renderOcrTab = () => (
+    <div className="flex gap-4 h-full">
+      {/* Upload Panel */}
+      <div className={`w-96 ${commonClasses.card} p-4 overflow-y-auto`}>
+        <h3 className="font-semibold mb-4">OCR Recognition</h3>
+
+        <div className="space-y-4">
+          {/* Engine Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">OCR Engine</label>
+            {ocrEngines.loading ? (
+              <div className="flex items-center justify-center py-4">
+                <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+              </div>
+            ) : (
+              <select
+                value={selectedEngine}
+                onChange={(e) => setSelectedEngine(e.target.value)}
+                className={commonClasses.input}
+              >
+                <option value="paddleocr">PaddleOCR</option>
+                <option value="tesseract">Tesseract</option>
+                <option value="easyocr">EasyOCR</option>
+              </select>
+            )}
+          </div>
+
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Upload Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleOcrImageSelect(e.target.files)}
+              className="hidden"
+              id="ocr-image-upload"
+            />
+            <label
+              htmlFor="ocr-image-upload"
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} w-full flex items-center justify-center gap-2 cursor-pointer`}
+            >
+              <Upload className="w-4 h-4" />
+              Choose Image
+            </label>
+          </div>
+
+          {/* Preview */}
+          {ocrPreviewUrl && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Preview</label>
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <img
+                  src={ocrPreviewUrl}
+                  alt="OCR Preview"
+                  className="w-full h-auto max-h-64 object-contain bg-slate-50 dark:bg-slate-800"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleOcrRecognize}
+              disabled={!ocrImage || ocrResult.loading}
+              className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 flex items-center justify-center gap-2`}
+            >
+              {ocrResult.loading ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              Recognize
+            </button>
+            <button
+              onClick={handleOcrSmartRecognize}
+              disabled={!ocrImage || ocrResult.loading}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+              title="Smart recognition with automatic engine selection"
+            >
+              <Wand2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Batch Upload */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+            <h4 className="text-sm font-semibold mb-3">Batch Recognition</h4>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => handleOcrBatchImageSelect(e.target.files)}
+              className="hidden"
+              id="ocr-batch-upload"
+            />
+            <label
+              htmlFor="ocr-batch-upload"
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} w-full flex items-center justify-center gap-2 cursor-pointer mb-3`}
+            >
+              <Upload className="w-4 h-4" />
+              Choose Multiple Images
+            </label>
+
+            {ocrBatchImages.length > 0 && (
+              <>
+                <div className="text-xs text-slate-500 mb-2">
+                  Selected: {ocrBatchImages.length} image(s)
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {ocrBatchPreviewUrls.slice(0, 6).map((url, index) => (
+                    <div key={index} className="aspect-square border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
+                      <img
+                        src={url}
+                        alt={`Batch ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                  {ocrBatchImages.length > 6 && (
+                    <div className="aspect-square border border-slate-200 dark:border-slate-700 rounded flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                      <span className="text-xs text-slate-500">+{ocrBatchImages.length - 6}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleOcrBatchRecognize}
+                  disabled={ocrBatchResults.loading}
+                  className={`${commonClasses.button} ${commonClasses.buttonPrimary} w-full flex items-center justify-center gap-2`}
+                >
+                  {ocrBatchResults.loading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                  Batch Recognize
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">Task Dispatch Path</label>
-          <input
-            type="text"
-            defaultValue="/tasks"
-            className={commonClasses.input}
-            readOnly
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">Placeholder Storage Path</label>
-          <input
-            type="text"
-            defaultValue="/storage/placeholders"
-            className={commonClasses.input}
-            readOnly
-          />
-        </div>
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-sm text-slate-500">
-            Settings configuration will be available in a future update.
-          </p>
-        </div>
+      </div>
+
+      {/* Result Panel */}
+      <div className={`flex-1 ${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
+        <h3 className="font-semibold mb-4">
+          {ocrBatchResults.data && ocrBatchResults.data.length > 0 ? 'Batch Results' : 'Recognition Result'}
+        </h3>
+
+        {/* Batch Results */}
+        {ocrBatchResults.data && ocrBatchResults.data.length > 0 && (
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {ocrBatchResults.data.map((result: any, index: number) => (
+              <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Image className="w-4 h-4 text-indigo-500" />
+                  <span className="text-sm font-medium">Image {index + 1}</span>
+                  {result.engine && (
+                    <span className="text-xs text-slate-500">({result.engine})</span>
+                  )}
+                </div>
+                {result.text ? (
+                  <div className="space-y-2">
+                    <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded text-sm">
+                      {result.text}
+                    </div>
+                    {result.confidence && (
+                      <div className="text-xs text-slate-500">
+                        Confidence: {(result.confidence * 100).toFixed(1)}%
+                      </div>
+                    )}
+                    <button
+                      onClick={() => copyToClipboard(result.text)}
+                      className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1`}
+                    >
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-600 dark:text-red-400">
+                    {result.error || 'No text detected'}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Single Result (keep existing) */}
+        {(!ocrBatchResults.data || ocrBatchResults.data.length === 0) && ocrResult.data && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg mb-4">
+              <div className="text-sm whitespace-pre-wrap">{ocrResult.data.text || 'No text detected'}</div>
+            </div>
+            {ocrResult.data.confidence && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-slate-500">Confidence:</span>
+                  <span className="font-medium">{(ocrResult.data.confidence * 100).toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                  <div
+                    className="bg-indigo-600 h-2 rounded-full transition-all"
+                    style={{ width: `${ocrResult.data.confidence * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => copyToClipboard(ocrResult.data?.text || '')}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            >
+              <Copy className="w-4 h-4" />
+              Copy Text
+            </button>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!ocrResult.data && (!ocrBatchResults.data || ocrBatchResults.data.length === 0) && (
+          <div className="flex-1 flex items-center justify-center text-slate-400">
+            <div className="text-center">
+              <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p>No recognition result</p>
+              <p className="text-sm mt-1">Upload an image and click Recognize</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {(ocrResult.error || ocrBatchResults.error) && (
+          <div className={`${commonClasses.card} p-6 text-center`}>
+            <p className="text-red-600 dark:text-red-400">{ocrResult.error || ocrBatchResults.error}</p>
+          </div>
+        )}
       </div>
     </div>
   );
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
+  const renderSettingsTab = () => (
+    <div className={`${commonClasses.card} p-6`}>
+      <h3 className="text-lg font-semibold mb-4">Settings</h3>
+      <p className="text-slate-500">Settings panel coming soon...</p>
+    </div>
+  );
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-hidden">
-      {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Manage screenshots, tasks, and MCP resources</p>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b border-slate-200 dark:border-slate-700">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 font-medium'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="border-b border-slate-200 dark:border-slate-700 mb-4">
+        <div className="flex gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-sm font-medium">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab Content */}
@@ -1308,6 +2832,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         {activeTab === 'tasks' && renderTasksTab()}
         {activeTab === 'placeholder' && renderPlaceholderTab()}
         {activeTab === 'voice' && renderVoiceTab()}
+        {activeTab === 'ocr' && renderOcrTab()}
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
     </div>

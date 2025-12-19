@@ -137,12 +137,13 @@ def start(host='0.0.0.0', port=59000, debug=False):
     IS_SERVER_MODE = not adapter.has_gui
 
     ColorPrint.blue(f"[Callmodule] Platform: {adapter.platform.value}")
-    ColorPrint.blue(f"[Callmodule] Mode: {'DESKTOP' if IS_DESKTOP_MODE else 'SERVER'}")
+    ColorPrint.blue(f"[Callmodule] Mode: {'DESKTOP' if IS_DESKTOP_MODE else 'SERVER (Background Only)'}")
     if IS_LINUX:
         ColorPrint.blue(f"[Callmodule] X11 Display: {HAS_X11_DISPLAY}")
+        ColorPrint.yellow(f"[Callmodule] Linux: Running in BACKGROUND-ONLY mode (no GUI, no tray)")
     ColorPrint.blue(f"[Callmodule] Frontend: {frontend_app_dir}")
     ColorPrint.blue(f"[Callmodule] Frontend mode: {Config.FRONTEND_MODE}")
-    ColorPrint.blue(f"[Callmodule] Show UI window: {IS_DESKTOP_MODE}")
+    ColorPrint.blue(f"[Callmodule] Show UI window: {IS_WINDOWS and IS_DESKTOP_MODE}")
 
     # Get platform-specific QtWebEngine flags (handles root/sandbox automatically)
     qtwebengine_flags = adapter.get_qtwebengine_flags(
@@ -205,25 +206,25 @@ def start(host='0.0.0.0', port=59000, debug=False):
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
 
         # ========== UI Configuration (Platform-specific) ==========
-        # Desktop mode (Linux with X11 / Windows): Show window
-        # Server mode (Linux without X11): Hide window (background only)
+        # Windows: Show window (desktop mode)
+        # Linux: No window (background/server mode only)
         window_size=(Config.WINDOW_WIDTH, Config.WINDOW_HEIGHT) if IS_DESKTOP_MODE else (1280, 800),
-        show_on_start=IS_DESKTOP_MODE,  # Desktop: show window, Server: background
-        frameless=Config.FRAMELESS if IS_DESKTOP_MODE else False,
+        show_on_start=IS_WINDOWS and IS_DESKTOP_MODE,  # Only show window on Windows
+        frameless=Config.FRAMELESS if (IS_WINDOWS and IS_DESKTOP_MODE) else False,
         icon_path=str(icon_path) if icon_path.exists() else None,
         logo_path=str(logo_path) if logo_path.exists() else None,
 
         # ========== Tray Configuration (Auto-detect based on platform and mode) ==========
-        # Desktop mode: Enable tray on Windows and Linux (if not root)
-        # Server mode: Disable tray (Linux without X11)
-        # Note: Disable tray on Linux when running as root (D-Bus session bus unavailable)
-        enable_tray=True if not (IS_LINUX and os.geteuid() == 0) else False,
+        # Windows: Enable tray (desktop mode)
+        # Linux: Disable tray (background/server mode only, no GUI)
+        # Note: Linux runs in pure backend mode - no tray, no desktop window
+        enable_tray=IS_WINDOWS,  # Only enable on Windows
         tray_type="pyside6",  # Use PySide6 backend (Windows only)
 
         # ========== Debug Window Configuration ==========
-        # Desktop mode: Show debug window
-        # Server mode: No debug window (background only)
-        show_debug_window=IS_DESKTOP_MODE,  # Only show in desktop mode
+        # Windows: Show debug window in desktop mode
+        # Linux: No debug window (background only)
+        show_debug_window=IS_WINDOWS and IS_DESKTOP_MODE,  # Only show on Windows
         debug_window_width=650,
         debug_window_height=500,
         min_display_time=2.0,
@@ -234,17 +235,18 @@ def start(host='0.0.0.0', port=59000, debug=False):
     )
 
     ColorPrint.green(f"[Callmodule] Configuration created")
-    ColorPrint.blue(f"  - Mode: {'DESKTOP' if IS_DESKTOP_MODE else 'SERVER'}")
+    ColorPrint.blue(f"  - Platform: {'Windows' if IS_WINDOWS else 'Linux'}")
+    ColorPrint.blue(f"  - Mode: {'DESKTOP' if IS_DESKTOP_MODE else 'SERVER (Background Only)'}")
     ColorPrint.blue(f"  - Frontend mode: {Config.FRONTEND_MODE}")
     ColorPrint.blue(f"  - Frontend port: {Config.FRONTEND_PORT}")
     ColorPrint.blue(f"  - Backend port: {port}")
     ColorPrint.blue(f"  - Backend host: {host}")
     ColorPrint.blue(f"  - Frontend dir: {frontend_app_dir}")
     ColorPrint.blue(f"  - Frontend framework: vite (React)")
-    ColorPrint.blue(f"  - Show UI window: {IS_DESKTOP_MODE}")
-    ColorPrint.blue(f"  - Show debug window: {IS_DESKTOP_MODE}")
-    ColorPrint.blue(f"  - Enable tray: {adapter.can_use_tray()}")
-    if adapter.can_use_tray():
+    ColorPrint.blue(f"  - Show UI window: {IS_WINDOWS and IS_DESKTOP_MODE}")
+    ColorPrint.blue(f"  - Show debug window: {IS_WINDOWS and IS_DESKTOP_MODE}")
+    ColorPrint.blue(f"  - Enable tray: {IS_WINDOWS}")
+    if IS_WINDOWS:
         native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
         ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
     ColorPrint.blue(f"  - Total routers: 19")

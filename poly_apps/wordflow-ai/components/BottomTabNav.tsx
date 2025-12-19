@@ -22,8 +22,8 @@ export const BottomTabNav = () => {
       label: t('nav.home'),
       icon: <Icons.Home />,
       activeIcon: <Icons.Home />,
-      route: '/learn/home',
-      matchRoutes: ['/learn/home', '/dashboard', '/'],
+      route: '/',
+      matchRoutes: ['/', '/home', '/dashboard'],
     },
     {
       id: 'library',
