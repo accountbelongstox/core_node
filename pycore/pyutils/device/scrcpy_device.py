@@ -317,10 +317,17 @@ class ScrcpyDevice(AndroidDevice):
                     self._video_socket.connect(('localhost', video_port))
                     print(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
 
-                    # ✅ FIXED: In tunnel_forward mode, server SENDS dummy byte, client does NOT read
+                    # ✅ FIXED: In tunnel_forward mode, server SENDS dummy byte, client MUST read and discard it
                     # Official scrcpy: videoSocket.getOutputStream().write(0) on server side
-                    # Client just connects and starts reading video stream directly
-                    # Previous code incorrectly tried to READ dummy byte, causing connection close
+                    # Client must consume this byte before reading device metadata
+                    try:
+                        dummy_byte = self._video_socket.recv(1)
+                        if not dummy_byte:
+                            raise RuntimeError("Connection closed while reading dummy byte")
+                        print(f"[ScrcpyDevice] Consumed dummy byte from server: {dummy_byte.hex()}")
+                    except socket.timeout:
+                        # Timeout is acceptable - some servers might not send dummy byte
+                        print(f"[ScrcpyDevice] [WARN] Timeout reading dummy byte (server might not send it)")
 
                     break
                 except (ConnectionRefusedError, OSError) as e:
@@ -744,6 +751,7 @@ class ScrcpyDevice(AndroidDevice):
         # This tells scrcpy-server to use FORWARD mode protocol
         if tunnel_mode == "forward":
             cmd.append("tunnel_forward=true")
+            cmd.append("send_dummy_byte=true")  # ✅ Server sends dummy byte on first socket
 
         return cmd
 

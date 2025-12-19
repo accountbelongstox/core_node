@@ -8,6 +8,7 @@ Reference: QtScrcpy's DeviceManage::getFreePort() implementation
 """
 
 import asyncio
+import threading
 from typing import Dict, Optional
 
 
@@ -176,8 +177,9 @@ class SyncPortPool:
     Uses a background event loop to run async operations
     """
 
-    def __init__(self, start: int = 27183, pool_size: int = 1000):
-        self._pool = PortPool(start, pool_size)
+    def __init__(self, pool: PortPool):
+        # Use provided PortPool instance
+        self._pool = pool
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _set_loop(self, loop: asyncio.AbstractEventLoop):
@@ -218,4 +220,8 @@ class SyncPortPool:
         return future.result(timeout=5.0)
 
 
-__all__ = ['PortPool', 'SyncPortPool']
+# ✅ 创建全局唯一实例（模块级别单例）
+port_pool = PortPool(start=27183, pool_size=1000)
+sync_port_pool = SyncPortPool(port_pool)
+
+__all__ = ['port_pool', 'sync_port_pool', 'PortPool', 'SyncPortPool']

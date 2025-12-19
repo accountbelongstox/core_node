@@ -13,6 +13,7 @@ Decouples jar management from VideoStreamService and ConnectionManager.
 import asyncio
 import subprocess
 import hashlib
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -225,4 +226,25 @@ class ScrcpyServerManager:
             return False
 
 
-__all__ = ['ScrcpyServerManager']
+# ✅ 创建全局唯一实例（延迟初始化，需要从Config获取路径）
+# 注意：此实例在第一次访问时才初始化（通过 get_scrcpy_server_manager()）
+_scrcpy_server_manager: Optional[ScrcpyServerManager] = None
+
+def get_scrcpy_server_manager(adb_path: str = "adb", jar_path: str = "") -> ScrcpyServerManager:
+    """
+    获取全局ScrcpyServerManager实例
+
+    Args:
+        adb_path: ADB路径（首次调用时需要）
+        jar_path: scrcpy-server.jar路径（首次调用时需要）
+
+    Returns:
+        ScrcpyServerManager全局实例
+    """
+    global _scrcpy_server_manager
+    if _scrcpy_server_manager is None:
+        _scrcpy_server_manager = ScrcpyServerManager(adb_path, jar_path)
+        ColorPrint.green("[ScrcpyServerManager] 全局实例已创建")
+    return _scrcpy_server_manager
+
+__all__ = ['ScrcpyServerManager', 'get_scrcpy_server_manager']

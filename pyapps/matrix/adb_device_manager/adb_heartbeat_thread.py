@@ -14,10 +14,10 @@ import time
 import threading
 from typing import Optional
 from pycore import ColorPrint
-from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
-from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInfo, DeviceState, DeviceType
-from pyapps.matrix.adb_device_manager.network_scanner import NetworkScanner
-from pyapps.matrix.adb_device_manager.usb_monitor import USBMonitor
+from pyapps.matrix.adb_device_manager.adb_executor import adb_executor, ADBExecutor
+from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTable, DeviceInfo, DeviceState, DeviceType
+from pyapps.matrix.adb_device_manager.network_scanner import network_scanner, NetworkScanner
+from pyapps.matrix.adb_device_manager.usb_monitor import get_usb_monitor
 
 
 class ADBHeartbeatThread(threading.Thread):
@@ -65,7 +65,7 @@ class ADBHeartbeatThread(threading.Thread):
         self.rpc_server = None
 
         # ✅ Use global singleton instances (DO NOT instantiate with ClassName())
-        self.device_table = DeviceTable.instance()
+        self.device_table = device_table
         self.adb = ADBExecutor.instance(adb_path=adb_path)
         self.network_scanner = NetworkScanner.instance(port=5555, timeout=0.2)
         self.usb_monitor = USBMonitor.instance(auto_convert=True)

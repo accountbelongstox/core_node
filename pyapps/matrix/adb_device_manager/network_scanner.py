@@ -17,17 +17,11 @@ from pycore import ColorPrint
 
 class NetworkScanner:
     """
-    Network scanner for ADB devices with intelligent IP caching (Singleton)
+    Network scanner for ADB devices with intelligent IP caching
 
     Once a device is discovered at an IP, that IP is cached and skipped
     in subsequent scans to improve performance.
-
-    IMPORTANT: This is a singleton class. Use NetworkScanner.instance() to get the global instance.
-    DO NOT instantiate with NetworkScanner() directly.
     """
-
-    _instance: Optional['NetworkScanner'] = None
-    _instance_lock = threading.Lock()
 
     def __init__(
         self,
@@ -37,8 +31,6 @@ class NetworkScanner:
     ):
         """
         Initialize network scanner
-
-        WARNING: Do not call directly. Use NetworkScanner.instance() instead.
 
         Args:
             port: ADB port to scan (default: 5555)
@@ -53,30 +45,6 @@ class NetworkScanner:
         self._discovered_ips: Set[str] = set()
 
         ColorPrint.blue(f"[NetworkScanner] Initialized with IP caching enabled")
-
-    @classmethod
-    def instance(cls, port: int = 5555, timeout: float = 0.2, max_workers: int = 100) -> 'NetworkScanner':
-        """
-        Get global singleton instance of NetworkScanner
-
-        Args:
-            port: ADB port to scan (default: 5555) - only used on first instantiation
-            timeout: Socket connection timeout (default: 0.2s) - only used on first instantiation
-            max_workers: Max concurrent scan threads (default: 100) - only used on first instantiation
-
-        Returns:
-            NetworkScanner: The global singleton instance
-
-        Example:
-            scanner = NetworkScanner.instance()
-            found_ips = scanner.scan_network()
-        """
-        if cls._instance is None:
-            with cls._instance_lock:
-                # Double-check pattern for thread safety
-                if cls._instance is None:
-                    cls._instance = cls(port=port, timeout=timeout, max_workers=max_workers)
-        return cls._instance
 
     def scan_ip(self, ip: str) -> bool:
         """
@@ -296,3 +264,9 @@ class NetworkScanner:
             "cached_count": len(self._discovered_ips),
             "cached_ips": self.get_cached_ips(),
         }
+
+
+# ✅ 创建全局唯一实例（模块级别单例）
+network_scanner = NetworkScanner(port=5555, timeout=0.2, max_workers=100)
+
+__all__ = ['NetworkScanner', 'network_scanner']

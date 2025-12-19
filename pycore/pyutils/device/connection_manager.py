@@ -14,6 +14,7 @@ Reference: QtScrcpy's Device and Server classes
 """
 
 import asyncio
+import threading
 from typing import Dict, Optional, Callable
 from pathlib import Path
 from enum import Enum
@@ -78,7 +79,7 @@ class DeviceConnection:
 
 class ConnectionManager:
     """
-    Manages multiple device connections
+    Manages multiple device connections 
 
     Features:
     - Centralized device lifecycle management
@@ -88,7 +89,6 @@ class ConnectionManager:
 
     Design Pattern: Facade + Strategy
     """
-
     def __init__(
         self,
         device_manager: DeviceManager,
@@ -98,6 +98,8 @@ class ConnectionManager:
     ):
         """
         Initialize connection manager
+
+        WARNING: Do not call directly. Use ConnectionManager.instance() instead.
 
         Args:
             device_manager: DeviceManager instance
@@ -122,6 +124,7 @@ class ConnectionManager:
         self.on_disconnected: Optional[Callable[[str], None]] = None
         self.on_failed: Optional[Callable[[str, str], None]] = None
 
+    
     async def connect_device(
         self,
         serial: str,
@@ -239,8 +242,8 @@ class ConnectionManager:
             try:
                 # Ensure device is not connected
                 if connection.device.is_connected():
-                    ColorPrint.yellow(f"[ConnectionManager] Device {connection.serial} already connected, disconnecting first...")
-                    connection.device.disconnect()
+                    ColorPrint.yellow(f"[ConnectionManager] Device {connection.serial} already connected, stopping server first...")
+                    connection.device.stop_server()
 
                 # Update device params
                 connection.device.params = params
@@ -273,9 +276,9 @@ class ConnectionManager:
                     f"(attempt {connection.retry_count + 1}/{connection.max_retries + 1})..."
                 )
 
-                # Clean up before retry - mark connection as failed to trigger reconnect
+                # Clean up before retry - mark connection as reconnecting
                 # Note: ScrcpyDevice doesn't have disconnect() method, cleanup happens automatically
-                connection.mark_failed(str(last_error))
+                # Already marked as reconnecting in mark_reconnecting() above
 
                 await asyncio.sleep(1.0)  # Brief delay before retry
             else:
@@ -303,11 +306,11 @@ class ConnectionManager:
 
         ColorPrint.blue(f"[ConnectionManager] Disconnecting device {serial}...")
 
-        # Disconnect device
+        # Stop device server
         try:
-            connection.device.disconnect()
+            connection.device.stop_server()
         except Exception as e:
-            ColorPrint.yellow(f"[ConnectionManager] Error disconnecting device: {e}")
+            ColorPrint.yellow(f"[ConnectionManager] Error stopping device server: {e}")
 
         # Remove from DeviceManager
         if serial in self.device_manager.devices:

@@ -29,7 +29,7 @@ class DeviceDiscovery:
     def __init__(self, adb_path: str = "adb"):
         self.adb_path = adb_path
         # ✅ Use global singleton NetworkScanner (DO NOT instantiate with NetworkScanner())
-        self.network_scanner = NetworkScanner.instance()
+        self.network_scanner = network_scanner
 
     def discover_usb_devices(self) -> List[Dict[str, Any]]:
         """
