@@ -130,6 +130,7 @@ void installTranslator()
         languagePath += "QtScrcpy_en.qm";
     }
 
+    // Qt 6: Check return value to avoid C4834 warning (nodiscard attribute)
     if (translator.load(languagePath)) {
         qApp->installTranslator(&translator);
     }

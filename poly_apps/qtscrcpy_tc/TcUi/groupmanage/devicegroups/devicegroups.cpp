@@ -141,6 +141,7 @@ void DeviceGroups::saveJsonFile()
 
     QFile loadFile(DeviceGroups::getDeviceGroupsPath() + "/" + "deviceGroups.json");
     if (loadFile.open(QIODevice::WriteOnly)) {
+        // Qt 6: Cast to void to suppress C4834 warning (nodiscard attribute on write())
         (void)loadFile.write(saveJsonDoc.toJson());
         loadFile.close();
     }

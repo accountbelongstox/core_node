@@ -38,6 +38,7 @@ const QString &AdbProcess::getAdbPath()
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = Config::getInstance().getAdbPath();
         }
+        // Qt 6: QFileInfo no longer accepts QString assignment, use setFile()
         fileInfo.setFile(s_adbPath);
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = QCoreApplication::applicationDirPath() + "/adb";
