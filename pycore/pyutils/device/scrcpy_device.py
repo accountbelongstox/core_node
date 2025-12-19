@@ -298,60 +298,29 @@ class ScrcpyDevice(AndroidDevice):
             # FORWARD MODE: Device listens, PC connects to device
             print(f"[ScrcpyDevice] FORWARD mode: Waiting for device to start listening...")
 
-            # Give device time to start scrcpy-server and listen
-            # QtScrcpy achieves 1.8s total connection time
-            # Increased to 1.0s to ensure server is fully started before connecting
-            time.sleep(1.0)
+            # ✅ FIXED: Remove fixed sleep, start retrying immediately (QtScrcpy pattern)
+            # QtScrcpy achieves 1.8s by immediate retry polling
+            # In multi-device scenarios with ADB queue, server startup is delayed
+            # Solution: Start polling immediately, allow longer total timeout
 
             # PC connects to forwarded port
-            # Official scrcpy uses 50 retries at 100ms intervals for reliable connection
+            # Increased retries to accommodate ADB queue delays in multi-device scenarios
             print(f"[ScrcpyDevice] Connecting to forwarded port {video_port}...")
             self._video_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._video_socket.settimeout(10.0)
 
-            max_retries = 50  # Increased from 10 to 50 (official scrcpy standard)
+            max_retries = 150  # Increased from 50 to 150 for multi-device queue delays
             retry_interval = 0.1  # 100ms intervals (official scrcpy standard)
+            # Total timeout: 150 × 0.1 = 15 seconds (covers ADB queue delays)
             for retry in range(max_retries):
                 try:
                     self._video_socket.connect(('localhost', video_port))
                     print(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
 
-                    # CRITICAL: Read dummy byte in FORWARD mode (QtScrcpy pattern)
-                    # scrcpy-server sends 1 dummy byte first in tunnel_forward mode
-                    try:
-                        dummy_byte = self._video_socket.recv(1)
-                        if dummy_byte:
-                            print(f"[ScrcpyDevice] Read dummy byte in FORWARD mode: {dummy_byte.hex()}")
-                        else:
-                            # Empty byte string means connection closed!
-                            print(f"[ScrcpyDevice] [ERROR] Connection closed while reading dummy byte!")
-                            # Read server output to see what went wrong (even if process is still running)
-                            if self._server_process:
-                                print(f"[ScrcpyDevice] Attempting to read server output...")
-                                try:
-                                    # Give process a moment to exit
-                                    time.sleep(0.5)
-                                    # Try to read output (will timeout if process hangs)
-                                    stdout, stderr = self._server_process.communicate(timeout=2.0)
-                                    if stdout:
-                                        print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout.decode('utf-8', errors='replace')}")
-                                    if stderr:
-                                        print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr.decode('utf-8', errors='replace')}")
-                                    else:
-                                        print(f"[ScrcpyDevice] [SERVER] No error output captured")
-                                except subprocess.TimeoutExpired:
-                                    print(f"[ScrcpyDevice] [SERVER] Process still running, killing it...")
-                                    self._server_process.kill()
-                                    stdout, stderr = self._server_process.communicate()
-                                    if stdout:
-                                        print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout.decode('utf-8', errors='replace')}")
-                                    if stderr:
-                                        print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr.decode('utf-8', errors='replace')}")
-                                except Exception as e:
-                                    print(f"[ScrcpyDevice] [SERVER] Failed to read output: {e}")
-                            raise RuntimeError("Connection closed by server while reading dummy byte")
-                    except socket.timeout:
-                        print(f"[ScrcpyDevice] [WARN] Timeout reading dummy byte, continuing anyway")
+                    # ✅ FIXED: In tunnel_forward mode, server SENDS dummy byte, client does NOT read
+                    # Official scrcpy: videoSocket.getOutputStream().write(0) on server side
+                    # Client just connects and starts reading video stream directly
+                    # Previous code incorrectly tried to READ dummy byte, causing connection close
 
                     break
                 except (ConnectionRefusedError, OSError) as e:

@@ -205,11 +205,12 @@ class VideoStreamHealthService:
             ColorPrint.blue(f"[VideoStreamHealth] Device {serial} is reconnecting, skipping health check")
             return
 
+        # ✅ Get device from global DeviceManager (ONLY source of truth)
         device = self.device_manager.get_device(serial)
 
         if not device:
-            ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in DeviceManager")
-            health.mark_error("Device not found in DeviceManager")
+            ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in global DeviceManager")
+            health.mark_error("Device not found in global DeviceManager")
             self._broadcast_device_status(serial, health)
             return
 
@@ -299,18 +300,11 @@ class VideoStreamHealthService:
         if self._video_stream_service:
             try:
                 ColorPrint.yellow(f"[VideoStreamHealth] Stopping stream for {serial} to trigger reconnection")
-                # Schedule async force_stop_stream
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self._video_stream_service.force_stop_stream(
-                            serial,
-                            reason=f"Health check reconnection attempt {health.reconnect_attempts}/{health.max_reconnect_attempts}"
-                        )
-                    )
-                else:
-                    ColorPrint.red(f"[VideoStreamHealth] Event loop not running, cannot stop stream")
+                # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
+                self._video_stream_service.force_stop_stream_sync(
+                    serial,
+                    reason=f"Health check reconnection attempt {health.reconnect_attempts}/{health.max_reconnect_attempts}"
+                )
             except Exception as e:
                 ColorPrint.red(f"[VideoStreamHealth] Failed to stop stream for reconnection: {e}")
         else:
@@ -343,13 +337,8 @@ class VideoStreamHealthService:
             if self._video_stream_service:
                 ColorPrint.yellow(f"[VideoStreamHealth] Requesting VideoStreamService to stop stream for {serial}")
                 try:
-                    # Schedule async cleanup
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(
-                            self._video_stream_service.force_stop_stream(serial, reason="Max reconnection attempts reached")
-                        )
+                    # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
+                    self._video_stream_service.force_stop_stream_sync(serial, reason="Max reconnection attempts reached")
                 except Exception as e:
                     ColorPrint.red(f"[VideoStreamHealth] Failed to stop stream for {serial}: {e}")
             else:

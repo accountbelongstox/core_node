@@ -8,6 +8,7 @@ Implements the workflow: USB detection → Get IP → Enable tcpip 5555 → Conn
 """
 
 import time
+import threading
 from typing import List, Set, Optional, Dict
 from pycore import ColorPrint
 from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
@@ -15,7 +16,15 @@ from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInf
 
 
 class USBMonitor:
-    """USB device monitor and wireless converter"""
+    """
+    USB device monitor and wireless converter (Singleton)
+
+    IMPORTANT: This is a singleton class. Use USBMonitor.instance() to get the global instance.
+    DO NOT instantiate with USBMonitor() directly.
+    """
+
+    _instance: Optional['USBMonitor'] = None
+    _instance_lock = threading.Lock()
 
     def __init__(
         self,
@@ -26,6 +35,8 @@ class USBMonitor:
     ):
         """
         Initialize USB monitor
+
+        WARNING: Do not call directly. Use USBMonitor.instance() instead.
 
         Args:
             adb_executor: ADB executor instance
@@ -40,6 +51,39 @@ class USBMonitor:
 
         self._known_usb_devices: Set[str] = set()
         self._converting_devices: Dict[str, float] = {}  # serial -> start_time
+
+    @classmethod
+    def instance(cls, auto_convert: bool = True, conversion_delay: float = 2.0) -> 'USBMonitor':
+        """
+        Get global singleton instance of USBMonitor
+
+        Args:
+            auto_convert: Auto-convert USB to wireless (default: True) - only used on first instantiation
+            conversion_delay: Delay after tcpip command (default: 2.0s) - only used on first instantiation
+
+        Returns:
+            USBMonitor: The global singleton instance
+
+        Example:
+            usb_monitor = USBMonitor.instance()
+            results = usb_monitor.process_usb_devices()
+        """
+        if cls._instance is None:
+            # ✅ DEADLOCK FIX: Get dependencies BEFORE acquiring lock
+            # This prevents circular lock dependency between USBMonitor, ADBExecutor, DeviceTable
+            adb_executor = ADBExecutor.instance()
+            device_table = DeviceTable.instance()
+
+            with cls._instance_lock:
+                # Double-check pattern for thread safety
+                if cls._instance is None:
+                    cls._instance = cls(
+                        adb_executor=adb_executor,
+                        device_table=device_table,
+                        auto_convert=auto_convert,
+                        conversion_delay=conversion_delay
+                    )
+        return cls._instance
 
     def scan_usb_devices(self) -> List[str]:
         """

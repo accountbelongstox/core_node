@@ -17,6 +17,7 @@ from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInf
 from pyapps.matrix.adb_device_manager.network_scanner import NetworkScanner
 from pyapps.matrix.adb_device_manager.usb_monitor import USBMonitor
 from pyapps.matrix.services.device_id_manager import DeviceIDManager
+from pycore.pyutils.device_manager import DeviceManager
 
 
 class ADBHeartbeatService:
@@ -40,14 +41,11 @@ class ADBHeartbeatService:
         Args:
             adb_path: Path to adb executable
         """
-        self.device_table = DeviceTable()
-        self.adb = ADBExecutor(adb_path=adb_path)
-        self.network_scanner = NetworkScanner(port=5555, timeout=0.2)
-        self.usb_monitor = USBMonitor(
-            adb_executor=self.adb,
-            device_table=self.device_table,
-            auto_convert=True
-        )
+        # ✅ Use global singleton instances (DO NOT instantiate with ClassName())
+        self.device_table = DeviceTable.instance()
+        self.adb = ADBExecutor.instance(adb_path=adb_path)
+        self.network_scanner = NetworkScanner.instance(port=5555, timeout=0.2)
+        self.usb_monitor = USBMonitor.instance(auto_convert=True)
 
         self.rpc_server = None
         self._start_time = time.time()
@@ -134,6 +132,12 @@ class ADBHeartbeatService:
             serial = f"{ip}:5555"
 
             try:
+                # ✅ STEP 0: Check if device already exists in DeviceManager (skip if exists)
+                device_manager = DeviceManager.instance()
+                if device_manager.get_device(serial):
+                    ColorPrint.blue(f"[ADBService] Device {serial} already in DeviceManager, skipping scan")
+                    return
+
                 ColorPrint.blue(f"[ADBService] [STEP 1/6] Connecting to {serial}...")
 
                 # 1. 连接设备
@@ -249,29 +253,37 @@ class ADBHeartbeatService:
 
         results = self.usb_monitor.process_usb_devices()
 
-        # Register all devices with DeviceIDManager
-        device_id_manager = DeviceIDManager.instance()
-        all_devices = self.device_table.get_all_devices()
-        for device in all_devices:
-            device_id_manager.register_device(device.serial)
-
         if not results:
             return
 
+        # ✅ Register only newly converted USB devices (not all devices)
+        device_id_manager = DeviceIDManager.instance()
         for serial, success in results.items():
             if success:
-                ColorPrint.green(f"[ADBService] USB device {serial} converted to wireless")
+                # Register converted device with DeviceIDManager
+                device_id = device_id_manager.register_device(serial)
+                ColorPrint.green(f"[ADBService] USB device {serial} converted to wireless -> {device_id}")
             else:
                 ColorPrint.yellow(f"[ADBService] Failed to convert USB device {serial}")
 
     def _cleanup_task(self):
-        """Cleanup task"""
+        """Cleanup task - removes stale devices and uncaches their IPs"""
         ColorPrint.blue("[ADBService] Running cleanup task...")
 
+        # Get stale devices before removing (to uncache their IPs)
+        stale_devices = self.device_table.get_stale_devices(timeout=120.0)
+
+        # Remove stale devices from table
         removed = self.device_table.cleanup_stale_devices(timeout=120.0)
 
         if removed > 0:
             ColorPrint.yellow(f"[ADBService] Cleaned up {removed} stale device(s)")
+
+            # ✅ Uncache IPs of removed devices (allow re-scanning)
+            for device in stale_devices:
+                ip = ADBExecutor.extract_ip_from_serial(device.serial)
+                if ip:
+                    self.network_scanner.uncache_ip(ip)
 
         stats = self.device_table.get_stats()
         ColorPrint.blue(f"[ADBService] Device stats: {stats['total_devices']} total, "

@@ -9,13 +9,25 @@ Uses fast concurrent scanning with socket connections.
 
 import socket
 import ipaddress
+import threading
 import concurrent.futures
 from typing import List, Optional, Set
 from pycore import ColorPrint
 
 
 class NetworkScanner:
-    """Network scanner for ADB devices"""
+    """
+    Network scanner for ADB devices with intelligent IP caching (Singleton)
+
+    Once a device is discovered at an IP, that IP is cached and skipped
+    in subsequent scans to improve performance.
+
+    IMPORTANT: This is a singleton class. Use NetworkScanner.instance() to get the global instance.
+    DO NOT instantiate with NetworkScanner() directly.
+    """
+
+    _instance: Optional['NetworkScanner'] = None
+    _instance_lock = threading.Lock()
 
     def __init__(
         self,
@@ -26,6 +38,8 @@ class NetworkScanner:
         """
         Initialize network scanner
 
+        WARNING: Do not call directly. Use NetworkScanner.instance() instead.
+
         Args:
             port: ADB port to scan (default: 5555)
             timeout: Socket connection timeout (default: 0.2s)
@@ -34,6 +48,35 @@ class NetworkScanner:
         self.port = port
         self.timeout = timeout
         self.max_workers = max_workers
+
+        # ✅ IP cache: IPs that have discovered devices (skip in future scans)
+        self._discovered_ips: Set[str] = set()
+
+        ColorPrint.blue(f"[NetworkScanner] Initialized with IP caching enabled")
+
+    @classmethod
+    def instance(cls, port: int = 5555, timeout: float = 0.2, max_workers: int = 100) -> 'NetworkScanner':
+        """
+        Get global singleton instance of NetworkScanner
+
+        Args:
+            port: ADB port to scan (default: 5555) - only used on first instantiation
+            timeout: Socket connection timeout (default: 0.2s) - only used on first instantiation
+            max_workers: Max concurrent scan threads (default: 100) - only used on first instantiation
+
+        Returns:
+            NetworkScanner: The global singleton instance
+
+        Example:
+            scanner = NetworkScanner.instance()
+            found_ips = scanner.scan_network()
+        """
+        if cls._instance is None:
+            with cls._instance_lock:
+                # Double-check pattern for thread safety
+                if cls._instance is None:
+                    cls._instance = cls(port=port, timeout=timeout, max_workers=max_workers)
+        return cls._instance
 
     def scan_ip(self, ip: str) -> bool:
         """
@@ -78,7 +121,7 @@ class NetworkScanner:
 
     def scan_network(self, network_cidr: Optional[str] = None) -> List[str]:
         """
-        Scan network for devices with ADB port open
+        Scan network for devices with ADB port open (with intelligent IP skip)
 
         Args:
             network_cidr: Network CIDR to scan (auto-detect if None)
@@ -93,28 +136,37 @@ class NetworkScanner:
             ColorPrint.yellow("[NetworkScanner] No network to scan")
             return []
 
-        ColorPrint.blue(f"[NetworkScanner] Scanning {network_cidr} for port {self.port}...")
-
         try:
             network = ipaddress.IPv4Network(network_cidr, strict=False)
-            hosts = [str(ip) for ip in network.hosts()]
+            all_hosts = [str(ip) for ip in network.hosts()]
+
+            # ✅ Filter out already discovered IPs (optimization)
+            hosts_to_scan = [ip for ip in all_hosts if ip not in self._discovered_ips]
+
+            skipped_count = len(all_hosts) - len(hosts_to_scan)
+            if skipped_count > 0:
+                ColorPrint.blue(f"[NetworkScanner] Skipping {skipped_count} cached IP(s), scanning {len(hosts_to_scan)} IP(s)...")
+            else:
+                ColorPrint.blue(f"[NetworkScanner] Scanning {network_cidr} for port {self.port}...")
 
             found_devices: Set[str] = set()
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                future_to_ip = {executor.submit(self.scan_ip, ip): ip for ip in hosts}
+                future_to_ip = {executor.submit(self.scan_ip, ip): ip for ip in hosts_to_scan}
 
                 for future in concurrent.futures.as_completed(future_to_ip):
                     ip = future_to_ip[future]
                     try:
                         if future.result():
                             found_devices.add(ip)
-                            ColorPrint.green(f"[NetworkScanner] Found device at {ip}:{self.port}")
+                            # ✅ Cache discovered IP for future scans
+                            self._discovered_ips.add(ip)
+                            ColorPrint.green(f"[NetworkScanner] Found device at {ip}:{self.port} (cached)")
                     except Exception:
                         pass
 
             result = sorted(list(found_devices))
-            ColorPrint.blue(f"[NetworkScanner] Scan complete: {len(result)} device(s) found")
+            ColorPrint.blue(f"[NetworkScanner] Scan complete: {len(result)} new device(s) found, {len(self._discovered_ips)} total cached")
             return result
 
         except Exception as e:
@@ -145,3 +197,102 @@ class NetworkScanner:
                     pass
 
         return sorted(list(found_devices))
+
+    # ================================================================
+    # IP Cache Management API
+    # ================================================================
+
+    def cache_ip(self, ip: str) -> None:
+        """
+        Add IP to discovered cache (will be skipped in future scans)
+
+        Args:
+            ip: IP address to cache
+
+        Usage:
+            scanner.cache_ip("192.168.31.117")
+        """
+        if ip not in self._discovered_ips:
+            self._discovered_ips.add(ip)
+            ColorPrint.blue(f"[NetworkScanner] Cached IP: {ip}")
+
+    def uncache_ip(self, ip: str) -> bool:
+        """
+        Remove IP from cache (will be scanned again in future)
+
+        Args:
+            ip: IP address to uncache
+
+        Returns:
+            True if IP was in cache, False otherwise
+
+        Usage:
+            # Device went offline, allow re-scanning
+            scanner.uncache_ip("192.168.31.117")
+        """
+        if ip in self._discovered_ips:
+            self._discovered_ips.remove(ip)
+            ColorPrint.yellow(f"[NetworkScanner] Uncached IP: {ip} (will re-scan)")
+            return True
+        return False
+
+    def clear_cache(self) -> int:
+        """
+        Clear all cached IPs (force full network scan next time)
+
+        Returns:
+            Number of IPs cleared from cache
+
+        Usage:
+            # Reset scanner to scan all IPs again
+            cleared = scanner.clear_cache()
+        """
+        count = len(self._discovered_ips)
+        self._discovered_ips.clear()
+        ColorPrint.yellow(f"[NetworkScanner] Cache cleared: {count} IP(s) removed")
+        return count
+
+    def get_cached_ips(self) -> List[str]:
+        """
+        Get list of all cached IPs
+
+        Returns:
+            Sorted list of cached IP addresses
+
+        Usage:
+            cached = scanner.get_cached_ips()
+            print(f"Cached IPs: {cached}")
+        """
+        return sorted(list(self._discovered_ips))
+
+    def is_cached(self, ip: str) -> bool:
+        """
+        Check if IP is in cache
+
+        Args:
+            ip: IP address to check
+
+        Returns:
+            True if IP is cached, False otherwise
+
+        Usage:
+            if scanner.is_cached("192.168.31.117"):
+                print("IP will be skipped in next scan")
+        """
+        return ip in self._discovered_ips
+
+    def get_cache_stats(self) -> dict:
+        """
+        Get cache statistics
+
+        Returns:
+            Dictionary with cache statistics
+
+        Usage:
+            stats = scanner.get_cache_stats()
+            print(f"Cached: {stats['cached_count']}, Last scan skipped: {stats['last_skip_count']}")
+        """
+        return {
+            "cached_count": len(self._discovered_ips),
+            "cached_ips": self.get_cached_ips(),
+        }

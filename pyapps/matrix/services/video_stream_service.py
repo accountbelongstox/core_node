@@ -41,6 +41,23 @@ class VideoStreamService:
         self.device_manager = DeviceManager.instance()
         self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
 
+        # 🔧 NEW: Centralized scrcpy-server.jar manager (decoupled)
+        from pycore.pyutils.device.scrcpy_server_manager import ScrcpyServerManager
+        self.server_manager = ScrcpyServerManager(self.adb_path, self.scrcpy_server_jar)
+
+        # 🔧 NEW: Port pool for device connection management
+        from pycore.pyutils.device.port_pool import PortPool
+        self.port_pool = PortPool(start=27183, pool_size=1000)
+
+        # 🔧 NEW: Connection manager for decoupled device lifecycle
+        from pycore.pyutils.device.connection_manager import ConnectionManager
+        self.connection_manager = ConnectionManager(
+            device_manager=self.device_manager,
+            port_pool=self.port_pool,
+            server_manager=self.server_manager,  # ✅ FIXED: Pass shared instance
+            adb_path=self.adb_path
+        )
+
         # H.264 streaming (direct H.264 transmission)
         # Background streaming tasks (one per device)
         self.active_streams: Dict[str, asyncio.Task] = {}
@@ -89,6 +106,10 @@ class VideoStreamService:
         from pyapps.matrix.services.video_stream_health_service import get_video_stream_health_service
         self.health_service = get_video_stream_health_service()
 
+        # Event loop reference for thread-safe async calls
+        # Captured when first async method runs (similar to RPC server pattern)
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+
     @classmethod
     def instance(cls) -> 'VideoStreamService':
         """Get singleton instance"""
@@ -98,39 +119,13 @@ class VideoStreamService:
 
     def _ensure_scrcpy_server_jar(self) -> bool:
         """
-        Ensure scrcpy-server.jar is available
-
-        Attempts to:
-        1. Check if file exists
-        2. Copy from scrcpy_init directory
-        3. Download from GitHub
+        Ensure scrcpy-server.jar is available (delegated to ScrcpyServerManager)
 
         Returns:
             True if scrcpy-server.jar is available, False otherwise
         """
-        jar_path = Path(self.scrcpy_server_jar)
-
-        # Quick check - if exists, return immediately
-        if jar_path.exists():
-            return True
-
-        # File doesn't exist - attempt to ensure it's available
-        ColorPrint.yellow(f"[VideoStreamService] scrcpy-server.jar not found at {jar_path}")
-        ColorPrint.blue("[VideoStreamService] Attempting to download scrcpy-server.jar...")
-
-        try:
-            success = ensure_scrcpy_server_jar(jar_path, auto_download=True)
-            if success:
-                ColorPrint.green("[VideoStreamService] ✓ scrcpy-server.jar is now available")
-                return True
-            else:
-                ColorPrint.red("[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
-                return False
-        except Exception as e:
-            ColorPrint.red(f"[VideoStreamService] ✗ Error ensuring scrcpy-server.jar: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        # 🔧 REFACTORED: Use centralized server manager
+        return self.server_manager.ensure_local_jar(auto_download=True)
 
     async def start_stream(self, serial: str, websocket: WebSocket) -> bool:
         """
@@ -146,6 +141,11 @@ class VideoStreamService:
         Returns:
             True if successful
         """
+        # Capture event loop on first async call (for thread-safe sync wrappers)
+        if self._event_loop is None:
+            self._event_loop = asyncio.get_running_loop()
+            ColorPrint.blue("[VideoStreamService] Event loop captured for sync wrappers")
+
         ColorPrint.blue(f"[VideoStreamService] start_stream called for {serial}")
 
         # Add client to subscription list
@@ -210,90 +210,49 @@ class VideoStreamService:
         self.device_initializing[serial] = True
 
         try:
-            # Get or create device (device already visible in adb devices, just start scrcpy-server)
-            device = self.device_manager.get_device(serial)
-            if not device:
-                ColorPrint.yellow(f"[VideoStreamService] Device {serial} not in DeviceManager, creating ScrcpyDevice...")
+            # 🔧 REFACTORED: Use ConnectionManager for device lifecycle
+            # This replaces direct device creation with centralized connection management
+            connection = self.connection_manager.get_connection(serial)
 
-                # Device is already connected via adb (visible in adb devices)
-                # Just create ScrcpyDevice and start scrcpy-server
-                from pycore.pyutils.device import ScrcpyDevice
-                from pathlib import Path
-                import subprocess
+            if not connection or not self.connection_manager.is_connected(serial):
+                ColorPrint.blue(f"[VideoStreamService] Connecting device {serial} via ConnectionManager...")
 
-                server_params = ServerParams(
-                max_size=720,
-                bit_rate=8000000,
-                max_fps=60,
-                codec=VideoCodec.H264,
-                control=False  # Temporarily disabled - testing if control socket causes connection issues
-            )
+                # Ensure scrcpy-server.jar is available (auto-download if needed)
+                ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
+                if not self._ensure_scrcpy_server_jar():
+                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
+                    error_msg = {"type": "video.error", "data": {"error": f"Failed to ensure scrcpy-server.jar"}}
+                    await websocket.send_json(error_msg)
+                    # Clear initializing flag
+                    self.device_initializing[serial] = False
+                    return False
 
-            # Ensure scrcpy-server.jar is available (auto-download if needed)
-            ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
-            if not self._ensure_scrcpy_server_jar():
-                ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
-                error_msg = {"type": "video.error", "data": {"error": f"Failed to ensure scrcpy-server.jar"}}
-                await websocket.send_json(error_msg)
-                # Clear initializing flag
-                self.device_initializing[serial] = False
-                return False
+                # Create server parameters (optimized for multi-device scenarios)
+                # ✅ OPTIMIZED: Use factory method for multi-device scenarios
+                server_params = ServerParams.create_multi_device_optimized()
+                server_params.control = False  # Temporarily disabled - testing if control socket causes connection issues
 
-            # Now push to device
-            ColorPrint.blue(f"[VideoStreamService] Pushing scrcpy-server.jar to device {serial}...")
-            scrcpy_jar = Path(self.scrcpy_server_jar)
+                # Connect device using ConnectionManager (handles port allocation, retry, etc.)
+                try:
+                    connection = await self.connection_manager.connect_device(
+                        serial=serial,
+                        params=server_params,
+                        force_reconnect=False
+                    )
+                    ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} connected via ConnectionManager")
+                except Exception as e:
+                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to connect device {serial}: {e}")
+                    error_msg = {"type": "video.error", "data": {"error": f"Failed to connect device: {str(e)}"}}
+                    await websocket.send_json(error_msg)
+                    # Remove client from subscription
+                    if serial in self.stream_clients:
+                        self.stream_clients[serial].discard(websocket)
+                        if len(self.stream_clients[serial]) == 0:
+                            del self.stream_clients[serial]
+                    return False
 
-            loop = asyncio.get_event_loop()
-            push_result = await loop.run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    [self.adb_path, "-s", serial, "push", str(scrcpy_jar), "/data/local/tmp/scrcpy-server.jar"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-            )
-
-            if push_result.returncode != 0:
-                ColorPrint.red(f"[VideoStreamService] ✗ Failed to push scrcpy-server.jar: {push_result.stderr}")
-                error_msg = {"type": "video.error", "data": {"error": "Failed to push scrcpy-server.jar"}}
-                await websocket.send_json(error_msg)
-                return False
-
-            ColorPrint.green(f"[VideoStreamService] ✓ scrcpy-server.jar pushed to {serial}")
-
-            # Create device and start scrcpy-server
-            device = ScrcpyDevice(serial, server_params, self.adb_path)
-
-            # Start scrcpy-server with timeout protection
-            try:
-                ColorPrint.blue(f"[VideoStreamService] Starting scrcpy-server for {serial} (30s timeout)...")
-                await asyncio.wait_for(
-                    loop.run_in_executor(None, device.start_server),
-                    timeout=30.0
-                )
-                ColorPrint.green(f"[VideoStreamService] ✓ ScrcpyDevice started for {serial}")
-            except asyncio.TimeoutError:
-                ColorPrint.red(f"[VideoStreamService] ✗ Timeout starting scrcpy-server for {serial}")
-                error_msg = {"type": "video.error", "data": {"error": "Timeout starting video server"}}
-                await websocket.send_json(error_msg)
-                # Remove client from subscription
-                if serial in self.stream_clients:
-                    self.stream_clients[serial].discard(websocket)
-                    if len(self.stream_clients[serial]) == 0:
-                        del self.stream_clients[serial]
-                return False
-            except Exception as e:
-                ColorPrint.red(f"[VideoStreamService] ✗ Failed to start scrcpy-server for {serial}: {e}")
-                error_msg = {"type": "video.error", "data": {"error": f"Failed to start video server: {str(e)}"}}
-                await websocket.send_json(error_msg)
-                # Remove client from subscription
-                if serial in self.stream_clients:
-                    self.stream_clients[serial].discard(websocket)
-                    if len(self.stream_clients[serial]) == 0:
-                        del self.stream_clients[serial]
-                return False
-
+            # Get device from connection
+            device = connection.device
             ColorPrint.green(f"[VideoStreamService] Device {serial} ready, starting background streaming task")
 
             # Create stop event
@@ -312,6 +271,17 @@ class VideoStreamService:
             if serial in self.device_initializing:
                 self.device_initializing[serial] = False
                 ColorPrint.blue(f"[VideoStreamService] Cleared initializing flag for {serial}")
+
+    def _has_active_streams(self, serial: str) -> bool:
+        """
+        Check if device has any active streams (H.264 or YUV)
+
+        Returns:
+            True if device has active streams
+        """
+        has_h264_clients = serial in self.stream_clients and len(self.stream_clients[serial]) > 0
+        has_yuv_clients = serial in self.yuv_stream_clients and len(self.yuv_stream_clients[serial]) > 0
+        return has_h264_clients or has_yuv_clients
 
     async def stop_stream(self, serial: str, websocket: WebSocket):
         """Stop streaming for a device or detach client"""
@@ -344,6 +314,11 @@ class VideoStreamService:
 
                 if serial in self.active_streams:
                     del self.active_streams[serial]
+
+                # 🔧 NEW: Disconnect device if no other streams are active
+                if not self._has_active_streams(serial):
+                    ColorPrint.blue(f"[VideoStreamService] No active streams for {serial}, disconnecting device...")
+                    await self.connection_manager.disconnect_device(serial)
 
         # Clean up paused state
         if serial in self.paused_clients:
@@ -413,7 +388,35 @@ class VideoStreamService:
         # Mark device as inactive in health service
         self.health_service.mark_device_inactive(serial)
 
+        # 🔧 NEW: Disconnect device if no other streams are active
+        if not self._has_active_streams(serial):
+            ColorPrint.blue(f"[VideoStreamService] Force stopping - disconnecting device {serial}...")
+            await self.connection_manager.disconnect_device(serial)
+
         ColorPrint.green(f"[VideoStreamService] ✓ Force stop completed for {serial}")
+
+    def force_stop_stream_sync(self, serial: str, reason: str = "Health check failed"):
+        """
+        Synchronous wrapper for force_stop_stream() - thread-safe
+
+        This method can be called from any thread (e.g., HeartbeatPusher thread).
+        Uses asyncio.run_coroutine_threadsafe() to schedule the coroutine in the
+        captured event loop.
+
+        Args:
+            serial: Device serial number
+            reason: Reason for force stop
+        """
+        if self._event_loop is None:
+            ColorPrint.yellow(f"[VideoStreamService] Event loop not ready, cannot force stop {serial}")
+            return
+
+        # Schedule coroutine in the event loop (thread-safe)
+        asyncio.run_coroutine_threadsafe(
+            self.force_stop_stream(serial, reason),
+            self._event_loop
+        )
+        ColorPrint.blue(f"[VideoStreamService] Scheduled force stop for {serial} in event loop")
 
     # ========== YUV STREAMING (UNIFIED ARCHITECTURE) ==========
 
@@ -432,6 +435,11 @@ class VideoStreamService:
         Returns:
             True if successful
         """
+        # Capture event loop on first async call (for thread-safe sync wrappers)
+        if self._event_loop is None:
+            self._event_loop = asyncio.get_running_loop()
+            ColorPrint.blue("[VideoStreamService] Event loop captured for sync wrappers")
+
         ColorPrint.blue(f"[VideoStreamService] start_yuv_stream called for {serial} (hwaccel={hwaccel})")
 
         # Add client to YUV subscription list
@@ -439,6 +447,22 @@ class VideoStreamService:
             self.yuv_stream_clients[serial] = set()
         self.yuv_stream_clients[serial].add(websocket)
         ColorPrint.green(f"[VideoStreamService] Client subscribed to YUV {serial}, total clients: {len(self.yuv_stream_clients[serial])}")
+
+        # Initialize keyframe tracking for new YUV client (uses same tracking as H.264)
+        if serial not in self.client_keyframe_received:
+            self.client_keyframe_received[serial] = {}
+        self.client_keyframe_received[serial][websocket] = False
+
+        # ✨ NEW: Request I-frame for YUV client (reduces wait from 10s to <2s)
+        device = self.device_manager.get_device(serial)
+        if device and hasattr(device, 'send_control_message'):
+            try:
+                from pycore.pyutils.control.message_builder import MessageBuilder
+                reset_msg = MessageBuilder.build_reset_video()
+                device.send_control_message(reset_msg)
+                ColorPrint.green(f"[VideoStreamService] ✓ Requested I-frame via RESET_VIDEO for YUV client {serial}")
+            except Exception as e:
+                ColorPrint.yellow(f"[VideoStreamService] Failed to request I-frame for YUV: {e}")
 
         # Store hwaccel setting for this device
         if hwaccel:
@@ -482,41 +506,11 @@ class VideoStreamService:
         self.device_initializing[serial] = True
 
         try:
-            # Get or create device
-            device = self.device_manager.get_device(serial)
-            if not device:
-                ColorPrint.yellow(f"[VideoStreamService] Device {serial} not in DeviceManager, creating ScrcpyDevice...")
+            # 🔧 REFACTORED: Use ConnectionManager for device lifecycle
+            connection = self.connection_manager.get_connection(serial)
 
-                # Create new device instance directly (like QtScrcpy does)
-                try:
-                    # Import ScrcpyDevice
-                    from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
-
-                    # Create temporary params for device instance
-                    # Will be replaced with actual params when starting server
-                    temp_params = ServerParams(
-                        max_size=720,
-                        bit_rate=8000000,
-                        max_fps=60,
-                        codec=VideoCodec.H264,
-                        control=True  # Re-enabled after fixing control socket for FORWARD mode
-                    )
-                    device = ScrcpyDevice(serial, temp_params, self.adb_path)
-                    ColorPrint.green(f"[VideoStreamService] ✓ Created ScrcpyDevice for {serial}")
-                except Exception as e:
-                    ColorPrint.red(f"[VideoStreamService] Failed to create device: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    # Cleanup client registration
-                    if serial in self.yuv_stream_clients:
-                        self.yuv_stream_clients[serial].discard(websocket)
-                        if len(self.yuv_stream_clients[serial]) == 0:
-                            del self.yuv_stream_clients[serial]
-                    return False
-
-            # Connect device if not connected
-            if not device.is_connected():
-                ColorPrint.yellow(f"[VideoStreamService] Device {serial} not connected, starting scrcpy-server...")
+            if not connection or not self.connection_manager.is_connected(serial):
+                ColorPrint.blue(f"[VideoStreamService] Connecting device {serial} via ConnectionManager for YUV...")
 
                 # Ensure scrcpy-server.jar is available (auto-download if needed)
                 ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
@@ -530,57 +524,33 @@ class VideoStreamService:
                             del self.yuv_stream_clients[serial]
                     return False
 
-                # Now push to device
-                ColorPrint.blue(f"[VideoStreamService] Pushing scrcpy-server.jar to device {serial}...")
-                scrcpy_jar = Path(self.scrcpy_server_jar)
-
-                loop = asyncio.get_event_loop()
-                push_result = await loop.run_in_executor(
-                    None,
-                    lambda: subprocess.run(
-                        [self.adb_path, "-s", serial, "push", str(scrcpy_jar), "/data/local/tmp/scrcpy-server.jar"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                )
-
-                if push_result.returncode != 0:
-                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to push scrcpy-server.jar: {push_result.stderr}")
-                    if serial in self.yuv_stream_clients:
-                        self.yuv_stream_clients[serial].discard(websocket)
-                        if len(self.yuv_stream_clients[serial]) == 0:
-                            del self.yuv_stream_clients[serial]
-                    return False
-
-                ColorPrint.green(f"[VideoStreamService] ✓ scrcpy-server.jar pushed to {serial}")
-
                 # Get config from ConfigService
                 config_service = ConfigService.instance()
                 global_config = await config_service.get_global()
 
-                # Create ServerParams and update device params
+                # Create ServerParams (optimized defaults for multi-device)
+                # ✅ OPTIMIZED: Use multi-device optimized defaults, but allow config override
+                default_params = ServerParams.create_multi_device_optimized()
                 params = ServerParams(
-                    max_size=global_config.get('max_size', 720),
-                    bit_rate=global_config.get('bit_rate', 8000000),
-                    max_fps=global_config.get('max_fps', 60),
+                    max_size=global_config.get('max_size', default_params.max_size),
+                    bit_rate=global_config.get('bit_rate', default_params.bit_rate),
+                    max_fps=global_config.get('max_fps', default_params.max_fps),
                     codec=VideoCodec.H264,  # Always use H.264 for decoding
                     control=global_config.get('control', True),
-                    locked_video_orientation=global_config.get('locked_video_orientation', -1)
+                    locked_video_orientation=global_config.get('locked_video_orientation', -1),
+                    codec_options=default_params.codec_options  # Use optimized codec options
                 )
 
-                # Update device params (ScrcpyDevice uses self.params in start_server)
-                device.params = params
-
-                # Start scrcpy server (no parameters - uses self.params)
+                # Connect device using ConnectionManager
                 try:
-                    await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        device.start_server
+                    connection = await self.connection_manager.connect_device(
+                        serial=serial,
+                        params=params,
+                        force_reconnect=False
                     )
-                    ColorPrint.green(f"[VideoStreamService] ✓ ScrcpyDevice started for {serial}")
+                    ColorPrint.green(f"[VideoStreamService] ✓ Device {serial} connected via ConnectionManager for YUV")
                 except Exception as e:
-                    ColorPrint.red(f"[VideoStreamService] Failed to start device: {e}")
+                    ColorPrint.red(f"[VideoStreamService] Failed to connect device {serial}: {e}")
                     import traceback
                     traceback.print_exc()
                     # Cleanup client registration on error
@@ -590,6 +560,8 @@ class VideoStreamService:
                             del self.yuv_stream_clients[serial]
                     return False
 
+            # Get device from connection
+            device = connection.device
             ColorPrint.green(f"[VideoStreamService] Device {serial} ready, starting background YUV streaming task")
 
             # Create stop event
@@ -644,6 +616,11 @@ class VideoStreamService:
                 # Clean up hwaccel setting
                 if serial in self.yuv_hwaccel:
                     del self.yuv_hwaccel[serial]
+
+                # 🔧 NEW: Disconnect device if no other streams are active
+                if not self._has_active_streams(serial):
+                    ColorPrint.blue(f"[VideoStreamService] No active streams for {serial}, disconnecting device...")
+                    await self.connection_manager.disconnect_device(serial)
 
         # Clean up paused state
         if serial in self.yuv_paused_clients:
@@ -757,6 +734,9 @@ class VideoStreamService:
         This is handled automatically by the smart dropping logic in _broadcast_frame:
         - New clients automatically wait for keyframe
         - Failed sends reset keyframe state
+
+        IMPORTANT: Also sends RESET_VIDEO control message to scrcpy-server to
+        force immediate I-frame generation, reducing client wait time from 10s to <2s.
         """
         ColorPrint.blue(f"[VideoStreamService] Marking client as needing keyframe for {serial}")
 
@@ -767,6 +747,19 @@ class VideoStreamService:
         # Mark this client as NOT having received keyframe yet
         # Next keyframe will be sent to this client
         self.client_keyframe_received[serial][websocket] = False
+
+        # ✨ NEW: Actively request I-frame from scrcpy-server
+        # This reduces wait time from 10+ seconds to <2 seconds
+        device = self.device_manager.get_device(serial)
+        if device and hasattr(device, 'send_control_message'):
+            try:
+                from pycore.pyutils.control.message_builder import MessageBuilder
+                reset_msg = MessageBuilder.build_reset_video()
+                device.send_control_message(reset_msg)
+                ColorPrint.green(f"[VideoStreamService] ✓ Requested I-frame via RESET_VIDEO for {serial}")
+            except Exception as e:
+                ColorPrint.yellow(f"[VideoStreamService] Failed to request I-frame: {e}")
+                # Non-fatal: client will still receive keyframe, just might wait longer
 
         ColorPrint.green(f"[VideoStreamService] ✓ Client will receive next keyframe for {serial}")
 
@@ -1048,6 +1041,11 @@ class VideoStreamService:
 
             # Mark device as inactive in health service
             self.health_service.mark_device_inactive(serial)
+
+            # 🔧 NEW: Disconnect device if no other streams are active
+            if not self._has_active_streams(serial):
+                ColorPrint.blue(f"[VideoStreamService] Cleanup - no active streams, disconnecting device {serial}...")
+                await self.connection_manager.disconnect_device(serial)
 
             ColorPrint.green(f"[VideoStreamService] ✓ Stream cleanup completed for {serial}")
 
@@ -1367,6 +1365,11 @@ class VideoStreamService:
 
             # Mark device as inactive in health service
             self.health_service.mark_device_inactive(serial)
+
+            # 🔧 NEW: Disconnect device if no other streams are active
+            if not self._has_active_streams(serial):
+                ColorPrint.blue(f"[VideoStreamService] YUV cleanup - no active streams, disconnecting device {serial}...")
+                await self.connection_manager.disconnect_device(serial)
 
             ColorPrint.green(f"[VideoStreamService] ✓ YUV stream cleanup completed for {serial}")
 
