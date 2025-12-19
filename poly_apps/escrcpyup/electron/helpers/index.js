@@ -15,7 +15,7 @@ export const extraResolve = (filePath) => {
 }
 
 export const buildResolve = value =>
-  resolve(`electron/resources/build/${value}`)
+  resolve(`electron/resources/assets/${value}`)
 
 export function exposeContext(key, value) {
   if (process.contextIsolated) {

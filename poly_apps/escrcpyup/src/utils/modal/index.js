@@ -1,4 +1,4 @@
-import logoPath from '$electron/resources/build/logo.png'
+import logoPath from '$electron/resources/assets/logo.png'
 
 export function adaptiveMessage(content, { type, system } = {}) {
   if (system) {

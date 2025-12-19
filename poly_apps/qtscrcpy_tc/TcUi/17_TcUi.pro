@@ -1,7 +1,8 @@
 QT += core gui
 QT += network
 QT += widgets
-QT += opengl openglwidgets  # Qt 6: OpenGL classes moved to separate modules
+# Qt 6: OpenGL classes moved to separate modules (QOpenGLWidget, QOpenGLTexture, etc.)
+QT += opengl openglwidgets
 
 CONFIG += c++17
 TEMPLATE = app
