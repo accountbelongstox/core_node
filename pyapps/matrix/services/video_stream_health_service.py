@@ -93,7 +93,9 @@ class VideoStreamHealthService:
     _instance: Optional['VideoStreamHealthService'] = None
 
     def __init__(self):
-        self.device_manager = DeviceManager.instance()
+        # ✅ 使用全局导出的实例（模块级别单例）
+        from pycore.pyutils.device_manager import device_manager
+        self.device_manager = device_manager
         self.device_health: Dict[str, DeviceHealthStatus] = {}
 
         # Track devices that have active streams

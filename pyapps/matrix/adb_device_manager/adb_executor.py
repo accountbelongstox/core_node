@@ -16,20 +16,14 @@ from pycore.pyfoundations.pybasecommon import exec_silent
 
 class ADBExecutor:
     """
-    ADB command executor (Singleton)
+    ADB command executor 
 
     IMPORTANT: This is a singleton class. Use ADBExecutor.instance() to get the global instance.
     DO NOT instantiate with ADBExecutor() directly.
     """
-
-    _instance: Optional['ADBExecutor'] = None
-    _instance_lock = threading.Lock()
-
     def __init__(self, adb_path: str = "adb", timeout: int = 10):
         """
         Initialize ADB executor
-
-        WARNING: Do not call directly. Use ADBExecutor.instance() instead.
 
         Args:
             adb_path: Path to adb executable (default: "adb" from PATH)
@@ -38,29 +32,7 @@ class ADBExecutor:
         self.adb_path = adb_path
         self.timeout = timeout
 
-    @classmethod
-    def instance(cls, adb_path: str = "adb", timeout: int = 10) -> 'ADBExecutor':
-        """
-        Get global singleton instance of ADBExecutor
-
-        Args:
-            adb_path: Path to adb executable (default: "adb") - only used on first instantiation
-            timeout: Command timeout in seconds (default: 10) - only used on first instantiation
-
-        Returns:
-            ADBExecutor: The global singleton instance
-
-        Example:
-            adb = ADBExecutor.instance()
-            devices = adb.get_devices()
-        """
-        if cls._instance is None:
-            with cls._instance_lock:
-                # Double-check pattern for thread safety
-                if cls._instance is None:
-                    cls._instance = cls(adb_path=adb_path, timeout=timeout)
-        return cls._instance
-
+    
     def execute(
         self,
         args: List[str],
@@ -316,3 +288,9 @@ class ADBExecutor:
         if ADBExecutor.is_wifi_device(serial):
             return serial.split(':')[0]
         return None
+
+
+# ✅ 创建全局唯一实例（模块级别单例）
+adb_executor = ADBExecutor(adb_path="adb")
+
+__all__ = ["ADBExecutor", "adb_executor"]

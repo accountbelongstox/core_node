@@ -17,15 +17,11 @@ from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInf
 
 class USBMonitor:
     """
-    USB device monitor and wireless converter (Singleton)
+    USB device monitor and wireless converter 
 
     IMPORTANT: This is a singleton class. Use USBMonitor.instance() to get the global instance.
     DO NOT instantiate with USBMonitor() directly.
     """
-
-    _instance: Optional['USBMonitor'] = None
-    _instance_lock = threading.Lock()
-
     def __init__(
         self,
         adb_executor: ADBExecutor,
@@ -52,39 +48,7 @@ class USBMonitor:
         self._known_usb_devices: Set[str] = set()
         self._converting_devices: Dict[str, float] = {}  # serial -> start_time
 
-    @classmethod
-    def instance(cls, auto_convert: bool = True, conversion_delay: float = 2.0) -> 'USBMonitor':
-        """
-        Get global singleton instance of USBMonitor
-
-        Args:
-            auto_convert: Auto-convert USB to wireless (default: True) - only used on first instantiation
-            conversion_delay: Delay after tcpip command (default: 2.0s) - only used on first instantiation
-
-        Returns:
-            USBMonitor: The global singleton instance
-
-        Example:
-            usb_monitor = USBMonitor.instance()
-            results = usb_monitor.process_usb_devices()
-        """
-        if cls._instance is None:
-            # ✅ DEADLOCK FIX: Get dependencies BEFORE acquiring lock
-            # This prevents circular lock dependency between USBMonitor, ADBExecutor, DeviceTable
-            adb_executor = ADBExecutor.instance()
-            device_table = DeviceTable.instance()
-
-            with cls._instance_lock:
-                # Double-check pattern for thread safety
-                if cls._instance is None:
-                    cls._instance = cls(
-                        adb_executor=adb_executor,
-                        device_table=device_table,
-                        auto_convert=auto_convert,
-                        conversion_delay=conversion_delay
-                    )
-        return cls._instance
-
+    
     def scan_usb_devices(self) -> List[str]:
         """
         Scan for USB devices
@@ -254,3 +218,23 @@ class USBMonitor:
     def is_converting(self, serial: str) -> bool:
         """Check if device is currently being converted"""
         return serial in self._converting_devices
+
+
+# ✅ 延迟初始化（避免循环依赖）
+_usb_monitor: Optional['USBMonitor'] = None
+
+def get_usb_monitor() -> 'USBMonitor':
+    """获取全局USBMonitor实例（延迟初始化）"""
+    global _usb_monitor
+    if _usb_monitor is None:
+        from pyapps.matrix.adb_device_manager.adb_executor import adb_executor
+        from pyapps.matrix.adb_device_manager.device_table import device_table
+        _usb_monitor = USBMonitor(
+            adb_executor=adb_executor,
+            device_table=device_table,
+            auto_convert=True,
+            conversion_delay=2.0
+        )
+    return _usb_monitor
+
+__all__ = ["USBMonitor", "get_usb_monitor"]

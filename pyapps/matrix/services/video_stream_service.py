@@ -38,23 +38,20 @@ class VideoStreamService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.device_manager = DeviceManager.instance()
+        # ✅ 使用全局导出的实例（模块级别单例）
+        from pycore.pyutils.device_manager import device_manager
+        from pycore.pyutils.device.port_pool import port_pool
+        from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
+        from pycore.pyutils.device.connection_manager import get_connection_manager
+
+        self.device_manager = device_manager
         self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
-
-        # 🔧 NEW: Centralized scrcpy-server.jar manager (decoupled)
-        from pycore.pyutils.device.scrcpy_server_manager import ScrcpyServerManager
-        self.server_manager = ScrcpyServerManager(self.adb_path, self.scrcpy_server_jar)
-
-        # 🔧 NEW: Port pool for device connection management
-        from pycore.pyutils.device.port_pool import PortPool
-        self.port_pool = PortPool(start=27183, pool_size=1000)
-
-        # 🔧 NEW: Connection manager for decoupled device lifecycle
-        from pycore.pyutils.device.connection_manager import ConnectionManager
-        self.connection_manager = ConnectionManager(
+        self.server_manager = get_scrcpy_server_manager(self.adb_path, self.scrcpy_server_jar)
+        self.port_pool = port_pool
+        self.connection_manager = get_connection_manager(
             device_manager=self.device_manager,
             port_pool=self.port_pool,
-            server_manager=self.server_manager,  # ✅ FIXED: Pass shared instance
+            server_manager=self.server_manager,
             adb_path=self.adb_path
         )
 

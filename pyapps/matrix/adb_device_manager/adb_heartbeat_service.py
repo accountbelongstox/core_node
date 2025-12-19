@@ -12,12 +12,12 @@ import threading
 from typing import Optional, List
 from pycore import ColorPrint
 from pycore.pyfoundations import ENCYCLOPEDIA, Task
-from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
-from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInfo, DeviceState, DeviceType
-from pyapps.matrix.adb_device_manager.network_scanner import NetworkScanner
-from pyapps.matrix.adb_device_manager.usb_monitor import USBMonitor
+from pyapps.matrix.adb_device_manager.adb_executor import adb_executor, ADBExecutor
+from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTable, DeviceInfo, DeviceState, DeviceType
+from pyapps.matrix.adb_device_manager.network_scanner import network_scanner, NetworkScanner
+from pyapps.matrix.adb_device_manager.usb_monitor import get_usb_monitor
 from pyapps.matrix.services.device_id_manager import DeviceIDManager
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager, DeviceManager
 
 
 class ADBHeartbeatService:
@@ -41,11 +41,11 @@ class ADBHeartbeatService:
         Args:
             adb_path: Path to adb executable
         """
-        # ✅ Use global singleton instances (DO NOT instantiate with ClassName())
-        self.device_table = DeviceTable.instance()
-        self.adb = ADBExecutor.instance(adb_path=adb_path)
-        self.network_scanner = NetworkScanner.instance(port=5555, timeout=0.2)
-        self.usb_monitor = USBMonitor.instance(auto_convert=True)
+        # ✅ 使用全局导出的实例（模块级别单例）
+        self.device_table = device_table
+        self.adb = adb_executor
+        self.network_scanner = network_scanner
+        self.usb_monitor = get_usb_monitor()
 
         self.rpc_server = None
         self._start_time = time.time()
@@ -133,7 +133,6 @@ class ADBHeartbeatService:
 
             try:
                 # ✅ STEP 0: Check if device already exists in DeviceManager (skip if exists)
-                device_manager = DeviceManager.instance()
                 if device_manager.get_device(serial):
                     ColorPrint.blue(f"[ADBService] Device {serial} already in DeviceManager, skipping scan")
                     return
@@ -188,6 +187,7 @@ class ADBHeartbeatService:
                 added = self.device_table.add_device(device)
                 if added:
                     # Register device with DeviceIDManager
+                    from pyapps.matrix.services.device_id_manager import DeviceIDManager
                     device_id_manager = DeviceIDManager.instance()
                     device_id = device_id_manager.register_device(serial)
                     ColorPrint.green(f"[ADBService] [STEP 6/6] ✓ Device added: {serial} -> {device_id} (root={is_root})")
@@ -257,6 +257,7 @@ class ADBHeartbeatService:
             return
 
         # ✅ Register only newly converted USB devices (not all devices)
+        from pyapps.matrix.services.device_id_manager import DeviceIDManager
         device_id_manager = DeviceIDManager.instance()
         for serial, success in results.items():
             if success:
@@ -314,6 +315,7 @@ class ADBHeartbeatService:
         all_devices = device_table.get_all_devices()
 
         # Register all devices with DeviceIDManager and include deviceId in response
+        from pyapps.matrix.services.device_id_manager import DeviceIDManager
         device_id_manager = DeviceIDManager.instance()
 
         devices_list = []
