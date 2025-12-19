@@ -1,3 +1,11 @@
+/*
+ * Qt 6.10 Compatibility Updates:
+ * - QRegExp removed in Qt 6, replaced with QRegularExpression
+ * - QString::SkipEmptyParts moved to Qt::SkipEmptyParts namespace
+ * - QRegExp::indexIn() + cap() -> QRegularExpression::match().hasMatch() + captured()
+ * - Qt::CaseInsensitive flag -> QRegularExpression::CaseInsensitiveOption
+ */
+
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
