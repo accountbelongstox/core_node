@@ -348,8 +348,8 @@ void Server::stopConnectTimeoutTimer()
 void Server::onConnectTimer()
 {
     // device server need time to start
-    // 这里连接太早时间不够导致安卓监听socket还没有建立，readInfo会失败，所以采取定时重试策略
-    // 每隔100ms尝试一次，最多尝试MAX_CONNECT_COUNT次
+    // Connecting too early causes Android listener socket not established yet, readInfo will fail, so adopt timed retry strategy
+    // Retry every 100ms, maximum MAX_CONNECT_COUNT attempts
     QString deviceName;
     QSize deviceSize;
     bool success = false;
