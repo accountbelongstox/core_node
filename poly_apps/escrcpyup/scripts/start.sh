@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# Escrcpy Start Script (Bash)
+# 星灿传媒 测试版 - Start Script (Bash)
 # ============================================
 
 set -e
@@ -47,8 +47,9 @@ show_banner() {
     clear
     print_color "================================================" "$CYAN"
     print_color "" "$CYAN"
-    print_color "        Escrcpy Development Toolkit" "$CYAN"
-    print_color "        Scrcpy Powered by Electron" "$CYAN"
+    print_color "        星灿传媒 测试版" "$CYAN"
+    print_color "        Android Screen Mirroring Tool" "$CYAN"
+    print_color "        Powered by Scrcpy & Electron" "$CYAN"
     print_color "" "$CYAN"
     print_color "================================================" "$CYAN"
     echo ""
@@ -215,6 +216,43 @@ start_dev_server() {
     print_color "========================================" "$CYAN"
     echo ""
     print_info "Development server stopped"
+    echo ""
+    read -p "Press Enter to return to main menu..."
+}
+
+# Launch application directly
+start_application() {
+    show_banner
+    print_color "=== Launch Application ===" "$YELLOW"
+    echo ""
+
+    print_info "Preparing environment..."
+    echo ""
+    install_dependencies
+    echo ""
+
+    verify_electron_version
+    echo ""
+
+    print_info "Launching 星灿传媒 测试版..."
+    echo ""
+    print_color "========================================" "$CYAN"
+    echo ""
+
+    # Build first if needed
+    if [ ! -d "dist" ] || [ ! -d "dist-electron" ]; then
+        print_info "First launch, building application..."
+        pnpm run build
+        echo ""
+    fi
+
+    # Start electron directly
+    pnpm exec electron .
+
+    echo ""
+    print_color "========================================" "$CYAN"
+    echo ""
+    print_info "Application closed"
     echo ""
     read -p "Press Enter to return to main menu..."
 }
@@ -443,10 +481,11 @@ show_main_menu() {
         echo "  5. Fix Code Issues"
         echo "  6. Clean Project"
         echo "  7. Project Information"
+        echo "  8. Launch Application"
         echo "  0. Exit"
         echo ""
 
-        read -p "Please select (0-7): " choice
+        read -p "Please select (0-8): " choice
 
         case $choice in
             1)
@@ -457,6 +496,12 @@ show_main_menu() {
                 ;;
             3)
                 initialize_environment
+                # Ask to launch after initialization
+                echo ""
+                read -p "Environment initialized. Launch application now? (Y/n): " launch
+                if [ "$launch" != "n" ] && [ "$launch" != "N" ]; then
+                    start_application
+                fi
                 ;;
             4)
                 run_lint
@@ -470,9 +515,12 @@ show_main_menu() {
             7)
                 show_project_info
                 ;;
+            8)
+                start_application
+                ;;
             0)
                 echo ""
-                print_color "Thank you for using Escrcpy Development Toolkit!" "$CYAN"
+                print_color "Thank you for using 星灿传媒 测试版!" "$CYAN"
                 echo ""
                 exit 0
                 ;;

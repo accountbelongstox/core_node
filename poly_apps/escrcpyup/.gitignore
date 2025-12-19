@@ -34,29 +34,27 @@ dist-electron
 dist-release
 dist-docs
 
-# Binary Files (original files, not .py backups)
-# These are restored from .exe.py, .dll.py files by scripts/prepare-binaries.ps1
+# Binary Files
+# All binaries are auto-downloaded via scripts/download-binaries.ps1 or scripts/download-binaries.sh
+# No need to commit binaries to git - they will be downloaded automatically during build/runtime
 electron/resources/extra/**/*.exe
 electron/resources/extra/**/*.dll
 electron/resources/extra/**/*.so
 electron/resources/extra/**/*.dylib
 electron/resources/extra/**/*.bat
 electron/resources/extra/**/*.vbs
-# But keep .py backups
-!electron/resources/extra/**/*.exe.py
-!electron/resources/extra/**/*.dll.py
-!electron/resources/extra/**/*.so.py
-!electron/resources/extra/**/*.dylib.py
-!electron/resources/extra/**/*.bat.py
-!electron/resources/extra/**/*.vbs.py
 
 # Specific binary executables without extension (Linux/Mac)
 electron/resources/extra/**/adb
 electron/resources/extra/**/scrcpy
 electron/resources/extra/**/scrcpy-server
 electron/resources/extra/**/gnirehtet
-# But keep .py backups
-!electron/resources/extra/**/adb.py
-!electron/resources/extra/**/scrcpy.py
-!electron/resources/extra/**/scrcpy-server.py
-!electron/resources/extra/**/gnirehtet.py
+
+# Download temporary files
+.temp-downloads/
+*.zip
+*.tar.gz
+*.tar
+# But keep important archives in specific locations if any
+!docs/**/*.zip
+!assets/**/*.zip

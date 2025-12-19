@@ -1,8 +1,7 @@
 # ============================================
-# Binary Files Preparation Script
+# 星灿传媒 测试版 - Binary Files Manager
 # ============================================
-# This script copies binary files with .py suffix for git compatibility
-# and restores them before running the application
+# This script manages binary files backup and restoration
 
 param(
     [string]$Action = "restore"  # "backup" or "restore"
@@ -89,6 +88,42 @@ function Backup-Binaries {
     Write-Success "Total $count binary files backed up with .py extension"
 }
 
+function Test-BinariesExist {
+    Write-Info "Checking if binaries exist..."
+
+    # Check for Windows binaries
+    $winAdb = Join-Path $projectRoot "electron\resources\extra\win\scrcpy\adb.exe.py"
+    $winScrcpy = Join-Path $projectRoot "electron\resources\extra\win\scrcpy\scrcpy.exe.py"
+
+    if (Test-Path $winAdb) {
+        Write-Success "Found backup binaries"
+        return $true
+    }
+
+    Write-Warning "Backup binaries not found"
+    return $false
+}
+
+function Download-Binaries {
+    Write-Info "Binaries not found, downloading..."
+    Write-Host ""
+
+    $downloadScript = Join-Path $PSScriptRoot "download-binaries.ps1"
+    if (Test-Path $downloadScript) {
+        & $downloadScript
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Download completed successfully"
+            return $true
+        }
+    }
+    else {
+        Write-Warning "Download script not found: $downloadScript"
+        Write-Info "Please download binaries manually or run download-binaries.ps1"
+    }
+
+    return $false
+}
+
 function Restore-Binaries {
     Write-Info "Restoring binary files from .py copies..."
     $count = 0
@@ -159,6 +194,23 @@ switch ($Action.ToLower()) {
         Backup-Binaries
     }
     "restore" {
+        # Check if binaries exist, if not, download them
+        if (-not (Test-BinariesExist)) {
+            Write-Warning "No backup binaries found"
+            $download = Read-Host "Download binaries now? (Y/n)"
+            if ($download -ne 'n' -and $download -ne 'N') {
+                if (Download-Binaries) {
+                    # After download, create .py backups
+                    Write-Host ""
+                    Write-Info "Creating .py backups after download..."
+                    Backup-Binaries
+                }
+            }
+            else {
+                Write-Warning "Skipped download. Please ensure binaries are available."
+            }
+        }
+
         Restore-Binaries
     }
     default {
