@@ -79,6 +79,7 @@ export const en = {
     startLearning: 'Start Learning',
     guestMode: 'Guest Mode',
     welcomeGuest: 'Welcome Guest',
+    tapToLogin: 'Tap to Login',
     hiUser: 'Hi, {name}',
     targetLanguage: 'Target Language',
     availableCourses: 'Available Courses',
@@ -114,6 +115,15 @@ export const en = {
     loginNow: 'Login Now',
     accountRequired: 'Account required for this feature. Login now?',
     words: 'words',
+    recommendedLibraries: 'Recommended Vocabulary',
+    myVocabulary: 'My Vocabulary',
+    viewMore: 'More',
+    dailyWords: 'Daily Words',
+    noDailyWords: 'No daily words',
+    checkBackLater: 'Check back later',
+    reviewQueue: 'Review Queue',
+    noReviewNeeded: 'All caught up!',
+    noReviewDescription: 'No words need review right now',
   },
 
   reading: {
@@ -192,6 +202,7 @@ export const en = {
     studyTime: 'Study Time',
     editProfile: 'Edit Profile',
     changeAvatar: 'Change Avatar',
+    loginToViewProfile: 'Login to view your profile',
 
     // Sections
     basicInfo: 'Basic Information',

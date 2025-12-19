@@ -203,7 +203,8 @@ class ApiManager {
    */
   getCurrentBaseUrl(): string {
     if (!this.currentEndpoint) {
-      throw new Error('No endpoint selected. Call initialize() first.');
+      console.warn('[ApiManager] currentEndpoint is null, using fallback endpoint');
+      this.currentEndpoint = getAllEndpoints()[0];
     }
     return buildApiUrl(this.currentEndpoint);
   }
@@ -213,7 +214,8 @@ class ApiManager {
    */
   buildUrl(path: string): string {
     if (!this.currentEndpoint) {
-      throw new Error('No endpoint selected. Call initialize() first.');
+      console.warn('[ApiManager] currentEndpoint is null, using fallback endpoint');
+      this.currentEndpoint = getAllEndpoints()[0];
     }
     return buildApiUrl(this.currentEndpoint, path);
   }

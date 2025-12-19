@@ -1,7 +1,8 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Button, Icons } from '../../components/UI';
 import { ApiTestingCenter } from '../../components/ApiTestingCenter';
+import { ApiCenter } from '../../services/ApiCenter';
 
 interface SettingItemProps {
   label: string;
@@ -33,6 +34,37 @@ const SettingItem: React.FC<SettingItemProps> = ({ label, value, onClick, icon }
 const SettingsIndex = () => {
   const { navigate, user, logout, t } = useContext(AppContext);
   const [showApiTesting, setShowApiTesting] = useState(false);
+  const [invitationCode, setInvitationCode] = useState<string>('');
+  const [loadingCode, setLoadingCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      loadInvitationCode();
+    }
+  }, [user]);
+
+  const loadInvitationCode = async () => {
+    setLoadingCode(true);
+    try {
+      const result = await ApiCenter.system.getInvitationCode();
+      if (result.success && result.data) {
+        setInvitationCode(result.data.masked_code || '');
+      }
+    } catch (error) {
+      console.error('[Settings] Failed to load invitation code:', error);
+    } finally {
+      setLoadingCode(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (invitationCode) {
+      navigator.clipboard.writeText(invitationCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
@@ -52,28 +84,47 @@ const SettingsIndex = () => {
 
         {/* Profile Card */}
         <Card
-          onClick={() => navigate('profile')}
+          onClick={() => user ? navigate('profile') : navigate('login')}
           className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl cursor-pointer hover:scale-[1.02] transition-transform"
         >
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full border-2 border-white/30 overflow-hidden">
-                <img
-                  src={user?.avatar_url || user?.avatar}
-                  alt={user?.name}
-                  className="w-full h-full object-cover"
-                />
+          {user ? (
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-2 border-white/30 overflow-hidden">
+                  <img
+                    src={user.avatar_url || user.avatar}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-blue-600"></div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-blue-600"></div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold">{user.name}</h2>
+                <p className="text-blue-100 text-sm">
+                  {user.isPro ? t('profile.proMember') : t('settings.freePlan')}
+                </p>
+              </div>
+              <Icons.ChevronRight />
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold">{user?.name}</h2>
-              <p className="text-blue-100 text-sm">
-                {user?.isPro ? t('profile.proMember') : t('settings.freePlan')}
-              </p>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-2 border-white/30 overflow-hidden bg-white/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold">{t('home.welcomeGuest')}</h2>
+                <p className="text-blue-100 text-sm">
+                  {t('home.tapToLogin')}
+                </p>
+              </div>
+              <Icons.ChevronRight />
             </div>
-            <Icons.ChevronRight />
-          </div>
+          )}
         </Card>
       </div>
 
@@ -195,12 +246,67 @@ const SettingsIndex = () => {
             </div>
           </Card>
 
-          <button
-            onClick={logout}
-            className="w-full px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
-          >
-            {t('settings.signOut')}
-          </button>
+          {user && (
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Invitation Code
+                </p>
+                {loadingCode ? (
+                  <div className="h-8 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : invitationCode ? (
+                  <div className="space-y-3">
+                    <p className="font-mono text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-wider">
+                      {invitationCode}
+                    </p>
+                    <button
+                      onClick={handleCopyCode}
+                      className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {copiedCode ? (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy Code
+                        </>
+                      )}
+                    </button>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Share with friends to invite them
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No invitation code available</p>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {user ? (
+            <button
+              onClick={logout}
+              className="w-full px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
+            >
+              {t('settings.signOut')}
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('login')}
+              className="w-full px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
+            >
+              {t('auth.login')}
+            </button>
+          )}
         </div>
       </div>
 

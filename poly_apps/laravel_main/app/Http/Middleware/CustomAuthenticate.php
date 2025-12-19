@@ -69,7 +69,12 @@ class CustomAuthenticate extends Middleware
             Auth::login($user);
             return $next($request);
         }
-        return parent::handle($request, $next, ...$guards);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthenticated. Please login first.',
+            'code' => 'AUTH_REQUIRED'
+        ], 401);
     }
 }
 

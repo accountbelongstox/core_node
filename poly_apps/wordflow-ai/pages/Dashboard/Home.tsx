@@ -41,62 +41,78 @@ const DashboardPage = () => {
     }
   }, [user, activeGroupId]);
 
-  // Load recommended vocabulary libraries based on learning languages
-  // Always load recommendations (fallback to 'english' if no languages selected)
   useEffect(() => {
     loadRecommendedLibraries();
   }, [settings.language.learningLanguages]);
 
   const loadDailyWords = async () => {
+    if (!user) return;
+
     setLoadingDaily(true);
     try {
       const response = await ApiCenter.words.getDailyWords(5);
       if (response.success && response.data) {
         setDailyWords(response.data);
       }
-    } catch (err) {
-      console.error('[Home] Failed to load daily words:', err);
+    } catch (err: any) {
+      if (err?.message?.includes('not found') || err?.code === 'HTTP_404') {
+        console.log('[Home] Daily words endpoint not implemented yet');
+      } else {
+        console.error('[Home] Failed to load daily words:', err);
+      }
     } finally {
       setLoadingDaily(false);
     }
   };
 
   const loadReviewQueue = async () => {
+    if (!user) return;
+
     setLoadingReview(true);
     try {
       const response = await ApiCenter.learning.getReviewQueue();
       if (response.success && response.data) {
         setReviewQueue(response.data.slice(0, 5)); // Show max 5 words
       }
-    } catch (err) {
-      console.error('[Home] Failed to load review queue:', err);
+    } catch (err: any) {
+      if (err?.message?.includes('not found') || err?.code === 'HTTP_404') {
+        console.log('[Home] Review queue endpoint not implemented yet');
+      } else {
+        console.error('[Home] Failed to load review queue:', err);
+      }
     } finally {
       setLoadingReview(false);
     }
   };
 
   const loadRecommendedLibraries = async () => {
-    console.log('[Home] Loading recommended libraries...');
+    console.log('[Home] Loading vocabulary libraries...');
     console.log('[Home] Learning languages:', settings.language.learningLanguages);
     setLoadingLibraries(true);
     try {
-      // Get first learning language for recommendations
       const language = settings.language.learningLanguages?.[0] || 'english';
       console.log('[Home] Using language:', language);
-      const response = await ApiCenter.vocabulary.getRecommendedLibraries({ language, limit: 5 });
+
+      const response = await ApiCenter.vocabulary.getLibraries({ language, per_page: 10 });
       console.log('[Home] API response:', response);
 
       if (response.success && response.data) {
-        // API returns { success, data: { libraries: [...] } }
         const libraries = Array.isArray(response.data) ? response.data : (response.data.libraries || []);
         console.log('[Home] Extracted libraries:', libraries);
-        setRecommendedLibraries(libraries.slice(0, 5)); // Max 5 recommendations
-        console.log('[Home] Set recommended libraries count:', libraries.length);
+
+        const sorted = [...libraries].sort((a, b) => {
+          if (a.is_recommended && !b.is_recommended) return -1;
+          if (!a.is_recommended && b.is_recommended) return 1;
+          return 0;
+        });
+
+        setRecommendedLibraries(sorted.slice(0, 6));
+        console.log('[Home] Set libraries count:', sorted.length);
       } else {
         console.log('[Home] API failed or no data:', response);
       }
     } catch (err) {
-      console.error('[Home] Failed to load recommended libraries:', err);
+      console.error('[Home] Failed to load libraries:', err);
     } finally {
       setLoadingLibraries(false);
     }
@@ -389,8 +405,12 @@ const DashboardPage = () => {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-center">
+              <span className="text-slate-500">No recommended libraries available</span>
+            </div>
+          )}
+        </div>
 
         {/* My Selected Libraries Section */}
         {user && selectedLibraries.length > 0 && (

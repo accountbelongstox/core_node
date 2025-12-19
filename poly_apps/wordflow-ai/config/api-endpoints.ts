@@ -26,22 +26,22 @@ export interface ApiEndpointsConfig {
 export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
   endpoints: [
     {
-      id: 'localhost',
-      url: 'localhost',
-      protocol: 'http',
-      port: 9000,
-      priority: 1,
-      isLocal: true,
-      description: 'Localhost API Server'
-    },
-    {
       id: 'local-ip-50-3',
       url: '192.168.50.3',
       protocol: 'http',
       port: 9000,
-      priority: 2,
+      priority: 1,
       isLocal: true,
       description: 'Local IP 192.168.50.3'
+    },
+    {
+      id: 'localhost',
+      url: 'localhost',
+      protocol: 'http',
+      port: 9000,
+      priority: 2,
+      isLocal: true,
+      description: 'Localhost API Server'
     },
     {
       id: 'local-ip-50-2',

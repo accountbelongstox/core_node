@@ -155,7 +155,7 @@ The actual OCR extraction would happen on the backend using:
       onToggleHistory={() => setShowHistory(!showHistory)}
       history={<HistoryList items={history} />}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Upload Mode Selection */}
         <div className="flex items-center gap-2">
           <button

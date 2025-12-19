@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AppQyV1Article extends Model
 {
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table = 'app_qy_v1_articles';
 
     protected $fillable = [

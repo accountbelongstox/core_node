@@ -170,6 +170,7 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Wordqurey.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Dict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';

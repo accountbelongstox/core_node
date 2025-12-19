@@ -4,25 +4,20 @@ import { ToolConfig } from '../../core/types';
 import { api } from '../../core/api';
 import { useToast } from '../admin';
 import {
-  Search, Star, Clock, Grid, List, Play, Loader, Copy, Check,
-  ChevronRight, Filter, X, BookmarkPlus, History as HistoryIcon,
-  Sparkles, Wrench, Hash, Code, Calculator, Globe, Image,
-  FileCode, Lock, Database, Network, Type
+  Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronDown,
+  Sparkles, Wrench, Hash, Code, Calculator, Globe, Image, FileCode, Lock,
+  Database, Network, Type, Zap, TrendingUp, Layers, Info, BookOpen,
+  Lightbulb, History, StarOff, Menu
 } from 'lucide-react';
 
 /**
- * Unified IT Tools Dashboard
+ * IT Tools Dashboard - Premium Edition
  *
- * Uses tool configurations from config/tools.config.ts
- * Supports 116+ tools across 10+ categories
- *
- * Features:
- * - Search and filter tools
- * - Category-based organization
- * - Favorites and history
- * - Dynamic form generation from inputSchema
- * - Automatic API calling
- * - Result display and copying
+ * Layout:
+ * - Top: Tab navigation (Tools/Favorites/Recent)
+ * - Left: Collapsible category sidebar
+ * - Center: Tool workspace
+ * - Right: Info panel (optional)
  */
 
 interface ToolHistory {
@@ -33,21 +28,16 @@ interface ToolHistory {
   output: any;
 }
 
-export function UnifiedToolsPage() {
-  // Debug: Log tool count on component mount
-  useEffect(() => {
-    const toolCount = Object.keys(ALL_TOOLS).length;
-    console.log(`[UnifiedToolsPage] Loaded ${toolCount} tools`);
-    console.log('[UnifiedToolsPage] ALL_TOOLS keys:', Object.keys(ALL_TOOLS).slice(0, 10), '...');
-  }, []);
+type ViewTab = 'all' | 'favorites' | 'recent';
 
-  // State
+export function UnifiedToolsPage() {
+  const [activeTab, setActiveTab] = useState<ViewTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedTool, setSelectedTool] = useState<ToolConfig | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [showInfoPanel, setShowInfoPanel] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Tool execution state
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -56,7 +46,7 @@ export function UnifiedToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Favorites and history (localStorage)
+  // Favorites and history
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('unified_tool_favorites');
     return saved ? JSON.parse(saved) : [];
@@ -68,36 +58,74 @@ export function UnifiedToolsPage() {
   });
 
   const toast = useToast();
+  const categories = getAllCategories();
 
-  // Get all categories
-  const categories = ['all', ...getAllCategories()];
-
-  // Category icons mapping
-  const categoryIcons: Record<string, any> = {
-    'all': Grid,
-    'Crypto & Security': Lock,
-    'Converters': Code,
-    'Web Development': Globe,
-    'Text Processing': Type,
-    'Math & Calculation': Calculator,
-    'Network Tools': Network,
-    'Image Tools': Image,
-    'Calculators': Calculator,
-    'PDF Tools': FileCode,
-    'AI Tools': Sparkles,
-    'Server Manager': Wrench,
-    'Media Tools': Database
+  // Category configuration with icons and colors
+  const categoryConfig: Record<string, { icon: any; color: string; bgColor: string }> = {
+    'Crypto & Security': { icon: Lock, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10' },
+    'Converters': { icon: Code, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
+    'Web Development': { icon: Globe, color: 'text-cyan-400', bgColor: 'bg-cyan-500/10' },
+    'Text Processing': { icon: Type, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
+    'Math & Calculation': { icon: Calculator, color: 'text-orange-400', bgColor: 'bg-orange-500/10' },
+    'Network Tools': { icon: Network, color: 'text-pink-400', bgColor: 'bg-pink-500/10' },
+    'Image Tools': { icon: Image, color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
+    'Calculators': { icon: Calculator, color: 'text-red-400', bgColor: 'bg-red-500/10' },
+    'PDF Tools': { icon: FileCode, color: 'text-indigo-400', bgColor: 'bg-indigo-500/10' },
+    'AI Tools': { icon: Sparkles, color: 'text-fuchsia-400', bgColor: 'bg-fuchsia-500/10' },
+    'Server Manager': { icon: Wrench, color: 'text-teal-400', bgColor: 'bg-teal-500/10' },
+    'Media Tools': { icon: Database, color: 'text-lime-400', bgColor: 'bg-lime-500/10' }
   };
 
-  // Filter tools
-  const filteredTools = Object.values(ALL_TOOLS).filter(tool => {
-    const matchesSearch = tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         tool.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
-    const matchesFavorites = !showFavorites || favorites.includes(tool.id);
+  // Get recent tools (last 10)
+  const recentTools = history.slice(0, 10).map(h => ALL_TOOLS[h.toolId]).filter(Boolean);
 
-    return matchesSearch && matchesCategory && matchesFavorites;
-  });
+  // Filter tools based on active tab and search
+  const getFilteredTools = () => {
+    let tools = Object.values(ALL_TOOLS);
+
+    // Apply tab filter
+    if (activeTab === 'favorites') {
+      tools = tools.filter(tool => favorites.includes(tool.id));
+    } else if (activeTab === 'recent') {
+      tools = recentTools;
+    }
+
+    // Apply category filter
+    if (selectedCategory !== 'all') {
+      tools = tools.filter(tool => tool.category === selectedCategory);
+    }
+
+    // Apply search filter
+    if (searchQuery) {
+      tools = tools.filter(tool =>
+        tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return tools;
+  };
+
+  const filteredTools = getFilteredTools();
+
+  // Group tools by category
+  const toolsByCategory = categories.reduce((acc, cat) => {
+    acc[cat] = filteredTools.filter(tool => tool.category === cat);
+    return acc;
+  }, {} as Record<string, ToolConfig[]>);
+
+  // Toggle category collapse
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
 
   // Toggle favorite
   const toggleFavorite = (toolId: string, e?: React.MouseEvent) => {
@@ -116,8 +144,8 @@ export function UnifiedToolsPage() {
     setHistory(prev => {
       const newHistory = [
         { toolId: tool.id, toolName: tool.name, timestamp: Date.now(), input, output },
-        ...prev
-      ].slice(0, 50); // Keep last 50
+        ...prev.filter(h => h.toolId !== tool.id)
+      ].slice(0, 50);
       localStorage.setItem('unified_tool_history', JSON.stringify(newHistory));
       return newHistory;
     });
@@ -131,7 +159,7 @@ export function UnifiedToolsPage() {
     setError(null);
   };
 
-  // Handle form input change
+  // Handle input change
   const handleInputChange = (fieldName: string, value: any) => {
     setFormData(prev => ({ ...prev, [fieldName]: value }));
   };
@@ -145,7 +173,6 @@ export function UnifiedToolsPage() {
     setResult(null);
 
     try {
-      // Call API method dynamically
       const [moduleName, methodName] = selectedTool.apiMethod.split('.');
       const apiModule = (api as any)[moduleName];
 
@@ -172,7 +199,7 @@ export function UnifiedToolsPage() {
     }
   };
 
-  // Copy result to clipboard
+  // Copy result
   const copyResult = () => {
     if (!result) return;
     const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
@@ -182,23 +209,23 @@ export function UnifiedToolsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Render form field based on schema
+  // Render form field
   const renderFormField = (fieldName: string, fieldSchema: any) => {
     const value = formData[fieldName] || '';
     const isRequired = selectedTool?.inputSchema.required?.includes(fieldName);
 
     return (
       <div key={fieldName} className="space-y-2">
-        <label className="block text-sm font-medium text-gray-300">
+        <label className="block text-sm font-medium text-gray-200">
           {fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-          {isRequired && <span className="text-red-400 ml-1">*</span>}
+          {isRequired && <span className="text-rose-400 ml-1">*</span>}
         </label>
 
         {fieldSchema.enum ? (
           <select
             value={value}
             onChange={(e) => handleInputChange(fieldName, e.target.value)}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm transition-all"
           >
             <option value="">Select...</option>
             {fieldSchema.enum.map((option: string) => (
@@ -210,275 +237,462 @@ export function UnifiedToolsPage() {
             type="number"
             value={value}
             onChange={(e) => handleInputChange(fieldName, parseFloat(e.target.value))}
-            min={fieldSchema.min}
-            max={fieldSchema.max}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm transition-all"
             placeholder={`Enter ${fieldName}`}
           />
         ) : fieldSchema.type === 'boolean' ? (
-          <label className="flex items-center space-x-2">
+          <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
               checked={!!value}
               onChange={(e) => handleInputChange(fieldName, e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-700 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-700 rounded focus:ring-blue-500 cursor-pointer"
             />
-            <span className="text-sm text-gray-400">Enable</span>
+            <span className="text-sm text-gray-300">Enable</span>
           </label>
         ) : fieldSchema.type === 'file' ? (
           <input
             type="file"
             onChange={(e) => handleInputChange(fieldName, e.target.files?.[0])}
-            accept={fieldSchema.accept}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer"
           />
         ) : (
           <textarea
             value={value}
             onChange={(e) => handleInputChange(fieldName, e.target.value)}
-            rows={fieldSchema.minLength && fieldSchema.minLength > 100 ? 6 : 3}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white resize-none"
+            rows={3}
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm resize-none transition-all"
             placeholder={`Enter ${fieldName}...`}
           />
-        )}
-
-        {fieldSchema.min !== undefined && fieldSchema.max !== undefined && (
-          <p className="text-xs text-gray-500">Range: {fieldSchema.min} - {fieldSchema.max}</p>
         )}
       </div>
     );
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900 text-white p-6 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Wrench className="w-8 h-8 text-blue-500" />
-            IT Tools Dashboard
-          </h1>
-          <p className="text-gray-400 mt-1">
-            {Object.keys(ALL_TOOLS).length} tools across {categories.length - 1} categories
-          </p>
-        </div>
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              showHistory ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            }`}
-          >
-            <HistoryIcon className="w-4 h-4" />
-            History ({history.length})
-          </button>
+      {/* Top Navigation Tabs */}
+      <div className="relative z-10 border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-6 py-4">
+          {/* Left: Title */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Wrench className="w-8 h-8 text-blue-500" />
+              <Sparkles className="w-3 h-3 text-yellow-400 absolute -top-1 -right-1 animate-pulse" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                IT Tools Dashboard
+              </h1>
+              <p className="text-xs text-gray-500">{Object.keys(ALL_TOOLS).length} powerful tools</p>
+            </div>
+          </div>
 
-          <button
-            onClick={() => setShowFavorites(!showFavorites)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              showFavorites ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            }`}
-          >
-            <Star className={`w-4 h-4 ${showFavorites ? 'fill-current' : ''}`} />
-            Favorites ({favorites.length})
-          </button>
-
-          <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+          {/* Center: Tabs */}
+          <div className="flex items-center gap-2 bg-slate-800/50 rounded-lg p-1">
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded ${viewMode === 'grid' ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
+              onClick={() => setActiveTab('all')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'all'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
+              }`}
             >
-              <Grid className="w-4 h-4" />
+              <Layers className="w-4 h-4" />
+              Tools
+              <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">{Object.keys(ALL_TOOLS).length}</span>
             </button>
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded ${viewMode === 'list' ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
+              onClick={() => setActiveTab('favorites')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'favorites'
+                  ? 'bg-yellow-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
+              }`}
             >
-              <List className="w-4 h-4" />
+              <Star className={`w-4 h-4 ${activeTab === 'favorites' ? 'fill-current' : ''}`} />
+              Favorites
+              <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">{favorites.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('recent')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'recent'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-gray-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Recent
+              <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">{history.length}</span>
+            </button>
+          </div>
+
+          {/* Right: Search & Info Toggle */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tools..."
+                className="w-64 pl-9 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-white text-sm placeholder-gray-500"
+              />
+            </div>
+            <button
+              onClick={() => setShowInfoPanel(!showInfoPanel)}
+              className={`p-2.5 rounded-lg transition-all ${
+                showInfoPanel
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800/50 text-gray-400 hover:text-white'
+              }`}
+              title="Toggle info panel"
+            >
+              <Info className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tools..."
-            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-          />
-        </div>
-
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white min-w-[200px]"
-        >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>
-              {cat === 'all' ? 'All Categories' : cat}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        {/* Tools List */}
-        <div className="w-1/3 flex flex-col overflow-hidden">
-          <div className="text-sm text-gray-400 mb-3">
-            {filteredTools.length} tool{filteredTools.length !== 1 ? 's' : ''} found
+      {/* Main Content Area */}
+      <div className="relative z-10 flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Categories */}
+        <div className={`${sidebarCollapsed ? 'w-14' : 'w-72'} flex flex-col bg-slate-900/50 backdrop-blur-sm border-r border-slate-800/50 transition-all duration-300`}>
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-800/50">
+            {!sidebarCollapsed && (
+              <div className="flex items-center gap-2">
+                <Layers className="w-5 h-5 text-blue-400" />
+                <h2 className="font-bold">Categories</h2>
+              </div>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1.5 hover:bg-slate-800/50 rounded-lg transition-all"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-            {filteredTools.map(tool => {
-              const Icon = categoryIcons[tool.category] || Wrench;
-              const isFavorite = favorites.includes(tool.id);
-              const isSelected = selectedTool?.id === tool.id;
+          {/* Categories List */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+            {/* All Tools */}
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all ${
+                selectedCategory === 'all'
+                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                  : 'text-gray-400 hover:bg-slate-800/50 hover:text-white'
+              }`}
+              title="All Tools"
+            >
+              <Layers className="w-4 h-4 flex-shrink-0" />
+              {!sidebarCollapsed && (
+                <>
+                  <span className="flex-1 text-left text-sm font-medium">All Tools</span>
+                  <span className="text-xs px-2 py-0.5 bg-slate-800/50 rounded-full">
+                    {filteredTools.length}
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* Category Groups */}
+            {categories.map(category => {
+              const config = categoryConfig[category] || { icon: Hash, color: 'text-gray-400', bgColor: 'bg-gray-500/10' };
+              const Icon = config.icon;
+              const toolsInCategory = toolsByCategory[category] || [];
+              const isCollapsed = collapsedCategories.has(category);
+              const isSelected = selectedCategory === category;
+
+              if (toolsInCategory.length === 0) return null;
 
               return (
-                <div
-                  key={tool.id}
-                  onClick={() => handleToolSelect(tool)}
-                  className={`p-4 rounded-lg cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-blue-600 border-blue-500'
-                      : 'bg-gray-800 border-gray-700 hover:bg-gray-750 hover:border-gray-600'
-                  } border`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      <Icon className={`w-5 h-5 mt-1 ${isSelected ? 'text-white' : 'text-blue-400'}`} />
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white">{tool.name}</h3>
-                        <p className={`text-sm mt-1 ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
-                          {tool.description}
-                        </p>
-                        <div className={`text-xs mt-2 ${isSelected ? 'text-blue-200' : 'text-gray-500'}`}>
-                          {tool.category}
-                        </div>
-                      </div>
-                    </div>
+                <div key={category}>
+                  {/* Category Header */}
+                  <button
+                    onClick={() => {
+                      if (sidebarCollapsed) {
+                        setSidebarCollapsed(false);
+                      }
+                      toggleCategory(category);
+                      setSelectedCategory(category);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all ${
+                      isSelected
+                        ? `${config.bgColor} ${config.color} border border-current`
+                        : 'text-gray-400 hover:bg-slate-800/50 hover:text-white'
+                    }`}
+                    title={category}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span className="flex-1 text-left text-sm font-medium truncate">{category}</span>
+                        <span className="text-xs px-2 py-0.5 bg-slate-800/50 rounded-full">
+                          {toolsInCategory.length}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                      </>
+                    )}
+                  </button>
 
-                    <button
-                      onClick={(e) => toggleFavorite(tool.id, e)}
-                      className="p-1 hover:bg-white/10 rounded"
-                    >
-                      <Star className={`w-4 h-4 ${isFavorite ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} />
-                    </button>
-                  </div>
+                  {/* Category Tools */}
+                  {!sidebarCollapsed && !isCollapsed && (
+                    <div className="ml-6 mt-1 space-y-0.5">
+                      {toolsInCategory.slice(0, 5).map(tool => (
+                        <button
+                          key={tool.id}
+                          onClick={() => handleToolSelect(tool)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                            selectedTool?.id === tool.id
+                              ? 'bg-slate-800 text-white'
+                              : 'text-gray-500 hover:bg-slate-800/50 hover:text-gray-300'
+                          }`}
+                        >
+                          <span className="truncate">{tool.name}</span>
+                          {favorites.includes(tool.id) && (
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 flex-shrink-0 ml-1" />
+                          )}
+                        </button>
+                      ))}
+                      {toolsInCategory.length > 5 && (
+                        <div className="px-3 py-1 text-xs text-gray-600">
+                          +{toolsInCategory.length - 5} more
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Tool Workspace */}
+        {/* Center - Tool Workspace */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {selectedTool ? (
-            <div className="h-full flex flex-col bg-gray-800 rounded-lg border border-gray-700">
+            <div className="flex-1 flex flex-col overflow-hidden">
               {/* Tool Header */}
-              <div className="p-6 border-b border-gray-700">
-                <h2 className="text-2xl font-bold">{selectedTool.name}</h2>
-                <p className="text-gray-400 mt-1">{selectedTool.description}</p>
-                <div className="flex items-center gap-4 mt-3 text-sm">
-                  <span className="px-3 py-1 bg-blue-600/20 text-blue-400 rounded-full">
-                    {selectedTool.category}
-                  </span>
-                  <span className="text-gray-500">
-                    API: {selectedTool.apiMethod}
-                  </span>
+              <div className="px-6 py-4 border-b border-slate-800/50 bg-slate-900/30">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h2 className="text-xl font-bold text-white">{selectedTool.name}</h2>
+                      <button
+                        onClick={(e) => toggleFavorite(selectedTool.id, e)}
+                        className="p-1.5 hover:bg-slate-800/50 rounded-lg transition-all"
+                      >
+                        <Star className={`w-5 h-5 ${favorites.includes(selectedTool.id) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-500'}`} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-400 mb-3">{selectedTool.description}</p>
+                    {(() => {
+                      const config = categoryConfig[selectedTool.category] || categoryConfig['Converters'];
+                      const Icon = config.icon;
+                      return (
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 ${config.bgColor} ${config.color} rounded-lg text-xs font-medium`}>
+                          <Icon className="w-3.5 h-3.5" />
+                          {selectedTool.category}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => setSelectedTool(null)}
+                    className="p-2 hover:bg-slate-800/50 rounded-lg transition-all"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
                 </div>
               </div>
 
               {/* Tool Form */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Input Form */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <Code className="w-5 h-5" />
-                    Input
-                  </h3>
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Input Section */}
+                  <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50">
+                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Code className="w-5 h-5 text-blue-400" />
+                      Input
+                    </h3>
+                    <div className="space-y-4">
+                      {Object.entries(selectedTool.inputSchema.properties || {}).map(([fieldName, fieldSchema]) =>
+                        renderFormField(fieldName, fieldSchema)
+                      )}
+                    </div>
+                  </div>
 
-                  {Object.entries(selectedTool.inputSchema.properties || {}).map(([fieldName, fieldSchema]) =>
-                    renderFormField(fieldName, fieldSchema)
+                  {/* Execute Button */}
+                  <button
+                    onClick={executeTool}
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:from-slate-700 disabled:to-slate-700 rounded-xl font-bold text-white transition-all shadow-xl hover:shadow-blue-500/50 disabled:shadow-none transform hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5" />
+                        Execute Tool
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  {/* Error Display */}
+                  {error && (
+                    <div className="bg-rose-500/10 border border-rose-500/50 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-rose-500/20 rounded-lg">
+                          <X className="w-5 h-5 text-rose-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-rose-400 mb-1">Error</h4>
+                          <p className="text-rose-300 text-sm">{error}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Result Display */}
+                  {result && (
+                    <div className="bg-slate-800/30 rounded-xl p-6 border border-slate-700/50">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2 text-emerald-400">
+                          <Check className="w-5 h-5" />
+                          Result
+                        </h3>
+                        <button
+                          onClick={copyResult}
+                          className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 rounded-lg text-sm font-medium transition-all"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="w-4 h-4 text-emerald-400" />
+                              <span className="text-emerald-400">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              Copy
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                        <pre className="text-sm text-emerald-400 overflow-x-auto font-mono whitespace-pre-wrap break-words">
+                          {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                {/* Execute Button */}
-                <button
-                  onClick={executeTool}
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader className="w-5 h-5 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-5 h-5" />
-                      Execute Tool
-                    </>
-                  )}
-                </button>
-
-                {/* Error Display */}
-                {error && (
-                  <div className="p-4 bg-red-900/20 border border-red-700 rounded-lg text-red-400">
-                    <h4 className="font-semibold mb-1">Error</h4>
-                    <p>{error}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center max-w-md">
+                <div className="relative inline-block mb-6">
+                  <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-3xl"></div>
+                  <div className="relative p-8 bg-slate-800/50 rounded-full">
+                    <Wrench className="w-20 h-20 text-blue-400/50" />
                   </div>
-                )}
-
-                {/* Result Display */}
-                {result && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Check className="w-5 h-5 text-green-400" />
-                        Result
-                      </h3>
-                      <button
-                        onClick={copyResult}
-                        className="flex items-center gap-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            Copy
-                          </>
-                        )}
-                      </button>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-300 mb-3">Select a Tool</h3>
+                <p className="text-gray-500 mb-6">
+                  Choose a tool from the sidebar or search above to get started
+                </p>
+                <div className="flex items-center justify-center gap-4 text-sm">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg">
+                    <TrendingUp className="w-4 h-4 text-blue-400" />
+                    <span className="text-gray-400">{filteredTools.length} tools available</span>
+                  </div>
+                  {activeTab === 'favorites' && favorites.length === 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 rounded-lg text-yellow-400">
+                      <StarOff className="w-4 h-4" />
+                      <span>No favorites yet</span>
                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
-                    <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                      <pre className="text-sm text-green-400 overflow-x-auto">
-                        {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
-                      </pre>
+        {/* Right Panel - Info */}
+        {showInfoPanel && selectedTool && (
+          <div className="w-80 flex flex-col bg-slate-900/50 backdrop-blur-sm border-l border-slate-800/50 overflow-hidden">
+            <div className="p-4 border-b border-slate-800/50">
+              <h3 className="font-bold flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-purple-400" />
+                Information
+              </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+              {/* Tool Info */}
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                  <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-blue-400 text-sm mb-1">About</h4>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      {selectedTool.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                  <Lightbulb className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-purple-400 text-sm mb-1">Tips</h4>
+                    <ul className="text-xs text-gray-400 space-y-1 leading-relaxed">
+                      <li>• Fill in all required fields marked with *</li>
+                      <li>• Results can be copied to clipboard</li>
+                      <li>• Add to favorites for quick access</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* API Method */}
+                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                  <div className="text-xs text-gray-500 mb-1">API Method</div>
+                  <code className="text-xs text-cyan-400 font-mono">{selectedTool.apiMethod}</code>
+                </div>
+
+                {/* Recent Usage */}
+                {history.filter(h => h.toolId === selectedTool.id).length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <History className="w-4 h-4 text-gray-400" />
+                      Recent Usage
+                    </h4>
+                    <div className="space-y-1">
+                      {history
+                        .filter(h => h.toolId === selectedTool.id)
+                        .slice(0, 3)
+                        .map((h, i) => (
+                          <div key={i} className="text-xs text-gray-500 p-2 bg-slate-800/30 rounded">
+                            {new Date(h.timestamp).toLocaleString()}
+                          </div>
+                        ))}
                     </div>
                   </div>
                 )}
               </div>
             </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500 bg-gray-800 rounded-lg border border-gray-700">
-              <Wrench className="w-16 h-16 mb-4 opacity-20" />
-              <h3 className="text-xl font-bold text-gray-400">No Tool Selected</h3>
-              <p className="text-gray-500 mt-2">Select a tool from the list to get started</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
