@@ -133,16 +133,18 @@ QString AdbProcess::getDeviceIPFromStdOut()
     QString ip = "";
 #if 0
     QString strIPExp = "inet [\\d.]*";
-    QRegExp ipRegExp(strIPExp,Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 5);
     }
 #else
     QString strIPExp = "inet addr:[\\d.]*";
-    QRegExp ipRegExp(strIPExp, Qt::CaseInsensitive);
-    if (ipRegExp.indexIn(m_standardOutput) != -1) {
-        ip = ipRegExp.cap(0);
+    QRegularExpression ipRegExp(strIPExp, QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = ipRegExp.match(m_standardOutput);
+    if (match.hasMatch()) {
+        ip = match.captured(0);
         ip = ip.right(ip.size() - 10);
     }
 #endif
