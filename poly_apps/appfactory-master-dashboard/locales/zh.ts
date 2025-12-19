@@ -82,4 +82,21 @@ export const zh: TranslationKeys = {
     changePassword: '修改密码',
     saveChanges: '保存更改',
   },
+  login: {
+    title: '欢迎回来',
+    subtitle: '请选择您的角色登录工作台',
+    email: '邮箱地址',
+    password: '密码',
+    signIn: '登录',
+    forgotPassword: '忘记密码？',
+    admin: '管理员',
+    cs: '客服代表',
+    tech: '技术团队',
+    rememberMe: '记住我',
+  },
+  roles: {
+    admin: '系统管理员',
+    cs: '客户成功代表',
+    tech: '技术团队',
+  },
 };

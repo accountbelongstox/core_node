@@ -80,6 +80,23 @@ export const en = {
     changePassword: 'Change Password',
     saveChanges: 'Save Changes',
   },
+  login: {
+    title: 'Welcome Back',
+    subtitle: 'Select your role to access the dashboard',
+    email: 'Email Address',
+    password: 'Password',
+    signIn: 'Sign In',
+    forgotPassword: 'Forgot Password?',
+    admin: 'Admin',
+    cs: 'Customer Service',
+    tech: 'Technical',
+    rememberMe: 'Remember me',
+  },
+  roles: {
+    admin: 'Administrator',
+    cs: 'Customer Success',
+    tech: 'Tech Team',
+  },
 };
 
 export type TranslationKeys = typeof en;
