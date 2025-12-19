@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 
 #include "adbprocess.h"
 #include "config.h"
@@ -29,7 +30,7 @@ const QString &AdbProcess::getAdbPath()
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = Config::getInstance().getAdbPath();
         }
-        fileInfo = s_adbPath;
+        fileInfo.setFile(s_adbPath);
         if (s_adbPath.isEmpty() || !fileInfo.isFile()) {
             s_adbPath = QCoreApplication::applicationDirPath() + "/adb";
         }
@@ -117,9 +118,9 @@ QStringList AdbProcess::getDevicesSerialFromStdOut()
 {
     // get devices serial by adb devices
     QStringList serials;
-    QStringList devicesInfoList = m_standardOutput.split(QRegExp("\r\n|\n"), QString::SkipEmptyParts);
+    QStringList devicesInfoList = m_standardOutput.split(QRegularExpression("\r\n|\n"), Qt::SkipEmptyParts);
     for (QString deviceInfo : devicesInfoList) {
-        QStringList deviceInfos = deviceInfo.split(QRegExp("\t"), QString::SkipEmptyParts);
+        QStringList deviceInfos = deviceInfo.split(QRegularExpression("\t"), Qt::SkipEmptyParts);
         if (2 == deviceInfos.count() && 0 == deviceInfos[1].compare("device")) {
             serials << deviceInfos[0];
         }
