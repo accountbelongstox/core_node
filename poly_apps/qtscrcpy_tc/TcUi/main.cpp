@@ -130,6 +130,7 @@ void installTranslator()
         languagePath += "QtScrcpy_en.qm";
     }
 
-    translator.load(languagePath);
-    qApp->installTranslator(&translator);
+    if (translator.load(languagePath)) {
+        qApp->installTranslator(&translator);
+    }
 }

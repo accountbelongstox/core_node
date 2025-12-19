@@ -140,9 +140,10 @@ void DeviceGroups::saveJsonFile()
     saveJsonDoc.setObject(saveRootObj);
 
     QFile loadFile(DeviceGroups::getDeviceGroupsPath() + "/" + "deviceGroups.json");
-    loadFile.open(QIODevice::WriteOnly);
-    loadFile.write(saveJsonDoc.toJson());
-    loadFile.close();
+    if (loadFile.open(QIODevice::WriteOnly)) {
+        (void)loadFile.write(saveJsonDoc.toJson());
+        loadFile.close();
+    }
     saveFileData = saveJsonDoc.toJson();
     qDebug("write jsondata: %s", saveFileData.toLocal8Bit().constData());
 }

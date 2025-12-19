@@ -15,10 +15,9 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # In order to do so, uncomment the following line.
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 DEFINES += QT_DISABLE_DEPRECATED_UP_TO=0x060A00    # disables all the APIs deprecated before Qt 6.10.0
-msvc{
-    QMAKE_CFLAGS += -source-charset:utf-8
-    QMAKE_CXXFLAGS += -source-charset:utf-8
-}
+
+# Qt 6.10+ automatically adds -utf-8 flag, no need to add -source-charset:utf-8
+# Removed to avoid conflict: "error D8016: '/source-charset:utf-8' and '/utf-8' command-line options are incompatible"
 
 # warning as error
 #4566 https://github.com/Chuyu-Team/VC-LTL/issues/27
@@ -67,7 +66,7 @@ INCLUDEPATH += \
         $$PWD/fontawesome
 
 # Read version from file
-CAT_VERSION = $$cat($$PWD/version)
+CAT_VERSION = $$cat($$PWD/version.txt)
 # Extract version components
 VERSION_MAJOR = $$section(CAT_VERSION, ., 0, 0)
 VERSION_MINOR = $$section(CAT_VERSION, ., 1, 1)
