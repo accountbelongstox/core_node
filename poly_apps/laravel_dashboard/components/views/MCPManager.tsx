@@ -150,6 +150,19 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const [newVoiceLanguage, setNewVoiceLanguage] = useState('en');
   const [newVoiceImageFile, setNewVoiceImageFile] = useState<File | null>(null);
   const [newVoiceImageDescription, setNewVoiceImageDescription] = useState('');
+  const [supportedLanguages, setSupportedLanguages] = useState<AsyncState<any>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [voiceCategories, setVoiceCategories] = useState<AsyncState<any[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [selectedVoiceCategory, setSelectedVoiceCategory] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [voiceStats, setVoiceStats] = useState<AsyncState<any>>({
@@ -663,6 +676,44 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const handleLoadLatestScreenshot = async () => {
+    try {
+      const response = await api.mcpV1.getLatestScreenshot();
+      if (response.success && response.data) {
+        // Show only latest screenshot
+        setScreenshots({
+          data: [response.data],
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load latest screenshot:', error);
+    }
+  };
+
+  const handleClearAllScreenshots = async () => {
+    if (!confirm('⚠️ DANGER: This will permanently delete ALL screenshots. This action cannot be undone. Are you sure?')) {
+      return;
+    }
+
+    // Second confirmation
+    if (!confirm('Final confirmation: Delete ALL screenshots?')) {
+      return;
+    }
+
+    try {
+      const response = await api.mcpV1.clearAllScreenshots();
+      if (response.success) {
+        loadScreenshots();
+        loadScreenshotStats();
+      }
+    } catch (error) {
+      console.error('Failed to clear all screenshots:', error);
+    }
+  };
+
   const tabs = [
     { id: 'screenshots' as MCPTab, label: t.tabs.screenshots, icon: Image },
     { id: 'tasks' as MCPTab, label: t.tabs.tasks, icon: ListTodo },
@@ -728,6 +779,22 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
+          </button>
+          <button
+            onClick={handleLoadLatestScreenshot}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            title="Show latest screenshot"
+          >
+            <Clock className="w-4 h-4" />
+            Latest
+          </button>
+          <button
+            onClick={handleClearAllScreenshots}
+            className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-2`}
+            title="Delete all screenshots (dangerous)"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear All
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -1320,6 +1387,22 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  const handleCleanupPlaceholders = async () => {
+    if (!confirm('Clean up old placeholder images? This will remove unused placeholders to free up storage space.')) {
+      return;
+    }
+
+    try {
+      const response = await api.mcpV1.cleanupPlaceholders();
+      if (response.success) {
+        loadPlaceholderHistory();
+        loadPlaceholderStats();
+      }
+    } catch (error) {
+      console.error('Failed to cleanup placeholders:', error);
+    }
+  };
+
   const loadPlaceholderStats = async () => {
     setPlaceholderStats(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
@@ -1520,6 +1603,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       const response = await api.mcpV1.vsSetIndex(index);
       if (response.success) {
         loadCurrentVoiceTrack();
+        // Increment play count for the selected item
+        if (voiceQueue.data && voiceQueue.data[index]) {
+          await api.mcpV1.vsIncrementPlayCount(voiceQueue.data[index].id);
+          loadVoiceQueue(); // Refresh to show updated play count
+        }
       }
     } catch (error) {
       console.error('Failed to play voice item:', error);
@@ -1528,9 +1616,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const handleVoicePrevious = async () => {
     try {
-      await api.mcpV1.vsPrevious();
+      const response = await api.mcpV1.vsPrevious();
       loadCurrentVoiceTrack();
       loadVoiceQueue();
+      // Increment play count if response contains item info
+      if (response.success && response.data?.queue_item?.id) {
+        await api.mcpV1.vsIncrementPlayCount(response.data.queue_item.id);
+      }
     } catch (error) {
       console.error('Failed to play previous:', error);
     }
@@ -1538,9 +1630,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const handleVoiceNext = async () => {
     try {
-      await api.mcpV1.vsNext();
+      const response = await api.mcpV1.vsNext();
       loadCurrentVoiceTrack();
       loadVoiceQueue();
+      // Increment play count if response contains item info
+      if (response.success && response.data?.queue_item?.id) {
+        await api.mcpV1.vsIncrementPlayCount(response.data.queue_item.id);
+      }
     } catch (error) {
       console.error('Failed to play next:', error);
     }
@@ -2072,12 +2168,22 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       <div className={`w-64 ${commonClasses.card} p-4 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">Recent</h3>
-          <button
-            className="text-xs text-slate-500 hover:text-red-500"
-            onClick={loadPlaceholderHistory}
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              className="text-xs text-slate-500 hover:text-indigo-500"
+              onClick={loadPlaceholderHistory}
+              title="Refresh history"
+            >
+              <RefreshCw className="w-3 h-3 inline" />
+            </button>
+            <button
+              className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 rounded"
+              onClick={handleCleanupPlaceholders}
+              title="Clean up old placeholders"
+            >
+              Cleanup
+            </button>
+          </div>
         </div>
         {placeholderHistory.length > 0 ? (
           <div className="space-y-2">

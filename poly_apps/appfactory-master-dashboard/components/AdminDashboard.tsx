@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Smartphone,
@@ -15,13 +15,18 @@ import {
   ChevronRight,
   MoreVertical,
   Zap,
-  Settings
+  Settings,
+  DollarSign as DollarIcon
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { MOCK_APPS, MOCK_CS, MOCK_DAILY_STATS } from '../constants';
 import { AppStatus, UserRole } from '../types';
 import { StatCard } from './StatCard';
 import { useApp } from '../contexts/AppContext';
+import { AppGenerationForm } from './AppGenerationForm';
+import { AppDetailPage } from './AppDetailPage';
+import { CSAssignment } from './CSAssignment';
+import { RevenueManagement } from './RevenueManagement';
 
 // Dashboard Overview Page
 const DashboardOverview = () => {
@@ -95,33 +100,44 @@ const DashboardOverview = () => {
 // Apps Management Page
 const AppsList = () => {
   const { t } = useApp();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showGenerationForm, setShowGenerationForm] = useState(false);
 
   const filteredApps = MOCK_APPS.filter(app =>
     app.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleGenerateApp = (appData: any) => {
+    console.log('Generating app:', appData);
+    alert('APP generation started! (This is a demo)');
+  };
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white">{t('apps.title')}</h2>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder={t('apps.searchPlaceholder')}
-              className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full md:w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+    <>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">{t('apps.title')}</h2>
+          <div className="flex gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                placeholder={t('apps.searchPlaceholder')}
+                className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full md:w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => setShowGenerationForm(true)}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            >
+              <PlusCircle size={18} />
+              {t('apps.generateNew')}
+            </button>
           </div>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
-            <PlusCircle size={18} />
-            {t('apps.generateNew')}
-          </button>
         </div>
-      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left">
@@ -177,9 +193,17 @@ const AppsList = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <button className="text-slate-400 hover:text-indigo-600 transition-colors">
-                    <MoreVertical size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => navigate(`/apps/${app.id}`)}
+                      className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                    >
+                      View
+                    </button>
+                    <button className="text-slate-400 hover:text-indigo-600 transition-colors">
+                      <MoreVertical size={20} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -187,6 +211,13 @@ const AppsList = () => {
         </table>
       </div>
     </div>
+    {showGenerationForm && (
+      <AppGenerationForm
+        onClose={() => setShowGenerationForm(false)}
+        onGenerate={handleGenerateApp}
+      />
+    )}
+    </>
   );
 };
 
@@ -259,6 +290,8 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
     { icon: <Smartphone size={20} />, label: t('nav.applications'), path: '/apps' },
     { icon: <Users size={20} />, label: t('nav.csTeam'), path: '/cs' },
+    { icon: <Users size={20} />, label: 'CS Assignment', path: '/cs-assignment' },
+    { icon: <DollarIcon size={20} />, label: 'Revenue', path: '/revenue' },
     { icon: <BarChart3 size={20} />, label: t('nav.analytics'), path: '/analytics' },
   ];
 
@@ -269,7 +302,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
           <Zap size={24} fill="currentColor" />
         </div>
         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
-          AppFactory
+          {t('app.name')}
         </h1>
       </div>
 
@@ -355,7 +388,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenSettings }
           <Routes>
             <Route path="/" element={<DashboardOverview />} />
             <Route path="/apps" element={<AppsList />} />
+            <Route path="/apps/:appId" element={<AppDetailPage />} />
             <Route path="/cs" element={<CSTeam />} />
+            <Route path="/cs-assignment" element={<CSAssignment />} />
+            <Route path="/revenue" element={<RevenueManagement />} />
             <Route path="/analytics" element={<div className="flex items-center justify-center h-96 text-slate-400">{t('analytics.comingSoon')}</div>} />
           </Routes>
         </div>
