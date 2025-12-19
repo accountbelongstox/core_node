@@ -1,6 +1,10 @@
 /*******************************************************************************
  * @brief m_nodeDataList is used for list display, devicegroups->groupTree is used for temporary
  *          storage of list configuration data, jsonDoc is used for reading and saving json config files
+ *
+ * Qt 6.10 Compatibility Updates:
+ * - QLayout::setMargin() removed, replaced with setContentsMargins(left, top, right, bottom)
+ * - All layout margin settings updated to Qt 6 API (lines 227, 264, 661)
  *******************************************************************************/
 
 #include <QDebug>

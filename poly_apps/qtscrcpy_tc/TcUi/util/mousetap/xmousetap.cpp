@@ -1,3 +1,11 @@
+/*
+ * Qt 6.10 Compatibility Updates:
+ * - Qt X11 Extras module removed in Qt 6
+ * - QX11Info class removed, use QPlatformNativeInterface instead
+ * - QX11Info::connection() -> QPlatformNativeInterface::nativeResourceForIntegration("connection")
+ * - QX11Info::appRootWindow() -> QPlatformNativeInterface::nativeResourceForScreen("rootwindow")
+ */
+
 #include <QGuiApplication>
 #include <qpa/qplatformnativeinterface.h>
 

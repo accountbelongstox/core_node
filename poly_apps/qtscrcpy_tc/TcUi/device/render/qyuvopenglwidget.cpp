@@ -1,3 +1,10 @@
+/*
+ * Qt 6.10 Compatibility Updates:
+ * - QOpenGLWidget moved to Qt OpenGL Widgets module (QT += openglwidgets)
+ * - QOpenGLTexture requires Qt OpenGL module (QT += opengl)
+ * - All QGL* classes removed, use QOpenGL* equivalents
+ */
+
 #include <QCoreApplication>
 #include <QOpenGLTexture>
 #include <QSurfaceFormat>

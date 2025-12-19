@@ -1,4 +1,11 @@
-﻿#include <QCoreApplication>
+﻿/*
+ * Qt 6.10 Compatibility Updates:
+ * - QSettings::setIniCodec() removed in Qt 6
+ * - Qt 6 uses UTF-8 encoding by default for all INI files
+ * - No codec setting needed, automatic UTF-8 handling (lines 104, 107)
+ */
+
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QSettings>
 #include <QDebug>
