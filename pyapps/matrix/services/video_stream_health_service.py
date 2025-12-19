@@ -385,14 +385,9 @@ class VideoStreamHealthService:
         }
 
         # Broadcast to all connected WebSocket clients
-        # This uses the RPC server's broadcast capability
+        # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
         try:
-            # Schedule broadcast in event loop (RPC server is async)
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(
-                    self._rpc_server.broadcast_event('device.status', status_message['data'])
-                )
+            self._rpc_server.broadcast_event_sync('device.status', status_message['data'])
         except Exception as e:
             ColorPrint.yellow(f"[VideoStreamHealth] Failed to broadcast status: {e}")
 
