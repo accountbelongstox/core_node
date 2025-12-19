@@ -38,7 +38,7 @@ Device::Device(DeviceParams params, QObject *parent) : QObject(parent), m_params
         m_fileHandler = new FileHandler(this);
         m_controller = new Controller(params.gameScript, this);
         m_videoForm = new VideoForm(params.framelessWindow, Config::getInstance().getSkin(), nullptr);
-        m_videoForm->setDevice(this); // 鼠标操纵依赖这个
+        m_videoForm->setDevice(this); // Mouse operation depends on this
         Ui::MainWindow *ui = MainWindow::mainwin->ui;
         ui->gridLayout->addWidget(m_videoForm, row, (int)column % Config::columnNum, 1, 1);
         column++;
@@ -244,7 +244,7 @@ void Device::initSignals()
                     if (rc.isValid() && (deviceVer == rcVer)) {
                         // mark: resize is for fix setGeometry magneticwidget bug
 //                        m_videoForm->resize(rc.size());
-                        //在这里移动了手机画面位置！！！
+                        // Phone screen position is moved here!!!
 //                        m_videoForm->setGeometry(rc);
                     }
                 }
@@ -263,7 +263,7 @@ void Device::initSignals()
                     m_controller->setControlSocket(m_server->getControlSocket());
                 }
 
-                // 显示界面时才自动息屏（m_params.display）
+                // Auto turn off screen only when displaying interface (m_params.display)
                 if (m_params.closeScreen && m_params.display && m_controller) {
                     emit m_controller->onSetScreenPowerMode(ControlMsg::SPM_OFF);
                 }
@@ -306,7 +306,7 @@ void Device::startServer()
     // fix: macos cant recv finished signel, timer is ok
     QTimer::singleShot(0, this, [this]() {
         m_startTimeCount.start();
-        // max size support 480p 720p 1080p 设备原生分辨率
+        // max size support 480p 720p 1080p and device native resolution
         // support wireless connect, example:
         //m_server->start("192.168.0.174:5555", 27183, m_maxSize, m_bitRate, "");
         // only one devices, serial can be null

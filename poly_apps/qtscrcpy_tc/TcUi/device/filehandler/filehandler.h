@@ -10,9 +10,9 @@ class FileHandler : public QObject
 public:
     enum FILE_HANDLER_RESULT
     {
-        FAR_IS_RUNNING,   // 正在执行
-        FAR_SUCCESS_EXEC, // 执行成功
-        FAR_ERROR_EXEC,   // 执行失败
+        FAR_IS_RUNNING,   // Executing
+        FAR_SUCCESS_EXEC, // Execution successful
+        FAR_ERROR_EXEC,   // Execution failed
     };
 
     FileHandler(QObject *parent = nullptr);

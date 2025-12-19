@@ -58,7 +58,7 @@ void VideoSocket::onReadyRead()
     if (m_buffer && m_bufferSize <= bytesAvailable()) {
         // recv data
         qint64 readSize = qMin(bytesAvailable(), (qint64)m_bufferSize);
-        //获取tcp数据
+        // Get TCP data
         m_dataSize = read((char *)m_buffer, readSize);
 
         m_buffer = Q_NULLPTR;
