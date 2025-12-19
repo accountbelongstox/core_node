@@ -177,7 +177,7 @@ bool Server::execute()
 
     // adb -s P7C0218510000537 shell CLASSPATH=/data/local/tmp/scrcpy-server app_process / com.genymobile.scrcpy.Server 0 8000000 false
     // mark: crop input format: "width:height:x:y" or - for no crop, for example: "100:200:0:0"
-    // 这条adb命令是阻塞运行的，m_serverProcess进程不会退出了
+    // This adb command runs in blocking mode, m_serverProcess will not exit
     m_serverProcess.execute(m_params.serial, args);
     return true;
 }
