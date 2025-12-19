@@ -33,3 +33,30 @@ dist-ssr
 dist-electron
 dist-release
 dist-docs
+
+# Binary Files (original files, not .py backups)
+# These are restored from .exe.py, .dll.py files by scripts/prepare-binaries.ps1
+electron/resources/extra/**/*.exe
+electron/resources/extra/**/*.dll
+electron/resources/extra/**/*.so
+electron/resources/extra/**/*.dylib
+electron/resources/extra/**/*.bat
+electron/resources/extra/**/*.vbs
+# But keep .py backups
+!electron/resources/extra/**/*.exe.py
+!electron/resources/extra/**/*.dll.py
+!electron/resources/extra/**/*.so.py
+!electron/resources/extra/**/*.dylib.py
+!electron/resources/extra/**/*.bat.py
+!electron/resources/extra/**/*.vbs.py
+
+# Specific binary executables without extension (Linux/Mac)
+electron/resources/extra/**/adb
+electron/resources/extra/**/scrcpy
+electron/resources/extra/**/scrcpy-server
+electron/resources/extra/**/gnirehtet
+# But keep .py backups
+!electron/resources/extra/**/adb.py
+!electron/resources/extra/**/scrcpy.py
+!electron/resources/extra/**/scrcpy-server.py
+!electron/resources/extra/**/gnirehtet.py

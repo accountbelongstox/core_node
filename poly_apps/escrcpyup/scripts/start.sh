@@ -97,6 +97,13 @@ install_pnpm() {
 
 # Check and install dependencies
 install_dependencies() {
+    print_info "Restoring binary files from .py backups..."
+    echo ""
+
+    # Restore binaries (adb, scrcpy, etc.) from .py files
+    bash "$SCRIPT_DIR/prepare-binaries.sh" restore
+
+    echo ""
     print_info "Cleaning old dependencies..."
     echo ""
 
