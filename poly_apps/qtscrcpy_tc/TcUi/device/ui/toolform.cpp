@@ -8,12 +8,11 @@
 #include "toolform.h"
 #include "ui_toolform.h"
 
-ToolForm::ToolForm(QWidget *adsorbWidget) : QWidget(Q_NULLPTR), ui(new Ui::ToolForm)
+ToolForm::ToolForm(QWidget *adsorbWidget, AdsorbPositions adsorbPos) : MagneticWidget(adsorbWidget, adsorbPos), ui(new Ui::ToolForm)
 {
     ui->setupUi(this);
-//    setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
-//    setWindowFlags(windowFlags() & ~Qt::WindowMinMaxButtonsHint);
-    if (adsorbWidget) {};
+    setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
+    //setWindowFlags(windowFlags() & ~Qt::WindowMinMaxButtonsHint);
 
     initStyle();
 }
@@ -50,21 +49,6 @@ void ToolForm::initStyle()
     IconHelper::Instance()->SetIcon(ui->groupControlBtn, QChar(0xf0c0), 15);
 }
 
-void ToolForm::setGroup(DeviceGroups::Group *group, QString hostdevice)
-{
-    this->grouptool = group;
-    this->hostdevice = hostdevice;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceSerialNumber == hostdevice) {
-            groupctrolhost = &grouptool->deviceTree[i];
-        }
-    }
-    qDebug("hostdevicename: %s", hostdevice.toLocal8Bit().constData());
-
-    m_device = groupctrolhost->m_device;
-    connect(m_device, &Device::controlStateChange, this, &ToolForm::onControlStateChange);
-}
-
 void ToolForm::updateGroupControl()
 {
     if (!m_device) {
@@ -99,8 +83,8 @@ void ToolForm::mouseReleaseEvent(QMouseEvent *event)
 void ToolForm::mouseMoveEvent(QMouseEvent *event)
 {
     if (event->buttons() & Qt::LeftButton) {
-//        move(event->globalPos() - m_dragPosition);
-//        event->accept();
+        move(event->globalPos() - m_dragPosition);
+        event->accept();
     }
 }
 
@@ -112,236 +96,111 @@ void ToolForm::showEvent(QShowEvent *event)
 
 void ToolForm::hideEvent(QHideEvent *event)
 {
-    if (event) {}
-//    Q_UNUSED(event)
+    Q_UNUSED(event)
     qDebug() << "hide event";
 }
 
 void ToolForm::on_fullScreenBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->switchFullScreen();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
 
-//    emit m_device->switchFullScreen();
+    emit m_device->switchFullScreen();
 }
 
 void ToolForm::on_returnBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postGoBack();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postGoBack();
+    emit m_device->postGoBack();
 }
 
 void ToolForm::on_homeBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postGoHome();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postGoHome();
+    emit m_device->postGoHome();
 }
 
 void ToolForm::on_menuBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postGoHome();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postGoMenu();
+    emit m_device->postGoMenu();
 }
 
 void ToolForm::on_appSwitchBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postAppSwitch();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postAppSwitch();
+    emit m_device->postAppSwitch();
 }
 
 void ToolForm::on_powerBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postPower();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postPower();
+    emit m_device->postPower();
 }
 
 void ToolForm::on_screenShotBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->screenshot();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->screenshot();
+    emit m_device->screenshot();
 }
 
 void ToolForm::on_volumeUpBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postVolumeUp();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postVolumeUp();
+    emit m_device->postVolumeUp();
 }
 
 void ToolForm::on_volumeDownBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->postVolumeDown();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->postVolumeDown();
+    emit m_device->postVolumeDown();
 }
 
 void ToolForm::on_closeScreenBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->setScreenPowerMode(ControlMsg::SPM_OFF);
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->setScreenPowerMode(ControlMsg::SPM_OFF);
+    emit m_device->setScreenPowerMode(ControlMsg::SPM_OFF);
 }
 
 void ToolForm::on_expandNotifyBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->expandNotificationPanel();
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
-//    emit m_device->expandNotificationPanel();
+    emit m_device->expandNotificationPanel();
 }
 
 void ToolForm::on_touchBtn_clicked()
 {
-    Device* device;
-
-    if (!grouptool)
+    if (!m_device) {
         return;
-    for(int i =0; i < grouptool->deviceTree.size(); i++) {
-        if (grouptool->deviceTree[i].deviceConnectStatus) {
-            device = grouptool->deviceTree[i].m_device;
-            emit device->showTouch(m_showTouch);
-        }
     }
-//    if (!m_device) {
-//        return;
-//    }
 
-//    m_showTouch = !m_showTouch;
-//    emit m_device->showTouch(m_showTouch);
+    m_showTouch = !m_showTouch;
+    emit m_device->showTouch(m_showTouch);
 }
 
 void ToolForm::on_groupControlBtn_clicked()
 {
-    if (!groupctrolhost) {
-        return;
-    }
-    m_device = groupctrolhost->m_device;
     if (!m_device) {
         return;
     }
