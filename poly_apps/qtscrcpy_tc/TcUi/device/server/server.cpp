@@ -177,7 +177,7 @@ bool Server::execute()
 
     // adb -s P7C0218510000537 shell CLASSPATH=/data/local/tmp/scrcpy-server app_process / com.genymobile.scrcpy.Server 0 8000000 false
     // mark: crop input format: "width:height:x:y" or - for no crop, for example: "100:200:0:0"
-    // 这条adb命令是阻塞运行的，m_serverProcess进程不会退出了
+    // This adb command runs in blocking mode, m_serverProcess will not exit
     m_serverProcess.execute(m_params.serial, args);
     return true;
 }
@@ -348,8 +348,8 @@ void Server::stopConnectTimeoutTimer()
 void Server::onConnectTimer()
 {
     // device server need time to start
-    // 这里连接太早时间不够导致安卓监听socket还没有建立，readInfo会失败，所以采取定时重试策略
-    // 每隔100ms尝试一次，最多尝试MAX_CONNECT_COUNT次
+    // Connecting too early causes Android listener socket not established yet, readInfo will fail, so adopt timed retry strategy
+    // Retry every 100ms, maximum MAX_CONNECT_COUNT attempts
     QString deviceName;
     QSize deviceSize;
     bool success = false;
@@ -359,7 +359,7 @@ void Server::onConnectTimer()
 
     videoSocket->connectToHost(QHostAddress::LocalHost, m_params.localPort);
     if (!videoSocket->waitForConnected(1000)) {
-        // 连接到adb很快的，这里失败不重试
+        // Connecting to adb is fast, don't retry on failure
         m_connectCount = MAX_CONNECT_COUNT;
         qWarning("video socket connect to server failed");
         goto result;
@@ -367,7 +367,7 @@ void Server::onConnectTimer()
 
     controlSocket->connectToHost(QHostAddress::LocalHost, m_params.localPort);
     if (!controlSocket->waitForConnected(1000)) {
-        // 连接到adb很快的，这里失败不重试
+        // Connecting to adb is fast, don't retry on failure
         m_connectCount = MAX_CONNECT_COUNT;
         qWarning("control socket connect to server failed");
         goto result;
@@ -464,7 +464,7 @@ void Server::onWorkProcessResult(AdbProcess::ADB_EXEC_RESULT processResult)
                     m_serverStartStep = SSS_EXECUTE_SERVER;
                     startServerByStep();
                 } else if (AdbProcess::AER_SUCCESS_START != processResult) {
-                    // 有一些设备reverse会报错more than o'ne device，adb的bug
+                    // Some devices will report "more than one device" error on reverse, adb bug
                     // https://github.com/Genymobile/scrcpy/issues/5
                     qCritical("adb reverse failed");
                     m_tunnelForward = true;

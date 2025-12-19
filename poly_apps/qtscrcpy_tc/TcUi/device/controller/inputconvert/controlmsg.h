@@ -49,9 +49,9 @@ public:
 
     void setInjectKeycodeMsgData(AndroidKeyeventAction action, AndroidKeycode keycode, quint32 repeat, AndroidMetastate metastate);
     void setInjectTextMsgData(QString &text);
-    // id 代表一个触摸点，最多支持10个触摸点[0,9]
-    // action 只能是AMOTION_EVENT_ACTION_DOWN，AMOTION_EVENT_ACTION_UP，AMOTION_EVENT_ACTION_MOVE
-    // position action动作对应的位置
+    // id represents a touch point, supports maximum 10 touch points [0,9]
+    // action can only be AMOTION_EVENT_ACTION_DOWN, AMOTION_EVENT_ACTION_UP, AMOTION_EVENT_ACTION_MOVE
+    // position corresponds to the location of the action
     void setInjectTouchMsgData(quint64 id, AndroidMotioneventAction action, AndroidMotioneventButtons buttons, QRect position, float pressure);
     void setInjectScrollMsgData(QRect position, qint32 hScroll, qint32 vScroll);
     void setSetClipboardMsgData(QString &text, bool paste);

@@ -26,16 +26,16 @@ class Server : public QObject
 public:
     struct ServerParams
     {
-        QString serial = "";           // 设备序列号
-        quint16 localPort = 27183;     // reverse时本地监听端口
-        quint16 maxSize = 720;         // 视频分辨率
-        quint32 bitRate = 8000000;     // 视频比特率
-        quint32 maxFps = 60;           // 视频最大帧率
-        QString crop = "-";            // 视频裁剪
-        bool control = true;           // 安卓端是否接收键鼠控制
-        bool useReverse = true;        // true:先使用adb reverse，失败后自动使用adb forward；false:直接使用adb forward
-        int lockVideoOrientation = -1; // 是否锁定视频方向
-        int stayAwake = false;         // 是否保持唤醒
+        QString serial = "";           // Device serial number
+        quint16 localPort = 27183;     // Local listening port for reverse mode
+        quint16 maxSize = 720;         // Video resolution
+        quint32 bitRate = 8000000;     // Video bit rate
+        quint32 maxFps = 60;           // Maximum video frame rate
+        QString crop = "-";            // Video crop
+        bool control = true;           // Whether Android side receives keyboard/mouse control
+        bool useReverse = true;        // true: use adb reverse first, auto fallback to adb forward on failure; false: use adb forward directly
+        int lockVideoOrientation = -1; // Whether to lock video orientation
+        int stayAwake = false;         // Whether to keep awake
     };
 
     explicit Server(QObject *parent = nullptr);
