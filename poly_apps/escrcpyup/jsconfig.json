@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$/*": ["src/*"],
+      "$root/*": ["*"],
+      "$docs/*": ["docs/*"],
+      "$electron/*": ["electron/*"],
+      "$renderer/*": ["src/*"],
+      "$control/*": ["control/*"],
+      "$explorer/*": ["explorer/*"]
+    }
+  },
+  "vueCompilerOptions": {
+    "vitePressExtensions": [".md"]
+  },
+  "exclude": ["node_modules", "dist", "dist-electron", "dist-release"]
+}
