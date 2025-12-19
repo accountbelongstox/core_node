@@ -128,7 +128,9 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
 
         return [
             'name' => basename($appPath),
+            'app_name' => basename($appPath),  // For frontend compatibility
             'path' => $relativePath,  // Return relative path instead of absolute
+            'app_path' => $relativePath,  // For frontend compatibility
             'type' => $appType,
             'framework' => $framework,
             'debug_mode' => $debugMode,
@@ -298,6 +300,9 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $launcherPath = "/var/_core_node/unified_manager/temp_scripts/{$serviceName}.sh";
             $launcherExists = file_exists($launcherPath);
 
+            // Check nginx proxy
+            $nginxStatus = $this->checkNginxProxy($app['port'], $app['name']);
+
             // Build status info
             $app['service_status'] = [
                 'installed' => $serviceStatus['exists'],
@@ -307,8 +312,12 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                 'launcher_exists' => $launcherExists,
                 'launcher_path' => $launcherExists ? $launcherPath : null,
                 'pid' => $serviceStatus['pid'],
-                'uptime' => $serviceStatus['uptime']
+                'uptime' => $serviceStatus['uptime'],
+                'memory' => $serviceStatus['memory'] ?? null,
+                'cpu_usage' => $serviceStatus['cpu_usage'] ?? null
             ];
+
+            $app['nginx_proxy'] = $nginxStatus;
         }
     }
 
@@ -385,6 +394,96 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
 
         return $status;
+    }
+
+    /**
+     * Check nginx reverse proxy configuration for an application
+     *
+     * @param int $port Application port number
+     * @param string $appName Application name
+     * @return array Proxy configuration status
+     */
+    private function checkNginxProxy(int $port, string $appName): array
+    {
+        $proxyStatus = [
+            'configured' => false,
+            'enabled' => false,
+            'domains' => [],
+            'config_file' => null,
+            'proxy_target' => null
+        ];
+
+        $sitesAvailable = '/etc/nginx/sites-available';
+        $sitesEnabled = '/etc/nginx/sites-enabled';
+
+        // Check if nginx directories exist
+        if (!is_dir($sitesAvailable)) {
+            return $proxyStatus;
+        }
+
+        try {
+            // Scan all nginx config files in sites-available
+            $configFiles = glob($sitesAvailable . '/*');
+            if (!$configFiles) {
+                return $proxyStatus;
+            }
+
+            foreach ($configFiles as $configFile) {
+                // Skip default and non-files
+                if (!is_file($configFile) || basename($configFile) === 'default') {
+                    continue;
+                }
+
+                $content = @file_get_contents($configFile);
+                if ($content === false) {
+                    continue;
+                }
+
+                // Check for proxy_pass with this port
+                // Match: proxy_pass http://localhost:PORT or proxy_pass http://127.0.0.1:PORT
+                $proxyPassPattern = '/proxy_pass\s+https?:\/\/(localhost|127\.0\.0\.1):' . $port . '/i';
+
+                if (preg_match($proxyPassPattern, $content, $matches)) {
+                    $proxyStatus['configured'] = true;
+                    $proxyStatus['config_file'] = basename($configFile);
+                    $proxyStatus['proxy_target'] = trim($matches[0], ';');
+
+                    // Check if this config is enabled (symlinked in sites-enabled)
+                    $enabledLink = $sitesEnabled . '/' . basename($configFile);
+                    if (file_exists($enabledLink) && is_link($enabledLink)) {
+                        $proxyStatus['enabled'] = true;
+                    }
+
+                    // Extract domain names from server_name directives
+                    if (preg_match_all('/server_name\s+([^;]+);/i', $content, $domainMatches)) {
+                        foreach ($domainMatches[1] as $domainLine) {
+                            $domains = preg_split('/\s+/', trim($domainLine));
+                            foreach ($domains as $domain) {
+                                $domain = trim($domain);
+                                // Skip wildcards and default_server
+                                if (!empty($domain) && $domain !== '_' && $domain !== 'default_server') {
+                                    $proxyStatus['domains'][] = $domain;
+                                }
+                            }
+                        }
+                    }
+
+                    // Remove duplicates
+                    $proxyStatus['domains'] = array_unique($proxyStatus['domains']);
+
+                    // Found matching proxy config, no need to check other files
+                    break;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('ServerManagerV1: Failed to check nginx proxy', [
+                'app_name' => $appName,
+                'port' => $port,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return $proxyStatus;
     }
 
     /**

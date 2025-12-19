@@ -5,12 +5,14 @@ import { api } from '../../services/api';
 import { WordGroup } from '../../types';
 
 const ReadingSetupPage = () => {
-  const { navigate } = useContext(AppContext);
+  const { navigate, user } = useContext(AppContext);
   const [groups, setGroups] = useState<WordGroup[]>([]);
 
   useEffect(() => {
-    api.getWordGroups().then(setGroups);
-  }, []);
+    if (user) {
+      api.getWordGroups().then(setGroups);
+    }
+  }, [user]);
 
   return (
     <div className="h-full flex flex-col pt-safe animate-slide-up-fade relative">

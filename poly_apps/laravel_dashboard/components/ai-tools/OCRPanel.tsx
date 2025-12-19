@@ -224,26 +224,26 @@ Image URL: ${imageUrl}`;
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
-            <FileImage className="w-6 h-6 text-white" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center flex-shrink-0">
+            <FileImage className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <div>
-            <h2 className="text-2xl font-bold">OCR - Optical Character Recognition</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold truncate">OCR - Optical Character Recognition</h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 truncate">
               Extract text from images using AI
             </p>
           </div>
         </div>
         <button
           onClick={() => setShowHistory(!showHistory)}
-          className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+          className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 flex-shrink-0`}
         >
           <FileText className="w-4 h-4" />
-          History ({history.length})
+          <span className="hidden sm:inline">History</span> ({history.length})
         </button>
       </div>
 

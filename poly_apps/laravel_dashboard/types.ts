@@ -794,6 +794,25 @@ export interface UnifiedApp {
   service_name?: string;
   port?: number;
   status?: 'running' | 'stopped' | 'failed';
+  nginx_proxy?: {
+    configured: boolean;
+    enabled: boolean;
+    domains: string[];
+    config_file?: string;
+    proxy_target?: string;
+  };
+  service_status?: {
+    installed: boolean;
+    service_name: string;
+    status: string; // running, stopped, failed, not_installed
+    enabled: boolean;
+    launcher_exists: boolean;
+    launcher_path?: string;
+    pid?: number;
+    uptime?: string;
+    memory?: string;
+    cpu_usage?: string;
+  };
 }
 
 export interface UnifiedAppDeployRequest {

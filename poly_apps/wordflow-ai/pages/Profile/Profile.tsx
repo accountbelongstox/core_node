@@ -125,6 +125,36 @@ const ProfilePage = () => {
     { id: 6, name: 'Perfect Week', icon: '✨', unlocked: false },
   ];
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
+          <div className="text-center py-8">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">{t('home.loginRequired')}</h2>
+            <p className="text-blue-100 mb-6">{t('profile.loginToViewProfile')}</p>
+            <Button
+              onClick={() => navigate('login')}
+              className="w-full bg-white text-blue-600 hover:bg-blue-50"
+            >
+              {t('auth.login')}
+            </Button>
+            <button
+              onClick={() => navigate('home')}
+              className="mt-3 w-full px-4 py-2 text-white/80 hover:text-white transition-colors"
+            >
+              {t('common.backHome')}
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}

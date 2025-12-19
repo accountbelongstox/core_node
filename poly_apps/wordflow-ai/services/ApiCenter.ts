@@ -1043,6 +1043,22 @@ class ApiCenterClass {
         body: JSON.stringify(data || {}),
       });
     },
+
+    getStatistics: async (): Promise<ApiResponse<{
+      total_words_learned: number;
+      mastered_words: number;
+      current_streak: number;
+      total_study_time: number;
+    }>> => {
+      return this.request<{
+        total_words_learned: number;
+        mastered_words: number;
+        current_streak: number;
+        total_study_time: number;
+      }>('/user/statistics', {
+        method: 'GET',
+      }, true);
+    },
   };
 
   /**
@@ -1136,17 +1152,21 @@ class ApiCenterClass {
     getLibraries: async (params?: {
       language?: string;
       category?: string;
+      per_page?: number;
+      page?: number;
     }): Promise<ApiResponse<any[]>> => {
       const queryParams = new URLSearchParams();
       if (params?.language) queryParams.append('language', params.language);
       if (params?.category) queryParams.append('category', params.category);
+      if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
+      if (params?.page) queryParams.append('page', params.page.toString());
 
       const queryString = queryParams.toString();
       const endpoint = `/vocabulary/libraries${queryString ? `?${queryString}` : ''}`;
 
       return this.request<any[]>(endpoint, {
         method: 'GET',
-      });
+      }, false);
     },
   };
 

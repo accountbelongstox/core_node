@@ -81,6 +81,7 @@ export const zh: TranslationKey = {
     startLearning: '开始学习',
     guestMode: '访客模式',
     welcomeGuest: '欢迎访客',
+    tapToLogin: '点击登录',
     hiUser: '你好，{name}',
     targetLanguage: '目标语言',
     availableCourses: '可用课程',
@@ -116,6 +117,15 @@ export const zh: TranslationKey = {
     loginNow: '立即登录',
     accountRequired: '此功能需要账户。现在登录？',
     words: '个单词',
+    recommendedLibraries: '推荐词库',
+    myVocabulary: '我的词库',
+    viewMore: '更多',
+    dailyWords: '每日单词',
+    noDailyWords: '暂无每日单词',
+    checkBackLater: '稍后再来查看',
+    reviewQueue: '复习队列',
+    noReviewNeeded: '全部完成',
+    noReviewDescription: '目前没有需要复习的单词',
   },
 
   reading: {
@@ -194,6 +204,7 @@ export const zh: TranslationKey = {
     studyTime: '学习时间',
     editProfile: '编辑资料',
     changeAvatar: '更换头像',
+    loginToViewProfile: '登录查看个人资料',
 
     // Sections
     basicInfo: '基本信息',

@@ -29,8 +29,12 @@ export default function MineIndex() {
           totalStudyTime: result.data.total_study_time || 0
         });
       }
-    } catch (error) {
-      console.error('Failed to load user stats:', error);
+    } catch (error: any) {
+      if (error?.message?.includes('not found') || error?.code === 'HTTP_404') {
+        console.log('[Mine] User statistics endpoint not implemented yet');
+      } else {
+        console.error('[Mine] Failed to load user stats:', error);
+      }
     }
   };
 

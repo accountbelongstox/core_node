@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1InvoiceModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_invoices';
 
     protected $fillable = [

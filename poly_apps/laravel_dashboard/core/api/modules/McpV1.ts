@@ -30,6 +30,14 @@ export class McpV1API extends BaseAPI {
     return this.delete(`/screenshots/${id}`);
   }
 
+  async searchScreenshots(params: { query?: string; page?: number; limit?: number }): Promise<APIResponse> {
+    return this.get('/screenshots/search', params);
+  }
+
+  async getScreenshotStats(): Promise<APIResponse> {
+    return this.get('/screenshots/stats');
+  }
+
   // ========== 任务管理 ==========
   async getTaskCategories(): Promise<APIResponse> {
     return this.get('/task-dispatch/categories', undefined, true, 600000);
@@ -47,8 +55,24 @@ export class McpV1API extends BaseAPI {
     return this.post('/task-dispatch/queue/add-file', data);
   }
 
+  async searchTasks(categoryId: string, query: string): Promise<APIResponse> {
+    return this.get(`/task-dispatch/queue/${categoryId}/search`, { query });
+  }
+
+  async createTaskCategory(name: string): Promise<APIResponse> {
+    return this.post('/task-dispatch/categories', { name });
+  }
+
   async executeTask(taskId: string): Promise<APIResponse> {
     return this.post(`/tasks/${taskId}/execute`);
+  }
+
+  async getCategoryFiles(categoryId: string): Promise<APIResponse> {
+    return this.get(`/task-dispatch/categories/${categoryId}/files`);
+  }
+
+  async updateTaskStatus(categoryId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed' | 'failed'): Promise<APIResponse> {
+    return this.put(`/task-dispatch/queue/${categoryId}/tasks/${taskId}/status`, { status });
   }
 
   // ========== 提示词管理 ==========

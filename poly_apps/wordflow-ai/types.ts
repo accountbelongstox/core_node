@@ -218,7 +218,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     appInterface: 'zh',
     targetLearning: 'en',
     translationTarget: 'zh',
-    learningLanguages: ['english'], // Default to English for vocabulary recommendations
+    learningLanguages: ['english'],
   },
   audio: {
     voiceEngine: 'US',
