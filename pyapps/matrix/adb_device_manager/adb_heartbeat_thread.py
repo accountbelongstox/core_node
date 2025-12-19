@@ -64,11 +64,11 @@ class ADBHeartbeatThread(threading.Thread):
         self._running = False
         self.rpc_server = None
 
-        # ✅ Use global singleton instances (DO NOT instantiate with ClassName())
+        # ✅ 使用全局导出的实例（模块级别单例）
         self.device_table = device_table
-        self.adb = ADBExecutor.instance(adb_path=adb_path)
-        self.network_scanner = NetworkScanner.instance(port=5555, timeout=0.2)
-        self.usb_monitor = USBMonitor.instance(auto_convert=True)
+        self.adb = adb_executor
+        self.network_scanner = network_scanner
+        self.usb_monitor = get_usb_monitor()
 
         self._last_network_scan = 0.0
         self._last_usb_scan = 0.0

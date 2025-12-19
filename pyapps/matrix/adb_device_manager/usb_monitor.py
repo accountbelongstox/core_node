@@ -17,11 +17,7 @@ from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInf
 
 class USBMonitor:
     """
-    USB device monitor and wireless converter 
-
-    IMPORTANT: This is a singleton class. Use USBMonitor.instance() to get the global instance.
-    DO NOT instantiate with USBMonitor() directly.
-    """
+    USB device monitor and wireless converter    """
     def __init__(
         self,
         adb_executor: ADBExecutor,
@@ -30,11 +26,7 @@ class USBMonitor:
         conversion_delay: float = 2.0
     ):
         """
-        Initialize USB monitor
-
-        WARNING: Do not call directly. Use USBMonitor.instance() instead.
-
-        Args:
+        Initialize USB monitor        Args:
             adb_executor: ADB executor instance
             device_table: Device table instance
             auto_convert: Auto-convert USB to wireless (default: True)
