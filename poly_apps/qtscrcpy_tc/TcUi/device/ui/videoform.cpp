@@ -1,4 +1,4 @@
-#include <QDesktopWidget>
+// Qt 6: QDesktopWidget removed, use QScreen instead (already included below)
 #include <QFileInfo>
 #include <QLabel>
 #include <QMessageBox>

@@ -15,6 +15,7 @@ import postcssConfig from './postcss.config.js'
 import useAutoImports from './src/plugins/auto.js'
 
 const alias = {
+  '@': resolve('src'),
   $: resolve('src'),
   $root: resolve(),
   $docs: resolve('docs'),
@@ -29,6 +30,7 @@ function mergeCommon(config, { command = '' } = {}) {
     {
       resolve: {
         alias,
+        extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.vue'],
       },
     },
     config,
