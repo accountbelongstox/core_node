@@ -124,13 +124,17 @@ win32 {
         WIN_FFMPEG_SRC = $$PWD/third_party/ffmpeg/bin/x86/*.dll
     }
 
-    # Copy dependency libraries
+    # Copy dependency libraries (FFmpeg only, Qt DLLs copied by build script)
     WIN_DST = $$DESTDIR
 
     WIN_FFMPEG_SRC ~= s,/,\\,g
     WIN_DST ~= s,/,\\,g
 
     QMAKE_POST_LINK += $$quote($$QMAKE_COPY $$WIN_FFMPEG_SRC $$WIN_DST$$escape_expand(\n\t))
+
+    # Note: Qt 6 runtime DLLs are copied by build-windows.bat script
+    # This includes: Qt6Core, Qt6Gui, Qt6Widgets, Qt6Network, Qt6OpenGL, Qt6OpenGLWidgets
+    # And platform plugin: platforms/qwindows.dll
 
     # Windows rc file
     RC_FILE = $$PWD/res/TcUi.rc

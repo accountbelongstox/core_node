@@ -87,6 +87,7 @@ app.*.symbols
 # Flutter/Dart Test
 
 **/.dart_tool/
+**/.dart_tool/**
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/.packages
