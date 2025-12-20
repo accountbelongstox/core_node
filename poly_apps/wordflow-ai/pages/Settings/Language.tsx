@@ -1,10 +1,11 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons } from '../../components/UI';
-import { api } from '../../services/api';
-import { ApiCenter } from '../../services/ApiCenter';
 import { SupportedLanguage } from '../../types';
 import { IconMappingService } from '../../services/IconMappingService';
+import { LanguagesCenter } from '../../services/LanguagesCenter';
+import { StudyGroupsCenter } from '../../services/StudyGroupsCenter';
+import { ApiCenter } from '../../services/ApiCenter';
 
 interface ToggleSettingProps {
   label: string;
@@ -44,49 +45,61 @@ const LanguageSettings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Subscribe to LanguagesCenter for automatic updates
   useEffect(() => {
-    const fetchLanguages = async () => {
-      try {
-        const response: any = await api.getSupportedLanguages();
-
-        let languages: SupportedLanguage[] = [];
-        if (Array.isArray(response)) {
-          languages = response;
-        } else if (response && typeof response === 'object' && Array.isArray(response.data)) {
-          languages = response.data;
-        } else if (response && typeof response === 'object' && response.success && Array.isArray(response.data)) {
-          languages = response.data;
-        }
-
-        if (languages.length > 0) {
-          setLangs(languages);
-          setError(null);
-        } else {
-          console.warn('[LanguageSettings] No languages received from API');
-          setError(t('settings.noLanguagesAvailable'));
-        }
-      } catch (error) {
-        console.error('[LanguageSettings] Failed to load languages:', error);
-        setError(t('settings.failedToLoadLanguages'));
-      } finally {
-        setLoading(false);
+    const unsubscribe = LanguagesCenter.subscribe((languages) => {
+      if (languages.length > 0) {
+        setLangs(languages);
+        setError(null);
+      } else {
+        console.warn('[LanguageSettings] No languages available');
+        setError(t('settings.noLanguagesAvailable'));
       }
-    };
+      setLoading(false);
+    });
 
-    fetchLanguages();
-  }, []);
+    // Initialize (fetch from cache or API)
+    LanguagesCenter.initialize().catch(err => {
+      console.error('[LanguageSettings] Failed to load languages:', err);
+      setError(t('settings.failedToLoadLanguages'));
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, [t]);
 
   const toggleLearningLang = async (code: string) => {
-    let newLangs = [...(settings.language.learningLanguages || [])];
-    if (newLangs.includes(code)) {
-      newLangs = newLangs.filter(l => l !== code);
-    } else {
+    const oldLangs = [...(settings.language.learningLanguages || [])];
+    let newLangs = [...oldLangs];
+    const isAdding = !newLangs.includes(code);
+
+    if (isAdding) {
       newLangs.push(code);
+    } else {
+      newLangs = newLangs.filter(l => l !== code);
     }
 
     // Update global settings
     console.log('[LanguageSettings] Updating global settings with:', newLangs);
     updateSettings({ language: { ...settings.language, learningLanguages: newLangs } });
+
+    // 【新增】如果是添加新语言，立即创建该语言的背诵分组
+    if (isAdding && user) {
+      try {
+        console.log('[LanguageSettings] Creating study group for language:', code);
+
+        // 1. 先在前端创建（乐观更新）
+        const newGroup = await StudyGroupsCenter.createLanguageGroup(code);
+
+        if (newGroup) {
+          console.log('[LanguageSettings] Study group created successfully:', newGroup.id);
+        } else {
+          console.warn('[LanguageSettings] Failed to create study group for:', code);
+        }
+      } catch (error) {
+        console.error('[LanguageSettings] Error creating study group:', error);
+      }
+    }
 
     // Sync to backend if user is logged in
     if (user) {
@@ -126,7 +139,7 @@ const LanguageSettings = () => {
   if (error || langs.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-        <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+        <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
           <div className="flex items-center gap-3 mb-6">
             <button
               onClick={() => navigate('settings')}
@@ -159,7 +172,7 @@ const LanguageSettings = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => navigate('settings')}
@@ -176,7 +189,7 @@ const LanguageSettings = () => {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Learning Languages Section */}
         <div className="space-y-3">
           <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">

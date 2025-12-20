@@ -63,6 +63,11 @@ export const en = {
     practice: 'Practice',
     tools: 'Tools',
     mine: 'Mine',
+    // Mine menu subtitles
+    profileSubtitle: 'Personal information and settings',
+    progressSubtitle: 'View your learning analytics',
+    socialSubtitle: 'Friends and leaderboard',
+    settingsSubtitle: 'App preferences and account',
   },
 
   home: {
@@ -124,6 +129,18 @@ export const en = {
     reviewQueue: 'Review Queue',
     noReviewNeeded: 'All caught up!',
     noReviewDescription: 'No words need review right now',
+
+    // Add to Group Modal
+    addToGroup: 'Add to Study Group',
+    selectStudyGroup: 'Select Study Group',
+    addLibraryToGroup: 'Add "{name}" to which study group?',
+    noGroupsYet: 'No study groups yet',
+    createNewGroup: 'Create New Group',
+    addedToGroup: 'Added to "{name}"',
+    addingWords: 'Adding {count} words...',
+    wordsAddedSuccess: 'Successfully added {count} words',
+    studyGroups: 'Study Groups',
+    recitationGroup: 'Recitation Group',
   },
 
   reading: {
@@ -136,6 +153,10 @@ export const en = {
     tapToTranslate: 'Tap on any word to translate',
     bookmarks: 'Bookmarks',
     progress: 'Progress',
+    library: 'Library',
+    review: 'Review',
+    next: 'Next',
+    loadingEngine: 'LOADING ENGINE...',
   },
 
   flashcards: {
@@ -149,6 +170,14 @@ export const en = {
     studyAgain: 'Study Again',
     cardsDue: 'Cards Due',
     cardsToday: 'Cards Today',
+    word: 'Word',
+    meaning: 'Meaning',
+    hard: 'Hard',
+    good: 'Good',
+    easy: 'Easy',
+    sessionComplete: 'Session Complete!',
+    backHome: 'Back Home',
+    reviewedCards: 'You reviewed {count} cards.',
   },
 
   quiz: {
@@ -188,6 +217,58 @@ export const en = {
     noBooksFound: 'No books found for this language.',
     noDescription: 'No description available.',
     words: 'words',
+  },
+
+  vocabulary: {
+    title: 'Vocabulary',
+    libraries: 'Vocabulary Libraries',
+    libraryDetails: 'Library Details',
+    wordList: 'Word List',
+    totalWords: 'Total Words',
+    difficulty: 'Difficulty',
+    category: 'Category',
+    language: 'Language',
+    recommended: 'Recommended',
+    selectLibrary: 'Select a library to start learning',
+    noWordsFound: 'No words found',
+    loadingWords: 'Loading words...',
+    viewOptions: 'View Options',
+    displaySettings: 'Display Settings',
+
+    // Display options
+    showIndex: 'Show Index',
+    showTranslation: 'Show Translation',
+    fontSize: 'Font Size',
+    columnCount: 'Columns',
+    wordsPerPage: 'Words Per Page',
+    translationProvider: 'Translation Provider',
+    autoTranslate: 'Auto Translate',
+
+    // Translation providers
+    none: 'None',
+    bing: 'Bing Translator',
+    google: 'Google Translate',
+    deepl: 'DeepL',
+
+    // Actions
+    startLearning: 'Start Learning',
+    addToMyLibrary: 'Add to My Library',
+    removeFromLibrary: 'Remove from Library',
+    export: 'Export',
+    share: 'Share',
+  },
+
+  recommendations: {
+    title: 'Recommended for You',
+    allRecommendations: 'All Recommendations',
+    basedOnYourLevel: 'Based on your level',
+    popularThisWeek: 'Popular this week',
+    newAdditions: 'New additions',
+    forBeginners: 'For beginners',
+    forAdvanced: 'For advanced learners',
+    noRecommendations: 'No recommendations available',
+    filter: 'Filter',
+    sortBy: 'Sort by',
   },
 
   profile: {
@@ -282,6 +363,7 @@ export const en = {
     notSet: 'Not set',
     processing: 'Processing...',
     proMember: 'Pro Member',
+    freePlan: 'Free Plan',
     yearsOld: '{age} years old',
 
     // Warnings
@@ -320,6 +402,7 @@ export const en = {
     version: 'Version',
     privacyPolicy: 'Privacy Policy',
     termsOfService: 'Terms of Service',
+    appPreferences: 'App preferences',
 
     // Settings Index Page
     preferences: 'Preferences',
@@ -369,6 +452,10 @@ export const en = {
     flowControl: 'Flow Control',
     instantReview: 'Instant Review',
     autoAdvance: 'Auto Advance',
+    difficulty: 'Difficulty',
+    adaptive: 'Adaptive',
+    playback: 'Playback',
+    goals: 'Goals',
 
     // About Page - i18n extension
     appName: 'WordFlow AI',
@@ -387,12 +474,17 @@ export const en = {
     storage: 'Storage',
     usedStorage: 'Used Storage',
     clearCache: 'Clear Cache',
+    words: 'Words',
+    audio: 'Audio',
+    images: 'Images',
 
     // Notifications Page - i18n extension
     reviewAlerts: 'Review Alerts',
     achievementBadges: 'Achievement Badges',
     newCourseAlerts: 'New Course Alerts',
     reminderTime: 'Reminder Time',
+    from: 'From',
+    to: 'To',
 
     // ApiServer Page - i18n extension
     backendApiConfig: 'Backend API Configuration',
@@ -440,6 +532,11 @@ export const en = {
     studyTime: 'Study Time',
     accuracy: 'Accuracy',
     retention: 'Retention Rate',
+    retentionShort: 'Retention',
+    words: 'Words',
+    mastered: 'Mastered',
+    streak: 'Streak',
+    hours: 'Hours',
   },
 
   // Social Pages - i18n extension
@@ -454,6 +551,8 @@ export const en = {
     rank: 'Rank',
     badges: 'Badges',
     unlocked: 'Unlocked',
+    friendsShort: 'Friends',
+    badgesShort: 'Badges',
   },
 
   header: {

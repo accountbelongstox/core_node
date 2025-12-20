@@ -60,7 +60,7 @@ export default function MineProgress() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
           Learning Progress
         </h1>
@@ -69,7 +69,7 @@ export default function MineProgress() {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Today's Progress */}
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
           <div className="space-y-4">
@@ -127,7 +127,7 @@ export default function MineProgress() {
               <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-green-100 text-sm">Mastered</p>
+              <p className="text-green-100 text-sm">{t('stats.mastered')}</p>
               <p className="text-4xl font-bold mt-1">{progress.mastered_words}</p>
             </div>
           </Card>

@@ -5,7 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CodeMartV1DepositModel extends Model
 {
-    protected $connection = 'CodeMartV1';
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_deposits';
 
     protected $fillable = [

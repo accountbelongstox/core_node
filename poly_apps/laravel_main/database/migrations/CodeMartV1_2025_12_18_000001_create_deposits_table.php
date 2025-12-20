@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('CodeMartV1')->create('codemart_v1_deposits', function (Blueprint $table) {
+        Schema::connection('codemartv1')->create('codemart_v1_deposits', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->string('role_type');
@@ -26,6 +26,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_deposits');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_deposits');
     }
 };

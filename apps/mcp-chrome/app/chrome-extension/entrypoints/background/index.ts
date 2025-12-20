@@ -18,6 +18,38 @@ import { getLocalTaskQueueService, setupQueueMessageListener } from './services/
  * Initializes all background services and listeners
  */
 export default defineBackground(() => {
+  /**
+   * Global unhandled promise rejection handler
+   * Suppresses benign "Receiving end does not exist" errors that occur when
+   * broadcasting messages to non-existent receivers (e.g., closed popup windows)
+   *
+   * This is a known Chrome Extension architecture limitation:
+   * - Service workers wake up and send messages
+   * - Popup windows may not be open (no listeners)
+   * - chrome.runtime.sendMessage fails with "Receiving end does not exist"
+   *
+   * References:
+   * - https://groups.google.com/a/chromium.org/g/chromium-extensions/c/BH5_4OKxM3s
+   * - https://developer.chrome.com/docs/extensions/mv3/messaging/
+   */
+  self.addEventListener('unhandledrejection', (event) => {
+    const errorMessage = event.reason?.message || '';
+
+    // Check if it's the benign "no receiver" connection error
+    if (
+      errorMessage.includes('Could not establish connection') ||
+      errorMessage.includes('Receiving end does not exist')
+    ) {
+      // Suppress the error - this is expected when no listeners are present
+      event.preventDefault();
+      console.debug('[Background] Suppressed benign connection error (no listeners present)');
+      return;
+    }
+
+    // Log other unhandled rejections (actual errors that need attention)
+    console.error('[Background] ⚠️ Unhandled promise rejection:', event.reason);
+  });
+
   // Initialize Local Task Queue (Unified Queue System)
   console.log('🎯 Initializing Local Task Queue...');
   setupQueueMessageListener();

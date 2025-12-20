@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1AIAnalysisModel extends Model
 {
-    protected $connection = 'CodeMartV1';
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_ai_analyses';
 
     protected $fillable = [

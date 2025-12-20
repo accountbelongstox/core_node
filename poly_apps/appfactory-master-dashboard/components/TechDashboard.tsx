@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Play,
-  Cpu,
   Server,
   Code2,
   Search,
@@ -24,39 +23,54 @@ import {
   MoreVertical,
   ArrowUpRight,
   Rocket,
-  ArrowLeft
+  ArrowLeft,
+  MapPin,
+  Smartphone
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '../contexts/AppContext';
 import { UserRole, AppStatus } from '../types';
 import { StatCard } from './StatCard';
-import { MOCK_APP_REQUESTS, MOCK_APPS, MOCK_DAILY_STATS } from '../constants';
+import { MOCK_APP_REQUESTS, MOCK_APPS, MOCK_DAILY_STATS, MOCK_TECH } from '../constants';
+import { Profile } from './Profile';
+import { NotificationCenter } from './NotificationCenter';
+import { AppReleaseForm } from './AppReleaseForm';
+import { PromotionTrackView } from './PromotionTrackView';
+import { AppReleaseList } from './AppReleaseList';
+import { AppReleaseDetail } from './AppReleaseDetail';
 
 const TechOverview = () => {
-  const { t } = useApp();
+  const { t, user } = useApp();
   
   const techStats = useMemo(() => {
-    const myTasks = MOCK_APP_REQUESTS.filter(r => r.assignedTechId === 'tech2'); // Mocking tech2
-    const myProjects = MOCK_APPS.filter(a => a.assignedTechId === 'tech2');
+    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    if (!tech) return null;
+    
+    const myTasks = MOCK_APP_REQUESTS.filter(r => r.assignedTechId === tech.id);
+    const myProjects = MOCK_APPS.filter(a => a.assignedTechId === tech.id);
     return {
-      activeTasks: myTasks.length,
+      tech,
+      activeTasks: myTasks.filter(t => t.status === 'in_progress').length,
       completedApps: myProjects.length,
+      pendingTasks: myTasks.filter(t => t.status === 'pending').length,
     };
-  }, []);
+  }, [user]);
+
+  if (!techStats) return <div className="text-slate-400">Loading...</div>;
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Active Tasks" value={techStats.activeTasks.toString()} change="+1" isPositive icon={<Terminal size={20} />} />
-        <StatCard title="Completed Apps" value={techStats.completedApps.toString()} icon={<Box size={20} />} />
-        <StatCard title="Avg Build Time" value="4m 20s" change="-15s" isPositive icon={<Activity size={20} />} />
-        <StatCard title="System Health" value="99.9%" icon={<Monitor size={20} />} />
+        <StatCard title={t('techDashboard.activeTasks')} value={techStats.activeTasks.toString()} change="+1" isPositive icon={<Terminal size={20} />} />
+        <StatCard title={t('techDashboard.completedApps')} value={techStats.completedApps.toString()} icon={<Box size={20} />} />
+        <StatCard title={t('techDashboard.avgBuildTime')} value="4m 20s" change="-15s" isPositive icon={<Activity size={20} />} />
+        <StatCard title={t('techDashboard.systemHealth')} value="99.9%" icon={<Monitor size={20} />} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Build Activity</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('techDashboard.buildActivity')}</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={MOCK_DAILY_STATS}>
@@ -78,11 +92,11 @@ const TechOverview = () => {
 
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Active Generation Queue</h3>
-              <Link to="/queue" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">View Full Queue</Link>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('techDashboard.activeGenerationQueue')}</h3>
+              <Link to="/queue" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">{t('techDashboard.viewFullQueue')}</Link>
             </div>
             <div className="space-y-4">
-              {MOCK_APP_REQUESTS.filter(r => r.assignedTechId === 'tech2').map(req => (
+              {MOCK_APP_REQUESTS.filter(r => r.assignedTechId === techStats.tech?.id && r.status === 'in_progress').slice(0, 3).map(req => (
                 <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 group hover:border-indigo-500/50 transition-all">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
@@ -112,12 +126,12 @@ const TechOverview = () => {
           <div className="bg-slate-900 p-6 rounded-2xl text-white shadow-xl shadow-slate-900/20">
             <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
               <Server size={16} />
-              Server Resources
+              {t('techDashboard.serverResources')}
             </h4>
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold">
-                  <span>CPU Usage</span>
+                  <span>{t('techDashboard.cpuUsage')}</span>
                   <span className="text-emerald-400">24%</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -126,7 +140,7 @@ const TechOverview = () => {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold">
-                  <span>RAM Usage</span>
+                  <span>{t('techDashboard.ramUsage')}</span>
                   <span className="text-indigo-400">4.2GB / 16GB</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -135,7 +149,7 @@ const TechOverview = () => {
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold">
-                  <span>Active Builds</span>
+                  <span>{t('techDashboard.activeBuilds')}</span>
                   <span className="text-amber-400">2 / 5 Max</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -144,29 +158,29 @@ const TechOverview = () => {
               </div>
             </div>
             <button className="w-full mt-8 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2">
-              Resource Monitor
+              {t('techDashboard.resourceMonitor')}
               <ArrowUpRight size={14} />
             </button>
           </div>
 
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Quick Tools</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('techDashboard.quickTools')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <button className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-500/50 transition-all group">
                 <Code2 className="text-slate-400 group-hover:text-indigo-600" size={24} />
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Snippets</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{t('techDashboard.snippets')}</span>
               </button>
               <button className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-500/50 transition-all group">
                 <Rocket className="text-slate-400 group-hover:text-indigo-600" size={24} />
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Deploy</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{t('techDashboard.deploy')}</span>
               </button>
               <button className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-500/50 transition-all group">
                 <Terminal className="text-slate-400 group-hover:text-indigo-600" size={24} />
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Logs</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{t('techDashboard.logs')}</span>
               </button>
               <button className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-500/50 transition-all group">
                 <Zap className="text-slate-400 group-hover:text-indigo-600" size={24} />
-                <span className="text-[10px] font-bold text-slate-500 uppercase">AI Help</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase">{t('techDashboard.aiHelp')}</span>
               </button>
             </div>
           </div>
@@ -178,17 +192,18 @@ const TechOverview = () => {
 
 // Generation Queue Component
 const GenerationQueue = () => {
+  const { t } = useApp();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">APP Generation Queue</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Manage and monitor automated APP generation tasks</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('techDashboard.appGenerationQueue')}</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('techDashboard.manageAndMonitor')}</p>
         </div>
         <div className="flex gap-3">
           <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Auto-Gen: Active</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('techDashboard.autoGenActive')}</span>
           </div>
         </div>
       </div>
@@ -196,11 +211,11 @@ const GenerationQueue = () => {
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-            {['All Status', 'Pending', 'In Progress', 'Completed', 'Failed'].map(status => (
+            {[t('techDashboard.allStatus'), t('techDashboard.pending'), t('techDashboard.inProgress'), t('techDashboard.completed'), t('techDashboard.failed')].map(status => (
               <button
                 key={status}
                 className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  status === 'All Status' 
+                  status === t('techDashboard.allStatus')
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' 
                     : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
                 }`}
@@ -213,7 +228,7 @@ const GenerationQueue = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search tasks..."
+              placeholder={t('techDashboard.searchTasks')}
               className="pl-10 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full md:w-64"
             />
           </div>
@@ -223,12 +238,12 @@ const GenerationQueue = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Request ID</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">App Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Category</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Progress</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.requestId')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.appName')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.category')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.progress')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.status')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">{t('techDashboard.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -279,11 +294,9 @@ const GenerationQueue = () => {
   );
 };
 
-import { Profile } from './Profile';
-import { NotificationCenter } from './NotificationCenter';
-
 // Build & Deployment Component
 const BuildDeployment = () => {
+  const { t } = useApp();
   const builds = [
     { id: 'BUILD-001', app: 'Smart Expense Pro', status: 'Success', duration: '4m 23s', timestamp: '2 hours ago', version: 'v1.2.4' },
     { id: 'BUILD-002', app: 'FitTrack Plus', status: 'Failed', duration: '2m 15s', timestamp: '5 hours ago', version: 'v1.1.0' },
@@ -295,17 +308,17 @@ const BuildDeployment = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Build & Deployment</h2>
-          <p className="text-sm text-slate-500">Manage app builds and deployments</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('techDashboard.buildAndDeploy')}</h2>
+          <p className="text-sm text-slate-500">{t('techDashboard.manageAndMonitor')}</p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-all">
             <Rocket size={18} />
-            New Build
+            {t('techDashboard.newBuild')}
           </button>
           <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-500/20">
             <Rocket size={18} />
-            Deploy to Production
+            {t('techDashboard.deployToProduction')}
           </button>
         </div>
       </div>
@@ -314,7 +327,7 @@ const BuildDeployment = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Build History</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('techDashboard.buildHistory')}</h3>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {builds.map(build => (
@@ -350,7 +363,7 @@ const BuildDeployment = () => {
 
         <div className="space-y-6">
           <div className="bg-slate-900 p-6 rounded-2xl text-white">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Build Logs</h4>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{t('techDashboard.buildLogs')}</h4>
             <div className="font-mono text-[10px] space-y-1 opacity-60 max-h-64 overflow-y-auto">
               <p className="text-emerald-400">[14:23:15] Starting build process...</p>
               <p>[14:23:16] Installing dependencies...</p>
@@ -364,19 +377,19 @@ const BuildDeployment = () => {
           </div>
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Quick Actions</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('techDashboard.quickActions')}</h3>
             <div className="space-y-3">
               <button className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
                 <Rocket size={18} />
-                Deploy to Test
+                {t('techDashboard.deployToTest')}
               </button>
               <button className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
                 <Rocket size={18} />
-                Deploy to Prod
+                {t('techDashboard.deployToProd')}
               </button>
               <button className="w-full py-3 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
                 <ArrowLeft size={18} />
-                Rollback
+                {t('techDashboard.rollback')}
               </button>
             </div>
           </div>
@@ -388,14 +401,19 @@ const BuildDeployment = () => {
 
 // Performance Monitoring Component
 const PerformanceMonitoring = () => {
-  const apps = MOCK_APPS.filter(a => a.assignedTechId === 'tech2').slice(0, 5);
+  const { t, user } = useApp();
+  const apps = useMemo(() => {
+    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    if (!tech) return [];
+    return MOCK_APPS.filter(a => a.assignedTechId === tech.id).slice(0, 5);
+  }, [user]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Performance Monitoring</h2>
-          <p className="text-sm text-slate-500">Real-time app performance metrics</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('techDashboard.performanceMonitoring')}</h2>
+          <p className="text-sm text-slate-500">{t('techDashboard.realTimeMetrics')}</p>
         </div>
       </div>
 
@@ -412,7 +430,7 @@ const PerformanceMonitoring = () => {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-slate-500">Response Time</span>
+                  <span className="text-slate-500">{t('techDashboard.responseTime')}</span>
                   <span className="text-emerald-500">142ms</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -422,7 +440,7 @@ const PerformanceMonitoring = () => {
 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-slate-500">Error Rate</span>
+                  <span className="text-slate-500">{t('techDashboard.errorRate')}</span>
                   <span className="text-rose-500">0.02%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -432,7 +450,7 @@ const PerformanceMonitoring = () => {
 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-2">
-                  <span className="text-slate-500">Uptime</span>
+                  <span className="text-slate-500">{t('techDashboard.uptime')}</span>
                   <span className="text-indigo-500">99.98%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -443,11 +461,11 @@ const PerformanceMonitoring = () => {
               <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <p className="text-slate-400 mb-1">Active Users</p>
+                    <p className="text-slate-400 mb-1">{t('techDashboard.activeUsers')}</p>
                     <p className="font-bold text-slate-800 dark:text-white">{app.dailyActiveUsers.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-slate-400 mb-1">Requests/min</p>
+                    <p className="text-slate-400 mb-1">{t('techDashboard.requestsPerMin')}</p>
                     <p className="font-bold text-slate-800 dark:text-white">1,234</p>
                   </div>
                 </div>
@@ -462,6 +480,7 @@ const PerformanceMonitoring = () => {
 
 // Bug Tracking Component
 const BugTracking = () => {
+  const { t } = useApp();
   const bugs = [
     { id: 'BUG-001', app: 'Smart Expense Pro', issue: 'API timeout on receipt scan', priority: 'High', status: 'In Progress', reporter: 'Alice Chen' },
     { id: 'BUG-002', app: 'FitTrack Plus', issue: 'Avatar upload failing on Android', priority: 'Medium', status: 'Pending', reporter: 'Bob Smith' },
@@ -473,12 +492,12 @@ const BugTracking = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Bug Tracking</h2>
-          <p className="text-sm text-slate-500">Monitor and resolve application issues</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('techDashboard.bugTracking')}</h2>
+          <p className="text-sm text-slate-500">{t('techDashboard.manageAndMonitor')}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-500/20">
           <AlertCircle size={18} />
-          Report Bug
+          {t('techDashboard.reportBug')}
         </button>
       </div>
 
@@ -486,12 +505,12 @@ const BugTracking = () => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
             <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">ID & Application</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Issue</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Priority</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Reporter</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">Actions</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.idAndApplication')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.issue')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.priority')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.status')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('techDashboard.reporter')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">{t('techDashboard.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -542,23 +561,24 @@ const BugTracking = () => {
 
 // Task Details Component
 const TaskDetails = () => {
+  const { t } = useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const req = useMemo(() => MOCK_APP_REQUESTS.find(r => r.id === id), [id]);
 
-  if (!req) return <div className="p-8 text-center">Task not found</div>;
+  if (!req) return <div className="p-8 text-center">{t('techDashboard.taskNotFound')}</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors">
           <ArrowLeft size={20} />
-          Back to Queue
+          {t('techDashboard.backToQueue')}
         </button>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20">
             <Play size={18} fill="currentColor" />
-            Start Build
+            {t('techDashboard.startBuild')}
           </button>
         </div>
       </div>
@@ -583,7 +603,7 @@ const TaskDetails = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <Rocket size={16} />
-                  Project Requirements
+                  {t('techDashboard.projectRequirements')}
                 </h3>
                 <div className="bg-slate-50 dark:bg-slate-700/30 p-6 rounded-2xl border border-slate-100 dark:border-slate-700">
                   <p className="text-slate-600 dark:text-slate-300 leading-relaxed italic">
@@ -593,7 +613,7 @@ const TaskDetails = () => {
               </div>
 
               <div>
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Core Features to Implement</h3>
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{t('techDashboard.coreFeaturesToImplement')}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {req.features.map((f, i) => (
                     <div key={i} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -609,7 +629,7 @@ const TaskDetails = () => {
               <div>
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <Zap size={16} />
-                  AI Generated Suggestions (Gemini)
+                  {t('techDashboard.aiGeneratedSuggestions')}
                 </h3>
                 <div className="p-6 border-2 border-dashed border-indigo-100 dark:border-indigo-900/50 rounded-2xl bg-indigo-50/30 dark:bg-indigo-900/10">
                   <div className="space-y-4">
@@ -618,7 +638,7 @@ const TaskDetails = () => {
                         <Code size={16} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">Recommended Tech Stack</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">{t('techDashboard.recommendedTechStack')}</p>
                         <p className="text-xs text-slate-500">React 18+, TailwindCSS, Supabase for realtime DB, Edge Functions.</p>
                       </div>
                     </div>
@@ -627,7 +647,7 @@ const TaskDetails = () => {
                         <Zap size={16} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">Performance Tip</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">{t('techDashboard.performanceTip')}</p>
                         <p className="text-xs text-slate-500">Use optimistic UI updates for recipe ratings to ensure zero-latency feel.</p>
                       </div>
                     </div>
@@ -640,29 +660,29 @@ const TaskDetails = () => {
 
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Task Info</h3>
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">{t('techDashboard.taskInfo')}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-700">
-                <span className="text-xs text-slate-500">Status</span>
+                <span className="text-xs text-slate-500">{t('techDashboard.status')}</span>
                 <span className="text-xs font-bold text-amber-500 uppercase">{req.status}</span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-700">
-                <span className="text-xs text-slate-500">Requested At</span>
+                <span className="text-xs text-slate-500">{t('techDashboard.requestedAt')}</span>
                 <span className="text-xs font-bold text-slate-800 dark:text-white">{req.requestedAt}</span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-slate-50 dark:border-slate-700">
-                <span className="text-xs text-slate-500">Target Audience</span>
+                <span className="text-xs text-slate-500">{t('techDashboard.targetAudience')}</span>
                 <span className="text-xs font-bold text-slate-800 dark:text-white">{req.targetAudience}</span>
               </div>
               <div className="flex items-center justify-between py-3">
-                <span className="text-xs text-slate-500">Estimated Effort</span>
+                <span className="text-xs text-slate-500">{t('techDashboard.estimatedEffort')}</span>
                 <span className="text-xs font-bold text-indigo-600 uppercase">3-4 Days</span>
               </div>
             </div>
           </div>
 
           <div className="bg-slate-900 p-6 rounded-2xl text-white">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Build Logs</h4>
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{t('techDashboard.buildLogs')}</h4>
             <div className="font-mono text-[10px] space-y-1 opacity-60">
               <p className="text-emerald-400">[09:00:21] Task initialized...</p>
               <p>[09:00:22] Fetching requirements...</p>
@@ -679,18 +699,23 @@ const TaskDetails = () => {
 
 // Technical Projects List
 const MyProjects = () => {
-  const myProjects = MOCK_APPS.filter(a => a.assignedTechId === 'tech2');
+  const { t, user } = useApp();
+  const myProjects = useMemo(() => {
+    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    if (!tech) return [];
+    return MOCK_APPS.filter(a => a.assignedTechId === tech.id);
+  }, [user]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Technical Projects</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Applications generated and maintained by you</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('techDashboard.technicalProjects')}</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('techDashboard.applicationsGeneratedAndMaintained')}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all">
           <Code size={18} />
-          Open IDE
+          {t('techDashboard.openIDE')}
         </button>
       </div>
 
@@ -730,18 +755,18 @@ const MyProjects = () => {
               </div>
               
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                <span>Last deploy</span>
+                <span>{t('techDashboard.lastDeploy')}</span>
                 <span>2 hours ago</span>
               </div>
             </div>
             <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
               <button className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1 hover:text-indigo-600 transition-all">
                 <Terminal size={14} />
-                Build Logs
+                {t('techDashboard.buildLogs')}
               </button>
               <button className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline">
                 <Settings size={14} />
-                Config
+                {t('techDashboard.config')}
               </button>
             </div>
           </div>
@@ -758,11 +783,14 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
 
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
-    { icon: <Terminal size={20} />, label: 'Generation Queue', path: '/queue' },
-    { icon: <Box size={20} />, label: 'My Projects', path: '/projects' },
-    { icon: <Rocket size={20} />, label: 'Build & Deploy', path: '/build' },
-    { icon: <AlertCircle size={20} />, label: 'Bug Tracking', path: '/bugs' },
-    { icon: <Monitor size={20} />, label: 'Monitoring', path: '/monitoring' },
+    { icon: <Terminal size={20} />, label: t('techDashboard.generationQueue'), path: '/queue' },
+    { icon: <Box size={20} />, label: t('techDashboard.myProjects'), path: '/projects' },
+    { icon: <Rocket size={20} />, label: t('techDashboard.releaseApp'), path: '/release' },
+    { icon: <Smartphone size={20} />, label: '已发布APP', path: '/app-releases' },
+    { icon: <MapPin size={20} />, label: t('techDashboard.promotionTrack'), path: '/promotion-tracks' },
+    { icon: <Rocket size={20} />, label: t('techDashboard.buildAndDeploy'), path: '/build' },
+    { icon: <AlertCircle size={20} />, label: t('techDashboard.bugTracking'), path: '/bugs' },
+    { icon: <Monitor size={20} />, label: t('techDashboard.monitoring'), path: '/monitoring' },
   ];
 
   return (
@@ -772,7 +800,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
           <Zap size={24} fill="currentColor" />
         </div>
         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
-          AppFactory
+          {t('app.name')}
         </h1>
       </div>
 
@@ -799,8 +827,8 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
             {user ? user.name.substring(0, 2).toUpperCase() : 'TE'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || 'Tech User'}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Technical Engineer</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || t('techDashboard.techUser')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('techDashboard.technicalEngineer')}</p>
           </div>
           <button onClick={onOpenSettings} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
             <Settings size={18} />
@@ -823,7 +851,7 @@ const Header = () => {
     <header className="h-16 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 px-8 flex items-center justify-between">
       <div className="flex items-center gap-4 text-slate-400">
         <div className="flex items-center gap-1 text-sm">
-          <span>Technical Portal</span>
+          <span>{t('techDashboard.technicalPortal')}</span>
           <ChevronRight size={14} />
           <span className="text-slate-800 dark:text-white font-medium">{t('nav.overview')}</span>
         </div>
@@ -833,7 +861,7 @@ const Header = () => {
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
         </Link>
-        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2" />
+        <div className="h-6 w-px bg-slate-200 dark:border-slate-700 mx-2" />
         <Link to="/profile" className="flex items-center gap-2 group">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs group-hover:ring-2 ring-indigo-500 transition-all">
             TE
@@ -860,6 +888,10 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ onOpenSettings }) 
             <Route path="/queue" element={<GenerationQueue />} />
             <Route path="/queue/:id" element={<TaskDetails />} />
             <Route path="/projects" element={<MyProjects />} />
+            <Route path="/release" element={<AppReleaseForm />} />
+            <Route path="/app-releases" element={<AppReleaseList />} />
+            <Route path="/app-releases/:id" element={<AppReleaseDetail />} />
+            <Route path="/promotion-tracks" element={<PromotionTrackView />} />
             <Route path="/build" element={<BuildDeployment />} />
             <Route path="/bugs" element={<BugTracking />} />
             <Route path="/profile" element={<Profile />} />
@@ -871,4 +903,3 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ onOpenSettings }) 
     </div>
   );
 };
-

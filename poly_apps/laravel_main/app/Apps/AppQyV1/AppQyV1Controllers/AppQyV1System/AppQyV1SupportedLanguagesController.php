@@ -5,23 +5,44 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 use App\Traits\ApiResponse;
 
+/**
+ * 支持的语言列表控制器
+ * 重构: 使用 AppQyV1LanguageConfigService 统一语言配置
+ * 添加缓存: 24小时缓存语言列表
+ *
+ * ========================================
+ * Edge-TTS 语言支持说明
+ * ========================================
+ *
+ * 本控制器返回的语言列表基于 Microsoft Edge-TTS 服务。
+ * Edge-TTS 是 Microsoft Azure 认知服务的一部分，提供高质量的神经网络语音合成。
+ *
+ * 数据来源: AppQyV1LanguageConfigService (统一配置服务)
+ * Edge-TTS 仓库: https://github.com/rany2/edge-tts
+ * 官方文档: https://docs.microsoft.com/azure/cognitive-services/speech-service/language-support
+ *
+ * 语音标识符格式: {locale}-{region}-{voiceName}Neural
+ * 示例: 'zh-CN-XiaoxiaoNeural' (中文-中国-晓晓神经语音)
+ *
+ * 虽然语言列表是硬编码的，但严格遵循 Edge-TTS 官方规范。
+ * 如需更新语言列表，请确保与 Edge-TTS 最新版本同步。
+ */
 class AppQyV1SupportedLanguagesController extends Controller
 {
     use ApiResponse;
 
     /**
-     * NO try-catch allowed - trust Laravel validation
-     * NO ?? or || allowed - use explicit if statements
+     * DEPRECATED: 旧的语言配置数组
+     * 保留用于向后兼容，但应使用 AppQyV1LanguageConfigService
+     *
+     * 注意: 此数组中的 voice_id 与 Edge-TTS 官方保持一致
+     * 请勿随意修改 voice_id，否则会导致 TTS 服务调用失败
      */
-
-    /**
-     * Supported languages with generic icon names for frontend mapping
-     * Icon naming convention: 'flag-{country-code}' or generic names like 'globe'
-     * Frontend will map these to actual icon components or emojis
-     */
-    private static $languages = [
+    private static $languages_DEPRECATED = [
         'af' => ['name' => 'Afrikaans', 'native_name' => 'Afrikaans', 'voice_id' => 'af-ZA-AdriNeural', 'icon' => 'flag-za'],
         'am' => ['name' => 'Amharic', 'native_name' => 'አማርኛ', 'voice_id' => 'am-ET-MekdesNeural', 'icon' => 'flag-et'],
         'ar' => ['name' => 'Arabic', 'native_name' => 'العربية', 'voice_id' => 'ar-EG-SalmaNeural', 'icon' => 'flag-sa'],
@@ -105,55 +126,65 @@ class AppQyV1SupportedLanguagesController extends Controller
         'zu' => ['name' => 'Zulu', 'native_name' => 'isiZulu', 'voice_id' => 'zu-ZA-ThandoNeural', 'icon' => 'flag-za'],
     ];
 
+    /**
+     * 获取所有支持的语言 (静态方法)
+     * 使用新的 AppQyV1LanguageConfigService
+     */
     public static function getSupportedLanguagesStatic(): array
     {
-        return self::$languages;
+        return AppQyV1LanguageConfigService::getTTSLanguages();
     }
 
+    /**
+     * 获取所有支持的语言列表 (API端点)
+     * 添加24小时缓存
+     */
     public function getSupportedLanguages(Request $request): JsonResponse
     {
-        $languages = [];
+        $languages = Cache::remember('appqyv1_supported_languages', now()->addHours(24), function () {
+            $allLanguages = AppQyV1LanguageConfigService::getTTSLanguages();
+            $result = [];
 
-        foreach (self::$languages as $code => $info) {
-            $languages[] = [
-                'code' => $code,
-                'name' => $info['name'],
-                'native_name' => $info['native_name'],
-                'voice_id' => $info['voice_id'],
-                'icon' => $info['icon'],
-                'has_tts' => true,
-            ];
-        }
+            foreach ($allLanguages as $code => $info) {
+                $result[] = [
+                    'code' => $code,
+                    'name' => $info['name'] ?? '',
+                    'native_name' => $info['native_name'] ?? '',
+                    'voice_id' => $info['voice_id'] ?? '',
+                    'icon' => $info['flag_icon'] ?? '',
+                    'has_tts' => true,
+                ];
+            }
 
-        return response()->json([
-            'success' => true,
-            'data' => $languages,
+            return $result;
+        });
+
+        return $this->success([
+            'languages' => $languages,
             'total' => count($languages),
-        ]);
+        ], 'Supported languages retrieved successfully');
     }
 
+    /**
+     * 根据语言代码获取单个语言信息
+     * 使用 AppQyV1LanguageConfigService
+     */
     public function getLanguageByCode(Request $request, string $code): JsonResponse
     {
-        if (!isset(self::$languages[$code])) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Language not found',
-            ], 404);
+        $info = AppQyV1LanguageConfigService::getLanguageInfo($code);
+
+        if (!$info) {
+            return $this->notFound('Language not found');
         }
 
-        $info = self::$languages[$code];
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'code' => $code,
-                'name' => $info['name'],
-                'native_name' => $info['native_name'],
-                'voice_id' => $info['voice_id'],
-                'icon' => $info['icon'],
-                'has_tts' => true,
-            ],
-        ]);
+        return $this->success([
+            'code' => $code,
+            'name' => $info['name'] ?? '',
+            'native_name' => $info['native_name'] ?? '',
+            'voice_id' => $info['voice_id'] ?? '',
+            'icon' => $info['flag_icon'] ?? '',
+            'has_tts' => $info['supports_tts'] ?? false,
+        ], 'Language information retrieved successfully');
     }
 }
 

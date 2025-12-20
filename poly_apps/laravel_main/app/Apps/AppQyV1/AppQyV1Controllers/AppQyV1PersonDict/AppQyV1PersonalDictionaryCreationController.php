@@ -14,13 +14,13 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict;
 
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryPublicController as PDAPublic;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1CreatePersonalDictionaryRequest;
 use App\Traits\ApiResponse;
 class AppQyV1PersonalDictionaryCreationController
 {
@@ -32,35 +32,22 @@ class AppQyV1PersonalDictionaryCreationController
      */
 
 
-    public function createPersonalDictionary(Request $request)
-    {   
-        $supported_params = ['dictionaries'];
-        $validator = Validator::make($request->all(), [
-            'dictionaries' => 'required',
-        ]);
-        
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $validator->errors()->first(),
-                'supported_params' => $supported_params,
-            ], 400);
-        }
+    public function createPersonalDictionary(AppQyV1CreatePersonalDictionaryRequest $request): JsonResponse
+    {
         $dictionaries = $request->input('dictionaries');
         $dictionaries = StrTool::toWordArray($dictionaries);
         $result = PDAPublic::addPersonDictionaries($dictionaries);
+
         $data = $result['data'];
-        if(is_string($data)){
+        if (is_string($data)) {
             $data = json_decode($data, true);
         }
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Personal dictionary created successfully',
-            'supported_params' => $supported_params,
-            "dictionaries_lenght" => ArrTool::count($dictionaries),
+
+        return $this->success([
+            'dictionaries_length' => ArrTool::count($dictionaries),
             'id' => $result['id'],
             'data' => $data,
-        ], 200);
+        ], 'Personal dictionary created successfully');
     }
 
 }

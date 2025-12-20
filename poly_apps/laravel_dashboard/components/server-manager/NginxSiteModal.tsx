@@ -3,6 +3,7 @@ import { X, Save } from 'lucide-react';
 import { NginxSite, NginxSiteCreateRequest, Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
+import { api } from '../../core/api';
 
 interface NginxSiteModalProps {
   isOpen: boolean;
@@ -25,10 +26,10 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   const [formData, setFormData] = useState<NginxSiteCreateRequest>({
     site_name: '',
     domain: '',
-    site_type: 'laravel',
+    site_type: 'static',
     config: {
       www_dir: '/www/wwwroot/',
-      php_mode: 'php-fpm',
+      php_mode: 'none',
       php_version: '8.2'
     },
     ssl_enabled: false,
@@ -37,16 +38,42 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   });
 
   const [saving, setSaving] = useState(false);
+  const [polyApps, setPolyApps] = useState<any[]>([]);
+  const [selectedPolyApp, setSelectedPolyApp] = useState<string>('');
+  const [loadingApps, setLoadingApps] = useState(false);
+
+  // Load PolyApps list
+  useEffect(() => {
+    if (isOpen) {
+      loadPolyApps();
+    }
+  }, [isOpen]);
+
+  const loadPolyApps = async () => {
+    setLoadingApps(true);
+    try {
+      const response = await api.serverManagerV1.listApps();
+      if (response.success && response.data?.apps) {
+        // Filter only polyApp type
+        const polyAppsOnly = response.data.apps.filter((app: any) => app.type === 'polyApp');
+        setPolyApps(polyAppsOnly);
+      }
+    } catch (error) {
+      console.error('Failed to load PolyApps:', error);
+    } finally {
+      setLoadingApps(false);
+    }
+  };
 
   useEffect(() => {
     if (site) {
       setFormData({
         site_name: site.site_name,
         domain: site.domain,
-        site_type: site.site_type || 'laravel',
+        site_type: site.site_type || 'static',
         config: {
           www_dir: site.www_dir || '/www/wwwroot/',
-          php_mode: site.php_mode || 'php-fpm',
+          php_mode: site.php_mode || 'none',
           php_version: '8.2',
           swoole_port: site.swoole_port
         },
@@ -58,10 +85,10 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
       setFormData({
         site_name: '',
         domain: '',
-        site_type: 'laravel',
+        site_type: 'static',
         config: {
           www_dir: '/www/wwwroot/',
-          php_mode: 'php-fpm',
+          php_mode: 'none',
           php_version: '8.2'
         },
         ssl_enabled: false,
@@ -86,6 +113,48 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
 
   const handleChange = (field: keyof NginxSiteCreateRequest, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSiteTypeChange = (siteType: string) => {
+    const updates: Partial<NginxSiteCreateRequest> = { site_type: siteType };
+
+    // Auto-update php_mode and www_dir based on site type
+    if (siteType === 'static') {
+      updates.config = {
+        ...formData.config!,
+        php_mode: 'none',
+        www_dir: `/www/wwwroot/${formData.domain || 'site'}`
+      };
+    } else if (siteType === 'laravel') {
+      updates.config = {
+        ...formData.config!,
+        php_mode: 'swoole',
+        www_dir: '/www/programing/core_node/poly_apps/laravel_main'
+      };
+    } else if (siteType === 'proxy') {
+      updates.config = {
+        ...formData.config!,
+        php_mode: 'none',
+        www_dir: '' // Will be set from polyApp selection
+      };
+    }
+
+    setFormData(prev => ({ ...prev, ...updates }));
+  };
+
+  const handlePolyAppChange = (appName: string) => {
+    setSelectedPolyApp(appName);
+    const app = polyApps.find(a => a.name === appName);
+    if (app) {
+      setFormData(prev => ({
+        ...prev,
+        config: {
+          ...prev.config!,
+          proxy_target: `http://localhost:${app.port}`,
+          www_dir: `/www/programing/core_node/${app.path}`
+        }
+      }));
+    }
   };
 
   const handleConfigChange = (field: string, value: any) => {
@@ -138,15 +207,41 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             <label className="block text-sm font-medium mb-2">{t.site_type}</label>
             <select
               value={formData.site_type}
-              onChange={(e) => handleChange('site_type', e.target.value)}
+              onChange={(e) => handleSiteTypeChange(e.target.value)}
               className={commonClasses.input}
             >
-              <option value="laravel">Laravel</option>
-              <option value="static">Static</option>
-              <option value="proxy">Reverse Proxy</option>
-              <option value="swoole">Swoole</option>
+              <option value="static">Static HTML/Files</option>
+              <option value="laravel">Laravel (Swoole/Octane)</option>
+              <option value="proxy">Reverse Proxy (PolyApp)</option>
             </select>
           </div>
+
+          {formData.site_type === 'proxy' && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Select PolyApp</label>
+              <select
+                value={selectedPolyApp}
+                onChange={(e) => handlePolyAppChange(e.target.value)}
+                className={commonClasses.input}
+                disabled={loadingApps}
+                required
+              >
+                <option value="">-- Select a PolyApp --</option>
+                {polyApps.map((app) => (
+                  <option key={app.name} value={app.name}>
+                    {app.name} (Port: {app.port}) - {app.framework}
+                  </option>
+                ))}
+              </select>
+              {loadingApps && <p className="text-xs text-slate-500 mt-1">Loading applications...</p>}
+              {!loadingApps && polyApps.length === 0 && (
+                <p className="text-xs text-orange-500 mt-1">No PolyApps found. Deploy apps first.</p>
+              )}
+              <p className="text-xs text-slate-500 mt-1">
+                Port is automatically assigned. Web directory is from app path.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2">{t.www_dir}</label>
@@ -156,64 +251,71 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               value={formData.config?.www_dir || ''}
               onChange={(e) => handleConfigChange('www_dir', e.target.value)}
               className={commonClasses.input}
-              placeholder="/www/wwwroot/example.com"
+              placeholder={
+                formData.site_type === 'static' ? '/www/wwwroot/example.com' :
+                formData.site_type === 'laravel' ? '/www/programing/core_node/poly_apps/laravel_main' :
+                'Auto-set from PolyApp'
+              }
+              readOnly={formData.site_type === 'proxy'}
             />
+            <p className="text-xs text-slate-500 mt-1">
+              {formData.site_type === 'static' && 'Path where static files are located'}
+              {formData.site_type === 'laravel' && 'Laravel application root directory (mapped via PathMapper)'}
+              {formData.site_type === 'proxy' && 'Automatically set from selected PolyApp path'}
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">{t.php_mode}</label>
-            <select
-              value={formData.config?.php_mode || 'php-fpm'}
-              onChange={(e) => handleConfigChange('php_mode', e.target.value)}
-              className={commonClasses.input}
-            >
-              <option value="php-fpm">PHP-FPM</option>
-              <option value="swoole">Swoole</option>
-              <option value="none">None (Static)</option>
-            </select>
-          </div>
+          {formData.site_type !== 'proxy' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium mb-2">{t.php_mode}</label>
+                <select
+                  value={formData.config?.php_mode || 'none'}
+                  onChange={(e) => handleConfigChange('php_mode', e.target.value)}
+                  className={commonClasses.input}
+                  disabled={formData.site_type === 'laravel'}
+                >
+                  {formData.site_type === 'static' && <option value="none">None (Static Files)</option>}
+                  {formData.site_type === 'static' && <option value="php-fpm">PHP-FPM</option>}
+                  {formData.site_type === 'laravel' && <option value="swoole">Swoole (Laravel Octane)</option>}
+                </select>
+                {formData.site_type === 'laravel' && (
+                  <p className="text-xs text-slate-500 mt-1">Laravel uses Swoole via Octane (fixed)</p>
+                )}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">PHP Version</label>
-            <select
-              value={formData.config?.php_version || '8.2'}
-              onChange={(e) => handleConfigChange('php_version', e.target.value)}
-              className={commonClasses.input}
-            >
-              <option value="7.4">PHP 7.4</option>
-              <option value="8.0">PHP 8.0</option>
-              <option value="8.1">PHP 8.1</option>
-              <option value="8.2">PHP 8.2</option>
-              <option value="8.3">PHP 8.3</option>
-            </select>
-          </div>
-
-          {formData.config?.php_mode === 'swoole' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">{t.swoole_port}</label>
-              <input
-                type="number"
-                value={formData.config?.swoole_port || ''}
-                onChange={(e) => handleConfigChange('swoole_port', parseInt(e.target.value) || undefined)}
-                className={commonClasses.input}
-                placeholder="9501"
-                min="1024"
-                max="65535"
-              />
-            </div>
+              {formData.config?.php_mode !== 'none' && formData.config?.php_mode !== 'swoole' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">PHP Version</label>
+                  <select
+                    value={formData.config?.php_version || '8.2'}
+                    onChange={(e) => handleConfigChange('php_version', e.target.value)}
+                    className={commonClasses.input}
+                  >
+                    <option value="7.4">PHP 7.4</option>
+                    <option value="8.0">PHP 8.0</option>
+                    <option value="8.1">PHP 8.1</option>
+                    <option value="8.2">PHP 8.2</option>
+                    <option value="8.3">PHP 8.3</option>
+                  </select>
+                </div>
+              )}
+            </>
           )}
 
-          {formData.site_type === 'proxy' && (
+          {formData.site_type === 'proxy' && formData.config?.proxy_target && (
             <div>
               <label className="block text-sm font-medium mb-2">Proxy Target</label>
               <input
                 type="text"
                 value={formData.config?.proxy_target || ''}
-                onChange={(e) => handleConfigChange('proxy_target', e.target.value)}
-                className={commonClasses.input}
+                readOnly
+                className={`${commonClasses.input} bg-slate-100 dark:bg-slate-700 cursor-not-allowed`}
                 placeholder="http://localhost:3000"
               />
-              <p className="text-xs text-slate-500 mt-1">Target URL to proxy requests to</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Automatically set to http://localhost:{selectedPolyApp && polyApps.find(a => a.name === selectedPolyApp)?.port}
+              </p>
             </div>
           )}
 
