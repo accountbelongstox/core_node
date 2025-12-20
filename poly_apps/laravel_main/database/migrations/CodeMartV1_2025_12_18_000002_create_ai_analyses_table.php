@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('CodeMartV1')->create('codemart_v1_ai_analyses', function (Blueprint $table) {
+        Schema::connection('codemartv1')->create('codemart_v1_ai_analyses', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('project_id');
             $table->enum('status', ['processing', 'completed', 'revising', 'failed'])->default('processing');
@@ -33,6 +33,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_ai_analyses');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_ai_analyses');
     }
 };

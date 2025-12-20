@@ -7,6 +7,7 @@
 import { taskCenter } from './TaskCenter';
 import { bingDictionaryProcessor } from './processors/BingDictionaryProcessor';
 import { deepSeekProcessor } from './processors/DeepSeekProcessor';
+import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
 
 /**
  * Initialize and register all task processors
@@ -19,6 +20,9 @@ export function initializeProcessors(): void {
 
   // Register DeepSeek Processor (disabled by default, placeholder)
   taskCenter.registerProcessor(deepSeekProcessor, false);
+
+  // Register Google News Processor (enabled by default for testing)
+  taskCenter.registerProcessor(googleNewsProcessor, true);
 
   console.log('[TaskCenter] Processors initialized');
 }

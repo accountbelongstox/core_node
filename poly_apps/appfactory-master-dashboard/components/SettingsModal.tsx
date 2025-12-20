@@ -21,12 +21,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const handleLanguageChange = (newLanguage: string) => {
     setLanguage(newLanguage as any);
-    setLocalSettings({ ...localSettings, language: newLanguage });
+    const newSettings = { ...localSettings, language: newLanguage };
+    setLocalSettings(newSettings);
+    updateSettings({ language: newLanguage });
   };
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
-    setLocalSettings({ ...localSettings, theme: newTheme });
+    const newSettings = { ...localSettings, theme: newTheme };
+    setLocalSettings(newSettings);
+    updateSettings({ theme: newTheme });
   };
 
   const handleToggleChange = (key: 'notifications' | 'autoRefresh', value: boolean) => {

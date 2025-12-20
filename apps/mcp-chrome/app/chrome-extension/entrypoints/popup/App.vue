@@ -1,42 +1,50 @@
 <template>
-  <div class="w-[1400px] min-h-[900px] bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col overflow-x-hidden">
-    <div class="bg-gradient-to-r from-purple-500 to-purple-700 px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-bold text-white">Chrome MCP Server</h1>
+  <div class="w-[1400px] min-h-[900px] bg-gray-50 flex flex-col">
+    <!-- 简洁顶栏 -->
+    <div class="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-11 h-11 bg-blue-500 rounded-lg flex items-center justify-center shadow-sm">
+          <span class="text-xl">🌐</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-gray-900 mb-0.5">Chrome MCP Server</h1>
+          <p class="text-xs text-gray-500">AI-Powered Browser Automation</p>
+        </div>
       </div>
-      <!-- Language Selector moved to header -->
       <LanguageSelector />
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="flex gap-1 px-4 pt-4 bg-white border-b border-gray-200">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        :class="[
-          'flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all',
-          activeTab === tab.id
-            ? 'bg-gradient-to-b from-purple-500 to-purple-600 text-white shadow-md'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-        ]"
-        @click="activeTab = tab.id"
-      >
-        <span class="text-lg">{{ tab.icon }}</span>
-        <span>{{ tab.label }}</span>
-      </button>
+    <!-- 简洁Tab导航 -->
+    <div class="bg-white border-b border-gray-200">
+      <div class="flex gap-2 px-8">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[
+            'flex items-center gap-2.5 px-5 py-3.5 font-medium text-sm transition-colors border-b-2',
+            activeTab === tab.id
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300'
+          ]"
+          @click="activeTab = tab.id"
+        >
+          <span class="text-base">{{ tab.icon }}</span>
+          <span>{{ tab.label }}</span>
+        </button>
+      </div>
     </div>
 
-    <div class="flex-1 p-6 overflow-y-auto">
+    <div class="flex-1 px-8 py-8 overflow-y-auto">
       <!-- Server Tab -->
-      <div v-show="activeTab === 'server'" class="space-y-6">
-        <div class="space-y-4">
-          <h2 class="text-xl font-bold text-gray-800">{{ getMessage('nativeServerConfigLabel') }}</h2>
-          <div class="bg-white rounded-xl p-6 shadow-sm space-y-6">
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
+      <div v-show="activeTab === 'server'" class="max-w-5xl mx-auto space-y-8">
+        <div class="space-y-5">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ getMessage('nativeServerConfigLabel') }}</h2>
+          <div class="bg-white rounded-lg border border-gray-200 p-8 space-y-8">
+          <div class="space-y-5">
+            <div class="flex items-center justify-between mb-2">
               <p class="text-sm font-medium text-gray-700">{{ getMessage('runningStatusLabel') }}</p>
               <button
-                class="px-3 py-1 text-xs font-mono font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
+                class="px-4 py-1.5 text-xs font-mono font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
                 @click="refreshServerStatus"
                 :title="getMessage('refreshStatusButton')"
               >
@@ -47,35 +55,45 @@
               <span :class="['w-3 h-3 rounded-full', getStatusClass()]"></span>
               <span class="text-sm font-medium text-gray-800">{{ getStatusText() }}</span>
             </div>
-            <div v-if="serverStatus.lastUpdated" class="text-xs text-gray-500">
+            <div v-if="serverStatus.lastUpdated" class="text-xs text-gray-500 mt-2">
               {{ getMessage('lastUpdatedLabel') }}
               {{ new Date(serverStatus.lastUpdated).toLocaleTimeString() }}
             </div>
           </div>
 
-          <div v-if="showMcpConfig" class="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div class="flex items-center justify-between">
+          <div v-if="showMcpConfig" class="space-y-4 p-5 bg-gray-50 rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
               <p class="text-sm font-medium text-gray-700">{{ getMessage('mcpServerConfigLabel') }}</p>
-              <button class="px-3 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 hover:bg-white rounded transition-colors" @click="copyMcpConfig">
+              <button class="px-4 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-white rounded transition-colors" @click="copyMcpConfig">
                 {{ copyButtonText }}
               </button>
             </div>
-            <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+            <div class="bg-gray-900 rounded-lg p-5 overflow-x-auto">
               <pre class="text-xs text-green-400 font-mono">{{ mcpConfigJson }}</pre>
             </div>
           </div>
-          <div class="space-y-2">
-            <label for="port" class="block text-sm font-medium text-gray-700">{{ getMessage('connectionPortLabel') }}</label>
+          <div class="space-y-3">
+            <label for="port" class="block text-sm font-medium text-gray-700 mb-2">{{ getMessage('connectionPortLabel') }}</label>
             <input
               type="text"
               id="port"
               :value="nativeServerPort"
               @input="updatePort"
-              class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:border-purple-500 transition-colors"
+              class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
             />
           </div>
 
-          <button class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg" :disabled="isConnecting" @click="testNativeConnection">
+          <!-- 简洁按钮 -->
+          <button
+            :class="[
+              'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium text-white transition-colors',
+              isConnecting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            ]"
+            :disabled="isConnecting"
+            @click="testNativeConnection"
+          >
             <BoltIcon />
             <span>{{
               isConnecting
@@ -90,10 +108,10 @@
       </div>
 
       <!-- Semantic Tab -->
-      <div v-show="activeTab === 'semantic'" class="space-y-6">
-        <div class="space-y-4">
-          <h2 class="text-xl font-bold text-gray-800">{{ getMessage('semanticEngineLabel') }}</h2>
-        <div class="bg-white rounded-xl p-6 shadow-sm space-y-6">
+      <div v-show="activeTab === 'semantic'" class="max-w-5xl mx-auto space-y-8">
+        <div class="space-y-5">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ getMessage('semanticEngineLabel') }}</h2>
+        <div class="bg-white rounded-lg border border-gray-200 p-8 space-y-8">
           <div class="space-y-4">
             <div class="flex items-center gap-3">
               <span :class="['w-3 h-3 rounded-full', getSemanticEngineStatusClass()]"></span>
@@ -113,7 +131,12 @@
           />
 
           <button
-            class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-medium rounded-lg hover:from-purple-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+            :class="[
+              'w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-lg font-medium text-white transition-colors',
+              isSemanticEngineInitializing
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            ]"
             :disabled="isSemanticEngineInitializing"
             @click="initializeSemanticEngine"
           >
@@ -123,8 +146,8 @@
         </div>
         </div>
 
-        <div class="space-y-4">
-          <h2 class="text-xl font-bold text-gray-800">{{ getMessage('embeddingModelLabel') }}</h2>
+        <div class="space-y-5">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ getMessage('embeddingModelLabel') }}</h2>
 
         <ProgressIndicator
           v-if="isModelSwitching || isModelDownloading"
@@ -153,15 +176,15 @@
           </button>
         </div>
 
-        <div class="space-y-3">
+        <div class="space-y-4">
           <div
             v-for="model in availableModels"
             :key="model.preset"
             :class="[
-              'relative bg-white border-2 rounded-xl p-5 cursor-pointer transition-all',
+              'relative bg-white border-2 rounded-lg p-6 cursor-pointer transition-all',
               currentModel === model.preset
-                ? 'border-purple-500 shadow-lg'
-                : 'border-gray-200 hover:border-purple-300 hover:shadow-md',
+                ? 'border-blue-500 shadow-sm'
+                : 'border-gray-200 hover:border-blue-300 hover:shadow-sm',
               isModelSwitching || isModelDownloading
                 ? 'opacity-50 cursor-not-allowed'
                 : ''
@@ -170,21 +193,21 @@
               !isModelSwitching && !isModelDownloading && switchModel(model.preset as ModelPreset)
             "
           >
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex items-start justify-between gap-4 mb-4">
               <div class="flex-1 space-y-2">
-                <p :class="['text-base font-semibold', currentModel === model.preset ? 'text-purple-600' : 'text-gray-800']">
+                <p :class="['text-base font-semibold', currentModel === model.preset ? 'text-blue-600' : 'text-gray-800']">
                   {{ model.preset }}
                 </p>
-                <p class="text-sm text-gray-600">{{ getModelDescription(model) }}</p>
+                <p class="text-sm text-gray-600 leading-relaxed">{{ getModelDescription(model) }}</p>
               </div>
-              <div v-if="currentModel === model.preset" class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-purple-500 rounded-full">
+              <div v-if="currentModel === model.preset" class="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-500 rounded-full">
                 <CheckIcon class="text-white" />
               </div>
             </div>
-            <div class="flex gap-2 mt-3">
-              <span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">{{ getPerformanceText(model.performance) }}</span>
-              <span class="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">{{ model.size }}</span>
-              <span class="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">{{ model.dimension }}D</span>
+            <div class="flex gap-2">
+              <span class="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg">{{ getPerformanceText(model.performance) }}</span>
+              <span class="px-3 py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded-lg">{{ model.size }}</span>
+              <span class="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-lg">{{ model.dimension }}D</span>
             </div>
           </div>
         </div>
@@ -192,50 +215,56 @@
       </div>
 
       <!-- Data Tab -->
-      <div v-show="activeTab === 'data'" class="space-y-6">
-        <div class="space-y-4">
-          <h2 class="text-xl font-bold text-gray-800">{{ getMessage('indexDataManagementLabel') }}</h2>
-          <div class="grid grid-cols-2 gap-4">
-          <div class="bg-white rounded-xl p-5 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600">{{ getMessage('indexedPagesLabel') }}</p>
-              <span class="w-10 h-10 flex items-center justify-center bg-purple-100 rounded-lg text-purple-600">
-                <DocumentIcon />
-              </span>
-            </div>
-            <p class="text-3xl font-bold text-gray-800">{{ storageStats?.indexedPages || 0 }}</p>
-          </div>
+      <div v-show="activeTab === 'data'" class="max-w-5xl mx-auto space-y-8">
+        <div class="space-y-5">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">{{ getMessage('indexDataManagementLabel') }}</h2>
 
-          <div class="bg-white rounded-xl p-5 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600">{{ getMessage('indexSizeLabel') }}</p>
-              <span class="w-10 h-10 flex items-center justify-center bg-teal-100 rounded-lg text-teal-600">
-                <DatabaseIcon />
-              </span>
+          <!-- 简洁的统计卡片 -->
+          <div class="grid grid-cols-2 gap-6">
+            <!-- Indexed Pages -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-sm transition-all">
+              <div class="flex items-start justify-between mb-4">
+                <p class="text-sm font-medium text-gray-600">{{ getMessage('indexedPagesLabel') }}</p>
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                  <DocumentIcon />
+                </div>
+              </div>
+              <p class="text-4xl font-bold text-gray-900">{{ storageStats?.indexedPages || 0 }}</p>
             </div>
-            <p class="text-3xl font-bold text-gray-800">{{ formatIndexSize() }}</p>
-          </div>
 
-          <div class="bg-white rounded-xl p-5 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600">{{ getMessage('activeTabsLabel') }}</p>
-              <span class="w-10 h-10 flex items-center justify-center bg-blue-100 rounded-lg text-blue-600">
-                <TabIcon />
-              </span>
+            <!-- Index Size -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 hover:border-green-300 hover:shadow-sm transition-all">
+              <div class="flex items-start justify-between mb-4">
+                <p class="text-sm font-medium text-gray-600">{{ getMessage('indexSizeLabel') }}</p>
+                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
+                  <DatabaseIcon />
+                </div>
+              </div>
+              <p class="text-4xl font-bold text-gray-900">{{ formatIndexSize() }}</p>
             </div>
-            <p class="text-3xl font-bold text-gray-800">{{ getActiveTabsCount() }}</p>
-          </div>
 
-          <div class="bg-white rounded-xl p-5 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600">{{ getMessage('vectorDocumentsLabel') }}</p>
-              <span class="w-10 h-10 flex items-center justify-center bg-green-100 rounded-lg text-green-600">
-                <VectorIcon />
-              </span>
+            <!-- Active Tabs -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 hover:border-purple-300 hover:shadow-sm transition-all">
+              <div class="flex items-start justify-between mb-4">
+                <p class="text-sm font-medium text-gray-600">{{ getMessage('activeTabsLabel') }}</p>
+                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">
+                  <TabIcon />
+                </div>
+              </div>
+              <p class="text-4xl font-bold text-gray-900">{{ getActiveTabsCount() }}</p>
             </div>
-            <p class="text-3xl font-bold text-gray-800">{{ storageStats?.totalDocuments || 0 }}</p>
+
+            <!-- Vector Documents -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 hover:border-orange-300 hover:shadow-sm transition-all">
+              <div class="flex items-start justify-between mb-4">
+                <p class="text-sm font-medium text-gray-600">{{ getMessage('vectorDocumentsLabel') }}</p>
+                <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
+                  <VectorIcon />
+                </div>
+              </div>
+              <p class="text-4xl font-bold text-gray-900">{{ storageStats?.totalDocuments || 0 }}</p>
+            </div>
           </div>
-        </div>
         <ProgressIndicator
           v-if="isClearingData && clearDataProgress"
           :visible="isClearingData"
@@ -244,7 +273,12 @@
         />
 
         <button
-          class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-lg hover:from-red-600 hover:to-red-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+          :class="[
+            'w-full flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-lg font-medium text-white transition-colors mt-6',
+            isClearingData
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-red-600 hover:bg-red-700'
+          ]"
           :disabled="isClearingData"
           @click="showClearConfirmation = true"
         >

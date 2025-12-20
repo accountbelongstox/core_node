@@ -65,6 +65,11 @@ export const zh: TranslationKey = {
     practice: '练习',
     tools: '工具',
     mine: '我的',
+    // Mine menu subtitles
+    profileSubtitle: '个人信息和设置',
+    progressSubtitle: '查看学习统计',
+    socialSubtitle: '好友和排行榜',
+    settingsSubtitle: '应用偏好和账户',
   },
 
   home: {
@@ -126,6 +131,18 @@ export const zh: TranslationKey = {
     reviewQueue: '复习队列',
     noReviewNeeded: '全部完成',
     noReviewDescription: '目前没有需要复习的单词',
+
+    // Add to Group Modal
+    addToGroup: '添加到学习分组',
+    selectStudyGroup: '选择背诵分组',
+    addLibraryToGroup: '将"{name}"加入到哪个背诵分组？',
+    noGroupsYet: '还没有学习分组',
+    createNewGroup: '创建新分组',
+    addedToGroup: '已添加到"{name}"',
+    addingWords: '正在添加 {count} 个单词...',
+    wordsAddedSuccess: '成功添加 {count} 个单词',
+    studyGroups: '学习分组',
+    recitationGroup: '背诵分组',
   },
 
   reading: {
@@ -138,6 +155,10 @@ export const zh: TranslationKey = {
     tapToTranslate: '点击任意单词翻译',
     bookmarks: '书签',
     progress: '进度',
+    library: '词库',
+    review: '复习',
+    next: '下一个',
+    loadingEngine: '加载引擎中...',
   },
 
   flashcards: {
@@ -151,6 +172,14 @@ export const zh: TranslationKey = {
     studyAgain: '再学一次',
     cardsDue: '待复习卡片',
     cardsToday: '今日卡片',
+    word: '单词',
+    meaning: '含义',
+    hard: '困难',
+    good: '良好',
+    easy: '简单',
+    sessionComplete: '学习完成！',
+    backHome: '返回首页',
+    reviewedCards: '你复习了 {count} 张卡片。',
   },
 
   quiz: {
@@ -190,6 +219,58 @@ export const zh: TranslationKey = {
     noBooksFound: '此语言暂无书籍。',
     noDescription: '暂无描述。',
     words: '个单词',
+  },
+
+  vocabulary: {
+    title: '词库',
+    libraries: '词库列表',
+    libraryDetails: '词库详情',
+    wordList: '单词列表',
+    totalWords: '总词数',
+    difficulty: '难度',
+    category: '分类',
+    language: '语言',
+    recommended: '推荐',
+    selectLibrary: '选择一个词库开始学习',
+    noWordsFound: '未找到单词',
+    loadingWords: '加载单词中...',
+    viewOptions: '查看选项',
+    displaySettings: '显示设置',
+
+    // Display options
+    showIndex: '显示序号',
+    showTranslation: '显示翻译',
+    fontSize: '字体大小',
+    columnCount: '列数',
+    wordsPerPage: '每页单词数',
+    translationProvider: '翻译服务',
+    autoTranslate: '自动翻译',
+
+    // Translation providers
+    none: '无',
+    bing: '必应翻译',
+    google: '谷歌翻译',
+    deepl: 'DeepL',
+
+    // Actions
+    startLearning: '开始学习',
+    addToMyLibrary: '添加到我的词库',
+    removeFromLibrary: '从词库移除',
+    export: '导出',
+    share: '分享',
+  },
+
+  recommendations: {
+    title: '为你推荐',
+    allRecommendations: '全部推荐',
+    basedOnYourLevel: '基于你的水平',
+    popularThisWeek: '本周热门',
+    newAdditions: '新增内容',
+    forBeginners: '适合初学者',
+    forAdvanced: '适合进阶学习',
+    noRecommendations: '暂无推荐',
+    filter: '筛选',
+    sortBy: '排序',
   },
 
   profile: {
@@ -283,7 +364,8 @@ export const zh: TranslationKey = {
     // Status
     notSet: '未设置',
     processing: '处理中...',
-    proMember: 'Pro Member',
+    proMember: 'Pro 会员',
+    freePlan: '免费版',
     yearsOld: '{age} 岁',
 
     // Warnings
@@ -322,6 +404,7 @@ export const zh: TranslationKey = {
     version: '版本',
     privacyPolicy: '隐私政策',
     termsOfService: '服务条款',
+    appPreferences: '应用偏好设置',
 
     // Settings Index Page
     preferences: '偏好设置',
@@ -371,6 +454,10 @@ export const zh: TranslationKey = {
     flowControl: '流程控制',
     instantReview: '即时复习',
     autoAdvance: '自动前进',
+    difficulty: '难度',
+    adaptive: '自适应',
+    playback: '播放设置',
+    goals: '目标设置',
 
     // About Page - i18n extension
     appName: 'WordFlow AI',
@@ -389,12 +476,17 @@ export const zh: TranslationKey = {
     storage: '存储空间',
     usedStorage: '已使用空间',
     clearCache: '清除缓存',
+    words: '单词',
+    audio: '音频',
+    images: '图片',
 
     // Notifications Page - i18n extension
     reviewAlerts: '复习提醒',
     achievementBadges: '成就徽章',
     newCourseAlerts: '新课程提醒',
     reminderTime: '提醒时间',
+    from: '从',
+    to: '到',
 
     // ApiServer Page - i18n extension
     backendApiConfig: '后端API配置',
@@ -442,6 +534,11 @@ export const zh: TranslationKey = {
     studyTime: '学习时间',
     accuracy: '准确率',
     retention: '记忆率',
+    retentionShort: '记忆率',
+    words: '单词',
+    mastered: '已掌握',
+    streak: '连续天数',
+    hours: '小时',
   },
 
   // Social Pages - i18n extension
@@ -456,6 +553,8 @@ export const zh: TranslationKey = {
     rank: '排行',
     badges: '徽章',
     unlocked: '已解锁',
+    friendsShort: '好友',
+    badgesShort: '徽章',
   },
 
   header: {

@@ -20,6 +20,7 @@ from pycore.pyutils.device_manager import DeviceManager
 from pycore.pyutils.device import ServerParams, VideoCodec, ADBManager
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
+from pyapps.matrix.matrix_config.scrcpy_server_downloader import ensure_scrcpy_server_jar
 from .video_decoder_service import VideoDecoderService
 
 
@@ -94,6 +95,42 @@ class VideoStreamService:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    def _ensure_scrcpy_server_jar(self) -> bool:
+        """
+        Ensure scrcpy-server.jar is available
+
+        Attempts to:
+        1. Check if file exists
+        2. Copy from scrcpy_init directory
+        3. Download from GitHub
+
+        Returns:
+            True if scrcpy-server.jar is available, False otherwise
+        """
+        jar_path = Path(self.scrcpy_server_jar)
+
+        # Quick check - if exists, return immediately
+        if jar_path.exists():
+            return True
+
+        # File doesn't exist - attempt to ensure it's available
+        ColorPrint.yellow(f"[VideoStreamService] scrcpy-server.jar not found at {jar_path}")
+        ColorPrint.blue("[VideoStreamService] Attempting to download scrcpy-server.jar...")
+
+        try:
+            success = ensure_scrcpy_server_jar(jar_path, auto_download=True)
+            if success:
+                ColorPrint.green("[VideoStreamService] ✓ scrcpy-server.jar is now available")
+                return True
+            else:
+                ColorPrint.red("[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
+                return False
+        except Exception as e:
+            ColorPrint.red(f"[VideoStreamService] ✗ Error ensuring scrcpy-server.jar: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     async def start_stream(self, serial: str, websocket: WebSocket) -> bool:
         """
@@ -192,14 +229,19 @@ class VideoStreamService:
                 control=False  # Temporarily disabled - testing if control socket causes connection issues
             )
 
-            # Ensure scrcpy-server.jar is on device (scrcpy_web_test pattern)
-            ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar on device {serial}...")
-            scrcpy_jar = Path(self.scrcpy_server_jar)
-            if not scrcpy_jar.exists():
-                ColorPrint.red(f"[VideoStreamService] ✗ Missing scrcpy-server.jar at {scrcpy_jar}")
-                error_msg = {"type": "video.error", "data": {"error": f"Missing scrcpy-server.jar"}}
+            # Ensure scrcpy-server.jar is available (auto-download if needed)
+            ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
+            if not self._ensure_scrcpy_server_jar():
+                ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
+                error_msg = {"type": "video.error", "data": {"error": f"Failed to ensure scrcpy-server.jar"}}
                 await websocket.send_json(error_msg)
+                # Clear initializing flag
+                self.device_initializing[serial] = False
                 return False
+
+            # Now push to device
+            ColorPrint.blue(f"[VideoStreamService] Pushing scrcpy-server.jar to device {serial}...")
+            scrcpy_jar = Path(self.scrcpy_server_jar)
 
             loop = asyncio.get_event_loop()
             push_result = await loop.run_in_executor(
@@ -476,16 +518,21 @@ class VideoStreamService:
             if not device.is_connected():
                 ColorPrint.yellow(f"[VideoStreamService] Device {serial} not connected, starting scrcpy-server...")
 
-                # Push scrcpy-server.jar to device first
-                ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar on device {serial}...")
-                scrcpy_jar = Path(self.scrcpy_server_jar)
-                if not scrcpy_jar.exists():
-                    ColorPrint.red(f"[VideoStreamService] ✗ Missing scrcpy-server.jar at {scrcpy_jar}")
+                # Ensure scrcpy-server.jar is available (auto-download if needed)
+                ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
+                if not self._ensure_scrcpy_server_jar():
+                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
+                    # Clear initializing flag
+                    self.device_initializing[serial] = False
                     if serial in self.yuv_stream_clients:
                         self.yuv_stream_clients[serial].discard(websocket)
                         if len(self.yuv_stream_clients[serial]) == 0:
                             del self.yuv_stream_clients[serial]
                     return False
+
+                # Now push to device
+                ColorPrint.blue(f"[VideoStreamService] Pushing scrcpy-server.jar to device {serial}...")
+                scrcpy_jar = Path(self.scrcpy_server_jar)
 
                 loop = asyncio.get_event_loop()
                 push_result = await loop.run_in_executor(

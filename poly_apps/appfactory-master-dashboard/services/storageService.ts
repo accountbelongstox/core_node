@@ -84,7 +84,7 @@ class StorageService {
    * 获取当前语言
    */
   getLanguage(): string {
-    return this.get<string>(STORAGE_KEYS.LANGUAGE, 'en') || 'en';
+    return this.get<string>(STORAGE_KEYS.LANGUAGE, 'zh') || 'zh';
   }
 
   /**
@@ -141,12 +141,12 @@ class StorageService {
    */
   getSettings(): AppSettings {
     return this.get<AppSettings>(STORAGE_KEYS.SETTINGS, {
-      language: 'en',
+      language: 'zh',
       theme: 'light',
       notifications: true,
       autoRefresh: true,
     }) || {
-      language: 'en',
+      language: 'zh',
       theme: 'light',
       notifications: true,
       autoRefresh: true,

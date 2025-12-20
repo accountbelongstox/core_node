@@ -3,9 +3,11 @@
  * Integrates storage, i18n, theme, and user state management
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { storageService, UserInfo, AppSettings } from '../services/storageService';
+import { storageService, UserInfo, AppSettings, STORAGE_KEYS } from '../services/storageService';
 import { i18nService, SupportedLanguage } from '../services/i18nService';
 import { themeService, Theme } from '../services/themeService';
+import { modelService } from '../services/modelService';
+import { MOCK_PROMOTION_TRACKS, MOCK_APP_RELEASES, MOCK_PROMOTERS, MOCK_PROMOTION_RECORDS, MOCK_CS } from '../constants';
 
 // Context State Interface
 interface AppContextState {
@@ -50,7 +52,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // State
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
     const saved = storageService.getLanguage();
-    return (saved as SupportedLanguage) || 'en';
+    return (saved as SupportedLanguage) || 'zh';
   });
 
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -67,14 +69,61 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Initialize services on mount
+  // Initialize services on mount and when language/theme changes
   useEffect(() => {
     // Initialize i18n
     i18nService.setLanguage(language);
 
     // Initialize theme
     themeService.initializeTheme(theme);
-  }, []);
+
+    // Initialize modelService data if not exists
+    if (!modelService.getPromotionTracks() || modelService.getPromotionTracks()?.length === 0) {
+      modelService.setPromotionTracks(MOCK_PROMOTION_TRACKS);
+    }
+    if (!modelService.getAppReleases() || modelService.getAppReleases()?.length === 0) {
+      modelService.setAppReleases(MOCK_APP_RELEASES);
+    }
+    if (!modelService.getPromoters() || modelService.getPromoters()?.length === 0) {
+      modelService.setPromoters(MOCK_PROMOTERS);
+    }
+    if (!modelService.getPromotionRecords() || modelService.getPromotionRecords()?.length === 0) {
+      modelService.setPromotionRecords(MOCK_PROMOTION_RECORDS);
+    }
+    if (!modelService.getCSTeam() || modelService.getCSTeam()?.length === 0) {
+      modelService.setCSTeam(MOCK_CS);
+    }
+  }, [language, theme]);
+
+  // Listen to storage changes for immediate updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.LANGUAGE && e.newValue) {
+        const newLang = JSON.parse(e.newValue) as SupportedLanguage;
+        if (newLang !== language) {
+          setLanguageState(newLang);
+          i18nService.setLanguage(newLang);
+          setRefreshKey(prev => prev + 1);
+        }
+      }
+      if (e.key === STORAGE_KEYS.THEME && e.newValue) {
+        const newTheme = JSON.parse(e.newValue) as Theme;
+        if (newTheme !== theme) {
+          setThemeState(newTheme);
+          themeService.setTheme(newTheme);
+          setRefreshKey(prev => prev + 1);
+        }
+      }
+      if (e.key === STORAGE_KEYS.SETTINGS && e.newValue) {
+        const newSettings = JSON.parse(e.newValue) as AppSettings;
+        setSettingsState(newSettings);
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [language, theme]);
 
   // Language handlers
   const setLanguage = useCallback((newLanguage: SupportedLanguage) => {

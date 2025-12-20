@@ -98,7 +98,7 @@ class ServerManagerV1OctaneServiceManager
      */
     public static function listOctaneServices(): array
     {
-        $result = Process::run('systemctl list-units --type=service --all | grep "^  ' . self::OCTANE_SERVICE_PREFIX . '"');
+        $result = Process::path(base_path())->run('systemctl list-units --type=service --all | grep "^  ' . self::OCTANE_SERVICE_PREFIX . '"');
 
         if (!$result->successful()) {
             return [];

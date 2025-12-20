@@ -1,22 +1,28 @@
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AppProvider, AppContext } from './contexts/AppContext';
 import { ROUTE_REGISTRY, RouteCenter } from './router/RouteCenter';
 import { BottomTabNav } from './components/BottomTabNav';
+import { GlobalInitializer } from './services/GlobalInitializer';
 
 // Router Component with URL-based navigation
 const AppRouter = () => {
   const { user } = useContext(AppContext);
   const location = useLocation();
 
+  useEffect(() => {
+    GlobalInitializer.initialize();
+    console.log('[App] Global services initialized:', GlobalInitializer.getStatus());
+  }, []);
+
   const currentPath = location.pathname;
   const isImmersive = RouteCenter.isImmersiveRoute(currentPath);
   const showBottomNav = !isImmersive;
 
   return (
-    <div className="h-full w-full max-w-md mx-auto relative flex flex-col bg-transparent overflow-hidden">
+    <div className="h-full w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto relative flex flex-col bg-transparent overflow-hidden">
       <main className="flex-1 relative z-10 overflow-hidden">
         <Routes>
           {ROUTE_REGISTRY.map((route) => (

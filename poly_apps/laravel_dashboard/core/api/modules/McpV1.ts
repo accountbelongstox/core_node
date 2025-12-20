@@ -38,6 +38,14 @@ export class McpV1API extends BaseAPI {
     return this.get('/screenshots/stats');
   }
 
+  async getLatestScreenshot(): Promise<APIResponse> {
+    return this.get('/screenshots/latest');
+  }
+
+  async clearAllScreenshots(): Promise<APIResponse> {
+    return this.delete('/screenshots/clear-all/confirm');
+  }
+
   // ========== 任务管理 ==========
   async getTaskCategories(): Promise<APIResponse> {
     return this.get('/task-dispatch/categories', undefined, true, 600000);
@@ -75,6 +83,26 @@ export class McpV1API extends BaseAPI {
     return this.put(`/task-dispatch/queue/${categoryId}/tasks/${taskId}/status`, { status });
   }
 
+  async getLastTask(categoryId: string): Promise<APIResponse> {
+    return this.get(`/task-dispatch/queue/${categoryId}/last-task`);
+  }
+
+  async hasLatestTask(categoryId: string): Promise<APIResponse> {
+    return this.get(`/task-dispatch/queue/${categoryId}/has-latest`);
+  }
+
+  async getAllTaskMappings(): Promise<APIResponse> {
+    return this.get('/task-dispatch/mappings');
+  }
+
+  async resetCategoryMapping(categoryId: string): Promise<APIResponse> {
+    return this.post(`/task-dispatch/mappings/${categoryId}/reset`, {});
+  }
+
+  async deleteCategoryMapping(categoryId: string): Promise<APIResponse> {
+    return this.delete(`/task-dispatch/mappings/${categoryId}`);
+  }
+
   // ========== 提示词管理 ==========
   async getPromptMappings(): Promise<APIResponse> {
     return this.get('/task-dispatch/mappings');
@@ -110,6 +138,10 @@ export class McpV1API extends BaseAPI {
 
   async getPlaceholderStats(): Promise<APIResponse> {
     return this.get('/placeholders/stats');
+  }
+
+  async cleanupPlaceholders(): Promise<APIResponse> {
+    return this.post('/placeholders/cleanup', {});
   }
 
   // ========== OCR 识别 ==========

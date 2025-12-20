@@ -45,7 +45,7 @@ export default function LearnReview() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24 flex items-center justify-center">
-        <Card className="mx-6 max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-8">
+        <Card className="mx-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-8">
           <Icons.Lock />
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-4 mb-2">
             {t('home.loginRequired')}
@@ -67,7 +67,7 @@ export default function LearnReview() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-8 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             Review Center
@@ -78,7 +78,7 @@ export default function LearnReview() {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Review Stats */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-none shadow-lg">
