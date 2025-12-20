@@ -70,11 +70,12 @@ class AppQyV1WordGroupCreationController
      */
     public function createDictGroup(Request $request)
     {
-        $supported_params = ['gname', 'gcontent', 'gwords','sort'];
+        $supported_params = ['gname', 'gcontent', 'gwords','sort', 'language'];
             $validator = Validator::make($request->all(), [
                 'gname' => 'required|string|max:255',
                 'gcontent' => 'required|string',
-                'gwords' => 'nullable|string'
+                'gwords' => 'nullable|string',
+                'language' => 'nullable|string|size:2'
             ]);
 
             if ($validator->fails()) {
@@ -91,6 +92,7 @@ class AppQyV1WordGroupCreationController
             $gname = $request->input('gname');
             $gcontent = $request->input('gcontent');
             $gwords = $request->input('gwords');
+            $language = $request->input('language', 'en');
             $sort = true;
             if ($request->has('sort')) {
                 $sort = $request->input('sort');
@@ -109,7 +111,8 @@ class AppQyV1WordGroupCreationController
             $new_gcontent = $frequency_result['new_gcontent'];
             $new_gcontent_count = $frequency_result['new_gcontent_count'];
             $existGroup->gcontent = $new_gcontent;
-            $existGroup->username = $username;  
+            $existGroup->username = $username;
+            $existGroup->language = $language;
             $words_frequency = $frequency_result['frequency'];
             if($sort == true){
                 asort($words_frequency);

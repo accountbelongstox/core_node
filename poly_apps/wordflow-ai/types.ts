@@ -346,3 +346,80 @@ export interface VocabularyLibrary {
   is_selected: boolean;
   cover_image_url: string;
 }
+
+// Study Groups Types (背诵分组)
+export interface StudyGroup {
+  id: string;
+  uid: string;
+  name: string;
+  description?: string;
+  language: string;              // 语言代码（en, zh, ja等）
+  is_language_default: boolean;  // 是否为该语言的默认分组
+  is_default: boolean;           // @deprecated 保留兼容性
+  total_word_groups: number;
+  total_words: number;
+  learned_words: number;
+  progress: number;  // Calculated: (learned_words / total_words) * 100
+  daily_goal: number;
+  study_mode: 'sequential' | 'random' | 'adaptive';
+  cover_image?: string;
+  color: string;
+  icon: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  last_studied_at?: string;
+}
+
+export interface StudyGroupWordGroup {
+  id: string;
+  study_group_id: string;
+  word_group_id: string;
+  word_group_name: string;  // From JOIN query
+  total_words: number;      // From JOIN query
+  progress: number;
+  current_word_index: number;
+  mastered_count: number;
+  learning_count: number;
+  status: 'not_started' | 'in_progress' | 'completed';
+  added_at: string;
+  last_studied_at?: string;
+  sort_order: number;
+}
+
+export interface StudyGroupDetailed extends StudyGroup {
+  word_groups: StudyGroupWordGroup[];
+}
+
+export interface CreateStudyGroupRequest {
+  name: string;
+  language: string;              // 必填：语言代码
+  description?: string;
+  is_default?: boolean;          // @deprecated
+  daily_goal?: number;
+  study_mode?: 'sequential' | 'random' | 'adaptive';
+  cover_image?: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface UpdateStudyGroupRequest {
+  name?: string;
+  description?: string;
+  daily_goal?: number;
+  study_mode?: 'sequential' | 'random' | 'adaptive';
+  color?: string;
+  icon?: string;
+}
+
+export interface AddWordGroupToStudyGroupRequest {
+  word_group_id: string;
+  sort_order?: number;
+}
+
+export interface UpdateStudyProgressRequest {
+  word_group_id: string;
+  current_word_index: number;
+  mastered_count: number;
+  learning_count: number;
+}

@@ -138,7 +138,7 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->forbidden('Only active reviewers can access review tasks');
         }
 
-        $pendingReviews = DB::connection('CodeMartV1')
+        $pendingReviews = DB::connection('codemartv1')
             ->table('codemart_v1_code_submissions')
             ->whereNotExists(function ($query) use ($user) {
                 $query->select(DB::raw(1))

@@ -4,8 +4,9 @@ namespace App\Services\TimerTasks;
 
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\CallPycoreUtils\PycoreGoogleTranslateUtil;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
 use App\Services\Workers\AppQyV1ArticleTTSWorker;
 use App\Models\GlobalTask;
 use Illuminate\Support\Facades\DB;
@@ -14,13 +15,16 @@ use Illuminate\Support\Facades\Log;
 class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
 {
     private $ttsService;
+    private $queueService;
     private $batchSize = 20;
     private $maxRetries = 3;
     private $retryDelay = 5;
+    private $queueBatchSize = 10;
 
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
+        $this->queueService = new AppQyV1TTSQueueService();
     }
     
     public function getName(): string
@@ -36,6 +40,8 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
+            $this->processQueue();
+
             $this->processArticleTasks();
 
             $this->logInfo('Starting TTS and translation batch generation');
@@ -47,13 +53,13 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
             $errors = 0;
 
             foreach ($languageCodes as $langCode) {
-                $words = AppQyV1MultiLangDictionaryModel::query()
-                    ->connection('appqyv1')
-                    ->from(AppQyV1TableMaps::getDictionaryTableName($langCode))
+                $words = AppQyV1LangDictionaryModel::forLanguage($langCode)
                     ->where(function($query) {
                         $query->where('has_translation', false)
                             ->orWhereNull('translations')
-                            ->orWhereJsonLength('tts_files', '=', 0);
+                            ->orWhereNull('tts_files')
+                            ->orWhere('tts_files', '')
+                            ->orWhere('tts_files', '[]');
                     })
                     ->orderBy('query_count', 'desc')
                     ->limit($this->batchSize)
@@ -99,20 +105,20 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
                                 $translatedText = $translationResult['translated_text'];
 
                                 if (strtolower($translatedText) === strtolower($originalText)) {
-                                    AppQyV1MultiLangDictionaryModel::updateWord($langCode, $wordData['md5'], [
+                                    AppQyV1LangDictionaryModel::updateWord($langCode, $wordData['md5'], [
                                         'has_translation' => false,
-                                        'translations' => ['error' => 'not_a_valid_word'],
+                                        'translations' => json_encode(['error' => 'not_a_valid_word']),
                                     ]);
 
                                     $markedInvalid++;
                                     $this->logInfo("Marked as invalid word: {$originalText}");
                                 } else {
-                                    AppQyV1MultiLangDictionaryModel::updateWord($langCode, $wordData['md5'], [
+                                    AppQyV1LangDictionaryModel::updateWord($langCode, $wordData['md5'], [
                                         'has_translation' => true,
-                                        'translations' => [
+                                        'translations' => json_encode([
                                             'zh' => $translatedText,
                                             'pronunciation' => $translationResult['pronunciation'] ?? null,
-                                        ],
+                                        ]),
                                         'translation_provider' => 'google:pycore',
                                     ]);
 
@@ -209,6 +215,27 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function isEnabled(): bool
     {
         return env('APPQYV1_TTS_AUTO_GENERATION', true);
+    }
+
+    /**
+     * Process TTS queue (priority 1)
+     * Process user-requested words first before auto-generation
+     */
+    private function processQueue(): void
+    {
+        $result = $this->queueService->processQueue($this->queueBatchSize);
+
+        if ($result['processed'] > 0) {
+            $this->logInfo('[TTSQueue] Processed queue items', [
+                'processed' => $result['processed'],
+                'succeeded' => $result['succeeded'],
+                'failed' => $result['failed'],
+            ]);
+        }
+
+        if ($result['processed'] > 0) {
+            $this->queueService->cleanQueue(7);
+        }
     }
 
     /**

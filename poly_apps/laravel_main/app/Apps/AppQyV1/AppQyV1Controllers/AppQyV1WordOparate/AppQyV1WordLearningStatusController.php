@@ -14,12 +14,12 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate;
 
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
-use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1UpdateLearnedStatusRequest;
 use App\Traits\ApiResponse;
 class AppQyV1WordLearningStatusController
 {
@@ -30,30 +30,16 @@ class AppQyV1WordLearningStatusController
      * NO ?? or || allowed - use explicit if statements
      */
 
-    public function upLearned(Request $request)
+    public function upLearned(AppQyV1UpdateLearnedStatusRequest $request): JsonResponse
     {
-        $supported_params = ['words','safe_update'];
-        $validator = Validator::make($request->all(), [
-            'words' => 'required',
-            'safe_update' => 'nullable|boolean',
-        ]);
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $validator->errors()->first(),
-                'supported_params' => $supported_params,
-            ], 400);
-        }
         $words = $request->input('words');
         $safeUpdate = $request->input('safe_update', false);
         $queryResult = PDPPublic::updateLearnedPDByWords($words, $safeUpdate);
-        $message = 'Word "' . $words . '" learned updated done';
-        return response()->json([
-            'status' => 'success',
-            'message' => $message,
-            'supported_params' => $supported_params,
-            'data' => $queryResult
-        ], 200);
+
+        return $this->success(
+            $queryResult,
+            'Word "' . $words . '" learned status updated successfully'
+        );
     }
 
 }

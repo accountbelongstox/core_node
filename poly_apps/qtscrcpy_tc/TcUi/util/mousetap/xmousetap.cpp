@@ -1,4 +1,13 @@
-#include <QX11Info>
+/*
+ * Qt 6.10 Compatibility Updates:
+ * - Qt X11 Extras module removed in Qt 6
+ * - QX11Info class removed, use QPlatformNativeInterface instead
+ * - QX11Info::connection() -> QPlatformNativeInterface::nativeResourceForIntegration("connection")
+ * - QX11Info::appRootWindow() -> QPlatformNativeInterface::nativeResourceForScreen("rootwindow")
+ */
+
+#include <QGuiApplication>
+#include <qpa/qplatformnativeinterface.h>
 
 #include <xcb/xproto.h>
 #include <stdlib.h>
@@ -52,14 +61,24 @@ void XMouseTap::enableMouseEventTap(QRect rc, bool enabled) {
         return;
     }
 
-    xcb_connection_t *dpy = QX11Info::connection();
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+    xcb_connection_t *dpy = reinterpret_cast<xcb_connection_t*>(
+        native->nativeResourceForIntegration(QByteArrayLiteral("connection")));
+
+    if (!dpy) {
+        return;
+    }
 
     if (enabled) {
         // We grab the top-most smallest window
         xcb_window_t grab_window = 0;
         uint32_t grab_window_size = 0;
 
-        find_grab_window_recursive(dpy, QX11Info::appRootWindow(QX11Info::appScreen()),
+        xcb_window_t root = reinterpret_cast<xcb_window_t>(
+            native->nativeResourceForScreen(QByteArrayLiteral("rootwindow"),
+                QGuiApplication::primaryScreen()));
+
+        find_grab_window_recursive(dpy, root,
                 rc, 0, 0, &grab_window, &grab_window_size);
 
         if (grab_window) {

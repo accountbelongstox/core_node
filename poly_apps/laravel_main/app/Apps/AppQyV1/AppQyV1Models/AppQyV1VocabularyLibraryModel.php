@@ -48,4 +48,28 @@ class AppQyV1VocabularyLibraryModel extends Model
 
         return $query;
     }
+
+    /**
+     * Get words belonging to this library
+     */
+    public function words()
+    {
+        return $this->hasMany(AppQyV1VocabularyItemModel::class, 'library_id');
+    }
+
+    /**
+     * Get groups that use this library (many-to-many)
+     */
+    public function groups()
+    {
+        return $this->belongsToMany(
+            AppQyV1WordGroupModel::class,
+            'app_qy_v1_group_libraries',
+            'library_id',
+            'group_id',
+            'id',
+            'id'
+        )->withTimestamps()
+         ->withPivot('added_at');
+    }
 }

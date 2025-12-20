@@ -61,6 +61,7 @@ export class LocalTaskQueue {
   private processingTaskIds = new Set<string>();
   private taskCache = new Set<string>();
   private isRunning = false;
+  private isPaused = false;
   private handlerRegistry: TaskHandlerRegistry;
   private eventListeners = new Map<TaskEventType, Set<(event: TaskEvent) => void>>();
   private config: Required<TaskQueueConfig>;
@@ -165,7 +166,42 @@ export class LocalTaskQueue {
    */
   stop(): void {
     this.isRunning = false;
+    this.isPaused = false;
     queueLogger.info('LocalTaskQueue', 'Queue stopped');
+  }
+
+  /**
+   * Pause processing tasks
+   */
+  pause(): void {
+    if (!this.isRunning) {
+      queueLogger.debug('LocalTaskQueue', 'Cannot pause: queue not running');
+      return;
+    }
+
+    this.isPaused = true;
+    queueLogger.info('LocalTaskQueue', 'Queue paused');
+  }
+
+  /**
+   * Resume processing tasks
+   */
+  async resume(): Promise<void> {
+    if (!this.isRunning) {
+      queueLogger.debug('LocalTaskQueue', 'Cannot resume: queue not running');
+      return;
+    }
+
+    if (!this.isPaused) {
+      queueLogger.debug('LocalTaskQueue', 'Queue not paused');
+      return;
+    }
+
+    this.isPaused = false;
+    queueLogger.info('LocalTaskQueue', 'Queue resumed');
+
+    // Continue processing
+    await this.processNext();
   }
 
   /**
@@ -173,7 +209,7 @@ export class LocalTaskQueue {
    */
   private async processNext(): Promise<void> {
     // Check if should continue
-    if (!this.isRunning) {
+    if (!this.isRunning || this.isPaused) {
       return;
     }
 
@@ -653,5 +689,15 @@ export class LocalTaskQueue {
     this.taskCache.clear();
     this.processingTaskIds.clear();
     queueLogger.warn('LocalTaskQueue', 'All tasks cleared');
+  }
+
+  /**
+   * Get running status
+   */
+  getRunningStatus(): { isRunning: boolean; isPaused: boolean } {
+    return {
+      isRunning: this.isRunning,
+      isPaused: this.isPaused,
+    };
   }
 }

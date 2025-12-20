@@ -66,8 +66,8 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         if (isset($request->email)) {
             $email = $request->email;
         }
-        $nickname = "";
-        if (isset($request->nickname)) {
+        $nickname = null;
+        if (isset($request->nickname) && !empty($request->nickname)) {
             $nickname = $request->nickname;
         }
         $name = "";

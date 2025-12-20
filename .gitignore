@@ -87,6 +87,7 @@ app.*.symbols
 # Flutter/Dart Test
 
 **/.dart_tool/
+**/.dart_tool/**
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/.packages
@@ -372,3 +373,25 @@ java_pid*.hprof
 **/third_party/ffmpeg/lib/*.a
 **/screenshot/*.png
 **/*.pdb
+
+# Large binary executables (scrcpy, adb, etc)
+**/scrcpy/scrcpy
+**/scrcpy/adb
+**/extra/*/scrcpy/scrcpy
+**/extra/*/scrcpy/adb
+**/third_party/adb/**/adb
+
+# Large WASM files
+**/*.wasm
+**/ort-wasm-*.wasm
+**/ort-wasm-*.jsep.wasm
+
+# Image backups and large assets
+**/.image_backups/**
+**/assets/apps/**/login.jpg
+**/assets/common/fonts/*.otf
+**/assets/common/fonts/*.ttf
+
+# Archive files in misc directories
+**/__misc__/.archives/**
+**/.archives/**

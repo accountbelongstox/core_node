@@ -12,6 +12,7 @@ import { StateManager, GlobalState } from '../services/StateManager';
 import { AuthModel } from '../models/AuthModel';
 import { UserModel } from '../models/UserModel';
 import { UserProfileEnsurer } from '../services/UserProfileEnsurer';
+import { GlobalInitializer } from '../services/GlobalInitializer';
 
 interface AppContextType {
   user: User | null;
@@ -49,6 +50,11 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     // 0. Initialize UserModel from storage FIRST
     UserModel.init();
     console.log('[AppContext] UserModel initialized from storage');
+
+    // 0.5. Initialize Global Data Centers
+    GlobalInitializer.initialize().catch(err => {
+      console.error('[AppContext] Failed to initialize Global Centers:', err);
+    });
 
     // 1. Initialize API Manager
     apiManager.initialize({ autoDetect: true, timeout: 1000 }).catch(err => {

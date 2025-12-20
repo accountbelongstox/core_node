@@ -339,6 +339,13 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     isProtected: true,
   },
   {
+    path: '/group_management',
+    element: <CoursesPage />,
+    name: 'Group Management',
+    category: 'library',
+    isProtected: true,
+  },
+  {
     path: '/recommendations',
     element: <RecommendationsPage />,
     name: 'Recommendations',

@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons } from '../../components/UI';
 import { ApiCenter } from '../../services/ApiCenter';
+import { StorageCenter, StorageKey } from '../../services/StorageCenter';
 import { Word } from '../../types';
 
 export default function ToolsDictionary() {
@@ -17,10 +18,10 @@ export default function ToolsDictionary() {
 
   // Load search history and favorites
   useEffect(() => {
-    const history = localStorage.getItem('dictionaryHistory');
-    const favs = localStorage.getItem('dictionaryFavorites');
-    if (history) setSearchHistory(JSON.parse(history));
-    if (favs) setFavorites(JSON.parse(favs));
+    const history = StorageCenter.get<string[]>(StorageKey.DICTIONARY_HISTORY, []);
+    const favs = StorageCenter.get<Word[]>(StorageKey.DICTIONARY_FAVORITES, []);
+    setSearchHistory(history);
+    setFavorites(favs);
   }, []);
 
   // Debounced search
@@ -50,7 +51,7 @@ export default function ToolsDictionary() {
         // Add to history
         const newHistory = [searchQuery, ...searchHistory.filter(h => h !== searchQuery)].slice(0, 10);
         setSearchHistory(newHistory);
-        localStorage.setItem('dictionaryHistory', JSON.stringify(newHistory));
+        StorageCenter.set(StorageKey.DICTIONARY_HISTORY, newHistory);
       } else {
         setResults([]);
       }
@@ -73,7 +74,7 @@ export default function ToolsDictionary() {
     }
 
     setFavorites(newFavorites);
-    localStorage.setItem('dictionaryFavorites', JSON.stringify(newFavorites));
+    StorageCenter.set(StorageKey.DICTIONARY_FAVORITES, newFavorites);
   };
 
   const isFavorited = (wordId: string) => {
@@ -82,7 +83,7 @@ export default function ToolsDictionary() {
 
   const clearHistory = () => {
     setSearchHistory([]);
-    localStorage.removeItem('dictionaryHistory');
+    StorageCenter.remove(StorageKey.DICTIONARY_HISTORY);
   };
 
   const handleWordClick = (word: Word) => {

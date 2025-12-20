@@ -53,7 +53,7 @@ export default function MineSocial() {
           <div className="grid grid-cols-3 gap-3">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg text-center p-4">
               <p className="text-3xl font-bold">{MOCK_FRIENDS.length}</p>
-              <p className="text-blue-100 text-xs mt-1">Friends</p>
+              <p className="text-blue-100 text-xs mt-1">{t('social.friendsShort')}</p>
             </Card>
             <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg text-center p-4">
               <p className="text-3xl font-bold">#{currentUser?.rank || '-'}</p>
@@ -61,7 +61,7 @@ export default function MineSocial() {
             </Card>
             <Card className="bg-gradient-to-br from-pink-500 to-pink-600 text-white border-none shadow-lg text-center p-4">
               <p className="text-3xl font-bold">{unlockedAchievements}</p>
-              <p className="text-pink-100 text-xs mt-1">Badges</p>
+              <p className="text-pink-100 text-xs mt-1">{t('social.badgesShort')}</p>
             </Card>
           </div>
 

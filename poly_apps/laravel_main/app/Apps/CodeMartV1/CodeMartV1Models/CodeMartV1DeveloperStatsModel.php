@@ -5,7 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CodeMartV1DeveloperStatsModel extends Model
 {
-    protected $connection = 'CodeMartV1';
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_developer_stats';
 
     protected $fillable = [
