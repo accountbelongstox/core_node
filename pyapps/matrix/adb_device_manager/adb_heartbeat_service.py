@@ -194,6 +194,22 @@ class ADBHeartbeatService:
                     from pyapps.matrix.services.device_id_manager import DeviceIDManager
                     device_id_manager = DeviceIDManager.instance()
                     device_id = device_id_manager.register_device(serial)
+
+                    # ✅ CRITICAL: Also register in global DeviceManager's device_states
+                    # This prevents VideoStreamHealth from logging "Device not in global DeviceManager" errors
+                    # We add a minimal DeviceState entry so health checks can find the device
+                    from pycore.pyutils.device_manager import device_manager, DeviceState
+                    if serial not in device_manager.device_states:
+                        minimal_state = DeviceState(
+                            serial=serial,
+                            info=None,  # Will be populated when scrcpy connects
+                            connected=False,  # Not scrcpy-connected yet
+                            streaming=False,
+                            controllable=False
+                        )
+                        device_manager.device_states[serial] = minimal_state
+                        ColorPrint.blue(f"[ADBService] Registered {serial} in DeviceManager.device_states")
+
                     ColorPrint.green(f"[ADBService] [STEP 6/6] ✓ Device added: {serial} -> {device_id} (root={is_root})")
                 else:
                     ColorPrint.yellow(f"[ADBService] [STEP 6/6] ✗ Failed to add device (already exists?): {serial}")

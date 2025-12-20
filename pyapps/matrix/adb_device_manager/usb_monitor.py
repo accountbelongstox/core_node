@@ -151,6 +151,19 @@ class USBMonitor:
                 )
                 self.device_table.add_device(wifi_device)
 
+                # ✅ Also register wireless device in global DeviceManager's device_states
+                from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+                if wifi_serial not in device_manager.device_states:
+                    minimal_state = DMDeviceState(
+                        serial=wifi_serial,
+                        info=None,
+                        connected=False,
+                        streaming=False,
+                        controllable=False
+                    )
+                    device_manager.device_states[wifi_serial] = minimal_state
+                    ColorPrint.blue(f"[USBMonitor] Registered {wifi_serial} in DeviceManager.device_states")
+
             return True
 
         except Exception as e:
@@ -187,6 +200,19 @@ class USBMonitor:
             )
 
             self.device_table.add_device(device_info)
+
+            # ✅ Also register in global DeviceManager's device_states
+            from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+            if serial not in device_manager.device_states:
+                minimal_state = DMDeviceState(
+                    serial=serial,
+                    info=None,
+                    connected=False,
+                    streaming=False,
+                    controllable=False
+                )
+                device_manager.device_states[serial] = minimal_state
+                ColorPrint.blue(f"[USBMonitor] Registered {serial} in DeviceManager.device_states")
 
             if self.auto_convert:
                 success = self.convert_usb_to_wireless(serial)
