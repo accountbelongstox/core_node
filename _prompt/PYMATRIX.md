@@ -165,3 +165,19 @@ development-guides\PYTHON_PYCORE.md  python .\pymain.py app=matrix
 
 poly_apps\laravel_main\app\Apps\ServerManagerV1 找到其中。
 
+
+pyapps\matrix\docs\TECHNICAL_SPECIFICATION.md
+瑞幸欠验证其是否正胡，特别是多设备
+，写个测试脚本来验证。C:\Users\yun\.core_node\scrcpy
+使用其中的二进制，扫描 当前网段的所有 设备 来验证。写测试代码在
+pyapps\matrix\scripts 注意不要新加文档 ，也不要写一大堆测试脚本。
+
+ 打印扫描 到了多少设备
+  ，是否得到关键贞成功，之后在while里一直对每个设备
+  的视频流进行打印。
+
+http://192.168.50.3:10029/settings_lang 
+现在改为,在其中修改要学习的语言时,立即在前端的中心数据库中根据语语言的type创
+建分组,之后立即向后端请求创建,现在写上后端要求,并说晨这是背诵分级,需要语言typ
+e的.之后在前前,当一个词库加入背痛时只能显示对应的type 
+的分组.也可以再添加新的同一type的分组. 
