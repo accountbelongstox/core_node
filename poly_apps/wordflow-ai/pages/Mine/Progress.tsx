@@ -127,7 +127,7 @@ export default function MineProgress() {
               <svg className="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-green-100 text-sm">Mastered</p>
+              <p className="text-green-100 text-sm">{t('stats.mastered')}</p>
               <p className="text-4xl font-bold mt-1">{progress.mastered_words}</p>
             </div>
           </Card>

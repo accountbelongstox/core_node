@@ -6,6 +6,11 @@ import { Header } from '../../components/Header';
 import { ApiCenter } from '../../services/ApiCenter';
 import { mapLanguageCode } from '../../services/languageMapper';
 import { BingTranslator, GoogleTranslator, DeepLTranslator } from '../../services/translators';
+import { VocabularyLibraryManager } from '../../services/VocabularyLibraryManager';
+import { AudioProcessingHook } from '../../services/AudioProcessingHook';
+import { EventBus } from '../../services/EventBus';
+import { VocabularyAudioCenter } from '../../services/VocabularyAudioCenter';
+import { apiManager } from '../../services/ApiManager';
 
 interface VocabularyWord {
   index: number;
@@ -16,6 +21,7 @@ interface VocabularyWord {
   uk_phonetic?: string | null;
   word_details?: any | null;
   has_translation?: boolean;
+  audio_url?: string | null;
 }
 
 interface DisplaySettings {
@@ -32,7 +38,7 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   showIndex: true,
   showTranslation: false,
   fontSize: 16,
-  columnCount: 2,
+  columnCount: 1,
   wordsPerPage: 100,
   translationProvider: 'bing',
   autoTranslate: false,
@@ -49,6 +55,8 @@ const VocabularyLibraryDetail = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(DEFAULT_SETTINGS);
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get library ID from URL params
   const libraryId = parseInt(id || '1', 10);
@@ -62,6 +70,10 @@ const VocabularyLibraryDetail = () => {
   }, [libraryId]);
 
   useEffect(() => {
+    AudioProcessingHook.initialize();
+  }, []);
+
+  useEffect(() => {
     loadLibraryWords(currentPage);
   }, [libraryId, currentPage, displaySettings.wordsPerPage]);
 
@@ -70,6 +82,54 @@ const VocabularyLibraryDetail = () => {
       translateAllWords();
     }
   }, [displaySettings.autoTranslate, displaySettings.translationProvider, words.length]);
+
+  useEffect(() => {
+    const handleAudioReady = (event: any) => {
+      console.log('[LibraryDetail] Audio ready:', event.word);
+      const updatedWords = words.map(w => {
+        if (w.word === event.word) {
+          const library = VocabularyLibraryManager.getLibrary(libraryId);
+          const cachedWord = library?.words.find(cw => cw.word === w.word);
+          if (cachedWord?.audio_url) {
+            return { ...w, audio_url: cachedWord.audio_url };
+          }
+        }
+        return w;
+      });
+      setWords(updatedWords);
+    };
+
+    EventBus.on('library:audio_ready', handleAudioReady);
+    return () => {
+      EventBus.off('library:audio_ready', handleAudioReady);
+    };
+  }, [words, libraryId]);
+
+  // VocabularyAudioCenter subscription for audio generation updates
+  useEffect(() => {
+    const unsubscribe = VocabularyAudioCenter.subscribe((word, audioUrl) => {
+      console.log('[LibraryDetail] VocabularyAudioCenter: Audio ready for', word, audioUrl);
+
+      // Update word in current page
+      setWords((prev) =>
+        prev.map((w) => (w.word === word ? { ...w, audio_url: audioUrl } : w))
+      );
+
+      // Update in VocabularyLibraryManager cache
+      const library = VocabularyLibraryManager.getLibrary(libraryId);
+      if (library) {
+        const wordToUpdate = library.words.find(w => w.word === word);
+        if (wordToUpdate) {
+          wordToUpdate.audio_url = audioUrl;
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      VocabularyAudioCenter.clearPending();
+    };
+  }, [libraryId]);
 
   const loadLibraryWords = async (page: number) => {
     setLoading(true);
@@ -88,9 +148,26 @@ const VocabularyLibraryDetail = () => {
       console.log('[LibraryDetail] API response:', response);
 
       if (response.success && response.data) {
-        setLibrary(response.data.library);
-        setWords(response.data.words || []);
+        const libraryData = response.data.library;
+        const wordsData = response.data.words || [];
+
+        setLibrary(libraryData);
+        setWords(wordsData);
         setTotalPages(response.data.pagination?.last_page || 1);
+
+        VocabularyLibraryManager.loadLibrary(
+          libraryData.id,
+          libraryData.name,
+          libraryData.language,
+          libraryData.total_words
+        );
+
+        VocabularyLibraryManager.addWords(libraryData.id, wordsData, page);
+
+        // Process words for audio generation
+        if (wordsData.length > 0) {
+          VocabularyAudioCenter.processVocabularyLibrary(libraryData.id, wordsData);
+        }
       }
     } catch (err) {
       console.error('[LibraryDetail] Failed to load words:', err);
@@ -168,6 +245,35 @@ const VocabularyLibraryDetail = () => {
     }
   };
 
+  const playAudio = (audioUrl: string, word: string) => {
+    if (!audioUrl) return;
+
+    // Stop currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // Build full URL
+    const baseUrl = apiManager.getCurrentBaseUrl();
+    const fullUrl = audioUrl.startsWith('http') ? audioUrl : `${baseUrl}${audioUrl}`;
+
+    // Play new audio
+    const audio = new Audio(fullUrl);
+    audioRef.current = audio;
+    setPlayingAudio(word);
+
+    audio.play().catch((err) => {
+      console.error('[LibraryDetail] Audio playback failed:', err);
+      setPlayingAudio(null);
+    });
+
+    audio.onended = () => {
+      setPlayingAudio(null);
+      audioRef.current = null;
+    };
+  };
+
   const renderSettingsPanel = () => {
     if (!showSettings) return null;
 
@@ -228,22 +334,6 @@ const VocabularyLibraryDetail = () => {
               />
             </div>
 
-            {/* Column Count */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-              <label className="block mb-3 font-medium text-slate-700 dark:text-slate-300">
-                列数: <span className="text-blue-600 dark:text-blue-400">{displaySettings.columnCount} 列</span>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={displaySettings.columnCount}
-                onChange={(e) =>
-                  setDisplaySettings((prev) => ({ ...prev, columnCount: parseInt(e.target.value) }))
-                }
-                className="w-full accent-blue-600"
-              />
-            </div>
 
             {/* Words Per Page */}
             <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
@@ -384,18 +474,6 @@ const VocabularyLibraryDetail = () => {
           >
             序号 {displaySettings.showIndex ? 'ON' : 'OFF'}
           </button>
-          <div className="flex-1"></div>
-          <select
-            value={displaySettings.columnCount}
-            onChange={(e) => setDisplaySettings(prev => ({ ...prev, columnCount: parseInt(e.target.value) }))}
-            className="px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm"
-          >
-            <option value={1}>1 列</option>
-            <option value={2}>2 列</option>
-            <option value={3}>3 列</option>
-            <option value={4}>4 列</option>
-            <option value={5}>5 列</option>
-          </select>
         </div>
 
         {/* Translation Status */}
@@ -406,19 +484,14 @@ const VocabularyLibraryDetail = () => {
           </div>
         )}
 
-        {/* Words Grid */}
+        {/* Words List - One per Line */}
         {loading ? (
           <div className="text-center py-12">
             <Icons.Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
             <p className="text-slate-600 dark:text-slate-400">加载中...</p>
           </div>
         ) : words.length > 0 ? (
-          <div
-            className="grid gap-3 mb-6"
-            style={{
-              gridTemplateColumns: `repeat(${displaySettings.columnCount}, minmax(0, 1fr))`,
-            }}
-          >
+          <div className="space-y-2 mb-6">
             {words.map((word, idx) => {
               const backendTranslation = word.translations && Array.isArray(word.translations) && word.translations.length > 0
                 ? word.translations.join('; ')
@@ -434,11 +507,11 @@ const VocabularyLibraryDetail = () => {
                   className={`
                     group relative p-4 rounded-xl border-2 transition-all duration-200
                     ${canTranslate
-                      ? 'cursor-pointer hover:border-blue-500 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]'
+                      ? 'cursor-pointer hover:border-blue-500 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0'
                       : 'cursor-default'
                     }
                     ${hasTranslation && displaySettings.showTranslation
-                      ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-300 dark:border-green-800'
                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/10'
                     }
                   `}
@@ -447,36 +520,63 @@ const VocabularyLibraryDetail = () => {
                       translateSingleWord(word.index, word.word);
                     }
                   }}
-                  style={{ fontSize: `${displaySettings.fontSize}px` }}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3">
                     {displaySettings.showIndex && (
-                      <span className="text-slate-400 dark:text-slate-500 font-mono text-xs mt-0.5 min-w-[2.5rem] flex-shrink-0">
+                      <span className="text-slate-400 dark:text-slate-500 font-mono text-sm font-semibold min-w-[3rem] flex-shrink-0 mt-0.5">
                         {word.index + 1}.
                       </span>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-slate-900 dark:text-white break-words">
-                        {word.word}
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <div
+                          className="font-bold text-slate-900 dark:text-white break-words"
+                          style={{ fontSize: `${displaySettings.fontSize}px` }}
+                        >
+                          {word.word}
+                        </div>
+                        {word.audio_url && word.audio_url !== 'null' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playAudio(word.audio_url!, word.word);
+                            }}
+                            className={`
+                              inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                              transition-all
+                              ${playingAudio === word.word
+                                ? 'bg-blue-500 text-white shadow-md'
+                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                              }
+                            `}
+                          >
+                            {playingAudio === word.word ? '⏸️' : '▶️'}
+                          </button>
+                        )}
+                        {VocabularyAudioCenter.isPending(word.word, library?.language || 'en') && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+                            ⏳
+                          </span>
+                        )}
                       </div>
                       {hasPhonetic && displaySettings.showTranslation && (
-                        <div className="text-xs text-slate-500 dark:text-slate-500 mt-0.5 font-mono">
-                          {word.us_phonetic && `US: ${word.us_phonetic}`}
-                          {word.us_phonetic && word.uk_phonetic && ' | '}
-                          {word.uk_phonetic && `UK: ${word.uk_phonetic}`}
+                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-blue-50 dark:bg-blue-900/20 inline-block px-2 py-0.5 rounded">
+                          {word.us_phonetic && `🇺🇸 ${word.us_phonetic}`}
+                          {word.us_phonetic && word.uk_phonetic && ' · '}
+                          {word.uk_phonetic && `🇬🇧 ${word.uk_phonetic}`}
                         </div>
                       )}
                       {displaySettings.showTranslation && hasTranslation && (
-                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
+                        <div className="text-sm text-slate-700 dark:text-slate-300 mt-2 leading-relaxed">
                           {displayTranslation}
                           {backendTranslation && (
-                            <span className="ml-2 text-xs text-green-600 dark:text-green-400">✓</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs bg-green-500 text-white rounded-full">✓</span>
                           )}
                         </div>
                       )}
                       {canTranslate && (
-                        <div className="text-xs text-blue-500 dark:text-blue-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          点击翻译
+                        <div className="text-xs text-blue-500 dark:text-blue-400 mt-2 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                          💡 点击翻译
                         </div>
                       )}
                     </div>

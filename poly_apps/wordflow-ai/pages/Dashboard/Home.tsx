@@ -9,6 +9,7 @@ import { SUPPORTED_LANGUAGES } from '../../services/mockData';
 import { IconMappingService } from '../../services/IconMappingService';
 import { ApiCenter } from '../../services/ApiCenter';
 import { mapLanguageCode } from '../../services/languageMapper';
+import { WordGroupsCenter } from '../../services/WordGroupsCenter';
 
 const DashboardPage = () => {
   const { user, navigate, t, activeGroupId, settings } = useContext(AppContext);
@@ -22,14 +23,37 @@ const DashboardPage = () => {
   const [recommendedLibraries, setRecommendedLibraries] = useState<any[]>([]);
   const [selectedLibraries, setSelectedLibraries] = useState<any[]>([]);
   const [loadingLibraries, setLoadingLibraries] = useState(false);
+  const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
+  const [selectedLibraryForGroup, setSelectedLibraryForGroup] = useState<any>(null);
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+
+  // Subscribe to WordGroupsCenter for automatic updates
+  useEffect(() => {
+    const unsubscribe = WordGroupsCenter.subscribe((groups) => {
+      setAllGroups(groups);
+      const found = groups.find(g => g.id === activeGroupId) || groups[0];
+      setActiveGroup(found);
+    });
+
+    // Initial fetch
+    WordGroupsCenter.fetchAll();
+
+    return unsubscribe;
+  }, [activeGroupId]);
 
   useEffect(() => {
     if (user) {
-      api.getWordGroups().then(groups => {
-          setAllGroups(groups);
-          const found = groups.find(g => g.id === activeGroupId) || groups[0];
-          setActiveGroup(found);
+      // Debug: Log user object to identify available fields
+      console.group('[Home] User Data Debug');
+      console.log('User object:', user);
+      console.log('Available fields:', {
+        id: user.id,
+        name: user.name,
+        nickname: user.nickname,
+        username: user.username,
+        email: user.email,
       });
+      console.groupEnd();
 
       // Load daily words
       loadDailyWords();
@@ -40,7 +64,7 @@ const DashboardPage = () => {
       // Load selected vocabulary libraries
       loadSelectedLibraries();
     }
-  }, [user, activeGroupId]);
+  }, [user]);
 
   useEffect(() => {
     loadRecommendedLibraries();
@@ -159,9 +183,26 @@ const DashboardPage = () => {
       }
   };
 
+  // Helper function to get user display name
+  const getUserDisplayName = (user: any): string => {
+    if (!user) return 'User';
+    // Priority: nickname > name > username > email prefix > 'User'
+    const displayName = user.nickname ||
+                        user.name ||
+                        user.username ||
+                        user.email?.split('@')[0] ||
+                        'User';
+    return displayName.split(' ')[0]; // Only take first name
+  };
+
   // [GLOBAL SETTING] Use global settings instead of user.learningLanguages
   const currentLangCode = settings.language.learningLanguages?.[0] || 'en';
   const currentLang = SUPPORTED_LANGUAGES.find(l => l.code === currentLangCode) || SUPPORTED_LANGUAGES[0];
+
+  // Get all learning languages from global settings
+  const learningLanguages = (settings.language.learningLanguages || ['en']).map(code =>
+    SUPPORTED_LANGUAGES.find(l => l.code === code) || { code, name: code, flag: '🌐' }
+  );
 
   return (
     <div className="h-full flex flex-col bg-[#f8fafc] dark:bg-slate-950">
@@ -175,27 +216,42 @@ const DashboardPage = () => {
                  {user ? t('home.startLearning') : t('home.guestMode')}
             </span>
             <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400">
-                {user ? t('home.hiUser').replace('{name}', (user.name || user.nickname || user.username || 'User').split(' ')[0]) : t('home.welcomeGuest')}
+                {user ? t('home.hiUser').replace('{name}', getUserDisplayName(user)) : t('home.welcomeGuest')}
             </h1>
         </div>
 
         {/* Language Selection Bar */}
         <div className="flex items-center justify-between bg-white/50 dark:bg-slate-800/50 p-3 rounded-2xl border border-white/40 backdrop-blur-sm mb-8 shadow-sm">
-             <div className="flex items-center gap-3">
-                 <span className="text-2xl">
-                   {currentLang.flag || IconMappingService.getEmoji(
-                     IconMappingService.getFlagIconName(currentLangCode)
-                   )}
-                 </span>
-                 <div>
-                     <div className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">{t('home.targetLanguage')}</div>
-                     <div className="text-sm font-bold text-slate-800 dark:text-white leading-none">{currentLang.name}</div>
+             <div className="flex items-center gap-3 flex-1 min-w-0">
+                 {/* Multiple Language Flags */}
+                 <div className="flex items-center gap-1.5">
+                   {learningLanguages.map((lang, index) => (
+                     <span
+                       key={lang.code}
+                       className="text-2xl hover:scale-110 transition-transform cursor-pointer"
+                       title={lang.name}
+                     >
+                       {lang.flag || IconMappingService.getEmoji(
+                         IconMappingService.getFlagIconName(lang.code)
+                       )}
+                     </span>
+                   ))}
+                 </div>
+
+                 {/* Language Names */}
+                 <div className="min-w-0 flex-1">
+                     <div className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">
+                       {t('home.targetLanguage')}
+                     </div>
+                     <div className="text-sm font-bold text-slate-800 dark:text-white leading-none truncate">
+                       {learningLanguages.map(l => l.name).join(', ')}
+                     </div>
                  </div>
              </div>
 
              <button
                 onClick={() => navigate('settings_lang')}
-                className="p-2 rounded-xl bg-white/60 dark:bg-slate-700/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border border-white/20 shadow-sm"
+                className="p-2 rounded-xl bg-white/60 dark:bg-slate-700/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border border-white/20 shadow-sm flex-shrink-0"
              >
                  <Icons.Settings />
              </button>
@@ -371,41 +427,82 @@ const DashboardPage = () => {
               <span className="text-slate-500">Loading vocabulary libraries...</span>
             </div>
           ) : recommendedLibraries.length > 0 ? (
-            <div className="space-y-3">
-              {recommendedLibraries.map((library) => (
-                <div
-                  key={library.id}
-                  onClick={() => navigate(`vocabulary_library/${library.id}`)}
-                  className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-purple-50/80 to-pink-50/80 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-200/50 dark:border-purple-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/40 dark:to-pink-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
-                      📚
-                    </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-purple-600 transition-colors">
+            <div className="grid grid-cols-2 gap-3">
+              {recommendedLibraries.map((library, index) => {
+                const gradients = [
+                  'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
+                  'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20',
+                  'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20',
+                  'from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20',
+                  'from-rose-50 to-red-50 dark:from-rose-900/20 dark:to-red-900/20',
+                  'from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20',
+                ];
+                const gradientClass = gradients[index % gradients.length];
+                const defaultThumbnail = '📚';
+
+                return (
+                  <div
+                    key={library.id}
+                    className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradientClass} border border-white/40 dark:border-white/10 shadow-sm hover:shadow-lg transition-all duration-300 group`}
+                  >
+                    <div
+                      onClick={() => navigate(`vocabulary_library/${library.id}`)}
+                      className="p-4 cursor-pointer"
+                    >
+                      {/* Thumbnail */}
+                      <div className="w-full aspect-square rounded-xl mb-3 overflow-hidden bg-white/50 dark:bg-black/20 flex items-center justify-center">
+                        {library.thumbnail || library.cover_image ? (
+                          <img
+                            src={library.thumbnail || library.cover_image}
+                            alt={library.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling!.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <span className={`text-4xl ${library.thumbnail || library.cover_image ? 'hidden' : ''}`}>
+                          {library.emoji || defaultThumbnail}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="font-bold text-sm text-slate-800 dark:text-white mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
                         {library.name}
-                      </span>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>{library.word_count || library.total_words} {t('library.words') || 'words'}</span>
+                      </h3>
+
+                      {/* Info */}
+                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-medium">{library.word_count || library.total_words} words</span>
                         {library.difficulty && (
-                          <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-bold">
+                          <span className="px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 font-bold">
                             {library.difficulty}
-                          </span>
-                        )}
-                        {library.category && (
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
-                            {library.category}
                           </span>
                         )}
                       </div>
                     </div>
+
+                    {/* Add to Group Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!user) {
+                          navigate('login');
+                        } else {
+                          setSelectedLibraryForGroup(library);
+                          setShowAddToGroupModal(true);
+                        }
+                      }}
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md flex items-center justify-center text-purple-600 dark:text-purple-400 hover:bg-purple-500 hover:text-white transition-all hover:scale-110 active:scale-95"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-purple-50 group-hover:text-purple-500 transition-colors flex-shrink-0">
-                    <Icons.ChevronRight />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-center">
@@ -714,6 +811,145 @@ const DashboardPage = () => {
             )}
         </div>
       </div>
+
+      {/* Add to Group Modal */}
+      {showAddToGroupModal && selectedLibraryForGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAddToGroupModal(false)}
+          ></div>
+
+          {/* Modal */}
+          <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden animate-slide-up">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 pr-4">
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                    {t('home.selectStudyGroup') || '选择背诵分组'}
+                  </h2>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {t('home.addLibraryToGroup', { name: selectedLibraryForGroup.name })
+                      .replace('{name}', selectedLibraryForGroup.name) ||
+                      `将"${selectedLibraryForGroup.name}"加入到哪个背诵分组？`}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                    📚 {selectedLibraryForGroup.word_count || selectedLibraryForGroup.total_words} {t('home.words') || '个单词'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddToGroupModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Groups List */}
+            <div className="overflow-y-auto max-h-[400px] custom-scrollbar">
+              <div className="p-6 space-y-3">
+                {allGroups.length > 0 ? (
+                  allGroups.map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={async () => {
+                        setAddingToGroupId(group.id);
+                        try {
+                          const response = await ApiCenter.wordGroups.addLibraryToGroup({
+                            gid: group.id,
+                            library_id: selectedLibraryForGroup.id,
+                          });
+
+                          if (response.success) {
+                            const wordsAdded = response.data?.words_added || 0;
+                            setShowAddToGroupModal(false);
+                            setAddingToGroupId(null);
+
+                            // Show success message
+                            const successMsg = t('home.wordsAddedSuccess', { count: wordsAdded })
+                              .replace('{count}', String(wordsAdded)) ||
+                              `成功添加 ${wordsAdded} 个单词`;
+                            alert(successMsg + '\n' + (t('home.addedToGroup', { name: group.name }).replace('{name}', group.name) || `已添加到"${group.name}"`));
+                          } else {
+                            throw new Error(response.error?.message || 'Failed to add library to group');
+                          }
+                        } catch (error: any) {
+                          console.error('Failed to add library to group:', error);
+                          alert(error.message || '添加失败，请重试');
+                        } finally {
+                          setAddingToGroupId(null);
+                        }
+                      }}
+                      disabled={addingToGroupId !== null}
+                      className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all group ${
+                        addingToGroupId === group.id
+                          ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 opacity-70'
+                          : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-700'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center text-xl flex-shrink-0">
+                        {group.coverImage || '📚'}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {group.name}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {group.count} {t('home.words') || 'words'} · {group.progress}%
+                        </div>
+                      </div>
+                      {addingToGroupId === group.id ? (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                            {t('common.loading') || '加载中...'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-white dark:bg-slate-600 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-2xl mx-auto mb-3">
+                      📚
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                      {t('home.noGroupsYet') || 'No groups yet'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer - Create New Group */}
+            <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+              <button
+                onClick={() => {
+                  setShowAddToGroupModal(false);
+                  navigate('group_management');
+                }}
+                className="w-full flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/20 hover:shadow-xl hover:scale-[1.02] active:scale-95"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>{t('home.createNewGroup') || 'Create New Group'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

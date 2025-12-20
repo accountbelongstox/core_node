@@ -15,7 +15,7 @@
           <div>
             <h3 class="text-lg font-semibold text-gray-900">Global Task System</h3>
             <p class="text-sm text-gray-500">
-              {{ isTaskSystemRunning ? 'Running' : 'Stopped' }}
+              {{ isTaskSystemRunning ? (isPaused ? 'Paused' : 'Running') : 'Stopped' }}
               • {{ enabledExtensionsCount }} extensions enabled
             </p>
           </div>
@@ -52,18 +52,37 @@
           <span>Start Task System</span>
         </button>
 
-        <button
-          v-else
-          @click="stopTaskSystem"
-          class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-        >
-          <span class="text-lg">⏹️</span>
-          <span>Stop Task System</span>
-        </button>
+        <template v-else>
+          <button
+            v-if="!isPaused"
+            @click="pauseTaskSystem"
+            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <span class="text-lg">⏸️</span>
+            <span>Pause</span>
+          </button>
+
+          <button
+            v-else
+            @click="resumeTaskSystem"
+            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <span class="text-lg">▶️</span>
+            <span>Resume</span>
+          </button>
+
+          <button
+            @click="stopTaskSystem"
+            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <span class="text-lg">⏹️</span>
+            <span>Stop</span>
+          </button>
+        </template>
       </div>
 
       <!-- 运行状态信息 -->
-      <div v-if="isTaskSystemRunning" class="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+      <div v-if="isTaskSystemRunning && !isPaused" class="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
         <div class="flex items-center gap-2 text-sm text-green-800">
           <span class="font-mono">⚡</span>
           <span>Task system is actively monitoring {{ enabledExtensionsCount }} enabled extensions...</span>
@@ -72,6 +91,17 @@
           Total: {{ stats.total }} |
           Processing: {{ stats.processing }} |
           Failed: {{ stats.failed }}
+        </div>
+      </div>
+
+      <!-- 暂停状态信息 -->
+      <div v-if="isTaskSystemRunning && isPaused" class="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+        <div class="flex items-center gap-2 text-sm text-yellow-800">
+          <span class="font-mono">⏸️</span>
+          <span>Task system is paused. Click "Resume" to continue processing tasks.</span>
+        </div>
+        <div v-if="stats.pending > 0" class="mt-2 text-xs text-yellow-700 font-mono">
+          {{ stats.pending }} tasks waiting to be processed
         </div>
       </div>
 
@@ -224,9 +254,12 @@ const {
 const {
   stats,
   isRunning: isTaskSystemRunning,
+  isPaused,
   hasProcessingTasks,
   start,
   stop,
+  pause,
+  resume,
   updateState,
 } = useLocalTaskQueue();
 
@@ -265,6 +298,34 @@ const stopTaskSystem = async () => {
   } catch (err: any) {
     error.value = err.message || 'Failed to stop task system';
     console.error('[ExtensionsPanel] Failed to stop task system:', err);
+  }
+};
+
+/**
+ * 暂停任务系统 - 使用真实队列
+ */
+const pauseTaskSystem = async () => {
+  try {
+    error.value = '';
+    await pause();
+    console.log('[ExtensionsPanel] Task system paused');
+  } catch (err: any) {
+    error.value = err.message || 'Failed to pause task system';
+    console.error('[ExtensionsPanel] Failed to pause task system:', err);
+  }
+};
+
+/**
+ * 恢复任务系统 - 使用真实队列
+ */
+const resumeTaskSystem = async () => {
+  try {
+    error.value = '';
+    await resume();
+    console.log('[ExtensionsPanel] Task system resumed');
+  } catch (err: any) {
+    error.value = err.message || 'Failed to resume task system';
+    console.error('[ExtensionsPanel] Failed to resume task system:', err);
   }
 };
 

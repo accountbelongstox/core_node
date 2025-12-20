@@ -99,6 +99,7 @@ class AppQyV1ArticleTTSWorker
             $sentenceAudioUrls = [];
             foreach ($sentences as $index => $sentence) {
                 $result = $this->ttsService->generateAudio($sentence, $langCode, 'sentence');
+                $result = $this->fixAudioUrl($result);
 
                 if ($result['success']) {
                     $sentenceAudioUrls[] = [
@@ -132,6 +133,7 @@ class AppQyV1ArticleTTSWorker
             $wordAudioUrls = [];
             foreach ($words as $index => $word) {
                 $result = $this->ttsService->generateAudio($word, $langCode, 'word');
+                $result = $this->fixAudioUrl($result);
 
                 if ($result['success']) {
                     $wordAudioUrls[] = [
@@ -302,5 +304,20 @@ class AppQyV1ArticleTTSWorker
 
             Log::info('[AppQyV1ArticleTTSWorker] Created app_qy_v1_article_words table');
         }
+    }
+
+    /**
+     * Fix audio_url path to use AppQyV1 route prefix
+     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
+     */
+    private function fixAudioUrl(array $result): array
+    {
+        if (isset($result['audio_url'])) {
+            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
+                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
+            }
+        }
+
+        return $result;
     }
 }

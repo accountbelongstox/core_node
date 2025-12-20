@@ -225,7 +225,8 @@ class UserSyncService
                     avatar TEXT,
                     credit INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (main_user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             ');
         }
@@ -233,9 +234,17 @@ class UserSyncService
         DB::connection($connection)->statement('
             CREATE INDEX IF NOT EXISTS idx_users_main_user_id ON users(main_user_id)
         ');
-        
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
+        ');
+
         DB::connection($connection)->statement('
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
+        ');
+
+        DB::connection($connection)->statement('
+            CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname)
         ');
     }
 
@@ -385,7 +394,14 @@ class UserSyncService
         $results = [];
         $connection = 'appqyv1';
 
-        // Language mappings: langKey => [code, name]
+        $allDictTables = DB::connection($connection)
+            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
+
+        foreach ($allDictTables as $tableObj) {
+            $tableName = $tableObj->name;
+            $results[$tableName] = 'exists';
+        }
+
         $languages = [
             'lao' => ['lo', 'Lao'],
             'japanese' => ['ja', 'Japanese'],
@@ -397,12 +413,7 @@ class UserSyncService
             list($langCode, $langName) = $langInfo;
             $tableName = "app_qy_v1_{$langCode}_dictionaries";
 
-            // Check if table already exists and has the correct structure
-            $tableExists = DB::connection($connection)
-                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [$tableName]);
-
-            if (!empty($tableExists)) {
-                $results[$tableName] = 'exists';
+            if (isset($results[$tableName])) {
                 continue;
             }
 

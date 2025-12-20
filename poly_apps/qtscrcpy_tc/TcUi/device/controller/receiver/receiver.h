@@ -1,6 +1,7 @@
 #ifndef RECEIVER_H
 #define RECEIVER_H
 
+#include <QObject>
 #include <QPointer>
 
 class QTcpSocket;

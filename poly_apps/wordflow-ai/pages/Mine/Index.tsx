@@ -13,9 +13,11 @@ export default function MineIndex() {
   });
 
   useEffect(() => {
-    if (user) {
-      loadUserStats();
+    if (!user) {
+      navigate('/login');
+      return;
     }
+    loadUserStats();
   }, [user]);
 
   const loadUserStats = async () => {
@@ -42,7 +44,7 @@ export default function MineIndex() {
     {
       id: 'profile',
       title: t('profile.profile'),
-      subtitle: 'Personal information and settings',
+      subtitle: t('nav.profileSubtitle'),
       icon: <Icons.User />,
       route: 'profile',
       color: 'from-blue-500 to-blue-600'
@@ -50,7 +52,7 @@ export default function MineIndex() {
     {
       id: 'progress',
       title: t('reading.progress'),
-      subtitle: 'View your learning analytics',
+      subtitle: t('nav.progressSubtitle'),
       icon: <Icons.Chart />,
       route: 'mine/progress',
       color: 'from-purple-500 to-purple-600'
@@ -58,7 +60,7 @@ export default function MineIndex() {
     {
       id: 'social',
       title: t('social.friends'),
-      subtitle: 'Friends and leaderboard',
+      subtitle: t('nav.socialSubtitle'),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -70,7 +72,7 @@ export default function MineIndex() {
     {
       id: 'settings',
       title: t('nav.settings'),
-      subtitle: 'App preferences and account',
+      subtitle: t('nav.settingsSubtitle'),
       icon: <Icons.Settings />,
       route: 'settings',
       color: 'from-slate-500 to-slate-600'
@@ -126,7 +128,7 @@ export default function MineIndex() {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-900 dark:text-white">{t('nav.settings')}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">App preferences</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('settings.appPreferences')}</p>
                   </div>
                 </div>
                 <Icons.ChevronRight />
@@ -169,19 +171,19 @@ export default function MineIndex() {
         <div className="grid grid-cols-4 gap-3">
           <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalWords}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Words</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.words')}</p>
           </Card>
           <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
             <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.masteredWords}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Mastered</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.mastered')}</p>
           </Card>
           <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
             <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.currentStreak}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Streak</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.streak')}</p>
           </Card>
           <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
             <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{Math.floor(stats.totalStudyTime / 60)}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Hours</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.hours')}</p>
           </Card>
         </div>
 

@@ -492,6 +492,71 @@ up_20251215_install_reverb() {
 }
 
 # ============================================================================
+# UP: 20251220_install_haikunator
+# Date: 2025-12-20
+# Description: Install Haikunator PHP for auto-generating nicknames
+# Idempotent: Can be run multiple times safely
+# ============================================================================
+up_20251220_install_haikunator() {
+    local version="20251220_install_haikunator"
+
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${CYAN}[UP] Running: $version${NC}"
+    echo -e "${CYAN}[UP] Date: 2025-12-20${NC}"
+    echo -e "${CYAN}[UP] Description: Install Haikunator for nickname generation${NC}"
+
+    if is_up_applied "$version"; then
+        echo -e "${BLUE}[UP] Note: Already applied before, re-running for idempotency${NC}"
+    fi
+
+    echo -e "${CYAN}========================================${NC}"
+
+    local laravel_dir=$(get_laravel_dir)
+    if [ -z "$laravel_dir" ]; then
+        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
+        return 1
+    fi
+
+    cd "$laravel_dir" || return 1
+
+    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    if ! command -v composer &> /dev/null; then
+        echo -e "${RED}[UP] Composer not found${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}[UP] OK Composer found${NC}"
+
+    echo -e "${BLUE}[UP] Step 2: Installing/Updating Haikunator...${NC}"
+    if $USE_SUDO composer show | grep -q "atrox/haikunator"; then
+        echo -e "${BLUE}[UP] Haikunator already installed, ensuring latest version...${NC}"
+        $USE_SUDO composer update atrox/haikunator
+    else
+        echo -e "${BLUE}[UP] Installing Haikunator...${NC}"
+        $USE_SUDO composer require atrox/haikunator
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
+    fi
+
+    echo -e "${BLUE}[UP] Step 3: Verifying installation...${NC}"
+    if $USE_SUDO composer show | grep -q "atrox/haikunator"; then
+        echo -e "${GREEN}[UP] OK Haikunator package installed${NC}"
+    else
+        echo -e "${RED}[UP] ERROR Haikunator package not found${NC}"
+        return 1
+    fi
+
+    mark_up_applied "$version"
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}[UP] $version completed successfully${NC}"
+    echo -e "${GREEN}========================================${NC}"
+
+    return 0
+}
+
+# ============================================================================
 # REUSABLE FUNCTIONS - Can be called from other scripts
 # ============================================================================
 
@@ -679,6 +744,7 @@ run_all_ups() {
     up_20251127_install_chokidar || failed=1
     up_20251206_install_faker || failed=1
     up_20251215_install_reverb || failed=1
+    up_20251220_install_haikunator || failed=1
 
     if [ $failed -eq 0 ]; then
         echo -e "${GREEN}[UP] All updates applied successfully${NC}"

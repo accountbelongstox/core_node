@@ -27,10 +27,13 @@ extern "C"
 #include "libavutil/frame.h"
 }
 
-VideoForm::VideoForm(bool framelessWindow, bool skin, QWidget *parent) : QWidget(parent), ui(new Ui::videoForm), m_skin(skin)
+VideoForm::VideoForm(bool framelessWindow, bool skin, QWidget *parent, Ui::MainWindow *mainui) : QWidget(parent), ui(new Ui::videoForm), m_skin(skin)
 {
     ui->setupUi(this);
     initUI();
+
+    this->gridLayout = mainui->gridLayout;
+    this->horizontalLayout = mainui->horizontalLayout;
 
     installShortcut();
     updateShowSize(size());
@@ -58,10 +61,10 @@ void VideoForm::initUI()
         }
 
 #ifndef Q_OS_OSX
-        // On macOS, removing the title bar affects showfullscreen
-        // Remove title bar
+        // mac下去掉标题栏影响showfullscreen
+        // 去掉标题栏
         setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
-        // Construct shaped window based on image
+        // 根据图片构造异形窗口
         setAttribute(Qt::WA_TranslucentBackground);
 #endif
     }
@@ -134,12 +137,12 @@ void VideoForm::resizeSquare()
         qWarning() << "getScreenRect is empty";
         return;
     }
-    // resize(screenRect.height(), screenRect.height());
+    resize(screenRect.height(), screenRect.height());
 }
 
 void VideoForm::removeBlackRect()
 {
-    // resize(ui->keepRatioWidget->goodSize());
+    resize(ui->keepRatioWidget->goodSize());
 }
 
 void VideoForm::showFPS(bool show)
@@ -166,19 +169,18 @@ void VideoForm::updateRender(const AVFrame *frame)
 
 void VideoForm::showToolForm(bool show)
 {
-    if(show){}
     static int firstLayoutFlag = 0;
     if (!m_toolForm) {
-        // m_toolForm = new ToolForm(this/*, ToolForm::AP_OUTSIDE_RIGHT*/);
-        // m_toolForm->setDevice(m_device);
+        m_toolForm = new ToolForm(this, ToolForm::AP_OUTSIDE_RIGHT);
+        m_toolForm->setDevice(m_device);
     }
     if (!firstLayoutFlag) {
         firstLayoutFlag++;
-        // horizontalLayout->addWidget(m_toolForm);
-        // m_toolForm->move(pos().x() + geometry().width(), pos().y() + 30);
-        // m_toolForm->setVisible(show);
+        horizontalLayout->addWidget(m_toolForm);
+        m_toolForm->move(pos().x() + geometry().width(), pos().y() + 30);
+        m_toolForm->setVisible(show);
     } else {
-        // m_toolForm->hide();
+        m_toolForm->hide();
     }
 }
 
@@ -189,8 +191,8 @@ void VideoForm::moveCenter()
         qWarning() << "getScreenRect is empty";
         return;
     }
-    // Center the window
-    // move(screenRect.center() - QRect(0, 0, size().width(), size().height()).center());
+    // 窗口居中
+    move(screenRect.center() - QRect(0, 0, size().width(), size().height()).center());
 }
 
 void VideoForm::installShortcut()
@@ -456,7 +458,7 @@ void VideoForm::updateShowSize(const QSize &newSize)
         }
 
         if (showSize != size()) {
-            // resize(showSize);
+            resize(showSize);
             if (m_skin) {
                 updateStyleSheet(vertical);
             }
@@ -475,7 +477,7 @@ void VideoForm::onSwitchFullScreen()
 
         showNormal();
         // fullscreen window will move (0,0). qt bug?
-        // move(m_fullScreenBeforePos);
+        move(m_fullScreenBeforePos);
 
 #ifdef Q_OS_OSX
         //setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
@@ -530,7 +532,7 @@ void VideoForm::staysOnTop(bool top)
     }
     setWindowFlag(Qt::WindowStaysOnTopHint, top);
     if (m_toolForm) {
-        // m_toolForm->setWindowFlag(Qt::WindowStaysOnTopHint, top);
+        m_toolForm->setWindowFlag(Qt::WindowStaysOnTopHint, top);
     }
     if (needShow) {
         show();
@@ -616,7 +618,7 @@ void VideoForm::mouseMoveEvent(QMouseEvent *event)
         emit m_device->mouseEvent(event, m_videoWidget->frameSize(), m_videoWidget->size());
     } else if (!m_dragPosition.isNull()) {
         if (event->buttons() & Qt::LeftButton) {
-            // move(event->globalPos() - m_dragPosition);
+            move(event->globalPos() - m_dragPosition);
             event->accept();
         }
     }
@@ -701,7 +703,7 @@ void VideoForm::resizeEvent(QResizeEvent *event)
         return;
     }
     QSize curSize = size();
-    // Limit VideoForm size to not be smaller than keepRatioWidget good size
+    // 限制VideoForm尺寸不能小于keepRatioWidget good size
     if (m_widthHeightRatio > 1.0f) {
         // hor
         if (curSize.height() <= goodSize.height()) {

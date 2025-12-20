@@ -7,7 +7,7 @@ import { ApiCenter } from '../../services/ApiCenter';
 import { RetentionStat } from '../../types';
 
 const ReviewDashboardPage = () => {
-  const { navigate, user } = useContext(AppContext);
+  const { navigate, user, t } = useContext(AppContext);
   const [stats, setStats] = useState<RetentionStat[]>([]);
   const [reviewQueue, setReviewQueue] = useState<any[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
@@ -66,7 +66,7 @@ const ReviewDashboardPage = () => {
              <div className="absolute inset-0 rounded-full border-[12px] border-l-blue-500 border-t-purple-500 border-r-transparent border-b-transparent rotate-45"></div>
              <div className="text-center">
                  <div className="text-4xl font-black text-slate-800 dark:text-white">65%</div>
-                 <div className="text-xs font-bold text-slate-400 uppercase">Retention</div>
+                 <div className="text-xs font-bold text-slate-400 uppercase">{t('stats.retentionShort')}</div>
              </div>
          </div>
       </div>

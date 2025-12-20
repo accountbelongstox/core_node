@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::connection('CodeMartV1')->create('codemart_v1_developer_stats', function (Blueprint $table) {
+        Schema::connection('codemartv1')->create('codemart_v1_developer_stats', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
             $table->integer('completed_projects')->default(0);
@@ -24,6 +24,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('CodeMartV1')->dropIfExists('codemart_v1_developer_stats');
+        Schema::connection('codemartv1')->dropIfExists('codemart_v1_developer_stats');
     }
 };

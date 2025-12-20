@@ -50,11 +50,12 @@ export function useLocalTaskQueue() {
 
   const tasks = ref<Task[]>([]);
   const isRunning = ref(false);
+  const isPaused = ref(false);
 
   // Computed
   const hasPendingTasks = computed(() => stats.value.pending > 0);
   const hasProcessingTasks = computed(() => stats.value.processing > 0);
-  const isActive = computed(() => isRunning.value || hasProcessingTasks.value);
+  const isActive = computed(() => isRunning.value && !isPaused.value);
 
   // Update state from background
   const updateState = async () => {
@@ -78,12 +79,13 @@ export function useLocalTaskQueue() {
       }
 
       // Get running status
-      const runningResponse = await sendMessage<{ isRunning: boolean }>({
+      const runningResponse = await sendMessage<{ isRunning: boolean; isPaused: boolean }>({
         type: MessageType.QUEUE_IS_RUNNING,
       });
 
       if (runningResponse.data) {
         isRunning.value = runningResponse.data.isRunning;
+        isPaused.value = runningResponse.data.isPaused;
       }
     } catch (error) {
       console.error('[useLocalTaskQueue] Failed to update state:', error);
@@ -211,6 +213,32 @@ export function useLocalTaskQueue() {
     }
   };
 
+  // Pause queue
+  const pause = async () => {
+    try {
+      await sendMessage({
+        type: MessageType.QUEUE_PAUSE,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to pause queue:', error);
+    }
+  };
+
+  // Resume queue
+  const resume = async () => {
+    try {
+      await sendMessage({
+        type: MessageType.QUEUE_RESUME,
+      });
+
+      await updateState();
+    } catch (error) {
+      console.error('[useLocalTaskQueue] Failed to resume queue:', error);
+    }
+  };
+
   // Cancel task
   const cancelTask = async (taskId: string) => {
     try {
@@ -333,6 +361,7 @@ export function useLocalTaskQueue() {
     stats,
     tasks,
     isRunning,
+    isPaused,
     isActive,
     hasPendingTasks,
     hasProcessingTasks,
@@ -342,6 +371,8 @@ export function useLocalTaskQueue() {
     addDeepSeekTask,
     start,
     stop,
+    pause,
+    resume,
     cancelTask,
     clearCompleted,
     getTasksByStatus,

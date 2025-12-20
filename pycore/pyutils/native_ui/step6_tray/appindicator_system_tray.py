@@ -35,7 +35,7 @@ Usage:
 
 import sys
 import platform
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -140,10 +140,10 @@ class AppIndicatorSystemTray:
         self.menu_items: List[AppIndicatorMenuItem] = []
 
         # GTK menu widget
-        self.gtk_menu: Optional[Gtk.Menu] = None
+        self.gtk_menu: Optional["Gtk.Menu"] = None
 
         # AppIndicator instance
-        self.indicator: Optional[AppIndicator3.Indicator] = None
+        self.indicator: Optional["AppIndicator3.Indicator"] = None
 
         # Running state
         self._running = False
@@ -218,7 +218,7 @@ class AppIndicatorSystemTray:
 
         ColorPrint.green(f"[AppIndicatorSystemTray] Menu rebuilt with {len(self.menu_items)} items")
 
-    def _add_menu_item(self, menu: Gtk.Menu, item: AppIndicatorMenuItem):
+    def _add_menu_item(self, menu: "Gtk.Menu", item: AppIndicatorMenuItem):
         """
         Add menu item to GTK menu.
 

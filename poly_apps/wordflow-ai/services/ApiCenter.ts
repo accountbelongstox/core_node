@@ -6,6 +6,7 @@
 import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
 import { UserDataCenter } from './UserDataCenter';
+import { inferLanguageFromWords, BackendGroupData, BackendGroupsResponse } from './languageUtils';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -366,20 +367,72 @@ class ApiCenterClass {
       // Check cache first
       const cached = StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
       if (cached) {
+        console.log('[ApiCenter] Returning cached word groups');
         return { success: true, data: cached };
       }
 
-      // Backend route: /query_all_groups
-      const response = await this.request<WordGroup[]>('/query_all_groups', {
-        method: 'GET',
-      });
+      try {
+        // Backend route: /query_all_groups
+        // Backend returns: { success, data: { uid, total, groups: [...] } }
+        const response = await this.request<BackendGroupsResponse>('/query_all_groups', {
+          method: 'GET',
+        });
 
-      if (response.success && response.data) {
+        if (!response.success) {
+          return {
+            success: false,
+            error: {
+              message: response.error?.message || 'Failed to fetch word groups',
+              code: response.error?.code
+            }
+          };
+        }
+
+        // Validate response structure
+        if (!response.data || !response.data.groups || !Array.isArray(response.data.groups)) {
+          console.error('[ApiCenter] Invalid response structure:', response);
+          return {
+            success: false,
+            error: {
+              message: 'Invalid response structure from backend',
+              code: 'INVALID_RESPONSE'
+            }
+          };
+        }
+
+        const backendGroups = response.data.groups;
+        console.log(`[ApiCenter] Received ${backendGroups.length} groups from backend`);
+
+        // Map backend format to frontend format
+        const frontendGroups: WordGroup[] = backendGroups.map((bg: BackendGroupData) => ({
+          id: bg.gid,
+          name: bg.gname,
+          count: bg.total_words || 0,
+          type: bg.type || 'user',
+          progress: bg.progress || 0,
+          coverImage: bg.cover_image || '📚',
+          language: bg.language || inferLanguageFromWords(bg.gwords || []) || 'en',
+          description: bg.description,
+        }));
+
         // Cache for 5 minutes
-        StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, response.data, 5 * 60 * 1000);
-      }
+        if (frontendGroups.length > 0) {
+          StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, frontendGroups, 5 * 60 * 1000);
+          console.log(`[ApiCenter] Cached ${frontendGroups.length} word groups`);
+        }
 
-      return response;
+        return { success: true, data: frontendGroups };
+
+      } catch (error: any) {
+        console.error('[ApiCenter] Error fetching word groups:', error);
+        return {
+          success: false,
+          error: {
+            message: error.message || 'Unknown error occurred',
+            code: 'FETCH_ERROR'
+          }
+        };
+      }
     },
 
     getById: async (id: string): Promise<ApiResponse<WordGroup>> => {
@@ -478,6 +531,25 @@ class ApiCenterClass {
       return this.request<WordGroup[]>('/get_all_groups_by_manager', {
         method: 'GET',
       });
+    },
+
+    // Add library to group
+    // Backend route: /group/add_library
+    addLibraryToGroup: async (data: {
+      gid: string;
+      library_id: number;
+    }): Promise<ApiResponse<{ words_added: number; message: string }>> => {
+      const response = await this.request<{ words_added: number; message: string }>('/group/add_library', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+
+      // Invalidate cache after adding library
+      if (response.success) {
+        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+      }
+
+      return response;
     },
   };
 

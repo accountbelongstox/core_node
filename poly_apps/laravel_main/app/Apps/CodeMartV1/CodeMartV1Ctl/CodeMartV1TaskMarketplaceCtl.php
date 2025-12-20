@@ -23,7 +23,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $minBudget = $request->input('min_budget', 0);
         $maxBudget = $request->input('max_budget', 999999);
 
-        $query = DB::connection('CodeMartV1')
+        $query = DB::connection('codemartv1')
             ->table('codemart_v1_tasks')
             ->where('status', 'open')
             ->whereNull('assigned_to')
@@ -60,7 +60,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = DB::connection('CodeMartV1')
+        $task = DB::connection('codemartv1')
             ->table('codemart_v1_tasks')
             ->where('id', $taskId)
             ->where('status', 'open')
@@ -71,7 +71,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
             return $this->notFound('Task not found or already assigned');
         }
 
-        DB::connection('CodeMartV1')
+        DB::connection('codemartv1')
             ->table('codemart_v1_tasks')
             ->where('id', $taskId)
             ->update([
@@ -92,7 +92,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $tasks = DB::connection('CodeMartV1')
+        $tasks = DB::connection('codemartv1')
             ->table('codemart_v1_tasks')
             ->where('assigned_to', $user->id)
             ->whereIn('status', ['in_progress', 'review', 'completed'])

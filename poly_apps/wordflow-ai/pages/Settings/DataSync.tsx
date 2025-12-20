@@ -173,15 +173,15 @@ const DataSyncPage = () => {
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="text-center p-2 bg-white dark:bg-slate-900 rounded-lg">
                   <div className="font-bold text-slate-900 dark:text-white">350 MB</div>
-                  <div className="text-slate-500 dark:text-slate-400">Words</div>
+                  <div className="text-slate-500 dark:text-slate-400">{t('settings.words')}</div>
                 </div>
                 <div className="text-center p-2 bg-white dark:bg-slate-900 rounded-lg">
                   <div className="font-bold text-slate-900 dark:text-white">60 MB</div>
-                  <div className="text-slate-500 dark:text-slate-400">Audio</div>
+                  <div className="text-slate-500 dark:text-slate-400">{t('settings.audio')}</div>
                 </div>
                 <div className="text-center p-2 bg-white dark:bg-slate-900 rounded-lg">
                   <div className="font-bold text-slate-900 dark:text-white">20 MB</div>
-                  <div className="text-slate-500 dark:text-slate-400">Images</div>
+                  <div className="text-slate-500 dark:text-slate-400">{t('settings.images')}</div>
                 </div>
               </div>
             </div>

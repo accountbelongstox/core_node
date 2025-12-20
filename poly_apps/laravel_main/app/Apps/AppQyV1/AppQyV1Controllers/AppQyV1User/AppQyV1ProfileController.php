@@ -8,7 +8,9 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 use App\Services\AvatarService;
+use App\Services\UnifiedAuthService;
 use App\Providers\PathMapper;
+use Illuminate\Support\Facades\DB;
 
 class AppQyV1ProfileController extends BaseController
 {
@@ -122,6 +124,24 @@ class AppQyV1ProfileController extends BaseController
 
         if (!empty($updateData)) {
             $user->update($updateData);
+
+            $subAppUpdateData = [];
+            $syncFields = ['nickname', 'name', 'avatar', 'email', 'phone'];
+
+            foreach ($syncFields as $field) {
+                if (isset($updateData[$field])) {
+                    $subAppUpdateData[$field] = $updateData[$field];
+                }
+            }
+
+            if (!empty($subAppUpdateData)) {
+                $subAppUpdateData['updated_at'] = now();
+
+                DB::connection('appqyv1')
+                    ->table('users')
+                    ->where('main_user_id', $user->id)
+                    ->update($subAppUpdateData);
+            }
         }
 
         $userProfile = [

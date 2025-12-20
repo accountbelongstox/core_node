@@ -20,10 +20,17 @@ echo Download URL: %DOWNLOAD_URL%
 echo Target: %TARGET_FILE%
 echo.
 
-REM Create target directory
+REM Create target directory (create parent directories if needed)
 if not exist "%TARGET_DIR%" (
     echo Creating directory: %TARGET_DIR%
-    mkdir "%TARGET_DIR%"
+    mkdir "%TARGET_DIR%" 2>nul
+    if not exist "%TARGET_DIR%" (
+        REM Try creating parent directories first
+        cd /d "%~dp0..\TcUi"
+        if not exist "third_party" mkdir "third_party"
+        if not exist "third_party\scrcpy-server" mkdir "third_party\scrcpy-server"
+        cd /d "%~dp0"
+    )
 )
 
 REM Check if already downloaded

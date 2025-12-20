@@ -5,7 +5,7 @@ import { SettingsLayout, SettingItem } from '../Settings/Layout';
 import { Button } from '../../components/UI';
 
 const PlaylistConfigPage = () => {
-  const { playlistSettings, updatePlaylistSettings, navigate } = useContext(AppContext);
+  const { playlistSettings, updatePlaylistSettings, navigate, t } = useContext(AppContext);
 
   return (
     <SettingsLayout title="Playlist Config">
@@ -13,7 +13,7 @@ const PlaylistConfigPage = () => {
           <p className="text-slate-500 text-sm">Configure your automated sequential learning experience.</p>
        </div>
 
-       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2 mb-2 pl-2">Playback</div>
+       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2 mb-2 pl-2">{t('settings.playback')}</div>
        <SettingItem label="Words Per Page" value={playlistSettings.wordsPerPage} onClick={() => updatePlaylistSettings({ wordsPerPage: playlistSettings.wordsPerPage === 20 ? 50 : playlistSettings.wordsPerPage === 50 ? 100 : 20 })} />
        <SettingItem label="Playback Speed" value={`${playlistSettings.playbackSpeed}x`} onClick={() => updatePlaylistSettings({ playbackSpeed: playlistSettings.playbackSpeed >= 2.0 ? 0.5 : playlistSettings.playbackSpeed + 0.25 })} />
        <SettingItem label="Interval (sec)" value={`${playlistSettings.playInterval}s`} onClick={() => updatePlaylistSettings({ playInterval: playlistSettings.playInterval >= 5 ? 1 : playlistSettings.playInterval + 1 })} />
@@ -42,7 +42,7 @@ const PlaylistConfigPage = () => {
        <SettingItem label="Auto Scroll" type="toggle" active={playlistSettings.autoScroll} onClick={() => updatePlaylistSettings({ autoScroll: !playlistSettings.autoScroll })} />
        <SettingItem label="Show Animation" type="toggle" active={playlistSettings.showAnimation} onClick={() => updatePlaylistSettings({ showAnimation: !playlistSettings.showAnimation })} />
 
-       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">Goals</div>
+       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2 pl-2">{t('settings.goals')}</div>
        <SettingItem label="Daily Word Goal" value={playlistSettings.dailyGoal} onClick={() => updatePlaylistSettings({ dailyGoal: playlistSettings.dailyGoal + 100 })} />
 
        <div className="px-5 mt-8">

@@ -11,7 +11,7 @@ echo ""
 
 # Check if running on Linux
 if [[ "$OSTYPE" != "linux-gnu"* ]]; then
-    echo "‚ùå This script is for Linux only"
+    echo "‚ù?This script is for Linux only"
     exit 1
 fi
 
@@ -26,17 +26,17 @@ echo "üì¶ Installing system packages..."
 echo ""
 
 # Update package list
-echo "‚Üí Updating package list..."
+echo "‚Ü?Updating package list..."
 sudo apt-get update
 
 # Install GTK3 and AppIndicator3
 echo ""
-echo "‚Üí Installing python3-gi and AppIndicator3..."
+echo "‚Ü?Installing python3-gi and AppIndicator3..."
 sudo apt-get install -y python3-gi gir1.2-appindicator3-0.1
 
 # Install development libraries (needed for pip install PyGObject)
 echo ""
-echo "‚Üí Installing development libraries..."
+echo "‚Ü?Installing development libraries..."
 sudo apt-get install -y \
     libgirepository1.0-dev \
     libcairo2-dev \
@@ -46,15 +46,15 @@ sudo apt-get install -y \
 # Install GNOME Shell Extension (if GNOME detected)
 echo ""
 if [[ "$XDG_CURRENT_DESKTOP" == *"GNOME"* ]] || [[ "$XDG_CURRENT_DESKTOP" == *"ubuntu"* ]]; then
-    echo "‚úì GNOME Shell detected"
-    echo "‚Üí Installing GNOME Shell AppIndicator extension..."
+    echo "‚ú?GNOME Shell detected"
+    echo "‚Ü?Installing GNOME Shell AppIndicator extension..."
     sudo apt-get install -y gnome-shell-extension-appindicator
 
     echo ""
-    echo "‚Üí Enabling AppIndicator extension..."
+    echo "‚Ü?Enabling AppIndicator extension..."
     if command -v gnome-extensions &> /dev/null; then
         gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com 2>/dev/null || true
-        echo "‚úì Extension enabled"
+        echo "‚ú?Extension enabled"
     else
         echo "‚ö†Ô∏è  gnome-extensions command not found"
         echo "   You may need to enable the extension manually:"
@@ -78,23 +78,23 @@ echo ""
 
 # Check python3-gi
 if python3 -c "import gi" 2>/dev/null; then
-    echo "‚úì python3-gi installed"
+    echo "‚ú?python3-gi installed"
 else
-    echo "‚úó python3-gi NOT available"
+    echo "‚ú?python3-gi NOT available"
 fi
 
 # Check AppIndicator3
 if python3 -c "import gi; gi.require_version('AppIndicator3', '0.1'); from gi.repository import AppIndicator3" 2>/dev/null; then
-    echo "‚úì AppIndicator3 available"
+    echo "‚ú?AppIndicator3 available"
 else
-    echo "‚úó AppIndicator3 NOT available"
+    echo "‚ú?AppIndicator3 NOT available"
 fi
 
 # Check GNOME extension (if GNOME)
 if [[ "$XDG_CURRENT_DESKTOP" == *"GNOME"* ]] || [[ "$XDG_CURRENT_DESKTOP" == *"ubuntu"* ]]; then
     if command -v gnome-extensions &> /dev/null; then
         if gnome-extensions list 2>/dev/null | grep -q "appindicator"; then
-            echo "‚úì AppIndicator extension installed"
+            echo "‚ú?AppIndicator extension installed"
         else
             echo "‚ö†Ô∏è  AppIndicator extension NOT found"
         fi
@@ -125,7 +125,7 @@ if [[ "$XDG_SESSION_TYPE" == "x11" ]]; then
     read -p "Restart GNOME Shell now? (X11 only) [y/N] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "‚Üí Restarting GNOME Shell..."
+        echo "‚Ü?Restarting GNOME Shell..."
         busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'global.reexec_self()'
     fi
 else
@@ -133,4 +133,4 @@ else
 fi
 
 echo ""
-echo "‚úì Done!"
+echo "‚ú?Done!"

@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons, Card } from '../../components/UI';
+import { StorageCenter, StorageKey } from '../../services/StorageCenter';
 
 interface Tool {
   id: string;
@@ -19,18 +20,16 @@ export default function ToolsIndex() {
   const [recentTools, setRecentTools] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load recent tools from localStorage
-    const recent = localStorage.getItem('recentTools');
-    if (recent) {
-      setRecentTools(JSON.parse(recent));
-    }
+    // Load recent tools from StorageCenter
+    const recent = StorageCenter.get<string[]>(StorageKey.RECENT_TOOLS, []);
+    setRecentTools(recent);
   }, []);
 
   const handleToolClick = (tool: Tool) => {
     // Save to recent tools
     const updated = [tool.id, ...recentTools.filter(id => id !== tool.id)].slice(0, 3);
     setRecentTools(updated);
-    localStorage.setItem('recentTools', JSON.stringify(updated));
+    StorageCenter.set(StorageKey.RECENT_TOOLS, updated);
 
     navigate(tool.route);
   };

@@ -3,6 +3,7 @@ import { MOCK_USER, MOCK_WORD_GROUPS, MOCK_WORDS_EN, MOCK_WORDS_JP, SUPPORTED_LA
 import { User, Word, WordGroup, AppSettings, QuizQuestion, RetentionStat, CourseAnalysis } from '../types';
 import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
+import { inferLanguageFromWords, BackendGroupData } from './languageUtils';
 
 const USE_MOCK_FALLBACK = true;
 
@@ -173,16 +174,49 @@ class ApiService {
       return cached;
     }
 
-    // Fetch from API
-    const groups = await this.request<WordGroup[]>('/query_all_groups');
-    
-    // Cache immediately after successful fetch
-    if (groups && Array.isArray(groups)) {
-      StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, groups, 5 * 60 * 1000); // 5 minutes
-      console.log('[ApiService] Cached word groups');
+    try {
+      // Fetch from API
+      // Backend returns: { success, data: { uid, total, groups: [...] } }
+      // But request() method extracts data.data, so we get: { uid, total, groups: [...] }
+      const response = await this.request<{ uid: string; total: number; groups: BackendGroupData[] }>('/query_all_groups');
+
+      // Extract and transform groups
+      let groups: WordGroup[] = [];
+
+      if (response && response.groups && Array.isArray(response.groups)) {
+        console.log(`[ApiService] Received ${response.groups.length} groups from backend`);
+
+        groups = response.groups.map((bg: BackendGroupData) => ({
+          id: bg.gid,
+          name: bg.gname,
+          count: bg.total_words || 0,
+          type: bg.type || 'user',
+          progress: bg.progress || 0,
+          coverImage: bg.cover_image || '📚',
+          language: bg.language || inferLanguageFromWords(bg.gwords || []) || 'en',
+          description: bg.description,
+        }));
+      } else if (Array.isArray(response)) {
+        // Fallback: if response is array (old mock format)
+        console.warn('[ApiService] Received array response (old format), using as-is');
+        groups = response as any as WordGroup[];
+      } else {
+        console.error('[ApiService] Unexpected response format:', response);
+        throw new Error('Unexpected response format from backend');
+      }
+
+      // Cache immediately after successful fetch
+      if (groups && Array.isArray(groups) && groups.length > 0) {
+        StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, groups, 5 * 60 * 1000); // 5 minutes
+        console.log(`[ApiService] Cached ${groups.length} word groups`);
+      }
+
+      return groups;
+    } catch (error) {
+      console.error('[ApiService] Failed to fetch word groups:', error);
+      // Return empty array instead of throwing to allow app to continue
+      return [];
     }
-    
-    return groups;
   }
 
   async getWordsForGroup(groupId: string) {
