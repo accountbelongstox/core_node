@@ -210,10 +210,26 @@ class VideoStreamHealthService:
         # ✅ Get device from global DeviceManager (ONLY source of truth)
         device = self.device_manager.get_device(serial)
 
+        # IMPORTANT: Device might be discovered (in device_states) but not connected yet (not in devices)
+        # In that case, skip socket/data checks and just verify it's in ADB
         if not device:
-            ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in global DeviceManager")
-            health.mark_error("Device not found in global DeviceManager")
-            self._broadcast_device_status(serial, health)
+            # Check if device is at least registered in device_states (discovered but not connected)
+            device_state = self.device_manager.get_device_state(serial)
+            if not device_state:
+                ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in global DeviceManager")
+                health.mark_error("Device not found in global DeviceManager")
+                self._broadcast_device_status(serial, health)
+                return
+
+            # Device discovered but not scrcpy-connected yet - skip socket checks
+            ColorPrint.blue(f"[VideoStreamHealth] Device {serial} discovered but not scrcpy-connected, checking ADB only")
+            if not self._is_device_in_adb(serial):
+                ColorPrint.red(f"[VideoStreamHealth] Device {serial} not in ADB devices")
+                health.mark_error("Device disconnected from ADB")
+                self._broadcast_device_status(serial, health)
+            else:
+                # Device in ADB but no scrcpy connection - this is normal for newly discovered devices
+                ColorPrint.blue(f"[VideoStreamHealth] Device {serial} in ADB, awaiting scrcpy connection")
             return
 
         # Check 1: Socket validity

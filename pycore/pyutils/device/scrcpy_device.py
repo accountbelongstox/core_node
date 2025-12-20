@@ -316,19 +316,6 @@ class ScrcpyDevice(AndroidDevice):
                 try:
                     self._video_socket.connect(('localhost', video_port))
                     print(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
-
-                    # ✅ FIXED: In tunnel_forward mode, server SENDS dummy byte, client MUST read and discard it
-                    # Official scrcpy: videoSocket.getOutputStream().write(0) on server side
-                    # Client must consume this byte before reading device metadata
-                    try:
-                        dummy_byte = self._video_socket.recv(1)
-                        if not dummy_byte:
-                            raise RuntimeError("Connection closed while reading dummy byte")
-                        print(f"[ScrcpyDevice] Consumed dummy byte from server: {dummy_byte.hex()}")
-                    except socket.timeout:
-                        # Timeout is acceptable - some servers might not send dummy byte
-                        print(f"[ScrcpyDevice] [WARN] Timeout reading dummy byte (server might not send it)")
-
                     break
                 except (ConnectionRefusedError, OSError) as e:
                     if retry < max_retries - 1:
@@ -381,6 +368,65 @@ class ScrcpyDevice(AndroidDevice):
                             time.sleep(retry_interval)
                         else:
                             raise RuntimeError(f"Failed to connect control socket after {max_retries} retries: {e}")
+
+        # ✅ CRITICAL FIX: Read dummy byte AFTER both sockets connected (in tunnel_forward mode)
+        # The server sends dummy byte on first socket AFTER all accept() calls complete
+        # We must connect ALL sockets first, then read dummy byte, then read metadata
+        if tunnel_mode == "forward":
+            import select
+
+            # Check if server process is still running
+            poll_result = self._server_process.poll()
+            if poll_result is not None:
+                # Server crashed! Use communicate() with timeout to get output
+                try:
+                    stdout_output, stderr_output = self._server_process.communicate(timeout=1.0)
+                    print(f"[ScrcpyDevice] [ERROR] Server process crashed before dummy byte!")
+                    print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout_output.decode('utf-8', errors='replace')}")
+                    print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr_output.decode('utf-8', errors='replace')}")
+                    raise RuntimeError(f"Server crashed: {stderr_output.decode('utf-8', errors='replace')}")
+                except subprocess.TimeoutExpired:
+                    print(f"[ScrcpyDevice] [ERROR] Server process crashed (exit code: {poll_result}), but timed out reading output")
+                    raise RuntimeError(f"Server crashed with exit code: {poll_result}")
+
+            print(f"[ScrcpyDevice] Reading dummy byte from first socket...")
+            try:
+                dummy_byte = self._video_socket.recv(1)
+                if not dummy_byte:
+                    # Connection closed - try to get server output (non-blocking)
+                    poll_result = self._server_process.poll()
+                    print(f"[ScrcpyDevice] [DEBUG] Connection closed, server poll result: {poll_result}")
+
+                    # Try to read stderr/stdout using select (cross-platform)
+                    import threading
+
+                    def read_with_timeout(pipe, timeout=0.5):
+                        """Read from pipe with timeout"""
+                        result = []
+                        def target():
+                            try:
+                                data = pipe.read(4096)  # Read up to 4KB
+                                if data:
+                                    result.append(data.decode('utf-8', errors='replace'))
+                            except:
+                                pass
+
+                        thread = threading.Thread(target=target)
+                        thread.daemon = True
+                        thread.start()
+                        thread.join(timeout)
+                        return result[0] if result else ""
+
+                    stderr_output = read_with_timeout(self._server_process.stderr)
+                    stdout_output = read_with_timeout(self._server_process.stdout)
+
+                    print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout_output if stdout_output else '(empty)'}")
+                    print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr_output if stderr_output else '(empty)'}")
+
+                    raise RuntimeError("Connection closed while reading dummy byte (check server output above)")
+                print(f"[ScrcpyDevice] [OK] Consumed dummy byte from server: {dummy_byte.hex()}")
+            except socket.timeout:
+                print(f"[ScrcpyDevice] [WARN] Timeout reading dummy byte (server might not send it)")
 
         # Read device metadata
         print(f"[ScrcpyDevice] Reading device metadata...")
