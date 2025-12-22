@@ -21,8 +21,9 @@ print(f"Pushing to device: {device}")
 print()
 
 # Push file
+# CRITICAL: Use //data/local/tmp/ to prevent Git Bash path translation on Windows
 result = subprocess.run(
-    [adb, '-s', device, 'push', str(scrcpy_server), '/data/local/tmp/scrcpy-server.jar'],
+    [adb, '-s', device, 'push', str(scrcpy_server), '//data/local/tmp/scrcpy-server.jar'],
     capture_output=True,
     text=True
 )

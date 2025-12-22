@@ -27,7 +27,7 @@ from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyutils.shortcut_manager import ShortcutManager
 from pycore.pyutils.appusermodelid_manager import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config
-from pyapps.matrix.adb_device_manager.adb_heartbeat_service import init_adb_heartbeat_service, get_adb_heartbeat_service
+from pyapps.matrix.adb_device_manager.adb_heartbeat_service import get_adb_heartbeat_service
 
 
 _adb_service = None
@@ -54,6 +54,7 @@ def matrix_main_entry():
     Matrix main entry point (called after native_ui initialization)
 
     NEW ARCHITECTURE:
+    - Three-phase initialization pattern (prerequisite-based)
     - No independent threads
     - No periodic task generation
     - Direct callback registration to unified heartbeat
@@ -67,7 +68,15 @@ def matrix_main_entry():
     # No need to extend again here
 
     from pyapps.matrix.controller.event_handlers import register_matrix_event_handlers
-    from pyapps.matrix.services.video_stream_health_service import get_video_stream_health_service
+    from pyapps.matrix.core.initialization_manager import get_initialization_manager
+
+    # ========== Get Initialization Manager ==========
+    init_manager = get_initialization_manager()
+
+    # ========== PHASE 1: Global Tools Initialization ==========
+    # Initialize scrcpy, adb, and scrcpy-server.jar BEFORE any device scanning
+    phase1_result = init_manager.initialize_phase1_global_tools()
+    paths = phase1_result['scrcpy_paths']
 
     # Register Matrix event handlers
     register_matrix_event_handlers(
@@ -76,47 +85,31 @@ def matrix_main_entry():
         backend_host=Config.WEB_HOST,
         frontend_mode=Config.FRONTEND_MODE
     )
-
     ColorPrint.green("[Matrix] Event handlers registered successfully")
 
-    # Initialize ADB Heartbeat Service (not a thread)
-    ColorPrint.blue("[Matrix] Initializing ADB Heartbeat Service...")
-    adb_path = Config.get_adb_path()
+    # ========== PHASE 2: Core Services Initialization ==========
+    # Force instantiate all lazy-loaded singletons and establish service coordination
+    services = init_manager.initialize_phase2_core_services(rpc_server=_rpc_server)
+
+    # ========== PHASE 3: ADB Service Initialization ==========
+    # Initialize ADB Heartbeat Service (callback driven, not a thread)
+    adb_path = str(paths['adb']) if paths['adb'] else Config.get_adb_path()
     ColorPrint.blue(f"[Matrix] Using ADB path: {adb_path}")
-    _adb_service = init_adb_heartbeat_service(adb_path=adb_path)
+    _adb_service = init_manager.initialize_phase3_adb_service(
+        adb_path=adb_path,
+        rpc_server=_rpc_server
+    )
 
-    # Attach RPC server if available
-    if _rpc_server:
-        _adb_service.set_rpc_server(_rpc_server)
-        ColorPrint.green("[Matrix] RPC server attached to ADB service")
-
-    # Initialize Video Stream Health Service
-    ColorPrint.blue("[Matrix] Initializing Video Stream Health Service...")
-    video_health_service = get_video_stream_health_service()
-    if _rpc_server:
-        video_health_service.set_rpc_server(_rpc_server)
-        ColorPrint.green("[Matrix] RPC server attached to Video Health service")
-
-    # Establish bidirectional reference between VideoStreamService and HealthService
-    # This enables proper coordination for device cleanup
-    ColorPrint.blue("[Matrix] Establishing service coordination...")
-    from pyapps.matrix.services.video_stream_service import VideoStreamService
-    video_stream_service = VideoStreamService.instance()
-    video_health_service.set_video_stream_service(video_stream_service)
-    ColorPrint.green("[Matrix] ✓ VideoStreamService <-> HealthService coordination established")
-
-    # Initialize Device State Coordinator (Problem 3 fix)
-    # This service provides unified device state management across all services
-    ColorPrint.blue("[Matrix] Initializing Device State Coordinator...")
-    from pyapps.matrix.services.device_state_coordinator import get_device_state_coordinator
-    device_state_coordinator = get_device_state_coordinator()
-    device_state_coordinator.initialize()
-    ColorPrint.green("[Matrix] ✓ DeviceStateCoordinator initialized")
-
+    # ========== PHASE 4: Register Heartbeat Callbacks ==========
     # Register callbacks to unified heartbeat (using tick counter interceptor)
     # Note: ADBHeartbeatService is NOT a thread - it's driven by heartbeat callbacks
+    ColorPrint.blue("=" * 80)
+    ColorPrint.blue("[Matrix] Phase 4: Registering heartbeat callbacks...")
+    ColorPrint.blue("=" * 80)
+
     heartbeat = get_heartbeat_system()
 
+    # ADB service callbacks
     heartbeat.register_callback(
         name='adb_network_scan',
         callback=lambda: _adb_service._network_scan_task(),
@@ -147,17 +140,18 @@ def matrix_main_entry():
         interval=10  # 10 seconds (10 ticks)
     )
 
-    # Register video stream health check callback
+    # Video stream health check callback
     heartbeat.register_callback(
         name='video_stream_health_check',
-        callback=lambda: video_health_service.check_all_devices(),
+        callback=lambda: services['video_health'].check_all_devices(),
         interval=10  # 10 seconds (10 ticks)
     )
 
-    ColorPrint.green("[Matrix] ADB callbacks registered to unified heartbeat")
-    ColorPrint.green("[Matrix] Video stream health check registered to unified heartbeat")
-    ColorPrint.blue("[Matrix] ADB Device Manager initialized (callback driven)")
-    ColorPrint.blue("[Matrix] Video Stream Health Service initialized (callback driven)")
+    ColorPrint.green("[Matrix] ✓ ADB callbacks registered to unified heartbeat")
+    ColorPrint.green("[Matrix] ✓ Video stream health check registered to unified heartbeat")
+    ColorPrint.green("=" * 80)
+    ColorPrint.green("[Matrix] ✓ All initialization complete - System ready")
+    ColorPrint.green("=" * 80)
 
 
 def rpc_init_callback(rpc_server):
