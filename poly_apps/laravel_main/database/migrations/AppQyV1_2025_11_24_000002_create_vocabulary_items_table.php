@@ -8,8 +8,8 @@ return new class extends Migration
 {
     public function up()
     {
-        if (!Schema::connection('AppQyV1')->hasTable('app_qy_v1_vocabulary_items')) {
-            Schema::connection('AppQyV1')->create('app_qy_v1_vocabulary_items', function (Blueprint $table) {
+        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_vocabulary_items')) {
+            Schema::connection('appqyv1')->create('app_qy_v1_vocabulary_items', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('collection_id')->nullable(false);
                 $table->string('lang_code', 10)->nullable(false)->index();
@@ -32,6 +32,6 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_vocabulary_items');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_vocabulary_items');
     }
 };

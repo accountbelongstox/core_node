@@ -382,6 +382,32 @@ class LocalTaskQueueService {
   }
 
   /**
+   * 暂停队列
+   */
+  pause(): void {
+    if (!this.queue) return;
+    this.queue.pause();
+  }
+
+  /**
+   * 恢复队列
+   */
+  async resume(): Promise<void> {
+    if (!this.queue) return;
+    await this.queue.resume();
+  }
+
+  /**
+   * 获取运行状态
+   */
+  getRunningStatus(): { isRunning: boolean; isPaused: boolean } {
+    if (!this.queue) {
+      return { isRunning: false, isPaused: false };
+    }
+    return this.queue.getRunningStatus();
+  }
+
+  /**
    * 获取队列统计
    */
   getStats(): TaskQueueStats {

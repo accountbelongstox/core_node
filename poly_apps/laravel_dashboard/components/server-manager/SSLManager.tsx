@@ -38,7 +38,8 @@ export function SSLManager() {
   // Form state
   const [formData, setFormData] = useState({
     domain: '',
-    email: ''
+    provider: 'dnspod',
+    staging: false
   });
 
   useEffect(() => {
@@ -73,14 +74,18 @@ export function SSLManager() {
   }
 
   async function handleGenerate() {
-    if (!formData.domain || !formData.email) {
-      toast.warning('Please fill all required fields');
+    if (!formData.domain) {
+      toast.warning('Please enter a domain name');
       return;
     }
 
     setProcessing(true);
     try {
-      const res = await api.serverManagerV1.generateCertificate(formData);
+      const res = await api.serverManagerV1.generateCertificate({
+        domain: formData.domain,
+        provider: formData.provider,
+        staging: formData.staging
+      });
       if (res.success) {
         toast.success('Certificate generated successfully', 'SSL certificate is now active');
         setShowGenerateModal(false);
@@ -125,7 +130,7 @@ export function SSLManager() {
   }
 
   function resetForm() {
-    setFormData({ domain: '', email: '' });
+    setFormData({ domain: '', provider: 'dnspod', staging: false });
   }
 
   function getDaysUntilExpiry(expiresAt: string): number {
@@ -354,33 +359,60 @@ export function SSLManager() {
               type="text"
               value={formData.domain}
               onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
-              placeholder="example.com"
+              placeholder="example.com or *.example.com"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-500 mt-1">
-              The domain name for this certificate (without http://)
+              Domain name (wildcard certificates supported with DNS challenge)
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email *
+              DNS Provider *
             </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="admin@example.com"
+            <select
+              value={formData.provider}
+              onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="dnspod">DNSPod (Tencent Cloud)</option>
+              <option value="cloudflare">Cloudflare</option>
+              <option value="aliyun">Aliyun DNS</option>
+            </select>
             <p className="text-xs text-gray-500 mt-1">
-              Email for Let's Encrypt notifications
+              DNS provider for DNS-01 challenge (supports wildcard certificates)
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="staging"
+              checked={formData.staging}
+              onChange={(e) => setFormData({ ...formData, staging: e.target.checked })}
+              className="w-4 h-4 rounded"
+            />
+            <label htmlFor="staging" className="text-sm font-medium text-gray-700">
+              Use Staging Environment (Test Mode)
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 -mt-2 ml-6">
+            Test certificate generation without affecting rate limits
+          </p>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <p className="text-sm text-yellow-900">
+              <strong>Important:</strong> DNS provider API credentials must be configured on the server first.
+            </p>
+            <p className="text-xs text-yellow-800 mt-1">
+              Configure via GlobalSecretReader: DNS_DNSPOD_EMAILS and DNS_DNSPOD_API_TOKENS
             </p>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-sm text-blue-900">
-              <strong>Note:</strong> Make sure your domain points to this server and the web server is configured correctly before generating a certificate.
+              <strong>Note:</strong> DNS challenge method is used. Make sure your DNS provider API is properly configured before generating certificates.
             </p>
           </div>
         </div>

@@ -84,7 +84,8 @@ class AppQyV1WordLookupController extends Controller
             
             if ($langCode) {
                 $audioResult = $this->ttsService->generateAudio($word, $langCode, 'word');
-                
+                $audioResult = $this->fixAudioUrl($audioResult);
+
                 if ($audioResult['success']) {
                     $result['data']['audio'] = [
                         'url' => $audioResult['audio_url'],
@@ -152,5 +153,20 @@ class AppQyV1WordLookupController extends Controller
         ];
         
         return $map[$language] ?? null;
+    }
+
+    /**
+     * Fix audio_url path to use AppQyV1 route prefix
+     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
+     */
+    private function fixAudioUrl(array $result): array
+    {
+        if (isset($result['audio_url'])) {
+            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
+                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
+            }
+        }
+
+        return $result;
     }
 }

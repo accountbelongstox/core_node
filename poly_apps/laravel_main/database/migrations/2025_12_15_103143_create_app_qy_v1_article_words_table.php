@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AppQyV1')->create('app_qy_v1_article_words', function (Blueprint $table) {
+        Schema::connection('appqyv1')->create('app_qy_v1_article_words', function (Blueprint $table) {
             $table->id();
             $table->string('article_id', 64)->comment('Article ID reference');
             $table->string('word_md5', 32)->comment('Word MD5 from dictionary');
@@ -33,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_article_words');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_article_words');
     }
 };

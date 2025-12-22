@@ -14,6 +14,8 @@ export enum MessageType {
   TASK_CANCEL = 'TASK_CANCEL',
   QUEUE_START = 'QUEUE_START',
   QUEUE_STOP = 'QUEUE_STOP',
+  QUEUE_PAUSE = 'QUEUE_PAUSE',
+  QUEUE_RESUME = 'QUEUE_RESUME',
   QUEUE_GET_STATS = 'QUEUE_GET_STATS',
   QUEUE_GET_TASKS = 'QUEUE_GET_TASKS',
   QUEUE_GET_TASK = 'QUEUE_GET_TASK',
@@ -66,6 +68,20 @@ export interface QueueStartMessage extends BaseMessage {
  */
 export interface QueueStopMessage extends BaseMessage {
   type: MessageType.QUEUE_STOP;
+}
+
+/**
+ * Pause queue message
+ */
+export interface QueuePauseMessage extends BaseMessage {
+  type: MessageType.QUEUE_PAUSE;
+}
+
+/**
+ * Resume queue message
+ */
+export interface QueueResumeMessage extends BaseMessage {
+  type: MessageType.QUEUE_RESUME;
 }
 
 /**
@@ -138,6 +154,8 @@ export type CommandMessage =
   | TaskCancelMessage
   | QueueStartMessage
   | QueueStopMessage
+  | QueuePauseMessage
+  | QueueResumeMessage
   | QueueGetStatsMessage
   | QueueGetTasksMessage
   | QueueGetTaskMessage
@@ -188,7 +206,7 @@ export type QueueTaskResponse = MessageResponse<{ task: Task | undefined }>;
 /**
  * Queue running status response
  */
-export type QueueRunningResponse = MessageResponse<{ isRunning: boolean }>;
+export type QueueRunningResponse = MessageResponse<{ isRunning: boolean; isPaused: boolean }>;
 
 /**
  * Type guard: check if is queue message

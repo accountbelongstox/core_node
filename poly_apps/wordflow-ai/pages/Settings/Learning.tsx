@@ -74,7 +74,7 @@ const LearningSettings = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => navigate('settings')}
@@ -91,7 +91,7 @@ const LearningSettings = () => {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Daily Goals Section */}
         <div className="space-y-3">
           <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
@@ -226,9 +226,9 @@ const LearningSettings = () => {
                   <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                   </svg>
-                  <span className="font-semibold text-slate-900 dark:text-white">Difficulty</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{t('settings.difficulty')}</span>
                 </div>
-                <span className="text-sm text-slate-500 dark:text-slate-400">Adaptive</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">{t('settings.adaptive')}</span>
               </div>
 
               <div className="flex items-center justify-between">

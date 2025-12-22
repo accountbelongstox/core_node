@@ -1,24 +1,53 @@
 /**
  * State Manager - Unified Global State Management
- * Simple reactive state management without external dependencies
+ * Simple reactive state management with optional persistence
  */
 
+import { StorageCenter, StorageKey } from './StorageCenter';
+
 type Listener<T> = (state: T) => void;
+
+interface StateConfig {
+  persist?: boolean;
+  storageKey?: StorageKey;
+}
 
 class StateManagerClass {
   private states: Map<string, any> = new Map();
   private listeners: Map<string, Set<Listener<any>>> = new Map();
+  private configs: Map<string, StateConfig> = new Map();
 
   /**
    * Create a state
    */
-  create<T>(key: string, initialValue: T): void {
+  create<T>(key: string, initialValue: T, config?: StateConfig): void {
     if (this.states.has(key)) {
       console.warn(`[StateManager] State "${key}" already exists`);
       return;
     }
-    this.states.set(key, initialValue);
+
+    // If persistent, try to load from storage
+    let value = initialValue;
+    if (config?.persist && config.storageKey) {
+      const stored = StorageCenter.get<T>(config.storageKey);
+      if (stored !== null) {
+        value = stored;
+        console.log(`[StateManager] Loaded persistent state "${key}" from storage`);
+      }
+    }
+
+    this.states.set(key, value);
     this.listeners.set(key, new Set());
+    if (config) {
+      this.configs.set(key, config);
+    }
+  }
+
+  /**
+   * Create a persistent state (auto-saves to StorageCenter)
+   */
+  createPersistent<T>(key: string, storageKey: StorageKey, initialValue: T): void {
+    this.create(key, initialValue, { persist: true, storageKey });
   }
 
   /**
@@ -39,6 +68,12 @@ class StateManagerClass {
       : value;
 
     this.states.set(key, newValue);
+
+    // Auto-save if persistent
+    const config = this.configs.get(key);
+    if (config?.persist && config.storageKey) {
+      StorageCenter.set(config.storageKey, newValue);
+    }
 
     // Notify listeners
     const stateListeners = this.listeners.get(key);

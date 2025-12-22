@@ -116,7 +116,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can access this endpoint');
         }
 
-        $projects = DB::connection('CodeMartV1')
+        $projects = DB::connection('codemartv1')
             ->table('codemart_v1_projects')
             ->where('architect_id', $user->id)
             ->orWhere('status', 'awaiting_architect')
@@ -143,7 +143,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can accept projects');
         }
 
-        $project = DB::connection('CodeMartV1')
+        $project = DB::connection('codemartv1')
             ->table('codemart_v1_projects')
             ->where('id', $projectId)
             ->where('status', 'awaiting_architect')
@@ -154,7 +154,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->notFound('Project not found or already assigned');
         }
 
-        DB::connection('CodeMartV1')
+        DB::connection('codemartv1')
             ->table('codemart_v1_projects')
             ->where('id', $projectId)
             ->update([

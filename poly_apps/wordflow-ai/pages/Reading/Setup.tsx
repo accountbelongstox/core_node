@@ -1,18 +1,19 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Button, Icons } from '../../components/UI';
-import { api } from '../../services/api';
 import { WordGroup } from '../../types';
+import { WordGroupsCenter } from '../../services/WordGroupsCenter';
 
 const ReadingSetupPage = () => {
-  const { navigate, user } = useContext(AppContext);
+  const { navigate, user, t } = useContext(AppContext);
   const [groups, setGroups] = useState<WordGroup[]>([]);
 
+  // Subscribe to WordGroupsCenter for automatic updates
   useEffect(() => {
-    if (user) {
-      api.getWordGroups().then(setGroups);
-    }
-  }, [user]);
+    const unsubscribe = WordGroupsCenter.subscribe(setGroups);
+    WordGroupsCenter.fetchAll();
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="h-full flex flex-col pt-safe animate-slide-up-fade relative">
@@ -25,7 +26,7 @@ const ReadingSetupPage = () => {
               >
                 <Icons.Back />
               </button>
-              <h2 className="text-lg font-serif font-bold text-slate-800 dark:text-white tracking-wide">Library</h2>
+              <h2 className="text-lg font-serif font-bold text-slate-800 dark:text-white tracking-wide">{t('reading.library')}</h2>
               <div className="w-10"></div> {/* Spacer for balance */}
           </div>
        </div>

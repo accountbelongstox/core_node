@@ -16,29 +16,37 @@ import {
   MoreVertical,
   Zap,
   Settings,
-  Target,
-  Rocket,
-  Filter,
-  ArrowUpRight,
+  DollarSign as DollarIcon,
+  MapPin,
   Clock,
   CheckCircle2,
   AlertCircle,
+  Download,
+  ArrowUpRight,
   ArrowLeft,
-  Calendar,
-  Layers,
-  Star,
-  ExternalLink,
   Edit3,
   Trash2,
-  Download,
-  Shield,
-  Briefcase
+  Star,
+  Shield
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { MOCK_APPS, MOCK_CS, MOCK_DAILY_STATS, MOCK_APP_REQUESTS, MOCK_TECH } from '../constants';
 import { AppStatus, UserRole, AppCategory, AppInstance } from '../types';
 import { StatCard } from './StatCard';
 import { useApp } from '../contexts/AppContext';
+import { AppGenerationForm } from './AppGenerationForm';
+import { AppDetailPage } from './AppDetailPage';
+import { CSAssignment } from './CSAssignment';
+import { RevenueManagement } from './RevenueManagement';
+import { PromotionTrackView } from './PromotionTrackView';
+import { AppReleaseList } from './AppReleaseList';
+import { AppReleaseDetail } from './AppReleaseDetail';
+import { PromotionRecordList } from './PromotionRecordList';
+import { PromotionRecordDetail } from './PromotionRecordDetail';
+import { PromoterList } from './PromoterList';
+import { CSList } from './CSList';
+import { AddPromoterForm } from './AddPromoterForm';
+import { AddCSForm } from './AddCSForm';
 
 import { Profile } from './Profile';
 import { NotificationCenter } from './NotificationCenter';
@@ -582,87 +590,6 @@ const TechTeam = () => {
   );
 };
 
-// App Generation Form Component
-const AppGenerationForm = () => {
-  const { t } = useApp();
-  const [formData, setFormData] = useState({
-    name: '',
-    category: AppCategory.PRODUCTIVITY,
-    description: '',
-    targetAudience: '',
-    techLeader: '',
-  });
-
-  const categories = Object.values(AppCategory);
-
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Rocket className="text-indigo-600" size={20} />
-          {t('apps.generateNew')}
-        </h3>
-      </div>
-      <form className="p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">App Name</label>
-            <input 
-              type="text" 
-              placeholder="e.g. My Awesome App"
-              className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</label>
-            <select 
-              className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white"
-              value={formData.category}
-              onChange={(e) => setFormData({...formData, category: e.target.value as AppCategory})}
-            >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</label>
-          <textarea 
-            placeholder="What does this app do?"
-            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white h-24"
-            value={formData.description}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Audience</label>
-          <input 
-            type="text" 
-            placeholder="e.g. Students, Professionals"
-            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white"
-            value={formData.targetAudience}
-            onChange={(e) => setFormData({...formData, targetAudience: e.target.value})}
-          />
-        </div>
-
-        <div className="flex gap-3 pt-4">
-          <button type="button" className="flex-1 bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20">
-            Generate with Gemini AI
-          </button>
-          <button type="button" className="px-6 py-2 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-            Save Draft
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
-
 // Dashboard Overview Page
 const DashboardOverview = () => {
   const { t } = useApp();
@@ -737,8 +664,6 @@ const DashboardOverview = () => {
         </div>
 
         <div className="space-y-6">
-          <AppGenerationForm />
-          
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('dashboard.recentApplications')}</h3>
             <div className="space-y-4">
@@ -845,73 +770,58 @@ const CSAssignmentModal = ({ isOpen, onClose, app }: { isOpen: boolean; onClose:
 // Apps Management Page
 const AppsList = () => {
   const { t } = useApp();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<AppStatus | 'All'>('All');
+  const [showGenerationForm, setShowGenerationForm] = useState(false);
 
   const filteredApps = MOCK_APPS.filter(app => {
     const matchesSearch = app.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || app.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
+  const handleGenerateApp = (appData: any) => {
+    console.log('Generating app:', appData);
+    alert('APP generation started! (This is a demo)');
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('apps.title')}</h2>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors">
-            <Filter size={18} />
-            Filters
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
-            <PlusCircle size={18} />
-            {t('apps.generateNew')}
-          </button>
-        </div>
-      </div>
-
+    <>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-            {['All', ...Object.values(AppStatus)].map(status => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status as any)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                  statusFilter === status 
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20' 
-                    : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
-                }`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder={t('apps.searchPlaceholder')}
-              className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full md:w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">{t('apps.title')}</h2>
+          <div className="flex gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                placeholder={t('apps.searchPlaceholder')}
+                className="pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full md:w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => setShowGenerationForm(true)}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            >
+              <PlusCircle size={18} />
+              {t('apps.generateNew')}
+            </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
-              <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.name')}</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.status')}</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Metrics</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Revenue</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assigned CS</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.actions')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
+            <tr>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.name')}</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.status')}</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.revenue')}</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assigned CS</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.actions')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredApps.map(app => (
                 <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   <td className="px-6 py-4">
@@ -993,7 +903,13 @@ const AppsList = () => {
           </table>
         </div>
       </div>
-    </div>
+      {showGenerationForm && (
+        <AppGenerationForm
+          onClose={() => setShowGenerationForm(false)}
+          onGenerate={handleGenerateApp}
+        />
+      )}
+    </>
   );
 };
 
@@ -1129,10 +1045,14 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
     { icon: <Smartphone size={20} />, label: t('nav.applications'), path: '/apps' },
+    { icon: <Smartphone size={20} />, label: '已发布APP', path: '/app-releases' },
     { icon: <Users size={20} />, label: t('nav.csTeam'), path: '/cs' },
-    { icon: <Briefcase size={20} />, label: 'Technical Team', path: '/tech' },
-    { icon: <Layers size={20} />, label: 'Revenue Matrix', path: '/matrix' },
-    { icon: <DollarSign size={20} />, label: 'Commission', path: '/commission' },
+    { icon: <Users size={20} />, label: '客服人员', path: '/cs-list' },
+    { icon: <Users size={20} />, label: '推广人员', path: '/promoters' },
+    { icon: <MapPin size={20} />, label: '推广记录', path: '/promotion-records' },
+    { icon: <MapPin size={20} />, label: '推广轨迹', path: '/promotion-tracks' },
+    { icon: <Users size={20} />, label: 'CS Assignment', path: '/cs-assignment' },
+    { icon: <DollarIcon size={20} />, label: 'Revenue', path: '/revenue' },
     { icon: <BarChart3 size={20} />, label: t('nav.analytics'), path: '/analytics' },
   ];
 
@@ -1143,7 +1063,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
           <Zap size={24} fill="currentColor" />
         </div>
         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-indigo-400">
-          AppFactory
+          {t('app.name')}
         </h1>
       </div>
 
@@ -1221,6 +1141,18 @@ interface AdminDashboardProps {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenSettings }) => {
   const { t } = useApp();
+  const [showAddPromoter, setShowAddPromoter] = useState(false);
+  const [showAddCS, setShowAddCS] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handlePromoterAdded = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleCSAdded = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
   return (
     <div className="min-h-screen flex bg-[#f8fafc] dark:bg-slate-900">
       <Sidebar onOpenSettings={onOpenSettings} />
@@ -1230,18 +1162,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenSettings }
           <Routes>
             <Route path="/" element={<DashboardOverview />} />
             <Route path="/apps" element={<AppsList />} />
-            <Route path="/apps/:id" element={<AppDetails />} />
+            <Route path="/apps/:appId" element={<AppDetailPage />} />
             <Route path="/cs" element={<CSTeam />} />
-            <Route path="/tech" element={<TechTeam />} />
-            <Route path="/matrix" element={<RevenueMatrix />} />
-            <Route path="/analytics" element={<RevenueAnalytics />} />
-            <Route path="/commission" element={<CommissionManagement />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/notifications" element={<NotificationCenter />} />
+            <Route path="/cs-list" element={<CSList key={refreshKey} onAddCS={() => setShowAddCS(true)} />} />
+            <Route path="/promoters" element={<PromoterList key={refreshKey} onAddPromoter={() => setShowAddPromoter(true)} />} />
+            <Route path="/promotion-records" element={<PromotionRecordList />} />
+            <Route path="/promotion-records/:id" element={<PromotionRecordDetail />} />
+            <Route path="/cs-assignment" element={<CSAssignment />} />
+            <Route path="/revenue" element={<RevenueManagement />} />
+            <Route path="/promotion-tracks" element={<PromotionTrackView />} />
+            <Route path="/app-releases" element={<AppReleaseList />} />
+            <Route path="/app-releases/:id" element={<AppReleaseDetail />} />
             <Route path="/analytics" element={<div className="flex items-center justify-center h-96 text-slate-400">{t('analytics.comingSoon')}</div>} />
           </Routes>
         </div>
       </main>
+      {showAddPromoter && (
+        <AddPromoterForm
+          onClose={() => setShowAddPromoter(false)}
+          onSuccess={handlePromoterAdded}
+        />
+      )}
+      {showAddCS && (
+        <AddCSForm
+          onClose={() => setShowAddCS(false)}
+          onSuccess={handleCSAdded}
+        />
+      )}
     </div>
   );
 };

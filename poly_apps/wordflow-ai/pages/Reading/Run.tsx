@@ -6,7 +6,7 @@ import { Word } from '../../types';
 import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const ReadingRunPage = () => {
-  const { navigate, currentParams, settings } = useContext(AppContext);
+  const { navigate, currentParams, settings, t } = useContext(AppContext);
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -102,7 +102,7 @@ const ReadingRunPage = () => {
     }
   }, [currentIndex, currentWord]);
 
-  if (!currentWord) return <div className="flex h-full items-center justify-center dark:text-white animate-pulse font-bold tracking-widest text-slate-400">LOADING ENGINE...</div>;
+  if (!currentWord) return <div className="flex h-full items-center justify-center dark:text-white animate-pulse font-bold tracking-widest text-slate-400">{t('reading.loadingEngine')}</div>;
 
   return (
     <div className="h-full flex flex-col p-6 pt-safe pb-safe relative overflow-hidden">
@@ -158,7 +158,7 @@ const ReadingRunPage = () => {
             <div className="w-16 h-16 rounded-full bg-yellow-400/20 dark:bg-yellow-400/10 backdrop-blur-md border border-yellow-400/30 flex items-center justify-center text-yellow-600 dark:text-yellow-400 shadow-lg group-active:scale-90 transition-all hover:bg-yellow-400/30">
                <Icons.Rewind />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-yellow-600 transition-colors">Review</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-yellow-600 transition-colors">{t('reading.review')}</span>
          </button>
 
          <button onClick={() => setIsPlaying(!isPlaying)} className="transform transition-transform active:scale-95 group">
@@ -171,7 +171,7 @@ const ReadingRunPage = () => {
             <div className="w-16 h-16 rounded-full bg-white/40 dark:bg-white/10 backdrop-blur-md border border-white/40 flex items-center justify-center text-slate-700 dark:text-white shadow-lg group-active:scale-90 transition-all hover:bg-white/60">
                <Icons.ChevronRight />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">Next</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">{t('reading.next')}</span>
          </button>
       </div>
     </div>

@@ -8,8 +8,8 @@ return new class extends Migration
 {
     public function up()
     {
-        if (!Schema::connection('AppQyV1')->hasTable('app_qy_v1_user_selected_libraries')) {
-            Schema::connection('AppQyV1')->create('app_qy_v1_user_selected_libraries', function (Blueprint $table) {
+        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_user_selected_libraries')) {
+            Schema::connection('appqyv1')->create('app_qy_v1_user_selected_libraries', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id')->nullable(false);
                 $table->unsignedBigInteger('collection_id')->nullable(false);
@@ -32,6 +32,6 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_user_selected_libraries');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_user_selected_libraries');
     }
 };

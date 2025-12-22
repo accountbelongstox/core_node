@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons } from '../../components/UI';
 import { ApiCenter } from '../../services/ApiCenter';
+import { StorageCenter, StorageKey } from '../../services/StorageCenter';
 import { Word } from '../../types';
 
 export default function ToolsDictionary() {
@@ -17,10 +18,10 @@ export default function ToolsDictionary() {
 
   // Load search history and favorites
   useEffect(() => {
-    const history = localStorage.getItem('dictionaryHistory');
-    const favs = localStorage.getItem('dictionaryFavorites');
-    if (history) setSearchHistory(JSON.parse(history));
-    if (favs) setFavorites(JSON.parse(favs));
+    const history = StorageCenter.get<string[]>(StorageKey.DICTIONARY_HISTORY, []);
+    const favs = StorageCenter.get<Word[]>(StorageKey.DICTIONARY_FAVORITES, []);
+    setSearchHistory(history);
+    setFavorites(favs);
   }, []);
 
   // Debounced search
@@ -50,7 +51,7 @@ export default function ToolsDictionary() {
         // Add to history
         const newHistory = [searchQuery, ...searchHistory.filter(h => h !== searchQuery)].slice(0, 10);
         setSearchHistory(newHistory);
-        localStorage.setItem('dictionaryHistory', JSON.stringify(newHistory));
+        StorageCenter.set(StorageKey.DICTIONARY_HISTORY, newHistory);
       } else {
         setResults([]);
       }
@@ -73,7 +74,7 @@ export default function ToolsDictionary() {
     }
 
     setFavorites(newFavorites);
-    localStorage.setItem('dictionaryFavorites', JSON.stringify(newFavorites));
+    StorageCenter.set(StorageKey.DICTIONARY_FAVORITES, newFavorites);
   };
 
   const isFavorited = (wordId: string) => {
@@ -82,7 +83,7 @@ export default function ToolsDictionary() {
 
   const clearHistory = () => {
     setSearchHistory([]);
-    localStorage.removeItem('dictionaryHistory');
+    StorageCenter.remove(StorageKey.DICTIONARY_HISTORY);
   };
 
   const handleWordClick = (word: Word) => {
@@ -97,7 +98,7 @@ export default function ToolsDictionary() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-4 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-4 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="space-y-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
@@ -194,7 +195,7 @@ export default function ToolsDictionary() {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-4">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-4">
         {/* Search Tab */}
         {activeTab === 'search' && (
           <>

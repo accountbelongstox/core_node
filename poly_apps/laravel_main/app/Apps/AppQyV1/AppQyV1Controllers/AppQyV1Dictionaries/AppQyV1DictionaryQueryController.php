@@ -14,10 +14,10 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries;
 
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1FindNonExistingEntriesRequest;
 use App\Traits\ApiResponse;
 
 class AppQyV1DictionaryQueryController extends BaseController
@@ -31,76 +31,53 @@ class AppQyV1DictionaryQueryController extends BaseController
 
     /**
      * Find dictionary entries that don't exist from a provided list
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
      */
-    public function findNonExistingEntries(Request $request)
+    public function findNonExistingEntries(AppQyV1FindNonExistingEntriesRequest $request): JsonResponse
     {
-        // Validate request
-        $validator = Validator::make($request->all(), [
-            'content' => 'required_without:contents',
-            'contents' => 'required_without:content|array',
-            'delimiter' => 'nullable|string'
-        ]);
+        $contents = [];
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+        // Handle either a string with delimiter or an array of contents
+        if ($request->has('content')) {
+            $delimiter = $request->input('delimiter', ',');
+            $contentStr = $request->input('content');
+
+            // Split the content string by delimiter and trim whitespace
+            $contents = array_map('trim', explode($delimiter, $contentStr));
+            // Remove empty values
+            $contents = array_filter($contents, function ($value) {
+                return $value !== '';
+            });
+            // Re-index array
+            $contents = array_values($contents);
+        } elseif ($request->has('contents')) {
+            $contents = $request->input('contents');
         }
 
-            $contents = [];
-            
-            // Handle either a string with delimiter or an array of contents
-            if ($request->has('content')) {
-                $delimiter = $request->input('delimiter', ',');
-                $contentStr = $request->input('content');
-                
-                // Split the content string by delimiter and trim whitespace
-                $contents = array_map('trim', explode($delimiter, $contentStr));
-                // Remove empty values
-                $contents = array_filter($contents, function($value) {
-                    return $value !== '';
-                });
-                // Re-index array
-                $contents = array_values($contents);
-            } elseif ($request->has('contents')) {
-                $contents = $request->input('contents');
-            }
-            
-            // If no contents to process, return early
-            if (empty($contents)) {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'No contents to process',
-                    'missing_entries' => [],
-                    'all_records' => 0,
-                    'has_translation' => 0,
-                    'has_voice' => 0
-                ]);
-            }
-            
-            // Use the Dictionary model to find missing entries
-            $missingEntries = Dictionary::findMissingEntries($contents);
-            $allRecords = Dictionary::countAll();
-            $hasTranslation = Dictionary::countByTranslation();
-            $hasVoice = Dictionary::countHasVoice();
-            
-            return response()->json([
-                'status' => 'success',
-                'message' => count($missingEntries) . ' entries not found in dictionary',
-                'total_checked' => count($contents),
-                'existing_count' => count($contents) - count($missingEntries),
-                'missing_count' => count($missingEntries),
-                'missing_entries' => $missingEntries,
-                'all_records' => $allRecords,
-                'has_translation' => $hasTranslation,
-                'has_voice' => $hasVoice
-            ]);
-            
+        // If no contents to process, return early
+        if (empty($contents)) {
+            return $this->success([
+                'missing_entries' => [],
+                'all_records' => 0,
+                'has_translation' => 0,
+                'has_voice' => 0,
+            ], 'No contents to process');
+        }
+
+        // Use the Dictionary model to find missing entries
+        $missingEntries = AppQyV1DictionaryModel::findMissingEntries($contents);
+        $allRecords = AppQyV1DictionaryModel::countAll();
+        $hasTranslation = AppQyV1DictionaryModel::countByTranslation();
+        $hasVoice = AppQyV1DictionaryModel::countHasVoice();
+
+        return $this->success([
+            'total_checked' => count($contents),
+            'existing_count' => count($contents) - count($missingEntries),
+            'missing_count' => count($missingEntries),
+            'missing_entries' => $missingEntries,
+            'all_records' => $allRecords,
+            'has_translation' => $hasTranslation,
+            'has_voice' => $hasVoice,
+        ], count($missingEntries) . ' entries not found in dictionary');
     }
 }
 
