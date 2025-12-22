@@ -233,11 +233,24 @@ class ConnectionManager:
         loop = asyncio.get_event_loop()
         last_error = None
 
-        # 🔧 REFACTORED: Use centralized server manager
-        # Push scrcpy-server.jar before first attempt (with smart optimization)
-        if not await self.server_manager.push_jar_to_device(connection.serial):
-            raise RuntimeError("Failed to push scrcpy-server.jar to device")
+        # STEP 1: Verify and push jar (MANDATORY, IDEMPOTENT)
+        # Always check jar on device, push if wrong (never skip this step)
+        ColorPrint.blue(f"[ConnectionManager] STEP 1: Verify jar for {connection.serial}...")
 
+        jar_correct = await self.server_manager.check_jar_on_device(connection.serial)
+
+        if not jar_correct:
+            ColorPrint.yellow(f"[ConnectionManager] Jar wrong/missing for {connection.serial}, pushing...")
+            push_success = await self.server_manager.push_jar_to_device(connection.serial, force=True)
+
+            if push_success:
+                ColorPrint.green(f"[ConnectionManager] ✓ Jar pushed successfully for {connection.serial}")
+            else:
+                ColorPrint.red(f"[ConnectionManager] Failed to push jar for {connection.serial}, will try anyway")
+        else:
+            ColorPrint.green(f"[ConnectionManager] ✓ Jar correct for {connection.serial}, verified")
+
+        # STEP 2: Connect device with retry
         while connection.can_retry() or connection.retry_count == 0:
             try:
                 # Ensure device is not connected
