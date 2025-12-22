@@ -400,6 +400,13 @@ def configure_webengine_all_tiers(
             # QApplication not created yet - safe to set default surface format
             ColorPrint.blue("\n[WebEngineConfig] >>> Tier 0: OpenGL ES 3.0 / WebGL 2.0 Configuration")
 
+            # CRITICAL: Set Qt::AA_ShareOpenGLContexts FIRST (MUST be before QApplication)
+            # This fixes CSS animation flickering in QWebEngineView
+            # Reference: https://doc.qt.io/qt-6/qwebenginesettings.html
+            # Reference: https://forum.qt.io/topic/132536/qwebengineview-cpu-and-gpu-usages-are-extremely-high
+            QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ CRITICAL: Qt::AA_ShareOpenGLContexts enabled (fixes CSS animation flickering)")
+
             # Set QT_OPENGL environment variable to force ANGLE (Windows)
             # This is critical for WebGL 2.0 support on Windows
             existing_qt_opengl = os.environ.get('QT_OPENGL', '')
@@ -426,9 +433,14 @@ def configure_webengine_all_tiers(
             # Enable ANGLE (required for OpenGL ES on Windows)
             QGuiApplication.setAttribute(Qt.AA_UseOpenGLES)
             ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ ANGLE enabled (Qt::AA_UseOpenGLES)")
+
+            # Enable High DPI scaling
+            QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ High DPI scaling enabled")
+
         else:
-            ColorPrint.yellow("[WebEngineConfig-Tier0] ⚠ QApplication already created, cannot set surface format")
-            ColorPrint.yellow("[WebEngineConfig-Tier0] WebGL 2.0 may not be available")
+            ColorPrint.yellow("[WebEngineConfig-Tier0] ⚠ QApplication already created, cannot set attributes")
+            ColorPrint.yellow("[WebEngineConfig-Tier0] Qt::AA_ShareOpenGLContexts, WebGL 2.0 may not be available")
     except Exception as e:
         ColorPrint.red(f"[WebEngineConfig-Tier0] ✗ Failed to configure OpenGL ES 3.0: {e}")
         import traceback
