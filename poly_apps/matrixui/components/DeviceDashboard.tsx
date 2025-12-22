@@ -37,7 +37,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   const { t } = useI18n();
   const [wsDevices, setWsDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const videoStreamEnabledRef = useRef<Map<string, boolean>>(new Map());
+  const [videoStreamEnabled, setVideoStreamEnabled] = useState<Map<string, boolean>>(new Map());
   const addLogRef = useRef(addLog);
 
   // Store stream info for each device
