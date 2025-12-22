@@ -203,6 +203,64 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
     return mappedDevices;
   }, [mappedDevices, filterStatus]);
 
+  // Batch start video streams for all online devices (concurrent startup)
+  useEffect(() => {
+    const startBatchStreams = async () => {
+      if (mappedDevices.length === 0) return;
+
+      // Filter online devices only
+      const onlineDevices = mappedDevices.filter(d => d.status === 'online');
+      if (onlineDevices.length === 0) {
+        console.log('[DeviceDashboard] No online devices to start streams');
+        return;
+      }
+
+      const serials = onlineDevices.map(d => d.serial);
+      console.log(`[DeviceDashboard] Starting batch video streams for ${serials.length} devices:`, serials);
+
+      // Subscribe to device.ready events BEFORE calling batch start
+      wsService.onRpcEvent('device.ready', (event: any) => {
+        const { serial } = event.data || event;
+        console.log(`[DeviceDashboard] Device ready event received: ${serial}`);
+
+        // Find device by serial and enable video stream
+        const device = mappedDevices.find(d => d.serial === serial);
+        if (device) {
+          setVideoStreamEnabled(prev => {
+            const newMap = new Map(prev);
+            newMap.set(device.deviceId, true);
+            return newMap;
+          });
+          addLogRef.current('success', `Video stream ready: ${device.name || serial}`);
+        }
+      });
+
+      wsService.onRpcEvent('device.failed', (event: any) => {
+        const { serial, error } = event.data || event;
+        console.error(`[DeviceDashboard] Device failed event received: ${serial}`, error);
+        addLogRef.current('error', `Video stream failed: ${serial} - ${error || 'Unknown error'}`);
+      });
+
+      // Call batch start RPC
+      try {
+        addLogRef.current('info', `Starting batch video streams for ${serials.length} devices...`);
+        const result = await wsService.batchStartStreams(serials);
+        console.log(`[DeviceDashboard] Batch start result:`, result);
+      } catch (error) {
+        console.error(`[DeviceDashboard] Batch start failed:`, error);
+        addLogRef.current('error', `Failed to start batch streams: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    };
+
+    startBatchStreams();
+
+    // Cleanup event listeners on unmount
+    return () => {
+      wsService.offRpcEvent('device.ready');
+      wsService.offRpcEvent('device.failed');
+    };
+  }, [mappedDevices]);
+
   const handleEnroll = async () => {
     await fetchDevices();
   };
@@ -431,7 +489,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
                   <DeviceVideoStream
                     key={`video-${device.serial}`} // CRITICAL: Use serial (stable identifier) to prevent unmount on device info updates
                     deviceId={device.deviceId}
-                    enabled={videoStreamEnabledRef.current.get(device.deviceId) ?? true}
+                    enabled={videoStreamEnabled.get(device.deviceId) ?? false}
                     onError={getVideoStreamErrorHandler(device.deviceId)}
                     onInit={(info) => handleStreamInit(device.deviceId, info)}
                   />
