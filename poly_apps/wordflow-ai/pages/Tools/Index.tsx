@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons, Card } from '../../components/UI';
+import { StorageCenter, StorageKey } from '../../services/StorageCenter';
 
 interface Tool {
   id: string;
@@ -19,18 +20,16 @@ export default function ToolsIndex() {
   const [recentTools, setRecentTools] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load recent tools from localStorage
-    const recent = localStorage.getItem('recentTools');
-    if (recent) {
-      setRecentTools(JSON.parse(recent));
-    }
+    // Load recent tools from StorageCenter
+    const recent = StorageCenter.get<string[]>(StorageKey.RECENT_TOOLS, []);
+    setRecentTools(recent);
   }, []);
 
   const handleToolClick = (tool: Tool) => {
     // Save to recent tools
     const updated = [tool.id, ...recentTools.filter(id => id !== tool.id)].slice(0, 3);
     setRecentTools(updated);
-    localStorage.setItem('recentTools', JSON.stringify(updated));
+    StorageCenter.set(StorageKey.RECENT_TOOLS, updated);
 
     navigate(tool.route);
   };
@@ -158,7 +157,7 @@ export default function ToolsIndex() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             {t('nav.tools')}
@@ -169,7 +168,7 @@ export default function ToolsIndex() {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Featured Tools */}
         <div className="space-y-3">
           <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">

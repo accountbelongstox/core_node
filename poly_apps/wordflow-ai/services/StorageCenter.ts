@@ -31,13 +31,29 @@ export enum StorageKey {
 
   // Cache
   WORD_GROUPS_CACHE = 'word_groups_cache',
+  STUDY_GROUPS_CACHE = 'study_groups_cache',
   DICTIONARY_CACHE = 'dictionary_cache',
   SUPPORTED_LANGUAGES_CACHE = 'supported_languages_cache',
   USER_PROFILE_CACHE = 'user_profile_cache',
+  VOCABULARY_LIBRARY_CACHE = 'vocabulary_library_cache',
+  AUDIO_REQUESTS_CACHE = 'audio_requests_cache',
 
   // UI State
   THEME = 'theme',
   SIDEBAR_STATE = 'sidebar_state',
+
+  // Tools
+  DICTIONARY_HISTORY = 'dictionary_history',
+  DICTIONARY_FAVORITES = 'dictionary_favorites',
+  RECENT_TOOLS = 'recent_tools',
+
+  // Quiz & Learning History
+  QUIZ_HISTORY = 'quiz_history',
+  READING_PROGRESS = 'reading_progress',
+
+  // Recommended Libraries
+  RECOMMENDED_LIBRARIES_CACHE = 'recommended_libraries_cache',
+  SELECTED_LIBRARIES = 'selected_libraries',
 }
 
 class StorageCenterClass {

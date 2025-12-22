@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('AppQyV1')->create('app_qy_v1_articles', function (Blueprint $table) {
+        Schema::connection('appqyv1')->create('app_qy_v1_articles', function (Blueprint $table) {
             $table->id();
             $table->string('article_id', 64)->unique()->comment('Unique article identifier');
             $table->string('title')->nullable()->comment('Article title');
@@ -44,6 +44,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('AppQyV1')->dropIfExists('app_qy_v1_articles');
+        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_articles');
     }
 };

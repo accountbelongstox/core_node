@@ -31,7 +31,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl w-full p-6 animate-slide-up">
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{title}</h3>
         <p className="text-slate-600 dark:text-slate-400 mb-6">{message}</p>
         <div className="flex gap-3">
@@ -128,7 +128,7 @@ const ProfilePage = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24 flex items-center justify-center p-6">
-        <Card className="max-w-md w-full bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
+        <Card className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl w-full bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
           <div className="text-center py-8">
             <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white/20 flex items-center justify-center">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
             {t('profile.myProfile')}
@@ -172,7 +172,7 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Profile Header Card */}
         <Card
           onClick={() => navigate('profile_edit')}

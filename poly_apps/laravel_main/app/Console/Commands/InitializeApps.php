@@ -164,11 +164,36 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating word learning tables (4 languages: en/ja/vi/lo)...');
-        $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
-        foreach ($wordTableResults as $table => $status) {
+        $this->info('Creating TTS queue table...');
+        $ttsQueueResults = \App\Services\AppQyV1TTSQueueInitializer::ensureTablesExist();
+        foreach ($ttsQueueResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+        }
+
+        $ttsQueueStats = \App\Services\AppQyV1TTSQueueInitializer::getTableStats();
+        if (!isset($ttsQueueStats['error'])) {
+            $this->line("  <fg=gray>Stats: {$ttsQueueStats['pending']} pending, {$ttsQueueStats['processing']} processing, {$ttsQueueStats['completed']} completed, {$ttsQueueStats['failed']} failed, {$ttsQueueStats['total']} total</>");
+        }
+        $this->newLine();
+
+        $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
+        $totalTables = count($wordTableResults);
+        $this->info("Creating word learning tables ({$totalTables} tables)...");
+
+        $displayLimit = 10;
+        $displayedCount = 0;
+        foreach ($wordTableResults as $table => $status) {
+            if ($displayedCount < $displayLimit) {
+                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+                $this->line("  {$icon} {$table}: {$status}");
+                $displayedCount++;
+            }
+        }
+
+        if ($totalTables > $displayLimit) {
+            $remaining = $totalTables - $displayLimit;
+            $this->line("  <fg=gray>... and {$remaining} more tables</>");
         }
         $this->newLine();
         
@@ -235,24 +260,44 @@ class InitializeApps extends Command
         
         $this->newLine();
         
-        $this->info('AppQyV1 word tables summary (learning vocabulary):');
+        $this->info('AppQyV1 dictionary tables summary:');
         try {
             $connection = 'appqyv1';
-            $tables = [
-                'app_qy_v1_words_english',
-                'app_qy_v1_words_lao',
-                'app_qy_v1_words_japanese',
-                'app_qy_v1_words_vietnamese',
-            ];
+            $allDictTables = \DB::connection($connection)
+                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
 
-            foreach ($tables as $table) {
+            $tablesWithData = [];
+            $tablesEmpty = [];
+
+            foreach ($allDictTables as $tableObj) {
+                $tableName = $tableObj->name;
                 try {
-                    $count = \DB::connection($connection)->table($table)->count();
-                    $this->line("  • {$table}: {$count} rows");
+                    $count = \DB::connection($connection)->table($tableName)->count();
+                    if ($count > 0) {
+                        $langCode = str_replace(['app_qy_v1_', '_dictionaries'], '', $tableName);
+                        $tablesWithData[] = ['name' => $tableName, 'code' => $langCode, 'count' => $count];
+                    } else {
+                        $tablesEmpty[] = $tableName;
+                    }
                 } catch (\Exception $e) {
-                    $this->line("  • {$table}: <fg=red>not exists</>");
+                    continue;
                 }
             }
+
+            if (!empty($tablesWithData)) {
+                $this->line("  <fg=green>Tables with data:</>");
+                foreach ($tablesWithData as $tableInfo) {
+                    $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries");
+                }
+            }
+
+            $emptyCount = count($tablesEmpty);
+            if ($emptyCount > 0) {
+                $this->line("  <fg=gray>Empty tables: {$emptyCount} (ready for import)</>");
+            }
+
+            $totalDictTables = count($allDictTables);
+            $this->line("  <fg=cyan>Total dictionary tables: {$totalDictTables}</>");
         } catch (\Exception $e) {
             $this->line("  <fg=red>Error: {$e->getMessage()}</>");
         }

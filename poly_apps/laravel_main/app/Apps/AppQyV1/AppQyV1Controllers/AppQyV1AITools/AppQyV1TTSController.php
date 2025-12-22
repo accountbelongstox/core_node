@@ -4,7 +4,9 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
 use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -18,10 +20,12 @@ class AppQyV1TTSController extends Controller
      */
 
     private $ttsService;
-    
+    private $queueService;
+
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
+        $this->queueService = new AppQyV1TTSQueueService();
     }
     
     public function generate(Request $request): JsonResponse
@@ -32,14 +36,16 @@ class AppQyV1TTSController extends Controller
             'type' => 'nullable|string',
             'options' => 'nullable|array',
         ]);
-        
+
         $result = $this->ttsService->generateAudio(
             $request->input('text'),
             $request->input('language'),
             $request->input('type', 'sentence'),
             $request->input('options', [])
         );
-        
+
+        $result = $this->fixAudioUrl($result);
+
         return response()->json($result);
     }
     
@@ -52,18 +58,19 @@ class AppQyV1TTSController extends Controller
             'items.*.type' => 'nullable|string',
             'items.*.options' => 'nullable|array',
         ]);
-        
+
         $results = [];
-        
+
         foreach ($request->input('items') as $item) {
-            $results[] = $this->ttsService->generateAudio(
+            $result = $this->ttsService->generateAudio(
                 $item['text'],
                 $item['language'],
                 $item['type'] ?? 'sentence',
                 $item['options'] ?? []
             );
+            $results[] = $this->fixAudioUrl($result);
         }
-        
+
         return response()->json([
             'success' => true,
             'results' => $results,
@@ -157,5 +164,113 @@ class AppQyV1TTSController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Add batch words to TTS queue
+     * Frontend sends words without audio, backend queues for async generation
+     *
+     * POST /api/app_qy_v1/tts/queue_batch
+     */
+    public function queueBatch(Request $request): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized('Authentication required');
+        }
+
+        $validated = $request->validate([
+            'words' => 'required|array|min:1|max:100',
+            'words.*.word' => 'required|string|max:255',
+            'words.*.language' => 'required|string|max:10',
+            'words.*.priority' => 'nullable|integer|min:0|max:100',
+        ]);
+
+        $queued = [];
+        $available = [];
+
+        foreach ($validated['words'] as $item) {
+            $word = $item['word'];
+            $language = $item['language'];
+            $priority = 0;
+            if (isset($item['priority'])) {
+                $priority = $item['priority'];
+            }
+
+            $result = $this->queueService->requestAudio($word, $language, $priority);
+
+            if ($result === null) {
+                $queued[] = [
+                    'word' => $word,
+                    'language' => $language,
+                    'status' => 'queued',
+                ];
+            } else {
+                $available[] = [
+                    'word' => $word,
+                    'language' => $language,
+                    'status' => 'available',
+                    'audio_url' => $result['audio_url'],
+                ];
+            }
+        }
+
+        return $this->success([
+            'queued' => $queued,
+            'available' => $available,
+            'queued_count' => count($queued),
+            'available_count' => count($available),
+        ], 'Batch request processed successfully');
+    }
+
+    /**
+     * Get queue statistics
+     *
+     * GET /api/app_qy_v1/tts/queue/stats
+     */
+    public function getQueueStats(Request $request): JsonResponse
+    {
+        $stats = $this->queueService->getQueueStats();
+
+        return $this->success($stats, 'Queue statistics retrieved');
+    }
+
+    /**
+     * Get queue status for specific word
+     *
+     * GET /api/app_qy_v1/tts/queue/status
+     */
+    public function checkQueueStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'word' => 'required|string',
+            'language' => 'required|string',
+        ]);
+
+        $status = $this->queueService->getQueueStatus(
+            $validated['word'],
+            $validated['language']
+        );
+
+        if ($status === null) {
+            return $this->notFound('Word not found in queue');
+        }
+
+        return $this->success($status, 'Queue status retrieved');
+    }
+
+    /**
+     * Fix audio_url path to use AppQyV1 route prefix
+     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
+     */
+    private function fixAudioUrl(array $result): array
+    {
+        if (isset($result['audio_url'])) {
+            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
+                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
+            }
+        }
+
+        return $result;
     }
 }

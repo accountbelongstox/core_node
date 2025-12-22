@@ -84,6 +84,15 @@ class AppQyV1InitializationMarkerManager
     }
 
     /**
+     * Alias for isInitializationComplete()
+     * Provides a simpler API for checking if system is initialized
+     */
+    public function isInitialized(): bool
+    {
+        return $this->isInitializationComplete();
+    }
+
+    /**
      * Set database processing as complete
      * Reference: DevOps basetool/token_file.js marker creation logic
      */

@@ -7,7 +7,7 @@ import { Word } from '../../types';
 import { LearningProgressTracker } from '../../services/LearningProgressTracker';
 
 const FlashcardRunPage = () => {
-  const { navigate, settings, currentParams } = useContext(AppContext);
+  const { navigate, settings, currentParams, t } = useContext(AppContext);
   const [words, setWords] = useState<Word[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -86,9 +86,9 @@ const FlashcardRunPage = () => {
   if (finished) return (
     <div className="h-full flex flex-col items-center justify-center p-8 animate-fade-in text-center">
        <div className="text-6xl mb-6">🎉</div>
-       <h2 className="text-3xl font-bold dark:text-white mb-2">Session Complete!</h2>
-       <p className="text-slate-500 mb-8">You reviewed {words.length} cards.</p>
-       <Button onClick={() => navigate('home')}>Back Home</Button>
+       <h2 className="text-3xl font-bold dark:text-white mb-2">{t('flashcards.sessionComplete')}</h2>
+       <p className="text-slate-500 mb-8">{t('flashcards.reviewedCards', { count: words.length })}</p>
+       <Button onClick={() => navigate('home')}>{t('flashcards.backHome')}</Button>
     </div>
   );
 
@@ -113,15 +113,15 @@ const FlashcardRunPage = () => {
           >
              {/* Front */}
              <div className="absolute inset-0 backface-hidden holo-card rounded-[2.5rem] flex flex-col items-center justify-center p-8 shadow-2xl border-white/50">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest absolute top-8">Word</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest absolute top-8">{t('flashcards.word')}</span>
                 <h2 className="text-5xl font-black text-slate-800 dark:text-white text-center">{current.text}</h2>
                 <div className="mt-4 text-blue-500 font-mono">{current.phonetic}</div>
-                <div className="absolute bottom-8 text-xs text-slate-400 animate-pulse">Tap to flip</div>
+                <div className="absolute bottom-8 text-xs text-slate-400 animate-pulse">{t('flashcards.flipCard')}</div>
              </div>
 
              {/* Back */}
              <div className="absolute inset-0 backface-hidden holo-card rounded-[2.5rem] flex flex-col items-center justify-center p-8 shadow-2xl border-white/50 rotate-y-180" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden' }}>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest absolute top-8">Meaning</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest absolute top-8">{t('flashcards.meaning')}</span>
                 <h3 className="text-3xl font-bold text-slate-700 dark:text-slate-200 text-center mb-6">{current.translation}</h3>
                 <div className="bg-white/40 dark:bg-black/20 p-4 rounded-xl text-sm italic text-slate-600 dark:text-slate-400 text-center">
                   "{current.example}"
@@ -132,9 +132,9 @@ const FlashcardRunPage = () => {
 
        {/* Controls */}
        <div className={`mt-8 grid grid-cols-3 gap-4 transition-opacity duration-300 ${flipped ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-          <button onClick={() => handleRate('hard')} className="p-4 rounded-2xl bg-red-100 text-red-600 font-bold border border-red-200 shadow-sm active:scale-95">Hard</button>
-          <button onClick={() => handleRate('good')} className="p-4 rounded-2xl bg-blue-100 text-blue-600 font-bold border border-blue-200 shadow-sm active:scale-95">Good</button>
-          <button onClick={() => handleRate('easy')} className="p-4 rounded-2xl bg-green-100 text-green-600 font-bold border border-green-200 shadow-sm active:scale-95">Easy</button>
+          <button onClick={() => handleRate('hard')} className="p-4 rounded-2xl bg-red-100 text-red-600 font-bold border border-red-200 shadow-sm active:scale-95">{t('flashcards.hard')}</button>
+          <button onClick={() => handleRate('good')} className="p-4 rounded-2xl bg-blue-100 text-blue-600 font-bold border border-blue-200 shadow-sm active:scale-95">{t('flashcards.good')}</button>
+          <button onClick={() => handleRate('easy')} className="p-4 rounded-2xl bg-green-100 text-green-600 font-bold border border-green-200 shadow-sm active:scale-95">{t('flashcards.easy')}</button>
        </div>
     </div>
   );

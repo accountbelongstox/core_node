@@ -38,7 +38,7 @@ function getNestedProperty(obj: any, path: string): string {
  * i18n服务类
  */
 class I18nService {
-  private currentLanguage: SupportedLanguage = 'en';
+  private currentLanguage: SupportedLanguage = 'zh';
   private listeners: Set<() => void> = new Set();
 
   /**

@@ -41,7 +41,7 @@ const PasswordChangeModal: React.FC<PasswordModalProps> = ({ isOpen, onClose, on
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl w-full p-6 animate-slide-up">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold dark:text-white">{t('profile.changePassword')}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
@@ -326,7 +326,7 @@ const ProfileEditPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 max-w-md mx-auto">
+      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
           <button
             onClick={() => navigate('profile')}
@@ -343,7 +343,7 @@ const ProfileEditPage = () => {
         </p>
       </div>
 
-      <div className="max-w-md mx-auto px-6 space-y-6">
+      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
         {/* Avatar Upload Card */}
         <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none shadow-xl">
           <div className="flex flex-col items-center">

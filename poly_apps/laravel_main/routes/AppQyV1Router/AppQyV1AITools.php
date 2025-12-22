@@ -46,6 +46,7 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/languages', [AppQyV1TTSController::class, 'getLanguages']);
         Route::get('/voices', [AppQyV1TTSController::class, 'getVoices']);
         Route::get('/options', [AppQyV1TTSController::class, 'getOptions']);
+        Route::get('/queue/stats', [AppQyV1TTSController::class, 'getQueueStats']);
         Route::get('/audio/{language}/{type}/{speed}/{filename}', [AppQyV1TTSController::class, 'serveAudioWithSpeed']);
         Route::get('/audio/{language}/{type}/{filename}', [AppQyV1TTSController::class, 'serveAudio']);
     });
@@ -69,6 +70,8 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     Route::prefix('tts')->group(function () {
         Route::post('/generate', [AppQyV1TTSController::class, 'generate']);
         Route::post('/batch-generate', [AppQyV1TTSController::class, 'batchGenerate']);
+        Route::post('/queue_batch', [AppQyV1TTSController::class, 'queueBatch']);
+        Route::get('/queue/status', [AppQyV1TTSController::class, 'checkQueueStatus']);
     });
 
     Route::prefix('article')->group(function () {

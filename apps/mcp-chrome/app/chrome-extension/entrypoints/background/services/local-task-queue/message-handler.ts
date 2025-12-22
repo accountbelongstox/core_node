@@ -48,6 +48,12 @@ export class QueueMessageHandler {
         case MessageType.QUEUE_STOP:
           return await this.handleQueueStop();
 
+        case MessageType.QUEUE_PAUSE:
+          return await this.handleQueuePause();
+
+        case MessageType.QUEUE_RESUME:
+          return await this.handleQueueResume();
+
         case MessageType.QUEUE_GET_STATS:
           return await this.handleGetStats();
 
@@ -129,6 +135,22 @@ export class QueueMessageHandler {
   }
 
   /**
+   * Handle pause queue
+   */
+  private async handleQueuePause(): Promise<MessageResponse> {
+    this.service.pause();
+    return { success: true };
+  }
+
+  /**
+   * Handle resume queue
+   */
+  private async handleQueueResume(): Promise<MessageResponse> {
+    await this.service.resume();
+    return { success: true };
+  }
+
+  /**
    * Handle get stats
    */
   private async handleGetStats(): Promise<QueueStatsResponse> {
@@ -195,10 +217,10 @@ export class QueueMessageHandler {
    * Handle check queue running status
    */
   private async handleIsRunning(): Promise<QueueRunningResponse> {
-    const isRunning = this.service.isRunning();
+    const status = this.service.getRunningStatus();
     return {
       success: true,
-      data: { isRunning },
+      data: { isRunning: status.isRunning, isPaused: status.isPaused },
     };
   }
 

@@ -10,6 +10,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('vocabulary')->group(function () {
         Route::get('/statistics', [AppQyV1VocabularyLibraryPublicController::class, 'getStatistics']);
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
+        Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
     });
 });

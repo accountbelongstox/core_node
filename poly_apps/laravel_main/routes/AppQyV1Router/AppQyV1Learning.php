@@ -22,6 +22,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::get('/collections/selected', [AppQyV1VocabularyRecommendationController::class, 'getSelectedCollections']);
 
         Route::get('/words', [AppQyV1LearningController::class, 'getWordCards']);
+        Route::get('/review-queue', [AppQyV1LearningController::class, 'getReviewQueue']);
         Route::post('/progress', [AppQyV1LearningController::class, 'updateProgress']);
         Route::get('/stats', [AppQyV1LearningController::class, 'getLearningStats']);
 
