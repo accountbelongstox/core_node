@@ -136,7 +136,7 @@ class RobustDownloader:
                         dest_path.unlink()
                     temp_path.rename(dest_path)
 
-                    print(f"\n[RobustDownloader] ✓ Download complete: {dest_path.name} ({downloaded} bytes)")
+                    print(f"\n[RobustDownloader] Download complete: {dest_path.name} ({downloaded} bytes)")
                     return True
 
             except urllib.error.HTTPError as e:
@@ -146,7 +146,7 @@ class RobustDownloader:
                         if dest_path.exists():
                             dest_path.unlink()
                         temp_path.rename(dest_path)
-                        print(f"[RobustDownloader] ✓ File already downloaded")
+                        print(f"[RobustDownloader] File already downloaded")
                         return True
                     else:
                         # Restart download
