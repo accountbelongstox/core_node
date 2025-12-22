@@ -1654,21 +1654,26 @@ def _register_video_routes(rpc_server):
                 'results': Dict[str, bool]  # serial -> success status
             }
         """
+        ColorPrint.yellow(f"{'='*70}")
+        ColorPrint.yellow(f"[RPC] video.batch_start CALLED!")
+        ColorPrint.yellow(f"[RPC] Request ID: {request_id}")
+        ColorPrint.yellow(f"[RPC] Data: {data}")
+        ColorPrint.yellow(f"{'='*70}")
+
         serials = data.get('serials', [])
 
         if not serials:
             return {'error': {'code': 'NO_SERIALS', 'message': 'Device serials required'}}
 
-        # Get WebSocket from context
-        websocket = context.get('websocket')
-        if not websocket:
-            return {'error': {'code': 'NO_WEBSOCKET', 'message': 'WebSocket context required'}}
-
         # Get video stream service
         video_service = VideoStreamService.instance()
 
-        # Start all devices concurrently (wrapper for existing start_stream)
-        results = await video_service.batch_start_streams(serials, websocket)
+        # Get websocket from context for device.ready/device.failed notifications
+        websocket = context.get('websocket') if context else None
+
+        # Start all devices concurrently (websocket used for notifications only, not frame subscription)
+        # Clients should connect to ws://localhost:48000/video/{device_id} separately to receive frames
+        results = await video_service.batch_start_streams(serials, websocket=websocket)
 
         return {
             'success': True,

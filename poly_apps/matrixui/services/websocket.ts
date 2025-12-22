@@ -337,7 +337,16 @@ class WebSocketService {
      * - 'device.ready': Device stream started successfully
      * - 'device.failed': Device stream failed to start
      */
-    return this.callRpcV2('video.batch_start', { serials });
+    console.log('🔧 [wsService.batchStartStreams] ENTRY');
+    console.log('🔧 [wsService.batchStartStreams] serials parameter:', serials);
+    console.log('🔧 [wsService.batchStartStreams] serials.length:', serials.length);
+    console.log('🔧 [wsService.batchStartStreams] typeof serials:', typeof serials);
+    console.log('🔧 [wsService.batchStartStreams] Calling callRpcV2 with data:', { serials });
+
+    const result = await this.callRpcV2('video.batch_start', { serials });
+
+    console.log('🔧 [wsService.batchStartStreams] RPC result:', result);
+    return result;
   }
 
   public onDeviceReady(callback: (event: any) => void) {

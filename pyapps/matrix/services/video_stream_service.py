@@ -89,7 +89,7 @@ class DeviceStreamThread(threading.Thread):
     def __init__(
         self,
         serial: str,
-        websocket: WebSocket,
+        websocket: Optional[WebSocket],
         video_service: 'VideoStreamService',
         params: ServerParams,
         main_loop: asyncio.AbstractEventLoop
@@ -99,7 +99,7 @@ class DeviceStreamThread(threading.Thread):
 
         Args:
             serial: Device serial number
-            websocket: WebSocket client connection
+            websocket: WebSocket client connection (None for batch startup without subscription)
             video_service: VideoStreamService instance
             params: Server parameters (resolution, codec, etc.)
             main_loop: Main asyncio event loop (for task creation)
@@ -234,7 +234,8 @@ class DeviceStreamThread(threading.Thread):
             )
 
             if push_result.returncode != 0:
-                raise RuntimeError(f"Jar push failed: {push_result.stderr}")
+                error_msg = push_result.stderr.strip() or push_result.stdout.strip() or f"returncode={push_result.returncode}"
+                raise RuntimeError(f"Jar push failed: {error_msg}")
 
             # Sub-step 1.6: Verify push (mandatory verification)
             verify_result = subprocess.run(
@@ -283,6 +284,10 @@ class DeviceStreamThread(threading.Thread):
         STEP 3: Setup keyframe buffer (MANDATORY, ALWAYS INITIALIZE)
 
         Idempotent: Always checks buffer exists, creates if needed.
+
+        NOTE: Does NOT add websocket to stream_clients. The websocket provided to
+        DeviceStreamThread is for notifications only (device.ready/device.failed events).
+        Video frame subscription happens separately when clients connect to /video/{device_id}.
         """
         ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] STEP 3: Setup keyframe buffer...")
 
@@ -295,12 +300,10 @@ class DeviceStreamThread(threading.Thread):
             self.video_service.keyframe_buffers[self.serial] = KeyframeBuffer()
             ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Keyframe buffer created")
 
-        # Sub-step 3.3: Add client to subscription list (always execute)
-        if self.serial not in self.video_service.stream_clients:
-            self.video_service.stream_clients[self.serial] = set()
-        self.video_service.stream_clients[self.serial].add(self.websocket)
-
-        ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Keyframe buffer ready, client subscribed")
+        # NOTE: Do NOT add websocket to stream_clients here!
+        # The websocket is for notifications only, not video frame subscription.
+        # Clients will separately connect to /video/{device_id} to receive frames.
+        ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Keyframe buffer ready (frame subscription via /video endpoint)")
 
     def _step_4_schedule_stream(self):
         """
@@ -350,26 +353,34 @@ class DeviceStreamThread(threading.Thread):
             self.video_service.stream_tasks[self.serial] = task
             self.video_service.active_streams[self.serial] = self.connection.device
 
-            # Notify frontend
-            await self.websocket.send_json({
-                'type': 'device.ready',
-                'serial': self.serial,
-                'timestamp': time.time()
-            })
+            # Notify frontend via RPC event (only if websocket provided)
+            if self.websocket:
+                await self.websocket.send_json({
+                    'type': 'event',
+                    'event': 'device.ready',
+                    'data': {
+                        'serial': self.serial,
+                        'timestamp': time.time()
+                    }
+                })
 
             ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Stream task created in main loop")
 
         except Exception as e:
             ColorPrint.red(f"[DeviceStreamThread] [{self.serial}] Failed to create stream task: {e}")
-            # Notify frontend of failure
-            try:
-                await self.websocket.send_json({
-                    'type': 'device.failed',
-                    'serial': self.serial,
-                    'error': str(e)
-                })
-            except Exception:
-                pass
+            # Notify frontend of failure via RPC event (only if websocket provided)
+            if self.websocket:
+                try:
+                    await self.websocket.send_json({
+                        'type': 'event',
+                        'event': 'device.failed',
+                        'data': {
+                            'serial': self.serial,
+                            'error': str(e)
+                        }
+                    })
+                except Exception:
+                    pass
 
 
 class VideoStreamService:
@@ -405,8 +416,9 @@ class VideoStreamService:
 
         # H.264 streaming (direct H.264 transmission)
         # Background streaming tasks (one per device)
-        self.active_streams: Dict[str, asyncio.Task] = {}
-        self.stop_events: Dict[str, asyncio.Event] = {}
+        self.stream_tasks: Dict[str, asyncio.Task] = {}  # Streaming task references
+        self.active_streams: Dict[str, asyncio.Task] = {}  # Active device connections
+        self.stop_events: Dict[str, asyncio.Event] = {}  # Stop signals for tasks
 
         # WebSocket client management (multiple clients per device)
         self.stream_clients: Dict[str, Set[WebSocket]] = {}
@@ -473,7 +485,7 @@ class VideoStreamService:
     async def batch_start_streams(
         self,
         serials: list[str],
-        websocket: WebSocket
+        websocket: Optional[WebSocket] = None
     ) -> Dict[str, bool]:
         """
         Start multiple devices concurrently using unified thread architecture
@@ -486,9 +498,13 @@ class VideoStreamService:
 
         All steps are mandatory and idempotent - no skipping even if one succeeds.
 
+        IMPORTANT: The websocket parameter is ONLY for sending RPC event notifications
+        (device.ready, device.failed). It is NOT used for video frame subscription.
+        Clients must separately connect to /video/{device_id} WebSocket to receive frames.
+
         Args:
             serials: List of device serial numbers
-            websocket: WebSocket client
+            websocket: Optional RPC WebSocket for sending device.ready/device.failed events
 
         Returns:
             {serial: success_status} for each device

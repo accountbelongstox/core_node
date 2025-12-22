@@ -24,6 +24,11 @@ interface DeviceDashboardProps {
   addLog: (type: DeviceLog['type'], msg: string) => void;
 }
 
+// ===== DIAGNOSTIC: File load verification =====
+console.log('[DeviceDashboard] Module loaded at:', new Date().toISOString());
+console.log('[DeviceDashboard] This log confirms the latest DeviceDashboard.tsx code is active');
+// ===============================================
+
 export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   selectedIds,
   onSelectDevice,
@@ -31,9 +36,11 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   onBatchAction,
   onQuickAction,
   filterStatus,
-  setFilterStatus, 
+  setFilterStatus,
   addLog
 }) => {
+  console.log('[DeviceDashboard] Component function called (render cycle)');
+
   const { t } = useI18n();
   const [wsDevices, setWsDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +153,9 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   }, []);
 
   const mappedDevices: Device[] = useMemo(() => {
-    return wsDevices
+    console.log('[DeviceDashboard] mappedDevices useMemo recomputing, wsDevices count:', wsDevices.length);
+
+    const result = wsDevices
       .filter(d => {
         // Filter out devices without deviceId (should not happen, but safety check)
         if (!d.deviceId) {
@@ -195,6 +204,12 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
           manufacturer: d.manufacturer || 'Unknown'
         };
       });
+
+    console.log('[DeviceDashboard] mappedDevices computed, result count:', result.length);
+    if (result.length > 0) {
+      console.log('[DeviceDashboard] First device:', result[0].deviceId, result[0].serial);
+    }
+    return result;
   }, [wsDevices]);
 
   const filtered = useMemo(() => {
@@ -204,19 +219,40 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
   }, [mappedDevices, filterStatus]);
 
   // Batch start video streams for all online devices (concurrent startup)
+  // Only run once on mount, not when device list updates
+  const batchStartCalledRef = useRef(false);
+
   useEffect(() => {
+    console.log('========================================');
+    console.log('[DeviceDashboard] ⚡ Batch startup useEffect TRIGGERED');
+    console.log('[DeviceDashboard] mappedDevices.length:', mappedDevices.length);
+    console.log('[DeviceDashboard] batchStartCalled:', batchStartCalledRef.current);
+    console.log('[DeviceDashboard] Time:', new Date().toISOString());
+    console.log('========================================');
+
+    // Skip if no devices yet (wait for devices to load)
+    if (mappedDevices.length === 0) {
+      console.warn('[DeviceDashboard] ❌ No devices found (mappedDevices.length === 0), waiting for devices to load...');
+      return;
+    }
+
+    // Only run batch start once
+    if (batchStartCalledRef.current) {
+      console.log('[DeviceDashboard] Batch start already called, skipping');
+      return;
+    }
+
     const startBatchStreams = async () => {
-      if (mappedDevices.length === 0) return;
+      console.log('[DeviceDashboard] → startBatchStreams() async function ENTRY');
 
-      // Filter online devices only
-      const onlineDevices = mappedDevices.filter(d => d.status === 'online');
-      if (onlineDevices.length === 0) {
-        console.log('[DeviceDashboard] No online devices to start streams');
-        return;
-      }
+      // Mark as called BEFORE making the call (prevent duplicate calls)
+      batchStartCalledRef.current = true;
 
-      const serials = onlineDevices.map(d => d.serial);
-      console.log(`[DeviceDashboard] Starting batch video streams for ${serials.length} devices:`, serials);
+      // Start all devices (don't filter by online status)
+      // Backend will handle connection verification
+      const serials = mappedDevices.map(d => d.serial);
+      console.log(`[DeviceDashboard] ✓ Calling batch start for ${serials.length} devices`);
+      console.log('[DeviceDashboard] Serials:', serials);
 
       // Subscribe to device.ready events BEFORE calling batch start
       wsService.onRpcEvent('device.ready', (event: any) => {
@@ -242,20 +278,28 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({
       });
 
       // Call batch start RPC
+      console.log('[DeviceDashboard] → About to call wsService.batchStartStreams()...');
       try {
         addLogRef.current('info', `Starting batch video streams for ${serials.length} devices...`);
+
+        console.log('[DeviceDashboard] → Calling wsService.batchStartStreams(serials)...');
         const result = await wsService.batchStartStreams(serials);
-        console.log(`[DeviceDashboard] Batch start result:`, result);
+
+        console.log('[DeviceDashboard] ✓ Batch start RPC completed successfully');
+        console.log('[DeviceDashboard] Result:', result);
       } catch (error) {
-        console.error(`[DeviceDashboard] Batch start failed:`, error);
+        console.error('[DeviceDashboard] ❌ Batch start RPC FAILED:', error);
+        console.error('[DeviceDashboard] Error details:', error instanceof Error ? error.stack : String(error));
         addLogRef.current('error', `Failed to start batch streams: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
 
+    console.log('[DeviceDashboard] → Calling startBatchStreams() async function...');
     startBatchStreams();
 
     // Cleanup event listeners on unmount
     return () => {
+      console.log('[DeviceDashboard] ⚠ useEffect cleanup: removing event listeners');
       wsService.offRpcEvent('device.ready');
       wsService.offRpcEvent('device.failed');
     };

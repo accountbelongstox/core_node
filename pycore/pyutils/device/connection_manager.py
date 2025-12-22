@@ -117,7 +117,8 @@ class ConnectionManager:
         self.connections: Dict[str, DeviceConnection] = {}
 
         # Initialization locks per device (prevent concurrent init)
-        self.init_locks: Dict[str, asyncio.Lock] = {}
+        # Use threading.Lock for cross-event-loop synchronization
+        self.init_locks: Dict[str, threading.Lock] = {}
 
         # Event callbacks
         self.on_connected: Optional[Callable[[str], None]] = None
@@ -154,9 +155,9 @@ class ConnectionManager:
         """
         # Get or create initialization lock for this device
         if serial not in self.init_locks:
-            self.init_locks[serial] = asyncio.Lock()
+            self.init_locks[serial] = threading.Lock()
 
-        async with self.init_locks[serial]:
+        with self.init_locks[serial]:
             # Check if already connected
             if serial in self.connections and not force_reconnect:
                 connection = self.connections[serial]
