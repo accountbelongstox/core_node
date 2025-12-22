@@ -20,7 +20,7 @@ class PortPool:
     - Sequential port allocation (27183, 27184, 27185...)
     - Port conflict detection
     - Port reuse when devices disconnect
-    - Thread-safe with asyncio.Lock
+    - Thread-safe with threading.Lock (for cross-event-loop access)
 
     Based on QtScrcpy's port management strategy
     """
@@ -43,8 +43,8 @@ class PortPool:
         # Next port to try (increments sequentially)
         self.next_port = start
 
-        # Thread safety lock
-        self.lock = asyncio.Lock()
+        # Thread safety lock (use threading.Lock for cross-event-loop access)
+        self.lock = threading.Lock()
 
     async def allocate(self, serial: str) -> int:
         """
@@ -62,7 +62,7 @@ class PortPool:
         Raises:
             RuntimeError: If port pool is exhausted
         """
-        async with self.lock:
+        with self.lock:
             # Reuse existing port for reconnecting devices
             if serial in self.allocated:
                 port = self.allocated[serial]
@@ -104,7 +104,7 @@ class PortPool:
         Returns:
             The released port number, or None if device had no allocated port
         """
-        async with self.lock:
+        with self.lock:
             if serial in self.allocated:
                 port = self.allocated.pop(serial)
                 print(f"[PortPool] Released port {port} for device {serial}")
@@ -121,7 +121,7 @@ class PortPool:
         Returns:
             Allocated port number, or None if no port allocated
         """
-        async with self.lock:
+        with self.lock:
             return self.allocated.get(serial)
 
     async def is_allocated(self, serial: str) -> bool:
@@ -134,7 +134,7 @@ class PortPool:
         Returns:
             True if device has an allocated port
         """
-        async with self.lock:
+        with self.lock:
             return serial in self.allocated
 
     async def get_allocated_count(self) -> int:
@@ -144,7 +144,7 @@ class PortPool:
         Returns:
             Number of allocated ports
         """
-        async with self.lock:
+        with self.lock:
             return len(self.allocated)
 
     async def get_available_count(self) -> int:
@@ -154,7 +154,7 @@ class PortPool:
         Returns:
             Number of available ports
         """
-        async with self.lock:
+        with self.lock:
             return self.pool_size - len(self.allocated)
 
     async def reset(self):
@@ -163,7 +163,7 @@ class PortPool:
 
         WARNING: Only call this when all devices are disconnected
         """
-        async with self.lock:
+        with self.lock:
             count = len(self.allocated)
             self.allocated.clear()
             self.next_port = self.start

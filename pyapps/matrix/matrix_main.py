@@ -306,7 +306,7 @@ def start():
         rpc_enabled=True,
         rpc_port=Config.WEB_PORT,
         rpc_host=Config.WEB_HOST,
-        rpc_debug=False,  # Disable debug logging to prevent WebSocket binary data spam
+        rpc_debug=True,  # ⚡ ENABLED for debugging batch startup issue
         rpc_routers=[],  # No FastAPI routers - using RPC v2 WebSocket routes
         rpc_init_callback=rpc_init_callback,  # Callback to register Matrix routes
         rpc_allow_origins=["*"],
