@@ -9,16 +9,367 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import asyncio
+import hashlib
 import struct
+import subprocess
+import threading
 import time
-from typing import Optional, Dict, Set
+from pathlib import Path
+from typing import Optional, Dict, Set, List
+
 from fastapi import WebSocket, WebSocketDisconnect
 
 from pycore import ColorPrint
 from pycore.pyutils.device import ServerParams, VideoCodec
+from pycore.pyutils.device.connection_manager import DeviceConnection
+from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
 from .video_decoder_service import VideoDecoderService
+
+
+class KeyframeBuffer:
+    """
+    Keyframe buffer for instant client connection
+
+    Caches last keyframe + subsequent P-frames for zero-wait client startup.
+    Does NOT modify frame encoding or reading logic - pure caching layer.
+    """
+    def __init__(self):
+        self.keyframe: Optional[Dict] = None          # Last I-frame
+        self.p_frames: list[Dict] = []                # P-frames after keyframe
+        self.max_p_frames: int = 30                   # Buffer ~0.5s at 60fps
+        self.timestamp: float = 0.0                   # When keyframe was received
+
+    def add_frame(self, frame: Dict):
+        """Add frame to buffer (does not modify frame data)"""
+        if frame.get('is_keyframe'):
+            # New keyframe - reset buffer
+            self.keyframe = frame
+            self.p_frames = []
+            self.timestamp = time.time()
+        elif self.keyframe is not None:
+            # P-frame after keyframe - add to buffer
+            self.p_frames.append(frame)
+            # Keep only recent P-frames
+            if len(self.p_frames) > self.max_p_frames:
+                self.p_frames.pop(0)
+
+    def has_keyframe(self) -> bool:
+        """Check if keyframe is available"""
+        return self.keyframe is not None
+
+    def get_buffered_frames(self) -> list[Dict]:
+        """Get keyframe + buffered P-frames for replay"""
+        if not self.keyframe:
+            return []
+        return [self.keyframe] + self.p_frames
+
+
+class DeviceStreamThread(threading.Thread):
+    """
+    Unified thread for complete device streaming lifecycle
+
+    Integrates jar push, device connection, and keyframe setup with full idempotency.
+    Streaming tasks are created in the main event loop after thread completion.
+
+    Design Principles (CRITICAL):
+    1. All steps MUST execute regardless of previous state (idempotent)
+    2. Never skip steps even if one succeeds
+    3. Re-running fixes issues at each step
+    4. Each thread runs independently for true parallelism
+
+    Steps (all mandatory):
+    - STEP 1: Verify and push scrcpy-server.jar (always check hash)
+    - STEP 2: Connect device (always attempt connection)
+    - STEP 3: Setup keyframe buffer (always initialize)
+    - STEP 4: Register streaming callback (for main loop to create task)
+    """
+
+    def __init__(
+        self,
+        serial: str,
+        websocket: WebSocket,
+        video_service: 'VideoStreamService',
+        params: ServerParams,
+        main_loop: asyncio.AbstractEventLoop
+    ):
+        """
+        Initialize device stream thread
+
+        Args:
+            serial: Device serial number
+            websocket: WebSocket client connection
+            video_service: VideoStreamService instance
+            params: Server parameters (resolution, codec, etc.)
+            main_loop: Main asyncio event loop (for task creation)
+        """
+        super().__init__(name=f"DeviceStream-{serial}", daemon=True)
+        self.serial = serial
+        self.websocket = websocket
+        self.video_service = video_service
+        self.params = params
+        self.main_loop = main_loop
+
+        # Dependencies (from video_service)
+        self.connection_manager = video_service.connection_manager
+        self.server_manager = video_service.server_manager
+        self.adb_path = video_service.adb_path
+
+        # Results
+        self.success = False
+        self.error: Optional[str] = None
+        self.connection: Optional[DeviceConnection] = None
+
+    def run(self):
+        """
+        Thread main execution - synchronous workflow
+
+        All steps are mandatory and always execute (idempotent design).
+        Uses thread-local event loop only for async device operations.
+        """
+        # Create event loop for this thread (for async device connection)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            # Run workflow
+            loop.run_until_complete(self._workflow())
+
+        except Exception as e:
+            self.error = str(e)
+            ColorPrint.red(f"[DeviceStreamThread] [{self.serial}] Fatal error: {e}")
+
+        finally:
+            loop.close()
+
+    async def _workflow(self):
+        """
+        Complete workflow - all steps are mandatory (idempotent)
+
+        CRITICAL: Never skip steps even if one succeeds.
+        Each step must verify and fix issues independently.
+        """
+        try:
+            ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] Starting unified workflow...")
+
+            # ========== STEP 1: Verify and push jar (MANDATORY) ==========
+            self._step_1_push_jar()
+
+            # ========== STEP 2: Connect device (MANDATORY) ==========
+            await self._step_2_connect_device()
+
+            # ========== STEP 3: Setup keyframe buffer (MANDATORY) ==========
+            self._step_3_setup_keyframe_buffer()
+
+            # ========== STEP 4: Schedule streaming task in main loop (MANDATORY) ==========
+            self._step_4_schedule_stream()
+
+            # All steps completed
+            self.success = True
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ All steps completed")
+
+        except Exception as e:
+            self.error = str(e)
+            self.success = False
+            ColorPrint.red(f"[DeviceStreamThread] [{self.serial}] Workflow failed: {e}")
+
+    def _step_1_push_jar(self):
+        """
+        STEP 1: Verify and push scrcpy-server.jar (MANDATORY, ALWAYS CHECK)
+
+        Idempotent: Always verifies hash, pushes if wrong, never skips.
+        """
+        ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] STEP 1: Verify jar...")
+
+        # Get local jar hash (for comparison)
+        local_hash = self.server_manager.get_local_hash()
+        if not local_hash:
+            raise RuntimeError("Cannot get local jar hash")
+
+        jar_path = self.server_manager._validated_jar_path or self.server_manager.jar_path
+
+        # Sub-step 1.1: Check if jar exists on device
+        check_result = subprocess.run(
+            [self.adb_path, "-s", self.serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+
+        device_hash = None
+        if check_result.returncode == 0 and "exists" in check_result.stdout:
+            # Sub-step 1.2: Get hash from device
+            hash_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "md5sum /data/local/tmp/scrcpy-server"],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+
+            if hash_result.returncode == 0 and hash_result.stdout:
+                device_hash = hash_result.stdout.split()[0]
+
+        # Sub-step 1.3: Compare hash (always verify, never assume)
+        if device_hash == local_hash:
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] Jar hash correct ({device_hash[:8]}), verified")
+            # NOTE: Still verified, never skipped check
+        else:
+            # Hash mismatch or jar missing - must push
+            ColorPrint.yellow(f"[DeviceStreamThread] [{self.serial}] Jar wrong/missing (device: {device_hash[:8] if device_hash else 'N/A'}, local: {local_hash[:8]}), pushing...")
+
+            # Sub-step 1.4: Remove old jar (always execute if wrong)
+            subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "rm -f /data/local/tmp/scrcpy-server"],
+                capture_output=True,
+                timeout=3
+            )
+
+            # Sub-step 1.5: Push new jar
+            push_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "push", str(jar_path), "/data/local/tmp/scrcpy-server"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if push_result.returncode != 0:
+                raise RuntimeError(f"Jar push failed: {push_result.stderr}")
+
+            # Sub-step 1.6: Verify push (mandatory verification)
+            verify_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+
+            if verify_result.returncode != 0 or "exists" not in verify_result.stdout:
+                raise RuntimeError("Jar verification failed after push")
+
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Jar pushed and verified")
+
+    async def _step_2_connect_device(self):
+        """
+        STEP 2: Connect device (MANDATORY, ALWAYS ATTEMPT)
+
+        Idempotent: Always checks connection state, reconnects if needed.
+        """
+        ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] STEP 2: Connect device...")
+
+        # Sub-step 2.1: Check if already connected (always verify state)
+        existing_connection = self.connection_manager.get_connection(self.serial)
+
+        if existing_connection and self.connection_manager.is_connected(self.serial):
+            # Already connected - verify it's healthy
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] Device already connected, verified")
+            self.connection = existing_connection
+            # NOTE: Still verified, never skipped check
+        else:
+            # Not connected or unhealthy - must connect
+            ColorPrint.yellow(f"[DeviceStreamThread] [{self.serial}] Device not connected, connecting...")
+
+            # Sub-step 2.2: Connect device (handles retry internally)
+            self.connection = await self.connection_manager.connect_device(
+                self.serial,
+                self.params,
+                force_reconnect=(existing_connection is not None)  # Force if already exists but unhealthy
+            )
+
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Device connected (port: {self.connection.port})")
+
+    def _step_3_setup_keyframe_buffer(self):
+        """
+        STEP 3: Setup keyframe buffer (MANDATORY, ALWAYS INITIALIZE)
+
+        Idempotent: Always checks buffer exists, creates if needed.
+        """
+        ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] STEP 3: Setup keyframe buffer...")
+
+        # Sub-step 3.1: Check if buffer already exists (always verify)
+        if self.serial in self.video_service.keyframe_buffers:
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] Keyframe buffer exists, verified")
+            # NOTE: Still verified, never skipped check
+        else:
+            # Sub-step 3.2: Create keyframe buffer
+            self.video_service.keyframe_buffers[self.serial] = KeyframeBuffer()
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Keyframe buffer created")
+
+        # Sub-step 3.3: Add client to subscription list (always execute)
+        if self.serial not in self.video_service.stream_clients:
+            self.video_service.stream_clients[self.serial] = set()
+        self.video_service.stream_clients[self.serial].add(self.websocket)
+
+        ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Keyframe buffer ready, client subscribed")
+
+    def _step_4_schedule_stream(self):
+        """
+        STEP 4: Schedule streaming task creation in main loop (MANDATORY)
+
+        Idempotent: Always checks if stream exists, schedules creation if needed.
+        Task must be created in main event loop (not thread loop) for WebSocket communication.
+        """
+        ColorPrint.blue(f"[DeviceStreamThread] [{self.serial}] STEP 4: Schedule stream task...")
+
+        # Sub-step 4.1: Check if streaming task already exists (always verify)
+        if self.serial in self.video_service.stream_tasks:
+            task = self.video_service.stream_tasks[self.serial]
+            if not task.done():
+                ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] Stream task already running, verified")
+                # NOTE: Still verified, never skipped check
+                return
+            else:
+                ColorPrint.yellow(f"[DeviceStreamThread] [{self.serial}] Stream task dead, rescheduling...")
+
+        # Sub-step 4.2: Create stop event (always)
+        stop_event = asyncio.Event()
+        self.video_service.stop_events[self.serial] = stop_event
+
+        # Sub-step 4.3: Schedule task creation in main loop (thread-safe)
+        asyncio.run_coroutine_threadsafe(
+            self._create_stream_task(stop_event),
+            self.main_loop
+        )
+
+        # Sub-step 4.4: Mark device as ready (always update state)
+        self.video_service.device_initializing[self.serial] = False
+
+        ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Stream task scheduled")
+
+    async def _create_stream_task(self, stop_event: asyncio.Event):
+        """
+        Create streaming task in main event loop (called via run_coroutine_threadsafe)
+
+        This runs in the main loop, not the thread loop.
+        """
+        try:
+            # Create streaming task in main loop
+            task = asyncio.create_task(
+                self.video_service._stream_video_loop(self.serial, self.connection.device, stop_event)
+            )
+            self.video_service.stream_tasks[self.serial] = task
+            self.video_service.active_streams[self.serial] = self.connection.device
+
+            # Notify frontend
+            await self.websocket.send_json({
+                'type': 'device.ready',
+                'serial': self.serial,
+                'timestamp': time.time()
+            })
+
+            ColorPrint.green(f"[DeviceStreamThread] [{self.serial}] ✓ Stream task created in main loop")
+
+        except Exception as e:
+            ColorPrint.red(f"[DeviceStreamThread] [{self.serial}] Failed to create stream task: {e}")
+            # Notify frontend of failure
+            try:
+                await self.websocket.send_json({
+                    'type': 'device.failed',
+                    'serial': self.serial,
+                    'error': str(e)
+                })
+            except Exception:
+                pass
 
 
 class VideoStreamService:
@@ -66,6 +417,10 @@ class VideoStreamService:
         # Config frame cache (one per device) - Critical for H.264 decoding
         # When new clients join, they need SPS/PPS config frame to start decoding
         self.cached_config_frames: Dict[str, Dict] = {}
+
+        # Keyframe buffer (one per device) - Zero-wait client connection
+        # Caches last keyframe + P-frames for instant client startup
+        self.keyframe_buffers: Dict[str, KeyframeBuffer] = {}
 
         # YUV streaming (decoded YUV transmission) - Unified architecture
         # Background streaming tasks for YUV (one per device)
@@ -115,6 +470,82 @@ class VideoStreamService:
     # Jar initialization is now a PREREQUISITE handled in matrix_main.py STEP 2
     # VideoStreamService assumes jar is already available and validated
 
+    async def batch_start_streams(
+        self,
+        serials: list[str],
+        websocket: WebSocket
+    ) -> Dict[str, bool]:
+        """
+        Start multiple devices concurrently using unified thread architecture
+
+        Uses DeviceStreamThread for complete idempotent workflow:
+        - Jar push verification and deployment (parallel)
+        - Device connection (parallel)
+        - Keyframe buffer setup (parallel)
+        - Streaming task creation (main loop)
+
+        All steps are mandatory and idempotent - no skipping even if one succeeds.
+
+        Args:
+            serials: List of device serial numbers
+            websocket: WebSocket client
+
+        Returns:
+            {serial: success_status} for each device
+        """
+        ColorPrint.blue(f"[VideoStreamService] Batch starting {len(serials)} devices with unified threads...")
+
+        # Get main event loop for thread-safe task creation
+        main_loop = asyncio.get_event_loop()
+
+        # Server parameters (same for all devices)
+        params = ServerParams(
+            max_size=720,
+            bit_rate=None,
+            max_fps=None,
+            codec=VideoCodec.H264
+        )
+
+        # Create and start unified threads for all devices
+        threads: List[DeviceStreamThread] = []
+        for serial in serials:
+            thread = DeviceStreamThread(
+                serial=serial,
+                websocket=websocket,
+                video_service=self,
+                params=params,
+                main_loop=main_loop
+            )
+            threads.append(thread)
+            thread.start()
+
+        ColorPrint.blue(f"[VideoStreamService] Waiting for {len(threads)} device threads to complete...")
+
+        # Wait for all threads to complete (with timeout)
+        for thread in threads:
+            thread.join(timeout=60)  # 60s per device (generous timeout)
+
+        # Collect results
+        status_map = {}
+        success_count = 0
+        failed_count = 0
+
+        for thread in threads:
+            status_map[thread.serial] = thread.success
+            if thread.success:
+                success_count += 1
+            else:
+                failed_count += 1
+                if thread.error:
+                    ColorPrint.red(f"[VideoStreamService] {thread.serial}: {thread.error}")
+
+        ColorPrint.green(
+            f"[VideoStreamService] Batch start completed: "
+            f"{success_count} succeeded, {failed_count} failed"
+        )
+
+        return status_map
+
     async def start_stream(self, serial: str, websocket: WebSocket) -> bool:
         """
         Start streaming for a device (scrcpy_web_test pattern)
@@ -135,6 +566,38 @@ class VideoStreamService:
             ColorPrint.blue("[VideoStreamService] Event loop captured for sync wrappers")
 
         ColorPrint.blue(f"[VideoStreamService] start_stream called for {serial}")
+
+        # ========== CRITICAL: ALWAYS ensure correct jar version (idempotent) ==========
+        # This runs BEFORE checking if stream exists, to fix version mismatches
+        # Strategy:
+        # 1. If stream NOT active: check jar, push if wrong, then connect (normal flow)
+        # 2. If stream IS active but jar wrong: stop stream, push jar, reconnect
+        # 3. If stream IS active and jar correct: just attach client (fast path)
+        server_manager = get_scrcpy_server_manager(
+            adb_path=Config.get_adb_path(),
+            jar_path=str(Config.get_scrcpy_server_jar_path())
+        )
+
+        # Check if jar version is correct on device
+        jar_correct = await server_manager.check_jar_on_device(serial)
+
+        if not jar_correct:
+            ColorPrint.yellow(f"[VideoStreamService] Jar version incorrect for {serial}, will fix...")
+
+            # If stream is active with wrong jar, stop it first
+            if serial in self.active_streams:
+                ColorPrint.yellow(f"[VideoStreamService] Stopping active stream {serial} to fix jar version...")
+                await self.stop(serial)
+                await asyncio.sleep(0.5)  # Cleanup delay
+
+            # Idempotent push: always executes all 4 steps (validate, remove, push, verify)
+            push_success = await server_manager.push_jar_to_device(serial, force=True)
+            if push_success:
+                ColorPrint.green(f"[VideoStreamService] Jar version fixed for {serial}")
+            else:
+                ColorPrint.red(f"[VideoStreamService] Failed to fix jar for {serial}, will try to connect anyway")
+        else:
+            ColorPrint.blue(f"[VideoStreamService] Jar version correct for {serial}, no push needed")
 
         # Add client to subscription list
         if serial not in self.stream_clients:
@@ -160,6 +623,26 @@ class VideoStreamService:
                 await websocket.send_bytes(payload)
             else:
                 ColorPrint.yellow(f"[VideoStreamService] No cached config frame for {serial}, client must wait for next keyframe")
+
+            # Send buffered keyframe + P-frames for zero-wait startup
+            if serial in self.keyframe_buffers:
+                buffer = self.keyframe_buffers[serial]
+                buffered_frames = buffer.get_buffered_frames()
+
+                if buffered_frames:
+                    ColorPrint.green(
+                        f"[VideoStreamService] Replaying {len(buffered_frames)} buffered frames "
+                        f"(keyframe + {len(buffered_frames)-1} P-frames)"
+                    )
+
+                    for frame in buffered_frames:
+                        payload = self._pack_frame(serial, frame)
+                        await websocket.send_bytes(payload)
+
+                    # Mark client as synchronized (has keyframe)
+                    if serial not in self.client_keyframe_received:
+                        self.client_keyframe_received[serial] = {}
+                    self.client_keyframe_received[serial][websocket] = True
 
             return True
 
@@ -785,6 +1268,12 @@ class VideoStreamService:
 
                 # Update health service timestamp (device is sending data)
                 self.health_service.update_data_timestamp(serial)
+
+                # Add frame to keyframe buffer (zero-wait client connection)
+                # Does NOT modify frame data, only caches for instant replay
+                if serial not in self.keyframe_buffers:
+                    self.keyframe_buffers[serial] = KeyframeBuffer()
+                self.keyframe_buffers[serial].add_frame(frame)
 
                 # Cache config frame (SPS/PPS) for new clients
                 # Config frames are critical - new clients need them to start decoding

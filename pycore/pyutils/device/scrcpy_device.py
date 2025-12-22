@@ -766,7 +766,7 @@ class ScrcpyDevice(AndroidDevice):
 
     def _build_server_command(self, scid_hex: str, tunnel_mode: str) -> list:
         """
-        Build scrcpy-server shell command for v3.3.3 (supports both REVERSE and FORWARD)
+        Build scrcpy-server shell command for v3.3.4 (supports both REVERSE and FORWARD)
 
         Args:
             scid_hex: Session ID in 8-digit hex format (e.g., "1a2b3c4d")
@@ -774,14 +774,14 @@ class ScrcpyDevice(AndroidDevice):
 
         Reference: https://github.com/genymobile/scrcpy/blob/master/doc/develop.md
         """
-        # Official scrcpy v3.3.3 server command format (Android 7.0 compatible):
-        # cd /data/local/tmp && CLASSPATH=scrcpy-server app_process . com.genymobile.scrcpy.Server 3.3.3 ...
+        # Official scrcpy v3.3.4 server command format (Android 7.0 compatible):
+        # cd /data/local/tmp && CLASSPATH=scrcpy-server app_process . com.genymobile.scrcpy.Server 3.3.4 ...
         # CRITICAL: Android 7.0 ClassLoader requirements (TECHNICAL_SPECIFICATION.md line 366-376):
         # 1. MUST cd to /data/local/tmp first
         # 2. CLASSPATH MUST be relative path (scrcpy-server, not /data/local/tmp/scrcpy-server)
         # 3. app_process MUST use "." (current dir), not "/" (root dir)
         # 4. File MUST be pushed WITHOUT .jar extension (scrcpy-server, not scrcpy-server.jar)
-        # 5. Version MUST match jar file version (scrcpy-server.jar in resources is v3.3.3)
+        # 5. Version MUST match jar file version (scrcpy-server.jar in resources is v3.3.4)
         # 6. SCID MUST be hex string (server parses with Integer.parseInt(value, 0x10))
         cmd = [
             "cd", "/data/local/tmp", "&&",  # CRITICAL: cd to /data/local/tmp first
@@ -789,7 +789,7 @@ class ScrcpyDevice(AndroidDevice):
             "app_process",
             ".",                              # CRITICAL: current directory, not /
             "com.genymobile.scrcpy.Server",
-            "3.3.3",  # Version (args[0]) - must match BuildConfig.VERSION_NAME in scrcpy-server.jar
+            "3.3.4",  # Version (args[0]) - must match BuildConfig.VERSION_NAME in scrcpy-server.jar
             f"scid={scid_hex}",  # CRITICAL: Must be HEX string (e.g., "1a2b3c4d"), not decimal!
             "log_level=debug",
             "audio=false",  # CRITICAL: Must disable audio since we don't connect audio socket

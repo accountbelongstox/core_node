@@ -11,21 +11,117 @@ Decouples jar management from VideoStreamService and ConnectionManager.
 """
 
 import asyncio
-import subprocess
 import hashlib
-import zipfile
+import shutil
+import subprocess
 import threading
+import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
 
 from pycore import ColorPrint
 from pycore.pyutils.robust_downloader import RobustDownloader
+from pycore.pyutils.scrcpy_init import get_initializer
 
 
 # ✅ Global download lock to prevent concurrent downloads
 _download_lock = threading.Lock()
 _downloading = False
 _jar_initialized = False  # ✅ Module-level flag: jar已初始化完成
+
+
+class JarPushThread(threading.Thread):
+    """
+    Native thread for jar push/check operations
+
+    Inherits from threading.Thread for true parallel execution.
+    Each device runs in independent thread without asyncio overhead.
+    """
+
+    def __init__(self, serial: str, adb_path: str, jar_path: Path, local_hash: str):
+        super().__init__(name=f"JarPush-{serial}", daemon=True)
+        self.serial = serial
+        self.adb_path = adb_path
+        self.jar_path = jar_path
+        self.local_hash = local_hash
+
+        # Results
+        self.success = False
+        self.error: Optional[str] = None
+        self.skipped = False  # True if hash matched, no push needed
+
+    def run(self):
+        """Thread main execution - check, remove, push, verify"""
+        try:
+            ColorPrint.blue(f"[JarPushThread] [{self.serial}] Starting jar push check...")
+
+            # ========== STEP 1: Check if jar exists with correct hash ==========
+            check_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+
+            if check_result.returncode == 0 and "exists" in check_result.stdout:
+                # Jar exists, check hash
+                hash_result = subprocess.run(
+                    [self.adb_path, "-s", self.serial, "shell", "md5sum /data/local/tmp/scrcpy-server"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+
+                if hash_result.returncode == 0:
+                    device_hash = hash_result.stdout.split()[0] if hash_result.stdout else ""
+
+                    if device_hash == self.local_hash:
+                        # Hash matches, skip push
+                        ColorPrint.green(f"[JarPushThread] [{self.serial}] Jar correct (hash: {device_hash[:8]}), skipping push")
+                        self.success = True
+                        self.skipped = True
+                        return
+
+            # ========== STEP 2: Remove old jar ==========
+            ColorPrint.blue(f"[JarPushThread] [{self.serial}] Removing old jar...")
+            subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "rm -f /data/local/tmp/scrcpy-server"],
+                capture_output=True,
+                timeout=3
+            )
+
+            # ========== STEP 3: Push new jar ==========
+            ColorPrint.blue(f"[JarPushThread] [{self.serial}] Pushing jar...")
+            push_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "push", str(self.jar_path), "//data/local/tmp/scrcpy-server"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if push_result.returncode != 0:
+                self.error = f"Push failed: {push_result.stderr}"
+                ColorPrint.red(f"[JarPushThread] [{self.serial}] {self.error}")
+                return
+
+            # ========== STEP 4: Verify push ==========
+            verify_result = subprocess.run(
+                [self.adb_path, "-s", self.serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+
+            if verify_result.returncode == 0 and "exists" in verify_result.stdout:
+                ColorPrint.green(f"[JarPushThread] [{self.serial}] ✓ Jar pushed and verified")
+                self.success = True
+            else:
+                self.error = "Verification failed - file not found after push"
+                ColorPrint.red(f"[JarPushThread] [{self.serial}] {self.error}")
+
+        except Exception as e:
+            self.error = f"Exception: {e}"
+            ColorPrint.red(f"[JarPushThread] [{self.serial}] {self.error}")
 
 
 class ScrcpyServerManager:
@@ -43,7 +139,7 @@ class ScrcpyServerManager:
     # Note: This is the standalone jar, NOT the full scrcpy package (~7MB)
     EXPECTED_MIN_SIZE = 30 * 1024  # 30KB minimum
     EXPECTED_MAX_SIZE = 500 * 1024  # 500KB maximum (to detect wrong file)
-    SCRCPY_VERSION = "3.3.4"
+    SCRCPY_VERSION = "3.3.4"  # CRITICAL: Must match version in scrcpy_device.py startup command
     # Download full package to extract scrcpy-server (standalone file on GitHub is broken)
     GITHUB_PACKAGE_URL = f"https://github.com/Genymobile/scrcpy/releases/download/v{SCRCPY_VERSION}/scrcpy-win64-v{SCRCPY_VERSION}.zip"
 
@@ -102,7 +198,6 @@ class ScrcpyServerManager:
 
         # Additional validation: Check for classes.dex (key content of scrcpy-server.jar)
         try:
-            import zipfile
             with zipfile.ZipFile(jar_path, 'r') as zf:
                 namelist = zf.namelist()
                 if 'classes.dex' not in namelist:
@@ -282,7 +377,6 @@ class ScrcpyServerManager:
 
             # Check scrcpy_init directory
             try:
-                from pycore.pyutils.scrcpy_init import get_initializer
                 initializer = get_initializer()
                 scrcpy_init_jar = initializer.scrcpy_dir / "scrcpy-server"
 
@@ -290,7 +384,6 @@ class ScrcpyServerManager:
                     ColorPrint.green(f"[ScrcpyServerManager] ✓ Valid jar found in scrcpy_init: {scrcpy_init_jar}")
 
                     # Copy to configured location
-                    import shutil
                     self.jar_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(scrcpy_init_jar, self.jar_path)
 
@@ -353,6 +446,70 @@ class ScrcpyServerManager:
         except Exception as e:
             ColorPrint.yellow(f"[ScrcpyServerManager] Error calculating local hash: {e}")
             return None
+
+    def batch_push_jars(self, serials: List[str]) -> Dict[str, bool]:
+        """
+        Push jars to multiple devices in parallel using native threads
+
+        Uses JarPushThread for true parallel execution without asyncio overhead.
+        Each device runs in independent thread.
+
+        Args:
+            serials: List of device serial numbers
+
+        Returns:
+            Dict mapping serial to success status
+        """
+        # Ensure local jar is valid
+        if not self.ensure_local_jar(auto_download=True):
+            ColorPrint.red("[ScrcpyServerManager] Cannot ensure local jar for batch push")
+            return {serial: False for serial in serials}
+
+        # Get jar path and hash
+        jar_to_push = self._validated_jar_path if self._validated_jar_path else self.jar_path
+        local_hash = self.get_local_hash()
+
+        if not local_hash:
+            ColorPrint.red("[ScrcpyServerManager] Cannot get local jar hash for batch push")
+            return {serial: False for serial in serials}
+
+        ColorPrint.blue(f"[ScrcpyServerManager] Starting batch push for {len(serials)} devices (parallel threads)...")
+
+        # Create and start threads for all devices
+        threads: List[JarPushThread] = []
+        for serial in serials:
+            thread = JarPushThread(serial, self.adb_path, jar_to_push, local_hash)
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join(timeout=30)  # 30s timeout per thread
+
+        # Collect results
+        results = {}
+        skipped_count = 0
+        pushed_count = 0
+        failed_count = 0
+
+        for thread in threads:
+            results[thread.serial] = thread.success
+            if thread.success:
+                if thread.skipped:
+                    skipped_count += 1
+                else:
+                    pushed_count += 1
+            else:
+                failed_count += 1
+                if thread.error:
+                    ColorPrint.red(f"[ScrcpyServerManager] {thread.serial}: {thread.error}")
+
+        ColorPrint.green(
+            f"[ScrcpyServerManager] Batch push complete: "
+            f"{pushed_count} pushed, {skipped_count} skipped, {failed_count} failed"
+        )
+
+        return results
 
     async def check_jar_on_device(self, serial: str) -> bool:
         """
@@ -422,36 +579,59 @@ class ScrcpyServerManager:
 
     async def push_jar_to_device(self, serial: str, force: bool = False) -> bool:
         """
-        Push scrcpy-server.jar to device (with smart optimization)
+        Push scrcpy-server.jar to device (idempotent self-healing approach)
 
-        Optimization strategy:
-        1. Check if jar exists on device
-        2. Verify hash matches local jar
-        3. Only push if not exists or hash mismatch
+        IDEMPOTENT STRATEGY (always execute all steps, never skip):
+        1. ALWAYS ensure local jar is valid (download if needed)
+        2. ALWAYS remove old jar from device (cleanup stale versions)
+        3. ALWAYS push new jar to device (ensure correct version)
+        4. ALWAYS verify push success (final validation)
+
+        This ensures version consistency and self-healing on every run,
+        regardless of previous state or cached checks.
 
         Args:
             serial: Device serial number
-            force: Force push even if jar exists (default: False)
+            force: Ignored (kept for API compatibility, always force push)
 
         Returns:
             True if successful, False otherwise
         """
-        # Ensure local jar is valid
+        ColorPrint.blue(f"[ScrcpyServerManager] Starting idempotent push for {serial}...")
+
+        # ========== STEP 1: ALWAYS ensure local jar is valid ==========
         if not self.ensure_local_jar(auto_download=True):
-            ColorPrint.red(f"[ScrcpyServerManager] Cannot ensure local jar")
+            ColorPrint.red(f"[ScrcpyServerManager] [STEP 1/4 FAILED] Cannot ensure local jar")
             return False
+        ColorPrint.green(f"[ScrcpyServerManager] [STEP 1/4 OK] Local jar validated")
 
         # Use validated path
         jar_to_push = self._validated_jar_path if self._validated_jar_path else self.jar_path
 
-        # Optimization: Check if jar already exists with correct hash
-        if not force and await self.check_jar_on_device(serial):
-            ColorPrint.blue(f"[ScrcpyServerManager] Skipping push for {serial} (jar already exists)")
-            return True
+        # ========== STEP 2: ALWAYS remove old jar from device ==========
+        # CRITICAL: Always remove to prevent version mismatch (e.g., old 3.3.4 vs new 3.3.3)
+        # Do NOT skip this step even if hash check passes - file may be corrupted
+        ColorPrint.blue(f"[ScrcpyServerManager] [STEP 2/4] Removing old jar on {serial}...")
+        try:
+            loop = asyncio.get_event_loop()
+            remove_result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    [self.adb_path, "-s", serial, "shell", "rm -f /data/local/tmp/scrcpy-server"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+            )
+            if remove_result.returncode == 0:
+                ColorPrint.green(f"[ScrcpyServerManager] [STEP 2/4 OK] Old jar removed")
+            else:
+                ColorPrint.yellow(f"[ScrcpyServerManager] [STEP 2/4 WARN] Remove failed (non-fatal): {remove_result.stderr}")
+        except Exception as e:
+            ColorPrint.yellow(f"[ScrcpyServerManager] [STEP 2/4 WARN] Remove exception (non-fatal): {e}")
 
-        # Need to push jar
-        ColorPrint.blue(f"[ScrcpyServerManager] Pushing jar to {serial}...")
-
+        # ========== STEP 3: ALWAYS push new jar to device ==========
+        ColorPrint.blue(f"[ScrcpyServerManager] [STEP 3/4] Pushing jar to {serial}...")
         try:
             loop = asyncio.get_event_loop()
             # CRITICAL FIX: Use //data/local/tmp/ to prevent Git Bash path translation on Windows
@@ -469,14 +649,40 @@ class ScrcpyServerManager:
             )
 
             if push_result.returncode != 0:
-                ColorPrint.red(f"[ScrcpyServerManager] Failed to push jar: {push_result.stderr}")
+                ColorPrint.red(f"[ScrcpyServerManager] [STEP 3/4 FAILED] Push failed: {push_result.stderr}")
                 return False
 
-            ColorPrint.green(f"[ScrcpyServerManager] ✓ jar pushed to {serial}")
-            return True
+            ColorPrint.green(f"[ScrcpyServerManager] [STEP 3/4 OK] Jar pushed successfully")
 
         except Exception as e:
-            ColorPrint.red(f"[ScrcpyServerManager] Exception pushing jar: {e}")
+            ColorPrint.red(f"[ScrcpyServerManager] [STEP 3/4 FAILED] Push exception: {e}")
+            return False
+
+        # ========== STEP 4: ALWAYS verify push success (final validation) ==========
+        ColorPrint.blue(f"[ScrcpyServerManager] [STEP 4/4] Verifying push...")
+        try:
+            # Verify file exists on device
+            loop = asyncio.get_event_loop()
+            verify_result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    [self.adb_path, "-s", serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+            )
+
+            if verify_result.returncode == 0 and "exists" in verify_result.stdout:
+                ColorPrint.green(f"[ScrcpyServerManager] [STEP 4/4 OK] Push verified successfully")
+                ColorPrint.green(f"[ScrcpyServerManager] ✓ Idempotent push completed for {serial}")
+                return True
+            else:
+                ColorPrint.red(f"[ScrcpyServerManager] [STEP 4/4 FAILED] Verification failed - file not found on device")
+                return False
+
+        except Exception as e:
+            ColorPrint.red(f"[ScrcpyServerManager] [STEP 4/4 FAILED] Verification exception: {e}")
             return False
 
 

@@ -4,17 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>星灿传媒 云矩阵</title>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" crossorigin>
-    <!-- 主题检测脚本 - 防止闪屏 -->
+
+    <!-- Phosphor Icons - Local Assets (No CDN dependency) -->
+    <!-- Multiple styles: regular, bold, fill -->
+    <link rel="stylesheet" href="/fonts/phosphor/regular/style.css">
+    <link rel="stylesheet" href="/fonts/phosphor/bold/style.css">
+    <link rel="stylesheet" href="/fonts/phosphor/fill/style.css">
+
+    <!-- Google Fonts - Local fallback with system fonts -->
+    <style>
+      /* System font stack - No CDN dependency */
+      @font-face {
+        font-family: 'Inter';
+        src: local('Arial'), local('Helvetica'), local('Microsoft YaHei'), local('PingFang SC');
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: local('Consolas'), local('Monaco'), local('Courier New'), local('monospace');
+        font-display: swap;
+      }
+    </style>
+
+    <!-- Theme detection script - Prevent white flash on load -->
     <script>
       (function() {
-        // 立即设置背景色，防止白色闪屏
+        // Set background color immediately to prevent white flash
         if (document.documentElement) {
           document.documentElement.style.backgroundColor = '#030305';
           document.documentElement.setAttribute('data-theme', 'dark');
         }
-        // 等待 body 元素加载
+        // Wait for body element to load
         if (document.body) {
           document.body.style.backgroundColor = '#030305';
         } else {
@@ -26,22 +46,22 @@
         }
       })();
     </script>
-    <!-- 资源预加载 -->
+
+    <!-- Resource preloading -->
     <link rel="preload" href="/index.css" as="style">
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" as="style" crossorigin>
-    <!-- 预加载入口脚本 -->
+    <link rel="preload" href="/fonts/phosphor/regular/style.css" as="style">
+    <link rel="preload" href="/fonts/phosphor/bold/style.css" as="style">
+    <link rel="preload" href="/fonts/phosphor/fill/style.css" as="style">
+
+    <!-- Preload entry script -->
     <link rel="modulepreload" href="/index.tsx">
-    <!-- DNS预解析，加速外部资源加载 -->
-    <link rel="dns-prefetch" href="https://unpkg.com">
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-    <link rel="dns-prefetch" href="https://aistudiocdn.com">
+
   <script type="importmap">
 {
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
     "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
     "path": "https://aistudiocdn.com/path@^0.12.7",
@@ -55,7 +75,8 @@
 </head>
   <body>
     <div id="root" class="h-full w-full relative z-10"></div>
-    <!-- Atmosphere -->
+
+    <!-- Dynamic background atmosphere effects -->
     <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden dynamic-bg">
       <div class="absolute inset-0 noise-bg z-[1]"></div>
       <div class="blob blob-1"></div>
@@ -63,6 +84,7 @@
       <div class="scanlines absolute inset-0 z-[2]"></div>
       <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-[3]"></div>
     </div>
+
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>
