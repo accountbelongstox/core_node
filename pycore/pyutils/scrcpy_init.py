@@ -12,13 +12,14 @@ import sys
 import zipfile
 import tarfile
 import platform
-import urllib.request
-import urllib.error
 from pathlib import Path
 from typing import Dict, Optional, Callable
 
+from pycore.pyutils.robust_downloader import RobustDownloader
+
 # Download URLs for scrcpy packages
-SCRCPY_VERSION = "3.3.3"
+# Source: https://github.com/Genymobile/scrcpy/releases
+SCRCPY_VERSION = "3.3.4"
 SCRCPY_DOWNLOAD_URLS = {
     "windows": f"https://github.com/Genymobile/scrcpy/releases/download/v{SCRCPY_VERSION}/scrcpy-win64-v{SCRCPY_VERSION}.zip",
     "linux": f"https://github.com/Genymobile/scrcpy/releases/download/v{SCRCPY_VERSION}/scrcpy-linux-x86_64-v{SCRCPY_VERSION}.tar.gz",
@@ -29,59 +30,39 @@ SCRCPY_DOWNLOAD_URLS = {
 class ScrcpyInitializer:
     """Initialize scrcpy and adb in user data directory"""
 
-    class _FileDownloader:
-        """Internal file downloader using urllib"""
-
-        def __init__(self, chunk_size: int = 8192):
-            self.chunk_size = chunk_size
-
-        def download(
-            self,
-            url: str,
-            dest_path: Path,
-            progress_callback: Optional[Callable[[int, int], None]] = None
-        ) -> bool:
-            """Download file from URL to destination"""
-            try:
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-                with urllib.request.urlopen(url) as response:
-                    total_size = int(response.headers.get('Content-Length', 0))
-                    downloaded = 0
-
-                    temp_path = dest_path.with_suffix(dest_path.suffix + '.tmp')
-
-                    with open(temp_path, 'wb') as f:
-                        while True:
-                            chunk = response.read(self.chunk_size)
-                            if not chunk:
-                                break
-
-                            f.write(chunk)
-                            downloaded += len(chunk)
-
-                            if progress_callback and total_size > 0:
-                                progress_callback(downloaded, total_size)
-
-                    temp_path.rename(dest_path)
-                    return True
-
-            except (urllib.error.URLError, IOError) as e:
-                print(f"[ScrcpyInit] Download error: {e}")
-                return False
-
     def __init__(self):
         self.system = platform.system().lower()
         self.user_data_dir = self._get_user_data_dir()
         self.scrcpy_dir = self.user_data_dir / "scrcpy"
         self.project_root = Path(__file__).parent.parent.parent
-        self._downloader = self._FileDownloader()
+
+        # Use RobustDownloader with retry support
+        self._downloader = RobustDownloader(
+            max_retries=5,
+            timeout=90,
+            chunk_size=8192,
+            retry_delay=2.0,
+            max_retry_delay=30.0
+        )
 
     def _get_user_data_dir(self) -> Path:
         """Get user data directory based on OS"""
         if self.system == "windows":
             # Windows: C:\Users\<username>\.core_node
-            base_dir = Path.home() / ".core_node"
+            # Force use C:\Users\<username> even if USERPROFILE is redirected
+            # This ensures consistent scrcpy binary location across all systems
+            username = os.environ.get('USERNAME')
+            if username:
+                # Construct standard Windows path: C:\Users\<username>\.core_node
+                base_dir = Path(f"C:/Users/{username}/.core_node")
+            else:
+                # Fallback to USERPROFILE if USERNAME not available
+                userprofile = os.environ.get('USERPROFILE')
+                if userprofile:
+                    base_dir = Path(userprofile) / ".core_node"
+                else:
+                    # Final fallback to Path.home()
+                    base_dir = Path.home() / ".core_node"
         elif self.system == "linux":
             # Linux: /var/_core_node
             base_dir = Path("/var/_core_node")
@@ -159,12 +140,12 @@ class ScrcpyInitializer:
         print(f"[ScrcpyInit] Downloading scrcpy from: {download_url}")
         print(f"[ScrcpyInit] Destination: {download_path}")
 
-        def progress_callback(downloaded: int, total: int):
+        def progress_callback(downloaded: int, total: int, attempt: int):
             if total > 0:
                 percent = (downloaded / total) * 100
                 mb_downloaded = downloaded / 1024 / 1024
                 mb_total = total / 1024 / 1024
-                print(f"[ScrcpyInit] Progress: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='\r')
+                print(f"\r[ScrcpyInit] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
 
         success = self._downloader.download(download_url, download_path, progress_callback)
 

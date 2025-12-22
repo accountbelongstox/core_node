@@ -10,17 +10,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import asyncio
 import struct
-import subprocess
 import time
 from typing import Optional, Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 
 from pycore import ColorPrint
-from pycore.pyutils.device_manager import DeviceManager
-from pycore.pyutils.device import ServerParams, VideoCodec, ADBManager
+from pycore.pyutils.device import ServerParams, VideoCodec
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
-from pyapps.matrix.matrix_config.scrcpy_server_downloader import ensure_scrcpy_server_jar
 from .video_decoder_service import VideoDecoderService
 
 
@@ -114,15 +111,9 @@ class VideoStreamService:
             cls._instance = cls()
         return cls._instance
 
-    def _ensure_scrcpy_server_jar(self) -> bool:
-        """
-        Ensure scrcpy-server.jar is available (delegated to ScrcpyServerManager)
-
-        Returns:
-            True if scrcpy-server.jar is available, False otherwise
-        """
-        # 🔧 REFACTORED: Use centralized server manager
-        return self.server_manager.ensure_local_jar(auto_download=True)
+    # ✅ REMOVED: _ensure_scrcpy_server_jar()
+    # Jar initialization is now a PREREQUISITE handled in matrix_main.py STEP 2
+    # VideoStreamService assumes jar is already available and validated
 
     async def start_stream(self, serial: str, websocket: WebSocket) -> bool:
         """
@@ -214,15 +205,8 @@ class VideoStreamService:
             if not connection or not self.connection_manager.is_connected(serial):
                 ColorPrint.blue(f"[VideoStreamService] Connecting device {serial} via ConnectionManager...")
 
-                # Ensure scrcpy-server.jar is available (auto-download if needed)
-                ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
-                if not self._ensure_scrcpy_server_jar():
-                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
-                    error_msg = {"type": "video.error", "data": {"error": f"Failed to ensure scrcpy-server.jar"}}
-                    await websocket.send_json(error_msg)
-                    # Clear initializing flag
-                    self.device_initializing[serial] = False
-                    return False
+                # ✅ Jar is already initialized as a prerequisite in matrix_main.py
+                # No need to check here - assume jar is available
 
                 # Create server parameters (optimized for multi-device scenarios)
                 # ✅ OPTIMIZED: Use factory method for multi-device scenarios
@@ -509,17 +493,8 @@ class VideoStreamService:
             if not connection or not self.connection_manager.is_connected(serial):
                 ColorPrint.blue(f"[VideoStreamService] Connecting device {serial} via ConnectionManager for YUV...")
 
-                # Ensure scrcpy-server.jar is available (auto-download if needed)
-                ColorPrint.blue(f"[VideoStreamService] Ensuring scrcpy-server.jar is available...")
-                if not self._ensure_scrcpy_server_jar():
-                    ColorPrint.red(f"[VideoStreamService] ✗ Failed to ensure scrcpy-server.jar")
-                    # Clear initializing flag
-                    self.device_initializing[serial] = False
-                    if serial in self.yuv_stream_clients:
-                        self.yuv_stream_clients[serial].discard(websocket)
-                        if len(self.yuv_stream_clients[serial]) == 0:
-                            del self.yuv_stream_clients[serial]
-                    return False
+                # ✅ Jar is already initialized as a prerequisite in matrix_main.py
+                # No need to check here - assume jar is available
 
                 # Get config from ConfigService
                 config_service = ConfigService.instance()

@@ -121,14 +121,17 @@ class DeviceService:
 
         # Push scrcpy-server.jar if needed
         if self.scrcpy_server_jar.exists():
+            # CRITICAL: Use //data/local/tmp/ to prevent Git Bash path translation on Windows
+            # Git Bash automatically translates /data/local/tmp/ to D:/Git/data/local/tmp/
+            # CRITICAL: Filename must be 'scrcpy-server' (no .jar extension) to match official scrcpy
             success = ADBManager.push_file(
                 serial,
                 self.scrcpy_server_jar,
-                "/data/local/tmp/scrcpy-server.jar",
+                "//data/local/tmp/scrcpy-server",  # No .jar extension!
                 self.adb_path
             )
             if not success:
-                ColorPrint.red(f"[DeviceService] Failed to push scrcpy-server.jar to {serial}")
+                ColorPrint.red(f"[DeviceService] Failed to push scrcpy-server to {serial}")
                 return False
 
         # Resolve device name for per-device configuration
