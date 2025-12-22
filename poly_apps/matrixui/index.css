@@ -45,12 +45,14 @@ body {
 }
 
 /* Animations */
-@keyframes float {
+/* PySide6 QWebEngineView Fix: Animations disabled */
+/* @keyframes float {
   0% { transform: translate3d(0, 0, 0) scale(1); }
   100% { transform: translate3d(30px, -30px, 0) scale(1.1); }
-}
+} */
 
-@keyframes move-background {
+/* PySide6 QWebEngineView Fix: All background animations disabled to prevent flickering */
+/* @keyframes move-background {
   0% { background-position: 0 0; }
   100% { background-position: 100px 100px; }
 }
@@ -65,35 +67,28 @@ body {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}
+} */
 
 .blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.3;
-  animation: float 25s infinite ease-in-out alternate;
-  z-index: 0;
-  /* Fix: Hardware acceleration for smooth animation */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  will-change: transform;
+  /* PySide6 QWebEngineView Fix: Disable blob elements to prevent flickering */
+  display: none;
+  /* Original properties commented out for QWebEngineView performance */
+  /* position: absolute; */
+  /* border-radius: 50%; */
+  /* filter: blur(80px); */
+  /* opacity: 0.3; */
+  /* animation: float 25s infinite ease-in-out alternate; */
+  /* z-index: 0; */
 }
 .blob-1 { width: 60vw; height: 60vw; background: var(--cyan); top: -20%; left: -10%; }
 .blob-2 { width: 50vw; height: 50vw; background: var(--purple); bottom: -10%; right: -10%; animation-delay: -5s; }
 
 .scanlines {
-  background: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 100% 4px;
+  /* PySide6 QWebEngineView Fix: Disable scanline animation to prevent flickering */
+  /* background: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px); */
+  /* background-size: 100% 4px; */
   pointer-events: none;
-  animation: move-background 60s linear infinite;
-  /* Fix: Hardware acceleration for smooth scanline animation */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  /* animation: move-background 60s linear infinite; */
 }
 
 .noise-bg {
@@ -102,15 +97,12 @@ body {
 }
 
 .dynamic-bg {
-  background: linear-gradient(-45deg, #030305, #0f1219, #14081f, #051419);
-  background-size: 400% 400%;
-  animation: gradient-flow 15s ease infinite;
-  /* Fix: Hardware acceleration for smooth gradient animation */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  will-change: background-position;
+  /* PySide6 QWebEngineView Fix: Use solid color instead of gradient to prevent flickering */
+  background: #0a0c10;
+  /* Gradient and animation disabled for QWebEngineView performance */
+  /* background: linear-gradient(-45deg, #030305, #0f1219, #14081f, #051419); */
+  /* background-size: 400% 400%; */
+  /* animation: gradient-flow 15s ease infinite; */
 }
 
 /* Form Elements for Settings */
