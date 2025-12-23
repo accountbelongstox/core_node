@@ -8,14 +8,15 @@ timeout management, and result parsing.
 """
 
 import re
+import threading
 from typing import Optional, List, Tuple, Dict
 from pycore import ColorPrint
 from pycore.pyfoundations.pybasecommon import exec_silent
 
 
 class ADBExecutor:
-    """ADB command executor"""
-
+    """
+    ADB command executor    """
     def __init__(self, adb_path: str = "adb", timeout: int = 10):
         """
         Initialize ADB executor
@@ -27,6 +28,7 @@ class ADBExecutor:
         self.adb_path = adb_path
         self.timeout = timeout
 
+    
     def execute(
         self,
         args: List[str],
@@ -282,3 +284,24 @@ class ADBExecutor:
         if ADBExecutor.is_wifi_device(serial):
             return serial.split(':')[0]
         return None
+
+
+# ✅ Create global singleton instance (module-level singleton)
+# Note: Initialized with default value, call set_adb_path() on app startup to set correct path
+adb_executor = ADBExecutor(adb_path="adb")
+
+def set_adb_path(adb_path: str):
+    """
+    Set ADB path for global ADBExecutor instance
+
+    Should be called on app startup after getting correct ADB path from Config
+
+    Args:
+        adb_path: Full path to ADB executable
+    """
+    global adb_executor
+    adb_executor.adb_path = adb_path
+    from pycore import ColorPrint
+    ColorPrint.green(f"[ADBExecutor] ADB path updated: {adb_path}")
+
+__all__ = ["ADBExecutor", "adb_executor", "set_adb_path"]

@@ -93,7 +93,9 @@ class VideoStreamHealthService:
     _instance: Optional['VideoStreamHealthService'] = None
 
     def __init__(self):
-        self.device_manager = DeviceManager.instance()
+        # ✅ 使用全局导出的实例（模块级别单例）
+        from pycore.pyutils.device_manager import device_manager
+        self.device_manager = device_manager
         self.device_health: Dict[str, DeviceHealthStatus] = {}
 
         # Track devices that have active streams
@@ -205,12 +207,29 @@ class VideoStreamHealthService:
             ColorPrint.blue(f"[VideoStreamHealth] Device {serial} is reconnecting, skipping health check")
             return
 
+        # ✅ Get device from global DeviceManager (ONLY source of truth)
         device = self.device_manager.get_device(serial)
 
+        # IMPORTANT: Device might be discovered (in device_states) but not connected yet (not in devices)
+        # In that case, skip socket/data checks and just verify it's in ADB
         if not device:
-            ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in DeviceManager")
-            health.mark_error("Device not found in DeviceManager")
-            self._broadcast_device_status(serial, health)
+            # Check if device is at least registered in device_states (discovered but not connected)
+            device_state = self.device_manager.get_device_state(serial)
+            if not device_state:
+                ColorPrint.yellow(f"[VideoStreamHealth] Device {serial} not in global DeviceManager")
+                health.mark_error("Device not found in global DeviceManager")
+                self._broadcast_device_status(serial, health)
+                return
+
+            # Device discovered but not scrcpy-connected yet - skip socket checks
+            ColorPrint.blue(f"[VideoStreamHealth] Device {serial} discovered but not scrcpy-connected, checking ADB only")
+            if not self._is_device_in_adb(serial):
+                ColorPrint.red(f"[VideoStreamHealth] Device {serial} not in ADB devices")
+                health.mark_error("Device disconnected from ADB")
+                self._broadcast_device_status(serial, health)
+            else:
+                # Device in ADB but no scrcpy connection - this is normal for newly discovered devices
+                ColorPrint.blue(f"[VideoStreamHealth] Device {serial} in ADB, awaiting scrcpy connection")
             return
 
         # Check 1: Socket validity
@@ -299,18 +318,11 @@ class VideoStreamHealthService:
         if self._video_stream_service:
             try:
                 ColorPrint.yellow(f"[VideoStreamHealth] Stopping stream for {serial} to trigger reconnection")
-                # Schedule async force_stop_stream
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self._video_stream_service.force_stop_stream(
-                            serial,
-                            reason=f"Health check reconnection attempt {health.reconnect_attempts}/{health.max_reconnect_attempts}"
-                        )
-                    )
-                else:
-                    ColorPrint.red(f"[VideoStreamHealth] Event loop not running, cannot stop stream")
+                # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
+                self._video_stream_service.force_stop_stream_sync(
+                    serial,
+                    reason=f"Health check reconnection attempt {health.reconnect_attempts}/{health.max_reconnect_attempts}"
+                )
             except Exception as e:
                 ColorPrint.red(f"[VideoStreamHealth] Failed to stop stream for reconnection: {e}")
         else:
@@ -343,13 +355,8 @@ class VideoStreamHealthService:
             if self._video_stream_service:
                 ColorPrint.yellow(f"[VideoStreamHealth] Requesting VideoStreamService to stop stream for {serial}")
                 try:
-                    # Schedule async cleanup
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(
-                            self._video_stream_service.force_stop_stream(serial, reason="Max reconnection attempts reached")
-                        )
+                    # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
+                    self._video_stream_service.force_stop_stream_sync(serial, reason="Max reconnection attempts reached")
                 except Exception as e:
                     ColorPrint.red(f"[VideoStreamHealth] Failed to stop stream for {serial}: {e}")
             else:
@@ -385,14 +392,9 @@ class VideoStreamHealthService:
         }
 
         # Broadcast to all connected WebSocket clients
-        # This uses the RPC server's broadcast capability
+        # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
         try:
-            # Schedule broadcast in event loop (RPC server is async)
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(
-                    self._rpc_server.broadcast_event('device.status', status_message['data'])
-                )
+            self._rpc_server.broadcast_event_sync('device.status', status_message['data'])
         except Exception as e:
             ColorPrint.yellow(f"[VideoStreamHealth] Failed to broadcast status: {e}")
 

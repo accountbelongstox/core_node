@@ -42,7 +42,7 @@ const StepNode: React.FC<{ step: ScriptStep; index: number; total: number }> = (
   const getIcon = (type: string) => {
     switch (type) {
       case 'open_app': return 'ph-app-window';
-      case 'swipe': return 'ph-hand-swipe-up';
+      case 'swipe': return 'ph-hand-arrow-up'; // hand-swipe-up doesn't exist in Phosphor, use hand-arrow-up
       case 'click': return 'ph-cursor-click';
       case 'input': return 'ph-keyboard';
       case 'delay': return 'ph-hourglass';

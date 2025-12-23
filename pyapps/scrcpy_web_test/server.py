@@ -7,6 +7,7 @@ Port: 27880
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import time
@@ -28,6 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'pycore'))
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
 from pycore.pyutils.device.server_params import ServerParams
 from pycore.pyutils.control import TouchEvent, TouchAction, MessageBuilder
+from pycore.pyutils.scrcpy_init import get_initializer, get_adb_path
+from pycore import ColorPrint
 
 # UTF-8 encoding already handled by ScrcpyDevice import
 
@@ -35,9 +38,24 @@ from pycore.pyutils.control import TouchEvent, TouchAction, MessageBuilder
 class DeviceScanner:
     def __init__(self, adb_path="adb"):
         self.adb_path = adb_path
+        self._cache = None
+        self._cache_time = 0
+        self._cache_ttl = 30.0  # Cache devices for 30 seconds
 
     def scan_devices(self):
-        """Scan all connected ADB devices"""
+        """
+        Scan all connected ADB devices with caching
+
+        Caches results for 30 seconds to avoid repeated ADB calls
+        which can timeout in multi-device environments
+        """
+        now = time.time()
+
+        # Return cached results if valid
+        if self._cache is not None and (now - self._cache_time) < self._cache_ttl:
+            return self._cache
+
+        # Perform actual scan
         result = subprocess.run(
             [self.adb_path, "devices", "-l"],
             capture_output=True,
@@ -64,15 +82,22 @@ class DeviceScanner:
                     'status': 'device'
                 })
 
+        # Update cache
+        self._cache = devices
+        self._cache_time = now
+
         return devices
 
     def _get_device_property(self, serial: str, prop: str) -> str:
         """Get device property via getprop"""
+        env = os.environ.copy()
+        env['ANDROID_SERIAL'] = serial
         result = subprocess.run(
             [self.adb_path, "-s", serial, "shell", "getprop", prop],
+            env=env,
             capture_output=True,
             text=True,
-            timeout=3
+            timeout=10
         )
         return result.stdout.strip()
 
@@ -93,10 +118,7 @@ class VideoStreamManager:
         self.control_locks: Dict[str, asyncio.Lock] = {}
 
     def _get_device_info_payload(self, device: ScrcpyDevice) -> Optional[Dict[str, Any]]:
-        try:
-            info = device.get_device_info()
-        except RuntimeError:
-            return None
+        info = device.get_device_info()
 
         resolution = {
             'width': info.resolution.width or self.default_resolution['width'],
@@ -241,9 +263,10 @@ class VideoStreamManager:
             control=True,
         )
 
-        device = ScrcpyDevice(serial, params)
+        device = ScrcpyDevice(serial, params, adb_path=ADB_PATH)
 
-        if not await ensure_scrcpy_server(serial, device.adb_path):
+        # Use global ADB_PATH for server operations (not device.adb_path)
+        if not await ensure_scrcpy_server(serial):
             print(f"✗ Unable to ensure scrcpy-server.jar for {serial}")
             self._detach_client(serial, ws)
             return False, False, None
@@ -543,14 +566,48 @@ class VideoStreamManager:
         return True, None
 
 
+# ========== Initialize scrcpy and get tool paths ==========
+ColorPrint.blue("=" * 70)
+ColorPrint.blue("[Scrcpy Web Test] Initializing scrcpy tools from user data directory...")
+ColorPrint.blue("=" * 70)
+
+scrcpy_initializer = get_initializer()
+
+# Ensure scrcpy is initialized (auto-downloads to C:\Users\<username>\.core_node\scrcpy)
+if not scrcpy_initializer.is_initialized():
+    ColorPrint.blue("[Scrcpy Web Test] Scrcpy not initialized, initializing now...")
+    if scrcpy_initializer.initialize():
+        ColorPrint.green("[Scrcpy Web Test] ✓ Scrcpy initialized successfully")
+    else:
+        ColorPrint.red("[Scrcpy Web Test] ✗ Failed to initialize scrcpy")
+        raise RuntimeError("Failed to initialize scrcpy")
+else:
+    ColorPrint.green("[Scrcpy Web Test] ✓ Scrcpy already initialized")
+
+# Get tool paths from user data directory
+paths = scrcpy_initializer.get_paths()
+ADB_PATH = str(paths['adb']) if paths['adb'] else "adb"
+SCRCPY_PATH = str(paths['scrcpy']) if paths['scrcpy'] else "scrcpy"
+
+ColorPrint.green(f"[Scrcpy Web Test] ✓ ADB path: {ADB_PATH}")
+ColorPrint.green(f"[Scrcpy Web Test] ✓ Scrcpy path: {SCRCPY_PATH}")
+ColorPrint.blue("=" * 70)
+
 # Global instances
-scanner = DeviceScanner()
+scanner = DeviceScanner(adb_path=ADB_PATH)
 SCRCPY_SERVER_JAR = Path(__file__).resolve().parent.parent / "matrix" / "resources" / "scrcpy-server.jar"
-SCRCPY_REMOTE_PATH = "/data/local/tmp/scrcpy-server.jar"
+# CRITICAL: Android 7.0 ClassLoader cannot load files with .jar extension!
+# Must push and reference file WITHOUT extension (scrcpy-server, not scrcpy-server.jar)
+# Git Bash path conversion prevention: Use // prefix (doubled slash)
+SCRCPY_REMOTE_PATH = "//data/local/tmp/scrcpy-server"
 
 
-async def ensure_scrcpy_server(serial: str, adb_path: str = "adb") -> bool:
+async def ensure_scrcpy_server(serial: str, adb_path: str = None) -> bool:
     """Ensure scrcpy-server.jar is present on target device"""
+    # Use global ADB_PATH if not specified
+    if adb_path is None:
+        adb_path = ADB_PATH
+
     if not SCRCPY_SERVER_JAR.exists():
         print(f"✗ Missing scrcpy-server.jar at {SCRCPY_SERVER_JAR}")
         return False
@@ -560,10 +617,16 @@ async def ensure_scrcpy_server(serial: str, adb_path: str = "adb") -> bool:
     loop = asyncio.get_event_loop()
 
     def push_server():
+        import os
+        env = os.environ.copy()
+        # CRITICAL: Disable Git Bash path conversion to prevent /data/local/tmp -> D:/applications/Git/data/local/tmp
+        # This is needed when running Python from Git Bash environment on Windows
+        env['MSYS_NO_PATHCONV'] = '1'
         return subprocess.run(
             [adb_path, "-s", serial, "push", str(SCRCPY_SERVER_JAR), SCRCPY_REMOTE_PATH],
             capture_output=True,
-            text=True
+            text=True,
+            env=env
         )
 
     proc = await loop.run_in_executor(None, push_server)

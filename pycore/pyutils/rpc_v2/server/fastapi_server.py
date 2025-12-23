@@ -336,7 +336,8 @@ class FastAPIRPCServer:
         request_id = data.get("id") or data.get("request_id") or self._generate_request_id()
 
         if "params" in data:
-            params = data.get("params", {})
+            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
+            params = data.get("data") or data.get("params", {})
         else:
             params = {
                 k: v
@@ -735,7 +736,8 @@ class FastAPIRPCServer:
                 )
                 return
 
-            params = data.get("params", {})
+            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
+            params = data.get("data") or data.get("params", {})
 
             inventory_item = self.inventory_table.get(request_id, remove=True)
             if inventory_item:

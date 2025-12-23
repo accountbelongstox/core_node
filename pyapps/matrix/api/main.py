@@ -1639,6 +1639,50 @@ def _register_shell_routes(rpc_server):
 def _register_video_routes(rpc_server):
     """Register video streaming routes"""
 
+    async def batch_start_streams(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
+        """
+        Start video streams for multiple devices concurrently
+
+        Args:
+            data: {
+                'serials': List[str]  # Device serial numbers
+            }
+
+        Returns:
+            {
+                'success': bool,
+                'results': Dict[str, bool]  # serial -> success status
+            }
+        """
+        ColorPrint.yellow(f"{'='*70}")
+        ColorPrint.yellow(f"[RPC] video.batch_start CALLED!")
+        ColorPrint.yellow(f"[RPC] Request ID: {request_id}")
+        ColorPrint.yellow(f"[RPC] Data: {data}")
+        ColorPrint.yellow(f"{'='*70}")
+
+        serials = data.get('serials', [])
+
+        if not serials:
+            return {'error': {'code': 'NO_SERIALS', 'message': 'Device serials required'}}
+
+        # Get video stream service
+        video_service = VideoStreamService.instance()
+
+        # Get websocket from context for device.ready/device.failed notifications
+        websocket = context.get('websocket') if context else None
+
+        # Start all devices concurrently (websocket used for notifications only, not frame subscription)
+        # Clients should connect to ws://localhost:48000/video/{device_id} separately to receive frames
+        results = await video_service.batch_start_streams(serials, websocket=websocket)
+
+        return {
+            'success': True,
+            'results': results,
+            'total': len(serials),
+            'succeeded': sum(1 for v in results.values() if v),
+            'failed': sum(1 for v in results.values() if not v)
+        }
+
     async def set_quality(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Change video quality"""
         device_id = data.get('deviceId')
@@ -1704,6 +1748,7 @@ def _register_video_routes(rpc_server):
 
         return {"success": True, "message": "Video stream resumed"}
 
+    rpc_server.route('video.batch_start', batch_start_streams, sync=False, description='Start multiple video streams concurrently')
     rpc_server.route('video.quality', set_quality, sync=False, description='Change video quality')
     rpc_server.route('video.pause', pause_stream, sync=False, description='Pause video stream')
     rpc_server.route('video.resume', resume_stream, sync=False, description='Resume video stream')

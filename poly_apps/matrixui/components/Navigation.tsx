@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="mt-auto p-4 border-t border-white/5 bg-white/[0.02]">
         <div className={`flex items-center gap-3 text-slate-400 hover:text-white cursor-pointer p-2 rounded hover:bg-white/5 ${collapsed ? 'justify-center' : ''}`}>
-           <i className="ph ph-life-buoy text-xl"></i>
+           <i className="ph ph-lifebuoy text-xl"></i>
            {!collapsed && <span className="text-xs">{t('nav.support')}</span>}
         </div>
       </div>
