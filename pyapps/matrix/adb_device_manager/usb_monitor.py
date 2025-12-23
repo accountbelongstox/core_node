@@ -8,6 +8,7 @@ Implements the workflow: USB detection → Get IP → Enable tcpip 5555 → Conn
 """
 
 import time
+import threading
 from typing import List, Set, Optional, Dict
 from pycore import ColorPrint
 from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
@@ -15,8 +16,8 @@ from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInf
 
 
 class USBMonitor:
-    """USB device monitor and wireless converter"""
-
+    """
+    USB device monitor and wireless converter    """
     def __init__(
         self,
         adb_executor: ADBExecutor,
@@ -25,9 +26,7 @@ class USBMonitor:
         conversion_delay: float = 2.0
     ):
         """
-        Initialize USB monitor
-
-        Args:
+        Initialize USB monitor        Args:
             adb_executor: ADB executor instance
             device_table: Device table instance
             auto_convert: Auto-convert USB to wireless (default: True)
@@ -41,6 +40,7 @@ class USBMonitor:
         self._known_usb_devices: Set[str] = set()
         self._converting_devices: Dict[str, float] = {}  # serial -> start_time
 
+    
     def scan_usb_devices(self) -> List[str]:
         """
         Scan for USB devices
@@ -151,6 +151,19 @@ class USBMonitor:
                 )
                 self.device_table.add_device(wifi_device)
 
+                # ✅ Also register wireless device in global DeviceManager's device_states
+                from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+                if wifi_serial not in device_manager.device_states:
+                    minimal_state = DMDeviceState(
+                        serial=wifi_serial,
+                        info=None,
+                        connected=False,
+                        streaming=False,
+                        controllable=False
+                    )
+                    device_manager.device_states[wifi_serial] = minimal_state
+                    ColorPrint.blue(f"[USBMonitor] Registered {wifi_serial} in DeviceManager.device_states")
+
             return True
 
         except Exception as e:
@@ -188,6 +201,19 @@ class USBMonitor:
 
             self.device_table.add_device(device_info)
 
+            # ✅ Also register in global DeviceManager's device_states
+            from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+            if serial not in device_manager.device_states:
+                minimal_state = DMDeviceState(
+                    serial=serial,
+                    info=None,
+                    connected=False,
+                    streaming=False,
+                    controllable=False
+                )
+                device_manager.device_states[serial] = minimal_state
+                ColorPrint.blue(f"[USBMonitor] Registered {serial} in DeviceManager.device_states")
+
             if self.auto_convert:
                 success = self.convert_usb_to_wireless(serial)
                 results[serial] = success
@@ -210,3 +236,23 @@ class USBMonitor:
     def is_converting(self, serial: str) -> bool:
         """Check if device is currently being converted"""
         return serial in self._converting_devices
+
+
+# ✅ 延迟初始化（避免循环依赖）
+_usb_monitor: Optional['USBMonitor'] = None
+
+def get_usb_monitor() -> 'USBMonitor':
+    """获取全局USBMonitor实例（延迟初始化）"""
+    global _usb_monitor
+    if _usb_monitor is None:
+        from pyapps.matrix.adb_device_manager.adb_executor import adb_executor
+        from pyapps.matrix.adb_device_manager.device_table import device_table
+        _usb_monitor = USBMonitor(
+            adb_executor=adb_executor,
+            device_table=device_table,
+            auto_convert=True,
+            conversion_delay=2.0
+        )
+    return _usb_monitor
+
+__all__ = ["USBMonitor", "get_usb_monitor"]

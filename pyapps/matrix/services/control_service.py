@@ -11,7 +11,7 @@ except ImportError:
 from typing import Optional, Dict, Set, TYPE_CHECKING
 import asyncio
 from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager
 from pycore.pyutils.device import ADBManager
 from pycore.pyutils.group import SyncEvent
 from pyapps.matrix.matrix_config import Config
@@ -39,7 +39,7 @@ class ControlService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.device_manager = DeviceManager.instance()
+        self.device_manager = device_manager
         self.message_builder = MessageBuilder()
 
     @classmethod

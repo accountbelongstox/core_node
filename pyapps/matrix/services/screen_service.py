@@ -11,7 +11,7 @@ except ImportError:
 import asyncio
 from typing import Optional, Dict
 from pycore.pyutils.device import ADBManager
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager
 from pyapps.matrix.matrix_config import Config
 
 
@@ -32,7 +32,7 @@ class ScreenService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.device_manager = DeviceManager.instance()
+        self.device_manager = device_manager
 
     @classmethod
     def instance(cls) -> 'ScreenService':

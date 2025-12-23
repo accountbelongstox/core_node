@@ -322,6 +322,51 @@ class WebSocketService {
     return this.isConnected && this.rpcWs?.readyState === WebSocket.OPEN;
   }
 
+  // ============================================================
+  // Video Streaming - Batch Start
+  // ============================================================
+
+  public async batchStartStreams(serials: string[]): Promise<any> {
+    /**
+     * Start multiple video streams concurrently
+     *
+     * @param serials - Array of device serial numbers
+     * @returns Promise with batch start results
+     *
+     * Events emitted for each device:
+     * - 'device.ready': Device stream started successfully
+     * - 'device.failed': Device stream failed to start
+     */
+    console.log('🔧 [wsService.batchStartStreams] ENTRY');
+    console.log('🔧 [wsService.batchStartStreams] serials parameter:', serials);
+    console.log('🔧 [wsService.batchStartStreams] serials.length:', serials.length);
+    console.log('🔧 [wsService.batchStartStreams] typeof serials:', typeof serials);
+    console.log('🔧 [wsService.batchStartStreams] Calling callRpcV2 with data:', { serials });
+
+    const result = await this.callRpcV2('video.batch_start', { serials });
+
+    console.log('🔧 [wsService.batchStartStreams] RPC result:', result);
+    return result;
+  }
+
+  public onDeviceReady(callback: (event: any) => void) {
+    /**
+     * Listen for device ready events (from batch start)
+     *
+     * Event format: { type: 'device.ready', serial: string, timestamp: number }
+     */
+    this.onRpcEvent('device.ready', callback);
+  }
+
+  public onDeviceFailed(callback: (event: any) => void) {
+    /**
+     * Listen for device failed events (from batch start)
+     *
+     * Event format: { type: 'device.failed', serial: string, error: string }
+     */
+    this.onRpcEvent('device.failed', callback);
+  }
+
   private handleRpcMessage(message: any) {
     if (this.rpcOptions.debug) {
       console.log('[RPC] Message', message);

@@ -534,6 +534,7 @@ class FrontendLauncherThread(threading.Thread):
 
         # Start dev server with PIPE to prevent SIGPIPE and process blocking
         # We create a background thread to consume the output
+<<<<<<< HEAD
         with self._process_lock:
             self.process = subprocess.Popen(
                 command,
@@ -544,6 +545,19 @@ class FrontendLauncherThread(threading.Thread):
                 text=True,
                 bufsize=1
             )
+=======
+        self.process = subprocess.Popen(
+            command,
+            cwd=str(self.config.app_dir),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            bufsize=1
+        )
+>>>>>>> d879581af39d9f574a5293771bd0a42055b4b045
 
         # Start background thread to consume stdout (prevent blocking)
         def consume_output():

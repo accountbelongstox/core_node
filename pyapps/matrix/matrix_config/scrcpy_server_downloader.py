@@ -5,23 +5,35 @@ Scrcpy Server JAR Downloader
 
 Ensures scrcpy-server.jar is available for video streaming.
 Downloads from GitHub if not found locally.
+
+DEPRECATED: Use ScrcpyServerManager instead (pycore.pyutils.device.scrcpy_server_manager)
+This file is kept for backward compatibility.
 """
 
-import urllib.request
-import urllib.error
 from pathlib import Path
 from typing import Optional, Callable
 
 from pycore import ColorPrint
+from pycore.pyutils.robust_downloader import RobustDownloader
 
 
 class ScrcpyServerDownloader:
-    """Download and ensure scrcpy-server.jar availability"""
+    """
+    Download and ensure scrcpy-server.jar availability
+
+    DEPRECATED: Use ScrcpyServerManager from pycore.pyutils.device.scrcpy_server_manager
+    This class provides basic download functionality but lacks:
+    - Jar validation (size check, header check)
+    - Package extraction (GitHub standalone file is corrupted)
+    - Path caching
+    """
 
     # Scrcpy server version (must match VideoStreamService requirements)
-    SCRCPY_VERSION = "3.3.3"
+    SCRCPY_VERSION = "3.3.4"
 
-    # GitHub download URL for scrcpy-server.jar
+    # WARNING: Standalone scrcpy-server file on GitHub is CORRUPTED (88KB instead of 7MB+)
+    # This URL will download a broken file. Use ScrcpyServerManager instead.
+    # Source: https://github.com/Genymobile/scrcpy/releases
     SCRCPY_SERVER_URL = f"https://github.com/Genymobile/scrcpy/releases/download/v{SCRCPY_VERSION}/scrcpy-server-v{SCRCPY_VERSION}"
 
     def __init__(self, target_path: Path):
@@ -85,121 +97,65 @@ class ScrcpyServerDownloader:
             ColorPrint.red(f"[ScrcpyServerDownloader] Error copying from scrcpy_init: {e}")
             return False
 
-    def download(self, progress_callback: Optional[Callable[[int, int], None]] = None) -> bool:
+    def download(self, progress_callback: Optional[Callable[[int, int, int], None]] = None) -> bool:
         """
-        Download scrcpy-server.jar from GitHub
+        Download scrcpy-server.jar from GitHub using RobustDownloader
+
+        WARNING: GitHub's standalone scrcpy-server file is CORRUPTED (88KB instead of 7MB+)
+        This method will download the broken file. Use ScrcpyServerManager instead.
 
         Args:
-            progress_callback: Optional callback(downloaded_bytes, total_bytes)
+            progress_callback: Optional callback(downloaded_bytes, total_bytes, attempt)
 
         Returns:
             True if download successful, False otherwise
         """
-        import sys
-        import time
+        ColorPrint.blue("=" * 80)
+        ColorPrint.red("[ScrcpyServerDownloader] WARNING: This downloader is DEPRECATED")
+        ColorPrint.red("[ScrcpyServerDownloader] GitHub's standalone scrcpy-server file is CORRUPTED")
+        ColorPrint.red("[ScrcpyServerDownloader] Use ScrcpyServerManager instead:")
+        ColorPrint.yellow("[ScrcpyServerDownloader] from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager")
+        ColorPrint.blue("=" * 80)
+        ColorPrint.cyan(f"[ScrcpyServerDownloader] Version: {self.SCRCPY_VERSION}")
+        ColorPrint.cyan(f"[ScrcpyServerDownloader] URL: {self.SCRCPY_SERVER_URL}")
+        ColorPrint.cyan(f"[ScrcpyServerDownloader] Target: {self.target_path}")
 
-        try:
-            ColorPrint.blue("=" * 80)
-            ColorPrint.blue("[ScrcpyServerDownloader] Downloading scrcpy-server.jar")
-            ColorPrint.blue("=" * 80)
-            ColorPrint.cyan(f"[ScrcpyServerDownloader] Version: {self.SCRCPY_VERSION}")
-            ColorPrint.cyan(f"[ScrcpyServerDownloader] URL: {self.SCRCPY_SERVER_URL}")
-            ColorPrint.cyan(f"[ScrcpyServerDownloader] Target: {self.target_path}")
+        # Create target directory
+        self.target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Create target directory
-            self.target_path.parent.mkdir(parents=True, exist_ok=True)
+        # Use RobustDownloader with retry support
+        downloader = RobustDownloader(
+            max_retries=5,
+            timeout=60,
+            chunk_size=8192,
+            retry_delay=2.0,
+            max_retry_delay=30.0
+        )
 
-            # Download with real-time progress
-            with urllib.request.urlopen(self.SCRCPY_SERVER_URL) as response:
-                total_size = int(response.headers.get('Content-Length', 0))
-                downloaded = 0
+        def default_progress_callback(downloaded: int, total: int, attempt: int):
+            if total > 0:
+                percent = (downloaded / total) * 100
+                mb_downloaded = downloaded / 1024 / 1024
+                mb_total = total / 1024 / 1024
+                print(f"\r[ScrcpyServerDownloader] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.2f}/{mb_total:.2f} MB)", end='')
 
-                ColorPrint.blue(f"[ScrcpyServerDownloader] File size: {total_size / 1024 / 1024:.2f} MB")
-                print()  # Blank line before progress bar
+        callback = progress_callback if progress_callback else default_progress_callback
+        success = downloader.download(self.SCRCPY_SERVER_URL, self.target_path, callback)
 
-                # Use temporary file during download
-                temp_path = self.target_path.with_suffix('.tmp')
-
-                # Track download speed
-                start_time = time.time()
-                last_update_time = start_time
-                last_downloaded = 0
-
-                with open(temp_path, 'wb') as f:
-                    chunk_size = 8192
-                    while True:
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-
-                        f.write(chunk)
-                        downloaded += len(chunk)
-
-                        # Update progress (throttle to ~10 updates per second)
-                        current_time = time.time()
-                        if current_time - last_update_time >= 0.1 or downloaded == total_size:
-                            if progress_callback and total_size > 0:
-                                progress_callback(downloaded, total_size)
-                            elif total_size > 0:
-                                # Calculate download speed
-                                elapsed = current_time - start_time
-                                if elapsed > 0:
-                                    speed_bps = downloaded / elapsed
-                                    speed_mbps = speed_bps / 1024 / 1024
-                                else:
-                                    speed_mbps = 0
-
-                                # Calculate ETA
-                                if speed_bps > 0:
-                                    remaining_bytes = total_size - downloaded
-                                    eta_seconds = remaining_bytes / speed_bps
-                                    eta_mins = int(eta_seconds // 60)
-                                    eta_secs = int(eta_seconds % 60)
-                                    eta_str = f"{eta_mins}m {eta_secs}s" if eta_mins > 0 else f"{eta_secs}s"
-                                else:
-                                    eta_str = "calculating..."
-
-                                # Progress bar
-                                percent = (downloaded / total_size) * 100
-                                mb_downloaded = downloaded / 1024 / 1024
-                                mb_total = total_size / 1024 / 1024
-
-                                # Create progress bar (50 characters wide) - Use ASCII for Windows compatibility
-                                bar_width = 50
-                                filled = int(bar_width * downloaded / total_size)
-                                bar = '=' * filled + '-' * (bar_width - filled)
-
-                                # Real-time progress output with \r to overwrite same line
-                                sys.stdout.write(f"\r[INFO] [{bar}] {percent:.1f}% | {mb_downloaded:.2f}/{mb_total:.2f} MB | {speed_mbps:.2f} MB/s | ETA: {eta_str}")
-                                sys.stdout.flush()
-
-                            last_update_time = current_time
-                            last_downloaded = downloaded
-
-                # Move temp file to final location
-                temp_path.rename(self.target_path)
-
-                print()  # New line after progress bar
-                print()  # Extra blank line
-                ColorPrint.green("=" * 80)
-                ColorPrint.green(f"[ScrcpyServerDownloader] ✓ Download completed successfully")
-                ColorPrint.green(f"[ScrcpyServerDownloader] ✓ Saved to: {self.target_path}")
-                ColorPrint.green("=" * 80)
-
-                return True
-
-        except urllib.error.URLError as e:
+        if success:
+            print()  # New line after progress
+            ColorPrint.green("=" * 80)
+            ColorPrint.green(f"[ScrcpyServerDownloader] ✓ Download completed")
+            ColorPrint.yellow(f"[ScrcpyServerDownloader] WARNING: File may be corrupted (check size)")
+            ColorPrint.green(f"[ScrcpyServerDownloader] ✓ Saved to: {self.target_path}")
+            ColorPrint.green("=" * 80)
+        else:
             print()  # New line before error
             ColorPrint.red("=" * 80)
-            ColorPrint.red(f"[ScrcpyServerDownloader] ✗ Download failed: {e}")
+            ColorPrint.red(f"[ScrcpyServerDownloader] ✗ Download failed")
             ColorPrint.red("=" * 80)
-            return False
-        except Exception as e:
-            print()  # New line before error
-            ColorPrint.red("=" * 80)
-            ColorPrint.red(f"[ScrcpyServerDownloader] ✗ Unexpected error: {e}")
-            ColorPrint.red("=" * 80)
-            return False
+
+        return success
 
     def ensure_available(self, auto_download: bool = True) -> bool:
         """
