@@ -40,12 +40,41 @@ def main_native_ui(host='0.0.0.0', port=59000, debug=False):
     """
     Main entry point using Native UI pattern (default)
 
+    Supports automatic restart via os.execv() when restart is requested via API.
+
     Args:
         host: RPC v2 server host
         port: RPC v2 server port
         debug: Debug mode
     """
+    import os
+
+    # Start the application (blocks until shutdown)
     start(host=host, port=port, debug=debug)
+
+    # After shutdown completes, check if restart was requested
+    if THREAD_BUS.is_restart_requested():
+        ColorPrint.yellow("=" * 70)
+        ColorPrint.yellow("[Main] Restart requested, restarting process...")
+        ColorPrint.yellow("=" * 70)
+
+        # Small delay to ensure all resources are released
+        time.sleep(0.5)
+
+        # Restart process using os.execv()
+        # This replaces the current process with a new one (works in low privilege)
+        python = sys.executable
+        args = [python] + sys.argv
+
+        ColorPrint.green(f"[Main] Restarting with: {' '.join(args)}")
+
+        try:
+            os.execv(python, args)
+        except Exception as e:
+            ColorPrint.red(f"[Main] Failed to restart process: {e}")
+            ColorPrint.yellow("[Main] Please restart manually")
+    else:
+        ColorPrint.blue("[Main] Shutdown complete (no restart requested)")
 
 
 def main_legacy(host='0.0.0.0', port=59000, debug=False):
@@ -110,6 +139,29 @@ def main_legacy(host='0.0.0.0', port=59000, debug=False):
     ColorPrint.blue("[Main] Shutting down all services...")
     launcher.stop()
     ColorPrint.green("[Main] Shutdown complete")
+
+    # Check if restart was requested
+    if THREAD_BUS.is_restart_requested():
+        import os
+
+        ColorPrint.yellow("=" * 70)
+        ColorPrint.yellow("[Main] Restart requested, restarting process...")
+        ColorPrint.yellow("=" * 70)
+
+        # Small delay to ensure all resources are released
+        time.sleep(0.5)
+
+        # Restart process using os.execv()
+        python = sys.executable
+        args = [python] + sys.argv
+
+        ColorPrint.green(f"[Main] Restarting with: {' '.join(args)}")
+
+        try:
+            os.execv(python, args)
+        except Exception as e:
+            ColorPrint.red(f"[Main] Failed to restart process: {e}")
+            ColorPrint.yellow("[Main] Please restart manually")
 
 
 if __name__ == '__main__':

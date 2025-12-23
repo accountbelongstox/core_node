@@ -954,6 +954,25 @@ main() {
     print_step_from_common_functions "Checking urllib3 compatibility for certbot..."
     check_urllib3_for_certbot
 
+    # IDEMPOTENCY: Install/upgrade edge-tts for TTS functionality
+    print_step_from_common_functions "Installing/upgrading edge-tts for TTS functionality..."
+    if python3 -m pip install --upgrade --break-system-packages --no-user edge-tts >/dev/null 2>&1; then
+        local edge_tts_version=$(python3 -m pip show edge-tts 2>/dev/null | grep "^Version:" | awk '{print $2}')
+        if [ -n "$edge_tts_version" ]; then
+            print_success_from_common_functions "edge-tts $edge_tts_version installed successfully"
+            # Verify edge-tts works
+            if /usr/bin/python3 -m edge_tts --help >/dev/null 2>&1; then
+                print_success_from_common_functions "edge-tts module verified working"
+            else
+                print_warning_from_common_functions "edge-tts installed but module verification failed"
+            fi
+        else
+            print_success_from_common_functions "edge-tts installed successfully"
+        fi
+    else
+        print_warning_from_common_functions "Failed to install edge-tts, continuing anyway"
+    fi
+
     print_success_from_common_functions "Python environment setup complete!"
     if [ -d "$VENV_DIR" ] && [ -f "$VENV_PYTHON3" ]; then
         print_info_from_common_functions "Using Python virtual environment: $VENV_DIR"

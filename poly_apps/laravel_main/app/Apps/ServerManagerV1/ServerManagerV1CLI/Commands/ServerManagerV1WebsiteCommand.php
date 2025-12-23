@@ -208,43 +208,45 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                     exec("systemctl is-active $serviceName 2>/dev/null", $output, $return_code);
                     $serviceActive = ($return_code === 0);
 
+                    // IDEMPOTENT DESIGN: Always regenerate service configuration
+                    // This ensures configuration fixes (ProtectSystem, ReadWritePaths) are applied
+                    // regardless of service state (running, stopped, or failed)
+                    // Requirement: "反复运行时要修复问题，不能因为修复一个完成而跳过另一个"
+                    $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+
+                    // STEP 1: ALWAYS regenerate service file with latest configuration
+                    // SYNC: This will use latest PHP code with ProtectSystem=full (Line 656)
+                    ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
+                        $wwwDir,
+                        $port,
+                        $workers,
+                        $wwwDir,
+                        null,
+                        null,
+                        $description
+                    );
+
+                    // STEP 2: ALWAYS reload systemd daemon to pick up configuration changes
+                    exec('systemctl daemon-reload 2>&1');
+
+                    // STEP 3: Start or restart service based on current state
                     if ($serviceActive) {
-                        // Service already running, update description to include all domains
-                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+                        // Service was running, restart to apply configuration changes
+                        exec("systemctl restart $serviceName 2>&1", $output, $code);
 
-                        // Regenerate service file with updated description
-                        ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
-                            $wwwDir,
-                            $port,
-                            $workers,
-                            $wwwDir,
-                            null,
-                            null,
-                            $description
-                        );
-
-                        // Reload systemd daemon to pick up the updated description
-                        exec('systemctl daemon-reload 2>&1');
-
-                        $this->info("Swoole service shared (service: $serviceName, port: $port, domains: $domainCount)");
-                    } else {
-                        // Service not running, start it
-                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
-
-                        $deployed = ServerManagerV1OctaneServiceManager::deployOctaneServiceFromPath(
-                            $wwwDir,
-                            $port,
-                            $workers,
-                            $wwwDir,
-                            null,
-                            null,
-                            $description
-                        );
-
-                        if ($deployed) {
-                            $this->info("Swoole service started (service: $serviceName, port: $port, workers: $workers, domains: $domainCount)");
+                        if ($code === 0) {
+                            $this->info("Swoole service restarted with updated config (service: $serviceName, port: $port, domains: $domainCount)");
                         } else {
-                            $this->warn("Failed to start Swoole service");
+                            $this->warn("Service config updated but restart failed - manual restart may be needed");
+                        }
+                    } else {
+                        // Service was not running, start it
+                        $started = ServerManagerV1OctaneServiceManager::startOctaneService($serviceName);
+
+                        if ($started) {
+                            $this->info("Swoole service started with updated config (service: $serviceName, port: $port, workers: $workers, domains: $domainCount)");
+                        } else {
+                            $this->warn("Failed to start Swoole service after config update");
                         }
                     }
                 }

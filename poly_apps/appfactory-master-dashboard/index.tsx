@@ -3,6 +3,21 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AppProvider } from './contexts/AppContext';
+import { apiManager } from './services/ApiManager';
+
+// 初始化API管理器
+apiManager.initialize({
+  autoDetect: true,
+  timeout: 1000,
+  testPath: '/',
+}).then(() => {
+  // 启动后台健康检查（每60秒检查一次）
+  apiManager.startHealthCheck(60000);
+  
+  console.log('API Manager initialized. Current endpoint:', apiManager.getCurrentEndpoint()?.description);
+}).catch((error) => {
+  console.error('Failed to initialize API Manager:', error);
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

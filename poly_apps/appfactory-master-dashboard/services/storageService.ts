@@ -10,6 +10,8 @@ export const STORAGE_KEYS = {
   USER_INFO: 'app_user_info',
   AUTH_TOKEN: 'app_auth_token',
   SETTINGS: 'app_settings',
+  API_USER_SELECTED: 'api_user_selected',
+  API_AUTO_DETECTED: 'api_auto_detected',
 } as const;
 
 // 用户信息类型

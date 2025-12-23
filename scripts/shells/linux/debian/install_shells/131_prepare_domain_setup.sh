@@ -314,7 +314,7 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    # Trust that pnpm is available via global variables (信任式编�?
+    # Trust that pnpm is available via global variables (信任式编�?
     pnpm_cmd="${PNPM_BIN:-$NODE_BIN_DIR/pnpm}"
     echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
 
@@ -354,6 +354,66 @@ if [ -d "$laravel_dir" ]; then
     cd - >/dev/null
 else
     echo "[$SCRIPT_INDEX] [ERROR] Laravel directory not found"
+fi
+
+# IDEMPOTENT: Check and refresh Octane service configuration
+# This ensures service configuration is always up-to-date with latest code
+# Requirement: "131 就要启动服务，反复运行时要修复问题"
+echo ""
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX] CHECKING OCTANE SERVICE"
+echo "[$SCRIPT_INDEX] =================================="
+
+laravel_dir=$(get_laravel_dir)
+if [ -d "$laravel_dir" ]; then
+    cd "$laravel_dir" || exit 1
+
+    # Check if any Octane services exist
+    echo "[$SCRIPT_INDEX] Checking for existing Octane services..."
+    octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep "octane-poly" | head -1)
+
+    if [ -n "$octane_services" ]; then
+        echo "[$SCRIPT_INDEX] Found existing Octane service"
+        echo "[$SCRIPT_INDEX] Refreshing service configuration (idempotent)..."
+
+        # Get first API domain from database to trigger service refresh
+        # Fixed query: simpler grep pattern for "Website: domain.com"
+        first_domain=$($USE_SUDO php artisan servermanager:website list 2>/dev/null | grep "^Website:" | head -1 | awk '{print $2}')
+
+        if [ -n "$first_domain" ]; then
+            echo "[$SCRIPT_INDEX] Using domain: $first_domain"
+            echo "[$SCRIPT_INDEX] Regenerating service configuration with latest settings..."
+
+            # This triggers the idempotent logic in ServerManagerV1WebsiteCommand.php
+            # STEP 1: Regenerates service file with ProtectSystem=full
+            # STEP 2: Reloads systemd daemon
+            # STEP 3: Restarts service to apply changes
+            $USE_SUDO php artisan servermanager:website add "$first_domain" \
+                --type=poly --ssl=auto --php-mode=swoole 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config" | while read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            echo "[$SCRIPT_INDEX] Service configuration refreshed"
+
+            # Verify service is running
+            service_status=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "● octane-poly")
+            if echo "$service_status" | grep -q "●"; then
+                echo "[$SCRIPT_INDEX] ✓ Octane service is active"
+            else
+                echo "[$SCRIPT_INDEX] ⚠ Octane service may need manual check"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] ERROR: No domains found in database"
+            echo "[$SCRIPT_INDEX] Cannot refresh service without domain"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] No existing Octane service found"
+        echo "[$SCRIPT_INDEX] Service will be created when domains are added"
+    fi
+
+    cd - >/dev/null
+else
+    echo "[$SCRIPT_INDEX] Laravel directory not found, skipping service check"
 fi
 
 # Display summary

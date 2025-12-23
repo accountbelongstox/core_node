@@ -65,20 +65,6 @@ class SystemUserDetector
             ];
         }
 
-        if (self::isSystemdRestrictedEnvironment()) {
-            self::$cachedUser = $currentUser['name'];
-            self::$cachedUid = $currentUser['uid'];
-            self::$cachedGid = $currentUser['gid'];
-
-            self::saveCacheFile();
-
-            return [
-                'username' => self::$cachedUser,
-                'uid' => self::$cachedUid,
-                'gid' => self::$cachedGid
-            ];
-        }
-
         \Log::info('[SystemUserDetector] Starting desktop user detection');
         $detectedUser = self::detectDesktopUser();
         \Log::info('[SystemUserDetector] Desktop user detection completed', ['user' => $detectedUser]);
@@ -132,9 +118,25 @@ class SystemUserDetector
 
     private static function detectDesktopUser(): ?array
     {
-        $homeBase = '/home';
+        $whoOutput = trim(shell_exec('who am i 2>/dev/null | awk \'{print $1}\' | head -1'));
 
-        if (!is_dir($homeBase) || !is_readable($homeBase)) {
+        if (empty($whoOutput) || $whoOutput === 'root') {
+            $whoOutput = trim(shell_exec('who 2>/dev/null | grep -v root | awk \'{print $1}\' | head -1'));
+        }
+
+        if (!empty($whoOutput) && $whoOutput !== 'root') {
+            $userInfo = posix_getpwnam($whoOutput);
+            if ($userInfo !== false) {
+                return [
+                    'username' => $whoOutput,
+                    'uid' => $userInfo['uid'],
+                    'gid' => $userInfo['gid']
+                ];
+            }
+        }
+
+        $homeBase = '/home';
+        if (!is_dir($homeBase)) {
             return null;
         }
 

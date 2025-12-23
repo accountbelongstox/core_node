@@ -45,8 +45,7 @@ class TTSController extends Controller
             options: $request->input('options', [])
         );
 
-        // Service returns pre-formatted response
-        return response()->json($result);
+        return $this->success($result, 'Audio generated successfully');
     }
     
     public function batchGenerate(Request $request): JsonResponse
@@ -72,8 +71,7 @@ class TTSController extends Controller
         
         $result = $this->ttsService->checkGeneration($request->input('audio_path'));
 
-        // Service returns pre-formatted response
-        return response()->json($result);
+        return $this->success($result, 'Generation status retrieved successfully');
     }
     
     public function batchCheck(Request $request): JsonResponse

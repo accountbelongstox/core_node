@@ -36,7 +36,7 @@ from pycore.pyutils.native_ui.step2_port_url import register_port_range
 from pycore.callmodule.callmodule_config import Config
 
 # Import all routers
-# Management Layer (8 routers)
+# Management Layer (9 routers)
 from pycore.callmodule.routers.management import (
     status_router,
     config_router,
@@ -46,6 +46,7 @@ from pycore.callmodule.routers.management import (
     local_config_router,
     local_stats_router,
     local_test_router,
+    heartbeat_router,
 )
 
 # Local Processing Layer (5 routers)
@@ -75,11 +76,77 @@ def callmodule_main_entry():
     Callmodule main entry point (called after native_ui initialization)
 
     Used to register event handlers and perform application-specific initialization.
+
+    Idempotent: This function can be called multiple times safely.
+    All operations within are designed to be idempotent.
     """
     ColorPrint.green("[Callmodule] Main entry initialized")
 
     # Register event handlers (from existing event_handlers.py)
     # Note: Event handlers will be registered via on_ready_callbacks instead
+
+    # Ensure PyHeartbeat system is running (idempotent)
+    _ensure_heartbeat_running()
+
+    # Register TTS queue poller callback (idempotent)
+    _register_tts_queue_poller()
+
+
+def _ensure_heartbeat_running():
+    """
+    Ensure PyHeartbeat system is running (Idempotent)
+
+    This function checks if PyHeartbeat is running and starts it if needed.
+    Can be called multiple times safely - will not restart if already running.
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+
+    heartbeat = get_heartbeat_system()
+
+    if not heartbeat.is_running():
+        ColorPrint.blue("[Callmodule] Starting PyHeartbeat system...")
+        heartbeat.start()
+        ColorPrint.green("[Callmodule] PyHeartbeat started")
+    else:
+        ColorPrint.blue("[Callmodule] PyHeartbeat already running")
+
+
+def _register_tts_queue_poller():
+    """
+    Register TTS queue poller callback to PyHeartbeat (Idempotent)
+
+    This function registers the TTS queue poller callback with PyHeartbeat.
+    Can be called multiple times safely - will overwrite existing callback
+    with the same name.
+
+    Architecture:
+    - Callback name: 'tts_queue_poller'
+    - Interval: 60 seconds
+    - Initial state: disabled (controlled by WEB UI)
+    - Control: via /api/heartbeat/enable and /api/heartbeat/disable
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_tts_queue_poller_service
+
+    # Get PyHeartbeat system
+    heartbeat = get_heartbeat_system()
+
+    # Get TTS poller service singleton (idempotent initialization)
+    poller = get_tts_queue_poller_service(laravel_api_url="http://localhost:8000")
+
+    # Register callback (idempotent - overwrites if already registered)
+    heartbeat.register_callback(
+        name='tts_queue_poller',
+        callback=poller.poll_and_process,
+        interval=60,  # 60 seconds
+        enabled=False  # Initially disabled - controlled by WEB UI
+    )
+
+    ColorPrint.green("[Callmodule] Registered TTS queue poller callback")
+    ColorPrint.blue("  - Callback name: tts_queue_poller")
+    ColorPrint.blue("  - Interval: 60 seconds")
+    ColorPrint.blue("  - Initial state: disabled")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/enable/tts_queue_poller")
 
 
 def start(host='0.0.0.0', port=59000, debug=False):
@@ -99,7 +166,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     Config.RPC_HOST = host
     Config.RPC_PORT = port
 
-    ColorPrint.green("[Callmodule] 19 routers available")
+    ColorPrint.green("[Callmodule] 20 routers available")
 
     # Register custom port range for callmodule (matches config.py configuration)
     # This ensures Native UI uses the correct singleton port range
@@ -177,7 +244,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
         rpc_host=host,
         rpc_debug=debug,
         rpc_routers=[
-            # === Management Layer (8 routers) ===
+            # === Management Layer (9 routers) ===
             status_router,
             config_router,
             control_router,
@@ -186,6 +253,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
             local_config_router,
             local_stats_router,
             local_test_router,
+            heartbeat_router,
             # === Local Processing Layer (5 routers) ===
             screenshot_router,
             image_router,
@@ -249,7 +317,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     if IS_WINDOWS:
         native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
         ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
-    ColorPrint.blue(f"  - Total routers: 19")
+    ColorPrint.blue(f"  - Total routers: 20")
 
     # One-click launch (native_ui handles everything)
     ColorPrint.green("[Callmodule] Launching application...")

@@ -38,7 +38,8 @@ ensure_required_dirs() {
             mkdir -p "$full_path"
         fi
         echo "Setting permissions for: $full_path"
-        chown -R www-data:www-data "$full_path"
+        local detected_user=$(detect_system_user)
+        chown -R ${detected_user}:${detected_user} "$full_path"
         chmod 755 "$full_path"
     done
     
