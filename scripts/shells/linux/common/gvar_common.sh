@@ -26,6 +26,56 @@ WSL_USERS_PATH="/mnt/c/Users"
 ACTUAL_DESKTOP_USER=""
 ACTUAL_DESKTOP_USER_HOME=""
 
+# IDEMPOTENCY: Detect actual system user dynamically (excludes system/service users)
+detect_system_user() {
+    local excluded_users=("git" "nginx" "www-data" "mysql" "postgres" "redis" "mongodb" "docker" "systemd-network" "systemd-resolve" "systemd-timesync" "_apt" "backup" "bin" "daemon" "games" "gnats" "irc" "list" "lp" "mail" "man" "news" "proxy" "sync" "sys" "uucp" "sshd" "postfix" "ftp" "nobody" "nogroup" "root")
+
+    # Check SUDO_USER first
+    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+        for excluded in "${excluded_users[@]}"; do
+            [[ "$SUDO_USER" == "$excluded" ]] && break
+        done
+        if [[ "$SUDO_USER" != "$excluded" ]]; then
+            echo "$SUDO_USER"
+            return 0
+        fi
+    fi
+
+    # Check current USER
+    if [[ "$USER" != "root" ]]; then
+        for excluded in "${excluded_users[@]}"; do
+            [[ "$USER" == "$excluded" ]] && break
+        done
+        if [[ "$USER" != "$excluded" ]]; then
+            echo "$USER"
+            return 0
+        fi
+    fi
+
+    # Prefer ubuntu if exists
+    if [[ -d "/home/ubuntu" ]]; then
+        echo "ubuntu"
+        return 0
+    fi
+
+    # Find any real user in /home
+    for user_home in /home/*; do
+        if [[ -d "$user_home" ]]; then
+            local username=$(basename "$user_home")
+            for excluded in "${excluded_users[@]}"; do
+                [[ "$username" == "$excluded" ]] && break
+            done
+            if [[ "$username" != "$excluded" ]]; then
+                echo "$username"
+                return 0
+            fi
+        fi
+    done
+
+    # Final fallback
+    echo "ubuntu"
+}
+
 # Check and set sudo
 if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
@@ -1047,7 +1097,8 @@ map_web_path() {
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
-                    $USE_SUDO chown www-data:www-data "$mapped_path" 2>/dev/null || true
+                    local detected_user=$(detect_system_user)
+                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
                 fi
                 $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
             fi
@@ -1061,7 +1112,8 @@ map_web_path() {
                 $USE_SUDO mkdir -p "$mapped_path"
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
-                    $USE_SUDO chown www-data:www-data "$mapped_path" 2>/dev/null || true
+                    local detected_user=$(detect_system_user)
+                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
                 fi
                 $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
             fi
@@ -1076,7 +1128,8 @@ map_web_path() {
 ensure_web_directory() {
     local path_key="$1"
     local permissions="${2:-755}"
-    local owner="${3:-www-data:www-data}"
+    local detected_user=$(detect_system_user)
+    local owner="${3:-${detected_user}:${detected_user}}"
 
     # Map to appropriate path using string key
     local actual_path=$(map_web_path "$path_key")

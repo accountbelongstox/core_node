@@ -3,9 +3,10 @@
  * Allows users to manage app settings (language, theme, etc.)
  */
 import React, { useState } from 'react';
-import { X, Globe, Moon, Sun, Bell, RefreshCw } from 'lucide-react';
+import { X, Globe, Moon, Sun, Bell, RefreshCw, Server } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { SUPPORTED_LANGUAGES } from '../services/i18nService';
+import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -164,6 +165,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   />
                 </button>
               </label>
+            </div>
+          </div>
+
+          {/* API Settings */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+              <Server className="w-5 h-5" />
+              API端点设置
+            </h3>
+            <div className="mb-6">
+              <label className="flex items-center text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <Server className="w-4 h-4 mr-2" />
+                当前API端点
+              </label>
+              <ApiEndpointSwitcher />
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                系统会自动检测可用的API服务器，您也可以手动选择端点
+              </p>
             </div>
           </div>
         </div>

@@ -687,6 +687,42 @@ class ThreadBus:
         if execute_handlers:
             self.execute_shutdown(reason)
 
+    def request_restart(
+        self,
+        reason: str = "User requested restart",
+        execute_handlers: bool = True
+    ) -> None:
+        """
+        Request global application restart
+
+        Sets restart flag and triggers shutdown sequence.
+        After shutdown completes, the application should restart using os.execv().
+
+        Args:
+            reason: Reason for restart
+            execute_handlers: If True, execute shutdown handlers immediately
+
+        Example:
+            # Request restart via API
+            THREAD_BUS.request_restart("API restart request")
+
+            # In main loop after shutdown:
+            if THREAD_BUS.is_restart_requested():
+                import os, sys
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+        """
+        with self._lock:
+            self._restart_requested = True
+
+        # Signal restart (in addition to shutdown)
+        self.signal('global.restart.requested', {
+            'reason': reason,
+            'requester_thread_id': threading.get_ident()
+        })
+
+        # Request shutdown with restart flag set
+        self.request_shutdown(reason, execute_handlers)
+
     def is_shutdown_requested(self) -> bool:
         """
         Check if global shutdown has been requested

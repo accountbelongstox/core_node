@@ -356,6 +356,7 @@ class UserSyncService
                     $table->text('uk_phonetic')->nullable();
                     $table->text('tts_files')->nullable();
                     $table->string('tts_provider', 50)->nullable();
+                    $table->boolean('has_audio')->default(false);
                     $table->text('image_files')->nullable();
                     $table->string('image_provider', 50)->nullable();
                     $table->text('word_details')->nullable();
@@ -370,11 +371,20 @@ class UserSyncService
                     $table->index('content');
                     $table->index(['query_count'], null, 'desc');
                     $table->index('has_translation');
+                    $table->index('has_audio');
                 });
 
                 $results[$tableName] = 'created';
             } else {
-                $results[$tableName] = 'exists';
+                if (!$schema->hasColumn($tableName, 'has_audio')) {
+                    $schema->table($tableName, function ($table) {
+                        $table->boolean('has_audio')->default(false)->after('tts_provider');
+                        $table->index('has_audio');
+                    });
+                    $results[$tableName] = 'migrated';
+                } else {
+                    $results[$tableName] = 'exists';
+                }
             }
 
             if ($progressCallback && $current % 10 === 0) {

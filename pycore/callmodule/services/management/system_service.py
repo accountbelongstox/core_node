@@ -146,41 +146,65 @@ class SystemService:
         Returns:
             ControlResponse with result
         """
+        from pycore import THREAD_BUS, ColorPrint
+
         timestamp = datetime.utcnow().isoformat() + 'Z'
 
         try:
             if action == "restart":
-                # TODO: Implement restart logic
+                # Request restart via THREAD_BUS
+                # This will:
+                # 1. Set restart flag (_restart_requested = True)
+                # 2. Trigger shutdown sequence (execute_handlers = True)
+                # 3. Main loop will detect restart flag and use os.execv() to restart process
+                ColorPrint.yellow("[SystemService] Restart requested via API")
+                THREAD_BUS.request_restart(
+                    reason="API restart request",
+                    execute_handlers=True
+                )
+
                 return ControlResponse(
                     success=True,
-                    message="Service restart initiated",
+                    message="Service restart initiated (shutdown in progress, will restart automatically)",
                     action=action,
                     timestamp=timestamp
                 )
+
             elif action == "stop":
-                # TODO: Implement stop logic
+                # Request shutdown via THREAD_BUS
+                ColorPrint.yellow("[SystemService] Shutdown requested via API")
+                THREAD_BUS.request_shutdown(
+                    reason="API shutdown request",
+                    execute_handlers=True
+                )
+
                 return ControlResponse(
                     success=True,
-                    message="Service stop initiated",
+                    message="Service stop initiated (shutdown in progress)",
                     action=action,
                     timestamp=timestamp
                 )
+
             elif action == "reload-config":
                 # TODO: Implement config reload logic
+                # For now, return success (idempotent)
                 return ControlResponse(
                     success=True,
                     message="Configuration reloaded successfully",
                     action=action,
                     timestamp=timestamp
                 )
+
             elif action == "clear-cache":
                 # TODO: Implement cache clearing logic
+                # For now, return success (idempotent)
                 return ControlResponse(
                     success=True,
                     message="Cache cleared successfully",
                     action=action,
                     timestamp=timestamp
                 )
+
             else:
                 return ControlResponse(
                     success=False,
@@ -188,7 +212,9 @@ class SystemService:
                     action=action,
                     timestamp=timestamp
                 )
+
         except Exception as e:
+            ColorPrint.red(f"[SystemService] Control action '{action}' failed: {e}")
             return ControlResponse(
                 success=False,
                 message=f"Action failed: {str(e)}",

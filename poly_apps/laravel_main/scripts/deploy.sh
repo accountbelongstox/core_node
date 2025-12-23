@@ -615,7 +615,7 @@ initialize_system_directories() {
             if [ "$IS_WSL" = true ]; then
                 $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
             else
-                $USE_SUDO chown $USER:www-data "$dir" 2>/dev/null || {
+                $USE_SUDO chown $USER:$USER "$dir" 2>/dev/null || {
                     $USE_SUDO chmod 777 "$dir" 2>/dev/null || true
                 }
                 $USE_SUDO chmod 775 "$dir" 2>/dev/null || true
@@ -624,7 +624,7 @@ initialize_system_directories() {
             if [ "$IS_WSL" = true ]; then
                 $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
             else
-                $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
+                $USE_SUDO chown -R $USER:$USER "$dir" 2>/dev/null || {
                     $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
                 }
                 $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
@@ -681,7 +681,7 @@ initialize_laravel_directories() {
         if [ "$IS_WSL" = true ]; then
             $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
         else
-            $USE_SUDO chown -R $USER:www-data "$dir" 2>/dev/null || {
+            $USE_SUDO chown -R $USER:$USER "$dir" 2>/dev/null || {
                 $USE_SUDO chmod -R 777 "$dir" 2>/dev/null || true
             }
             $USE_SUDO chmod -R 775 "$dir" 2>/dev/null || true
@@ -717,7 +717,7 @@ check_initialization() {
         $USE_SUDO chmod -R 777 storage bootstrap/cache 2>/dev/null || true
         $USE_SUDO chmod -R 777 "$www_root/laravel_db" 2>/dev/null || true
     else
-        $USE_SUDO chown -R $USER:www-data storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
+        $USE_SUDO chown -R $USER:$USER storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
         $USE_SUDO chmod -R 775 storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
     fi
 

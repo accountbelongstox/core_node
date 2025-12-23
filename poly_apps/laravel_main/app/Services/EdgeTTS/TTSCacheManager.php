@@ -3,6 +3,7 @@
 namespace App\Services\EdgeTTS;
 
 use Illuminate\Support\Facades\Log;
+use App\Utils\FileSystemManager;
 
 class TTSCacheManager
 {
@@ -63,10 +64,10 @@ class TTSCacheManager
     
     private function loadDb(string $dbFile): void
     {
-        if (file_exists($dbFile)) {
-            $content = file_get_contents($dbFile);
+        if (FileSystemManager::exists($dbFile)) {
+            $content = FileSystemManager::readFile($dbFile);
             $data = json_decode($content, true);
-            
+
             if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
                 $this->cache[$dbFile] = $data;
             } else {
@@ -81,12 +82,10 @@ class TTSCacheManager
     private function saveDb(string $dbFile): void
     {
         $dir = dirname($dbFile);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-        
+        FileSystemManager::ensureDirectoryExists($dir, 0775);
+
         $content = json_encode($this->cache[$dbFile], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-        file_put_contents($dbFile, $content);
+        FileSystemManager::writeFile($dbFile, $content);
     }
     
     private $deferredSaves = [];
@@ -140,14 +139,14 @@ class TTSCacheManager
     public function getStats(string $langCode, string $textType): array
     {
         $dbFile = $this->getDbFilePath($langCode, $textType);
-        
+
         if (!isset($this->cache[$dbFile])) {
             $this->loadDb($dbFile);
         }
-        
+
         $count = count($this->cache[$dbFile]);
-        $totalSize = file_exists($dbFile) ? filesize($dbFile) : 0;
-        
+        $totalSize = FileSystemManager::exists($dbFile) ? FileSystemManager::filesize($dbFile) : 0;
+
         return [
             'language' => $langCode,
             'type' => $textType,
@@ -189,19 +188,19 @@ class TTSCacheManager
     public function clearCache(string $langCode = null, string $textType = null): int
     {
         $cleared = 0;
-        
+
         if ($langCode && $textType) {
             $dbFile = $this->getDbFilePath($langCode, $textType);
-            if (file_exists($dbFile)) {
-                unlink($dbFile);
+            if (FileSystemManager::exists($dbFile)) {
+                FileSystemManager::delete($dbFile);
                 unset($this->cache[$dbFile]);
                 $cleared = 1;
             }
         } elseif ($langCode) {
             foreach (EdgeTTSService::TEXT_TYPES as $type) {
                 $dbFile = $this->getDbFilePath($langCode, $type);
-                if (file_exists($dbFile)) {
-                    unlink($dbFile);
+                if (FileSystemManager::exists($dbFile)) {
+                    FileSystemManager::delete($dbFile);
                     unset($this->cache[$dbFile]);
                     $cleared++;
                 }
@@ -210,15 +209,15 @@ class TTSCacheManager
             foreach (array_keys(EdgeTTSService::VOICES) as $lang) {
                 foreach (EdgeTTSService::TEXT_TYPES as $type) {
                     $dbFile = $this->getDbFilePath($lang, $type);
-                    if (file_exists($dbFile)) {
-                        unlink($dbFile);
+                    if (FileSystemManager::exists($dbFile)) {
+                        FileSystemManager::delete($dbFile);
                         unset($this->cache[$dbFile]);
                         $cleared++;
                     }
                 }
             }
         }
-        
+
         return $cleared;
     }
 }

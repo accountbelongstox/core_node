@@ -88,6 +88,7 @@ class FrontendLauncherThread(threading.Thread):
 
         self.config = config
         self.process: Optional[subprocess.Popen] = None
+        self._process_lock = threading.Lock()  # Protect process access
         self.ready_event = threading.Event()
         self.error_event = threading.Event()
         self.running = False
@@ -102,22 +103,52 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.blue(f"[FrontendThread] App directory: {config.app_dir}")
 
     def _on_singleton_shutdown_request(self):
-        """Called when another frontend requests this one to shutdown"""
+        """
+        Called when another frontend requests this one to shutdown
+
+        This is just a notification callback - actual shutdown is handled by THREAD_BUS
+        The frontend singleton detector will call THREAD_BUS.request_shutdown()
+        which triggers all shutdown handlers in priority order
+
+        Just set flags here to help run() exit early
+        """
         ColorPrint.yellow("[FrontendThread] Singleton shutdown requested by new frontend instance")
+
+        # Set flags to help run() exit early if it's still starting up
         self._shutdown_requested.set()
+        self.running = False
 
-        # Trigger frontend shutdown via THREAD_BUS
-        THREAD_BUS.trigger_event('frontend.singleton.shutdown', {
-            'reason': 'New frontend instance detected',
-            'port': self.singleton_detector.get_port() if self.singleton_detector else None
-        })
+        # Don't call stop() here - THREAD_BUS shutdown handler will do it
+        # This callback is just for notification
 
-        # Stop frontend process
+    def _shutdown_handler(self):
+        """
+        Shutdown handler called by THREAD_BUS (runs in caller's thread)
+
+        Just set flags and call stop() - let stop() handle all the cleanup logic
+        """
+        ColorPrint.yellow("[FrontendThread] Shutdown handler called by THREAD_BUS")
+
+        self._shutdown_requested.set()
+        self.running = False
+
+        # Call stop() to handle process cleanup (it has all the polling logic)
         self.stop()
 
     def run(self):
         """Thread entry point - called by Thread.start()"""
         self.running = True
+
+        # Register shutdown handler with THREAD_BUS
+        # This ensures proper cleanup when shutdown is requested
+        # Priority=50 ensures frontend stops BEFORE RPC(70) and Singleton(95)
+        # Lower priority = stops first (子进程先关)
+        THREAD_BUS.register_shutdown_handler(
+            name='frontend',
+            handler=self._shutdown_handler,
+            priority=50  # Low priority - stop frontend FIRST
+        )
+        ColorPrint.blue("[FrontendThread] Registered shutdown handler with THREAD_BUS (priority=50)")
 
         try:
             # Step 0: Frontend singleton detection (before starting frontend)
@@ -143,10 +174,21 @@ class FrontendLauncherThread(threading.Thread):
 
             ColorPrint.green(f"[FrontendThread] Became PRIMARY frontend on singleton port {detection_result.port}")
 
+            # Check if shutdown was requested during singleton detection
+            # This can happen if new instance starts while we're in the middle of detection
+            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                ColorPrint.yellow("[FrontendThread] Shutdown requested before starting frontend, exiting...")
+                return
+
             # Step 1: Install dependencies if needed
             if self.config.auto_install:
                 ColorPrint.blue("[FrontendThread] Installing dependencies...")
                 self._ensure_dependencies()
+
+            # Check shutdown flag again before starting frontend
+            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                ColorPrint.yellow("[FrontendThread] Shutdown requested after dependency check, exiting...")
+                return
 
             # Step 2: Start frontend based on mode
             if self.config.mode == "production":
@@ -155,6 +197,19 @@ class FrontendLauncherThread(threading.Thread):
             else:
                 ColorPrint.blue("[FrontendThread] Starting dev mode...")
                 self._handle_dev_mode()
+
+            # Check if we were interrupted during frontend start
+            # _handle_dev_mode() may return early if shutdown was requested
+            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                ColorPrint.yellow("[FrontendThread] Shutdown detected after frontend start attempt, exiting...")
+                return
+
+            # Verify process actually started
+            if self.config.mode == "dev" and not self.process:
+                ColorPrint.red("[FrontendThread] Dev mode but no process created, exiting...")
+                self.error_message = "Failed to start frontend process"
+                self.error_event.set()
+                return
 
             # Step 3: Signal ready
             self.ready = True
@@ -171,8 +226,21 @@ class FrontendLauncherThread(threading.Thread):
             ColorPrint.blue("[FrontendThread] Triggered THREAD_BUS event: frontend.ready")
 
             # Keep thread alive while process runs (dev mode only)
+            # Monitor for shutdown requests while waiting
             if self.config.mode == "dev" and self.process:
-                self.process.wait()
+                ColorPrint.blue("[FrontendThread] Monitoring process, waiting for shutdown or process exit...")
+                while self.process and self.process.poll() is None:
+                    # Check for shutdown request
+                    # Note: stop() will be called by THREAD_BUS shutdown handler
+                    # We just need to break from the loop to let the thread exit
+                    if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                        ColorPrint.yellow("[FrontendThread] Shutdown requested, exiting monitoring loop...")
+                        # Break immediately - no mechanical wait!
+                        # The shutdown handler will call stop() to terminate the process
+                        break
+                    time.sleep(0.5)
+
+                ColorPrint.blue("[FrontendThread] Process monitoring loop exited")
 
         except Exception as e:
             ColorPrint.red(f"[FrontendThread] Unexpected error: {e}")
@@ -183,6 +251,12 @@ class FrontendLauncherThread(threading.Thread):
 
         finally:
             self.running = False
+
+            # Cleanup frontend process if still running
+            # This ensures vite is stopped even if we exit early
+            ColorPrint.blue("[FrontendThread] Cleaning up in finally block...")
+            self.stop()
+
             # Cleanup singleton detector
             if self.singleton_detector:
                 self.singleton_detector.stop()
@@ -395,21 +469,57 @@ class FrontendLauncherThread(threading.Thread):
         """
         Handle dev mode - start dev server (waits indefinitely for ready)
         """
+        # Check shutdown BEFORE starting anything
+        if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            ColorPrint.yellow("[FrontendThread] Shutdown requested before _handle_dev_mode, exiting...")
+            return
+
         ColorPrint.blue("[FrontendThread] Starting dev server...")
 
-        # Step 0: Force clean frontend port to prevent Vite auto-increment
+        # Step 0: Wait for frontend port to be available
+        # Frontend singleton detection should have already triggered old instance shutdown
+        # Wait for graceful shutdown instead of force killing
         ColorPrint.blue(f"[FrontendThread] Checking if port {self.config.port} is occupied...")
-        from .port_killer import is_port_available, kill_process_on_port
+        from .port_killer import is_port_available
 
         if not is_port_available(self.config.port, self.config.host):
-            ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied, cleaning...")
-            if kill_process_on_port(self.config.port, force=True):
-                ColorPrint.green(f"[FrontendThread] Port {self.config.port} cleaned successfully")
-                time.sleep(0.5)  # Wait for port to be fully released
+            ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied")
+            ColorPrint.blue(f"[FrontendThread] Waiting for old frontend instance to release port...")
+
+            # Wait up to 10 seconds for port to be released (old instance shutting down)
+            max_wait = 10.0
+            wait_interval = 0.5
+            waited = 0.0
+
+            while waited < max_wait:
+                # Check shutdown while waiting
+                if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                    ColorPrint.yellow("[FrontendThread] Shutdown requested while waiting for port, exiting...")
+                    return
+
+                time.sleep(wait_interval)
+                waited += wait_interval
+
+                if is_port_available(self.config.port, self.config.host):
+                    ColorPrint.green(f"[FrontendThread] Port {self.config.port} released after {waited:.1f}s")
+                    break
             else:
-                ColorPrint.red(f"[FrontendThread] Failed to clean port {self.config.port}")
+                # Port still occupied after timeout - old instance didn't exit
+                # This means singleton takeover failed
+                # Don't throw exception - just exit gracefully and let launcher retry
+                ColorPrint.red(f"[FrontendThread] Port {self.config.port} still occupied after {max_wait}s")
+                ColorPrint.red(f"[FrontendThread] Old instance did not release port - singleton takeover failed")
+                ColorPrint.red(f"[FrontendThread] This instance will exit to avoid conflicts")
+                self.error_message = f"Port {self.config.port} still in use - old instance not shutdown"
+                self.error_event.set()
+                return  # Exit gracefully instead of raising exception
         else:
             ColorPrint.green(f"[FrontendThread] Port {self.config.port} is available")
+
+        # Final check before starting vite
+        if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            ColorPrint.yellow("[FrontendThread] Shutdown requested before starting vite, exiting...")
+            return
 
         command = self._resolve_dev_command()
         command = _resolve_command_for_platform(command)
@@ -424,15 +534,16 @@ class FrontendLauncherThread(threading.Thread):
 
         # Start dev server with PIPE to prevent SIGPIPE and process blocking
         # We create a background thread to consume the output
-        self.process = subprocess.Popen(
-            command,
-            cwd=str(self.config.app_dir),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
-        )
+        with self._process_lock:
+            self.process = subprocess.Popen(
+                command,
+                cwd=str(self.config.app_dir),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
 
         # Start background thread to consume stdout (prevent blocking)
         def consume_output():
@@ -472,7 +583,10 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.blue(f"[FrontendThread] Dev server started (PID: {self.process.pid})")
 
         # Wait for HTTP ready (no timeout)
-        self._wait_for_http()
+        # If shutdown is requested during wait, abort immediately
+        if not self._wait_for_http():
+            ColorPrint.yellow("[FrontendThread] HTTP wait aborted due to shutdown request")
+            return
 
     def _resolve_dev_command(self) -> List[str]:
         """Resolve dev command based on framework"""
@@ -532,7 +646,7 @@ class FrontendLauncherThread(threading.Thread):
         Wait for HTTP server to be ready (no timeout, waits indefinitely)
 
         Returns:
-            True if server is ready
+            True if server is ready, False if shutdown requested
         """
         path = self.config.health_path
         host = "localhost"  # Always use localhost for health check
@@ -543,6 +657,11 @@ class FrontendLauncherThread(threading.Thread):
 
         check_count = 0
         while True:
+            # Check for shutdown before attempting HTTP check
+            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                ColorPrint.yellow("[FrontendThread] Shutdown requested during HTTP wait, aborting...")
+                return False
+
             check_count += 1
             if self._http_ok(host, port, path):
                 ColorPrint.green(f"[FrontendThread] Frontend ready at http://{host}:{port}")
@@ -595,15 +714,84 @@ class FrontendLauncherThread(threading.Thread):
         return True
 
     def stop(self):
-        """Stop frontend process"""
-        if self.process:
-            ColorPrint.yellow("[FrontendThread] Stopping frontend process...")
-            self.process.terminate()
-            self.process.wait(timeout=5)
-            self.process = None
+        """Stop frontend process gracefully (thread-safe)"""
+        with self._process_lock:
+            if not self.process:
+                ColorPrint.gray("[FrontendThread] No process to stop (already stopped or not started)")
+                self.running = False
+                return
 
-        self.running = False
-        ColorPrint.green("[FrontendThread] Frontend stopped")
+            ColorPrint.yellow("[FrontendThread] Stopping frontend process...")
+
+            try:
+                pid = self.process.pid
+
+                # Step 1: Send SIGTERM
+                self.process.terminate()
+                ColorPrint.blue(f"[FrontendThread] Sent SIGTERM to process {pid}")
+
+                # Step 1.5: Close stdout/stderr pipes to allow process to exit
+                # If pipes are not closed, process may hang waiting for pipe to be read
+                try:
+                    if self.process.stdout:
+                        self.process.stdout.close()
+                    if self.process.stderr:
+                        self.process.stderr.close()
+                except Exception as pipe_err:
+                    ColorPrint.gray(f"[FrontendThread] Error closing pipes: {pipe_err}")
+
+                # Step 2: Poll to check if process exited (don't assume fixed time)
+                max_wait = 10.0
+                interval = 0.5
+                waited = 0.0
+
+                while waited < max_wait:
+                    # Check if process has exited
+                    if self.process.poll() is not None:
+                        ColorPrint.green(f"[FrontendThread] Process terminated gracefully after {waited:.1f}s")
+                        break
+
+                    time.sleep(interval)
+                    waited += interval
+                else:
+                    # Timeout - need to force kill
+                    # Don't use self.process.kill() - it has bugs
+                    # Use os.kill with SIGKILL instead
+                    ColorPrint.yellow(f"[FrontendThread] Graceful shutdown timeout after {max_wait}s")
+                    ColorPrint.yellow(f"[FrontendThread] Force killing process {pid}...")
+
+                    try:
+                        import os
+                        import signal
+                        os.kill(pid, signal.SIGKILL)
+                        ColorPrint.blue(f"[FrontendThread] Sent SIGKILL to process {pid}")
+
+                        # Poll again to verify it's dead
+                        killed_wait = 0.0
+                        killed_max = 5.0
+
+                        while killed_wait < killed_max:
+                            if self.process.poll() is not None:
+                                ColorPrint.green(f"[FrontendThread] Process force killed after {killed_wait:.1f}s")
+                                break
+
+                            time.sleep(0.5)
+                            killed_wait += 0.5
+                        else:
+                            ColorPrint.red(f"[FrontendThread] Failed to kill process {pid} even with SIGKILL")
+
+                    except ProcessLookupError:
+                        ColorPrint.green("[FrontendThread] Process already exited")
+                    except Exception as kill_err:
+                        ColorPrint.red(f"[FrontendThread] Error killing process: {kill_err}")
+
+            except Exception as e:
+                ColorPrint.red(f"[FrontendThread] Error stopping process: {e}")
+            finally:
+                self.process = None
+                self.running = False
+
+            ColorPrint.green("[FrontendThread] Frontend stopped")
 
     def is_ready(self) -> bool:
         """Check if frontend is ready"""

@@ -10,6 +10,9 @@ class AppQyV1TTSQueueModel extends Model
     protected $table = 'appqyv1_tts_queue';
 
     protected $fillable = [
+        'task_type',
+        'content_text',
+        'content_hash',
         'word',
         'word_md5',
         'language',
@@ -18,12 +21,16 @@ class AppQyV1TTSQueueModel extends Model
         'retry_count',
         'error_message',
         'audio_path',
+        'audio_files',
+        'metadata',
         'requested_at',
         'started_at',
         'completed_at',
     ];
 
     protected $casts = [
+        'audio_files' => 'array',
+        'metadata' => 'array',
         'requested_at' => 'datetime',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
@@ -35,6 +42,10 @@ class AppQyV1TTSQueueModel extends Model
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
+
+    const TYPE_WORD = 'word';
+    const TYPE_SENTENCE = 'sentence';
+    const TYPE_ARTICLE = 'article';
 
     const MAX_RETRIES = 3;
 
