@@ -7,7 +7,21 @@ import { storageService, UserInfo, AppSettings, STORAGE_KEYS } from '../services
 import { i18nService, SupportedLanguage } from '../services/i18nService';
 import { themeService, Theme } from '../services/themeService';
 import { modelService } from '../services/modelService';
-import { MOCK_PROMOTION_TRACKS, MOCK_APP_RELEASES, MOCK_PROMOTERS, MOCK_PROMOTION_RECORDS, MOCK_CS } from '../constants';
+import { 
+  MOCK_PROMOTION_TRACKS, 
+  MOCK_APP_RELEASES, 
+  MOCK_PROMOTERS, 
+  MOCK_PROMOTION_RECORDS, 
+  MOCK_CS,
+  MOCK_APPS,
+  MOCK_TECH,
+  MOCK_APP_REQUESTS,
+  MOCK_CS_APP_REVENUE,
+  MOCK_DAILY_STATS,
+  MOCK_NOTIFICATIONS,
+  MOCK_BUGS,
+  MOCK_BUILDS,
+} from '../constants';
 
 // Context State Interface
 interface AppContextState {
@@ -77,7 +91,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     // Initialize theme
     themeService.initializeTheme(theme);
 
-    // Initialize modelService data if not exists
+    // Initialize all modelService data from central data source (constants.ts)
+    // All data should be accessed through modelService, not directly from constants
+    if (!modelService.getApps() || modelService.getApps()?.length === 0) {
+      modelService.setApps(MOCK_APPS);
+    }
+    if (!modelService.getCSTeam() || modelService.getCSTeam()?.length === 0) {
+      modelService.setCSTeam(MOCK_CS);
+    }
+    if (!modelService.getTechTeam() || modelService.getTechTeam()?.length === 0) {
+      modelService.setTechTeam(MOCK_TECH);
+    }
     if (!modelService.getPromotionTracks() || modelService.getPromotionTracks()?.length === 0) {
       modelService.setPromotionTracks(MOCK_PROMOTION_TRACKS);
     }
@@ -90,8 +114,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (!modelService.getPromotionRecords() || modelService.getPromotionRecords()?.length === 0) {
       modelService.setPromotionRecords(MOCK_PROMOTION_RECORDS);
     }
-    if (!modelService.getCSTeam() || modelService.getCSTeam()?.length === 0) {
-      modelService.setCSTeam(MOCK_CS);
+    if (!modelService.getAppRequests() || modelService.getAppRequests()?.length === 0) {
+      modelService.setAppRequests(MOCK_APP_REQUESTS);
+    }
+    if (!modelService.getCSAppRevenue() || modelService.getCSAppRevenue()?.length === 0) {
+      modelService.setCSAppRevenue(MOCK_CS_APP_REVENUE);
+    }
+    if (!modelService.getDailyStats() || modelService.getDailyStats()?.length === 0) {
+      modelService.setDailyStats(MOCK_DAILY_STATS);
+    }
+    if (!modelService.getNotifications() || modelService.getNotifications()?.length === 0) {
+      modelService.setNotifications(MOCK_NOTIFICATIONS);
+    }
+    if (!modelService.getBugs() || modelService.getBugs()?.length === 0) {
+      modelService.setBugs(MOCK_BUGS);
+    }
+    if (!modelService.getBuilds() || modelService.getBuilds()?.length === 0) {
+      modelService.setBuilds(MOCK_BUILDS);
     }
   }, [language, theme]);
 

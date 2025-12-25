@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AppProvider } from './contexts/AppContext';
 import { apiManager } from './services/ApiManager';
+import { Toaster } from 'sonner';
 
 // 初始化API管理器
 apiManager.initialize({
@@ -29,6 +30,17 @@ root.render(
   <React.StrictMode>
     <AppProvider>
       <App />
+      <Toaster 
+        position="top-center"
+        richColors
+        closeButton
+        toastOptions={{
+          style: {
+            background: 'var(--slate-50)',
+            border: '1px solid var(--slate-200)',
+          },
+        }}
+      />
     </AppProvider>
   </React.StrictMode>
 );

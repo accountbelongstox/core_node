@@ -172,16 +172,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
               <Server className="w-5 h-5" />
-              API端点设置
+              {t('settings.apiEndpointSettings')}
             </h3>
             <div className="mb-6">
               <label className="flex items-center text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 <Server className="w-4 h-4 mr-2" />
-                当前API端点
+                {t('settings.currentApiEndpoint')}
               </label>
               <ApiEndpointSwitcher />
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                系统会自动检测可用的API服务器，您也可以手动选择端点
+                {t('settings.autoDetectHint')}
               </p>
             </div>
           </div>

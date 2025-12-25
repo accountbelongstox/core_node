@@ -1,6 +1,19 @@
 /**
- * API管理器
- * 负责多端点自动探测、切换和管理
+ * API Manager
+ * Handles multi-endpoint auto-detection, switching and management
+ * 
+ * Strategy:
+ * - Priority 1: Local development server (localhost:9000) - Used for local debugging
+ * - Priority 2: Cloud production server (https://api.si.12gm.com) - Auto-switch when local unavailable
+ * 
+ * Workflow:
+ * 1. Auto-detect local server availability on app startup
+ * 2. Use local if available, otherwise auto-switch to cloud
+ * 3. Background health check for endpoints, automatic failover
+ * 
+ * Mock Mode:
+ * - When no endpoints are available, system falls back to mock data
+ * - Mock mode is automatically enabled when all endpoints fail
  */
 import { API_ENDPOINTS, ApiEndpoint, buildApiUrl, getEndpointById } from '../config/api-endpoints';
 import { storageService, STORAGE_KEYS } from './storageService';
@@ -22,9 +35,10 @@ class ApiManager {
   private currentEndpoint: ApiEndpoint | null = null;
   private endpointStatuses: Map<string, EndpointStatus> = new Map();
   private isInitialized = false;
+  private useMockMode = false; // Flag to indicate if mock data should be used
 
   /**
-   * 初始化API管理器
+   * Initialize API Manager
    */
   async initialize(options: ApiManagerOptions = {}): Promise<void> {
     const {
@@ -33,7 +47,7 @@ class ApiManager {
       testPath = '/',
     } = options;
 
-    // 1. 检查用户手动选择的端点（优先级最高）
+    // 1. Check user manually selected endpoint (highest priority)
     const userSelectedId = storageService.get<string>(STORAGE_KEYS.API_USER_SELECTED);
     if (userSelectedId) {
       const endpoint = getEndpointById(userSelectedId);
@@ -41,13 +55,14 @@ class ApiManager {
         const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
         if (isAvailable) {
           this.currentEndpoint = endpoint;
+          this.useMockMode = false;
           this.isInitialized = true;
           return;
         }
       }
     }
 
-    // 2. 检查自动检测的结果
+    // 2. Check auto-detected result
     const autoDetectedId = storageService.get<string>(STORAGE_KEYS.API_AUTO_DETECTED);
     if (autoDetectedId && autoDetectedId !== userSelectedId) {
       const endpoint = getEndpointById(autoDetectedId);
@@ -55,32 +70,34 @@ class ApiManager {
         const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
         if (isAvailable) {
           this.currentEndpoint = endpoint;
+          this.useMockMode = false;
           this.isInitialized = true;
           return;
         }
       }
     }
 
-    // 3. 执行自动检测
+    // 3. Execute auto-detection
     if (autoDetect) {
       const detectedEndpoint = await this.autoDetectEndpoint(timeout, testPath);
       if (detectedEndpoint) {
         this.currentEndpoint = detectedEndpoint;
+        this.useMockMode = false;
         storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, detectedEndpoint.id);
         this.isInitialized = true;
         return;
       }
     }
 
-    // 4. 如果都不可用，使用优先级最高的端点（即使不可用）
-    if (API_ENDPOINTS.length > 0) {
-      this.currentEndpoint = API_ENDPOINTS[0];
-      this.isInitialized = true;
-    }
+    // 4. If all endpoints are unavailable, enable mock mode
+    this.useMockMode = true;
+    this.currentEndpoint = null;
+    this.isInitialized = true;
+    console.warn('API Manager: No available endpoints, falling back to mock data');
   }
 
   /**
-   * 检查端点连通性
+   * Check endpoint connectivity
    */
   async checkEndpoint(
     endpoint: ApiEndpoint,
@@ -104,10 +121,10 @@ class ApiManager {
       clearTimeout(timeoutId);
       const responseTime = Date.now() - startTime;
 
-      // HTTP 2xx-4xx 都认为端点可用（能访问就算健康）
+      // HTTP 2xx-4xx are considered available (accessible means healthy)
       const isAvailable = response.status >= 200 && response.status < 500;
 
-      // 更新状态
+      // Update status
       this.endpointStatuses.set(endpoint.id, {
         endpoint,
         isAvailable,
@@ -129,13 +146,13 @@ class ApiManager {
   }
 
   /**
-   * 自动检测最佳可用端点
+   * Auto-detect best available endpoint
    */
   async autoDetectEndpoint(
     timeout: number = 1000,
     testPath: string = '/'
   ): Promise<ApiEndpoint | null> {
-    // 按优先级顺序测试
+    // Test in priority order
     for (const endpoint of API_ENDPOINTS) {
       const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
       if (isAvailable) {
@@ -146,7 +163,7 @@ class ApiManager {
   }
 
   /**
-   * 手动设置端点
+   * Manually set endpoint
    */
   setEndpoint(endpointId: string): boolean {
     const endpoint = getEndpointById(endpointId);
@@ -155,42 +172,40 @@ class ApiManager {
     }
 
     this.currentEndpoint = endpoint;
+    this.useMockMode = false;
     storageService.set(STORAGE_KEYS.API_USER_SELECTED, endpointId);
     return true;
   }
 
   /**
-   * 清除用户手动选择的端点
+   * Clear user manually selected endpoint
    */
   clearUserSelection(): void {
     storageService.remove(STORAGE_KEYS.API_USER_SELECTED);
-    // 重新初始化，使用自动检测结果
+    // Re-initialize, use auto-detection result
     this.initialize({ autoDetect: true });
   }
 
   /**
-   * 获取当前端点的base URL
+   * Get current endpoint base URL
+   * Returns empty string if in mock mode
    */
   getCurrentBaseUrl(): string {
-    if (!this.currentEndpoint) {
-      // 如果没有当前端点，返回优先级最高的端点URL
-      if (API_ENDPOINTS.length > 0) {
-        return buildApiUrl(API_ENDPOINTS[0]);
-      }
+    if (this.useMockMode || !this.currentEndpoint) {
       return '';
     }
     return buildApiUrl(this.currentEndpoint);
   }
 
   /**
-   * 获取当前端点信息
+   * Get current endpoint information
    */
   getCurrentEndpoint(): ApiEndpoint | null {
     return this.currentEndpoint;
   }
 
   /**
-   * 获取所有端点状态
+   * Get all endpoint statuses
    */
   getAllEndpointStatuses(): EndpointStatus[] {
     return API_ENDPOINTS.map(ep => {
@@ -203,25 +218,53 @@ class ApiManager {
   }
 
   /**
-   * 检查是否已初始化
+   * Check if manager is initialized
    */
   isReady(): boolean {
     return this.isInitialized;
   }
 
   /**
-   * 后台定期检查端点健康状态
+   * Check if mock mode is enabled
+   */
+  isMockMode(): boolean {
+    return this.useMockMode;
+  }
+
+  /**
+   * Enable mock mode manually
+   */
+  enableMockMode(): void {
+    this.useMockMode = true;
+    this.currentEndpoint = null;
+  }
+
+  /**
+   * Disable mock mode and try to detect endpoints again
+   */
+  async disableMockMode(options: ApiManagerOptions = {}): Promise<void> {
+    this.useMockMode = false;
+    await this.initialize(options);
+  }
+
+  /**
+   * Background periodic health check for endpoints
    */
   startHealthCheck(interval: number = 60000): void {
     setInterval(async () => {
       if (this.currentEndpoint) {
         const isAvailable = await this.checkEndpoint(this.currentEndpoint);
         if (!isAvailable) {
-          // 当前端点不可用，尝试自动检测新的端点
+          // Current endpoint unavailable, try to auto-detect new endpoint
           const newEndpoint = await this.autoDetectEndpoint();
           if (newEndpoint) {
             this.currentEndpoint = newEndpoint;
+            this.useMockMode = false;
             storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, newEndpoint.id);
+          } else {
+            // No endpoints available, enable mock mode
+            this.useMockMode = true;
+            this.currentEndpoint = null;
           }
         }
       }
@@ -229,6 +272,6 @@ class ApiManager {
   }
 }
 
-// 导出单例
+// Export singleton
 export const apiManager = new ApiManager();
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Loader2, Plus, Trash2 } from 'lucide-react';
 import { AppCategory, TechMember } from '../types';
-import { MOCK_TECH } from '../constants';
+import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 import { generateAppMarketingCopy } from '../services/geminiService';
 
@@ -106,7 +106,7 @@ export const AppGenerationForm: React.FC<AppGenerationFormProps> = ({ onClose, o
               onChange={(e) => setAppName(e.target.value)}
               required
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-              placeholder="Enter APP name"
+              placeholder={t('appGeneration.appNamePlaceholder')}
             />
           </div>
 
@@ -137,7 +137,7 @@ export const AppGenerationForm: React.FC<AppGenerationFormProps> = ({ onClose, o
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
               >
                 <option value="">{t('appGeneration.autoAssign')}</option>
-                {MOCK_TECH.map((tech) => (
+                {modelService.getTechTeam().map((tech) => (
                   <option key={tech.id} value={tech.id}>
                     {tech.name} ({tech.specialization})
                   </option>
@@ -156,7 +156,7 @@ export const AppGenerationForm: React.FC<AppGenerationFormProps> = ({ onClose, o
               required
               rows={4}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white resize-none"
-              placeholder="Describe the APP's purpose and main functionality..."
+              placeholder={t('appGeneration.descriptionPlaceholder')}
             />
           </div>
 

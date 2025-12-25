@@ -43,9 +43,9 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">客服人员列表</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('csManagement.csList')}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            共 {filteredCS.length} 名客服人员
+            {t('csManagement.totalCSMembers', { count: filteredCS.length })}
           </p>
         </div>
         <button
@@ -53,7 +53,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-bold"
         >
           <Plus size={18} />
-          添加客服
+          {t('csManagement.addCS')}
         </button>
       </div>
 
@@ -65,7 +65,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索客服姓名、级别或联系方式..."
+            placeholder={t('csManagement.searchPlaceholder')}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
           />
         </div>
@@ -74,7 +74,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
       {/* 客服人员列表 */}
       {filteredCS.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
-          <p className="text-slate-500 dark:text-slate-400">暂无客服人员</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('csManagement.noCSMembers')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -114,7 +114,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
                     <span className={`w-2 h-2 rounded-full ${
                       cs.status === 'Online' ? 'bg-emerald-500' : 'bg-slate-400'
                     }`} />
-                    <span>{cs.status === 'Online' ? '在线' : '离线'}</span>
+                    <span>{cs.status === 'Online' ? t('csManagement.online') : t('csManagement.offline')}</span>
                   </div>
                 </div>
               </div>
@@ -129,53 +129,53 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
                 {cs.joinDate && (
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar size={14} className="text-slate-400" />
-                    <span className="text-slate-600 dark:text-slate-400">加盟时间: {cs.joinDate}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{t('csManagement.joinDateLabel')} {cs.joinDate}</span>
                   </div>
                 )}
               </div>
 
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">业务金额</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.businessAmount')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">¥{cs.businessAmount?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">提成金额</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.commissionAmount')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">¥{cs.commissionAmount?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">提成%比</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.commissionRate')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">{cs.commissionPercentage || cs.commissionRate}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总价</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.totalPrice')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">¥{cs.totalPrice?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总扣单</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.totalDeduction')}</span>
                   <span className="font-bold text-rose-600 dark:text-rose-400">¥{cs.totalDeduction?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总结算价</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.totalSettlement')}</span>
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">¥{cs.totalSettlement?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">已结算</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.settled')}</span>
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">¥{cs.settledAmount?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">未结算</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('csManagement.unsettled')}</span>
                   <span className="font-bold text-amber-600 dark:text-amber-400">¥{cs.unsettledAmount?.toLocaleString() || 0}</span>
                 </div>
                 {cs.approverName && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">审批人</span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('csManagement.approver')}</span>
                     <span className="font-bold text-slate-800 dark:text-white">{cs.approverName}</span>
                   </div>
                 )}
                 {cs.paymentAddress && (
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">收款地址</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('csManagement.paymentAddressLabel')}</p>
                     <code className="text-xs text-slate-600 dark:text-slate-400 font-mono break-all">
                       {cs.paymentAddress.substring(0, 20)}...
                     </code>

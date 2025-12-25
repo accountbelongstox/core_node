@@ -4,6 +4,7 @@ import { Eye, Search, Filter, ExternalLink, QrCode } from 'lucide-react';
 import { modelService } from '../services/modelService';
 import { AppRelease } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { getAppNameById } from '../utils/dataHelpers';
 
 /**
  * APP发布列表页面
@@ -20,7 +21,9 @@ export const AppReleaseList: React.FC = () => {
 
   const filteredReleases = useMemo(() => {
     return releases.filter(release => {
-      const matchesSearch = release.appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      // Get app name from central data source
+      const appName = getAppNameById(release.appId);
+      const matchesSearch = appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            release.encryptedString?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || release.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -31,9 +34,9 @@ export const AppReleaseList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">已发布的APP</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('appReleaseList.title')}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            共 {filteredReleases.length} 个APP
+            {t('appReleaseList.totalApps', { count: filteredReleases.length })}
           </p>
         </div>
       </div>
@@ -47,7 +50,7 @@ export const AppReleaseList: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索APP名称或加密字符串..."
+              placeholder={t('appReleaseList.searchPlaceholder')}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
           </div>
@@ -58,10 +61,10 @@ export const AppReleaseList: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             >
-              <option value="all">全部状态</option>
-              <option value="released">已发布</option>
-              <option value="promoting">推广中</option>
-              <option value="completed">已完成</option>
+              <option value="all">{t('appReleaseList.statusAll')}</option>
+              <option value="released">{t('appReleaseList.statusReleased')}</option>
+              <option value="promoting">{t('appReleaseList.statusPromoting')}</option>
+              <option value="completed">{t('appReleaseList.statusCompleted')}</option>
             </select>
           </div>
         </div>
@@ -70,7 +73,7 @@ export const AppReleaseList: React.FC = () => {
       {/* APP列表 */}
       {filteredReleases.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
-          <p className="text-slate-500 dark:text-slate-400">暂无发布的APP</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('appReleaseList.noReleases')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -87,7 +90,7 @@ export const AppReleaseList: React.FC = () => {
                   <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 relative overflow-hidden">
                     <img
                       src={release.coverImage}
-                      alt={release.appName}
+                      alt={getAppNameById(release.appId)}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
@@ -97,7 +100,7 @@ export const AppReleaseList: React.FC = () => {
                 ) : (
                   <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
                     <span className="text-white text-4xl font-bold">
-                      {release.appName.charAt(0).toUpperCase()}
+                      {getAppNameById(release.appId).charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
@@ -105,15 +108,15 @@ export const AppReleaseList: React.FC = () => {
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-1">
-                      {release.appName}
+                      {getAppNameById(release.appId)}
                     </h3>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${
                       release.status === 'released' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' :
                       release.status === 'promoting' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
                       'bg-slate-100 text-slate-500 dark:bg-slate-600 dark:text-slate-400'
                     }`}>
-                      {release.status === 'released' ? '已发布' :
-                       release.status === 'promoting' ? '推广中' : '已完成'}
+                      {release.status === 'released' ? t('appReleaseList.statusReleased') :
+                       release.status === 'promoting' ? t('appReleaseList.statusPromoting') : t('appReleaseList.statusCompleted')}
                     </span>
                   </div>
 
@@ -125,11 +128,11 @@ export const AppReleaseList: React.FC = () => {
 
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span>发布时间:</span>
+                      <span>{t('appReleaseList.releasedAt')}:</span>
                       <span>{release.releasedAt}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span>发布人:</span>
+                      <span>{t('appReleaseList.releasedBy')}:</span>
                       <span>{release.releasedByName}</span>
                     </div>
                   </div>
@@ -140,14 +143,14 @@ export const AppReleaseList: React.FC = () => {
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold"
                     >
                       <Eye size={16} />
-                      查看详情
+                      {t('appReleaseList.viewDetails')}
                     </Link>
                     <a
                       href={accessUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                      title="访问APP页面"
+                      title={t('appReleaseList.viewDetails')}
                     >
                       <ExternalLink size={16} />
                     </a>

@@ -1,6 +1,6 @@
 /**
- * API端点配置
- * 定义所有可用的后端API服务器端点
+ * API Endpoint Configuration
+ * Defines all available backend API server endpoints
  */
 
 export interface ApiEndpoint {
@@ -8,13 +8,13 @@ export interface ApiEndpoint {
   url: string;
   protocol: 'http' | 'https';
   port?: number;
-  priority: number; // 1最高，数字越小优先级越高
+  priority: number; // 1 is highest, smaller number means higher priority
   isLocal: boolean;
   description: string;
 }
 
 /**
- * 构建完整的API URL
+ * Build complete API URL
  */
 export const buildApiUrl = (endpoint: ApiEndpoint): string => {
   const { protocol, url, port } = endpoint;
@@ -25,15 +25,17 @@ export const buildApiUrl = (endpoint: ApiEndpoint): string => {
 };
 
 /**
- * 根据ID获取端点
+ * Get endpoint by ID
  */
 export const getEndpointById = (id: string): ApiEndpoint | undefined => {
   return API_ENDPOINTS.find(ep => ep.id === id);
 };
 
 /**
- * 所有可用的API端点列表
- * 按优先级排序（priority越小优先级越高）
+ * All available API endpoint list
+ * Sorted by priority (smaller priority number means higher priority)
+ * 
+ * Strategy: Local first, automatically switch to cloud server when local is unavailable
  */
 export const API_ENDPOINTS: ApiEndpoint[] = [
   {
@@ -43,34 +45,16 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     port: 9000,
     priority: 1,
     isLocal: true,
-    description: '本地开发服务器',
-  },
-  {
-    id: 'lan-primary',
-    url: '192.168.50.3',
-    protocol: 'http',
-    port: 9000,
-    priority: 2,
-    isLocal: false,
-    description: '局域网主服务器',
-  },
-  {
-    id: 'lan-backup',
-    url: '192.168.50.2',
-    protocol: 'http',
-    port: 9000,
-    priority: 3,
-    isLocal: false,
-    description: '局域网备用服务器',
+    description: 'Local Development Server',
   },
   {
     id: 'cloud-production',
     url: 'api.si.12gm.com',
     protocol: 'https',
     port: undefined,
-    priority: 4,
+    priority: 2,
     isLocal: false,
-    description: '云端生产服务器',
+    description: 'Cloud Production Server',
   },
-].sort((a, b) => a.priority - b.priority); // 按优先级排序
+].sort((a, b) => a.priority - b.priority); // Sort by priority
 

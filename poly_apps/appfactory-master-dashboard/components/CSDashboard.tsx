@@ -21,20 +21,25 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useApp } from '../contexts/AppContext';
 import { UserRole, AppStatus } from '../types';
 import { StatCard } from './StatCard';
-import { MOCK_APPS, MOCK_CS, MOCK_CS_APP_REVENUE } from '../constants';
+import { modelService } from '../services/modelService';
+import { LanguageSelector } from './LanguageSelector';
 
 const CSOverview = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const cs = MOCK_CS.find(c => c.id === user?.id || 'cs1');
+    const csTeam = modelService.getCSTeam() || [];
+    const apps = modelService.getApps() || [];
+    const csAppRevenue = modelService.getCSAppRevenue() || [];
+    
+    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
     if (!cs) return null;
     
-    const assignedApps = MOCK_APPS.filter(app => cs.assignedAppIds.includes(app.id));
+    const assignedApps = apps.filter(app => cs.assignedAppIds.includes(app.id));
     const totalRevenue = assignedApps.reduce((acc, app) => acc + app.revenue, 0);
-    const csAppRevenue = MOCK_CS_APP_REVENUE.filter(r => r.csId === cs.id);
-    const totalPromotions = csAppRevenue.reduce((acc, r) => acc + r.promotions, 0);
+    const csRevenue = csAppRevenue.filter(r => r.csId === cs.id);
+    const totalPromotions = csRevenue.reduce((acc, r) => acc + r.promotions, 0);
     
-    return { cs, assignedApps, totalRevenue, totalPromotions };
+    return { cs, assignedApps, totalRevenue, totalPromotions, csRevenue };
   }, [user]);
 
   if (!csData) {
@@ -90,11 +95,13 @@ const MyApps = () => {
   const { t, user } = useApp();
   const navigate = useNavigate();
   const csData = useMemo(() => {
-    const cs = MOCK_CS.find(c => c.id === user?.id || 'cs1');
+    const csTeam = modelService.getCSTeam() || [];
+    const apps = modelService.getApps() || [];
+    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
     if (!cs) return null;
     return {
       cs,
-      assignedApps: MOCK_APPS.filter(app => cs.assignedAppIds.includes(app.id))
+      assignedApps: apps.filter(app => cs.assignedAppIds.includes(app.id))
     };
   }, [user]);
 
@@ -150,11 +157,13 @@ const MyApps = () => {
 const Promotions = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const cs = MOCK_CS.find(c => c.id === user?.id || 'cs1');
+    const csTeam = modelService.getCSTeam() || [];
+    const csAppRevenue = modelService.getCSAppRevenue() || [];
+    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
     if (!cs) return null;
     return {
       cs,
-      promotions: MOCK_CS_APP_REVENUE.filter(r => r.csId === cs.id)
+      promotions: csAppRevenue.filter(r => r.csId === cs.id)
     };
   }, [user]);
 
@@ -217,7 +226,8 @@ const Promotions = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {csData.promotions.map(p => {
-                const app = MOCK_APPS.find(a => a.id === p.appId);
+                const apps = modelService.getApps() || [];
+                const app = apps.find(a => a.id === p.appId);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                     <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{app?.name || 'Unknown'}</td>
@@ -239,9 +249,10 @@ const Promotions = () => {
 const Performance = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const cs = MOCK_CS.find(c => c.id === user?.id || 'cs1');
+    const csTeam = modelService.getCSTeam() || [];
+    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
     if (!cs) return null;
-    const allCS = MOCK_CS.sort((a, b) => b.totalEarnings - a.totalEarnings);
+    const allCS = csTeam.sort((a, b) => b.totalEarnings - a.totalEarnings);
     const rank = allCS.findIndex(c => c.id === cs.id) + 1;
     return { cs, rank, totalCS: allCS.length };
   }, [user]);
@@ -369,6 +380,7 @@ const Header = () => {
         </div>
       </div>
       <div className="flex items-center gap-4">
+        <LanguageSelector />
         <Link to="/notifications" className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
