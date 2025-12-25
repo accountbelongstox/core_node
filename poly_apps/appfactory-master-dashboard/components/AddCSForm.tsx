@@ -4,6 +4,7 @@ import { modelService } from '../services/modelService';
 import { CustomerService, UserRole } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { generateNickname } from '../utils/nicknameGenerator';
+import { generateId } from '../utils/idGenerator';
 
 interface AddCSFormProps {
   onClose: () => void;
@@ -14,7 +15,7 @@ interface AddCSFormProps {
  * 添加客服表单组件
  */
 export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
-  const { user } = useApp();
+  const { user, t } = useApp();
   const [formData, setFormData] = useState<Partial<CustomerService>>({
     name: '',
     email: '',
@@ -36,7 +37,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
     const nickname = formData.nickname?.trim() || generateNickname();
 
     const newCS: CustomerService = {
-      id: `cs-${Date.now()}`,
+      id: generateId('cs'),
       name: formData.name!,
       email: formData.email!,
       role: UserRole.CS,
@@ -73,7 +74,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">添加客服</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">{t('csManagement.addCS')}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -86,7 +87,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <User size={16} className="inline mr-1" />
-              客服姓名 <span className="text-rose-500">*</span>
+              {t('csManagement.csName')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -99,23 +100,23 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-              昵称（可选，不填则自动生成）
+              {t('csManagement.nickname')}
             </label>
             <input
               type="text"
               value={formData.nickname}
               onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
-              placeholder="如：小雨（不填则自动生成）"
+              placeholder={t('csManagement.nicknamePlaceholder')}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              不填写将自动生成小字开头的昵称，如：小雨、小云、小月等
+              {t('csManagement.nicknameHint')}
             </p>
           </div>
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-              邮箱 <span className="text-rose-500">*</span>
+              {t('csManagement.email')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="email"
@@ -129,14 +130,14 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <Phone size={16} className="inline mr-1" />
-              联系方式 <span className="text-rose-500">*</span>
+              {t('csManagement.contact')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={formData.contact}
               onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
               required
-              placeholder="电话/微信等"
+              placeholder={t('csManagement.contactPlaceholder')}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
           </div>
@@ -144,7 +145,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <Calendar size={16} className="inline mr-1" />
-              加盟时间 <span className="text-rose-500">*</span>
+              {t('csManagement.joinDate')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="date"
@@ -158,7 +159,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <Award size={16} className="inline mr-1" />
-              客服级别 <span className="text-rose-500">*</span>
+              {t('csManagement.csLevel')} <span className="text-rose-500">*</span>
             </label>
             <select
               value={formData.level}
@@ -166,16 +167,16 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
               required
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             >
-              <option value="初级">初级</option>
-              <option value="中级">中级</option>
-              <option value="高级">高级</option>
+              <option value="初级">{t('csManagement.levelJunior')}</option>
+              <option value="中级">{t('csManagement.levelIntermediate')}</option>
+              <option value="高级">{t('csManagement.levelSenior')}</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <DollarSign size={16} className="inline mr-1" />
-              提成%比 <span className="text-rose-500">*</span>
+              {t('csManagement.commissionRate')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="number"
@@ -195,7 +196,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <ImageIcon size={16} className="inline mr-1" />
-              照片URL（可选）
+              {t('csManagement.photoUrl')}
             </label>
             <input
               type="url"
@@ -208,7 +209,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-              收款地址（加密货币地址，可选）
+              {t('csManagement.paymentAddress')}
             </label>
             <input
               type="text"
@@ -224,14 +225,14 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
               type="submit"
               className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              添加客服
+              {t('csManagement.addCS')}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
             >
-              取消
+              {t('csManagement.cancel')}
             </button>
           </div>
         </form>

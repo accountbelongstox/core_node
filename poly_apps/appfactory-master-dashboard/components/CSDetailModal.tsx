@@ -15,7 +15,7 @@ interface CSDetailModalProps {
  * 客服详情和编辑弹窗组件
  */
 export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpdate, onDelete }) => {
-  const { user } = useApp();
+  const { user, t } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<CustomerService>>(cs);
 
@@ -25,7 +25,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
   const handleSave = () => {
     if (!formData.name || !formData.email || !formData.contact) {
-      alert('请填写必填字段');
+      alert(t('csManagement.fillRequiredFields'));
       return;
     }
 
@@ -35,7 +35,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
   };
 
   const handleDelete = () => {
-    if (window.confirm(`确定要删除客服 "${cs.name}" 吗？此操作不可恢复。`)) {
+    if (window.confirm(t('csManagement.confirmDelete', { name: cs.name }))) {
       modelService.deleteCS(cs.id);
       onDelete();
       onClose();
@@ -47,7 +47,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between">
           <h2 className="text-xl font-bold text-slate-800 dark:text-white">
-            {isEditing ? '编辑客服' : '客服详情'}
+            {isEditing ? t('csManagement.editCS') : t('csManagement.csDetails')}
           </h2>
           <div className="flex items-center gap-2">
             {!isEditing && (
@@ -55,14 +55,14 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <button
                   onClick={() => setIsEditing(true)}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                  title="编辑"
+                  title={t('csManagement.edit')}
                 >
                   <Edit2 size={20} className="text-indigo-600 dark:text-indigo-400" />
                 </button>
                 <button
                   onClick={handleDelete}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                  title="删除"
+                  title={t('csManagement.delete')}
                 >
                   <Trash2 size={20} className="text-rose-600 dark:text-rose-400" />
                 </button>
@@ -84,7 +84,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <User size={16} className="inline mr-1" />
-                    客服姓名 <span className="text-rose-500">*</span>
+                    {t('csManagement.csName')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -97,20 +97,20 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    昵称
+                    {t('csManagement.nickname')}
                   </label>
                   <input
                     type="text"
                     value={formData.nickname || ''}
                     onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
-                    placeholder="如：小雨"
+                    placeholder={t('csManagement.nicknamePlaceholderShort')}
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    邮箱 <span className="text-rose-500">*</span>
+                    {t('csManagement.email')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="email"
@@ -124,7 +124,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <Phone size={16} className="inline mr-1" />
-                    联系方式 <span className="text-rose-500">*</span>
+                    {t('csManagement.contact')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -138,7 +138,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <Calendar size={16} className="inline mr-1" />
-                    加盟时间 <span className="text-rose-500">*</span>
+                    {t('csManagement.joinDate')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -152,7 +152,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <Award size={16} className="inline mr-1" />
-                    客服级别 <span className="text-rose-500">*</span>
+                    {t('csManagement.csLevel')} <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={formData.level || '初级'}
@@ -160,16 +160,16 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                     required
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
                   >
-                    <option value="初级">初级</option>
-                    <option value="中级">中级</option>
-                    <option value="高级">高级</option>
+                    <option value="初级">{t('csManagement.levelJunior')}</option>
+                    <option value="中级">{t('csManagement.levelIntermediate')}</option>
+                    <option value="高级">{t('csManagement.levelSenior')}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <DollarSign size={16} className="inline mr-1" />
-                    提成%比 <span className="text-rose-500">*</span>
+                    {t('csManagement.commissionRate')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -189,7 +189,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     <ImageIcon size={16} className="inline mr-1" />
-                    照片URL（可选）
+                    {t('csManagement.photoUrl')}
                   </label>
                   <input
                     type="url"
@@ -202,7 +202,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    收款地址（加密货币地址，可选）
+                    {t('csManagement.paymentAddress')}
                   </label>
                   <input
                     type="text"
@@ -220,7 +220,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                   className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Save size={18} />
-                  保存
+                  {t('common.save')}
                 </button>
                 <button
                   onClick={() => {
@@ -229,7 +229,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                   }}
                   className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -265,7 +265,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                     <span className={`w-2 h-2 rounded-full ${
                       cs.status === 'Online' ? 'bg-emerald-500' : 'bg-slate-400'
                     }`} />
-                    <span>{cs.status === 'Online' ? '在线' : '离线'}</span>
+                    <span>{cs.status === 'Online' ? t('csManagement.online') : t('csManagement.offline')}</span>
                   </div>
                 </div>
               </div>
@@ -273,18 +273,18 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">邮箱</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.email')}</p>
                     <p className="text-sm text-slate-800 dark:text-white">{cs.email}</p>
                   </div>
                   {cs.contact && (
                     <div>
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">联系方式</p>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.contact')}</p>
                       <p className="text-sm text-slate-800 dark:text-white">{cs.contact}</p>
                     </div>
                   )}
                   {cs.joinDate && (
                     <div>
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">加盟时间</p>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.joinDate')}</p>
                       <p className="text-sm text-slate-800 dark:text-white">{cs.joinDate}</p>
                     </div>
                   )}
@@ -292,15 +292,15 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">业务金额</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.businessAmount')}</p>
                     <p className="text-lg font-bold text-slate-800 dark:text-white">¥{cs.businessAmount?.toLocaleString() || 0}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">提成金额</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.commissionAmount')}</p>
                     <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">¥{cs.commissionAmount?.toLocaleString() || 0}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">提成%比</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.commissionRate')}</p>
                     <p className="text-lg font-bold text-slate-800 dark:text-white">{cs.commissionPercentage || cs.commissionRate}%</p>
                   </div>
                 </div>
@@ -308,28 +308,28 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">总价</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.totalPrice')}</p>
                   <p className="text-lg font-bold text-slate-800 dark:text-white">¥{cs.totalPrice?.toLocaleString() || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">总扣单</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.totalDeduction')}</p>
                   <p className="text-lg font-bold text-rose-600 dark:text-rose-400">¥{cs.totalDeduction?.toLocaleString() || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">总结算价</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.totalSettlement')}</p>
                   <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">¥{cs.totalSettlement?.toLocaleString() || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">已结算</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.settled')}</p>
                   <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">¥{cs.settledAmount?.toLocaleString() || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">未结算</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.unsettled')}</p>
                   <p className="text-lg font-bold text-amber-600 dark:text-amber-400">¥{cs.unsettledAmount?.toLocaleString() || 0}</p>
                 </div>
                 {cs.approverName && (
                   <div>
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">审批人</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">{t('csManagement.approver')}</p>
                     <p className="text-sm text-slate-800 dark:text-white">{cs.approverName}</p>
                   </div>
                 )}
@@ -337,7 +337,7 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
 
               {cs.paymentAddress && (
                 <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">收款地址</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">{t('csManagement.paymentAddressLabel')}</p>
                   <code className="block text-sm text-slate-600 dark:text-slate-400 font-mono break-all bg-slate-50 dark:bg-slate-700 p-3 rounded-lg">
                     {cs.paymentAddress}
                   </code>

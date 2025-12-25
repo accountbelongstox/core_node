@@ -1,10 +1,10 @@
 /**
- * Model 数据中心化服务
- * 统一管理所有数据模型和状态
+ * Model Data Centralized Service
+ * Unified management of all data models and state
  */
 import { storageService } from './storageService';
 
-// Model 数据键
+// Model data keys
 export const MODEL_KEYS = {
   APPS: 'model_apps',
   CS_TEAM: 'model_cs_team',
@@ -15,35 +15,41 @@ export const MODEL_KEYS = {
   APP_RELEASES: 'model_app_releases',
   PROMOTERS: 'model_promoters',
   PROMOTION_RECORDS: 'model_promotion_records',
+  APP_REQUESTS: 'model_app_requests',
+  CS_APP_REVENUE: 'model_cs_app_revenue',
+  DAILY_STATS: 'model_daily_stats',
+  NOTIFICATIONS: 'model_notifications',
+  BUGS: 'model_bugs',
+  BUILDS: 'model_builds',
 } as const;
 
 /**
- * Model 数据中心化服务类
+ * Model Data Centralized Service Class
  */
 class ModelService {
   /**
-   * 获取模型数据
+   * Get model data
    */
   getModel<T>(key: string, defaultValue?: T): T | null {
     return storageService.get<T>(key, defaultValue);
   }
 
   /**
-   * 设置模型数据
+   * Set model data
    */
   setModel<T>(key: string, value: T): void {
     storageService.set(key, value);
   }
 
   /**
-   * 删除模型数据
+   * Remove model data
    */
   removeModel(key: string): void {
     storageService.remove(key);
   }
 
   /**
-   * 清空所有模型数据
+   * Clear all model data
    */
   clearAllModels(): void {
     Object.values(MODEL_KEYS).forEach((key) => {
@@ -52,139 +58,139 @@ class ModelService {
   }
 
   /**
-   * 获取应用列表
+   * Get apps list
    */
   getApps() {
     return this.getModel(MODEL_KEYS.APPS, []);
   }
 
   /**
-   * 设置应用列表
+   * Set apps list
    */
   setApps(apps: any[]) {
     this.setModel(MODEL_KEYS.APPS, apps);
   }
 
   /**
-   * 获取客服团队数据
+   * Get customer service team data
    */
   getCSTeam() {
     return this.getModel(MODEL_KEYS.CS_TEAM, []);
   }
 
   /**
-   * 设置客服团队数据
+   * Set customer service team data
    */
   setCSTeam(team: any[]) {
     this.setModel(MODEL_KEYS.CS_TEAM, team);
   }
 
   /**
-   * 获取技术团队数据
+   * Get tech team data
    */
   getTechTeam() {
     return this.getModel(MODEL_KEYS.TECH_TEAM, []);
   }
 
   /**
-   * 设置技术团队数据
+   * Set tech team data
    */
   setTechTeam(team: any[]) {
     this.setModel(MODEL_KEYS.TECH_TEAM, team);
   }
 
   /**
-   * 获取收益数据
+   * Get revenue data
    */
   getRevenue() {
     return this.getModel(MODEL_KEYS.REVENUE, {});
   }
 
   /**
-   * 设置收益数据
+   * Set revenue data
    */
   setRevenue(revenue: any) {
     this.setModel(MODEL_KEYS.REVENUE, revenue);
   }
 
   /**
-   * 获取统计数据
+   * Get statistics data
    */
   getStatistics() {
     return this.getModel(MODEL_KEYS.STATISTICS, {});
   }
 
   /**
-   * 设置统计数据
+   * Set statistics data
    */
   setStatistics(statistics: any) {
     this.setModel(MODEL_KEYS.STATISTICS, statistics);
   }
 
   /**
-   * 获取推广轨迹数据
+   * Get promotion tracks data
    */
   getPromotionTracks() {
     return this.getModel(MODEL_KEYS.PROMOTION_TRACKS, []);
   }
 
   /**
-   * 设置推广轨迹数据
+   * Set promotion tracks data
    */
   setPromotionTracks(tracks: any[]) {
     this.setModel(MODEL_KEYS.PROMOTION_TRACKS, tracks);
   }
 
   /**
-   * 添加推广轨迹
+   * Add promotion track
    */
   addPromotionTrack(track: any) {
     const tracks = this.getPromotionTracks() || [];
-    tracks.unshift(track); // 添加到开头
+    tracks.unshift(track); // Add to beginning
     this.setPromotionTracks(tracks);
     return track;
   }
 
   /**
-   * 获取APP发布记录
+   * Get app releases
    */
   getAppReleases() {
     return this.getModel(MODEL_KEYS.APP_RELEASES, []);
   }
 
   /**
-   * 设置APP发布记录
+   * Set app releases
    */
   setAppReleases(releases: any[]) {
     this.setModel(MODEL_KEYS.APP_RELEASES, releases);
   }
 
   /**
-   * 添加APP发布记录
+   * Add app release
    */
   addAppRelease(release: any) {
     const releases = this.getAppReleases() || [];
-    releases.unshift(release); // 添加到开头
+    releases.unshift(release); // Add to beginning
     this.setAppReleases(releases);
     return release;
   }
 
   /**
-   * 获取推广人员列表
+   * Get promoters list
    */
   getPromoters() {
     return this.getModel(MODEL_KEYS.PROMOTERS, []);
   }
 
   /**
-   * 设置推广人员列表
+   * Set promoters list
    */
   setPromoters(promoters: any[]) {
     this.setModel(MODEL_KEYS.PROMOTERS, promoters);
   }
 
   /**
-   * 添加推广人员
+   * Add promoter
    */
   addPromoter(promoter: any) {
     const promoters = this.getPromoters() || [];
@@ -194,7 +200,7 @@ class ModelService {
   }
 
   /**
-   * 更新推广人员
+   * Update promoter
    */
   updatePromoter(id: string, updates: any) {
     const promoters = this.getPromoters() || [];
@@ -208,31 +214,31 @@ class ModelService {
   }
 
   /**
-   * 获取推广记录列表
+   * Get promotion records list
    */
   getPromotionRecords() {
     return this.getModel(MODEL_KEYS.PROMOTION_RECORDS, []);
   }
 
   /**
-   * 设置推广记录列表
+   * Set promotion records list
    */
   setPromotionRecords(records: any[]) {
     this.setModel(MODEL_KEYS.PROMOTION_RECORDS, records);
   }
 
   /**
-   * 添加推广记录
+   * Add promotion record
    */
   addPromotionRecord(record: any) {
     const records = this.getPromotionRecords() || [];
-    records.unshift(record); // 添加到开头
+    records.unshift(record); // Add to beginning
     this.setPromotionRecords(records);
     return record;
   }
 
   /**
-   * 更新推广记录
+   * Update promotion record
    */
   updatePromotionRecord(id: string, updates: any) {
     const records = this.getPromotionRecords() || [];
@@ -246,7 +252,7 @@ class ModelService {
   }
 
   /**
-   * 更新客服人员
+   * Update customer service member
    */
   updateCS(id: string, updates: any) {
     const csTeam = this.getCSTeam() || [];
@@ -260,7 +266,7 @@ class ModelService {
   }
 
   /**
-   * 添加客服人员
+   * Add customer service member
    */
   addCS(cs: any) {
     const csTeam = this.getCSTeam() || [];
@@ -270,7 +276,7 @@ class ModelService {
   }
 
   /**
-   * 删除客服
+   * Delete customer service member
    */
   deleteCS(id: string) {
     const csTeam = this.getCSTeam() || [];
@@ -278,8 +284,161 @@ class ModelService {
     this.setCSTeam(filtered);
     return true;
   }
+
+  /**
+   * Get app generation requests
+   */
+  getAppRequests() {
+    return this.getModel(MODEL_KEYS.APP_REQUESTS, []);
+  }
+
+  /**
+   * Set app generation requests
+   */
+  setAppRequests(requests: any[]) {
+    this.setModel(MODEL_KEYS.APP_REQUESTS, requests);
+  }
+
+  /**
+   * Get CS app revenue
+   */
+  getCSAppRevenue() {
+    return this.getModel(MODEL_KEYS.CS_APP_REVENUE, []);
+  }
+
+  /**
+   * Set CS app revenue
+   */
+  setCSAppRevenue(revenue: any[]) {
+    this.setModel(MODEL_KEYS.CS_APP_REVENUE, revenue);
+  }
+
+  /**
+   * Get daily statistics
+   */
+  getDailyStats() {
+    return this.getModel(MODEL_KEYS.DAILY_STATS, []);
+  }
+
+  /**
+   * Set daily statistics
+   */
+  setDailyStats(stats: any[]) {
+    this.setModel(MODEL_KEYS.DAILY_STATS, stats);
+  }
+
+  /**
+   * Get app by ID
+   */
+  getAppById(appId: string) {
+    const apps = this.getApps() || [];
+    return apps.find((app: any) => app.id === appId) || null;
+  }
+
+  /**
+   * Get CS by ID
+   */
+  getCSById(csId: string) {
+    const csTeam = this.getCSTeam() || [];
+    return csTeam.find((cs: any) => cs.id === csId) || null;
+  }
+
+  /**
+   * Get tech by ID
+   */
+  getTechById(techId: string) {
+    const techTeam = this.getTechTeam() || [];
+    return techTeam.find((tech: any) => tech.id === techId) || null;
+  }
+
+  /**
+   * Get notifications
+   */
+  getNotifications() {
+    return this.getModel(MODEL_KEYS.NOTIFICATIONS, []);
+  }
+
+  /**
+   * Set notifications
+   */
+  setNotifications(notifications: any[]) {
+    this.setModel(MODEL_KEYS.NOTIFICATIONS, notifications);
+  }
+
+  /**
+   * Add notification
+   */
+  addNotification(notification: any) {
+    const notifications = this.getNotifications() || [];
+    notifications.unshift(notification);
+    this.setNotifications(notifications);
+    return notification;
+  }
+
+  /**
+   * Get bugs
+   */
+  getBugs() {
+    return this.getModel(MODEL_KEYS.BUGS, []);
+  }
+
+  /**
+   * Set bugs
+   */
+  setBugs(bugs: any[]) {
+    this.setModel(MODEL_KEYS.BUGS, bugs);
+  }
+
+  /**
+   * Add bug
+   */
+  addBug(bug: any) {
+    const bugs = this.getBugs() || [];
+    bugs.unshift(bug);
+    this.setBugs(bugs);
+    return bug;
+  }
+
+  /**
+   * Get builds list
+   */
+  getBuilds() {
+    return this.getModel(MODEL_KEYS.BUILDS, []);
+  }
+
+  /**
+   * Set builds list
+   */
+  setBuilds(builds: any[]) {
+    this.setModel(MODEL_KEYS.BUILDS, builds);
+  }
+
+  /**
+   * Add build
+   */
+  addBuild(build: any) {
+    const builds = this.getBuilds() || [];
+    builds.unshift(build);
+    this.setBuilds(builds);
+    return build;
+  }
+
+  /**
+   * Update build
+   */
+  updateBuild(id: string, updates: any) {
+    const builds = this.getBuilds() || [];
+    const index = builds.findIndex((b: any) => b.id === id);
+    if (index !== -1) {
+      builds[index] = { ...builds[index], ...updates };
+      this.setBuilds(builds);
+      return builds[index];
+    }
+    return null;
+  }
 }
 
-// 导出单例
+// Export singleton
 export const modelService = new ModelService();
+
 

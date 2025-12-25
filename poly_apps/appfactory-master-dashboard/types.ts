@@ -239,3 +239,34 @@ export interface AppRelease {
   coverImage?: string; // APP封面图片URL
   description?: string; // APP描述
 }
+
+// Notification
+export interface Notification {
+  id: string | number;
+  title: string;
+  message: string;
+  type: 'success' | 'info' | 'warning' | 'error';
+  time: string;
+  unread: boolean;
+}
+
+// Bug
+export interface Bug {
+  id: string;
+  app: string;
+  issue: string;
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  status: 'In Progress' | 'Pending' | 'Closed';
+  reporter: string;
+}
+
+// Build
+export interface Build {
+  id: string;
+  app: string;
+  status: 'Success' | 'Failed' | 'In Progress';
+  duration: string;
+  timestamp: string;
+  version: string;
+  appId?: string; // Link to AppInstance
+}

@@ -31,9 +31,9 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">推广人员列表</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('promoterManagement.promoterList')}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            共 {filteredPromoters.length} 名推广人员
+            {t('promoterManagement.totalPromoters', { count: filteredPromoters.length })}
           </p>
         </div>
         <button
@@ -41,7 +41,7 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-bold"
         >
           <Plus size={18} />
-          添加推广人
+          {t('promoterManagement.addPromoter')}
         </button>
       </div>
 
@@ -53,7 +53,7 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索推广人姓名、区域或联系方式..."
+            placeholder={t('promoterManagement.searchPlaceholder')}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
           />
         </div>
@@ -62,7 +62,7 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
       {/* 推广人员列表 */}
       {filteredPromoters.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
-          <p className="text-slate-500 dark:text-slate-400">暂无推广人员</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('promoterManagement.noPromoters')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -99,48 +99,48 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar size={14} className="text-slate-400" />
-                  <span className="text-slate-600 dark:text-slate-400">加盟时间: {promoter.joinDate}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('promoterManagement.joinDateLabel')} {promoter.joinDate}</span>
                 </div>
               </div>
 
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总有效值</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.totalValidCount')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">{promoter.totalValidCount}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">单价</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.unitPrice')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">¥{promoter.unitPrice}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总价</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.totalPrice')}</span>
                   <span className="font-bold text-slate-800 dark:text-white">¥{promoter.totalPrice.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总扣单</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.totalDeduction')}</span>
                   <span className="font-bold text-rose-600 dark:text-rose-400">¥{promoter.totalDeduction.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">总结算价</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.totalSettlement')}</span>
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">¥{promoter.totalSettlement.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">已结算</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.settled')}</span>
                   <span className="font-bold text-emerald-600 dark:text-emerald-400">¥{promoter.settledAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500 dark:text-slate-400">未结算</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.unsettled')}</span>
                   <span className="font-bold text-amber-600 dark:text-amber-400">¥{promoter.unsettledAmount.toLocaleString()}</span>
                 </div>
                 {promoter.approverName && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">审批人</span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('promoterManagement.approver')}</span>
                     <span className="font-bold text-slate-800 dark:text-white">{promoter.approverName}</span>
                   </div>
                 )}
                 {promoter.paymentAddress && (
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">收款地址</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promoterManagement.paymentAddressLabel')}</p>
                     <code className="text-xs text-slate-600 dark:text-slate-400 font-mono break-all">
                       {promoter.paymentAddress.substring(0, 20)}...
                     </code>

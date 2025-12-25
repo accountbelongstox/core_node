@@ -5,6 +5,7 @@ import { modelService } from '../services/modelService';
 import { AppRelease } from '../types';
 import { QRCode } from './QRCode';
 import { useApp } from '../contexts/AppContext';
+import { getAppNameById } from '../utils/dataHelpers';
 
 /**
  * APP发布详情页面
@@ -31,12 +32,12 @@ export const AppReleaseDetail: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <p className="text-slate-600 dark:text-slate-400">APP未找到</p>
+          <p className="text-slate-600 dark:text-slate-400">{t('appRelease.appNotFound')}</p>
           <button
             onClick={() => navigate(-1)}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
-            返回
+            {t('appRelease.back')}
           </button>
         </div>
       </div>
@@ -49,11 +50,11 @@ export const AppReleaseDetail: React.FC = () => {
 
   const copyToClipboard = (text: string, label: string) => {
     if (!text) {
-      alert('链接不可用');
+      alert(t('appRelease.linkUnavailable'));
       return;
     }
     navigator.clipboard.writeText(text);
-    alert(`${label}已复制到剪贴板`);
+    alert(t('appRelease.copiedToClipboard', { label }));
   };
 
   return (
@@ -67,9 +68,9 @@ export const AppReleaseDetail: React.FC = () => {
             <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{appRelease.appName}</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{getAppNameById(appRelease.appId)}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              发布时间: {appRelease.releasedAt} | 发布人: {appRelease.releasedByName}
+              {t('appRelease.releasedAt')}: {appRelease.releasedAt} | {t('appRelease.releasedBy')}: {appRelease.releasedByName}
             </p>
           </div>
         </div>
@@ -78,8 +79,8 @@ export const AppReleaseDetail: React.FC = () => {
           appRelease.status === 'promoting' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
           'bg-slate-100 text-slate-500 dark:bg-slate-600 dark:text-slate-400'
         }`}>
-          {appRelease.status === 'released' ? '已发布' :
-           appRelease.status === 'promoting' ? '推广中' : '已完成'}
+          {appRelease.status === 'released' ? t('appReleaseList.statusReleased') :
+           appRelease.status === 'promoting' ? t('appReleaseList.statusPromoting') : t('appReleaseList.statusCompleted')}
         </div>
       </div>
 
@@ -92,7 +93,7 @@ export const AppReleaseDetail: React.FC = () => {
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
                 <img
                   src={appRelease.coverImage}
-                  alt={appRelease.appName}
+                  alt={getAppNameById(appRelease.appId)}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -104,7 +105,7 @@ export const AppReleaseDetail: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12">
               <div className="flex flex-col items-center justify-center text-slate-400">
                 <ImageIcon size={48} />
-                <p className="mt-4 text-sm">暂无封面图片</p>
+                <p className="mt-4 text-sm">{t('appRelease.noCoverImage')}</p>
               </div>
             </div>
           )}
@@ -112,20 +113,20 @@ export const AppReleaseDetail: React.FC = () => {
           {/* APP描述 */}
           {appRelease.description && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">APP描述</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.appDescription')}</h3>
               <p className="text-slate-600 dark:text-slate-400">{appRelease.description}</p>
             </div>
           )}
 
           {/* 下载链接 */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">下载链接</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.downloadLink')}</h3>
             <div className="flex items-center gap-2">
               <code className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-white break-all">
                 {appRelease.downloadUrl}
               </code>
               <button
-                onClick={() => copyToClipboard(appRelease.downloadUrl, '下载链接')}
+                onClick={() => copyToClipboard(appRelease.downloadUrl, t('appRelease.downloadLink'))}
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 <Copy size={18} />
@@ -148,7 +149,7 @@ export const AppReleaseDetail: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4">
               <QrCode size={20} className="text-indigo-600 dark:text-indigo-400" />
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">推广二维码</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('appRelease.promotionQRCode')}</h3>
             </div>
             {accessUrl ? (
               <>
@@ -156,21 +157,21 @@ export const AppReleaseDetail: React.FC = () => {
                   <QRCode value={accessUrl} size={256} />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-                  扫描二维码即可访问APP下载页面
+                  {t('appRelease.scanQRCode')}
                 </p>
               </>
             ) : (
               <div className="text-center py-8">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  该APP尚未生成访问链接，请重新发布以生成加密字符串
+                  {t('appRelease.noAccessLink')}
                 </p>
               </div>
             )}
           </div>
 
-          {/* 访问URL */}
+          {/* Access URL */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">访问URL</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.accessURL')}</h3>
             {accessUrl ? (
               <>
                 <div className="flex items-center gap-2 mb-2">
@@ -178,7 +179,7 @@ export const AppReleaseDetail: React.FC = () => {
                     {accessUrl}
                   </code>
                   <button
-                    onClick={() => copyToClipboard(accessUrl, '访问URL')}
+                    onClick={() => copyToClipboard(accessUrl, t('appRelease.accessURL'))}
                     className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     <Copy size={18} />
@@ -191,28 +192,28 @@ export const AppReleaseDetail: React.FC = () => {
                   className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   <ExternalLink size={16} />
-                  在新窗口打开
+                  {t('appRelease.openInNewWindow')}
                 </a>
               </>
             ) : (
               <div className="text-center py-4">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  访问URL不可用
+                  {t('appRelease.linkUnavailable')}
                 </p>
               </div>
             )}
           </div>
 
-          {/* 第二个访问URL */}
+          {/* Secondary Access URL */}
           {appRelease.secondaryUrl && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">第二个访问URL</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.secondaryURL')}</h3>
               <div className="flex items-center gap-2 mb-2">
                 <code className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-white break-all">
                   {appRelease.secondaryUrl}
                 </code>
                 <button
-                  onClick={() => copyToClipboard(appRelease.secondaryUrl!, '第二个访问URL')}
+                  onClick={() => copyToClipboard(appRelease.secondaryUrl!, t('appRelease.secondaryURL'))}
                   className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   <Copy size={18} />
@@ -225,22 +226,22 @@ export const AppReleaseDetail: React.FC = () => {
                 className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
               >
                 <ExternalLink size={16} />
-                在新窗口打开
+                {t('appRelease.openInNewWindow')}
               </a>
             </div>
           )}
 
-          {/* 加密字符串 */}
+          {/* Encrypted String */}
           <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-              加密字符串
+              {t('appRelease.encryptedString')}
             </p>
             {appRelease.encryptedString ? (
               <code className="text-sm text-slate-800 dark:text-white font-mono break-all">
                 {appRelease.encryptedString}
               </code>
             ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">未生成</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('appRelease.notGenerated')}</p>
             )}
           </div>
         </div>

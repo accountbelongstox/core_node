@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ArrowLeft, TrendingUp, Users, DollarSign, Star, Calendar, Code, Edit2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppInstance, AppStatus } from '../types';
-import { MOCK_APPS, MOCK_CS, MOCK_TECH } from '../constants';
+import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
@@ -12,7 +12,8 @@ export const AppDetailPage: React.FC = () => {
   const { appId } = useParams<{ appId: string }>();
   
   const app = useMemo(() => {
-    return MOCK_APPS.find(a => a.id === appId);
+    const apps = modelService.getApps() || [];
+    return apps.find(a => a.id === appId);
   }, [appId]);
 
   if (!app) {
@@ -23,28 +24,27 @@ export const AppDetailPage: React.FC = () => {
     );
   }
 
-  const assignedCS = MOCK_CS.filter(cs => app.assignedCSIds.includes(cs.id));
-  const assignedTech = MOCK_TECH.find(tech => tech.id === app.assignedTechId);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const assignedCS = csTeam.filter(cs => app.assignedCSIds.includes(cs.id));
+  const assignedTech = techTeam.find(tech => tech.id === app.assignedTechId);
 
-  const visitData = [
-    { date: '12-12', visits: 1200 },
-    { date: '12-13', visits: 1500 },
-    { date: '12-14', visits: 1800 },
-    { date: '12-15', visits: 2100 },
-    { date: '12-16', visits: 1900 },
-    { date: '12-17', visits: 2200 },
-    { date: '12-18', visits: 2400 },
-  ];
+  // Generate visit and revenue data from centralized dailyStats
+  // Use app's visits and revenue as base, with dailyStats for trend
+  const visitData = useMemo(() => {
+    return dailyStats.slice(0, 7).reverse().map((stat, index) => ({
+      date: stat.date,
+      visits: Math.floor(app.visits * (0.8 + (index * 0.05))), // Simulate trend based on app visits
+    }));
+  }, [dailyStats, app.visits]);
 
-  const revenueData = [
-    { date: '12-12', revenue: 450 },
-    { date: '12-13', revenue: 520 },
-    { date: '12-14', revenue: 480 },
-    { date: '12-15', revenue: 600 },
-    { date: '12-16', revenue: 550 },
-    { date: '12-17', revenue: 680 },
-    { date: '12-18', revenue: 720 },
-  ];
+  const revenueData = useMemo(() => {
+    return dailyStats.slice(0, 7).reverse().map((stat, index) => ({
+      date: stat.date,
+      revenue: Math.floor((app.revenue / 7) * (0.9 + (index * 0.02))), // Simulate trend based on app revenue
+    }));
+  }, [dailyStats, app.revenue]);
 
   return (
     <div className="space-y-6">
