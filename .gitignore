@@ -395,3 +395,6 @@ java_pid*.hprof
 # Archive files in misc directories
 **/__misc__/.archives/**
 **/.archives/**
+
+# Ignore paths containing colons
+**/*:*
