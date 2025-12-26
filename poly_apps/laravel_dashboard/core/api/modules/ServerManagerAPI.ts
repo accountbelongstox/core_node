@@ -95,4 +95,115 @@ export class ServerManagerAPI extends BaseAPI {
   }>> {
     return this.post('/server-manager/restart', {});
   }
+
+  /**
+   * Get Octane Timer Tasks Status
+   */
+  async getOctaneTasksStatus(): Promise<ApiResponse<{
+    summary: {
+      total_discovered: number;
+      total_registered: number;
+      total_running: number;
+      timer_running: boolean;
+      timer_uptime: number | null;
+      total_ticks: number;
+    };
+    tasks: Array<{
+      name: string;
+      class: string;
+      interval: number;
+      enabled: boolean;
+      registered: boolean;
+      running: boolean;
+      status: string;
+      runtime?: {
+        interval: number;
+        run_count: number;
+        error_count: number;
+        last_run: number;
+        last_run_ago: string | null;
+        last_duration: number | null;
+        last_error: string | null;
+      };
+    }>;
+    heartbeat: {
+      exists: boolean;
+      last_modified?: string;
+      seconds_ago?: number;
+      is_fresh?: boolean;
+      status?: string;
+      message?: string;
+    };
+    timestamp: string;
+  }>> {
+    return this.request({
+      url: '/octane-tasks/status',
+      method: 'GET',
+      baseURL: this.config.baseURL,
+    });
+  }
+
+  /**
+   * Get Octane Basic Task Objects
+   */
+  async getOctaneBasicTasks(): Promise<ApiResponse<Array<{
+    name: string;
+    class: string;
+    interval: number;
+    enabled: boolean;
+    registered: boolean;
+    status: string;
+    last_run: number | null;
+    run_count: number;
+    error_count: number;
+  }>>> {
+    return this.request({
+      url: '/octane-tasks/basic',
+      method: 'GET',
+      baseURL: this.config.baseURL,
+    });
+  }
+
+  /**
+   * Get Octane Task Detail
+   */
+  async getOctaneTaskDetail(taskName: string): Promise<ApiResponse<{
+    name: string;
+    class: string;
+    interval: number;
+    enabled: boolean;
+    registered: boolean;
+    running: boolean;
+    status: string;
+    runtime?: any;
+  }>> {
+    return this.request({
+      url: `/octane-tasks/task/${taskName}`,
+      method: 'GET',
+      baseURL: this.config.baseURL,
+    });
+  }
+
+  /**
+   * Verify Octane Tasks Initialization
+   */
+  async verifyOctaneTasksInit(): Promise<ApiResponse<{
+    success: boolean;
+    issues: string[];
+    summary: {
+      total_discovered: number;
+      total_registered: number;
+      total_running: number;
+      timer_running: boolean;
+      timer_uptime: number | null;
+      total_ticks: number;
+    };
+    timestamp: string;
+  }>> {
+    return this.request({
+      url: '/octane-tasks/verify',
+      method: 'GET',
+      baseURL: this.config.baseURL,
+    });
+  }
 }

@@ -28,6 +28,7 @@ class AppQyV1LangDictionaryModel extends Model
         'uk_phonetic',
         'tts_files',
         'tts_provider',
+        'has_audio',
         'image_files',
         'image_provider',
         'word_details',
@@ -44,6 +45,7 @@ class AppQyV1LangDictionaryModel extends Model
         'image_files' => 'json',
         'word_details' => 'json',
         'has_translation' => 'boolean',
+        'has_audio' => 'boolean',
         'is_exist_local' => 'boolean',
         'has_operations' => 'boolean',
         'query_count' => 'integer',
@@ -166,15 +168,26 @@ class AppQyV1LangDictionaryModel extends Model
         return $this->getTTSFile($speedKey) !== null;
     }
 
-    public static function getWordsWithoutTTS(string $langCode, int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public static function getWordsWithoutTTS(string $langCode, int $limit = 20, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
     {
-        return self::forLanguage($langCode)
-            ->where(function($query) {
-                $query->whereNull('tts_files')
-                    ->orWhere('tts_files', '')
-                    ->orWhere('tts_files', '[]');
-            })
-            ->orderBy('query_count', 'desc')
+        $query = self::forLanguage($langCode)
+            ->where('has_audio', false);
+
+        if ($skipQueued) {
+            $queuedHashes = DB::connection('appqyv1')
+                ->table('appqyv1_tts_queue')
+                ->where('task_type', 'word')
+                ->where('language', $langCode)
+                ->whereIn('status', ['pending', 'processing'])
+                ->pluck('content_hash')
+                ->toArray();
+
+            if (!empty($queuedHashes)) {
+                $query->whereNotIn('md5', $queuedHashes);
+            }
+        }
+
+        return $query->orderBy('query_count', 'desc')
             ->limit($limit)
             ->get();
     }

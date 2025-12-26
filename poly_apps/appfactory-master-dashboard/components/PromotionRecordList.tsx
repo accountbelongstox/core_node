@@ -4,6 +4,7 @@ import { Search, Filter, Eye, Calendar, User, DollarSign, CheckCircle2, XCircle 
 import { modelService } from '../services/modelService';
 import { PromotionRecord } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { getAppNameById } from '../utils/dataHelpers';
 
 /**
  * 推广记录列表组件
@@ -20,7 +21,9 @@ export const PromotionRecordList: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
-      const matchesSearch = record.appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      // Get app name from central data source
+      const appName = getAppNameById(record.appId);
+      const matchesSearch = appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            record.promoterName.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || 
                            (statusFilter === 'settled' ? record.isSettled : !record.isSettled);
@@ -32,9 +35,9 @@ export const PromotionRecordList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">推广记录列表</h2>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('promotionRecord.list')}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            共 {filteredRecords.length} 个推广记录
+            {t('promotionRecord.totalRecords', { count: filteredRecords.length })}
           </p>
         </div>
       </div>
@@ -48,7 +51,7 @@ export const PromotionRecordList: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索APP名称或推广人..."
+              placeholder={t('promotionRecord.searchPlaceholder')}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
           </div>
@@ -59,9 +62,9 @@ export const PromotionRecordList: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value as any)}
               className="px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             >
-              <option value="all">全部状态</option>
-              <option value="settled">已结算</option>
-              <option value="unsettled">未结算</option>
+              <option value="all">{t('promotionRecord.allStatus')}</option>
+              <option value="settled">{t('promotionRecord.settled')}</option>
+              <option value="unsettled">{t('promotionRecord.unsettled')}</option>
             </select>
           </div>
         </div>
@@ -70,7 +73,7 @@ export const PromotionRecordList: React.FC = () => {
       {/* 推广记录列表 */}
       {filteredRecords.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
-          <p className="text-slate-500 dark:text-slate-400">暂无推广记录</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('promotionRecord.noRecords')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -82,20 +85,20 @@ export const PromotionRecordList: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-4 mb-4">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{record.appName}</h3>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{getAppNameById(record.appId)}</h3>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                       record.isSettled 
                         ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
                         : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
                     }`}>
-                      {record.isSettled ? '已结算' : '未结算'}
+                      {record.isSettled ? t('promotionRecord.settled') : t('promotionRecord.unsettled')}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <User size={16} />
-                      <span>推广人：{record.promoterName}</span>
+                      <span>{t('promotionRecord.promoter')}{record.promoterName}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <Calendar size={16} />
@@ -103,19 +106,19 @@ export const PromotionRecordList: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <CheckCircle2 size={16} className="text-emerald-500" />
-                      <span>有效值：{record.validCount}</span>
+                      <span>{t('promotionRecord.validCount')}{record.validCount}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <DollarSign size={16} className="text-indigo-500" />
-                      <span>结算价：¥{record.settlement.toLocaleString()}</span>
+                      <span>{t('promotionRecord.settlement')}¥{record.settlement.toLocaleString()}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                    <span>单价：¥{record.unitPrice}</span>
-                    <span>总价：¥{record.totalPrice.toLocaleString()}</span>
-                    <span>扣单：¥{record.deduction.toLocaleString()}</span>
-                    {record.approverName && <span>审批人：{record.approverName}</span>}
+                    <span>{t('promotionRecord.unitPrice')}¥{record.unitPrice}</span>
+                    <span>{t('promotionRecord.totalPrice')}¥{record.totalPrice.toLocaleString()}</span>
+                    <span>{t('promotionRecord.deduction')}¥{record.deduction.toLocaleString()}</span>
+                    {record.approverName && <span>{t('promotionRecord.approver')}{record.approverName}</span>}
                   </div>
                 </div>
 
@@ -124,7 +127,7 @@ export const PromotionRecordList: React.FC = () => {
                   className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 text-sm font-bold"
                 >
                   <Eye size={16} />
-                  查看详情
+                  {t('promotionRecord.viewDetails')}
                 </Link>
               </div>
             </div>

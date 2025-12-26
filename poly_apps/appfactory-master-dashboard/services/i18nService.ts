@@ -3,11 +3,13 @@
  */
 import { en, TranslationKeys } from '../locales/en';
 import { zh } from '../locales/zh';
+import { ja } from '../locales/ja';
 
 // 支持的语言列表
 export const SUPPORTED_LANGUAGES = {
   en: 'English',
   zh: '中文',
+  ja: '日本語',
 } as const;
 
 export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
@@ -16,6 +18,7 @@ export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 const translations: Record<SupportedLanguage, TranslationKeys> = {
   en,
   zh,
+  ja,
 };
 
 // 获取嵌套属性的辅助函数

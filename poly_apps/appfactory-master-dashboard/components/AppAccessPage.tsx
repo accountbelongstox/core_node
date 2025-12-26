@@ -4,12 +4,15 @@ import { Download, ArrowLeft, Smartphone } from 'lucide-react';
 import { modelService } from '../services/modelService';
 import { AppRelease } from '../types';
 import { QRCode } from './QRCode';
+import { getAppNameById } from '../utils/dataHelpers';
+import { useApp } from '../contexts/AppContext';
 
 /**
  * APP访问页面
  * 通过加密字符串访问：/#/${encryptedString}
  */
 export const AppAccessPage: React.FC = () => {
+  const { t } = useApp();
   const location = useLocation();
   // 从路径中提取加密字符串（去掉开头的 /）
   const encryptedString = location.pathname.startsWith('/') 
@@ -41,7 +44,7 @@ export const AppAccessPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600 dark:text-slate-400">加载中...</p>
+          <p className="text-slate-600 dark:text-slate-400">{t('appAccess.loading')}</p>
         </div>
       </div>
     );
@@ -54,16 +57,16 @@ export const AppAccessPage: React.FC = () => {
           <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
             <Smartphone className="text-rose-600 dark:text-rose-400" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">APP未找到</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{t('appAccess.notFound')}</h1>
           <p className="text-slate-600 dark:text-slate-400 mb-6">
-            您访问的APP链接无效或已过期
+            {t('appAccess.invalidLink')}
           </p>
           <Link
             to="/"
             className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
           >
             <ArrowLeft size={18} />
-            返回首页
+            {t('appAccess.backToHome')}
           </Link>
         </div>
       </div>
@@ -84,7 +87,7 @@ export const AppAccessPage: React.FC = () => {
               <div className="h-64 bg-gradient-to-r from-indigo-500 to-purple-600 relative overflow-hidden">
                 <img
                   src={appRelease.coverImage}
-                  alt={appRelease.appName}
+                  alt={getAppNameById(appRelease.appId)}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -93,7 +96,7 @@ export const AppAccessPage: React.FC = () => {
             
             <div className="p-8">
               <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-4">
-                {appRelease.appName}
+                {getAppNameById(appRelease.appId)}
               </h1>
               
               {appRelease.description && (
@@ -110,7 +113,7 @@ export const AppAccessPage: React.FC = () => {
                   className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold text-lg shadow-lg shadow-indigo-500/20"
                 >
                   <Download size={24} />
-                  立即下载
+                  {t('appAccess.downloadNow')}
                 </a>
 
                 {appRelease.secondaryUrl && (
@@ -121,7 +124,7 @@ export const AppAccessPage: React.FC = () => {
                     className="flex items-center justify-center gap-3 px-8 py-4 bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-600 dark:border-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all font-bold text-lg"
                   >
                     <Smartphone size={24} />
-                    访问官网
+                    {t('appAccess.visitOfficial')}
                   </a>
                 )}
               </div>
@@ -131,10 +134,10 @@ export const AppAccessPage: React.FC = () => {
           {/* 推广二维码 */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8">
             <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 text-center">
-              推广二维码
+              {t('appAccess.promotionQRCode')}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 text-center">
-              扫描二维码即可访问此APP下载页面
+              {t('appAccess.scanQRCodeHint')}
             </p>
             
             <div className="flex justify-center mb-6">
@@ -143,7 +146,7 @@ export const AppAccessPage: React.FC = () => {
 
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
-                访问链接
+                {t('appAccess.accessLink')}
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-white break-all">
@@ -152,11 +155,11 @@ export const AppAccessPage: React.FC = () => {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(qrCodeUrl);
-                    alert('链接已复制到剪贴板');
+                    alert(t('appAccess.linkCopied'));
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold"
                 >
-                  复制
+                  {t('appAccess.copy')}
                 </button>
               </div>
             </div>

@@ -164,16 +164,41 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating TTS queue table...');
+        $this->info('Creating unified TTS queue table (word/sentence/article)...');
         $ttsQueueResults = \App\Services\AppQyV1TTSQueueInitializer::ensureTablesExist();
         foreach ($ttsQueueResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : ($status === 'migrated' ? '🔄' : '❌'));
             $this->line("  {$icon} {$table}: {$status}");
         }
 
         $ttsQueueStats = \App\Services\AppQyV1TTSQueueInitializer::getTableStats();
         if (!isset($ttsQueueStats['error'])) {
-            $this->line("  <fg=gray>Stats: {$ttsQueueStats['pending']} pending, {$ttsQueueStats['processing']} processing, {$ttsQueueStats['completed']} completed, {$ttsQueueStats['failed']} failed, {$ttsQueueStats['total']} total</>");
+            $this->line("  <fg=gray>Stats: {$ttsQueueStats['by_status']['pending']} pending, {$ttsQueueStats['by_status']['processing']} processing, {$ttsQueueStats['by_status']['completed']} completed, {$ttsQueueStats['by_status']['failed']} failed</>");
+            $this->line("  <fg=gray>Types: {$ttsQueueStats['by_type']['word']} words, {$ttsQueueStats['by_type']['sentence']} sentences, {$ttsQueueStats['by_type']['article']} articles</>");
+        }
+        $this->newLine();
+
+        $this->info('Creating article library tables (all languages)...');
+        $articleLibResults = \App\Services\AppQyV1ArticleLibraryInitializer::ensureTablesExist();
+        $articleCreated = count(array_filter($articleLibResults, fn($s) => $s === 'created'));
+        $articleMigrated = count(array_filter($articleLibResults, fn($s) => $s === 'migrated'));
+        $articleExists = count(array_filter($articleLibResults, fn($s) => $s === 'exists'));
+        $articleTotal = count($articleLibResults);
+
+        if ($articleCreated > 0) {
+            $this->line("  ✅ Created: {$articleCreated} tables");
+        }
+        if ($articleMigrated > 0) {
+            $this->line("  🔄 Migrated: {$articleMigrated} tables");
+        }
+        if ($articleExists > 0) {
+            $this->line("  ✓ Exists: {$articleExists} tables");
+        }
+        $this->line("  <fg=cyan>Total: {$articleTotal} article library tables</>");
+
+        $articleStats = \App\Services\AppQyV1ArticleLibraryInitializer::getTableStats();
+        if (!isset($articleStats['error'])) {
+            $this->line("  <fg=gray>Articles: {$articleStats['total_articles']} total, {$articleStats['total_with_audio']} with audio, {$articleStats['total_without_audio']} without audio</>");
         }
         $this->newLine();
 

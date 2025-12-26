@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Bell, 
   CheckCircle2, 
@@ -13,48 +13,24 @@ import {
   Trash2
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
+import { modelService } from '../services/modelService';
 
 export const NotificationCenter: React.FC = () => {
   const { t } = useApp();
+  const notifications = useMemo(() => modelService.getNotifications() || [], []);
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'New Revenue Milestone',
-      message: 'App "Smart Expense Pro" reached $5,000 in revenue today!',
-      type: 'success',
-      icon: <DollarSign size={18} />,
-      time: '2 hours ago',
-      unread: true,
-    },
-    {
-      id: 2,
-      title: 'APP Generation Complete',
-      message: 'Your new app "RecipeShare" is ready for review.',
-      type: 'info',
-      icon: <Rocket size={18} />,
-      time: '5 hours ago',
-      unread: true,
-    },
-    {
-      id: 3,
-      title: 'System Maintenance',
-      message: 'Scheduled maintenance tonight at 02:00 AM UTC.',
-      type: 'warning',
-      icon: <Clock size={18} />,
-      time: '1 day ago',
-      unread: false,
-    },
-    {
-      id: 4,
-      title: 'New CS Member Joined',
-      message: 'Emma Zhang has been added to the CS Team.',
-      type: 'info',
-      icon: <CheckCircle2 size={18} />,
-      time: '2 days ago',
-      unread: false,
-    },
-  ];
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return <DollarSign size={18} />;
+      case 'info':
+        return <Rocket size={18} />;
+      case 'warning':
+        return <Clock size={18} />;
+      default:
+        return <CheckCircle2 size={18} />;
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -86,7 +62,7 @@ export const NotificationCenter: React.FC = () => {
               notif.type === 'warning' ? 'bg-amber-100 text-amber-600' :
               'bg-indigo-100 text-indigo-600'
             }`}>
-              {notif.icon}
+              {getNotificationIcon(notif.type)}
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">

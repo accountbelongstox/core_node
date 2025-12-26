@@ -373,6 +373,33 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
                 ColorPrint.blue("[NativeLauncher] Shutdown signal received, cleaning up...")
 
+                # After shutdown, check if restart was requested
+                if THREAD_BUS.is_restart_requested():
+                    import os
+                    import sys
+
+                    ColorPrint.yellow("=" * 70)
+                    ColorPrint.yellow("[NativeLauncher] Restart requested, restarting process...")
+                    ColorPrint.yellow("=" * 70)
+
+                    # Small delay to ensure all resources are released
+                    time.sleep(0.5)
+
+                    # Restart process using os.execv()
+                    # This replaces the current process with a new one (works in low privilege)
+                    python = sys.executable
+                    args = [python] + sys.argv
+
+                    ColorPrint.green(f"[NativeLauncher] Restarting with: {' '.join(args)}")
+
+                    try:
+                        os.execv(python, args)
+                    except Exception as e:
+                        ColorPrint.print_error(f"[NativeLauncher] Failed to restart process: {e}")
+                        ColorPrint.yellow("[NativeLauncher] Please restart manually")
+                else:
+                    ColorPrint.blue("[NativeLauncher] Shutdown complete (no restart requested)")
+
         except KeyboardInterrupt:
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
@@ -629,10 +656,15 @@ def _start_rpc_v2_service(
             ports_to_check.append(config.frontend_port)
 
         ColorPrint.blue(f"[NativeLauncher] Ensuring ports are available: {ports_to_check}")
+        ColorPrint.blue(f"[NativeLauncher] Waiting for old instance to shutdown gracefully...")
 
-        if not ensure_ports_available(ports_to_check, timeout=3.0, force_kill=True):
+        # Wait for old instance to shutdown gracefully (via singleton detection)
+        # Singleton detection already sent shutdown request, so old instance should exit
+        # Give it reasonable time (15s) to complete shutdown handlers
+        if not ensure_ports_available(ports_to_check, timeout=15.0, force_kill=False):
             ColorPrint.print_error(f"[NativeLauncher] Failed to release ports: {ports_to_check}")
-            ColorPrint.print_error("[NativeLauncher] Old instance may not have shutdown properly")
+            ColorPrint.print_error("[NativeLauncher] Old instance did not shutdown within 15 seconds")
+            ColorPrint.print_error("[NativeLauncher] Please manually stop the old instance or check for hanging processes")
             return None
 
         # ========== 1. 准备静态挂载配置 ==========
@@ -861,6 +893,33 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
         ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")
 
     framework.start()  # Blocks until window closes
+
+    # After UI exits, check if restart was requested
+    if THREAD_BUS.is_restart_requested():
+        import os
+        import sys
+        import time
+
+        ColorPrint.yellow("=" * 70)
+        ColorPrint.yellow("[NativeLauncher] Restart requested, restarting process...")
+        ColorPrint.yellow("=" * 70)
+
+        # Small delay to ensure all resources are released
+        time.sleep(0.5)
+
+        # Restart process using os.execv()
+        python = sys.executable
+        args = [python] + sys.argv
+
+        ColorPrint.green(f"[NativeLauncher] Restarting with: {' '.join(args)}")
+
+        try:
+            os.execv(python, args)
+        except Exception as e:
+            ColorPrint.print_error(f"[NativeLauncher] Failed to restart process: {e}")
+            ColorPrint.yellow("[NativeLauncher] Please restart manually")
+    else:
+        ColorPrint.blue("[NativeLauncher] Shutdown complete (no restart requested)")
 
 
 # Alias for convenience

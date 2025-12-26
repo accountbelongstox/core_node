@@ -11,6 +11,7 @@ from .capabilities_router import router as capabilities_router
 from .local_config_router import router as local_config_router
 from .local_stats_router import router as local_stats_router
 from .local_test_router import router as local_test_router
+from .heartbeat_router import router as heartbeat_router
 
 __all__ = [
     "status_router",
@@ -21,4 +22,5 @@ __all__ = [
     "local_config_router",
     "local_stats_router",
     "local_test_router",
+    "heartbeat_router",
 ]

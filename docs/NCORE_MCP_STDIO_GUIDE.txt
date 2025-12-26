@@ -1,0 +1,378 @@
+# ncore Universal MCP STDIO Server
+
+## 📖 Overview
+
+This is the **universal MCP STDIO entry point** for all ncore services.
+It aggregates multiple MCP tool services into a single unified interface for Claude Desktop.
+
+**Key Features:**
+- ✅ Multi-service aggregation (mcp-chrome, custom services, etc.)
+- ✅ Dynamic service registration via JSON config
+- ✅ Automatic tool prefixing (service__toolname)
+- ✅ Hot reload support (modify config, restart)
+- ✅ HTTP and module-based services
+
+## 🏗️ Architecture
+
+```
+Claude Desktop (STDIO)
+        ↓
+ncore-mcp-stdio-server.js (Aggregator)
+        ↓
+    ┌───┴────┬─────────┬──────────────┐
+    ↓        ↓         ↓              ↓
+mcp-chrome  service2  service3   custom...
+ (HTTP)     (HTTP)   (Module)    (HTTP)
+    ↓        ↓         ↓              ↓
+Chrome Ext  API      Local      Your Service
+```
+
+## 🚀 Quick Start
+
+### 1. Claude Desktop Configuration
+
+Edit: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "ncore-mcp": {
+      "command": "node",
+      "args": [
+        "D:\\programing\\core_node\\ncore-mcp-stdio-server.js"
+      ]
+    }
+  }
+}
+```
+
+### 2. Service Configuration
+
+Edit: `D:\programing\core_node\ncore\mcp-stdio-config.json`
+
+```json
+{
+  "services": {
+    "mcp-chrome": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:12306/mcp",
+      "description": "Chrome browser automation"
+    },
+    "my-custom-service": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp",
+      "description": "My custom tools"
+    }
+  }
+}
+```
+
+### 3. Start Services
+
+```bash
+# Start ncore (includes mcp-chrome on port 12306)
+node ncore_module_caller.js
+
+# Start any additional services on their respective ports
+# e.g., node my-service.js --port 8080
+```
+
+### 4. Restart Claude Desktop
+
+All services will be aggregated and available.
+
+## 📦 Adding New Services
+
+### Method 1: HTTP Service (External)
+
+1. **Start your MCP HTTP server** on any port
+2. **Add to config:**
+
+```json
+{
+  "services": {
+    "my-service": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:9000/mcp",
+      "description": "My awesome tools"
+    }
+  }
+}
+```
+
+3. **Restart Claude Desktop**
+
+Your tools will appear as: `my-service__tool_name`
+
+### Method 2: Node.js Module (Local)
+
+1. **Create a module** at `ncore/custom_services/my_service.js`:
+
+```javascript
+'use strict';
+
+exports.createClient = async (config) => {
+    return {
+        ping: async () => true,
+        listTools: async () => ({
+            tools: [{
+                name: 'my_tool',
+                description: 'My custom tool',
+                inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
+            }]
+        }),
+        callTool: async (params) => {
+            // Tool implementation
+            return {
+                content: [{
+                    type: 'text',
+                    text: 'Tool result'
+                }]
+            };
+        }
+    };
+};
+```
+
+2. **Add to config:**
+
+```json
+{
+  "services": {
+    "my-local-service": {
+      "enabled": true,
+      "type": "module",
+      "module": "./ncore/custom_services/my_service.js",
+      "description": "My local tools"
+    }
+  }
+}
+```
+
+3. **Restart Claude Desktop**
+
+## 🔧 Service Types
+
+### HTTP Service
+```json
+{
+  "type": "http",
+  "url": "http://host:port/mcp"
+}
+```
+
+Connects to external MCP HTTP server (StreamableHTTP protocol).
+
+### Module Service
+```json
+{
+  "type": "module",
+  "module": "./path/to/module.js"
+}
+```
+
+Loads a local Node.js module that exports `createClient()` function.
+
+## 📋 Tool Naming Convention
+
+Tools are automatically prefixed with their service name:
+
+**Original tool:** `chrome_screenshot`
+**Exposed as:** `mcp-chrome__chrome_screenshot`
+
+This prevents naming conflicts between services.
+
+## 🎯 Built-in Services
+
+### mcp-chrome (Port 12306)
+
+**28+ browser automation tools:**
+- `mcp-chrome__chrome_navigate`
+- `mcp-chrome__chrome_screenshot`
+- `mcp-chrome__chrome_click_element`
+- `mcp-chrome__chrome_get_web_content`
+- ... and 24 more
+
+**Prerequisites:**
+1. ncore running: `node ncore_module_caller.js`
+2. Chrome Extension loaded and connected
+
+## 🔍 Debugging
+
+### Check Service Status
+
+```bash
+# View STDIO server logs in Claude Desktop logs:
+# Windows: %APPDATA%\Claude\logs\
+# macOS: ~/Library/Logs/Claude/
+# Linux: ~/.config/Claude/logs/
+```
+
+### Test Service Manually
+
+```bash
+# Test HTTP service
+curl http://127.0.0.1:12306/health
+
+# Test STDIO server
+node D:\programing\core_node\ncore-mcp-stdio-server.js
+```
+
+### Common Issues
+
+**Issue: "Service not found"**
+- Check service is enabled in config
+- Verify service URL is correct
+- Check service is running
+
+**Issue: "Connection failed"**
+- Verify ncore is running
+- Check port numbers match config
+- Test service URL with curl
+
+**Issue: "Tools not appearing"**
+- Restart Claude Desktop
+- Check Claude Desktop logs
+- Verify config JSON is valid
+
+## 📁 File Structure
+
+```
+D:\programing\core_node\
+├── ncore-mcp-stdio-server.js          # Main STDIO entry ⭐
+├── ncore/
+│   ├── mcp-stdio-config.json          # Service configuration ⭐
+│   ├── mcp-stdio-config.example.json  # Config examples
+│   ├── utils/
+│   │   └── mcp_chrome/                # mcp-chrome service
+│   │       ├── index.js
+│   │       ├── server.js
+│   │       └── ...
+│   └── custom_services/               # Your custom services
+│       └── [your-service].js
+└── apps/
+    └── mcp-chrome/                    # Chrome extension
+```
+
+## 🎨 Example: Adding a Weather Service
+
+### 1. Create Service
+
+`ncore/custom_services/weather_service.js`:
+```javascript
+'use strict';
+
+const axios = require('axios');
+
+exports.createClient = async (config) => {
+    return {
+        ping: async () => true,
+
+        listTools: async () => ({
+            tools: [{
+                name: 'get_weather',
+                description: 'Get current weather for a city',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        city: { type: 'string', description: 'City name' }
+                    },
+                    required: ['city']
+                }
+            }]
+        }),
+
+        callTool: async ({ name, arguments: args }) => {
+            if (name === 'get_weather') {
+                const weather = await getWeather(args.city);
+                return {
+                    content: [{
+                        type: 'text',
+                        text: JSON.stringify(weather, null, 2)
+                    }]
+                };
+            }
+        }
+    };
+};
+
+async function getWeather(city) {
+    // Your weather API call here
+    return { city, temp: 72, condition: 'sunny' };
+}
+```
+
+### 2. Add to Config
+
+```json
+{
+  "services": {
+    "mcp-chrome": { ... },
+    "weather": {
+      "enabled": true,
+      "type": "module",
+      "module": "./ncore/custom_services/weather_service.js",
+      "description": "Weather information tools"
+    }
+  }
+}
+```
+
+### 3. Use in Claude
+
+"What's the weather in San Francisco?"
+
+Claude will use: `weather__get_weather`
+
+## 🔄 Hot Reload
+
+To add/remove services:
+
+1. Edit `ncore/mcp-stdio-config.json`
+2. Restart Claude Desktop
+3. New services appear immediately
+
+No need to restart ncore or other services!
+
+## 📊 Service Comparison
+
+| Feature | HTTP Service | Module Service |
+|---------|-------------|----------------|
+| External Process | ✅ Yes | ❌ No |
+| Language | Any | JavaScript |
+| Deployment | Separate | Embedded |
+| Performance | Network I/O | In-process |
+| Best For | Microservices | Quick tools |
+
+## 🎯 Best Practices
+
+1. **Service Naming:** Use lowercase with hyphens (e.g., `my-service`)
+2. **Tool Prefixing:** Tools auto-prefix, no need to include service name
+3. **Error Handling:** Return clear error messages in tool responses
+4. **Port Management:** Use different ports for each HTTP service
+5. **Config Validation:** Test config with `node ncore-mcp-stdio-server.js`
+
+## 🚀 Production Tips
+
+- Keep `mcp-stdio-config.json` in version control
+- Create config templates for different environments
+- Monitor Claude Desktop logs for errors
+- Use descriptive service names and descriptions
+- Document custom tools in service descriptions
+
+## 📝 Summary
+
+**ncore-mcp-stdio-server.js** is your **universal MCP gateway**.
+
+- ✅ One STDIO server for all services
+- ✅ Easy service registration
+- ✅ Built-in mcp-chrome support
+- ✅ Extensible architecture
+- ✅ Production ready

@@ -24,7 +24,7 @@ use App\Providers\PathMapper;
  *
  * USER CONTEXT:
  * - CLI commands (artisan): Default user is 'root' (run via sudo)
- * - Web API calls: Default user is 'www-data' (current web user)
+ * - Web API calls: Default user is 'ubuntu' (real system user)
  */
 class ServerManagerV1OctaneServiceManager
 {
@@ -36,17 +36,21 @@ class ServerManagerV1OctaneServiceManager
     private const SWOOLE_PORT_END = 9999;
 
     /**
-     * Determine service user based on execution context
+     * Determine service user for Octane services
+     * ALWAYS returns 'root' for maximum permissions (TTS queue file write requirements)
+     *
+     * SYNC: octane_service_manager.sh:create_octane_service() Line 169-172
+     * MUST MATCH: service_user="root", service_group="root"
      */
     public static function getDefaultServiceUser(): string
     {
-        // Check if running from CLI (artisan command)
-        if (php_sapi_name() === 'cli') {
-            return 'root'; // CLI commands use root
-        }
-
-        // Running from web context (API)
-        return 'www-data'; // Web API uses www-data
+        // SYNC WITH SHELL: Force root user for maximum permissions
+        // SHELL EQUIVALENT: service_user="root" (Line 171)
+        // Required for:
+        // - TTS queue file writes to /www/wwwroot/laravel_db
+        // - System-level operations
+        // - Avoiding permission conflicts
+        return 'root';
     }
 
     /**
@@ -547,13 +551,23 @@ class ServerManagerV1OctaneServiceManager
 
     /**
      * Generate systemd service file content (PATH-BASED)
-     * SYNC: octane_service_manager.sh:create_octane_service() cat > service_file
+     *
+     * SYNC: octane_service_manager.sh:create_octane_service() Line 220-261
+     * CRITICAL: This function MUST generate identical output to shell script
+     *
+     * SYNC REQUIREMENTS:
+     * 1. User=$serviceUser (must be 'root' from getDefaultServiceUser)
+     * 2. ProtectSystem=full (NOT strict) - Shell Line 246
+     * 3. ReadWritePaths must include:
+     *    - $laravelPath/storage
+     *    - $laravelPath/bootstrap/cache
+     *    - /www/wwwroot/laravel_db (via getExternalWritePaths)
+     *    - /www/programing/core_node/_prompts (via getExternalWritePaths)
      *
      * Features:
      * - Auto-restart on failure
      * - Memory limit: 20% of total system memory per service
      * - 48-hour auto-restart via timer (prevents memory leaks)
-     * - Configurable service user (default: root for CLI, www-data for API)
      * - Path-based naming: One service per directory, shared by multiple domains
      * - Configurable host binding (0.0.0.0 for all IPs, 127.0.0.1 for localhost only)
      * - Desktop environment: Adds --watch flag for hot reload
@@ -634,11 +648,12 @@ SyslogIdentifier={$serviceName}
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
 
-# Security
+# Security (Relaxed for development/TTS requirements)
+# SYNC: octane_service_manager.sh Line 243-250
+# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
 PrivateTmp=true
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
+ProtectSystem=full
 ReadWritePaths={$readWritePaths}
 
 [Install]
@@ -649,15 +664,22 @@ EOF;
     /**
      * Get external paths that need write access for Laravel operations
      * Returns paths like session directories, temp directories managed by PathMapper
+     *
+     * SYNC: octane_service_manager.sh Line 249-250
+     * MUST INCLUDE:
+     * - /www/wwwroot/laravel_db (TTS queue file writes)
+     * - /www/programing/core_node/_prompts (prompt storage)
+     *
+     * CRITICAL: These paths MUST match shell script ReadWritePaths
      */
     private static function getExternalWritePaths(string $laravelPath): array
     {
         $sessionDir = PathMapper::getLaravelSessionsDir();
-        $laravel_db = dirname($sessionDir);
+        $laravel_db = dirname($sessionDir);  // SYNC: Shell Line 249 - /www/wwwroot/laravel_db
         $coreNodeDir = PathMapper::getCoreNodeDir();
-        $promptsDir = $coreNodeDir . '/_prompts';
+        $promptsDir = $coreNodeDir . '/_prompts';  // SYNC: Shell Line 250 - /_prompts
 
-        $paths = [$laravel_db];
+        $paths = [$laravel_db];  // CRITICAL: Always include laravel_db first
 
         if (is_dir($promptsDir) || is_link($promptsDir)) {
             $paths[] = $promptsDir;
@@ -676,13 +698,23 @@ EOF;
     /**
      * Generate systemd service file content (LEGACY - DOMAIN-BASED)
      * @deprecated Use generateServiceFileContentFromPath() instead
-     * SYNC: octane_service_manager.sh:create_octane_service() cat > service_file
+     *
+     * SYNC: octane_service_manager.sh:create_octane_service() Line 220-261
+     * CRITICAL: This function MUST generate identical output to shell script
+     *
+     * SYNC REQUIREMENTS:
+     * 1. User=$serviceUser (must be 'root' from getDefaultServiceUser)
+     * 2. ProtectSystem=full (NOT strict) - Shell Line 246
+     * 3. ReadWritePaths must include:
+     *    - $laravelPath/storage - Shell Line 247
+     *    - $laravelPath/bootstrap/cache - Shell Line 248
+     *    - /www/wwwroot/laravel_db - Shell Line 249
+     *    - /www/programing/core_node/_prompts - Shell Line 250
      *
      * Features:
      * - Auto-restart on failure
      * - Memory limit: 20% of total system memory per service
      * - 48-hour auto-restart via timer (prevents memory leaks)
-     * - Configurable service user (default: root for CLI, www-data for API)
      */
     private static function generateServiceFileContent(
         string $domain,
@@ -739,13 +771,19 @@ SyslogIdentifier={$serviceName}
 
 # Environment
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="NODE_PATH=/usr/local/lib/node_modules"
 
-# Security
+# Security (Relaxed for development/TTS requirements)
+# SYNC: octane_service_manager.sh Line 243-250
+# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
+# CRITICAL: ReadWritePaths MUST match shell script exactly
 PrivateTmp=true
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths={$laravelPath}/storage {$laravelPath}/bootstrap/cache
+ProtectSystem=full
+ReadWritePaths={$laravelPath}/storage
+ReadWritePaths={$laravelPath}/bootstrap/cache
+ReadWritePaths=/www/wwwroot/laravel_db
+ReadWritePaths=/www/programing/core_node/_prompts
 
 [Install]
 WantedBy=multi-user.target

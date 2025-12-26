@@ -70,6 +70,164 @@ class LauncherGenerator:
 
         return str(launcher_path)
 
+    def generate_daemon_launcher(
+        self,
+        service_name: str,
+        daemon_script_path: str,
+        app_path: str,
+        debug_mode: bool = True
+    ) -> str:
+        """
+        Generate launcher script for daemon service
+
+        Args:
+            service_name: Name of the daemon service
+            daemon_script_path: Path to daemon script (.py, .sh, .js)
+            app_path: Path to application directory
+            debug_mode: Whether to run in debug mode
+
+        Returns:
+            Path to generated launcher script
+        """
+        launcher_path = self.launcher_dir / f"{service_name}.sh"
+
+        # Detect script type by extension
+        script_ext = Path(daemon_script_path).suffix.lower()
+
+        if script_ext == '.py':
+            content = self._generate_python_daemon_launcher(daemon_script_path, app_path, debug_mode)
+        elif script_ext == '.sh':
+            content = self._generate_bash_daemon_launcher(daemon_script_path, app_path, debug_mode)
+        elif script_ext == '.js':
+            content = self._generate_node_daemon_launcher(daemon_script_path, app_path, debug_mode)
+        else:
+            content = self._generate_generic_daemon_launcher(daemon_script_path, app_path, debug_mode)
+
+        # Write launcher script
+        launcher_path.write_text(content)
+        os.chmod(launcher_path, 0o755)
+
+        return str(launcher_path)
+
+    def _generate_python_daemon_launcher(
+        self,
+        daemon_script_path: str,
+        app_path: str,
+        debug_mode: bool
+    ) -> str:
+        """Generate launcher for Python daemon"""
+        return f"""#!/bin/bash
+set -e
+
+echo "=== Daemon Service Launcher (Python) ==="
+echo "Daemon script: {daemon_script_path}"
+echo "Working directory: {app_path}"
+echo "Debug mode: {str(debug_mode).lower()}"
+echo ""
+
+cd "{app_path}"
+
+# Set environment variables
+export APP_ROOT="{app_path}"
+export DEBUG_MODE="{str(debug_mode).lower()}"
+export PYTHONPATH="{app_path}:$PYTHONPATH"
+
+# Execute Python daemon
+echo "Starting Python daemon..."
+exec python3 "{daemon_script_path}"
+"""
+
+    def _generate_bash_daemon_launcher(
+        self,
+        daemon_script_path: str,
+        app_path: str,
+        debug_mode: bool
+    ) -> str:
+        """Generate launcher for Bash daemon"""
+        return f"""#!/bin/bash
+set -e
+
+echo "=== Daemon Service Launcher (Bash) ==="
+echo "Daemon script: {daemon_script_path}"
+echo "Working directory: {app_path}"
+echo "Debug mode: {str(debug_mode).lower()}"
+echo ""
+
+cd "{app_path}"
+
+# Set environment variables
+export APP_ROOT="{app_path}"
+export DEBUG_MODE="{str(debug_mode).lower()}"
+
+# Make script executable
+chmod +x "{daemon_script_path}"
+
+# Execute Bash daemon
+echo "Starting Bash daemon..."
+exec bash "{daemon_script_path}"
+"""
+
+    def _generate_node_daemon_launcher(
+        self,
+        daemon_script_path: str,
+        app_path: str,
+        debug_mode: bool
+    ) -> str:
+        """Generate launcher for Node.js daemon"""
+        return f"""#!/bin/bash
+set -e
+
+echo "=== Daemon Service Launcher (Node.js) ==="
+echo "Daemon script: {daemon_script_path}"
+echo "Working directory: {app_path}"
+echo "Debug mode: {str(debug_mode).lower()}"
+echo ""
+
+cd "{app_path}"
+
+# Auto-detect and fix PATH for node tools
+export PATH="/www/_ubuntu_24/node/node-v24.11.1/bin:/www/_ubuntu_24/node/node-v22.21.0/bin:$PATH"
+
+# Set environment variables
+export APP_ROOT="{app_path}"
+export DEBUG_MODE="{str(debug_mode).lower()}"
+export NODE_ENV={"development" if debug_mode else "production"}
+
+# Execute Node.js daemon
+echo "Starting Node.js daemon..."
+exec node "{daemon_script_path}"
+"""
+
+    def _generate_generic_daemon_launcher(
+        self,
+        daemon_script_path: str,
+        app_path: str,
+        debug_mode: bool
+    ) -> str:
+        """Generate launcher for generic daemon"""
+        return f"""#!/bin/bash
+set -e
+
+echo "=== Daemon Service Launcher (Generic) ==="
+echo "Daemon script: {daemon_script_path}"
+echo "Working directory: {app_path}"
+echo "Debug mode: {str(debug_mode).lower()}"
+echo ""
+
+cd "{app_path}"
+
+# Set environment variables
+export APP_ROOT="{app_path}"
+export DEBUG_MODE="{str(debug_mode).lower()}"
+
+# Make script executable
+chmod +x "{daemon_script_path}"
+
+# Execute daemon
+echo "Starting daemon..."
+exec "{daemon_script_path}"
+"""
+
     def _generate_react_vue_launcher(
         self,
         app_path: str,

@@ -68,6 +68,19 @@ export class AppQyV1API extends BaseAPI {
     return this.post('/ai_tools/tts/batch-generate', { items });
   }
 
+  // ========== TTS Queue Management ==========
+  async getTTSQueueStats(): Promise<APIResponse> {
+    return this.get('/ai_tools/tts/queue/stats', undefined, false); // 不缓存，实时数据
+  }
+
+  async checkTTSQueueStatus(word: string, language: string): Promise<APIResponse> {
+    return this.get('/ai_tools/tts/queue/status', { word, language });
+  }
+
+  async queueBatchTTS(words: Array<{ word: string; language: string; priority?: number }>): Promise<APIResponse> {
+    return this.post('/ai_tools/tts/queue_batch', { words });
+  }
+
   // ========== 图像生成 ==========
   async generateImage(data: { prompt: string; style?: string; size?: string; quality?: string }): Promise<APIResponse> {
     return this.post('/ai_tools/image/generate', data);

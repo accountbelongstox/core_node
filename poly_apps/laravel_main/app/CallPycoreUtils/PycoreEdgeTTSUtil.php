@@ -4,6 +4,7 @@ namespace App\CallPycoreUtils;
 
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
+use App\Utils\FileSystemManager;
 
 class PycoreEdgeTTSUtil
 {
@@ -11,12 +12,18 @@ class PycoreEdgeTTSUtil
         string $text,
         string $voice = 'en-US-AriaNeural',
         ?string $outputPath = null,
-        int $timeout = 60
+        int $timeout = 300
     ): array {
         $tempFile = $outputPath ?: tempnam(sys_get_temp_dir(), 'edge_tts_') . '.mp3';
 
+        // Create parent directory if needed (using FileSystemManager)
+        if ($outputPath) {
+            $dir = dirname($outputPath);
+            FileSystemManager::ensureDirectoryExists($dir, 0775);
+        }
+
         $command = sprintf(
-            'edge-tts --text %s --voice %s --write-media %s 2>&1',
+            '/usr/bin/python3 /usr/local/bin/edge-tts --text %s --voice %s --write-media %s 2>&1',
             escapeshellarg($text),
             escapeshellarg($voice),
             escapeshellarg($tempFile)
@@ -36,8 +43,8 @@ class PycoreEdgeTTSUtil
                 'error' => $errorMsg,
             ]);
 
-            if (!$outputPath && file_exists($tempFile)) {
-                @unlink($tempFile);
+            if (!$outputPath && FileSystemManager::exists($tempFile)) {
+                FileSystemManager::delete($tempFile);
             }
 
             return [
@@ -47,12 +54,15 @@ class PycoreEdgeTTSUtil
             ];
         }
 
-        if (!file_exists($tempFile)) {
+        if (!FileSystemManager::exists($tempFile)) {
             return [
                 'success' => false,
                 'error' => 'Audio file was not created',
             ];
         }
+
+        // Fix permissions automatically (FileSystemManager handles this)
+        FileSystemManager::fixPermissions($tempFile);
 
         $response = [
             'success' => true,
@@ -62,9 +72,9 @@ class PycoreEdgeTTSUtil
         if ($outputPath) {
             $response['audio_path'] = $outputPath;
         } else {
-            $audioData = file_get_contents($tempFile);
+            $audioData = FileSystemManager::readFile($tempFile);
             $response['audio_base64'] = base64_encode($audioData);
-            @unlink($tempFile);
+            FileSystemManager::delete($tempFile);
         }
 
         return $response;
@@ -72,7 +82,7 @@ class PycoreEdgeTTSUtil
 
     public static function listVoices(?string $language = null): array
     {
-        $command = 'edge-tts --list-voices 2>&1';
+        $command = '/usr/bin/python3 /usr/local/bin/edge-tts --list-voices 2>&1';
 
         $result = Process::timeout(30)->run($command);
 

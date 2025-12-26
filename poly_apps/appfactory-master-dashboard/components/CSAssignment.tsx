@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Plus, X, Users, DollarSign, TrendingUp } from 'lucide-react';
 import { AppInstance, CustomerService, AppStatus } from '../types';
-import { MOCK_APPS, MOCK_CS } from '../constants';
+import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 
 export const CSAssignment: React.FC = () => {
@@ -10,20 +10,23 @@ export const CSAssignment: React.FC = () => {
   const [selectedApp, setSelectedApp] = useState<AppInstance | null>(null);
   const [selectedCS, setSelectedCS] = useState<CustomerService[]>([]);
 
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+
   const filteredApps = useMemo(() => {
-    return MOCK_APPS.filter(app =>
+    return apps.filter(app =>
       app.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [searchTerm]);
+  }, [apps, searchTerm]);
 
   const availableCS = useMemo(() => {
-    if (!selectedApp) return MOCK_CS;
-    return MOCK_CS.filter(cs => !selectedApp.assignedCSIds.includes(cs.id));
-  }, [selectedApp]);
+    if (!selectedApp) return csTeam;
+    return csTeam.filter(cs => !selectedApp.assignedCSIds.includes(cs.id));
+  }, [csTeam, selectedApp]);
 
   const handleSelectApp = (app: AppInstance) => {
     setSelectedApp(app);
-    setSelectedCS(MOCK_CS.filter(cs => app.assignedCSIds.includes(cs.id)));
+    setSelectedCS(csTeam.filter(cs => app.assignedCSIds.includes(cs.id)));
   };
 
   const handleAddCS = (cs: CustomerService) => {

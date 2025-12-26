@@ -98,12 +98,11 @@ class AppQyV1TTSService
     
     private function ensureDirectoryExists(string $path): void
     {
-        if (!is_dir($path)) {
-            if (!mkdir($path, 0755, true)) {
-                throw new \Exception('Failed to create directory: ' . $path);
-            }
+        // IDEMPOTENCY: Use FileSystemManager for dynamic user ownership
+        if (!\App\Utils\FileSystemManager::ensureDirectoryExists($path, 0775)) {
+            throw new \Exception('Failed to create directory: ' . $path);
         }
-        
+
         if (!is_writable($path)) {
             throw new \Exception('Directory is not writable: ' . $path);
         }

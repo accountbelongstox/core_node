@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, User, DollarSign, CheckCircle2, XCircle, MapPin, V
 import { modelService } from '../services/modelService';
 import { PromotionRecord } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { getAppNameById, getAppById } from '../utils/dataHelpers';
 
 /**
  * 推广记录详情组件
@@ -30,12 +31,12 @@ export const PromotionRecordDetail: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <p className="text-slate-600 dark:text-slate-400">推广记录未找到</p>
+          <p className="text-slate-600 dark:text-slate-400">{t('promotionRecord.notFound')}</p>
           <button
             onClick={() => navigate(-1)}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
-            返回
+            {t('promotionRecord.back')}
           </button>
         </div>
       </div>
@@ -56,9 +57,9 @@ export const PromotionRecordDetail: React.FC = () => {
             <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
           </button>
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{recordData.appName}</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{getAppNameById(recordData.appId)}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              推广记录ID: {recordData.id}
+              {t('promotionRecord.recordId')} {recordData.id}
             </p>
           </div>
         </div>
@@ -67,7 +68,7 @@ export const PromotionRecordDetail: React.FC = () => {
             ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
             : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
         }`}>
-          {recordData.isSettled ? '已结算' : '未结算'}
+          {recordData.isSettled ? t('promotionRecord.settled') : t('promotionRecord.unsettled')}
         </span>
       </div>
 
@@ -76,48 +77,48 @@ export const PromotionRecordDetail: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* 基本信息卡片 */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">基本信息</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('promotionRecord.basicInfo')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">推广人</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.promoter').replace('：', '')}</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white">{recordData.promoterName}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">时间范围</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.timeRange')}</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white">
-                  {recordData.startTime} 至 {recordData.endTime}
+                  {recordData.startTime} {t('promotionRecord.to')} {recordData.endTime}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">有效值</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.validCountLabel')}</p>
                 <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{recordData.validCount}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">单价</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.unitPrice').replace('：', '')}</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white">¥{recordData.unitPrice}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">总价</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.totalPrice').replace('：', '')}</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white">¥{recordData.totalPrice.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">扣单</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.deductionLabel')}</p>
                 <p className="text-sm font-bold text-rose-600 dark:text-rose-400">¥{recordData.deduction.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">结算价</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.settlementLabel')}</p>
                 <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">¥{recordData.settlement.toLocaleString()}</p>
               </div>
               {recordData.approverName && (
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">审批人</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.approver').replace('：', '')}</p>
                   <p className="text-sm font-bold text-slate-800 dark:text-white">{recordData.approverName}</p>
                 </div>
               )}
             </div>
             {recordData.paymentAddress && (
               <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">收款地址（加密货币）</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('promotionRecord.paymentAddressCrypto')}</p>
                 <code className="text-sm text-slate-800 dark:text-white font-mono break-all">
                   {recordData.paymentAddress}
                 </code>
@@ -127,7 +128,7 @@ export const PromotionRecordDetail: React.FC = () => {
 
           {/* 推广轨迹细节列表 */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">推广轨迹细节</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('promotionRecord.trackDetails')}</h3>
             <div className="space-y-3">
               {recordData.tracks.map(track => (
                 <div
@@ -152,7 +153,7 @@ export const PromotionRecordDetail: React.FC = () => {
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                         }`}>
-                          {track.isValid ? '有效' : '无效'}
+                          {track.isValid ? t('promotionRecord.valid') : t('promotionRecord.invalid')}
                         </span>
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">
@@ -176,7 +177,7 @@ export const PromotionRecordDetail: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Video size={20} className="text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">视频记录</h3>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('promotionRecord.videoRecords')}</h3>
               </div>
               <div className="space-y-3">
                 {recordData.videoRecords.map((video, index) => (
@@ -190,7 +191,7 @@ export const PromotionRecordDetail: React.FC = () => {
                       }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-200 dark:bg-slate-600">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">视频 {index + 1}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{t('promotionRecord.videoIndex', { index: index + 1 })}</p>
                     </div>
                   </div>
                 ))}
@@ -203,14 +204,14 @@ export const PromotionRecordDetail: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <MapPin size={20} className="text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white">手机定位记录</h3>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('promotionRecord.locationRecords')}</h3>
               </div>
               <div className="space-y-3">
                 {recordData.locationRecords.map(loc => (
                   <div key={loc.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                     <p className="text-sm font-bold text-slate-800 dark:text-white mb-1">{loc.address}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {loc.timestamp} • 精度: {loc.accuracy}m
+                      {loc.timestamp} • {t('promotionRecord.accuracy')} {loc.accuracy}m
                     </p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-mono">
                       {loc.latitude.toFixed(6)}, {loc.longitude.toFixed(6)}
@@ -223,18 +224,18 @@ export const PromotionRecordDetail: React.FC = () => {
 
           {/* 统计信息 */}
           <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3">统计信息</h4>
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3">{t('promotionRecord.statistics')}</h4>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-500 dark:text-slate-400">总轨迹数</span>
+                <span className="text-slate-500 dark:text-slate-400">{t('promotionRecord.totalTracks')}</span>
                 <span className="font-bold text-slate-800 dark:text-white">{recordData.tracks.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 dark:text-slate-400">有效轨迹</span>
+                <span className="text-slate-500 dark:text-slate-400">{t('promotionRecord.validTracks')}</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">{validTracks.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 dark:text-slate-400">无效轨迹</span>
+                <span className="text-slate-500 dark:text-slate-400">{t('promotionRecord.invalidTracks')}</span>
                 <span className="font-bold text-rose-600 dark:text-rose-400">{invalidTracks.length}</span>
               </div>
             </div>

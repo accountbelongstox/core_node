@@ -7,7 +7,25 @@ import { storageService, UserInfo, AppSettings, STORAGE_KEYS } from '../services
 import { i18nService, SupportedLanguage } from '../services/i18nService';
 import { themeService, Theme } from '../services/themeService';
 import { modelService } from '../services/modelService';
-import { MOCK_PROMOTION_TRACKS, MOCK_APP_RELEASES, MOCK_PROMOTERS, MOCK_PROMOTION_RECORDS, MOCK_CS } from '../constants';
+import { 
+  MOCK_PROMOTION_TRACKS, 
+  MOCK_APP_RELEASES, 
+  MOCK_PROMOTERS, 
+  MOCK_PROMOTION_RECORDS, 
+  MOCK_CS,
+  MOCK_APPS,
+  MOCK_TECH,
+  MOCK_APP_REQUESTS,
+  MOCK_CS_APP_REVENUE,
+  MOCK_DAILY_STATS,
+  MOCK_NOTIFICATIONS,
+  MOCK_BUGS,
+  MOCK_BUILDS,
+  MOCK_CHAT_SESSIONS,
+  MOCK_CHAT_MESSAGES,
+  MOCK_SCRIPT_TEMPLATES,
+  MOCK_PAYMENT_VERIFICATION_REQUESTS,
+} from '../constants';
 
 // Context State Interface
 interface AppContextState {
@@ -77,7 +95,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     // Initialize theme
     themeService.initializeTheme(theme);
 
-    // Initialize modelService data if not exists
+    // Initialize all modelService data from central data source (constants.ts)
+    // All data should be accessed through modelService, not directly from constants
+    if (!modelService.getApps() || modelService.getApps()?.length === 0) {
+      modelService.setApps(MOCK_APPS);
+    }
+    // Always initialize with centralized MOCK_CS to ensure Chinese names are used
+    // This ensures we always use the latest data from constants.ts
+    const currentCSTeam = modelService.getCSTeam() || [];
+    if (currentCSTeam.length === 0 || currentCSTeam.length !== MOCK_CS.length) {
+      // Initialize or reset to centralized data
+      modelService.setCSTeam(MOCK_CS);
+    } else {
+      // Update names from centralized data to ensure Chinese names
+      const updatedCSTeam = currentCSTeam.map(cs => {
+        const mockCS = MOCK_CS.find(m => m.id === cs.id);
+        return mockCS ? { ...cs, name: mockCS.name } : cs;
+      });
+      modelService.setCSTeam(updatedCSTeam);
+    }
+    if (!modelService.getTechTeam() || modelService.getTechTeam()?.length === 0) {
+      modelService.setTechTeam(MOCK_TECH);
+    }
     if (!modelService.getPromotionTracks() || modelService.getPromotionTracks()?.length === 0) {
       modelService.setPromotionTracks(MOCK_PROMOTION_TRACKS);
     }
@@ -90,8 +129,55 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (!modelService.getPromotionRecords() || modelService.getPromotionRecords()?.length === 0) {
       modelService.setPromotionRecords(MOCK_PROMOTION_RECORDS);
     }
-    if (!modelService.getCSTeam() || modelService.getCSTeam()?.length === 0) {
-      modelService.setCSTeam(MOCK_CS);
+    if (!modelService.getAppRequests() || modelService.getAppRequests()?.length === 0) {
+      modelService.setAppRequests(MOCK_APP_REQUESTS);
+    }
+    if (!modelService.getCSAppRevenue() || modelService.getCSAppRevenue()?.length === 0) {
+      modelService.setCSAppRevenue(MOCK_CS_APP_REVENUE);
+    }
+    if (!modelService.getDailyStats() || modelService.getDailyStats()?.length === 0) {
+      modelService.setDailyStats(MOCK_DAILY_STATS);
+    }
+    if (!modelService.getNotifications() || modelService.getNotifications()?.length === 0) {
+      modelService.setNotifications(MOCK_NOTIFICATIONS);
+    }
+    if (!modelService.getBugs() || modelService.getBugs()?.length === 0) {
+      modelService.setBugs(MOCK_BUGS);
+    }
+    if (!modelService.getBuilds() || modelService.getBuilds()?.length === 0) {
+      modelService.setBuilds(MOCK_BUILDS);
+    }
+    // Always refresh chat sessions from MOCK data to ensure appId and appName are present
+    // Force sync with MOCK data to ensure all sessions have appId and appName
+    const currentSessions = modelService.getChatSessions() || [];
+    const updatedSessions = MOCK_CHAT_SESSIONS.map(mockSession => {
+      const existingSession = currentSessions.find(s => s.id === mockSession.id);
+      if (existingSession) {
+        // Merge existing session data with mock data, prioritizing mock appId and appName
+        return {
+          ...existingSession,
+          appId: mockSession.appId || existingSession.appId,
+          appName: mockSession.appName || existingSession.appName,
+          // Preserve other fields from existing session
+          lastMessage: existingSession.lastMessage || mockSession.lastMessage,
+          lastMessageTime: existingSession.lastMessageTime || mockSession.lastMessageTime,
+          unreadCount: existingSession.unreadCount !== undefined ? existingSession.unreadCount : mockSession.unreadCount,
+          status: existingSession.status || mockSession.status,
+        };
+      }
+      // If session doesn't exist, use mock data directly
+      return mockSession;
+    });
+    // Always set sessions to ensure consistency
+    modelService.setChatSessions(updatedSessions);
+    if (!modelService.getChatMessages() || modelService.getChatMessages()?.length === 0) {
+      modelService.setChatMessages(MOCK_CHAT_MESSAGES);
+    }
+    if (!modelService.getScriptTemplates() || modelService.getScriptTemplates()?.length === 0) {
+      modelService.setScriptTemplates(MOCK_SCRIPT_TEMPLATES);
+    }
+    if (!modelService.getPaymentVerificationRequests() || modelService.getPaymentVerificationRequests()?.length === 0) {
+      modelService.setPaymentVerificationRequests(MOCK_PAYMENT_VERIFICATION_REQUESTS);
     }
   }, [language, theme]);
 
