@@ -732,9 +732,9 @@ function Invoke-GitOperations {
                 $disguiseJsPath = $null
 
                 if (Test-Path $scriptsDir) {
-                    $disguiseJs = Get-ChildItem -Path $scriptsDir -Name "disguise.js" -Recurse | Select-Object -First 1
+                    $disguiseJs = Get-ChildItem -Path $scriptsDir -Filter "disguise.js" -Recurse -File | Select-Object -First 1
                     if ($disguiseJs) {
-                        $disguiseJsPath = Join-Path $scriptsDir $disguiseJs
+                        $disguiseJsPath = $disguiseJs.FullName
                     }
                 }
 
@@ -790,7 +790,7 @@ function Invoke-GitOperations {
 
                         # Run disguise.js encryption
                         Write-ColorText "Running encryption..." -ForegroundColor Cyan
-                        $result = & node $disguiseJsPath $file.FullName $globalPassword $secretKeysEncryptedDir 2>&1
+                        $result = & node "$disguiseJsPath" "$($file.FullName)" "$globalPassword" "$secretKeysEncryptedDir" 2>&1
 
                         if ($LASTEXITCODE -eq 0) {
                             Write-ColorText "SUCCESS: Encrypted $($file.Name)" -ForegroundColor Green

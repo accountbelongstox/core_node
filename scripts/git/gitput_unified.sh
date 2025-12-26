@@ -86,7 +86,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-<<<<<<< HEAD
 # Declare all variables at the beginning
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
@@ -102,9 +101,6 @@ export COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
-
-=======
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 # Initialize skip encrypt cache
 init_skip_encrypt_cache() {
     if [ ! -d "$SKIP_ENCRYPT_CACHE_DIR" ]; then
@@ -936,9 +932,9 @@ invoke_force_overwrite() {
         return 0
     fi
 
-    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
+    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
     write_color_text "FORCE OVERWRITE - DISCARDING LOCAL CHANGES" "Red"
-    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
+    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
 
@@ -957,7 +953,7 @@ invoke_force_overwrite() {
     write_color_text "Step 1: Creating backup branch..." "Cyan"
     write_color_text "Executing: git branch $backup_branch" "DarkGray"
     if git branch "$backup_branch" 2>/dev/null; then
-        write_color_text "�?Backup branch created: $backup_branch" "Green"
+        write_color_text "�?Backup branch created: $backup_branch" "Green"
     else
         write_color_text "Warning: Could not create backup branch (may already exist)" "Yellow"
     fi
@@ -972,13 +968,13 @@ invoke_force_overwrite() {
         local backup_commit_msg="Backup before force overwrite - $TIMESTAMP"
         write_color_text "Executing: git commit -m '$backup_commit_msg'" "DarkGray"
         if git commit -m "$backup_commit_msg" 2>/dev/null; then
-            write_color_text "�?Local changes committed to $ORIGINAL_BRANCH" "Green"
+            write_color_text "�?Local changes committed to $ORIGINAL_BRANCH" "Green"
         fi
 
         # Update backup branch to include these changes
         write_color_text "Executing: git branch -f $backup_branch" "DarkGray"
         git branch -f "$backup_branch"
-        write_color_text "�?Backup branch updated with local changes" "Green"
+        write_color_text "�?Backup branch updated with local changes" "Green"
     else
         write_color_text "No uncommitted changes found" "Green"
     fi
@@ -986,7 +982,7 @@ invoke_force_overwrite() {
     # Step 3: Set target remote
     write_color_text "Step 3: Configuring remote..." "Cyan"
     if ! set_remote_url "$target_url"; then
-        write_color_text "�?Failed to set remote URL" "Red"
+        write_color_text "�?Failed to set remote URL" "Red"
         return 1
     fi
 
@@ -1003,11 +999,11 @@ invoke_force_overwrite() {
         write_color_text "Executing: git checkout main" "DarkGray"
         # Force checkout even if there are local changes (they're already backed up)
         if ! git checkout -f main 2>/dev/null; then
-            write_color_text "�?Failed to checkout main branch" "Red"
+            write_color_text "�?Failed to checkout main branch" "Red"
             return 1
         fi
     fi
-    write_color_text "�?On main branch" "Green"
+    write_color_text "�?On main branch" "Green"
 
     # Step 4.5: Abort any ongoing merge or rebase (CRITICAL for avoiding conflicts)
     write_color_text "Step 4.5: Clearing any merge/rebase state..." "Cyan"
@@ -1016,28 +1012,28 @@ invoke_force_overwrite() {
         write_color_text "Detected ongoing merge. Aborting..." "Yellow"
         write_color_text "Executing: git merge --abort" "DarkGray"
         git merge --abort 2>/dev/null || true
-        write_color_text "�?Merge aborted" "Green"
+        write_color_text "�?Merge aborted" "Green"
     fi
     # Check if rebase is in progress
     if [ -d "$CORE_NODE_DIR/.git/rebase-merge" ] || [ -d "$CORE_NODE_DIR/.git/rebase-apply" ]; then
         write_color_text "Detected ongoing rebase. Aborting..." "Yellow"
         write_color_text "Executing: git rebase --abort" "DarkGray"
         git rebase --abort 2>/dev/null || true
-        write_color_text "�?Rebase aborted" "Green"
+        write_color_text "�?Rebase aborted" "Green"
     fi
     # Force clean any remaining merge state
     write_color_text "Executing: git reset --hard HEAD" "DarkGray"
     git reset --hard HEAD 2>/dev/null || true
-    write_color_text "�?Repository state cleared" "Green"
+    write_color_text "�?Repository state cleared" "Green"
 
     # Step 5: Fetch latest from remote (using --all for comprehensive fetch)
     write_color_text "Step 5: Fetching latest from remote..." "Cyan"
     write_color_text "Executing: git fetch --all --prune" "DarkGray"
     if ! git fetch --all --prune 2>&1; then
-        write_color_text "�?Failed to fetch from remote" "Red"
+        write_color_text "�?Failed to fetch from remote" "Red"
         return 1
     fi
-    write_color_text "�?Fetch completed successfully" "Green"
+    write_color_text "�?Fetch completed successfully" "Green"
 
     # Step 6: Force reset to match remote (GUARANTEED SUCCESS - no merge conflicts possible)
     write_color_text "Step 6: Force resetting to remote state..." "Cyan"
@@ -1050,13 +1046,13 @@ invoke_force_overwrite() {
     git reset --hard origin/main 2>&1
     local reset_exit=$?
     if [ $reset_exit -eq 0 ]; then
-        write_color_text "�?Local branch reset to match remote (100% synchronized)" "Green"
+        write_color_text "�?Local branch reset to match remote (100% synchronized)" "Green"
     else
         # This should never happen, but handle it anyway
         write_color_text "Reset returned non-zero, but forcing completion..." "Yellow"
         # Try one more time with force
         git reset --hard origin/main 2>&1 || true
-        write_color_text "�?Reset forced to completion" "Green"
+        write_color_text "�?Reset forced to completion" "Green"
     fi
 
     # Step 7: Final verification - ensure tracked files match remote
@@ -1064,17 +1060,17 @@ invoke_force_overwrite() {
     write_color_text "Executing: git status --porcelain" "DarkGray"
     local status_output=$(git status --porcelain)
     if [ -z "$status_output" ]; then
-        write_color_text "�?All tracked files match remote exactly" "Green"
+        write_color_text "�?All tracked files match remote exactly" "Green"
     else
         write_color_text "Note: Untracked files preserved (node_modules, .secret_keys, etc.)" "Cyan"
         write_color_text "$status_output" "DarkGray"
     fi
 
     # Summary
-    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
-    write_color_text "�?FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
-    write_color_text "�?NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
-    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
+    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
+    write_color_text "�?FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
+    write_color_text "�?NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
+    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
     write_color_text "" "White"
     write_color_text "Your local changes have been backed up to:" "Cyan"
     write_color_text "  Branch: $backup_branch" "White"
