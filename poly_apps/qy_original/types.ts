@@ -1,8 +1,3 @@
-
-<<<<<<< HEAD
-=======
-
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 // Data Models
 export interface Word {
   id: string;
@@ -91,8 +86,6 @@ export interface ActivityLog {
   likes: number;
 }
 
-<<<<<<< HEAD
-=======
 export interface Announcement {
   id: string;
   title: string;
@@ -101,7 +94,6 @@ export interface Announcement {
   date: string;
 }
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export interface User {
   id: string;
   name: string;
@@ -251,8 +243,6 @@ export type SupportedLanguage = {
   flag: string;
   ttsCode: string;
 };
-<<<<<<< HEAD
-=======
 
 // Nexus / GenAI Types
 export enum AppMode {
@@ -300,4 +290,3 @@ export interface VisionAnalysis {
   analysis: string;
   timestamp: number;
 }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

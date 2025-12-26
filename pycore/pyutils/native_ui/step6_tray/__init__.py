@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-<<<<<<< HEAD
-Native UI - System Tray Components
-
-System tray implementation for both Windows and Linux.
-=======
 System Tray Package
 
 Provides cross-platform system tray implementations:
@@ -15,7 +10,6 @@ Provides cross-platform system tray implementations:
 - AppIndicatorSystemTrayThread: Thread-safe wrapper for AppIndicatorSystemTray
 
 All implementations follow project threading standards and use THREAD_BUS for communication.
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 """
 
 from .tkinter_system_tray import (
@@ -23,15 +17,6 @@ from .tkinter_system_tray import (
     TrayMenuItem,
     PYSTRAY_AVAILABLE
 )
-<<<<<<< HEAD
-from .tray_thread import TkinterSystemTrayThread
-
-__all__ = [
-    'TkinterSystemTray',
-    'TrayMenuItem',
-    'TkinterSystemTrayThread',
-    'PYSTRAY_AVAILABLE',
-=======
 
 from .tray_thread import TkinterSystemTrayThread
 
@@ -73,5 +58,4 @@ __all__ = [
     'check_appindicator_available',
     'print_appindicator_status',
     'is_appindicator_recommended',
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 ]

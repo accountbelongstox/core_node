@@ -7,11 +7,7 @@ Serves static HTML pages and assets for UI components.
 
 from pathlib import Path
 from fastapi import APIRouter
-<<<<<<< HEAD
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-=======
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from fastapi.staticfiles import StaticFiles
 
 from pycore import ColorPrint

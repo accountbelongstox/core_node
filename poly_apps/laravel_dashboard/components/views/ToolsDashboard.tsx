@@ -1,23 +1,14 @@
 import React, { useState, useRef } from 'react';
 import BentoCard from '../BentoCard';
-<<<<<<< HEAD
-import { TOOL_CATEGORIES, TOOL_UI_SCHEMAS } from '../../constants';
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Construction, Grid, Zap, Columns, Rows, UploadCloud, File as FileIcon, X, Trash2, Paperclip, Download } from "lucide-react";
-=======
 import { TOOL_CATEGORIES, TOOL_UI_SCHEMAS, TRANSLATIONS } from '../../constants';
 import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Construction, Grid, Zap, Columns, Rows, UploadCloud, File as FileIcon, X, Trash2, Paperclip, Download, Star, History, BarChart3, Clock } from "lucide-react";
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 import ToolWorkspace from '../tools/ToolWorkspace';
 import AgeCalculator from '../tools/AgeCalculator';
 import HexToRgb from '../tools/HexToRgb';
 import PasswordGenerator from '../tools/PasswordGenerator';
 import WordCounter from '../tools/WordCounter';
 import UniversalTool from '../tools/UniversalTool';
-<<<<<<< HEAD
-import { LayoutMode } from '../../types';
-=======
 import { LayoutMode, Language } from '../../types';
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 interface UploadedFile {
     name: string;
@@ -25,9 +16,6 @@ interface UploadedFile {
     type: string;
 }
 
-<<<<<<< HEAD
-const ToolsDashboard: React.FC = () => {
-=======
 const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     const t = TRANSLATIONS[lang].tools_dashboard || {
         search_placeholder: "Search tools...",
@@ -46,7 +34,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
         add_to_favorites: "Add to favorites",
         remove_from_favorites: "Remove from favorites"
     };
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     // Persistent State for Clipboard Collapse
     const [isClipboardCollapsed, setIsClipboardCollapsed] = useState<boolean>(() => {
         const saved = localStorage.getItem('tool_clipboard_collapsed');
@@ -57,8 +44,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     const [activeCategory, setActiveCategory] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeToolId, setActiveToolId] = useState<string | null>(null);
-<<<<<<< HEAD
-=======
     const [showFavorites, setShowFavorites] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     
@@ -73,7 +58,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
         const saved = localStorage.getItem('tool_history');
         return saved ? JSON.parse(saved) : [];
     });
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     
     // Clipboard File State
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([
@@ -115,11 +99,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
         setUploadedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-<<<<<<< HEAD
-    // Filter tools logic
-    const filteredTools = TOOL_CATEGORIES.flatMap(cat => 
-        cat.tools.map(tool => ({ ...tool, categoryName: cat.name, categoryIcon: cat.icon }))
-=======
     // Toggle favorite
     const toggleFavorite = (toolId: string, e?: React.MouseEvent) => {
         if (e) {
@@ -161,7 +140,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     const filteredTools = (showFavorites 
         ? allTools.filter(tool => favorites.includes(tool.id))
         : allTools
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     ).filter(tool => {
         const matchesCategory = activeCategory === 'all' || 
             TOOL_CATEGORIES.find(c => c.id === activeCategory)?.tools.some(t => t.id === tool.id);
@@ -357,11 +335,7 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                              <Search className="text-slate-500 flex-shrink-0" size={16} />
                              <input 
                                 type="text" 
-<<<<<<< HEAD
-                                placeholder="Search tools..." 
-=======
                                 placeholder={t.search_placeholder}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
@@ -374,19 +348,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                          {/* Icon Strip */}
                          <div className="w-16 flex-shrink-0 flex flex-col items-center py-2 gap-2 border-r border-white/5 bg-black/20 overflow-y-auto scrollbar-none">
                             <button 
-<<<<<<< HEAD
-                                onClick={() => setActiveCategory('all')} 
-                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
-                                title="All Tools"
-                            >
-                                <Grid size={18} />
-                            </button>
-                            {TOOL_CATEGORIES.map(cat => (
-                                <button 
-                                    key={cat.id} 
-                                    onClick={() => setActiveCategory(cat.id)} 
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === cat.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
-=======
                                 onClick={() => { setActiveCategory('all'); setShowFavorites(false); setShowHistory(false); }} 
                                 className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === 'all' && !showFavorites && !showHistory ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
                                 title={t.all_tools}
@@ -412,7 +373,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                     key={cat.id} 
                                     onClick={() => { setActiveCategory(cat.id); setShowFavorites(false); setShowHistory(false); }} 
                                     className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${activeCategory === cat.id && !showFavorites && !showHistory ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-indigo-400 hover:bg-white/5'}`}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                                     title={cat.name}
                                 >
                                     <cat.icon size={18} />
@@ -422,28 +382,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
 
                          {/* Expanded List */}
                          <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/50">
-<<<<<<< HEAD
-                             <div className="mb-2 px-2 pt-2">
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                    {activeCategory === 'all' ? 'All Utilities' : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
-                                </h3>
-                             </div>
-                             
-                             <div className="space-y-1">
-                                {filteredTools.map(tool => (
-                                    <button
-                                        key={tool.id}
-                                        onClick={() => { setActiveToolId(tool.id); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === tool.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
-                                    >
-                                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${activeToolId === tool.id ? 'bg-indigo-500' : 'bg-slate-600'}`} />
-                                        <span className="truncate">{tool.name}</span>
-                                    </button>
-                                ))}
-                                {filteredTools.length === 0 && (
-                                    <div className="p-4 text-center text-slate-500 text-xs">
-                                        No tools found.
-=======
                              <div className="mb-2 px-2 pt-2 flex items-center justify-between">
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     {showFavorites ? t.favorites : 
@@ -523,7 +461,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                 {!showHistory && filteredTools.length === 0 && (
                                     <div className="p-4 text-center text-slate-500 text-xs">
                                         {showFavorites ? t.no_favorites : t.no_tools_found}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                                     </div>
                                 )}
                              </div>
@@ -531,10 +468,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                     </div>
                     
                     {/* Footer Info */}
-<<<<<<< HEAD
-                    <div className="p-3 border-t border-white/10 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-slate-600 text-center">
-                        {filteredTools.length} Tools Available
-=======
                     <div className="p-3 border-t border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div className="text-[10px] text-slate-600 text-center mb-2">
                             {showHistory ? `${history.length} ${t.recent}` : 
@@ -555,7 +488,6 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                 <span>{allTools.length}</span>
                             </div>
                         </div>
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                     </div>
                 </BentoCard>
             </div>

@@ -168,32 +168,6 @@ configure_pnpm_global_dirs() {
     local pnpm_global_dir_target="$PNPM_GLOBAL_DIR"
     local pnpm_global_bin_target="$PNPM_GLOBAL_BIN_DIR"
 
-<<<<<<< HEAD
-    # Check current pnpm config
-    local pnpm_global_bin=$(run_pnpm_from_common_functions config get global-bin-dir 2>/dev/null)
-    local pnpm_global_dir=$(run_pnpm_from_common_functions config get global-dir 2>/dev/null)
-
-    if [ -z "$pnpm_global_bin" ] || [ "$pnpm_global_bin" = "undefined" ] || [ "$pnpm_global_bin" != "$pnpm_global_bin_target" ]; then
-        echo "[$SCRIPT_INDEX] Configuring pnpm global directories..."
-        echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir_target"
-        echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin_target"
-
-        # Set pnpm config using absolute paths
-        run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
-        run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
-
-        # Create directories
-        mkdir -p "$pnpm_global_dir_target"
-        mkdir -p "$pnpm_global_bin_target"
-
-        echo "[$SCRIPT_INDEX] pnpm global directories configured"
-    else
-        echo "[$SCRIPT_INDEX] pnpm global directories already configured:"
-        echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir"
-        echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin"
-    fi
-
-=======
     echo "[$SCRIPT_INDEX] Configuring pnpm global directories..."
     echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir_target"
     echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin_target"
@@ -235,7 +209,6 @@ EOF
 
     echo "[$SCRIPT_INDEX] pnpm global directories configured"
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # Save pnpm global bin directory to global variables
     local pnpm_global_bin_final=$(pnpm config get global-bin-dir 2>/dev/null)
     if [ -n "$pnpm_global_bin_final" ]; then
@@ -389,11 +362,11 @@ verify_pnpm_config() {
         echo "[$SCRIPT_INDEX] Checking enable-pre-post-scripts setting..."
         local enable_scripts=$(pnpm config get enable-pre-post-scripts 2>/dev/null)
         if [ "$enable_scripts" = "true" ]; then
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is set to true"
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts is set to true"
         else
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is NOT set correctly, fixing..."
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts is NOT set correctly, fixing..."
             pnpm config set enable-pre-post-scripts true
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts has been set to true"
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts has been set to true"
         fi
     else
         echo "[$SCRIPT_INDEX] pnpm not found"

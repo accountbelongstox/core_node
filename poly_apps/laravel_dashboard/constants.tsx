@@ -18,11 +18,6 @@ export const TRANSLATIONS = {
     nav: {
       media: "Media Browser",
       code: "Code Node",
-<<<<<<< HEAD
-      tools: "Tools",
-      api: "API Tester",
-      settings: "Settings"
-=======
     tools: "Tools",
     api: "API Tester",
     settings: "Settings",
@@ -50,7 +45,6 @@ export const TRANSLATIONS = {
       octane: "Octane Tasks",
       server: "Server Manager",
       inviteCodes: "Invite Codes"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     },
     header: {
       system_online: "System Online",
@@ -63,9 +57,6 @@ export const TRANSLATIONS = {
         media: "Static Resources - Media Browser",
         code: "Code Browser - Core Node Directory",
         tools: "Developer Utilities",
-<<<<<<< HEAD
-        api: "API Testing Interface"
-=======
         api: "API Testing Interface",
         system: "System Information Dashboard",
         vocabulary: "Vocabulary Learning Center",
@@ -75,19 +66,12 @@ export const TRANSLATIONS = {
         server: "Server Management Dashboard",
         invite_codes: "Invite Code Management",
         settings: "Settings"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       }
     },
     login: {
       title: "Identity Verification",
       subtitle: "Please authenticate to access core systems.",
       username: "Username / ID",
-<<<<<<< HEAD
-      password: "Access Key",
-      submit: "Authenticate",
-      cancel: "Cancel",
-      processing: "Verifying..."
-=======
       password: "Password",
       confirm_password: "Confirm Password",
       email: "Email (Optional)",
@@ -402,7 +386,6 @@ export const TRANSLATIONS = {
         failed_to_renew_certs: "Failed to renew certificates",
         failed_to_install_certbot: "Failed to install Certbot"
       }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     }
   },
   zh: {
@@ -411,9 +394,6 @@ export const TRANSLATIONS = {
       code: "代码节点",
       tools: "工具箱",
       api: "API 测试",
-<<<<<<< HEAD
-      settings: "系统设置"
-=======
       settings: "系统设置",
       system: "系统信息",
       vocabulary: "词汇学习",
@@ -421,7 +401,6 @@ export const TRANSLATIONS = {
       octane: "Octane 任务",
       server: "服务器管理",
       inviteCodes: "邀请码管理"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     },
     header: {
       system_online: "系统在线",
@@ -434,9 +413,6 @@ export const TRANSLATIONS = {
         media: "静态资源 - 媒体浏览器",
         code: "代码浏览器 - 核心节点目录",
         tools: "开发者实用工具",
-<<<<<<< HEAD
-        api: "API 测试接口"
-=======
         api: "API 测试接口",
         system: "系统信息仪表板",
         vocabulary: "词汇学习中心",
@@ -445,19 +421,12 @@ export const TRANSLATIONS = {
         server: "服务器管理仪表板",
         invite_codes: "邀请码管理",
         settings: "系统设置"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       }
     },
     login: {
       title: "身份验证",
       subtitle: "请验证身份以访问核心系统。",
       username: "用户名 / ID",
-<<<<<<< HEAD
-      password: "访问密钥",
-      submit: "验证登录",
-      cancel: "取消",
-      processing: "验证中..."
-=======
       password: "密码",
       confirm_password: "确认密码",
       email: "邮箱（可选）",
@@ -771,7 +740,6 @@ export const TRANSLATIONS = {
         failed_to_renew_certs: "证书续期失败",
         failed_to_install_certbot: "Certbot 安装失败"
       }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     }
   }
 };

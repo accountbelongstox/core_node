@@ -675,19 +675,11 @@ EOF;
     private static function getExternalWritePaths(string $laravelPath): array
     {
         $sessionDir = PathMapper::getLaravelSessionsDir();
-<<<<<<< HEAD
-        $laravel_db = dirname($sessionDir);
-        $coreNodeDir = PathMapper::getCoreNodeDir();
-        $promptsDir = $coreNodeDir . '/_prompts';
-
-        $paths = [$laravel_db];
-=======
         $laravel_db = dirname($sessionDir);  // SYNC: Shell Line 249 - /www/wwwroot/laravel_db
         $coreNodeDir = PathMapper::getCoreNodeDir();
         $promptsDir = $coreNodeDir . '/_prompts';  // SYNC: Shell Line 250 - /_prompts
 
         $paths = [$laravel_db];  // CRITICAL: Always include laravel_db first
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
         if (is_dir($promptsDir) || is_link($promptsDir)) {
             $paths[] = $promptsDir;

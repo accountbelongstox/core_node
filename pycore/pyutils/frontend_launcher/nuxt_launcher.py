@@ -8,11 +8,7 @@ import os
 import sys
 import time
 import platform
-<<<<<<< HEAD
-import subprocess
-=======
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -20,10 +16,7 @@ from typing import Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from .frontend_config import FrontendConfig
 from .output_capturer import OutputCapturer
-<<<<<<< HEAD
-=======
 import subprocess
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 
 class NuxtLauncher:

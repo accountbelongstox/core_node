@@ -13,10 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Optional
 
-<<<<<<< HEAD
-=======
 from pycore import ColorPrint
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from pyapps.matrix.matrix_config import Config
 
 

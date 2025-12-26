@@ -345,8 +345,6 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     {
         id: 'static_up', method: 'POST', path: '/static-resources/upload', description: 'Upload Static Files', section: 'Static Resources',
         params: [{ name: 'files', type: 'file', required: true }]
-<<<<<<< HEAD
-=======
     },
 
     // --- Translation API ---
@@ -727,6 +725,5 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
             { name: 'app_name', type: 'string', required: true },
             { name: 'lines', type: 'integer', required: false }
         ]
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     }
 ];

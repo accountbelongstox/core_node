@@ -52,15 +52,12 @@ from dataclasses import dataclass
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pystray
 
-<<<<<<< HEAD
-=======
 # Import i18n for multi-language support
 try:
     from pycore.pyutils.native_ui.step0_i18n import i18n
 except ImportError:
     i18n = None
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 # Use lazy loader to get pystray (handles X11 display errors gracefully)
 pystray = get_third_package_pystray()
 PYSTRAY_AVAILABLE = pystray is not None
@@ -109,25 +106,6 @@ class TrayMenuItem:
 
     def get_display_text(self) -> str:
         """
-<<<<<<< HEAD
-        Get display text with state prefix
-
-        Returns:
-            Text with optional state indicator prefix
-        """
-        # If state_getter is provided, use it to get current state
-        if self.state_getter:
-            state_text = self.state_getter()
-            return f"{state_text} {self.text}" if state_text else self.text
-
-        # Otherwise use checked state
-        if self.checked is None:
-            return self.text
-        elif self.checked:
-            return f"[X] {self.text}"  # ASCII compatible
-        else:
-            return f"[ ] {self.text}"
-=======
         Get display text with state prefix and i18n support
 
         Returns:
@@ -154,7 +132,6 @@ class TrayMenuItem:
             return f"[X] {translated_text}"  # ASCII compatible
         else:
             return f"[ ] {translated_text}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
     # Separator constant
     SEPARATOR = None  # Will be set after class definition

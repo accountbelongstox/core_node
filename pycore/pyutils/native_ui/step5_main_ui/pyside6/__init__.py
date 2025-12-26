@@ -41,10 +41,7 @@ from .system_tray import PySide6SystemTray, PySide6TrayMenuItem, create_default_
 from .webview import PySide6WebView
 from .framework import PySide6Framework, TickTimer, create_framework
 from .ui_thread import PySide6UIThread
-<<<<<<< HEAD
-=======
 from . import webengine_config
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 __all__ = [
     # Availability flag
@@ -96,11 +93,8 @@ __all__ = [
 
     # UI Thread
     'PySide6UIThread',
-<<<<<<< HEAD
-=======
 
     # WebEngine Configuration (multi-tier redundant)
     'webengine_config',
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 ]
 

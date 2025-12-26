@@ -410,8 +410,6 @@ class InitializeApps extends Command
         
         $this->newLine();
 
-<<<<<<< HEAD
-=======
         $this->info('Initializing Global Task System...');
         $globalTaskResults = \App\Services\GlobalTaskSystemInitializer::ensureTablesExist();
 
@@ -452,7 +450,6 @@ class InitializeApps extends Command
 
         $this->newLine();
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         $this->info('Verifying AI providers...');
         $aiRouter = new UnifiedAIRouter();
         $providersStatus = $aiRouter->getProvidersStatus();

@@ -498,19 +498,11 @@ create_python_venv_and_replace_system() {
             print_info_from_common_functions "Virtual environment exists and appears up-to-date"
         fi
 
-<<<<<<< HEAD
-        print_step_from_common_functions "Rebuild virtual environment? [Y/n] (recommended if you added new packages)"
-        read -r response </dev/tty
-        response=${response:-Y}  # Default to Y if user just presses Enter
-
-        if [[ "$response" =~ ^[Yy]$ ]] || [ -z "$response" ]; then
-=======
         print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
         read -r response </dev/tty
         response=${response:-n}  # Default to n if user just presses Enter
 
         if [[ "$response" =~ ^[Yy]$ ]]; then
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             user_wants_rebuild=true
         else
             print_info_from_common_functions "Skipping venv rebuild. Using existing venv."
@@ -563,8 +555,6 @@ create_python_venv_and_replace_system() {
         fi
     else
         print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
-<<<<<<< HEAD
-=======
     fi
 
     # IMPORTANT: Always upgrade pip and essential packages, even if venv was not rebuilt
@@ -573,7 +563,6 @@ create_python_venv_and_replace_system() {
     if [ -f "$VENV_PIP3" ]; then
         upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
         install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" setuptools wheel
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     fi
 
     # Verify venv executables exist

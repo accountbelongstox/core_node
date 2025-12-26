@@ -306,11 +306,7 @@ install_antigravity() {
     return 0
 }
 
-<<<<<<< HEAD
-# Function: Update Antigravity (add repo â†’ upgrade â†’ remove repo)
-=======
-# Function: Update Antigravity (add repo â†?upgrade â†?remove repo)
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+# Function: Update Antigravity (add repo ï¿½?upgrade ï¿½?remove repo)
 update_antigravity() {
     log "Updating $ANTIGRAVITY_PACKAGE..."
 
@@ -473,21 +469,13 @@ scan_and_replace_desktop_entries() {
 
         # Skip if already pointing to the target
         if [[ "$current_exec" == "$target_exec"* ]]; then
-<<<<<<< HEAD
-            log "  âŠ˜ Already correct, skipping"
-=======
-            log "  âŠ?Already correct, skipping"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+            log "  ï¿½?Already correct, skipping"
             continue
         fi
 
         # Skip if pointing to any launcher script (prevent recursion)
         if [[ "$current_exec" == *"/super_scripts/"* ]]; then
-<<<<<<< HEAD
-            log "  âŠ˜ Already using launcher script, skipping"
-=======
-            log "  âŠ?Already using launcher script, skipping"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+            log "  ï¿½?Already using launcher script, skipping"
             continue
         fi
 
@@ -510,15 +498,9 @@ scan_and_replace_desktop_entries() {
                 fi
 
                 files_updated=$((files_updated + 1))
-<<<<<<< HEAD
-                log "  âœ“ Updated (with sudo)"
+                log "  ï¿½?Updated (with sudo)"
             else
-                log "  âœ— Skipped (not writable, no sudo)"
-=======
-                log "  âœ?Updated (with sudo)"
-            else
-                log "  âœ?Skipped (not writable, no sudo)"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+                log "  ï¿½?Skipped (not writable, no sudo)"
             fi
         else
             # Backup original
@@ -536,11 +518,7 @@ scan_and_replace_desktop_entries() {
             fi
 
             files_updated=$((files_updated + 1))
-<<<<<<< HEAD
-            log "  âœ“ Updated"
-=======
-            log "  âœ?Updated"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+            log "  ï¿½?Updated"
         fi
     done
 
@@ -561,43 +539,27 @@ refresh_desktop_database() {
         update-desktop-database ~/.local/share/applications 2>/dev/null || true
         $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
         $USE_SUDO update-desktop-database /usr/local/share/applications 2>/dev/null || true
-<<<<<<< HEAD
-        log "  âœ“ Desktop database updated"
-=======
-        log "  âœ?Desktop database updated"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+        log "  ï¿½?Desktop database updated"
     fi
 
     # Update icon cache
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
         $USE_SUDO gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-<<<<<<< HEAD
-        log "  âœ“ Icon cache updated"
-=======
-        log "  âœ?Icon cache updated"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+        log "  ï¿½?Icon cache updated"
     fi
 
     # Update MIME database
     if command -v update-mime-database >/dev/null 2>&1; then
         update-mime-database ~/.local/share/mime 2>/dev/null || true
         $USE_SUDO update-mime-database /usr/share/mime 2>/dev/null || true
-<<<<<<< HEAD
-        log "  âœ“ MIME database updated"
-=======
-        log "  âœ?MIME database updated"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+        log "  ï¿½?MIME database updated"
     fi
 
     # Kill and restart any running panel/dock processes to reload icons
     if pgrep -x gnome-shell >/dev/null 2>&1; then
         # GNOME Shell - no need to restart, it will reload automatically
-<<<<<<< HEAD
-        log "  â„¹ GNOME Shell detected (will auto-reload)"
-=======
-        log "  â„?GNOME Shell detected (will auto-reload)"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+        log "  ï¿½?GNOME Shell detected (will auto-reload)"
     fi
 
     log "Desktop refresh completed"

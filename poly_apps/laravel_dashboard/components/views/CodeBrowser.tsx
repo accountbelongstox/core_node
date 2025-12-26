@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-import React, { useState } from 'react';
-import BentoCard from '../BentoCard';
-import FloatingTaskPlayer from '../FloatingTaskPlayer';
-import { MOCK_CODE_TREE, MOCK_TASKS } from '../../constants';
-import { TaskItem } from '../../types';
-import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight } from "lucide-react";
-=======
 import React, { useState, useEffect } from 'react';
 import { api } from '../../core/api';
 import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask, TaskItem } from '../../types';
@@ -27,7 +19,6 @@ interface FileTreeNode {
   children?: FileTreeNode[];
   isOpen?: boolean;
 }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 const CodeLine = ({ num, content }: { num: number, content: string }) => (
     <div className="flex hover:bg-white/5 group">
@@ -36,44 +27,6 @@ const CodeLine = ({ num, content }: { num: number, content: string }) => (
     </div>
 );
 
-<<<<<<< HEAD
-const MOCK_CODE_CONTENT = `import React, { useState, useEffect } from 'react';
-import { createStore } from './store';
-
-// Core initialization for the neural interface
-export class NeuralLink {
-  private connected: boolean = false;
-  private readonly synapseId: string;
-
-  constructor(id: string) {
-    this.synapseId = id;
-    this.initializeConnection();
-  }
-
-  /** 
-   * Establishes secure handshake with the core 
-   */
-  private async initializeConnection(): Promise<void> {
-    try {
-      console.log(\`Initializing synapse \${this.synapseId}...\`);
-      await this.handshake();
-      this.connected = true;
-      this.startHeartbeat();
-    } catch (err) {
-      console.error("Critical failure in synapse link", err);
-      // Fallback to local cache
-      this.enableOfflineMode();
-    }
-  }
-
-  public getStatus(): string {
-    return this.connected ? 'ONLINE' : 'OFFLINE';
-  }
-}`;
-
-const CodeBrowser: React.FC = () => {
-    // State for Floating Task Windows
-=======
 const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     const [fileTree, setFileTree] = useState<AsyncState<ServerFileNode[]>>({
         data: [],
@@ -103,13 +56,10 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     });
 
     // State for Floating Task Windows (kept for potential future use)
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     const [openTasks, setOpenTasks] = useState<string[]>([]);
     const [zIndices, setZIndices] = useState<Record<string, number>>({});
     const [topZ, setTopZ] = useState(100);
 
-<<<<<<< HEAD
-=======
     const [rootPath, setRootPath] = useState<string>('');
     const [authRequired, setAuthRequired] = useState<boolean>(false);
 
@@ -188,7 +138,6 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
         }));
     };
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     const handleOpenTask = (taskId: string) => {
         if (!openTasks.includes(taskId)) {
             setOpenTasks(prev => [...prev, taskId]);
@@ -261,18 +210,6 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
                     <div className="flex-1 flex min-h-0">
                         {/* File Tree (Simplified inline for layout match) */}
                         <div className="w-64 border-r border-white/5 p-2 hidden md:block overflow-y-auto">
-<<<<<<< HEAD
-                            <div className="flex items-center gap-2 px-2 py-1 text-slate-400 hover:bg-white/5 rounded cursor-pointer">
-                                <FolderOpen size={14} className="text-yellow-500/80" />
-                                <span className="text-sm font-mono">core_node</span>
-                            </div>
-                            {['.analysis_reports', '.augment', '.cache', '.claude', '.codebuddy', '.compliance', '.cursor', '.install_state', '.opencode'].map(folder => (
-                                <div key={folder} className="flex items-center gap-2 px-2 py-1 ml-4 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded cursor-pointer transition-colors">
-                                    <Folder size={14} className="text-slate-600" />
-                                    <span className="text-sm font-mono">{folder}</span>
-                                </div>
-                            ))}
-=======
                             {authRequired ? (
                                 <div className="flex flex-col items-center justify-center h-full p-4">
                                     <AlertCircle className="w-12 h-12 text-amber-500 mb-4" />
@@ -298,7 +235,6 @@ const CodeBrowser: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
                                     ))}
                                 </>
                             )}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                         </div>
 
                         {/* Editor Content */}

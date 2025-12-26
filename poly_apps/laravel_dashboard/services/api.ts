@@ -2,12 +2,6 @@
 import { ToolConfig, ApiResponse } from "../types";
 import { MockService } from "./mockData";
 
-<<<<<<< HEAD
-class ApiClient {
-    private static instance: ApiClient;
-    
-    private globalBaseUrl: string = "https://api.nexus-orbit.io";
-=======
 const getDefaultBaseUrl = (): string => {
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
@@ -21,7 +15,6 @@ class ApiClient {
     private static instance: ApiClient;
 
     private globalBaseUrl: string = getDefaultBaseUrl();
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     private globalApiKey: string = "sk-mock-key-12345";
 
     private constructor() {}

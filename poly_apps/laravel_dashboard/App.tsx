@@ -2,43 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MediaBrowser from './components/views/MediaBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
-<<<<<<< HEAD
-import ToolsDashboard from './components/views/ToolsDashboard';
-import ApiTester from './components/views/ApiTester';
-import LoginModal from './components/LoginModal';
-import { ViewType, Language, Theme } from './types';
-import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
-import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
-
-const App: React.FC = () => {
-  // Global State
-  const [activeView, setActiveView] = useState<ViewType>(ViewType.MEDIA_BROWSER);
-  const [lang, setLang] = useState<Language>('en');
-  const [theme, setTheme] = useState<Theme>('dark');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-
-  // Apply Theme Effect
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
-
-  const toggleLang = () => {
-    setLang(prev => prev === 'en' ? 'zh' : 'en');
-  };
-
-  const handleAuthAction = () => {
-    if (isLoggedIn) {
-=======
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
@@ -119,7 +82,6 @@ const AppContent: React.FC = () => {
   const handleAuthAction = async () => {
     if (isLoggedIn) {
       await userLogout();
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       setIsLoggedIn(false);
     } else {
       setShowLoginModal(true);
@@ -127,17 +89,11 @@ const AppContent: React.FC = () => {
   };
 
   const handleLoginSuccess = () => {
-<<<<<<< HEAD
-    setIsLoggedIn(true);
-=======
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     setShowLoginModal(false);
   };
 
   const t = TRANSLATIONS[lang];
 
-<<<<<<< HEAD
-=======
   // NO ?? or || allowed - backend MUST return complete translation structure
   const settingsAuthRequired = t.settings.auth_required;
   const serverManagerAuthRequired = t.server_manager.auth_required;
@@ -149,7 +105,6 @@ const AppContent: React.FC = () => {
   // To enable auth: Set window.DISABLE_AUTH = false in browser console
   const disableAuth = (window as any).DISABLE_AUTH !== false;
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   const renderView = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
@@ -157,11 +112,6 @@ const AppContent: React.FC = () => {
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
-<<<<<<< HEAD
-        return <ToolsDashboard />;
-      case ViewType.API_TESTER:
-        return <ApiTester />;
-=======
         return <UnifiedToolsPage lang={lang} />;
       case ViewType.API_TESTER:
         return <ApiTester />;
@@ -206,7 +156,6 @@ const AppContent: React.FC = () => {
             <InviteCodeManager lang={lang} />
           </AuthGuard>
         );
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -223,8 +172,6 @@ const AppContent: React.FC = () => {
       case ViewType.CODE_BROWSER: return t.header.titles.code;
       case ViewType.TOOLS: return t.header.titles.tools;
       case ViewType.API_TESTER: return t.header.titles.api;
-<<<<<<< HEAD
-=======
       case ViewType.VOCABULARY: return t.header.titles.vocabulary;
       case ViewType.AI_TOOLS: return t.header.titles.ai_tools;
       case ViewType.MCP_MANAGER: return t.header.titles.mcp;
@@ -232,7 +179,6 @@ const AppContent: React.FC = () => {
       case ViewType.SERVER_MANAGER: return t.header.titles.server;
       case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
       case ViewType.SETTINGS: return t.header.titles.settings;
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       default: return APP_NAME;
     }
   };
@@ -263,51 +209,25 @@ const AppContent: React.FC = () => {
         
         <main className="flex-1 flex flex-col min-w-0 bg-transparent relative">
           {/* Top Header */}
-<<<<<<< HEAD
-          <header className="h-16 flex items-center justify-between px-6 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
-             <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
-                   {getPageTitle()}
-                </h1>
-                <span className="hidden md:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
-=======
           <header className="min-h-16 flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-3 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
              <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 min-w-0">
                 <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-white truncate">
                    {getPageTitle()}
                 </h1>
                 <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0">
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                   {APP_NAME} {APP_VERSION}
                 </span>
              </div>
 
-<<<<<<< HEAD
-             <div className="flex items-center gap-4 md:gap-6 text-xs font-medium">
-                {/* System Status */}
-                <div className="hidden md:flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                    <span className={isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'}>
-=======
              <div className="flex items-center gap-2 sm:gap-4 text-xs font-medium flex-wrap">
                 {/* System Status */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                     <span className={`${isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'} whitespace-nowrap`}>
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       {isLoggedIn ? t.header.system_online : t.header.system_offline}
                     </span>
                 </div>
 
-<<<<<<< HEAD
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block"></div>
-
-                {/* Controls */}
-                <div className="flex items-center gap-2">
-                    {/* Language Switcher */}
-                    <button 
-                      onClick={toggleLang}
-=======
                 <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
 
                 {/* Controls */}
@@ -318,7 +238,6 @@ const AppContent: React.FC = () => {
                     {/* Language Switcher */}
                     <button
                       onClick={() => toggleLang(true)}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Switch Language"
                     >
@@ -326,13 +245,8 @@ const AppContent: React.FC = () => {
                     </button>
 
                     {/* Theme Switcher */}
-<<<<<<< HEAD
-                    <button 
-                      onClick={toggleTheme}
-=======
                     <button
                       onClick={() => toggleTheme(true)}
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       className="p-2 rounded-lg text-slate-500 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Toggle Theme"
                     >
@@ -340,25 +254,6 @@ const AppContent: React.FC = () => {
                     </button>
                 </div>
 
-<<<<<<< HEAD
-                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10"></div>
-
-                {/* User Info / Auth */}
-                <div className="flex items-center gap-4">
-                    {isLoggedIn && (
-                      <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                          <span>{t.header.logged_in_as}</span>
-                          <span className="text-slate-800 dark:text-white font-bold">adminroot</span>
-                      </div>
-                    )}
-                    
-                    <button 
-                      onClick={handleAuthAction}
-                      className={`
-                        px-4 py-2 rounded-lg transition-all flex items-center gap-2 border font-semibold
-                        ${isLoggedIn 
-                          ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20' 
-=======
                 <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
 
                 {/* User Info / Auth */}
@@ -376,25 +271,16 @@ const AppContent: React.FC = () => {
                         px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all flex items-center gap-1.5 border font-semibold text-xs sm:text-sm flex-shrink-0
                         ${isLoggedIn
                           ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20'
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                           : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-lg shadow-indigo-500/20'}
                       `}
                     >
                         {isLoggedIn ? (
                           <>
-<<<<<<< HEAD
-                            <Power size={14} /> <span className="hidden sm:inline">{t.header.logout}</span>
-                          </>
-                        ) : (
-                          <>
-                            <LogIn size={14} /> <span>{t.header.login}</span>
-=======
                             <Power size={14} /> <span className="hidden sm:inline whitespace-nowrap">{t.header.logout}</span>
                           </>
                         ) : (
                           <>
                             <LogIn size={14} /> <span className="whitespace-nowrap">{t.header.login}</span>
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                           </>
                         )}
                     </button>
@@ -414,15 +300,6 @@ const AppContent: React.FC = () => {
       </div>
 
       {/* Login Modal */}
-<<<<<<< HEAD
-      <LoginModal 
-        isOpen={showLoginModal} 
-        onClose={() => setShowLoginModal(false)}
-        onLogin={handleLoginSuccess}
-        lang={lang}
-      />
-
-=======
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
@@ -439,13 +316,10 @@ const AppContent: React.FC = () => {
         statusCode={htmlError?.statusCode}
       />
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     </div>
   );
 };
 
-<<<<<<< HEAD
-=======
 // Main App Component with AppStateProvider, ApiConfigProvider and ToastProvider
 const App: React.FC = () => {
   return (
@@ -459,5 +333,4 @@ const App: React.FC = () => {
   );
 };
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export default App;

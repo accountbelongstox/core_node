@@ -39,10 +39,7 @@ try {
     $patchRoot = Join-Path $root "scripts/reanimated_patch"
     $targetMain = Join-Path $root "node_modules/react-native-reanimated/android/src/main/java/com/swmansion/reanimated"
     $targetPatch = Join-Path $root "node_modules/react-native-reanimated/android/src/reactNativeVersionPatch/BorderRadiiDrawableUtils/latest/com/swmansion/reanimated"
-<<<<<<< HEAD
-=======
     $targetRootCMake = Join-Path $root "node_modules/react-native-reanimated/android/CMakeLists.txt"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     $targetWorkletsCMake = Join-Path $root "node_modules/react-native-reanimated/android/src/main/cpp/worklets/CMakeLists.txt"
     if (Test-Path $targetMain) {
       Copy-Item "$patchRoot/ReanimatedModule.java" $targetMain -Force
@@ -51,12 +48,9 @@ try {
     if (Test-Path $targetPatch) {
       Copy-Item "$patchRoot/BorderRadiiDrawableUtils.java" $targetPatch -Force
     }
-<<<<<<< HEAD
-=======
     if (Test-Path $targetRootCMake) {
       Copy-Item "$patchRoot/CMakeLists.txt" $targetRootCMake -Force
     }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     if (Test-Path $targetWorkletsCMake) {
       Copy-Item "$patchRoot/worklets.CMakeLists.txt" $targetWorkletsCMake -Force
     }

@@ -25,13 +25,10 @@ fix_core_node_permissions_full() {
     echo "[INFO] Project root: $project_root"
     echo "[INFO] Real user: $real_user"
 
-<<<<<<< HEAD
-=======
     # Calculate build directory path dynamically (no hardcoding)
     local parent_dir="$(dirname "$project_root")"
     local build_dir="$parent_dir/_build_dir"
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # Full directories for comprehensive operation
     local full_dirs=(
         "$project_root"
@@ -67,12 +64,8 @@ fix_core_node_permissions_full() {
         local laravel_db_dir="/www/wwwroot/laravel_db"
         if [ -d "$laravel_db_dir" ]; then
             echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
-<<<<<<< HEAD
-            chown -R www-data:www-data "$laravel_db_dir" 2>/dev/null
-=======
             local detected_user=$(detect_system_user)
             chown -R ${detected_user}:${detected_user} "$laravel_db_dir" 2>/dev/null
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             chmod -R 775 "$laravel_db_dir" 2>/dev/null
             # Fix SQLite database files
             find "$laravel_db_dir" -name "*.sqlite" -exec chmod 664 {} \; 2>/dev/null

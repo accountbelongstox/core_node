@@ -8,9 +8,6 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
-<<<<<<< HEAD
-from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router, web_router, code_sync_router
-=======
 from .routers import (
     # Management routers
     status_router,
@@ -37,7 +34,6 @@ from .routers.local import (
 )
 from .routers.upload import router as upload_router
 from .routers.client import router as client_router
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -106,14 +102,8 @@ def create_app() -> FastAPI:
     # Legacy routers (still active)
     app.include_router(module_call_router)
     app.include_router(mcp_router)  # MCP backend integrated routes
-<<<<<<< HEAD
-    app.include_router(singleton_router)  # Singleton control routes
-    app.include_router(web_router)  # Web UI routes
-    app.include_router(code_sync_router)  # Code sync routes
-=======
     app.include_router(code_sync_router)  # Code sync routes
     app.include_router(notebooklm_stt_router)  # NotebookLM STT auto-convert routes
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
     @app.on_event("startup")
     async def startup_event():

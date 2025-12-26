@@ -22,16 +22,10 @@ $projectRoot = Get-GlobalVar "KEY_PROJECT_ROOT" (Get-Location)
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Flutter Bloom Android Debug Launcher" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
-<<<<<<< HEAD
-Write-Host "[INFO] App: app_main" -ForegroundColor Yellow
-Write-Host "[INFO] Entry File: lib/apps/app_main/main_app_main.dart" -ForegroundColor Yellow
-Write-Host "[INFO] Platform: Android" -ForegroundColor Yellow
-=======
 Write-Host "[INFO] App: $appName" -ForegroundColor Yellow
 Write-Host "[INFO] Entry File: $entryFile" -ForegroundColor Yellow
 Write-Host "[INFO] Platform: $platform" -ForegroundColor Yellow
 Write-Host "[INFO] Emulator: $emulatorName" -ForegroundColor Yellow
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 Write-Host "========================================" -ForegroundColor Cyan
 
 Set-Location $projectRoot
@@ -148,17 +142,6 @@ if (-not $adbAvailable) {
     exit 1
 }
 
-<<<<<<< HEAD
-Write-Host "[INFO] Starting Flutter for Android..." -ForegroundColor Green
-Write-Host "[INFO] Executing: flutter run --debug -t "lib/apps/app_main/main_app_main.dart"" -ForegroundColor Cyan
-Write-Host "[DEBUG] Hot reload: press 'r'" -ForegroundColor Yellow
-Write-Host "[DEBUG] Hot restart: press 'R'" -ForegroundColor Yellow
-Write-Host "[DEBUG] Quit: press 'q'" -ForegroundColor Yellow
-
-try {
-    flutter run --debug -t "lib/apps/app_main/main_app_main.dart"
-    Write-Host "[INFO] Flutter command completed successfully" -ForegroundColor Green
-=======
 if ($deviceCount -eq 0) {
     Write-Host "[ERROR] No online Android devices!" -ForegroundColor Red
     Write-Host "" -ForegroundColor White
@@ -220,7 +203,6 @@ Write-Host "[DEBUG] Hot reload: 'r' | Hot restart: 'R' | Quit: 'q'" -ForegroundC
 try {
     flutter run --debug -d $selectedDevice -t "$entryFile"
     Write-Host "[INFO] Flutter completed successfully" -ForegroundColor Green
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 } catch {
     Write-Host "[ERROR] Flutter failed: $_" -ForegroundColor Red
 }

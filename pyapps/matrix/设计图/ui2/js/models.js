@@ -108,8 +108,6 @@ export { DeviceModel, DeviceGroupModel, TaskModel, LogEntryModel, SettingsModel,
 
 
 
-<<<<<<< HEAD
-=======
 
 
 
@@ -126,4 +124,3 @@ export { DeviceModel, DeviceGroupModel, TaskModel, LogEntryModel, SettingsModel,
 
 
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

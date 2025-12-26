@@ -375,10 +375,6 @@ def determine_command_details(project_type: str, mode_label: str, platform_label
     }
 
 
-<<<<<<< HEAD
-def clear_screen() -> None:
-    os.system("cls" if os.name == "nt" else "clear")
-=======
 def get_clear_screen_command() -> str:
     """
     Returns the appropriate clear screen command for the platform.
@@ -395,7 +391,6 @@ def clear_screen() -> None:
     """
     # Use ANSI escape codes for cross-platform screen clearing
     print("\033[2J\033[H", end="")
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 
 def read_key() -> str:

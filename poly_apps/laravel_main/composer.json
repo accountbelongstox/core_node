@@ -15,11 +15,7 @@
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/breeze": "^2.3",
         "laravel/framework": "^12.0",
-<<<<<<< HEAD
-        "laravel/mcp": "^0.3.4",
-=======
         "laravel/mcp": "^0.4.2",
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         "laravel/octane": "^2.13",
         "laravel/reverb": "^1.6",
         "laravel/sanctum": "^4.0",

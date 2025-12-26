@@ -46,11 +46,7 @@ print_warning_from_common_functions "Found ${#CIRCULAR_SYMLINKS[@]} circular sym
 echo ""
 for link in "${CIRCULAR_SYMLINKS[@]}"; do
     target=$(readlink "$link" 2>/dev/null)
-<<<<<<< HEAD
-    echo "  • $(basename "$link") → $target"
-=======
     echo "  ✗ $(basename "$link") → $target"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 done
 echo ""
 
@@ -95,7 +91,3 @@ else
     print_info_from_common_functions "Command: $0 --fix"
     exit 1
 fi
-<<<<<<< HEAD
-=======
-
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
