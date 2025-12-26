@@ -1,8 +1,0 @@
- 现在参考 规范来完成  D:\programing\core_node\apps\ai_translator_app
-  D:\programing\core_node\development-guides\NODE_NCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md 其中引用库。
-  D:\programing\core_node\ncore\ncore_tree.md 你首先分析挑选适合的库，以及要扩展的库。先完成这一步，需求是：
-  当按ncore的规范启动时，将同时启动一个websocket、httt的服务，一个api进程（访问api），多个模型
-  进程（目前只扩展deepseek）,同时有一堆init方法 保证初始化成功。之后，websockt将在连接的时候
-  分析一个客户端id，之后客户端id用该id
-  交换数据，并有单次对话id，以及请求回调id（每次请求的回调），组回调id,这些目的是，单次对话如果结束 ，将根据 回调id通知
-  各户羰并返回数据（模拟同步），当然如果是http则要客户端自动查询。先完成第一步分析类库。

@@ -270,7 +270,7 @@
     "npm": ">=6.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@10.24.0",
+  "packageManager": "pnpm@10.26.2",
   "pnpm": {
     "peerDependencyRules": {
       "allowedVersions": {
