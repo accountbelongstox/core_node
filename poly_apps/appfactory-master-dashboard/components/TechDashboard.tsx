@@ -277,10 +277,19 @@ const GenerationQueue = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      req.status === 'in_progress' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
+                      req.status === 'in_progress' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 
+                      req.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                      req.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      'bg-rose-50 text-rose-700 border border-rose-100'
                     }`}>
-                      {req.status === 'in_progress' ? <Zap size={10} /> : <Clock size={10} />}
-                      {req.status}
+                      {req.status === 'in_progress' ? <Zap size={10} /> : 
+                       req.status === 'pending' ? <Clock size={10} /> :
+                       req.status === 'completed' ? <CheckCircle2 size={10} /> :
+                       <AlertCircle size={10} />}
+                      {req.status === 'pending' ? t('appGeneration.statusPending') :
+                       req.status === 'in_progress' ? t('appGeneration.statusInProgress') :
+                       req.status === 'completed' ? t('appGeneration.statusCompleted') :
+                       req.status === 'failed' ? t('appGeneration.statusFailed') : req.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">

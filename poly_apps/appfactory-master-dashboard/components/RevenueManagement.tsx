@@ -26,8 +26,9 @@ export const RevenueManagement: React.FC = () => {
       const csRevenueData = csAppRevenue.filter(r => r.csId === cs.id);
       const totalCommission = csRevenueData.reduce((acc, r) => acc + r.commission, 0);
       return {
-        name: cs.name,
-        revenue: cs.totalEarnings,
+        id: cs.id, // Use ID for matching instead of name
+        name: cs.name, // Use name from centralized MOCK_CS (Chinese names)
+        revenue: cs.totalEarnings || 0,
         commission: totalCommission,
         promotions: csRevenueData.reduce((acc, r) => acc + r.promotions, 0),
       };
@@ -159,23 +160,26 @@ export const RevenueManagement: React.FC = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">CS Name</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Revenue</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Commission</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Promotions</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Avg Commission Rate</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.csName')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.totalRevenue')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.commission')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.promotions')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.avgCommissionRate')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {revenueStats.csRevenue.map((cs, index) => {
                 const csTeam = modelService.getCSTeam() || [];
-                const csData = csTeam.find(c => c.name === cs.name);
+                // Use ID to match instead of name to ensure we get the correct CS from centralized data
+                const csData = csTeam.find(c => c.id === cs.id) || csTeam.find(c => c.name === cs.name);
+                // Use name from centralized data (Chinese names from MOCK_CS)
+                const displayName = csData?.name || cs.name;
                 return (
-                  <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <tr key={cs.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {csData && <img src={csData.avatar} alt={cs.name} className="w-8 h-8 rounded-full" />}
-                        <span className="font-semibold text-slate-800 dark:text-white">{cs.name}</span>
+                        {csData && <img src={csData.avatar} alt={displayName} className="w-8 h-8 rounded-full" />}
+                        <span className="font-semibold text-slate-800 dark:text-white">{displayName}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -188,7 +192,7 @@ export const RevenueManagement: React.FC = () => {
                       <span className="text-sm text-slate-600 dark:text-slate-400">{cs.promotions}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">{csData?.commissionRate || 0}%</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">{csData?.commissionRate || csData?.commissionPercentage || 0}%</span>
                     </td>
                   </tr>
                 );

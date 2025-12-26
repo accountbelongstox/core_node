@@ -27,7 +27,8 @@ import {
   Edit3,
   Trash2,
   Star,
-  Shield
+  Shield,
+  MessageCircle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { modelService } from '../services/modelService';
@@ -52,6 +53,8 @@ import { Profile } from './Profile';
 import { NotificationCenter } from './NotificationCenter';
 import { Analytics } from './Analytics';
 import { LanguageSelector } from './LanguageSelector';
+import { AdminChatManagement } from './AdminChatManagement';
+import { PaymentVerificationManagement } from './PaymentVerificationManagement';
 
 // Revenue Analytics Component
 const RevenueAnalytics = () => {
@@ -81,13 +84,13 @@ const RevenueAnalytics = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Revenue Analytics</h2>
-          <p className="text-sm text-slate-500">Comprehensive revenue insights and trends</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.revenueAnalytics')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.revenueAnalyticsDesc')}</p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors">
             <Download size={18} />
-            Export Report
+            {t('revenue.exportReport')}
           </button>
         </div>
       </div>
@@ -95,7 +98,7 @@ const RevenueAnalytics = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Revenue Trends (Last 30 Days)</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('revenue.revenueTrends')}</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={dailyStats}>
@@ -117,7 +120,7 @@ const RevenueAnalytics = () => {
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Top 10 Revenue Apps</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('revenue.top10RevenueApps')}</h3>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {topApps.map((app, index) => (
@@ -148,7 +151,7 @@ const RevenueAnalytics = () => {
 
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Revenue by Category</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('revenue.revenueByCategory')}</h3>
             <div className="space-y-4">
               {revenueByCategory.map((cat, i) => {
                 const total = revenueByCategory.reduce((acc, c) => acc + c.value, 0);
@@ -173,12 +176,12 @@ const RevenueAnalytics = () => {
           </div>
 
           <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-2xl text-white shadow-xl shadow-indigo-500/20">
-            <h4 className="text-sm font-bold uppercase tracking-widest mb-4 opacity-80">Total Revenue</h4>
+            <h4 className="text-sm font-bold uppercase tracking-widest mb-4 opacity-80">{t('revenue.totalRevenue')}</h4>
             <p className="text-4xl font-bold mb-2">${apps.reduce((acc, a) => acc + a.revenue, 0).toLocaleString()}</p>
-            <p className="text-sm opacity-80 mb-6">All time cumulative</p>
+            <p className="text-sm opacity-80 mb-6">{t('revenue.allTimeCumulative')}</p>
             <div className="flex items-center gap-2 text-xs">
               <ArrowUpRight size={14} />
-              <span className="font-bold">+24.5% from last month</span>
+              <span className="font-bold">+24.5% {t('revenue.fromLastMonth')}</span>
             </div>
           </div>
         </div>
@@ -189,13 +192,14 @@ const RevenueAnalytics = () => {
 
 // Commission Management Component
 const CommissionManagement = () => {
+  const { t } = useApp();
   const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Commission Management</h2>
-          <p className="text-sm text-slate-500">Configure and manage CS commission rates</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.commissionManagement')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.commissionManagementDesc')}</p>
         </div>
       </div>
 
@@ -203,11 +207,11 @@ const CommissionManagement = () => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
             <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">CS Member</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Current Rate</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Total Commission</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Pending</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">Actions</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.csMember')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.currentRate')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.totalCommission')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.pending')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -241,7 +245,7 @@ const CommissionManagement = () => {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors">
-                      Approve
+                      {t('revenue.approve')}
                     </button>
                     <button className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                       <Settings size={16} />
@@ -267,12 +271,12 @@ const RevenueMatrix = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">APP-CS Revenue Matrix</h2>
-          <p className="text-sm text-slate-500">Cross-reference revenue by application and assigned service representative</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.appCsRevenueMatrix')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.appCsRevenueMatrixDesc')}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-500/20">
           <Download size={18} />
-          Export Matrix
+          {t('revenue.exportMatrix')}
         </button>
       </div>
 
@@ -281,7 +285,7 @@ const RevenueMatrix = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase sticky left-0 bg-slate-50 dark:bg-slate-700 z-10">Application / CS</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase sticky left-0 bg-slate-50 dark:bg-slate-700 z-10">{t('revenue.application')} / CS</th>
                 {csTeam.map(cs => (
                   <th key={cs.id} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-center min-w-[120px]">
                     <div className="flex flex-col items-center gap-1">
@@ -290,7 +294,7 @@ const RevenueMatrix = () => {
                     </div>
                   </th>
                 ))}
-                <th className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-white uppercase text-center bg-slate-100 dark:bg-slate-600">Total</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-white uppercase text-center bg-slate-100 dark:bg-slate-600">{t('revenue.total')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -406,18 +410,18 @@ const AppDetails = () => {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400 uppercase font-bold tracking-wider mb-1">Created At</p>
+                <p className="text-sm text-slate-400 uppercase font-bold tracking-wider mb-1">{t('revenue.createdAt')}</p>
                 <p className="text-slate-800 dark:text-white font-bold">{app.createdAt}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 bg-slate-50 dark:bg-slate-700/30 rounded-2xl border border-slate-100 dark:border-slate-700">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Revenue</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('revenue.totalRevenue')}</p>
                 <p className="text-xl font-bold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Visits</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('revenue.totalVisits')}</p>
                 <p className="text-xl font-bold text-slate-800 dark:text-white">{app.visits.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
@@ -654,7 +658,7 @@ const DashboardOverview = () => {
           </div>
           
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Generation Queue</h3>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('techDashboard.generationQueue')}</h3>
             <div className="space-y-4">
               {appRequests.map(req => (
                 <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
@@ -666,14 +670,19 @@ const DashboardOverview = () => {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-white">{req.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.category} • Requested by Admin</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.category} • {t('appGeneration.requestedByAdmin')}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-right">
                     <div>
                       <p className={`text-xs font-bold uppercase ${
                         req.status === 'pending' ? 'text-amber-600' : 'text-indigo-600'
-                      }`}>{req.status}</p>
+                      }`}>
+                        {req.status === 'pending' ? t('appGeneration.statusPending') :
+                         req.status === 'in_progress' ? t('appGeneration.statusInProgress') :
+                         req.status === 'completed' ? t('appGeneration.statusCompleted') :
+                         req.status === 'failed' ? t('appGeneration.statusFailed') : req.status}
+                      </p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400">{req.requestedAt}</p>
                     </div>
                     <ChevronRight className="text-slate-400" size={16} />
@@ -1077,6 +1086,8 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
     { icon: <MapPin size={20} />, label: t('nav.promotionRecords'), path: '/promotion-records' },
     { icon: <MapPin size={20} />, label: t('nav.promotionTracks'), path: '/promotion-tracks' },
     { icon: <Users size={20} />, label: t('nav.csAssignment'), path: '/cs-assignment' },
+    { icon: <MessageCircle size={20} />, label: t('chat.chatManagement'), path: '/chat-management' },
+    { icon: <DollarSign size={20} />, label: t('paymentVerification.management'), path: '/payment-verification' },
     { icon: <DollarIcon size={20} />, label: t('nav.revenue'), path: '/revenue' },
     { icon: <BarChart3 size={20} />, label: t('nav.analytics'), path: '/analytics' },
   ];
@@ -1195,6 +1206,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenSettings }
             <Route path="/promotion-records" element={<PromotionRecordList />} />
             <Route path="/promotion-records/:id" element={<PromotionRecordDetail />} />
             <Route path="/cs-assignment" element={<CSAssignment />} />
+            <Route path="/chat-management" element={<AdminChatManagement />} />
+            <Route path="/payment-verification" element={<PaymentVerificationManagement />} />
             <Route path="/revenue" element={<RevenueManagement />} />
             <Route path="/promotion-tracks" element={<PromotionTrackView />} />
             <Route path="/app-releases" element={<AppReleaseList />} />
