@@ -112,17 +112,8 @@ export function useVideoStream({
 
     console.log(`[useVideoStream] Starting connection for ${deviceId} (streamType=${targetStreamType})`);
 
-    // ✅ 随机延迟 0-3 秒，避免同时连接雪崩
-    const delay = Math.random() * 3000;
-    console.log(`[useVideoStream] Delaying ${delay.toFixed(0)}ms before connecting ${deviceId}`);
-
-    await new Promise(resolve => setTimeout(resolve, delay));
-
-    // 检查是否在延迟期间被禁用
-    if (!enabled || connectionStateRef.current.isConnected) {
-      console.log(`[useVideoStream] Connection canceled for ${deviceId} during delay`);
-      return;
-    }
+    // Note: Random delay removed - batch startup now handles concurrent connection coordination
+    // The batch API (wsService.batchStartStreams) manages parallel device startup via DeviceStreamThread
 
     connectionStateRef.current.isConnecting = true;
     setIsConnecting(true);

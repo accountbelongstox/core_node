@@ -24,6 +24,7 @@ class MessageBuilder:
     - TYPE_SET_CLIPBOARD = 9
     - TYPE_SET_SCREEN_POWER_MODE = 10
     - TYPE_ROTATE_DEVICE = 11
+    - TYPE_RESET_VIDEO = 17
     """
 
     # Message type constants
@@ -33,6 +34,7 @@ class MessageBuilder:
     TYPE_INJECT_SCROLL_EVENT = 3
     TYPE_BACK_OR_SCREEN_ON = 4
     TYPE_SET_SCREEN_POWER_MODE = 10
+    TYPE_RESET_VIDEO = 17
 
     # Touch event action constants
     AMOTION_EVENT_ACTION_DOWN = 0
@@ -192,3 +194,23 @@ class MessageBuilder:
         )
 
         return message
+
+    @staticmethod
+    def build_reset_video() -> bytes:
+        """
+        Build reset video encoder message
+
+        This message requests the scrcpy-server to reset the video encoder,
+        which forces generation of a new I-frame (keyframe). This is useful
+        when a new client connects and needs to start decoding immediately.
+
+        Message format:
+        - [0]: type (1 byte) = TYPE_RESET_VIDEO (17)
+        - No additional parameters
+
+        Returns:
+            Binary message (single byte)
+
+        Reference: scrcpy control_msg.h - SC_CONTROL_MSG_TYPE_RESET_VIDEO
+        """
+        return struct.pack('>B', MessageBuilder.TYPE_RESET_VIDEO)
