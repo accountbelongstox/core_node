@@ -21,11 +21,7 @@ webpack_dist/
 **/secret_keys/raw/**
 **/storage/**
 **/.app-backups/**
-<<<<<<< HEAD
 # Deployment configs should be committed (contains encrypted files)
-=======
-# Deployment configs should be committed (contains encrypted files) 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 .AppleDouble
 .LSOverride
 public/uploads/*
