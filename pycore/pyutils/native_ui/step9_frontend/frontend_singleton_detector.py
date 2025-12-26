@@ -285,8 +285,32 @@ class FrontendSingletonDetector:
 
                     if shutdown_result['accepted']:
                         ColorPrint.green("[FrontendSingleton] Old frontend accepted shutdown")
-                        # Wait for old instance to shutdown
-                        time.sleep(1.5)
+                        ColorPrint.blue("[FrontendSingleton] Waiting for old frontend to shutdown gracefully...")
+
+                        # Don't sleep for fixed time - poll to check if port is released
+                        # Old instance should release singleton port when it shuts down
+                        max_wait = 15.0
+                        interval = 0.5
+                        waited = 0.0
+
+                        while waited < max_wait:
+                            # Try to bind - if successful, old instance has released the port
+                            if self._try_bind_port(port):
+                                ColorPrint.green(f"[FrontendSingleton] Old frontend released port after {waited:.1f}s")
+                                ColorPrint.green("[FrontendSingleton] Became PRIMARY frontend (after shutdown)")
+                                return FrontendDetectionResult(
+                                    is_primary=True,
+                                    port=port,
+                                    existing_instance=False,
+                                    existing_port=None,
+                                    message=f"Became PRIMARY frontend on port {port} (shutdown old frontend)"
+                                )
+
+                            time.sleep(interval)
+                            waited += interval
+
+                        # Timeout - port still not available
+                        ColorPrint.yellow(f"[FrontendSingleton] Old frontend did not release port after {max_wait}s")
 
                         # Retry binding
                         max_retries = 3
@@ -425,17 +449,20 @@ class FrontendSingletonDetector:
 
                 ColorPrint.yellow("[FrontendSingleton] Shutdown ACK sent, triggering frontend shutdown...")
 
-                # Trigger shutdown via callback (delayed to ensure response is received)
+                # Trigger shutdown via THREAD_BUS (like main singleton detector)
+                # This ensures all modules shutdown in correct order
                 def trigger_shutdown():
-                    time.sleep(0.3)
+                    time.sleep(0.3)  # Short delay to ensure response is received
+
+                    # Call legacy callback if provided (for notification only, not shutdown logic)
                     if self.on_shutdown_request:
                         self.on_shutdown_request()
-                    else:
-                        # Fallback: trigger THREAD_BUS event
-                        THREAD_BUS.trigger_event('frontend.singleton.shutdown', {
-                            'pid': message.get('pid'),
-                            'port': self._bound_port
-                        })
+
+                    # Trigger THREAD_BUS shutdown (unified shutdown mechanism)
+                    THREAD_BUS.request_shutdown(
+                        reason=f"Frontend shutdown requested by another instance (PID {message.get('pid')})",
+                        execute_handlers=True
+                    )
 
                 threading.Thread(target=trigger_shutdown, daemon=True).start()
 

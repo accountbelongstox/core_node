@@ -27,10 +27,11 @@ import {
   Edit3,
   Trash2,
   Star,
-  Shield
+  Shield,
+  MessageCircle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
-import { MOCK_APPS, MOCK_CS, MOCK_DAILY_STATS, MOCK_APP_REQUESTS, MOCK_TECH } from '../constants';
+import { modelService } from '../services/modelService';
 import { AppStatus, UserRole, AppCategory, AppInstance } from '../types';
 import { StatCard } from './StatCard';
 import { useApp } from '../contexts/AppContext';
@@ -50,36 +51,46 @@ import { AddCSForm } from './AddCSForm';
 
 import { Profile } from './Profile';
 import { NotificationCenter } from './NotificationCenter';
+import { Analytics } from './Analytics';
+import { LanguageSelector } from './LanguageSelector';
+import { AdminChatManagement } from './AdminChatManagement';
+import { PaymentVerificationManagement } from './PaymentVerificationManagement';
 
 // Revenue Analytics Component
 const RevenueAnalytics = () => {
   const { t } = useApp();
   
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const appRequests = useMemo(() => modelService.getAppRequests() || [], []);
+
   const topApps = useMemo(() => 
-    [...MOCK_APPS].sort((a, b) => b.revenue - a.revenue).slice(0, 10),
-    []
+    [...apps].sort((a, b) => b.revenue - a.revenue).slice(0, 10),
+    [apps]
   );
 
   const revenueByCategory = useMemo(() => {
     const categoryMap = new Map<string, number>();
-    MOCK_APPS.forEach(app => {
+    apps.forEach(app => {
       const current = categoryMap.get(app.category) || 0;
       categoryMap.set(app.category, current + app.revenue);
     });
     return Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [apps]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Revenue Analytics</h2>
-          <p className="text-sm text-slate-500">Comprehensive revenue insights and trends</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.revenueAnalytics')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.revenueAnalyticsDesc')}</p>
         </div>
         <div className="flex gap-2">
           <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors">
             <Download size={18} />
-            Export Report
+            {t('revenue.exportReport')}
           </button>
         </div>
       </div>
@@ -87,10 +98,10 @@ const RevenueAnalytics = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Revenue Trends (Last 30 Days)</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('revenue.revenueTrends')}</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={MOCK_DAILY_STATS}>
+                <AreaChart data={dailyStats}>
                   <defs>
                     <linearGradient id="colorRevenueTrend" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
@@ -109,7 +120,7 @@ const RevenueAnalytics = () => {
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">Top 10 Revenue Apps</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('revenue.top10RevenueApps')}</h3>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {topApps.map((app, index) => (
@@ -140,7 +151,7 @@ const RevenueAnalytics = () => {
 
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Revenue by Category</h3>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('revenue.revenueByCategory')}</h3>
             <div className="space-y-4">
               {revenueByCategory.map((cat, i) => {
                 const total = revenueByCategory.reduce((acc, c) => acc + c.value, 0);
@@ -165,12 +176,12 @@ const RevenueAnalytics = () => {
           </div>
 
           <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-2xl text-white shadow-xl shadow-indigo-500/20">
-            <h4 className="text-sm font-bold uppercase tracking-widest mb-4 opacity-80">Total Revenue</h4>
-            <p className="text-4xl font-bold mb-2">${MOCK_APPS.reduce((acc, a) => acc + a.revenue, 0).toLocaleString()}</p>
-            <p className="text-sm opacity-80 mb-6">All time cumulative</p>
+            <h4 className="text-sm font-bold uppercase tracking-widest mb-4 opacity-80">{t('revenue.totalRevenue')}</h4>
+            <p className="text-4xl font-bold mb-2">${apps.reduce((acc, a) => acc + a.revenue, 0).toLocaleString()}</p>
+            <p className="text-sm opacity-80 mb-6">{t('revenue.allTimeCumulative')}</p>
             <div className="flex items-center gap-2 text-xs">
               <ArrowUpRight size={14} />
-              <span className="font-bold">+24.5% from last month</span>
+              <span className="font-bold">+24.5% {t('revenue.fromLastMonth')}</span>
             </div>
           </div>
         </div>
@@ -181,12 +192,14 @@ const RevenueAnalytics = () => {
 
 // Commission Management Component
 const CommissionManagement = () => {
+  const { t } = useApp();
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Commission Management</h2>
-          <p className="text-sm text-slate-500">Configure and manage CS commission rates</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.commissionManagement')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.commissionManagementDesc')}</p>
         </div>
       </div>
 
@@ -194,15 +207,15 @@ const CommissionManagement = () => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
             <tr>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">CS Member</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Current Rate</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Total Commission</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">Pending</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">Actions</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.csMember')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.currentRate')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.totalCommission')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{t('revenue.pending')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-            {MOCK_CS.map(cs => (
+            {csTeam.map(cs => (
               <tr key={cs.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -232,7 +245,7 @@ const CommissionManagement = () => {
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <button className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors">
-                      Approve
+                      {t('revenue.approve')}
                     </button>
                     <button className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors">
                       <Settings size={16} />
@@ -251,17 +264,19 @@ const CommissionManagement = () => {
 // APP-CS Revenue Matrix Component
 const RevenueMatrix = () => {
   const { t } = useApp();
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">APP-CS Revenue Matrix</h2>
-          <p className="text-sm text-slate-500">Cross-reference revenue by application and assigned service representative</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('revenue.appCsRevenueMatrix')}</h2>
+          <p className="text-sm text-slate-500">{t('revenue.appCsRevenueMatrixDesc')}</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-500/20">
           <Download size={18} />
-          Export Matrix
+          {t('revenue.exportMatrix')}
         </button>
       </div>
 
@@ -270,8 +285,8 @@ const RevenueMatrix = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase sticky left-0 bg-slate-50 dark:bg-slate-700 z-10">Application / CS</th>
-                {MOCK_CS.map(cs => (
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase sticky left-0 bg-slate-50 dark:bg-slate-700 z-10">{t('revenue.application')} / CS</th>
+                {csTeam.map(cs => (
                   <th key={cs.id} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-center min-w-[120px]">
                     <div className="flex flex-col items-center gap-1">
                       <img src={cs.avatar} className="w-6 h-6 rounded-full" />
@@ -279,16 +294,16 @@ const RevenueMatrix = () => {
                     </div>
                   </th>
                 ))}
-                <th className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-white uppercase text-center bg-slate-100 dark:bg-slate-600">Total</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-white uppercase text-center bg-slate-100 dark:bg-slate-600">{t('revenue.total')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {MOCK_APPS.slice(0, 10).map(app => (
+              {apps.slice(0, 10).map(app => (
                 <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   <td className="px-6 py-4 font-bold text-slate-800 dark:text-white sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-slate-100 dark:border-slate-700">
                     {app.name}
                   </td>
-                  {MOCK_CS.map(cs => {
+                  {csTeam.map(cs => {
                     const isAssigned = app.assignedCSIds.includes(cs.id);
                     const revenue = isAssigned ? Math.floor(app.revenue / app.assignedCSIds.length) : 0;
                     return (
@@ -313,13 +328,13 @@ const RevenueMatrix = () => {
             <tfoot className="bg-slate-50 dark:bg-slate-700 font-bold">
               <tr>
                 <td className="px-6 py-4 text-slate-800 dark:text-white uppercase text-xs">CS Total Earnings</td>
-                {MOCK_CS.map(cs => (
+                {csTeam.map(cs => (
                   <td key={cs.id} className="px-6 py-4 text-center text-sm text-indigo-600">
                     ${cs.totalEarnings.toLocaleString()}
                   </td>
                 ))}
                 <td className="px-6 py-4 text-center text-lg text-emerald-500">
-                  ${MOCK_APPS.reduce((acc, a) => acc + a.revenue, 0).toLocaleString()}
+                  ${apps.reduce((acc, a) => acc + a.revenue, 0).toLocaleString()}
                 </td>
               </tr>
             </tfoot>
@@ -336,7 +351,11 @@ const AppDetails = () => {
   const navigate = useNavigate();
   const { t } = useApp();
   
-  const app = useMemo(() => MOCK_APPS.find(a => a.id === id), [id]);
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const app = useMemo(() => apps.find(a => a.id === id), [apps, id]);
 
   if (!app) return <div className="p-8 text-center">App not found</div>;
 
@@ -391,18 +410,18 @@ const AppDetails = () => {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400 uppercase font-bold tracking-wider mb-1">Created At</p>
+                <p className="text-sm text-slate-400 uppercase font-bold tracking-wider mb-1">{t('revenue.createdAt')}</p>
                 <p className="text-slate-800 dark:text-white font-bold">{app.createdAt}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 bg-slate-50 dark:bg-slate-700/30 rounded-2xl border border-slate-100 dark:border-slate-700">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Revenue</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('revenue.totalRevenue')}</p>
                 <p className="text-xl font-bold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Visits</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('revenue.totalVisits')}</p>
                 <p className="text-xl font-bold text-slate-800 dark:text-white">{app.visits.toLocaleString()}</p>
               </div>
               <div className="space-y-1">
@@ -440,7 +459,7 @@ const AppDetails = () => {
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Visitor Trends</h3>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={MOCK_DAILY_STATS}>
+                <AreaChart data={dailyStats}>
                   <defs>
                     <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
@@ -468,10 +487,10 @@ const AppDetails = () => {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Technical Leader</p>
                 <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-3">
-                    <img src={MOCK_TECH[0].avatar} className="w-10 h-10 rounded-full" />
+                    <img src={techTeam[0]?.avatar} className="w-10 h-10 rounded-full" />
                     <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">{MOCK_TECH[0].name}</p>
-                      <p className="text-[10px] text-slate-500">{MOCK_TECH[0].specialization}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white">{techTeam[0]?.name}</p>
+                      <p className="text-[10px] text-slate-500">{techTeam[0]?.specialization}</p>
                     </div>
                   </div>
                   <Shield size={18} className="text-indigo-600" />
@@ -482,7 +501,7 @@ const AppDetails = () => {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Customer Service</p>
                 <div className="space-y-2">
                   {app.assignedCSIds.map(csId => {
-                    const cs = MOCK_CS.find(c => c.id === csId);
+                    const cs = csTeam.find(c => c.id === csId);
                     return cs ? (
                       <div key={cs.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-3">
@@ -539,6 +558,7 @@ const AppDetails = () => {
 // Technical Team List Component
 const TechTeam = () => {
   const { t } = useApp();
+  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -553,7 +573,7 @@ const TechTeam = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {MOCK_TECH.map(tech => (
+        {techTeam.map(tech => (
           <div key={tech.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center text-center group transition-all hover:shadow-xl hover:shadow-slate-500/5">
             <div className="relative mb-4">
               <div className="p-1 rounded-full border-2 border-slate-100 dark:border-slate-700 group-hover:border-indigo-500 transition-colors">
@@ -593,12 +613,17 @@ const TechTeam = () => {
 // Dashboard Overview Page
 const DashboardOverview = () => {
   const { t } = useApp();
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const appRequests = useMemo(() => modelService.getAppRequests() || [], []);
+  
   const stats = useMemo(() => {
-    const totalRevenue = MOCK_APPS.reduce((acc, app) => acc + app.revenue, 0);
-    const totalVisits = MOCK_APPS.reduce((acc, app) => acc + app.visits, 0);
-    const activeApps = MOCK_APPS.filter(a => a.status === AppStatus.LIVE).length;
+    const totalRevenue = apps.reduce((acc, app) => acc + app.revenue, 0);
+    const totalVisits = apps.reduce((acc, app) => acc + app.visits, 0);
+    const activeApps = apps.filter(a => a.status === AppStatus.LIVE).length;
     return { totalRevenue, totalVisits, activeApps };
-  }, []);
+  }, [apps]);
 
   return (
     <div className="space-y-6">
@@ -606,7 +631,7 @@ const DashboardOverview = () => {
         <StatCard title={t('dashboard.totalRevenue')} value={`$${stats.totalRevenue.toLocaleString()}`} change="+12.5%" isPositive icon={<DollarSign size={20} />} />
         <StatCard title={t('dashboard.totalVisits')} value={stats.totalVisits.toLocaleString()} change="+18.2%" isPositive icon={<TrendingUp size={20} />} />
         <StatCard title={t('dashboard.activeApps')} value={stats.activeApps} change="+2" isPositive icon={<Smartphone size={20} />} />
-        <StatCard title={t('dashboard.csMembers')} value={MOCK_CS.length} icon={<UserCheck size={20} />} />
+        <StatCard title={t('dashboard.csMembers')} value={csTeam.length} icon={<UserCheck size={20} />} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -615,7 +640,7 @@ const DashboardOverview = () => {
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('dashboard.performanceTrends')}</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={MOCK_DAILY_STATS}>
+                <AreaChart data={dailyStats}>
                   <defs>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
@@ -633,9 +658,9 @@ const DashboardOverview = () => {
           </div>
           
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">Generation Queue</h3>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('techDashboard.generationQueue')}</h3>
             <div className="space-y-4">
-              {MOCK_APP_REQUESTS.map(req => (
+              {appRequests.map(req => (
                 <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-lg ${
@@ -645,14 +670,19 @@ const DashboardOverview = () => {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-white">{req.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.category} • Requested by Admin</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{req.category} • {t('appGeneration.requestedByAdmin')}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-right">
                     <div>
                       <p className={`text-xs font-bold uppercase ${
                         req.status === 'pending' ? 'text-amber-600' : 'text-indigo-600'
-                      }`}>{req.status}</p>
+                      }`}>
+                        {req.status === 'pending' ? t('appGeneration.statusPending') :
+                         req.status === 'in_progress' ? t('appGeneration.statusInProgress') :
+                         req.status === 'completed' ? t('appGeneration.statusCompleted') :
+                         req.status === 'failed' ? t('appGeneration.statusFailed') : req.status}
+                      </p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400">{req.requestedAt}</p>
                     </div>
                     <ChevronRight className="text-slate-400" size={16} />
@@ -667,7 +697,7 @@ const DashboardOverview = () => {
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">{t('dashboard.recentApplications')}</h3>
             <div className="space-y-4">
-              {MOCK_APPS.slice(0, 5).map(app => (
+              {apps.slice(0, 5).map(app => (
                 <div key={app.id} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-600">
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${
@@ -700,6 +730,7 @@ const DashboardOverview = () => {
 
 // CS Assignment Modal Component
 const CSAssignmentModal = ({ isOpen, onClose, app }: { isOpen: boolean; onClose: () => void; app: AppInstance }) => {
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   const { t } = useApp();
   const [selectedCS, setSelectedCS] = useState<string[]>(app.assignedCSIds);
 
@@ -728,7 +759,7 @@ const CSAssignmentModal = ({ isOpen, onClose, app }: { isOpen: boolean; onClose:
         </div>
 
         <div className="p-6 max-h-[400px] overflow-y-auto space-y-3">
-          {MOCK_CS.map(cs => (
+                {csTeam.map(cs => (
             <div 
               key={cs.id}
               onClick={() => toggleCS(cs.id)}
@@ -774,7 +805,9 @@ const AppsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showGenerationForm, setShowGenerationForm] = useState(false);
 
-  const filteredApps = MOCK_APPS.filter(app => {
+  const apps = useMemo(() => modelService.getApps() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const filteredApps = apps.filter(app => {
     const matchesSearch = app.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
@@ -876,7 +909,7 @@ const AppsList = () => {
                   <td className="px-6 py-4">
                     <div className="flex -space-x-2">
                       {app.assignedCSIds.map(csId => {
-                        const cs = MOCK_CS.find(c => c.id === csId);
+                        const cs = csTeam.find(c => c.id === csId);
                         return cs ? (
                           <img 
                             key={cs.id} 
@@ -916,6 +949,7 @@ const AppsList = () => {
 // CS Management Page
 const CSTeam = () => {
   const { t } = useApp();
+  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -930,7 +964,7 @@ const CSTeam = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-        {MOCK_CS.map(cs => (
+                {csTeam.map(cs => (
           <div key={cs.id} className="group bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left" />
             
@@ -986,7 +1020,7 @@ const CSTeam = () => {
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={MOCK_CS}>
+              <BarChart data={csTeam}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
@@ -1003,7 +1037,7 @@ const CSTeam = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Top Performing CS</h3>
           <div className="space-y-4">
-            {MOCK_CS.sort((a, b) => b.totalEarnings - a.totalEarnings).map((cs, index) => (
+            {csTeam.sort((a, b) => b.totalEarnings - a.totalEarnings).map((cs, index) => (
               <div key={cs.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
@@ -1045,14 +1079,16 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
     { icon: <Smartphone size={20} />, label: t('nav.applications'), path: '/apps' },
-    { icon: <Smartphone size={20} />, label: '已发布APP', path: '/app-releases' },
+    { icon: <Smartphone size={20} />, label: t('nav.publishedApps'), path: '/app-releases' },
     { icon: <Users size={20} />, label: t('nav.csTeam'), path: '/cs' },
-    { icon: <Users size={20} />, label: '客服人员', path: '/cs-list' },
-    { icon: <Users size={20} />, label: '推广人员', path: '/promoters' },
-    { icon: <MapPin size={20} />, label: '推广记录', path: '/promotion-records' },
-    { icon: <MapPin size={20} />, label: '推广轨迹', path: '/promotion-tracks' },
-    { icon: <Users size={20} />, label: 'CS Assignment', path: '/cs-assignment' },
-    { icon: <DollarIcon size={20} />, label: 'Revenue', path: '/revenue' },
+    { icon: <Users size={20} />, label: t('nav.csMembers'), path: '/cs-list' },
+    { icon: <Users size={20} />, label: t('nav.promoters'), path: '/promoters' },
+    { icon: <MapPin size={20} />, label: t('nav.promotionRecords'), path: '/promotion-records' },
+    { icon: <MapPin size={20} />, label: t('nav.promotionTracks'), path: '/promotion-tracks' },
+    { icon: <Users size={20} />, label: t('nav.csAssignment'), path: '/cs-assignment' },
+    { icon: <MessageCircle size={20} />, label: t('chat.chatManagement'), path: '/chat-management' },
+    { icon: <DollarSign size={20} />, label: t('paymentVerification.management'), path: '/payment-verification' },
+    { icon: <DollarIcon size={20} />, label: t('nav.revenue'), path: '/revenue' },
     { icon: <BarChart3 size={20} />, label: t('nav.analytics'), path: '/analytics' },
   ];
 
@@ -1120,6 +1156,7 @@ const Header = () => {
         </div>
       </div>
       <div className="flex items-center gap-4">
+        <LanguageSelector />
         <Link to="/notifications" className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />
@@ -1169,11 +1206,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenSettings }
             <Route path="/promotion-records" element={<PromotionRecordList />} />
             <Route path="/promotion-records/:id" element={<PromotionRecordDetail />} />
             <Route path="/cs-assignment" element={<CSAssignment />} />
+            <Route path="/chat-management" element={<AdminChatManagement />} />
+            <Route path="/payment-verification" element={<PaymentVerificationManagement />} />
             <Route path="/revenue" element={<RevenueManagement />} />
             <Route path="/promotion-tracks" element={<PromotionTrackView />} />
             <Route path="/app-releases" element={<AppReleaseList />} />
             <Route path="/app-releases/:id" element={<AppReleaseDetail />} />
-            <Route path="/analytics" element={<div className="flex items-center justify-center h-96 text-slate-400">{t('analytics.comingSoon')}</div>} />
+            <Route path="/analytics" element={<Analytics />} />
           </Routes>
         </div>
       </main>

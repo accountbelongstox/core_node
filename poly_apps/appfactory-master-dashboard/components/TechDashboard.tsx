@@ -31,7 +31,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useApp } from '../contexts/AppContext';
 import { UserRole, AppStatus } from '../types';
 import { StatCard } from './StatCard';
-import { MOCK_APP_REQUESTS, MOCK_APPS, MOCK_DAILY_STATS, MOCK_TECH } from '../constants';
+import { modelService } from '../services/modelService';
+import { LanguageSelector } from './LanguageSelector';
 import { Profile } from './Profile';
 import { NotificationCenter } from './NotificationCenter';
 import { AppReleaseForm } from './AppReleaseForm';
@@ -43,16 +44,22 @@ const TechOverview = () => {
   const { t, user } = useApp();
   
   const techStats = useMemo(() => {
-    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    const techTeam = modelService.getTechTeam() || [];
+    const appRequests = modelService.getAppRequests() || [];
+    const apps = modelService.getApps() || [];
+    
+    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
     if (!tech) return null;
     
-    const myTasks = MOCK_APP_REQUESTS.filter(r => r.assignedTechId === tech.id);
-    const myProjects = MOCK_APPS.filter(a => a.assignedTechId === tech.id);
+    const myTasks = appRequests.filter(r => r.assignedTechId === tech.id);
+    const myProjects = apps.filter(a => a.assignedTechId === tech.id);
     return {
       tech,
       activeTasks: myTasks.filter(t => t.status === 'in_progress').length,
       completedApps: myProjects.length,
       pendingTasks: myTasks.filter(t => t.status === 'pending').length,
+      myTasks,
+      myProjects,
     };
   }, [user]);
 
@@ -73,7 +80,7 @@ const TechOverview = () => {
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('techDashboard.buildActivity')}</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={MOCK_DAILY_STATS}>
+                <AreaChart data={modelService.getDailyStats() || []}>
                   <defs>
                     <linearGradient id="colorBuild" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
@@ -96,7 +103,7 @@ const TechOverview = () => {
               <Link to="/queue" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">{t('techDashboard.viewFullQueue')}</Link>
             </div>
             <div className="space-y-4">
-              {MOCK_APP_REQUESTS.filter(r => r.assignedTechId === techStats.tech?.id && r.status === 'in_progress').slice(0, 3).map(req => (
+              {techStats.myTasks?.filter(r => r.status === 'in_progress').slice(0, 3).map(req => (
                 <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 group hover:border-indigo-500/50 transition-all">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
@@ -247,7 +254,7 @@ const GenerationQueue = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {MOCK_APP_REQUESTS.map(req => (
+              {modelService.getAppRequests().map(req => (
                 <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   <td className="px-6 py-4">
                     <code className="text-xs font-mono text-slate-500">#{req.id.toUpperCase()}</code>
@@ -270,10 +277,19 @@ const GenerationQueue = () => {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      req.status === 'in_progress' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
+                      req.status === 'in_progress' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 
+                      req.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                      req.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      'bg-rose-50 text-rose-700 border border-rose-100'
                     }`}>
-                      {req.status === 'in_progress' ? <Zap size={10} /> : <Clock size={10} />}
-                      {req.status}
+                      {req.status === 'in_progress' ? <Zap size={10} /> : 
+                       req.status === 'pending' ? <Clock size={10} /> :
+                       req.status === 'completed' ? <CheckCircle2 size={10} /> :
+                       <AlertCircle size={10} />}
+                      {req.status === 'pending' ? t('appGeneration.statusPending') :
+                       req.status === 'in_progress' ? t('appGeneration.statusInProgress') :
+                       req.status === 'completed' ? t('appGeneration.statusCompleted') :
+                       req.status === 'failed' ? t('appGeneration.statusFailed') : req.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -297,12 +313,7 @@ const GenerationQueue = () => {
 // Build & Deployment Component
 const BuildDeployment = () => {
   const { t } = useApp();
-  const builds = [
-    { id: 'BUILD-001', app: 'Smart Expense Pro', status: 'Success', duration: '4m 23s', timestamp: '2 hours ago', version: 'v1.2.4' },
-    { id: 'BUILD-002', app: 'FitTrack Plus', status: 'Failed', duration: '2m 15s', timestamp: '5 hours ago', version: 'v1.1.0' },
-    { id: 'BUILD-003', app: 'LearnHub Academy', status: 'Success', duration: '5m 42s', timestamp: '1 day ago', version: 'v2.0.1' },
-    { id: 'BUILD-004', app: 'CryptoTrade Hub', status: 'In Progress', duration: '3m 10s', timestamp: 'Just now', version: 'v1.5.2' },
-  ];
+  const builds = useMemo(() => modelService.getBuilds() || [], []);
 
   return (
     <div className="space-y-6">
@@ -403,9 +414,11 @@ const BuildDeployment = () => {
 const PerformanceMonitoring = () => {
   const { t, user } = useApp();
   const apps = useMemo(() => {
-    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    const techTeam = modelService.getTechTeam() || [];
+    const apps = modelService.getApps() || [];
+    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
     if (!tech) return [];
-    return MOCK_APPS.filter(a => a.assignedTechId === tech.id).slice(0, 5);
+    return apps.filter(a => a.assignedTechId === tech.id).slice(0, 5);
   }, [user]);
 
   return (
@@ -481,12 +494,7 @@ const PerformanceMonitoring = () => {
 // Bug Tracking Component
 const BugTracking = () => {
   const { t } = useApp();
-  const bugs = [
-    { id: 'BUG-001', app: 'Smart Expense Pro', issue: 'API timeout on receipt scan', priority: 'High', status: 'In Progress', reporter: 'Alice Chen' },
-    { id: 'BUG-002', app: 'FitTrack Plus', issue: 'Avatar upload failing on Android', priority: 'Medium', status: 'Pending', reporter: 'Bob Smith' },
-    { id: 'BUG-003', app: 'LearnHub Academy', issue: 'Video player controls hidden in dark mode', priority: 'Low', status: 'Closed', reporter: 'David Lee' },
-    { id: 'BUG-004', app: 'CryptoTrade Hub', issue: 'Chart data not refreshing in real-time', priority: 'Critical', status: 'In Progress', reporter: 'John Admin' },
-  ];
+  const bugs = useMemo(() => modelService.getBugs() || [], []);
 
   return (
     <div className="space-y-6">
@@ -564,7 +572,10 @@ const TaskDetails = () => {
   const { t } = useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const req = useMemo(() => MOCK_APP_REQUESTS.find(r => r.id === id), [id]);
+  const req = useMemo(() => {
+    const appRequests = modelService.getAppRequests() || [];
+    return appRequests.find(r => r.id === id);
+  }, [id]);
 
   if (!req) return <div className="p-8 text-center">{t('techDashboard.taskNotFound')}</div>;
 
@@ -701,9 +712,11 @@ const TaskDetails = () => {
 const MyProjects = () => {
   const { t, user } = useApp();
   const myProjects = useMemo(() => {
-    const tech = MOCK_TECH.find(t => t.id === user?.id || 'tech1');
+    const techTeam = modelService.getTechTeam() || [];
+    const apps = modelService.getApps() || [];
+    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
     if (!tech) return [];
-    return MOCK_APPS.filter(a => a.assignedTechId === tech.id);
+    return apps.filter(a => a.assignedTechId === tech.id);
   }, [user]);
 
   return (
@@ -786,7 +799,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
     { icon: <Terminal size={20} />, label: t('techDashboard.generationQueue'), path: '/queue' },
     { icon: <Box size={20} />, label: t('techDashboard.myProjects'), path: '/projects' },
     { icon: <Rocket size={20} />, label: t('techDashboard.releaseApp'), path: '/release' },
-    { icon: <Smartphone size={20} />, label: '已发布APP', path: '/app-releases' },
+    { icon: <Smartphone size={20} />, label: t('nav.publishedApps'), path: '/app-releases' },
     { icon: <MapPin size={20} />, label: t('techDashboard.promotionTrack'), path: '/promotion-tracks' },
     { icon: <Rocket size={20} />, label: t('techDashboard.buildAndDeploy'), path: '/build' },
     { icon: <AlertCircle size={20} />, label: t('techDashboard.bugTracking'), path: '/bugs' },
@@ -857,6 +870,7 @@ const Header = () => {
         </div>
       </div>
       <div className="flex items-center gap-4">
+        <LanguageSelector />
         <Link to="/notifications" className="relative p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900" />

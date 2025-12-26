@@ -45,12 +45,10 @@ class AppQyV1WordLookupController extends Controller
             ->first();
         
         if (!$wordData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Word not found',
+            return $this->notFound('Word not found', [
                 'word' => $word,
                 'language' => $language
-            ], 404);
+            ]);
         }
         
         $result = [
@@ -107,7 +105,7 @@ class AppQyV1WordLookupController extends Controller
             }
         }
         
-        return response()->json($result);
+        return $this->success($result, 'Word lookup completed successfully');
     }
     
     public function batchLookup(Request $request)
@@ -136,11 +134,10 @@ class AppQyV1WordLookupController extends Controller
             $results[] = json_decode($response->getContent(), true);
         }
         
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'count' => count($results),
             'results' => $results
-        ]);
+        ], 'Batch lookup completed successfully');
     }
     
     private function getLanguageCode(string $language): ?string

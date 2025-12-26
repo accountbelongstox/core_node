@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { UserRole } from '../types';
 import { useApp } from '../contexts/AppContext';
-import { Zap, Mail, Lock, ShieldCheck, Headphones, Code, Globe } from 'lucide-react';
+import { Zap, Mail, Lock, ShieldCheck, Headphones, Code, Globe, CheckCircle2 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../services/i18nService';
 import { authService, BUILTIN_ACCOUNTS } from '../services/authService';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 export const Login: React.FC = () => {
   const { t, login, language, setLanguage } = useApp();
@@ -26,28 +28,107 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
+      // Validate email is provided
+      const loginEmail = email || getExampleAccount()?.email || '';
+      if (!loginEmail) {
+        setError(t('login.enterAccount'));
+        setLoading(false);
+        return;
+      }
+
+      // Use built-in password if password field is empty (quick login)
+      const loginPassword = password || BUILTIN_PASSWORD;
+      
       const result = await authService.login({
-        email: email || getExampleAccount()?.email || '',
-        password: password || getExampleAccount()?.password || '',
+        email: loginEmail,
+        password: loginPassword,
         role: activeRole,
       });
 
       if (result.success && result.user && result.token) {
-        login(result.user, result.token);
+        // Show success toast with animation
+      const roleLabels = {
+        [UserRole.ADMIN]: t('roles.admin'),
+        [UserRole.CS]: t('roles.cs'),
+        [UserRole.TECH]: t('roles.tech'),
+      };
+        
+        const roleIcons = {
+          [UserRole.ADMIN]: <ShieldCheck size={20} className="text-indigo-600 dark:text-indigo-400" />,
+          [UserRole.CS]: <Headphones size={20} className="text-emerald-600 dark:text-emerald-400" />,
+          [UserRole.TECH]: <Code size={20} className="text-blue-600 dark:text-blue-400" />,
+        };
+
+        // Show animated success toast
+        toast.success(
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex items-center gap-3"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ 
+                type: 'spring', 
+                stiffness: 200, 
+                damping: 15,
+                delay: 0.1
+              }}
+            >
+              <CheckCircle2 size={24} className="text-emerald-600 dark:text-emerald-400" />
+            </motion.div>
+            <div>
+              <div className="font-bold text-slate-900 dark:text-white">{t('login.loginSuccess')}</div>
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mt-1">
+                {roleIcons[result.user.role]}
+                <span>{t('login.role')}：{roleLabels[result.user.role]}</span>
+              </div>
+            </div>
+          </motion.div>,
+          {
+            duration: 3000,
+            position: 'top-center',
+            className: 'dark:bg-slate-800 dark:border-slate-700',
+          }
+        );
+
+        // Small delay to show toast before navigation
+        setTimeout(() => {
+          login(result.user, result.token);
+        }, 800);
       } else {
-        setError(result.error || t('login.loginFailed'));
+        const errorMessage = result.error || t('login.loginFailed');
+        setError(errorMessage);
+        toast.error(errorMessage, {
+          duration: 3000,
+          position: 'top-center',
+        });
       }
     } catch (err: any) {
-      setError(err.message || t('login.loginFailed'));
+      const errorMessage = err.message || t('login.loginFailed');
+      setError(errorMessage);
+      toast.error(errorMessage, {
+        duration: 3000,
+        position: 'top-center',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // 快速登录按钮
-  const handleQuickLogin = (accountEmail: string, accountPassword: string) => {
+  // Built-in password for quick login
+  const BUILTIN_PASSWORD = 'Gg88880000';
+  
+  // Quick login button - only fill email, clear password field
+  const handleQuickLogin = (e: React.MouseEvent<HTMLButtonElement>, accountEmail: string) => {
+    e.preventDefault(); // Prevent form submission
+    e.stopPropagation(); // Stop event bubbling
     setEmail(accountEmail);
-    setPassword(accountPassword);
+    setPassword(''); // Clear password field
+    setError(''); // Clear any previous errors
   };
 
   const roles = [
@@ -109,7 +190,7 @@ export const Login: React.FC = () => {
           <form onSubmit={handleLogin} className="p-8 space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                账号
+                {t('login.account')}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -117,7 +198,7 @@ export const Login: React.FC = () => {
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={getExampleAccount()?.email || '请输入账号（如：123）'}
+                  placeholder={getExampleAccount()?.email || t('login.accountPlaceholder')}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
                 />
               </div>
@@ -141,6 +222,10 @@ export const Login: React.FC = () => {
                   placeholder="••••••••"
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
                 />
+              </div>
+              {/* Password hint for quick login */}
+              <div className="text-xs text-slate-500 dark:text-slate-400 ml-1">
+                {t('login.quickLoginHint')}：<span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">G*******0</span>
               </div>
             </div>
 
@@ -180,7 +265,7 @@ export const Login: React.FC = () => {
                     <button
                       key={acc.id}
                       type="button"
-                      onClick={() => handleQuickLogin(acc.email, acc.password)}
+                      onClick={(e) => handleQuickLogin(e, acc.email)}
                       className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                     >
                       {acc.name}

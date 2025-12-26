@@ -239,3 +239,98 @@ export interface AppRelease {
   coverImage?: string; // APP封面图片URL
   description?: string; // APP描述
 }
+
+// Notification
+export interface Notification {
+  id: string | number;
+  title: string;
+  message: string;
+  type: 'success' | 'info' | 'warning' | 'error';
+  time: string;
+  unread: boolean;
+}
+
+// Bug
+export interface Bug {
+  id: string;
+  app: string;
+  issue: string;
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  status: 'In Progress' | 'Pending' | 'Closed';
+  reporter: string;
+}
+
+// Build
+export interface Build {
+  id: string;
+  app: string;
+  status: 'Success' | 'Failed' | 'In Progress';
+  duration: string;
+  timestamp: string;
+  version: string;
+  appId?: string; // Link to AppInstance
+}
+
+// Chat Message
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  senderId: string;
+  senderName: string;
+  senderType: 'customer' | 'cs'; // customer or customer service
+  content: string;
+  timestamp: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+// Chat Session
+export interface ChatSession {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  csId?: string; // Assigned CS ID
+  csName?: string; // Assigned CS Name
+  appId?: string; // Associated APP ID
+  appName?: string; // Associated APP Name (for quick access)
+  status: 'active' | 'waiting' | 'closed';
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Script Template
+export interface ScriptTemplate {
+  id: string;
+  title: string;
+  content: string;
+  category: string; // e.g., 'greeting', 'product_info', 'pricing', 'closing'
+  tags: string[];
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Payment Verification Request
+export interface PaymentVerificationRequest {
+  id: string;
+  sessionId?: string; // Associated chat session ID
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  appId?: string; // Associated APP ID
+  appName?: string; // Associated APP Name
+  amount: number; // Payment amount
+  username?: string; // Customer username for verification
+  screenshot?: string; // Screenshot URL
+  status: 'pending' | 'verified' | 'rejected' | 'rejected_no_payment';
+  reply?: string; // Admin reply message
+  repliedBy?: string; // Admin ID who replied
+  repliedByName?: string; // Admin name who replied
+  repliedAt?: string; // Reply timestamp
+  createdAt: string;
+  updatedAt: string;
+}

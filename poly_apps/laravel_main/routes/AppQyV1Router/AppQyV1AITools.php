@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Providers\PathMapper;
 
@@ -46,7 +47,10 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/languages', [AppQyV1TTSController::class, 'getLanguages']);
         Route::get('/voices', [AppQyV1TTSController::class, 'getVoices']);
         Route::get('/options', [AppQyV1TTSController::class, 'getOptions']);
-        Route::get('/queue/stats', [AppQyV1TTSController::class, 'getQueueStats']);
+        Route::get('/queue/stats', [AppQyV1TTSQueueController::class, 'getStatistics']);
+        Route::get('/queue/metrics', [AppQyV1TTSQueueController::class, 'getMetrics']);
+        Route::get('/queue/performance', [AppQyV1TTSQueueController::class, 'getPerformanceMetrics']);
+        Route::get('/queue/logs', [AppQyV1TTSQueueController::class, 'getLogs']);
         Route::get('/audio/{language}/{type}/{speed}/{filename}', [AppQyV1TTSController::class, 'serveAudioWithSpeed']);
         Route::get('/audio/{language}/{type}/{filename}', [AppQyV1TTSController::class, 'serveAudio']);
     });
@@ -70,8 +74,22 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     Route::prefix('tts')->group(function () {
         Route::post('/generate', [AppQyV1TTSController::class, 'generate']);
         Route::post('/batch-generate', [AppQyV1TTSController::class, 'batchGenerate']);
+
+        // Legacy queue endpoints (backward compatibility)
         Route::post('/queue_batch', [AppQyV1TTSController::class, 'queueBatch']);
         Route::get('/queue/status', [AppQyV1TTSController::class, 'checkQueueStatus']);
+        Route::post('/queue/check_batch', [AppQyV1TTSController::class, 'checkBatchStatus']);
+
+        // Unified queue endpoints (new API)
+        Route::post('/queue/add', [AppQyV1TTSQueueController::class, 'addTask']);
+        Route::post('/queue/batch/add', [AppQyV1TTSQueueController::class, 'batchAddTasks']);
+        Route::post('/queue/batch/get', [AppQyV1TTSQueueController::class, 'batchGetTasks']);
+        Route::post('/queue/batch/query', [AppQyV1TTSQueueController::class, 'intelligentBatchQuery']);
+        Route::get('/queue/summary', [AppQyV1TTSQueueController::class, 'getQueueSummary']);
+        Route::get('/queue/completed', [AppQyV1TTSQueueController::class, 'getCompletedTasks']);
+        Route::get('/queue/task/{taskId}', [AppQyV1TTSQueueController::class, 'getTask']);
+        Route::post('/queue/requeue-failed', [AppQyV1TTSQueueController::class, 'requeueFailedTasks']);
+        Route::post('/queue/add-at-position', [AppQyV1TTSQueueController::class, 'addTaskAtPosition']);
     });
 
     Route::prefix('article')->group(function () {

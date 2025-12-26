@@ -5,6 +5,7 @@ namespace App\Services\EdgeTTS;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * EdgeTTS Service - Common TTS service using TTSCacheManager
@@ -16,20 +17,30 @@ use Illuminate\Support\Facades\Process;
  * - Old: App\Services\EdgeTTS\EdgeTTSService
  * - New: App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService
  *
- * This service provides basic text-to-speech functionality using Microsoft Edge TTS
- * with file-based caching managed by TTSCacheManager.
+ * IMPORTANT: This service should ONLY be called by AppQyV1UnifiedTTSQueueService.
+ * All external requests should go through the TTS queue system to ensure:
+ * - Sequential processing (edge-tts cannot handle concurrent requests)
+ * - Proper error handling and retry logic
+ * - Dynamic interval adjustment
+ * - Task deduplication
+ *
+ * DO NOT call this service directly from controllers or other services.
+ * Use the queue API endpoints instead: POST /api/app_qy_v1/ai_tools/tts/queue/batch/query
  *
  * Features:
  * - 82 languages support with neural network voices
  * - File-based caching with TTSCacheManager
  * - Automatic availability checking with EdgeTTSChecker
- * - Batch generation support
+ * - Sequential execution only (no concurrent support)
  */
 class EdgeTTSService
 {
     private $dataDir;
     private $audioDir;
     private $cacheManager;
+
+    // Concurrent request counter
+    private const CONCURRENT_COUNTER_KEY = 'edge_tts_concurrent_count';
 
     const VOICES = [
         'af' => 'af-ZA-AdriNeural', 'am' => 'am-ET-MekdesNeural',
@@ -106,10 +117,9 @@ class EdgeTTSService
 
     private function ensureDirectoryExists(string $path): void
     {
-        if (!is_dir($path)) {
-            if (!mkdir($path, 0755, true)) {
-                throw new \Exception('Failed to create directory: ' . $path);
-            }
+        // IDEMPOTENCY: Use FileSystemManager for dynamic user ownership
+        if (!\App\Utils\FileSystemManager::ensureDirectoryExists($path, 0775)) {
+            throw new \Exception('Failed to create directory: ' . $path);
         }
 
         if (!is_writable($path)) {
@@ -248,6 +258,15 @@ class EdgeTTSService
         }
     }
 
+    /**
+     * Execute edge-tts command
+     *
+     * IMPORTANT: This method should ONLY be called by AppQyV1UnifiedTTSQueueService
+     * in a sequential manner (one task at a time). Edge-TTS cannot handle concurrent
+     * requests and will fail with NoAudioReceived errors.
+     *
+     * No mutex lock is needed here because the queue ensures sequential execution.
+     */
     private function executeEdgeTTS(
         string $text,
         string $voice,
@@ -256,52 +275,90 @@ class EdgeTTSService
         string $volume = '+0%',
         string $pitch = '+0Hz'
     ): array {
-        $pythonPath = $this->findPythonPath();
-        if (!$pythonPath) {
-            return [
-                'success' => false,
-                'error' => 'Python not found',
-            ];
+        // Increment concurrent counter
+        $this->incrementConcurrentCounter();
+
+        try {
+            $pythonPath = $this->findPythonPath();
+            if (!$pythonPath) {
+                return [
+                    'success' => false,
+                    'error' => 'Python not found',
+                ];
+            }
+
+            $edgeTtsPath = $this->findEdgeTTSPath($pythonPath);
+            if (!$edgeTtsPath) {
+                return [
+                    'success' => false,
+                    'error' => 'edge-tts not installed. Run: pip install edge-tts',
+                ];
+            }
+
+            $escapedText = escapeshellarg($text);
+            $escapedOutput = escapeshellarg($outputPath);
+            $escapedVoice = escapeshellarg($voice);
+
+            $command = sprintf(
+                '%s -m edge_tts --text %s --voice %s --rate=%s --volume=%s --pitch=%s --write-media %s 2>&1',
+                $pythonPath,
+                $escapedText,
+                $escapedVoice,
+                escapeshellarg($rate),
+                escapeshellarg($volume),
+                escapeshellarg($pitch),
+                $escapedOutput
+            );
+
+            $output = [];
+            $returnCode = 0;
+            exec($command, $output, $returnCode);
+
+            if ($returnCode === 0 && file_exists($outputPath)) {
+                return ['success' => true];
+            } else {
+                $error = implode("\n", $output);
+                Log::error('[EdgeTTS] Command failed: ' . $command);
+                Log::error('[EdgeTTS] Output: ' . $error);
+                return [
+                    'success' => false,
+                    'error' => 'edge-tts execution failed: ' . $error,
+                ];
+            }
+        } finally {
+            // Decrement concurrent counter
+            $this->decrementConcurrentCounter();
         }
+    }
 
-        $edgeTtsPath = $this->findEdgeTTSPath($pythonPath);
-        if (!$edgeTtsPath) {
-            return [
-                'success' => false,
-                'error' => 'edge-tts not installed. Run: pip install edge-tts',
-            ];
+    /**
+     * Increment concurrent request counter
+     * Uses Octane cache (memory) for real-time concurrent counting
+     */
+    private function incrementConcurrentCounter(): void
+    {
+        Cache::store('octane')->increment(self::CONCURRENT_COUNTER_KEY, 1);
+    }
+
+    /**
+     * Decrement concurrent request counter
+     * Uses Octane cache (memory) for real-time concurrent counting
+     */
+    private function decrementConcurrentCounter(): void
+    {
+        $current = Cache::store('octane')->get(self::CONCURRENT_COUNTER_KEY, 0);
+        if ($current > 0) {
+            Cache::store('octane')->decrement(self::CONCURRENT_COUNTER_KEY, 1);
         }
+    }
 
-        $escapedText = escapeshellarg($text);
-        $escapedOutput = escapeshellarg($outputPath);
-        $escapedVoice = escapeshellarg($voice);
-
-        $command = sprintf(
-            '%s -m edge_tts --text %s --voice %s --rate=%s --volume=%s --pitch=%s --write-media %s 2>&1',
-            $pythonPath,
-            $escapedText,
-            $escapedVoice,
-            escapeshellarg($rate),
-            escapeshellarg($volume),
-            escapeshellarg($pitch),
-            $escapedOutput
-        );
-
-        $output = [];
-        $returnCode = 0;
-        exec($command, $output, $returnCode);
-
-        if ($returnCode === 0 && file_exists($outputPath)) {
-            return ['success' => true];
-        } else {
-            $error = implode("\n", $output);
-            Log::error('[EdgeTTS] Command failed: ' . $command);
-            Log::error('[EdgeTTS] Output: ' . $error);
-            return [
-                'success' => false,
-                'error' => 'edge-tts execution failed: ' . $error,
-            ];
-        }
+    /**
+     * Get current concurrent request count
+     * Uses Octane cache (memory) for real-time concurrent counting
+     */
+    public static function getConcurrentCount(): int
+    {
+        return Cache::store('octane')->get(self::CONCURRENT_COUNTER_KEY, 0);
     }
 
     private function findPythonPath(): ?string

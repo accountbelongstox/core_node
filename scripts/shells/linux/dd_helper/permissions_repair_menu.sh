@@ -7,9 +7,10 @@
 # operations instead of running all fixes at once.
 # =============================================================================
 
-# Source smart_permissions.sh for repair functions
+# Source smart_permissions.sh and gvar_common.sh for repair functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/smart_permissions.sh"
+source "$SCRIPT_DIR/../common/gvar_common.sh"
 
 # =============================================================================
 # Comprehensive Permission Repair Functions
@@ -63,7 +64,8 @@ fix_core_node_permissions_full() {
         local laravel_db_dir="/www/wwwroot/laravel_db"
         if [ -d "$laravel_db_dir" ]; then
             echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
-            chown -R www-data:www-data "$laravel_db_dir" 2>/dev/null
+            local detected_user=$(detect_system_user)
+            chown -R ${detected_user}:${detected_user} "$laravel_db_dir" 2>/dev/null
             chmod -R 775 "$laravel_db_dir" 2>/dev/null
             # Fix SQLite database files
             find "$laravel_db_dir" -name "*.sqlite" -exec chmod 664 {} \; 2>/dev/null

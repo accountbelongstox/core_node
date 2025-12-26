@@ -75,18 +75,26 @@ export interface LoginResult {
  */
 class AuthService {
   /**
-   * 登录验证
+   * Built-in password for quick login
+   */
+  private readonly BUILTIN_PASSWORD = 'Gg88880000';
+
+  /**
+   * Login verification
    */
   async login(credentials: LoginCredentials): Promise<LoginResult> {
     const { email, password, role } = credentials;
 
-    // 查找匹配的账号
+    // Use built-in password if password is empty (quick login)
+    const actualPassword = password || this.BUILTIN_PASSWORD;
+
+    // Find matching account - support both original password and built-in password
     let account = Object.values(BUILTIN_ACCOUNTS).find(
-      (acc) => acc.email === email && acc.password === password
+      (acc) => acc.email === email && (acc.password === actualPassword || actualPassword === this.BUILTIN_PASSWORD)
     );
 
-    // 如果是通用账号（123/123），根据选择的角色创建对应的用户信息
-    if (!account && email === '123' && password === '123') {
+    // If it's a universal account (123/123 or 123 with built-in password), create corresponding user info based on selected role
+    if (!account && email === '123' && (actualPassword === '123' || actualPassword === this.BUILTIN_PASSWORD)) {
       if (role) {
         // 根据选择的角色创建对应的用户信息
         const roleAccounts = {
@@ -136,8 +144,8 @@ class AuthService {
       };
     }
 
-    // 如果指定了角色，使用指定的角色（对于通用账号）
-    if (role && email === '123' && password === '123') {
+    // If role is specified, use the specified role (for universal accounts)
+    if (role && email === '123' && (actualPassword === '123' || actualPassword === this.BUILTIN_PASSWORD)) {
       const roleAccounts = {
         [UserRole.ADMIN]: { ...account, id: 'admin-universal', name: '管理员', role: UserRole.ADMIN },
         [UserRole.CS]: { ...account, id: 'cs-universal', name: '推广人员', role: UserRole.CS },

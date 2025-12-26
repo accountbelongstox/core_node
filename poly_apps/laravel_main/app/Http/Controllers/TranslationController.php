@@ -104,8 +104,7 @@ class TranslationController extends Controller
             provider: $provider
         );
 
-        // Service returns pre-formatted response
-        return response()->json($result);
+        return $this->success($result, 'Translation completed successfully');
     }
     
     public function batchTranslate(Request $request): JsonResponse
@@ -183,8 +182,7 @@ class TranslationController extends Controller
             provider: $provider
         );
 
-        // Service returns pre-formatted response
-        return response()->json($result);
+        return $this->success($result, 'Detection and translation completed successfully');
     }
     
     public function getLanguages(Request $request): JsonResponse

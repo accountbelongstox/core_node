@@ -55,13 +55,29 @@ class OctaneTimerServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $isOctane = $this->isOctaneSwooleRunning();
+        $serverType = $this->getServerType();
+        $octaneClass = class_exists(\Laravel\Octane\Facades\Octane::class);
+        $configuredServer = config('octane.server');
+        $extensionLoaded = extension_loaded('swoole');
+        $swooleVersion = extension_loaded('swoole') && function_exists('swoole_get_version');
+        $swooleHttpServer = class_exists(\Swoole\Http\Server::class);
+        $octaneEnv = env('LARAVEL_OCTANE');
+
+        Log::info('OctaneTimerServiceProvider: Boot called', [
+            'isOctaneSwooleRunning' => $isOctane,
+            'serverType' => $serverType,
+            'octaneClassExists' => $octaneClass,
+            'configuredServer' => $configuredServer,
+            'extensionLoaded' => $extensionLoaded,
+            'swooleVersionFunction' => $swooleVersion,
+            'swooleHttpServerClass' => $swooleHttpServer,
+            'octaneEnv' => $octaneEnv,
+        ]);
+
         // Only run on Octane-Swoole, NOT on FPM
-        if (!$this->isOctaneSwooleRunning()) {
-            Log::info('OctaneTimerServiceProvider: Octane runtime not detected or not using Swoole, skipping timer tasks', [
-                'server' => $this->getServerType(),
-                'octane_server_config' => config('octane.server'),
-                'laravel_octane_env' => env('LARAVEL_OCTANE'),
-            ]);
+        if (!$isOctane) {
+            Log::info('OctaneTimerServiceProvider: Octane runtime not detected or not using Swoole, skipping timer tasks');
             return;
         }
 

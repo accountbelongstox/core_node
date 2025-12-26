@@ -75,6 +75,11 @@ const VocabularyLearning: React.FC = () => {
   const [statistics, setStatistics] = useState<any>(null);
   const [loadingStatistics, setLoadingStatistics] = useState(false);
 
+  // TTS Queue State
+  const [queueStats, setQueueStats] = useState<any>(null);
+  const [loadingQueueStats, setLoadingQueueStats] = useState(false);
+  const [autoRefreshQueue, setAutoRefreshQueue] = useState(false);
+
   const t = TRANSLATIONS[lang].vocabulary;
 
   useEffect(() => {
@@ -82,6 +87,7 @@ const VocabularyLearning: React.FC = () => {
     loadTasks();
     loadLibraries();
     loadStatistics();
+    loadQueueStats();
   }, []);
 
   useEffect(() => {
@@ -93,6 +99,17 @@ const VocabularyLearning: React.FC = () => {
       setVocabularyWords(selectedTask.words);
     }
   }, [selectedTask]);
+
+  // Auto-refresh TTS queue stats
+  useEffect(() => {
+    if (autoRefreshQueue) {
+      const interval = setInterval(() => {
+        loadQueueStats();
+      }, 5000); // Refresh every 5 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [autoRefreshQueue]);
 
   useEffect(() => {
     if (tts.data?.audio_url && audioRef.current) {
@@ -227,6 +244,24 @@ const VocabularyLearning: React.FC = () => {
       setStatistics(null);
     } finally {
       setLoadingStatistics(false);
+    }
+  };
+
+  const loadQueueStats = async () => {
+    setLoadingQueueStats(true);
+    try {
+      const response = await api.appQyV1.getTTSQueueStats();
+
+      if (response.success && response.data) {
+        setQueueStats(response.data);
+      } else {
+        setQueueStats(null);
+      }
+    } catch (error) {
+      console.error('Failed to load queue stats:', error);
+      setQueueStats(null);
+    } finally {
+      setLoadingQueueStats(false);
     }
   };
 
@@ -425,11 +460,249 @@ const VocabularyLearning: React.FC = () => {
         <p className="text-sm text-slate-500 dark:text-slate-400">Translate, learn, and practice vocabulary</p>
       </div>
 
+      {/* TTS Queue Management Section */}
+      <div className={`${commonClasses.card} p-4 mb-4`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h3 className="font-semibold text-lg">TTS Queue Management</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="auto-refresh"
+                checked={autoRefreshQueue}
+                onChange={(e) => setAutoRefreshQueue(e.target.checked)}
+                className="rounded border-slate-300 dark:border-slate-600"
+              />
+              <label htmlFor="auto-refresh" className="text-xs text-slate-600 dark:text-slate-400">
+                Auto-refresh (5s)
+              </label>
+            </div>
+          </div>
+          <button
+            onClick={loadQueueStats}
+            disabled={loadingQueueStats}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+          >
+            <RefreshCw className={`w-3 h-3 ${loadingQueueStats ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        {queueStats ? (
+          <div className="space-y-4">
+            {/* Status Statistics */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Status Statistics</h4>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                    {queueStats.by_status?.pending || 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Pending</div>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                    {queueStats.by_status?.processing || 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Processing</div>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                    {queueStats.by_status?.completed || 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Completed</div>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+                    {queueStats.by_status?.failed || 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Failed</div>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+                    {queueStats.total || 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Total</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Type Statistics */}
+            {queueStats.by_type && (
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Type Statistics</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">
+                      {queueStats.by_type.word || 0}
+                    </div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400">Word</div>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                      {queueStats.by_type.sentence || 0}
+                    </div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400">Sentence</div>
+                  </div>
+                  <div className="bg-pink-50 dark:bg-pink-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-pink-700 dark:text-pink-400">
+                      {queueStats.by_type.article || 0}
+                    </div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400">Article</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Additional Stats - Always show if data exists */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Additional Information</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">
+                    {queueStats.current_concurrent ?? 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Current Concurrent</div>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                    {queueStats.total_success ?? queueStats.by_status?.completed ?? 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Total Success</div>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">
+                    {queueStats.total_retries ?? 0}
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Total Retries</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Logs */}
+            {queueStats.recent_logs && Array.isArray(queueStats.recent_logs) && queueStats.recent_logs.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Recent Logs {queueStats.logs_count && `(${queueStats.logs_count})`}
+                  </h4>
+                </div>
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div className="max-h-96 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">ID</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Content</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Type</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Language</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Status</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Priority</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Retries</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                        {queueStats.recent_logs.map((log: any, index: number) => (
+                          <React.Fragment key={log.id || index}>
+                            <tr
+                              className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                                log.status === 'failed' ? 'bg-red-50/50 dark:bg-red-900/10' :
+                                log.status === 'completed' ? 'bg-green-50/50 dark:bg-green-900/10' :
+                                log.status === 'processing' ? 'bg-blue-50/50 dark:bg-blue-900/10' :
+                                ''
+                              }`}
+                            >
+                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs">
+                                {log.id}
+                              </td>
+                              <td className="px-3 py-2 text-slate-900 dark:text-slate-100 max-w-xs truncate" title={log.content_text}>
+                                {log.content_text || '-'}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`px-2 py-0.5 rounded text-xs ${
+                                  log.task_type === 'word' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' :
+                                  log.task_type === 'sentence' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                                  'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400'
+                                }`}>
+                                  {log.task_type || '-'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400 uppercase">
+                                {log.language || '-'}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                  log.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                  log.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                  log.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                                  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                }`}>
+                                  {log.status || '-'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+                                {log.priority ? log.priority.toLocaleString() : '-'}
+                              </td>
+                              <td className="px-3 py-2">
+                                {log.retry_count !== undefined && log.retry_count > 0 ? (
+                                  <span className="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                                    {log.retry_count}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">0</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                                {log.completed_at ? (
+                                  <span className="text-green-600 dark:text-green-400" title={log.completed_at}>
+                                    {new Date(log.completed_at).toLocaleString()}
+                                  </span>
+                                ) : log.started_at ? (
+                                  <span className="text-blue-600 dark:text-blue-400" title={log.started_at}>
+                                    {new Date(log.started_at).toLocaleString()}
+                                  </span>
+                                ) : log.requested_at ? (
+                                  <span className="text-yellow-600 dark:text-yellow-400" title={log.requested_at}>
+                                    {new Date(log.requested_at).toLocaleString()}
+                                  </span>
+                                ) : '-'}
+                              </td>
+                            </tr>
+                            {log.error_message && (
+                              <tr className="bg-red-50/30 dark:bg-red-900/10">
+                                <td colSpan={8} className="px-3 py-2">
+                                  <p className="text-xs text-red-700 dark:text-red-400">
+                                    <strong>Error:</strong> {log.error_message}
+                                  </p>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : loadingQueueStats ? (
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8 text-slate-400">
+            <p className="text-sm">No queue statistics available</p>
+          </div>
+        )}
+      </div>
+
       {/* Statistics Section */}
       {statistics && (
         <div className={`${commonClasses.card} p-4 mb-4`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">System Statistics</h3>
+            <h3 className="font-semibold text-lg">Vocabulary Statistics</h3>
             <button
               onClick={loadStatistics}
               disabled={loadingStatistics}

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { DollarSign, TrendingUp, TrendingDown, Download, Calendar } from 'lucide-react';
-import { MOCK_APPS, MOCK_CS, MOCK_CS_APP_REVENUE, MOCK_DAILY_STATS } from '../constants';
+import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
@@ -8,23 +8,29 @@ export const RevenueManagement: React.FC = () => {
   const { t } = useApp();
 
   const revenueStats = useMemo(() => {
-    const totalRevenue = MOCK_APPS.reduce((acc, app) => acc + app.revenue, 0);
-    const todayRevenue = MOCK_DAILY_STATS[0]?.revenue || 0;
-    const monthRevenue = MOCK_DAILY_STATS.reduce((acc, stat) => acc + stat.revenue, 0);
-    const growth = ((todayRevenue - (MOCK_DAILY_STATS[1]?.revenue || 0)) / (MOCK_DAILY_STATS[1]?.revenue || 1)) * 100;
+    const apps = modelService.getApps() || [];
+    const csTeam = modelService.getCSTeam() || [];
+    const csAppRevenue = modelService.getCSAppRevenue() || [];
+    const dailyStats = modelService.getDailyStats() || [];
+    
+    const totalRevenue = apps.reduce((acc, app) => acc + app.revenue, 0);
+    const todayRevenue = dailyStats[0]?.revenue || 0;
+    const monthRevenue = dailyStats.reduce((acc, stat) => acc + stat.revenue, 0);
+    const growth = ((todayRevenue - (dailyStats[1]?.revenue || 0)) / (dailyStats[1]?.revenue || 1)) * 100;
 
-    const topApps = [...MOCK_APPS]
+    const topApps = [...apps]
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    const csRevenue = MOCK_CS.map(cs => {
-      const csAppRevenue = MOCK_CS_APP_REVENUE.filter(r => r.csId === cs.id);
-      const totalCommission = csAppRevenue.reduce((acc, r) => acc + r.commission, 0);
+    const csRevenue = csTeam.map(cs => {
+      const csRevenueData = csAppRevenue.filter(r => r.csId === cs.id);
+      const totalCommission = csRevenueData.reduce((acc, r) => acc + r.commission, 0);
       return {
-        name: cs.name,
-        revenue: cs.totalEarnings,
+        id: cs.id, // Use ID for matching instead of name
+        name: cs.name, // Use name from centralized MOCK_CS (Chinese names)
+        revenue: cs.totalEarnings || 0,
         commission: totalCommission,
-        promotions: csAppRevenue.reduce((acc, r) => acc + r.promotions, 0),
+        promotions: csRevenueData.reduce((acc, r) => acc + r.promotions, 0),
       };
     }).sort((a, b) => b.revenue - a.revenue);
 
@@ -32,8 +38,9 @@ export const RevenueManagement: React.FC = () => {
   }, []);
 
   const categoryRevenue = useMemo(() => {
+    const apps = modelService.getApps() || [];
     const categoryMap = new Map<string, number>();
-    MOCK_APPS.forEach(app => {
+    apps.forEach(app => {
       const current = categoryMap.get(app.category) || 0;
       categoryMap.set(app.category, current + app.revenue);
     });
@@ -153,22 +160,26 @@ export const RevenueManagement: React.FC = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">CS Name</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Revenue</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Commission</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Promotions</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Avg Commission Rate</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.csName')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.totalRevenue')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.commission')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.promotions')}</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('revenue.avgCommissionRate')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {revenueStats.csRevenue.map((cs, index) => {
-                const csData = MOCK_CS.find(c => c.name === cs.name);
+                const csTeam = modelService.getCSTeam() || [];
+                // Use ID to match instead of name to ensure we get the correct CS from centralized data
+                const csData = csTeam.find(c => c.id === cs.id) || csTeam.find(c => c.name === cs.name);
+                // Use name from centralized data (Chinese names from MOCK_CS)
+                const displayName = csData?.name || cs.name;
                 return (
-                  <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <tr key={cs.id || index} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {csData && <img src={csData.avatar} alt={cs.name} className="w-8 h-8 rounded-full" />}
-                        <span className="font-semibold text-slate-800 dark:text-white">{cs.name}</span>
+                        {csData && <img src={csData.avatar} alt={displayName} className="w-8 h-8 rounded-full" />}
+                        <span className="font-semibold text-slate-800 dark:text-white">{displayName}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -181,7 +192,7 @@ export const RevenueManagement: React.FC = () => {
                       <span className="text-sm text-slate-600 dark:text-slate-400">{cs.promotions}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">{csData?.commissionRate || 0}%</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">{csData?.commissionRate || csData?.commissionPercentage || 0}%</span>
                     </td>
                   </tr>
                 );

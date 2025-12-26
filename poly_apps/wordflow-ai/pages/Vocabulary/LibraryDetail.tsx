@@ -22,6 +22,7 @@ interface VocabularyWord {
   word_details?: any | null;
   has_translation?: boolean;
   audio_url?: string | null;
+  audio_available?: boolean; // Backend TTS integration field
 }
 
 interface DisplaySettings {
@@ -112,7 +113,7 @@ const VocabularyLibraryDetail = () => {
 
       // Update word in current page
       setWords((prev) =>
-        prev.map((w) => (w.word === word ? { ...w, audio_url: audioUrl } : w))
+        prev.map((w) => (w.word === word ? { ...w, audio_url: audioUrl, audio_available: true } : w))
       );
 
       // Update in VocabularyLibraryManager cache
@@ -127,7 +128,9 @@ const VocabularyLibraryDetail = () => {
 
     return () => {
       unsubscribe();
-      VocabularyAudioCenter.clearPending();
+      // Clear cache when unmounting (user leaving page or switching pages)
+      VocabularyAudioCenter.clearCache();
+      console.log('[LibraryDetail] Component unmounting, cleared audio cache and polling');
     };
   }, [libraryId]);
 
@@ -164,9 +167,14 @@ const VocabularyLibraryDetail = () => {
 
         VocabularyLibraryManager.addWords(libraryData.id, wordsData, page);
 
-        // Process words for audio generation
+        // Process words for audio generation (with page number for dynamic caching)
         if (wordsData.length > 0) {
-          VocabularyAudioCenter.processVocabularyLibrary(libraryData.id, wordsData);
+          VocabularyAudioCenter.processVocabularyLibrary(
+            libraryData.id,
+            page, // Pass current page for cache management
+            wordsData,
+            10 // Priority: 10 (auto-loaded words)
+          );
         }
       }
     } catch (err) {
@@ -535,7 +543,8 @@ const VocabularyLibraryDetail = () => {
                         >
                           {word.word}
                         </div>
-                        {word.audio_url && word.audio_url !== 'null' && (
+                        {/* Audio available - show play button */}
+                        {word.audio_available && word.audio_url && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -549,13 +558,19 @@ const VocabularyLibraryDetail = () => {
                                 : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
                               }
                             `}
+                            title="播放音频 / Play audio"
                           >
                             {playingAudio === word.word ? '⏸️' : '▶️'}
                           </button>
                         )}
-                        {VocabularyAudioCenter.isPending(word.word, library?.language || 'en') && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
-                            ⏳
+
+                        {/* Audio NOT available - show processing indicator */}
+                        {!word.audio_available && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 animate-pulse"
+                            title="音频生成中... / Audio generating..."
+                          >
+                            🔊⏳
                           </span>
                         )}
                       </div>

@@ -3,6 +3,7 @@ import { X, User, Phone, MapPin, Calendar, DollarSign, Image as ImageIcon } from
 import { modelService } from '../services/modelService';
 import { Promoter } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { generateId } from '../utils/idGenerator';
 
 interface AddPromoterFormProps {
   onClose: () => void;
@@ -13,7 +14,7 @@ interface AddPromoterFormProps {
  * 添加推广人表单组件
  */
 export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuccess }) => {
-  const { user } = useApp();
+  const { user, t } = useApp();
   const [formData, setFormData] = useState<Partial<Promoter>>({
     name: '',
     contact: '',
@@ -28,7 +29,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
     e.preventDefault();
 
     const newPromoter: Promoter = {
-      id: `promoter-${Date.now()}`,
+      id: generateId('promoter'),
       name: formData.name!,
       contact: formData.contact!,
       region: formData.region!,
@@ -58,7 +59,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">添加推广人</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white">{t('promoterManagement.addPromoter')}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -71,7 +72,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <User size={16} className="inline mr-1" />
-              推广人姓名 <span className="text-rose-500">*</span>
+              {t('promoterManagement.promoterName')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -85,14 +86,14 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <Phone size={16} className="inline mr-1" />
-              联系方式 <span className="text-rose-500">*</span>
+              {t('promoterManagement.contact')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={formData.contact}
               onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
               required
-              placeholder="电话/微信等"
+              placeholder={t('promoterManagement.contactPlaceholder')}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
           </div>
@@ -100,14 +101,14 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <MapPin size={16} className="inline mr-1" />
-              负责区域 <span className="text-rose-500">*</span>
+              {t('promoterManagement.region')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={formData.region}
               onChange={(e) => setFormData({ ...formData, region: e.target.value })}
               required
-              placeholder="如：北京大兴"
+              placeholder={t('promoterManagement.regionPlaceholder')}
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             />
           </div>
@@ -115,7 +116,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <Calendar size={16} className="inline mr-1" />
-              加盟时间 <span className="text-rose-500">*</span>
+              {t('promoterManagement.joinDate')} <span className="text-rose-500">*</span>
             </label>
             <input
               type="date"
@@ -129,7 +130,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <DollarSign size={16} className="inline mr-1" />
-              单价
+              {t('promoterManagement.unitPrice')}
             </label>
             <input
               type="number"
@@ -144,7 +145,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
               <ImageIcon size={16} className="inline mr-1" />
-              照片URL（可选）
+              {t('promoterManagement.photoUrl')}
             </label>
             <input
               type="url"
@@ -157,7 +158,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
 
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-              收款地址（加密货币地址，可选）
+              {t('promoterManagement.paymentAddress')}
             </label>
             <input
               type="text"
@@ -173,14 +174,14 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
               type="submit"
               className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              添加推广人
+              {t('promoterManagement.addPromoter')}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
             >
-              取消
+              {t('promoterManagement.cancel')}
             </button>
           </div>
         </form>

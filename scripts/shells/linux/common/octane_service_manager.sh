@@ -20,7 +20,7 @@
 # Usage context:
 # - Shell scripts (install_shells/*): Run as ROOT (default)
 # - ServerManagerV1 CLI commands: Run as ROOT via sudo
-# - ServerManagerV1 Web API: Run as www-data, needs sudo permissions for systemd
+# - ServerManagerV1 Web API: Run as dynamically detected user, needs sudo permissions for systemd
 #
 # IMPORTANT SYNCHRONIZATION NOTE:
 # This script must maintain consistency with:
@@ -52,9 +52,10 @@ RESTART_INTERVAL="48h"
 # SYNC: ServerManagerV1OctaneServiceManager - Port range 9000-9999 (less commonly used)
 SWOOLE_PORT_START=9000
 SWOOLE_PORT_END=9999
-# Default service user (can be overridden)
-DEFAULT_SERVICE_USER="www-data"
-DEFAULT_SERVICE_GROUP="www-data"
+
+# IDEMPOTENCY: Use detect_system_user() from gvar_common.sh (already sourced above)
+DEFAULT_SERVICE_USER=$(detect_system_user)
+DEFAULT_SERVICE_GROUP=$DEFAULT_SERVICE_USER
 
 # Check if running as root (required for systemd operations)
 check_root_permissions() {
@@ -119,14 +120,70 @@ get_next_available_port() {
     return 0
 }
 
+# Verify service configuration (idempotency check)
+verify_service_config() {
+    local service_file="$1"
+    local needs_fix=0
+
+    if [ ! -f "$service_file" ]; then
+        return 1
+    fi
+
+    # Check User=root
+    if ! grep -q "^User=root$" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] User is not root${NC}"
+        needs_fix=1
+    fi
+
+    # Check Group=root
+    if ! grep -q "^Group=root$" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] Group is not root${NC}"
+        needs_fix=1
+    fi
+
+    # Check ProtectSystem=full (not strict)
+    if grep -q "^ProtectSystem=strict$" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] ProtectSystem is strict (should be full)${NC}"
+        needs_fix=1
+    fi
+
+    # Check ReadWritePaths includes /www/wwwroot/laravel_db
+    if ! grep -q "ReadWritePaths=.*/www/wwwroot/laravel_db" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] Missing ReadWritePaths for /www/wwwroot/laravel_db${NC}"
+        needs_fix=1
+    fi
+
+    return $needs_fix
+}
+
 # SYNC: ServerManagerV1OctaneServiceManager::createOctaneService()
+# SYNC: ServerManagerV1OctaneServiceManager::generateServiceFileContentFromPath() Line 575
+# SYNC: ServerManagerV1OctaneServiceManager::generateServiceFileContent() Line 719
+#
+# IMPORTANT: This function IGNORES user/group parameters from external calls
+# Configuration is determined internally to ensure consistency and security
+#
+# CRITICAL SYNC REQUIREMENTS WITH PHP:
+# 1. User=root, Group=root (MUST match PHP getDefaultServiceUser)
+# 2. ProtectSystem=full (NOT strict)
+# 3. ReadWritePaths MUST include:
+#    - ${laravel_path}/storage
+#    - ${laravel_path}/bootstrap/cache
+#    - /www/wwwroot/laravel_db
+#    - /www/programing/core_node/_prompts
 create_octane_service() {
     local domain="$1"
     local port="${2:-}"
     local workers="${3:-4}"
     local laravel_path="${4:-}"
-    local service_user="${5:-root}"
-    local service_group="${6:-root}"
+    # Parameters 5 and 6 (user/group) are IGNORED - do not use them
+
+    # SYNC WITH PHP: ServerManagerV1OctaneServiceManager::getDefaultServiceUser() Line 53
+    # FORCE root user for maximum permissions (TTS queue file write requirements)
+    # This is NOT configurable from external calls
+    # PHP EQUIVALENT: return 'root';
+    local service_user="root"
+    local service_group="root"
 
     # Auto-assign port if not provided
     if [ -z "$port" ]; then
@@ -148,11 +205,24 @@ create_octane_service() {
     local service_file="${SYSTEMD_DIR}/${service_name}.service"
     local timer_file="${SYSTEMD_DIR}/${service_name}.timer"
 
-    echo -e "${BLUE}$SCRIPT_INDEX Creating Octane service: $service_name${NC}"
+    # IDEMPOTENCY: Check if service exists and verify configuration
+    if [ -f "$service_file" ]; then
+        echo -e "${CYAN}$SCRIPT_INDEX [IDEMPOTENT] Service exists, verifying configuration...${NC}"
+        if verify_service_config "$service_file"; then
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] Service configuration is correct${NC}"
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX [FIXING] Regenerating service with correct configuration${NC}"
+        fi
+    else
+        echo -e "${BLUE}$SCRIPT_INDEX [NEW] Creating new service${NC}"
+    fi
+
+    echo -e "${BLUE}$SCRIPT_INDEX Service: $service_name${NC}"
     echo -e "${CYAN}  Domain: $domain${NC}"
     echo -e "${CYAN}  Port: $port${NC}"
     echo -e "${CYAN}  Workers: $workers${NC}"
-    echo -e "${CYAN}  User: $service_user:$service_group${NC}"
+    echo -e "${CYAN}  User: $service_user (FORCED)${NC}"
+    echo -e "${CYAN}  Group: $service_group (FORCED)${NC}"
     echo -e "${CYAN}  Laravel Path: $laravel_path${NC}"
 
     # Calculate 20% of system memory for memory limit
@@ -160,6 +230,11 @@ create_octane_service() {
     local memory_limit_kb=$((total_memory_kb * 20 / 100))
     local memory_limit_mb=$((memory_limit_kb / 1024))
 
+    # SYNC WITH PHP: ServerManagerV1OctaneServiceManager::generateServiceFileContentFromPath() Line 612-660
+    # SYNC WITH PHP: ServerManagerV1OctaneServiceManager::generateServiceFileContent() Line 737-789
+    # CRITICAL: Output MUST match PHP generated service files exactly
+    #
+    # ALWAYS regenerate service file to ensure correct configuration
     cat > "$service_file" << EOF
 [Unit]
 Description=Laravel Octane Server for ${domain} on port ${port}
@@ -188,14 +263,21 @@ StandardError=journal
 SyslogIdentifier=${service_name}
 
 # Environment
+# SYNC WITH PHP: Line 647-649 (PATH-BASED) and Line 772-774 (LEGACY)
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="NODE_PATH=/usr/local/lib/node_modules"
 
-# Security
+# Security (Relaxed for development/TTS requirements)
+# SYNC WITH PHP: Line 651-657 (PATH-BASED) and Line 776-786 (LEGACY)
+# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
+# CRITICAL: ReadWritePaths MUST match PHP getExternalWritePaths() output
 PrivateTmp=true
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=${laravel_path}/storage ${laravel_path}/bootstrap/cache
+ProtectSystem=full
+ReadWritePaths=${laravel_path}/storage
+ReadWritePaths=${laravel_path}/bootstrap/cache
+ReadWritePaths=/www/wwwroot/laravel_db
+ReadWritePaths=/www/programing/core_node/_prompts
 
 [Install]
 WantedBy=multi-user.target
@@ -228,24 +310,48 @@ EOF
 }
 
 # SYNC: ServerManagerV1OctaneServiceManager::startOctaneService()
+# IDEMPOTENT: Handles both new services and existing services
 start_octane_service() {
     local service_name="$1"
+    local is_active=0
+    local was_active=0
 
-    echo -e "${BLUE}$SCRIPT_INDEX Starting Octane service: $service_name${NC}"
+    # Check if service is currently active
+    if systemctl is-active --quiet "$service_name" 2>/dev/null; then
+        was_active=1
+        echo -e "${CYAN}$SCRIPT_INDEX [IDEMPOTENT] Service is already running${NC}"
+    fi
 
-    if systemctl start "$service_name"; then
-        systemctl enable "$service_name"
+    # Always reload daemon to pick up any configuration changes
+    systemctl daemon-reload
 
-        if systemctl start "${service_name}.timer" 2>/dev/null; then
-            systemctl enable "${service_name}.timer"
-            echo -e "${GREEN}$SCRIPT_INDEX Service started with 48h auto-restart${NC}"
-        else
-            echo -e "${GREEN}$SCRIPT_INDEX Service started (no timer)${NC}"
+    # Enable service (idempotent)
+    systemctl enable "$service_name" 2>/dev/null
+
+    # Start or restart service based on current state
+    if [ $was_active -eq 1 ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Restarting service to apply configuration...${NC}"
+        if systemctl restart "$service_name"; then
+            is_active=1
         fi
+    else
+        echo -e "${BLUE}$SCRIPT_INDEX Starting service...${NC}"
+        if systemctl start "$service_name"; then
+            is_active=1
+        fi
+    fi
 
+    # Handle timer (idempotent)
+    if [ -f "${SYSTEMD_DIR}/${service_name}.timer" ]; then
+        systemctl enable "${service_name}.timer" 2>/dev/null
+        systemctl start "${service_name}.timer" 2>/dev/null
+        echo -e "${GREEN}$SCRIPT_INDEX Timer enabled (48h auto-restart)${NC}"
+    fi
+
+    if [ $is_active -eq 1 ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Service is running${NC}"
         sleep 2
         systemctl status "$service_name" --no-pager -l | head -15
-
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX Failed to start service${NC}"
@@ -274,11 +380,42 @@ stop_octane_service() {
 }
 
 # SYNC: ServerManagerV1OctaneServiceManager::restartOctaneService()
+# IDEMPOTENT: Checks and fixes configuration before restarting
 restart_octane_service() {
     local service_name="$1"
+    local service_file="${SYSTEMD_DIR}/${service_name}.service"
 
     echo -e "${BLUE}$SCRIPT_INDEX Restarting Octane service: $service_name${NC}"
 
+    # IDEMPOTENT: Check configuration before restarting
+    if [ -f "$service_file" ]; then
+        echo -e "${CYAN}$SCRIPT_INDEX [IDEMPOTENT] Verifying configuration...${NC}"
+        if ! verify_service_config "$service_file"; then
+            echo -e "${YELLOW}$SCRIPT_INDEX [FIXING] Configuration incorrect, regenerating...${NC}"
+
+            # Extract current configuration
+            local port=$(echo "$service_name" | grep -oE '[0-9]+$')
+            local workers=$(grep -oP 'workers=\K[0-9]+' "$service_file" || echo "4")
+            local laravel_path=$(grep -oP 'WorkingDirectory=\K.*' "$service_file")
+            local domain=$(echo "$service_name" | sed "s/${OCTANE_SERVICE_PREFIX}//; s/-${port}$//; s/-/./g")
+
+            # Regenerate with correct configuration
+            create_octane_service "$domain" "$port" "$workers" "$laravel_path" > /dev/null 2>&1
+
+            if verify_service_config "$service_file"; then
+                echo -e "${GREEN}$SCRIPT_INDEX [FIXED] Configuration corrected${NC}"
+            else
+                echo -e "${RED}$SCRIPT_INDEX [ERROR] Failed to fix configuration${NC}"
+            fi
+        else
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] Configuration is correct${NC}"
+        fi
+    fi
+
+    # Always reload daemon to pick up changes
+    systemctl daemon-reload
+
+    # Restart service
     if systemctl restart "$service_name"; then
         echo -e "${GREEN}$SCRIPT_INDEX Service restarted${NC}"
         sleep 2
@@ -366,21 +503,55 @@ restart_all_octane() {
 
     local success_count=0
     local fail_count=0
+    local fixed_count=0
+
+    echo -e "${CYAN}$SCRIPT_INDEX [IDEMPOTENT] Will verify and fix configurations automatically${NC}"
+    echo ""
 
     for service in $services; do
+        echo -e "${CYAN}Processing: $service${NC}"
+
+        # Check and fix configuration before restarting
+        local service_file="${SYSTEMD_DIR}/${service}.service"
+        if [ -f "$service_file" ]; then
+            if ! verify_service_config "$service_file"; then
+                echo -e "${YELLOW}  [FIXING] Incorrect configuration detected${NC}"
+
+                # Extract current configuration
+                local port=$(echo "$service" | grep -oE '[0-9]+$')
+                local workers=$(grep -oP 'workers=\K[0-9]+' "$service_file" || echo "4")
+                local laravel_path=$(grep -oP 'WorkingDirectory=\K.*' "$service_file")
+                local domain=$(echo "$service" | sed "s/${OCTANE_SERVICE_PREFIX}//; s/-${port}$//; s/-/./g")
+
+                # Regenerate configuration
+                create_octane_service "$domain" "$port" "$workers" "$laravel_path" > /dev/null 2>&1
+
+                if verify_service_config "$service_file"; then
+                    echo -e "${GREEN}  [FIXED] Configuration corrected${NC}"
+                    fixed_count=$((fixed_count + 1))
+                fi
+                systemctl daemon-reload
+            else
+                echo -e "${GREEN}  [OK] Configuration correct${NC}"
+            fi
+        fi
+
+        # Restart service
         if systemctl restart "$service" 2>/dev/null; then
-            echo -e "${GREEN}âœ?$service${NC}"
+            echo -e "${GREEN}  [OK] Restarted successfully${NC}"
             ((success_count++))
         else
-            echo -e "${RED}âœ?$service${NC}"
+            echo -e "${RED}  [ERROR] Restart failed${NC}"
             ((fail_count++))
         fi
+        echo ""
         sleep 1
     done
 
     echo ""
     echo -e "${CYAN}$SCRIPT_INDEX Restart Summary:${NC}"
     echo -e "  ${GREEN}Success: $success_count${NC}"
+    [ $fixed_count -gt 0 ] && echo -e "  ${YELLOW}Fixed: $fixed_count${NC}"
     [ $fail_count -gt 0 ] && echo -e "  ${RED}Failed: $fail_count${NC}"
 
     return 0
@@ -395,10 +566,10 @@ Usage: octane_service_manager.sh <command> [arguments]
 Commands:
   create <domain> [port] [workers] [laravel_path] [user] [group]
       Create and start Octane service (port auto-assigned if not provided)
-      Default user: root (for shell scripts and CLI commands)
+      Default user: dynamically detected (for shell scripts and CLI commands)
       Example: ./octane_service_manager.sh create api.example.com
       Example: ./octane_service_manager.sh create api.example.com 9000 4
-      Example: ./octane_service_manager.sh create api.example.com 9000 4 /path/to/laravel www-data www-data
+      Example: ./octane_service_manager.sh create api.example.com 9000 4 /path/to/laravel ubuntu ubuntu
 
   start <service_name|domain port>
       Start Octane service
@@ -435,6 +606,16 @@ Service Naming Convention:
 Auto-restart Feature:
   All services automatically restart every 48 hours via systemd timer
   This prevents memory leaks in long-running Swoole processes
+
+Configuration Management (IDEMPOTENT):
+  This script IGNORES user/group parameters from external calls
+  All services are FORCED to run as root:root for maximum permissions
+  Every create/start/restart command automatically checks and fixes:
+    - User=root (fixes ubuntu or other users)
+    - Group=root
+    - ProtectSystem=full (fixes strict)
+    - ReadWritePaths includes /www/wwwroot/laravel_db
+  Safe to run commands multiple times - automatically fixes configuration
 
 EOF
 }

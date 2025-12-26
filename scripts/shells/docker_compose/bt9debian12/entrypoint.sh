@@ -14,6 +14,64 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEBIAN_SCRIPTS_DIR="${SCRIPT_CURRENT_DIR}/debian/install_shells"
 
+# Source gvar_common.sh for detect_system_user function
+GVAR_COMMON="$SCRIPT_CURRENT_DIR/../../linux/common/gvar_common.sh"
+if [ -f "$GVAR_COMMON" ]; then
+    source "$GVAR_COMMON"
+fi
+
+# IDEMPOTENCY: Define detect_system_user only if not already defined (fallback)
+if ! type detect_system_user >/dev/null 2>&1; then
+    detect_system_user() {
+        local excluded_users=("git" "nginx" "www-data" "mysql" "postgres" "redis" "mongodb" "docker" "systemd-network" "systemd-resolve" "systemd-timesync" "_apt" "backup" "bin" "daemon" "games" "gnats" "irc" "list" "lp" "mail" "man" "news" "proxy" "sync" "sys" "uucp" "sshd" "postfix" "ftp" "nobody" "nogroup" "root")
+
+        # Check SUDO_USER first
+        if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+            for excluded in "${excluded_users[@]}"; do
+                [[ "$SUDO_USER" == "$excluded" ]] && break
+            done
+            if [[ "$SUDO_USER" != "$excluded" ]]; then
+                echo "$SUDO_USER"
+                return 0
+            fi
+        fi
+
+        # Check current USER
+        if [[ "$USER" != "root" ]]; then
+            for excluded in "${excluded_users[@]}"; do
+                [[ "$USER" == "$excluded" ]] && break
+            done
+            if [[ "$USER" != "$excluded" ]]; then
+                echo "$USER"
+                return 0
+            fi
+        fi
+
+        # Prefer ubuntu if exists
+        if [[ -d "/home/ubuntu" ]]; then
+            echo "ubuntu"
+            return 0
+        fi
+
+        # Find any real user in /home
+        for user_home in /home/*; do
+            if [[ -d "$user_home" ]]; then
+                local username=$(basename "$user_home")
+                for excluded in "${excluded_users[@]}"; do
+                    [[ "$username" == "$excluded" ]] && break
+                done
+                if [[ "$username" != "$excluded" ]]; then
+                    echo "$username"
+                    return 0
+                fi
+            fi
+        done
+
+        # Final fallback
+        echo "ubuntu"
+    }
+fi
+
 # Check if /www is an empty directory
 is_webroot_empty() {
     [ -z "$(ls -A $WEB_ROOT)" ]
@@ -28,7 +86,8 @@ backup_exists() {
 extract_backup() {
     echo "Backup file detected, extracting to $WEB_ROOT..."
     tar -xzf "$BACKUP_FILE" -C "$WEB_ROOT" --strip-components=1
-    chown -R www-data:www-data "$WEB_ROOT"
+    local detected_user=$(detect_system_user)
+    chown -R ${detected_user}:${detected_user} "$WEB_ROOT"
     echo "Extraction completed"
 }
 
