@@ -362,11 +362,11 @@ verify_pnpm_config() {
         echo "[$SCRIPT_INDEX] Checking enable-pre-post-scripts setting..."
         local enable_scripts=$(pnpm config get enable-pre-post-scripts 2>/dev/null)
         if [ "$enable_scripts" = "true" ]; then
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is set to true"
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts is set to true"
         else
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is NOT set correctly, fixing..."
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts is NOT set correctly, fixing..."
             pnpm config set enable-pre-post-scripts true
-            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts has been set to true"
+            echo "[$SCRIPT_INDEX] ï¿½?enable-pre-post-scripts has been set to true"
         fi
     else
         echo "[$SCRIPT_INDEX] pnpm not found"

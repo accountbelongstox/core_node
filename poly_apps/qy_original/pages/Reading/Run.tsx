@@ -1,4 +1,3 @@
-
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons } from '../../components/UI';

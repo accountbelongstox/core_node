@@ -1,5 +1,3 @@
-
-
 // Data Models
 export interface Word {
   id: string;

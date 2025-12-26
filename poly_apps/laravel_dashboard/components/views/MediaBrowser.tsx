@@ -46,7 +46,6 @@ const FileTreeItem: React.FC<{
                 node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
             ) : <span className="w-3.5 inline-block" />}
         </span>
-
         {node.type === 'folder' ? (
             node.isOpen ? <FolderOpen size={16} className="text-yellow-500" /> : <Folder size={16} className="text-yellow-500/80" />
         ) : node.fileType === 'video' ? (
@@ -60,7 +59,6 @@ const FileTreeItem: React.FC<{
         ) : (
             <File size={16} className="text-slate-500" />
         )}
-
         <span className="truncate text-sm font-mono tracking-tight">{node.name}</span>
       </div>
       {node.isOpen && node.children && (
