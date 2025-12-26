@@ -176,11 +176,11 @@ This document lists potentially redundant files in the project root directory th
 **Moved to logs/bugreports/ (1 file):**
 - ✅ bugreport-sdk_gphone64_x86_64-BP41.250916.009.A1-2025-12-05-07-54-12.zip → `logs/bugreports/`
 
-**Moved to api_test_results/ (4 files):**
-- ✅ api_test_report.json → `api_test_results/api_test_report.json`
-- ✅ mcp_tools_test_report.json → `api_test_results/mcp_tools_test_report.json`
-- ✅ D?programingcore_noderemote_api_test_categories.json → `api_test_results/D_programingcore_noderemote_api_test_categories.json` (renamed)
-- ✅ D?programingcore_noderemote_api_test_queue.json → `api_test_results/D_programingcore_noderemote_api_test_queue.json` (renamed)
+**Moved to scripts/testing/api_test_results/ (4 files):**
+- ✅ api_test_report.json → `scripts/testing/api_test_results/api_test_report.json`
+- ✅ mcp_tools_test_report.json → `scripts/testing/api_test_results/mcp_tools_test_report.json`
+- ✅ D?programingcore_noderemote_api_test_categories.json → `scripts/testing/api_test_results/D_programingcore_noderemote_api_test_categories.json` (renamed)
+- ✅ D?programingcore_noderemote_api_test_queue.json → `scripts/testing/api_test_results/D_programingcore_noderemote_api_test_queue.json` (renamed)
 
 **Moved to docs/reports/ (1 file):**
 - ✅ corrupted_videos_report.json → `docs/reports/corrupted_videos_report.json`

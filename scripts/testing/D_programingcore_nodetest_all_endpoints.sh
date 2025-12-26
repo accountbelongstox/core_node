@@ -3,7 +3,7 @@
 
 BASE_LOCAL="http://localhost:59000"
 BASE_REMOTE="http://192.168.50.2:9000/api/mcp/v1"
-OUTPUT_DIR="D:/programing/core_node/api_test_results"
+OUTPUT_DIR="D:/programing/core_node/scripts/testing/api_test_results"
 
 mkdir -p "$OUTPUT_DIR"
 

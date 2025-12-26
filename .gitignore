@@ -399,3 +399,22 @@ java_pid*.hprof
 # Paths containing colons (invalid file names on Windows, but may exist on other systems)
 **/*:*
 **/*:*/**
+
+# Gradle distributions and wrappers
+# Gradle distributions in any directory (all versions: gradle-8.9, gradle-8.10, gradle-9.0, etc.)
+**/gradle-*/
+**/gradle-*.*/
+**/gradle-*.*.*/
+
+# Gradle cache directories (user-specific build cache)
+**/.gradle/
+**/.gradle/**
+
+# Project-specific gradle wrapper directories (distribution cache)
+# Note: gradlew scripts and gradle-wrapper.properties should be committed
+**/android/.gradle/
+**/android/gradle/
+**/scrcpy_source/gradle/
+poly_apps/**/android/.gradle/
+poly_apps/**/android/gradle/
+pyapps/**/scrcpy_source/gradle/
