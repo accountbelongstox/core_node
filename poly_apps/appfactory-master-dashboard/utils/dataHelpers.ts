@@ -81,3 +81,16 @@ export const getCSByIds = (csIds: string[]): CustomerService[] => {
   return MOCK_CS.filter(cs => csIds.includes(cs.id));
 };
 
+/**
+ * Translate request status
+ */
+export const translateRequestStatus = (status: string, t: (key: string) => string): string => {
+  const statusMap: Record<string, string> = {
+    'pending': t('appGeneration.statusPending'),
+    'in_progress': t('appGeneration.statusInProgress'),
+    'completed': t('appGeneration.statusCompleted'),
+    'failed': t('appGeneration.statusFailed'),
+  };
+  return statusMap[status] || status;
+};
+

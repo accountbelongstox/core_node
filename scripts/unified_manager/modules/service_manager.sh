@@ -93,6 +93,331 @@ should_use_debug_mode() {
     echo "$debug_result"
 }
 
+# Scan for daemon service script
+scan_daemon_service() {
+    local app_path="$1"
+
+    local search_locations=(
+        "$app_path/scripts/daemon.sh"
+        "$app_path/scripts/daemon.py"
+        "$app_path/scripts/daemon.js"
+        "$app_path/scripts/Daemon.sh"
+        "$app_path/scripts/Daemon.py"
+        "$app_path/scripts/Daemon.js"
+        "$app_path/scripts/DAEMON.sh"
+        "$app_path/scripts/DAEMON.py"
+        "$app_path/scripts/DAEMON.js"
+        "$app_path/daemon.sh"
+        "$app_path/daemon.py"
+        "$app_path/daemon.js"
+    )
+
+    for location in "${search_locations[@]}"; do
+        if [ -f "$location" ]; then
+            echo "$location"
+            return 0
+        fi
+    done
+
+    echo ""
+    return 1
+}
+
+# Calculate daemon service resources (1/4 of main service)
+calculate_daemon_resources() {
+    local main_cpu="$1"
+    local main_memory="$2"
+
+    local daemon_cpu=""
+    local daemon_memory=""
+
+    # Calculate CPU (1/4 of main)
+    if [[ "$main_cpu" =~ ^([0-9]+)%$ ]]; then
+        local cpu_value="${BASH_REMATCH[1]}"
+        local daemon_cpu_value=$((cpu_value / 4))
+        if [ $daemon_cpu_value -lt 10 ]; then
+            daemon_cpu_value=10
+        fi
+        daemon_cpu="${daemon_cpu_value}%"
+    else
+        daemon_cpu="10%"
+    fi
+
+    # Calculate Memory (1/4 of main)
+    if [[ "$main_memory" =~ ^([0-9]+)G$ ]]; then
+        local mem_value="${BASH_REMATCH[1]}"
+        local daemon_mem_value=$((mem_value * 1024 / 4))
+        daemon_memory="${daemon_mem_value}M"
+    elif [[ "$main_memory" =~ ^([0-9]+)M$ ]]; then
+        local mem_value="${BASH_REMATCH[1]}"
+        local daemon_mem_value=$((mem_value / 4))
+        if [ $daemon_mem_value -lt 128 ]; then
+            daemon_mem_value=128
+        fi
+        daemon_memory="${daemon_mem_value}M"
+    else
+        daemon_memory="128M"
+    fi
+
+    echo "$daemon_cpu $daemon_memory"
+}
+
+# Create daemon service
+create_daemon_service() {
+    local app_name="$1"
+    local app_path="$2"
+    local daemon_script_path="$3"
+    local main_service_name="$4"
+    local main_cpu="$5"
+    local main_memory="$6"
+    local debug_mode="$7"
+
+    echo ""
+    echo -e "\033[36m=== Creating Daemon Service ===\033[0m"
+    echo -e "\033[90mDaemon script: $daemon_script_path\033[0m"
+
+    local daemon_service_name="webapp-${app_name}-daemon"
+
+    # Check if daemon service already exists (idempotent operation)
+    if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
+        echo ""
+        echo -e "\033[33mâš  Daemon service already exists: $daemon_service_name\033[0m"
+        echo -e "\033[90mRemoving existing daemon service for rebuild...\033[0m"
+
+        # Stop daemon service if running
+        if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mStopping daemon service...\033[0m"
+            sudo systemctl stop "$daemon_service_name" 2>/dev/null || true
+            sleep 1
+        fi
+
+        # Disable daemon service
+        if systemctl is-enabled "$daemon_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mDisabling daemon service...\033[0m"
+            sudo systemctl disable "$daemon_service_name" 2>/dev/null || true
+        fi
+
+        # Remove daemon service file
+        echo -e "\033[90mRemoving daemon service file...\033[0m"
+        sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
+        sudo systemctl daemon-reload
+
+        echo -e "\033[32mâœ“ Existing daemon service cleaned up\033[0m"
+    fi
+
+    # Calculate daemon resources (1/4 of main)
+    read daemon_cpu daemon_memory <<< $(calculate_daemon_resources "$main_cpu" "$main_memory")
+
+    echo -e "\033[90mDaemon CPU limit: $daemon_cpu (main: $main_cpu)\033[0m"
+    echo -e "\033[90mDaemon Memory limit: $daemon_memory (main: $main_memory)\033[0m"
+
+    # Generate daemon launcher script
+    local launcher_generator="$ROOT_DIR/scripts/unified_manager/core/launcher_generator.py"
+
+    local python_debug_mode="False"
+    if [ "$debug_mode" = "true" ] || [ "$debug_mode" = "True" ]; then
+        python_debug_mode="True"
+    fi
+
+    export PYTHONPATH="$ROOT_DIR/scripts/unified_manager/core:$PYTHONPATH"
+    local daemon_launcher_script=$(python3 -c "
+from launcher_generator import LauncherGenerator
+
+generator = LauncherGenerator()
+launcher_path = generator.generate_daemon_launcher(
+    service_name='$daemon_service_name',
+    daemon_script_path='$daemon_script_path',
+    app_path='$app_path',
+    debug_mode=$python_debug_mode
+)
+print(launcher_path)
+" 2>&1)
+
+    local gen_result=$?
+
+    if [ $gen_result -ne 0 ] || [ -z "$daemon_launcher_script" ] || [ ! -f "$daemon_launcher_script" ]; then
+        echo -e "\033[31mâœ— Failed to generate daemon launcher script\033[0m"
+        echo -e "\033[90mError: $daemon_launcher_script\033[0m"
+        return 1
+    fi
+
+    echo -e "\033[32mâœ“ Daemon launcher script generated\033[0m"
+    echo -e "\033[90m$daemon_launcher_script\033[0m"
+
+    # Create daemon service (depends on main service)
+    source "$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
+
+    local daemon_description="$app_name daemon service - Auto-generated by Unified Manager"
+    local daemon_command="$daemon_launcher_script"
+    local working_dir="$app_path"
+
+    # Create systemd service with dependency
+    local service_file="/etc/systemd/system/$daemon_service_name.service"
+
+    echo -e "\033[90mCreating daemon systemd service...\033[0m"
+
+    cat > "$service_file" << EOF
+[Unit]
+Description=$daemon_description
+After=network.target
+Requires=$main_service_name.service
+After=$main_service_name.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$working_dir
+ExecStart=$daemon_command
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+CPUQuota=$daemon_cpu
+MemoryMax=$daemon_memory
+MemoryHigh=0M
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ $? -eq 0 ]; then
+        echo -e "\033[32mâœ“ Daemon service file created\033[0m"
+        systemctl daemon-reload
+
+        # Enable and start daemon service
+        echo -e "\033[90mEnabling daemon service...\033[0m"
+        sudo systemctl enable "$daemon_service_name"
+
+        echo -e "\033[90mStarting daemon service...\033[0m"
+        sudo systemctl start "$daemon_service_name"
+
+        sleep 1
+
+        # Check daemon service status
+        if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
+            echo -e "\033[32mâœ“ Daemon service is running\033[0m"
+            local daemon_status=$(systemctl status "$daemon_service_name" --no-pager -l | head -8)
+            echo -e "\033[90m$daemon_status\033[0m"
+
+            echo ""
+            echo -e "\033[36m=== Daemon Service Management ===\033[0m"
+            echo -e "  Status:  sudo systemctl status $daemon_service_name"
+            echo -e "  Logs:    sudo journalctl -u $daemon_service_name -f"
+            echo -e "  Stop:    sudo systemctl stop $daemon_service_name"
+            echo -e "  Restart: sudo systemctl restart $daemon_service_name"
+        else
+            echo -e "\033[31mâœ— Daemon service failed to start\033[0m"
+            local daemon_logs=$(sudo journalctl -u "$daemon_service_name" --no-pager -l --since="1 minute ago" | tail -10)
+            echo -e "\033[90m$daemon_logs\033[0m"
+            echo ""
+            echo -e "\033[33mðŸ’¡ Check daemon script: $daemon_script_path\033[0m"
+        fi
+
+        return 0
+    else
+        echo -e "\033[31mâœ— Failed to create daemon service file\033[0m"
+        return 1
+    fi
+}
+
+# Delete service with daemon service cleanup
+delete_unified_service() {
+    local app_name="$1"
+    local framework_type="$2"
+
+    echo ""
+    echo -e "\033[36m=== Deleting SystemD Services ===\033[0m"
+
+    # Determine main service name based on framework
+    local main_service_name=""
+    case "$framework_type" in
+        "reactStart"|"vueStart")
+            main_service_name="webapp-$app_name"
+            ;;
+        "nuxtStart")
+            main_service_name="nuxt-$app_name"
+            ;;
+        "laravelStart")
+            main_service_name="laravel-$app_name"
+            ;;
+        "flutterStart")
+            main_service_name="flutter-$app_name"
+            ;;
+        *)
+            main_service_name="app-$app_name"
+            ;;
+    esac
+
+    local daemon_service_name="webapp-${app_name}-daemon"
+    local services_deleted=0
+
+    # Delete daemon service first (if exists)
+    if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
+        echo ""
+        echo -e "\033[33m--- Deleting Daemon Service ---\033[0m"
+        echo -e "\033[90mService: $daemon_service_name\033[0m"
+
+        # Stop daemon service
+        if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mStopping daemon service...\033[0m"
+            sudo systemctl stop "$daemon_service_name" 2>/dev/null || true
+        fi
+
+        # Disable daemon service
+        if systemctl is-enabled "$daemon_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mDisabling daemon service...\033[0m"
+            sudo systemctl disable "$daemon_service_name" 2>/dev/null || true
+        fi
+
+        # Remove daemon service file
+        echo -e "\033[90mRemoving daemon service file...\033[0m"
+        sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
+
+        echo -e "\033[32mâœ“ Daemon service deleted\033[0m"
+        services_deleted=$((services_deleted + 1))
+    fi
+
+    # Delete main service
+    if systemctl list-unit-files "$main_service_name.service" >/dev/null 2>&1; then
+        echo ""
+        echo -e "\033[33m--- Deleting Main Service ---\033[0m"
+        echo -e "\033[90mService: $main_service_name\033[0m"
+
+        # Stop main service
+        if systemctl is-active "$main_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mStopping main service...\033[0m"
+            sudo systemctl stop "$main_service_name" 2>/dev/null || true
+        fi
+
+        # Disable main service
+        if systemctl is-enabled "$main_service_name" >/dev/null 2>&1; then
+            echo -e "\033[90mDisabling main service...\033[0m"
+            sudo systemctl disable "$main_service_name" 2>/dev/null || true
+        fi
+
+        # Remove main service file
+        echo -e "\033[90mRemoving main service file...\033[0m"
+        sudo rm -f "/etc/systemd/system/$main_service_name.service"
+
+        echo -e "\033[32mâœ“ Main service deleted\033[0m"
+        services_deleted=$((services_deleted + 1))
+    fi
+
+    # Reload systemd if any service was deleted
+    if [ $services_deleted -gt 0 ]; then
+        echo ""
+        echo -e "\033[90mReloading systemd daemon...\033[0m"
+        sudo systemctl daemon-reload
+        echo -e "\033[32mâœ“ Total services deleted: $services_deleted\033[0m"
+        return 0
+    else
+        echo ""
+        echo -e "\033[33mâš  No services found for $app_name\033[0m"
+        return 1
+    fi
+}
+
 # Auto-replace existing compiled services with debug mode if detected
 auto_replace_debug_service() {
     local app_name="$1"
@@ -127,7 +452,7 @@ auto_replace_debug_service() {
 
     echo -e "\033[33mFound existing compiled services:\033[0m"
     for service in "${found_services[@]}"; do
-        echo -e "  \033[90mâ€?$service.service\033[0m"
+        echo -e "  \033[90mï¿½?$service.service\033[0m"
     done
 
     # Automatically stop and replace with debug version
@@ -145,7 +470,7 @@ auto_replace_debug_service() {
         fi
     done
 
-    echo -e "\033[32mâœ?Compiled services stopped\033[0m"
+    echo -e "\033[32mï¿½?Compiled services stopped\033[0m"
     echo -e "\033[32mCreating debug service replacement...\033[0m"
 
     return 0
@@ -172,7 +497,7 @@ create_nginx_config() {
 
     if [ -f "$ssl_cert_path" ] && [ -f "$ssl_key_path" ]; then
         ssl_available=true
-        echo -e "\033[32mâœ?SSL certificate found for $domain\033[0m"
+        echo -e "\033[32mï¿½?SSL certificate found for $domain\033[0m"
     else
         echo -e "\033[33m! No SSL certificate found, creating HTTP-only configuration\033[0m"
         echo -e "\033[90m  SSL files would be: $ssl_cert_path, $ssl_key_path\033[0m"
@@ -330,7 +655,7 @@ EOF
         # Test nginx configuration
         if sudo nginx -t 2>/dev/null; then
             sudo systemctl reload nginx
-            echo -e "\033[32mâœ?Nginx configuration created and loaded\033[0m"
+            echo -e "\033[32mï¿½?Nginx configuration created and loaded\033[0m"
 
             if [ "$ssl_available" = true ]; then
                 echo -e "\033[36mðŸ”’ HTTPS: https://$domain\033[0m"
@@ -341,11 +666,11 @@ EOF
             fi
             echo -e "\033[90mðŸ“ Config: $nginx_config\033[0m"
         else
-            echo -e "\033[31mâœ?Nginx configuration test failed\033[0m"
+            echo -e "\033[31mï¿½?Nginx configuration test failed\033[0m"
             sudo rm -f "$nginx_config" "$nginx_enabled"
         fi
     else
-        echo -e "\033[33mâš?Could not create nginx configuration (permissions?)\033[0m"
+        echo -e "\033[33mï¿½?Could not create nginx configuration (permissions?)\033[0m"
     fi
 
     rm -f "/tmp/$domain.conf"
@@ -414,7 +739,7 @@ create_unified_service() {
     # Check if service already exists and handle it
     if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
         echo ""
-        echo -e "\033[33mâš?Service $service_name already exists\033[0m"
+        echo -e "\033[33mï¿½?Service $service_name already exists\033[0m"
         echo -ne "\033[36mReplace existing service? (Y/n): \033[0m"
         read replace_choice
 
@@ -426,7 +751,7 @@ create_unified_service() {
             echo -e "\033[90mRemoving existing service file...\033[0m"
             sudo rm -f "/etc/systemd/system/$service_name.service"
             sudo systemctl daemon-reload
-            echo -e "\033[32mâœ?Existing service cleaned up\033[0m"
+            echo -e "\033[32mï¿½?Existing service cleaned up\033[0m"
         else
             echo -e "\033[33mKeeping existing service, operation cancelled\033[0m"
             return 0
@@ -435,6 +760,34 @@ create_unified_service() {
 
     # Auto-replace existing compiled services if in debug mode
     auto_replace_debug_service "$app_name" "$app_path" "$framework_type" "$port" "$domain" "$debug_mode"
+
+    # Scan for daemon service
+    local daemon_script_path=""
+    daemon_script_path=$(scan_daemon_service "$app_path")
+
+    # Clean up orphaned daemon service if daemon script no longer exists
+    local daemon_service_name="webapp-${app_name}-daemon"
+    if [ -z "$daemon_script_path" ] || [ ! -f "$daemon_script_path" ]; then
+        if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
+            echo ""
+            echo -e "\033[33mâš  Daemon script not found, but daemon service exists\033[0m"
+            echo -e "\033[90mCleaning up orphaned daemon service: $daemon_service_name\033[0m"
+
+            # Stop and remove orphaned daemon service
+            if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
+                sudo systemctl stop "$daemon_service_name" 2>/dev/null || true
+            fi
+
+            if systemctl is-enabled "$daemon_service_name" >/dev/null 2>&1; then
+                sudo systemctl disable "$daemon_service_name" 2>/dev/null || true
+            fi
+
+            sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
+            sudo systemctl daemon-reload
+
+            echo -e "\033[32mâœ“ Orphaned daemon service removed\033[0m"
+        fi
+    fi
 
     # Generate launcher script using Python launcher generator FIRST
     echo ""
@@ -491,7 +844,7 @@ print(launcher_path)
         return 1
     fi
 
-    echo -e "\033[32mâœ?Launcher script generated\033[0m"
+    echo -e "\033[32mï¿½?Launcher script generated\033[0m"
     echo -e "\033[90mService Name: $service_name\033[0m"
     echo -e "\033[90mLauncher Script: $launcher_script\033[0m"
     echo ""
@@ -532,7 +885,7 @@ print(launcher_path)
     echo ""
     echo -e "\033[36m=== Service Creation Status ===\033[0m"
     if [ $result -eq 0 ]; then
-        echo -e "\033[32mâœ?Service created successfully\033[0m"
+        echo -e "\033[32mï¿½?Service created successfully\033[0m"
 
         # Display service file content
         local service_file="/etc/systemd/system/$service_name.service"
@@ -547,9 +900,9 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Registration Check ===\033[0m"
         if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
-            echo -e "\033[32mâœ?Service registered in systemd\033[0m"
+            echo -e "\033[32mï¿½?Service registered in systemd\033[0m"
         else
-            echo -e "\033[31mâœ?Service not found in systemd\033[0m"
+            echo -e "\033[31mï¿½?Service not found in systemd\033[0m"
         fi
 
         # Add firewall rule for port
@@ -558,10 +911,10 @@ print(launcher_path)
             echo -e "\033[36m=== Configuring Firewall ===\033[0m"
             echo -e "\033[90mOpening port $port for $app_name service...\033[0m"
             firewall_allow_port "$port" "tcp" "$app_name service"
-            echo -e "\033[32mâœ?Firewall rule configured\033[0m"
+            echo -e "\033[32mï¿½?Firewall rule configured\033[0m"
         else
             echo ""
-            echo -e "\033[33mâš?Firewall manager function not available\033[0m"
+            echo -e "\033[33mï¿½?Firewall manager function not available\033[0m"
             echo -e "\033[90mManual firewall configuration may be required for port $port\033[0m"
         fi
 
@@ -585,11 +938,11 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Status Check ===\033[0m"
         if systemctl is-active "$service_name" >/dev/null 2>&1; then
-            echo -e "\033[32mâœ?Service is running\033[0m"
+            echo -e "\033[32mï¿½?Service is running\033[0m"
             local status_output=$(systemctl status "$service_name" --no-pager -l | head -10)
             echo -e "\033[90m$status_output\033[0m"
         else
-            echo -e "\033[31mâœ?Service failed to start\033[0m"
+            echo -e "\033[31mï¿½?Service failed to start\033[0m"
             echo -e "\033[33mChecking logs...\033[0m"
             local error_logs=$(sudo journalctl -u "$service_name" --no-pager -l --since="1 minute ago" | tail -5)
             echo -e "\033[90m$error_logs\033[0m"
@@ -611,9 +964,19 @@ print(launcher_path)
             echo -e "\033[36mDirect Access: http://localhost:$port\033[0m"
         fi
 
+        # Create daemon service if daemon script exists
+        if [ -n "$daemon_script_path" ] && [ -f "$daemon_script_path" ]; then
+            echo ""
+            echo -e "\033[33mðŸ“¦ Found daemon script: $(basename $daemon_script_path)\033[0m"
+            create_daemon_service "$app_name" "$app_path" "$daemon_script_path" "$service_name" "50%" "1G" "$debug_mode"
+        else
+            echo ""
+            echo -e "\033[90mðŸ’¡ No daemon script found (checked: scripts/daemon.{sh,py,js})\033[0m"
+        fi
+
         return 0
     else
-        echo -e "\033[31mâœ?Failed to create service\033[0m"
+        echo -e "\033[31mï¿½?Failed to create service\033[0m"
         return 1
     fi
 }

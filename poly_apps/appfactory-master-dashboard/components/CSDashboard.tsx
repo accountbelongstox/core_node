@@ -15,7 +15,8 @@ import {
   Eye,
   Star,
   BarChart3,
-  Users
+  Users,
+  MessageCircle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { useApp } from '../contexts/AppContext';
@@ -23,6 +24,7 @@ import { UserRole, AppStatus } from '../types';
 import { StatCard } from './StatCard';
 import { modelService } from '../services/modelService';
 import { LanguageSelector } from './LanguageSelector';
+import { CustomerServiceChat } from './CustomerServiceChat';
 
 const CSOverview = () => {
   const { t, user } = useApp();
@@ -312,6 +314,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: t('nav.overview'), path: '/' },
     { icon: <Smartphone size={20} />, label: t('csDashboard.myApps'), path: '/my-apps' },
+    { icon: <MessageCircle size={20} />, label: t('chat.chatSessions'), path: '/chat' },
     { icon: <History size={20} />, label: t('csDashboard.promotions'), path: '/promotions' },
     { icon: <BarChart3 size={20} />, label: t('csDashboard.performanceAnalytics'), path: '/performance' },
   ];
@@ -410,6 +413,7 @@ export const CSDashboard: React.FC<CSDashboardProps> = ({ onOpenSettings }) => {
           <Routes>
             <Route path="/" element={<CSOverview />} />
             <Route path="/my-apps" element={<MyApps />} />
+            <Route path="/chat" element={<CustomerServiceChat />} />
             <Route path="/promotions" element={<Promotions />} />
             <Route path="/performance" element={<Performance />} />
           </Routes>

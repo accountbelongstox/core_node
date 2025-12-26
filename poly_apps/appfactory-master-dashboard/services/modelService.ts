@@ -21,6 +21,10 @@ export const MODEL_KEYS = {
   NOTIFICATIONS: 'model_notifications',
   BUGS: 'model_bugs',
   BUILDS: 'model_builds',
+  CHAT_SESSIONS: 'model_chat_sessions',
+  CHAT_MESSAGES: 'model_chat_messages',
+  SCRIPT_TEMPLATES: 'model_script_templates',
+  PAYMENT_VERIFICATION_REQUESTS: 'model_payment_verification_requests',
 } as const;
 
 /**
@@ -433,6 +437,197 @@ class ModelService {
       builds[index] = { ...builds[index], ...updates };
       this.setBuilds(builds);
       return builds[index];
+    }
+    return null;
+  }
+
+  /**
+   * Get chat sessions
+   */
+  getChatSessions() {
+    return this.getModel(MODEL_KEYS.CHAT_SESSIONS, []);
+  }
+
+  /**
+   * Set chat sessions
+   */
+  setChatSessions(sessions: any[]) {
+    this.setModel(MODEL_KEYS.CHAT_SESSIONS, sessions);
+  }
+
+  /**
+   * Add chat session
+   */
+  addChatSession(session: any) {
+    const sessions = this.getChatSessions() || [];
+    sessions.unshift(session);
+    this.setChatSessions(sessions);
+    return session;
+  }
+
+  /**
+   * Update chat session
+   */
+  updateChatSession(id: string, updates: any) {
+    const sessions = this.getChatSessions() || [];
+    const index = sessions.findIndex((s: any) => s.id === id);
+    if (index !== -1) {
+      sessions[index] = { ...sessions[index], ...updates, updatedAt: new Date().toISOString() };
+      this.setChatSessions(sessions);
+      return sessions[index];
+    }
+    return null;
+  }
+
+  /**
+   * Get chat messages
+   */
+  getChatMessages() {
+    return this.getModel(MODEL_KEYS.CHAT_MESSAGES, []);
+  }
+
+  /**
+   * Set chat messages
+   */
+  setChatMessages(messages: any[]) {
+    this.setModel(MODEL_KEYS.CHAT_MESSAGES, messages);
+  }
+
+  /**
+   * Add chat message
+   */
+  addChatMessage(message: any) {
+    const messages = this.getChatMessages() || [];
+    messages.push(message);
+    this.setChatMessages(messages);
+    // Update session last message
+    const sessions = this.getChatSessions() || [];
+    const sessionIndex = sessions.findIndex((s: any) => s.id === message.sessionId);
+    if (sessionIndex !== -1) {
+      const session = sessions[sessionIndex];
+      session.lastMessage = message.content;
+      session.lastMessageTime = message.timestamp;
+      if (message.senderType === 'customer') {
+        session.unreadCount = (session.unreadCount || 0) + 1;
+      }
+      session.updatedAt = new Date().toISOString();
+      this.setChatSessions(sessions);
+    }
+    return message;
+  }
+
+  /**
+   * Get messages by session ID
+   */
+  getMessagesBySessionId(sessionId: string) {
+    const messages = this.getChatMessages() || [];
+    return messages.filter((m: any) => m.sessionId === sessionId).sort((a: any, b: any) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  }
+
+  /**
+   * Mark messages as read in session
+   */
+  markSessionMessagesAsRead(sessionId: string) {
+    const messages = this.getChatMessages() || [];
+    const updatedMessages = messages.map((m: any) => 
+      m.sessionId === sessionId && !m.isRead ? { ...m, isRead: true } : m
+    );
+    this.setChatMessages(updatedMessages);
+    // Reset unread count
+    const sessions = this.getChatSessions() || [];
+    const sessionIndex = sessions.findIndex((s: any) => s.id === sessionId);
+    if (sessionIndex !== -1) {
+      sessions[sessionIndex].unreadCount = 0;
+      this.setChatSessions(sessions);
+    }
+  }
+
+  /**
+   * Get script templates
+   */
+  getScriptTemplates() {
+    return this.getModel(MODEL_KEYS.SCRIPT_TEMPLATES, []);
+  }
+
+  /**
+   * Set script templates
+   */
+  setScriptTemplates(templates: any[]) {
+    this.setModel(MODEL_KEYS.SCRIPT_TEMPLATES, templates);
+  }
+
+  /**
+   * Add script template
+   */
+  addScriptTemplate(template: any) {
+    const templates = this.getScriptTemplates() || [];
+    templates.push(template);
+    this.setScriptTemplates(templates);
+    return template;
+  }
+
+  /**
+   * Update script template
+   */
+  updateScriptTemplate(id: string, updates: any) {
+    const templates = this.getScriptTemplates() || [];
+    const index = templates.findIndex((t: any) => t.id === id);
+    if (index !== -1) {
+      templates[index] = { ...templates[index], ...updates, updatedAt: new Date().toISOString() };
+      this.setScriptTemplates(templates);
+      return templates[index];
+    }
+    return null;
+  }
+
+  /**
+   * Increment script template usage count
+   */
+  incrementScriptUsage(id: string) {
+    const templates = this.getScriptTemplates() || [];
+    const index = templates.findIndex((t: any) => t.id === id);
+    if (index !== -1) {
+      templates[index].usageCount = (templates[index].usageCount || 0) + 1;
+      this.setScriptTemplates(templates);
+    }
+  }
+
+  /**
+   * Get payment verification requests
+   */
+  getPaymentVerificationRequests() {
+    return this.getModel(MODEL_KEYS.PAYMENT_VERIFICATION_REQUESTS, []);
+  }
+
+  /**
+   * Set payment verification requests
+   */
+  setPaymentVerificationRequests(requests: any[]) {
+    this.setModel(MODEL_KEYS.PAYMENT_VERIFICATION_REQUESTS, requests);
+  }
+
+  /**
+   * Add payment verification request
+   */
+  addPaymentVerificationRequest(request: any) {
+    const requests = this.getPaymentVerificationRequests() || [];
+    requests.unshift(request);
+    this.setPaymentVerificationRequests(requests);
+    return request;
+  }
+
+  /**
+   * Update payment verification request
+   */
+  updatePaymentVerificationRequest(id: string, updates: any) {
+    const requests = this.getPaymentVerificationRequests() || [];
+    const index = requests.findIndex((r: any) => r.id === id);
+    if (index !== -1) {
+      requests[index] = { ...requests[index], ...updates, updatedAt: new Date().toISOString() };
+      this.setPaymentVerificationRequests(requests);
+      return requests[index];
     }
     return null;
   }
