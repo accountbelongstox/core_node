@@ -78,13 +78,29 @@ SERVICE_SYSTEMD["laravel"]="laravel-octane"
 SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
 
+SERVICE_NAME["unified_apps"]="Unified Apps"
+SERVICE_SYSTEMD["unified_apps"]=""
+SERVICE_INSTALL_SCRIPT["unified_apps"]=""
+SERVICE_MANAGER_SCRIPT["unified_apps"]="$SCRIPT_CURRENT_DIR/unified_app_service_manager.sh"
+
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "unified_apps")
 
 # Function to check if service is installed
 is_service_installed() {
     local service="$1"
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
+
+    # Special handling for Unified Apps (manages multiple services)
+    if [ "$service" = "unified_apps" ]; then
+        local unified_prefixes=("app-" "webapp-" "nuxt-" "laravel-" "flutter-" "react-" "vue-")
+        for prefix in "${unified_prefixes[@]}"; do
+            if systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${prefix}"; then
+                return 0
+            fi
+        done
+        return 1
+    fi
 
     if [ -z "$systemd_name" ]; then
         return 1
@@ -122,6 +138,41 @@ is_service_installed() {
 get_service_status() {
     local service="$1"
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
+
+    # Special handling for Unified Apps (multiple services)
+    if [ "$service" = "unified_apps" ]; then
+        if ! is_service_installed "$service"; then
+            echo "NOT_INSTALLED"
+            return
+        fi
+
+        local unified_prefixes=("app-" "webapp-" "nuxt-" "laravel-" "flutter-" "react-" "vue-")
+        local total_count=0
+        local running_count=0
+
+        for prefix in "${unified_prefixes[@]}"; do
+            local services=$(systemctl list-unit-files --type=service 2>/dev/null | grep "^${prefix}" | awk '{print $1}' | sed 's/.service$//')
+            if [ -n "$services" ]; then
+                while IFS= read -r svc; do
+                    ((total_count++))
+                    if systemctl is-active --quiet "$svc"; then
+                        ((running_count++))
+                    fi
+                done <<< "$services"
+            fi
+        done
+
+        if [ "$total_count" -eq 0 ]; then
+            echo "NOT_INSTALLED"
+        elif [ "$running_count" -eq "$total_count" ]; then
+            echo "RUNNING:$running_count/$total_count"
+        elif [ "$running_count" -gt 0 ]; then
+            echo "PARTIAL:$running_count/$total_count"
+        else
+            echo "STOPPED:0/$total_count"
+        fi
+        return
+    fi
 
     if ! is_service_installed "$service"; then
         echo "NOT_INSTALLED"
@@ -225,11 +276,11 @@ start_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl start "$octane_service"; then
-                    echo -e "${GREEN}ï¿½?Started $octane_service${NC}"
+                    echo -e "${GREEN}ï¿?Started $octane_service${NC}"
                     $USE_SUDO systemctl enable "$octane_service" 2>/dev/null
                     ((success_count++))
                 else
-                    echo -e "${RED}ï¿½?Failed to start $octane_service${NC}"
+                    echo -e "${RED}ï¿?Failed to start $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -294,10 +345,10 @@ stop_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl stop "$octane_service"; then
-                    echo -e "${GREEN}ï¿½?Stopped $octane_service${NC}"
+                    echo -e "${GREEN}ï¿?Stopped $octane_service${NC}"
                     ((success_count++))
                 else
-                    echo -e "${RED}ï¿½?Failed to stop $octane_service${NC}"
+                    echo -e "${RED}ï¿?Failed to stop $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -346,10 +397,10 @@ restart_service() {
 
         for octane_service in $octane_services; do
             if $USE_SUDO systemctl restart "$octane_service"; then
-                echo -e "${GREEN}ï¿½?Restarted $octane_service${NC}"
+                echo -e "${GREEN}ï¿?Restarted $octane_service${NC}"
                 ((success_count++))
             else
-                echo -e "${RED}ï¿½?Failed to restart $octane_service${NC}"
+                echo -e "${RED}ï¿?Failed to restart $octane_service${NC}"
                 ((fail_count++))
             fi
         done
@@ -514,22 +565,67 @@ reinstall_service() {
     local install_script="${SERVICE_INSTALL_SCRIPT[$service]}"
     local service_name="${SERVICE_NAME[$service]}"
 
-    echo ""
-    echo "================================================"
-    echo "Reinstalling $service_name"
-    echo "================================================"
-    echo ""
-    echo -e "${YELLOW}WARNING: This will reinstall $service_name${NC}"
-    echo "This will:"
-    echo "  1. Run the installation script: $install_script"
-    echo "  2. Reconfigure the service"
-    echo "  3. Leave the service stopped and disabled (to save memory)"
-    echo ""
-    read -p "Do you want to continue? (y/N): " confirm
+    # Special handling for Unified Apps (launches unified manager)
+    if [ "$service" = "unified_apps" ]; then
+        echo ""
+        echo "================================================"
+        echo "Launching Unified App Manager"
+        echo "================================================"
+        echo ""
+        echo -e "${GREEN}Opening Unified App Manager to create/reinstall services${NC}"
+        echo ""
+        read -p "Press Enter to continue..."
 
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Reinstallation cancelled"
+        local unified_manager="$PARENT_DIR_LEVEL_3/scripts/unified_manager/unified_manager.sh"
+        if [ -f "$unified_manager" ]; then
+            bash "$unified_manager"
+        else
+            echo -e "${RED}Error: Unified Manager not found at $unified_manager${NC}"
+            return 1
+        fi
         return 0
+    fi
+
+    echo ""
+    echo "================================================"
+
+    # Check if service is already installed
+    if is_service_installed "$service"; then
+        echo "Reinstalling $service_name"
+        echo "================================================"
+        echo ""
+        echo -e "${YELLOW}$service_name is already installed${NC}"
+        echo "This will:"
+        echo "  1. Run the installation script: $install_script"
+        echo "  2. Reconfigure the service"
+        echo "  3. Update to latest version if available"
+        echo ""
+        echo "Note: Installation script will handle reinstall confirmation"
+        echo ""
+        read -p "Do you want to reinstall? (Y/n): " confirm
+
+        # Default to Yes (empty input or Y/y)
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            echo "Reinstallation cancelled"
+            return 0
+        fi
+    else
+        echo "Installing $service_name"
+        echo "================================================"
+        echo ""
+        echo -e "${GREEN}Installing $service_name for the first time${NC}"
+        echo "This will:"
+        echo "  1. Run the installation script: $install_script"
+        echo "  2. Configure the service"
+        echo "  3. Set up required dependencies"
+        echo ""
+        read -p "Do you want to install? (Y/n): " confirm
+
+        # Default to Yes (empty input or Y/y)
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            echo "Installation cancelled"
+            return 0
+        fi
     fi
 
     local script_path="$INSTALL_SHELLS_DIR/$install_script"
@@ -544,11 +640,16 @@ reinstall_service() {
 
     if bash "$script_path"; then
         echo ""
-        echo -e "${GREEN}$service_name reinstallation completed successfully${NC}"
+        if is_service_installed "$service"; then
+            echo -e "${GREEN}$service_name installation/reinstallation completed successfully${NC}"
+        else
+            echo -e "${YELLOW}$service_name script execution completed${NC}"
+            echo -e "${YELLOW}Service may need manual configuration${NC}"
+        fi
         return 0
     else
         echo ""
-        echo -e "${RED}$service_name reinstallation failed${NC}"
+        echo -e "${RED}$service_name installation/reinstallation failed${NC}"
         return 1
     fi
 }
@@ -732,13 +833,19 @@ show_main_menu() {
 
             # Show quick action hints
             if [ "$status" = "NOT_INSTALLED" ]; then
-                echo -e "  ${YELLOW}ï¿½?${index}i${NC} Install"
+                echo -e "  ${YELLOW}ï¿?${index}i${NC} Install"
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
+<<<<<<< HEAD
                     echo -e "  ${YELLOW}ï¿½?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 else
                     echo -e "  ${YELLOW}ï¿½?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+=======
+                    echo -e "  ${YELLOW}ï¿?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+                else
+                    echo -e "  ${YELLOW}ï¿?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 fi
             fi
 
@@ -758,7 +865,11 @@ show_main_menu() {
 
         echo ""
         echo "================================================"
+<<<<<<< HEAD
         echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
+=======
+        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}3i${NC}=Install/Reinstall, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         echo "================================================"
         echo ""
         read -p "Command: " choice

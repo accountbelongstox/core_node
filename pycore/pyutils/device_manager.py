@@ -8,6 +8,7 @@ Any app (pyMatrix, screencast, etc.) can use this to access devices.
 from typing import Dict, Optional, Set, Callable
 from dataclasses import dataclass
 import asyncio
+import threading
 
 from pycore.pyutils.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec, ADBManager, ADBDevice
 from pycore.pygvar import GlobalVarManager
@@ -36,23 +37,21 @@ class DeviceManager:
     - Emit device events
 
     Usage:
-        # Get singleton instance
-        manager = DeviceManager.instance()
+        # Get global instance
+        from pycore.pyutils.device_manager import device_manager
 
         # List devices
-        devices = await manager.list_devices()
+        devices = await device_manager.list_devices()
 
         # Connect device
-        device = await manager.connect_device(serial, params)
+        device = await device_manager.connect_device(serial, params)
 
         # Get connected device
-        device = manager.get_device(serial)
+        device = device_manager.get_device(serial)
 
         # Subscribe to events
-        manager.on_device_connected(callback)
+        device_manager.on_device_connected(callback)
     """
-
-    _instance: Optional['DeviceManager'] = None
 
     def __init__(self):
         # Device pool
@@ -69,13 +68,6 @@ class DeviceManager:
 
         # Lock for thread safety
         self._lock = asyncio.Lock()
-
-    @classmethod
-    def instance(cls) -> 'DeviceManager':
-        """Get singleton instance"""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
 
     async def list_devices(self, adb_path: str = "adb") -> list[ADBDevice]:
         """
@@ -104,8 +96,8 @@ class DeviceManager:
         """
         # Get basic device info from ADB
         device = ADBManager.get_device_info(serial, adb_path)
-        if not device.is_available:
-            print(f"Device {serial} is not available")
+        if not device.is_online:
+            print(f"Device {serial} is not online (state: {device.state.value})")
             return None
 
         # Get resolution
@@ -143,7 +135,7 @@ class DeviceManager:
 
         return DeviceInfo(
             serial=serial,
-            model=device.model or "Unknown",
+            model=device.properties.model if device.properties else "Unknown",
             resolution=Resolution(width=width, height=height),
             dpi=dpi,
             android_version=android_version,
@@ -194,7 +186,10 @@ class DeviceManager:
 
             # Start scrcpy-server (CRITICAL: must succeed for video streaming)
             print(f"[DeviceManager] Starting scrcpy-server for {serial}...")
-            await asyncio.to_thread(device.start_server)
+            await asyncio.wait_for(
+                asyncio.to_thread(device.start_server),
+                timeout=60.0  # 60 seconds timeout (socket accept is 30s)
+            )
             print(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
 
             # Verify device is truly connected (has active sockets)
@@ -343,3 +338,9 @@ class DeviceManager:
                 await callback(serial, error)
             else:
                 callback(serial, error)
+
+
+# ✅ 创建全局唯一实例（模块级别单例）
+device_manager = DeviceManager()
+
+__all__ = ['DeviceManager', 'DeviceState', 'device_manager']

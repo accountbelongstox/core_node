@@ -170,6 +170,7 @@ detect_and_fix_previous_issues() {
 
 # Function to configure pnpm mirror and global settings
 configure_npm_settings() {
+<<<<<<< HEAD
     echo "Configuring pnpm and npm settings..."
 
     # First ensure npm is available (comes with Node.js)
@@ -228,6 +229,10 @@ configure_npm_settings() {
     else
         echo "Warning: pnpm installation failed, falling back to npm"
     fi
+=======
+    echo "Configuring npm settings..."
+    return 0
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 }
 
 check_node_installation() {
@@ -416,168 +421,139 @@ create_symlinks() {
     local npm_path="$NODE_BIN_DIR/npm"
     local npx_path="$NODE_BIN_DIR/npx"
 
-    # Check if binaries exist
     if [ ! -f "$node_path" ] || [ ! -f "$npm_path" ]; then
         echo "Error: Node.js binaries not found in $NODE_BIN_DIR"
-
-        # Try to find system installation and use it
-        local system_node=$(which node 2>/dev/null)
-        local system_npm=$(which npm 2>/dev/null)
-
-        if [ -n "$system_node" ] && [ -n "$system_npm" ]; then
-            echo "Using system Node.js installation for symlinks..."
-            node_path="$system_node"
-            npm_path="$system_npm"
-            npx_path=$(which npx 2>/dev/null)
-        else
-            return 1
-        fi
-    fi
-
-    # Remove any existing broken symlinks first
-    for binary in node npm npx; do
-        local link_path="/usr/local/bin/$binary"
-        if [ -L "$link_path" ] && [ ! -e "$link_path" ]; then
-            echo "Removing broken symlink: $link_path"
-            $USE_SUDO rm -f "$link_path"
-        fi
-    done
-
-    # Create symlinks for node binaries to /usr/local/bin
-    if $USE_SUDO ln -sf "$node_path" /usr/local/bin/node; then
-        echo "Created symlink: /usr/local/bin/node -> $node_path"
-    else
-        echo "Failed to create symlink for node"
         return 1
     fi
 
-    if $USE_SUDO ln -sf "$npm_path" /usr/local/bin/npm; then
-        echo "Created symlink: /usr/local/bin/npm -> $npm_path"
-    else
-        echo "Failed to create symlink for npm"
-        return 1
-    fi
+    $USE_SUDO ln -sf "$node_path" /usr/local/bin/node
+    echo "Created symlink: /usr/local/bin/node -> $node_path"
 
-    if [ -n "$npx_path" ] && [ -f "$npx_path" ]; then
-        if $USE_SUDO ln -sf "$npx_path" /usr/local/bin/npx; then
-            echo "Created symlink: /usr/local/bin/npx -> $npx_path"
-        else
-            echo "Failed to create symlink for npx"
-        fi
-    fi
+    $USE_SUDO ln -sf "$npm_path" /usr/local/bin/npm
+    echo "Created symlink: /usr/local/bin/npm -> $npm_path"
 
-    # Verify symlinks work
-    echo "Verifying symlinks..."
-    if /usr/local/bin/node --version >/dev/null 2>&1; then
-        echo "[OK] Node.js symlink working: $(/usr/local/bin/node --version)"
-    else
-        echo "[ERROR] Node.js symlink not working"
-    fi
+    $USE_SUDO ln -sf "$npx_path" /usr/local/bin/npx
+    echo "Created symlink: /usr/local/bin/npx -> $npx_path"
 
-    if /usr/local/bin/npm --version >/dev/null 2>&1; then
-        echo "[OK] npm symlink working: $(/usr/local/bin/npm --version)"
-    else
-        echo "[ERROR] npm symlink not working"
-    fi
-
-    echo "Symlinks created successfully:"
-    ls -l /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx 2>/dev/null
+    echo "Core Node.js symlinks created successfully"
     return 0
 }
 
 setup_environment() {
     echo "Setting up Node.js environment variables..."
 
-    # Clean up any previous broken environment variables first
     if [ -f /etc/environment ]; then
         echo "Cleaning up previous broken environment variables..."
         $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment
         $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
         $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
-        $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
     fi
-    
-    # Determine the actual Node.js installation path
-    local actual_node_home=""
-    local actual_node_path=""
-    
-    if [ -f "$NODE_BIN_DIR/node" ]; then
-        # Use our installed version
-        actual_node_home="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-        actual_node_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/lib/node_modules"
-    else
-        # Try to find system installation
-        local system_node=$(which node 2>/dev/null)
-        if [ -n "$system_node" ]; then
-            # Get the actual installation directory from the binary path
-            actual_node_home=$(dirname $(dirname "$system_node"))
-            actual_node_path="$actual_node_home/lib/node_modules"
-            echo "Using system Node.js installation at: $actual_node_home"
-        else
-            echo "Warning: No Node.js installation found, using target directory"
-            actual_node_home="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-            actual_node_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/lib/node_modules"
-        fi
-    fi
-    
-    # Set environment variables using the proper function from gvar_common.sh
+
+    local actual_node_home="$NODE_INSTALL_DIR/node-$NODE_VERSION"
+    local actual_node_path="$actual_node_home/lib/node_modules"
+
     set_env_and_var "NODE_HOME" "$actual_node_home"
     set_env_and_var "NODE_PATH" "$actual_node_path"
-    
-    # Use Node.js installation directory for npm globals (npm-global not needed)
-    echo "NPM will use default global directory within Node.js installation: $actual_node_home"
-    
-    # Update PATH to include npm global bin directory (Node.js bin directory)
+
     local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "$PATH")
     local npm_global_bin="$actual_node_home/bin"
-    
-    # Clean up PATH - remove any old npm-global entries
-    current_path=$(echo "$current_path" | sed "s|$COMPILE_DIR/npm-global/bin:||g")
-    current_path=$(echo "$current_path" | sed "s|:$COMPILE_DIR/npm-global/bin||g")
-    
-    # Add Node.js bin to PATH if not already there
+
     if [[ "$current_path" != *"$npm_global_bin"* ]]; then
         set_env_and_var "PATH" "$npm_global_bin:$current_path"
         echo "Added npm global directory to PATH"
     else
         echo "npm global directory already in PATH"
     fi
-    
+
     echo "Environment variables configured:"
     echo "  NODE_HOME: $actual_node_home"
     echo "  NODE_PATH: $actual_node_path"
     echo "  Updated PATH with: $npm_global_bin"
-    
+
+    return 0
+}
+
+verify_and_fix_all_configs() {
+    echo "=================================================="
+    echo "Verifying and fixing all Node.js configurations..."
+    echo "=================================================="
+
+    local npm_bin="$NODE_BIN_DIR/npm"
+    local pnpm_bin="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
+    local yarn_bin="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/yarn"
+
+    echo "[1/3] Configuring npm..."
+    if [ "$SELECTED_REGION" = "China" ]; then
+        "$npm_bin" config set registry https://registry.npmmirror.com
+    fi
+
+    echo ""
+    echo "[2/3] Installing and configuring pnpm..."
+    "$npm_bin" install -g pnpm 2>&1 | grep -v "npm warn"
+    $USE_SUDO ln -sf "$pnpm_bin" /usr/local/bin/pnpm
+    echo "Linked: /usr/local/bin/pnpm"
+
+    "$pnpm_bin" config set global-dir "$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
+    "$pnpm_bin" config set global-bin-dir "$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global/bin"
+    "$pnpm_bin" config set enable-pre-post-scripts true
+
+    if [ "$SELECTED_REGION" = "China" ]; then
+        "$pnpm_bin" config set registry https://repo.huaweicloud.com/repository/npm/
+    else
+        "$pnpm_bin" config set registry https://registry.npmjs.org/
+    fi
+
+    cat > "$HOME/.pnpmrc" <<EOF
+registry=$([ "$SELECTED_REGION" = "China" ] && echo "https://repo.huaweicloud.com/repository/npm/" || echo "https://registry.npmjs.org/")
+enable-pre-post-scripts=true
+EOF
+    echo "pnpm configured"
+
+    echo ""
+    echo "[3/3] Installing and linking yarn..."
+    "$npm_bin" install -g yarn 2>&1 | grep -v "npm warn"
+    $USE_SUDO ln -sf "$yarn_bin" /usr/local/bin/yarn
+    echo "Linked: /usr/local/bin/yarn"
+
+    echo ""
+    echo "=================================================="
+    echo "All configurations completed"
+    echo "=================================================="
     return 0
 }
 
 verify_installation() {
     echo "Verifying installation..."
-    
+
     # Check binaries in install directory
     local node_bin="$NODE_BIN_DIR/node"
     local npm_bin="$NODE_BIN_DIR/npm"
-    
+
     if [ ! -f "$node_bin" ] || [ ! -f "$npm_bin" ]; then
         echo "Error: Node.js binaries not found in installation directory"
         return 1
     fi
-    
+
     # Check symlinks
     if [ ! -L /usr/local/bin/node ] || [ ! -L /usr/local/bin/npm ]; then
         echo "Error: Symlinks verification failed"
         return 1
     fi
-    
+
     echo "Node.js version: $($node_bin -v)"
     echo "npm version: $($npm_bin -v)"
     if [ -f "$NODE_BIN_DIR/npx" ]; then
         echo "npx version: $($NODE_BIN_DIR/npx -v)"
     fi
-    
-    # Configure npm settings
-    configure_npm_settings
-    
+
+    # Show pnpm configuration if available
+    if command -v pnpm >/dev/null 2>&1; then
+        echo ""
+        echo "pnpm version: $(pnpm --version)"
+        echo "pnpm configuration:"
+        pnpm config list
+    fi
+
     return 0
 }
 
@@ -647,6 +623,10 @@ if ! setup_environment; then
     exit 1
 fi
 
+echo ""
+verify_and_fix_all_configs
+
+echo ""
 if ! verify_installation; then
     echo "Installation verification failed"
     exit 1

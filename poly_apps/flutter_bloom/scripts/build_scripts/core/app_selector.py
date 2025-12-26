@@ -22,6 +22,7 @@ from typing import List, Dict, Any, Optional
 from core.app_scanner import FlutterAppScanner
 from shared.data_exchange.unified_variable_system import unified_vars
 from utils.print_helper import PrintHelper
+from platforms.android_emulator_manager import android_emulator_manager
 
 
 class FlutterAppSelector:
@@ -33,8 +34,13 @@ class FlutterAppSelector:
         """Initialize the app selector"""
         self.scanner = scanner or FlutterAppScanner()
         # PrintHelper is now a static class
-        self.platforms = ["Web", "Android", "Windows", "All"]
+        # Platform list now includes separate Android variants
+        self.platforms = ["Web", "Android", "Android_Emulator", "Windows", "All"]
         self.design_tool_states = ["Launch", "Restart"]
+
+        # Initialize available emulators list for Android_Emulator platform
+        available_emulators = android_emulator_manager.get_available_emulators()
+        self.available_emulators = available_emulators if available_emulators else ["No_Emulator_Found"]
 
         # All keys are now defined in unified_variable_system.py for consistency
 
@@ -155,6 +161,7 @@ class FlutterAppSelector:
             all_highlight = " -> " if current_selection == 0 else "    "
             all_action_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
             all_platform_mode = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
+
             color_prefix = "\033[92m" if current_selection == 0 else "\033[97m"  # Green if selected, white otherwise
             color_suffix = "\033[0m"
             print(f"{color_prefix}{all_highlight} 0. app_main (Main Entry Point) [{all_action_mode}/{all_platform_mode}]{color_suffix}")
@@ -279,6 +286,14 @@ class FlutterAppSelector:
             current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + "app_main", "Debug")
             current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + "app_main", "Android")
 
+            # If Android_Emulator platform selected, prompt for emulator choice
+            selected_emulator = None
+            if current_platform == "Android_Emulator":
+                selected_emulator = self._select_emulator()
+                if not selected_emulator:
+                    # User cancelled emulator selection, return to menu
+                    return {"success": False, "error": "Emulator selection cancelled"}
+
             # Calculate correct entry file (relative path)
             entry_file = f"lib/apps/app_main/main_app_main.dart"
 
@@ -287,6 +302,7 @@ class FlutterAppSelector:
                 "app": "app_main",
                 "action": current_action,
                 "platform": current_platform,
+                "emulator": selected_emulator,
                 "entry_file": entry_file,
                 "port": "10000",
                 "index": "0",
@@ -307,6 +323,14 @@ class FlutterAppSelector:
             current_action = unified_vars.get_file_variable(unified_vars.KEY_APP_ACTION_MODE_PREFIX + selected_app["name"], "Debug")
             current_platform = unified_vars.get_file_variable(unified_vars.KEY_APP_PLATFORM_MODE_PREFIX + selected_app["name"], "Android")
 
+            # If Android_Emulator platform selected, prompt for emulator choice
+            selected_emulator = None
+            if current_platform == "Android_Emulator":
+                selected_emulator = self._select_emulator()
+                if not selected_emulator:
+                    # User cancelled emulator selection, return to menu
+                    return {"success": False, "error": "Emulator selection cancelled"}
+
             # Calculate correct entry file (relative path) and port based on index
             app_name = selected_app["name"]
             entry_file = f"lib/apps/{app_name}/main_{app_name}.dart"
@@ -320,6 +344,7 @@ class FlutterAppSelector:
                 "app": app_name,
                 "action": current_action,
                 "platform": current_platform,
+                "emulator": selected_emulator,
                 "entry_file": entry_file,
                 "port": str(port),
                 "index": str(app_index),
@@ -333,6 +358,63 @@ class FlutterAppSelector:
             unified_vars.set_file_variable(unified_vars.KEY_LAST_SELECTED_APP_INDEX, str(current_selection))
 
             return {"success": True, "selection": selection_data}
+
+    def _select_emulator(self) -> Optional[str]:
+        """
+        Display emulator selection menu and return selected emulator AVD name
+
+        Returns:
+            Selected emulator AVD name or None if cancelled
+        """
+        import os
+
+        if not self.available_emulators or self.available_emulators == ["No_Emulator_Found"]:
+            PrintHelper.error("No Android emulators found!", "EMULATOR-SELECT")
+            print("\nPlease create an Android Virtual Device (AVD) using Android Studio")
+            print("Press any key to return to menu...")
+            self.get_user_input_key()
+            return None
+
+        selected_index = 0
+
+        while True:
+            # Clear screen
+            os.system('cls' if os.name == 'nt' else 'clear')
+            PrintHelper.header("Select Android Emulator", "EMULATOR-SELECT")
+
+            print("\nAvailable Emulators:")
+            print("-" * 50)
+
+            # Display emulator list with highlighting
+            for i, emulator in enumerate(self.available_emulators):
+                highlight = " -> " if selected_index == i else "    "
+                color_prefix = "\033[92m" if selected_index == i else "\033[97m"
+                color_suffix = "\033[0m"
+                print(f"{color_prefix}{highlight} {i}. {emulator}{color_suffix}")
+
+            print("\n" + "-" * 50)
+            print("\033[96mControls:\033[0m")
+            print("\033[90m  Up/Down arrows: Navigate emulators\033[0m")
+            print("\033[90m  Enter: Select emulator\033[0m")
+            print("\033[90m  Escape: Cancel and return to menu\033[0m")
+            print()
+
+            # Get key input
+            key_info = self.get_user_input_key()
+
+            if key_info["type"] == "arrow":
+                if key_info["direction"] == "up":
+                    selected_index = (selected_index - 1) % len(self.available_emulators)
+                elif key_info["direction"] == "down":
+                    selected_index = (selected_index + 1) % len(self.available_emulators)
+
+            elif key_info["type"] == "key":
+                if key_info["char"] == "enter" or key_info["char"] == "":
+                    # Return selected emulator
+                    return self.available_emulators[selected_index]
+                elif key_info["char"] == "escape":
+                    # Cancel selection
+                    return None
 
     def _launch_design_tool_async(self, current_selection: int, filtered_apps: List[Dict[str, Any]]):
         """Launch design documentation tool asynchronously (non-blocking)"""
@@ -424,6 +506,10 @@ pause
         unified_vars.set_file_variable(unified_vars.KEY_SELECTED_ENTRY_FILE, selection_data["entry_file"])
         unified_vars.set_file_variable(unified_vars.KEY_APP_INDEX, selection_data["index"])
         unified_vars.set_file_variable(unified_vars.KEY_DEBUG_PORT, selection_data["port"])
+
+        # Save emulator selection if present
+        if "emulator" in selection_data:
+            unified_vars.set_file_variable(unified_vars.KEY_SELECTED_EMULATOR, selection_data["emulator"])
 
         # Set app variables for PowerShell scripts
         unified_vars.set_file_variable(unified_vars.KEY_APP_NAME, selection_data["app"])

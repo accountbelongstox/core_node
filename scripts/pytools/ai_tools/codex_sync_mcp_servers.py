@@ -109,8 +109,14 @@ def configure_codex_mcp() -> int:
 
     for idx, config in enumerate(configs, 1):
         if config.transport_type == "http":
-            # HTTP transport: codex mcp add <name> --url <url>
+            # HTTP transport: codex mcp add <name> --url <url> [--header "key: value"]
             cmd = ["codex", "mcp", "add", config.name, "--url", config.url]
+
+            # Add headers if present
+            if config.headers:
+                for key, value in config.headers.items():
+                    cmd.extend(["--header", f"{key}: {value}"])
+
             commands_to_run.append((config, cmd, None))
         else:
             # STDIO transport: codex mcp add <name> [--env KEY=VALUE] -- <command> [args...]

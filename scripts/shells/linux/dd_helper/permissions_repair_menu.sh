@@ -7,9 +7,10 @@
 # operations instead of running all fixes at once.
 # =============================================================================
 
-# Source smart_permissions.sh for repair functions
+# Source smart_permissions.sh and gvar_common.sh for repair functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/smart_permissions.sh"
+source "$SCRIPT_DIR/../common/gvar_common.sh"
 
 # =============================================================================
 # Comprehensive Permission Repair Functions
@@ -24,6 +25,13 @@ fix_core_node_permissions_full() {
     echo "[INFO] Project root: $project_root"
     echo "[INFO] Real user: $real_user"
 
+<<<<<<< HEAD
+=======
+    # Calculate build directory path dynamically (no hardcoding)
+    local parent_dir="$(dirname "$project_root")"
+    local build_dir="$parent_dir/_build_dir"
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # Full directories for comprehensive operation
     local full_dirs=(
         "$project_root"
@@ -32,6 +40,7 @@ fix_core_node_permissions_full() {
         "$project_root/ncore"
         "$project_root/apps"
         "$project_root/pyapps"
+        "$build_dir"
     )
 
     if [ "$(id -u)" -eq 0 ]; then
@@ -39,6 +48,10 @@ fix_core_node_permissions_full() {
 
         # Fix all directories with proper permissions
         for dir in "${full_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+                echo "[INFO] Creating directory: $dir"
+                mkdir -p "$dir" 2>/dev/null
+            fi
             if [ -d "$dir" ]; then
                 echo "[INFO] Setting 777 permissions for: $dir"
                 chmod -R 777 "$dir" 2>/dev/null
@@ -46,7 +59,7 @@ fix_core_node_permissions_full() {
                 # Ensure all .sh files are executable
                 find "$dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
             else
-                echo "[WARNING] Directory not found: $dir"
+                echo "[WARNING] Failed to create/access directory: $dir"
             fi
         done
 
@@ -54,7 +67,12 @@ fix_core_node_permissions_full() {
         local laravel_db_dir="/www/wwwroot/laravel_db"
         if [ -d "$laravel_db_dir" ]; then
             echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
+<<<<<<< HEAD
             chown -R www-data:www-data "$laravel_db_dir" 2>/dev/null
+=======
+            local detected_user=$(detect_system_user)
+            chown -R ${detected_user}:${detected_user} "$laravel_db_dir" 2>/dev/null
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             chmod -R 775 "$laravel_db_dir" 2>/dev/null
             # Fix SQLite database files
             find "$laravel_db_dir" -name "*.sqlite" -exec chmod 664 {} \; 2>/dev/null

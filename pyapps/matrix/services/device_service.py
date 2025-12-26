@@ -17,7 +17,7 @@ from typing import List, Dict, Optional
 
 # Use pycore centralized services
 from pycore import ColorPrint
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device_manager import device_manager
 from pycore.pyutils.device import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 
@@ -42,10 +42,10 @@ class DeviceService:
 
     def __init__(self):
         self.adb_path = Config.get_adb_path()
-        self.scrcpy_server_jar = Config.SCRCPY_SERVER_JAR
+        self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
 
         # Use centralized device manager from pycore
-        self.device_manager = DeviceManager.instance()
+        self.device_manager = device_manager
 
         # Use event bus for cross-app communication
         self.event_bus = EventBus.instance()
@@ -121,14 +121,17 @@ class DeviceService:
 
         # Push scrcpy-server.jar if needed
         if self.scrcpy_server_jar.exists():
+            # CRITICAL: Use //data/local/tmp/ to prevent Git Bash path translation on Windows
+            # Git Bash automatically translates /data/local/tmp/ to D:/Git/data/local/tmp/
+            # CRITICAL: Filename must be 'scrcpy-server' (no .jar extension) to match official scrcpy
             success = ADBManager.push_file(
                 serial,
                 self.scrcpy_server_jar,
-                "/data/local/tmp/scrcpy-server.jar",
+                "//data/local/tmp/scrcpy-server",  # No .jar extension!
                 self.adb_path
             )
             if not success:
-                ColorPrint.red(f"[DeviceService] Failed to push scrcpy-server.jar to {serial}")
+                ColorPrint.red(f"[DeviceService] Failed to push scrcpy-server to {serial}")
                 return False
 
         # Resolve device name for per-device configuration

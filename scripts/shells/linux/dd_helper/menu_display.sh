@@ -20,8 +20,8 @@ initialize_menu_items() {
     menu_order+=("Install and Test Environment")
 
 
-    menu_items["Get the latest git version"]="text=Get the latest git version;values=default;current=0;key=GIT_UPDATE_TYPE;action=get_git"
-    menu_order+=("Get the latest git version")
+    menu_items["Git Management"]="text=Git Management;values=default;current=0;key=GIT_MANAGEMENT_MENU;action=show_git_management_menu"
+    menu_order+=("Git Management")
 
     menu_items["System Information & Variables"]="text=System Information & Variables;values=default;current=0;key=SYSTEM_INFO_MENU;action=show_system_info_menu"
     menu_order+=("System Information & Variables")

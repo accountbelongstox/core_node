@@ -18,7 +18,7 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $winCommonDir "WindowsPathFunction.ps1")
 
 $STEP_NUMBER = 4
-$SCRIPT_INDEX = "[Step $STEP_NUMBER]"
+$script:SCRIPT_INDEX = "[Step $STEP_NUMBER]"
 
 # Node.js installation configuration
 # Version is defined in GlobalVars.ps1 to prevent multiple definitions
@@ -244,10 +244,19 @@ function Install-PackageManagers {
 
         & $PnpmExePath config set global-dir $pnpmGlobalDir
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
+<<<<<<< HEAD
         & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
+=======
+        & $PnpmExePath config set enable-pre-post-scripts true
+        Write-Host "Y" | & $PnpmExePath setup
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true" -Type "Success"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
     }
 
@@ -311,6 +320,7 @@ disturl=https://npmmirror.com/dist
 electron_mirror=https://npmmirror.com/mirrors/electron/
 sass_binary_site=https://npmmirror.com/mirrors/node-sass
 phantomjs_cdnurl=https://npmmirror.com/mirrors/phantomjs
+enable-pre-post-scripts=true
 "@
 
         Set-Content -Path $pnpmrcPath -Value $pnpmrcContent -Force
@@ -318,12 +328,82 @@ phantomjs_cdnurl=https://npmmirror.com/mirrors/phantomjs
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX Using default pnpm registry (Global region)" -Type "Info"
 
-        # Remove .pnpmrc if exists to use default registry
-        if (Test-Path $pnpmrcPath) {
-            Remove-Item -Path $pnpmrcPath -Force
-            Write-ColorMessage -Message "$SCRIPT_INDEX Removed custom .pnpmrc to use default registry" -Type "Info"
+        $pnpmrcContent = @"
+enable-pre-post-scripts=true
+"@
+
+        Set-Content -Path $pnpmrcPath -Value $pnpmrcContent -Force
+        Write-ColorMessage -Message "$SCRIPT_INDEX .pnpmrc created with default settings" -Type "Success"
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX Force-setting pnpm enable-pre-post-scripts via CLI..." -Type "Info"
+    & $PnpmExePath config set enable-pre-post-scripts true
+    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts set to true" -Type "Success"
+
+    return $true
+}
+
+function Verify-AndFix-AllConfigs {
+    Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX Verifying and fixing all configurations..." -Type "Warning"
+    Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX [1/4] Checking npm configuration..." -Type "Info"
+    if (Test-Path $NpmExePath) {
+        Configure-NpmRegistry
+        Write-ColorMessage -Message "$SCRIPT_INDEX npm configuration verified" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX npm not found, skipping" -Type "Warning"
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX [2/4] Checking pnpm installation..." -Type "Info"
+    if (Test-Path $PnpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm already installed" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Installing pnpm..." -Type "Warning"
+        & $NpmExePath install -g pnpm
+        Start-Sleep -Milliseconds 500
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX [3/4] Checking pnpm configuration..." -Type "Info"
+    if (Test-Path $PnpmExePath) {
+        $pnpmGlobalDir = Join-Path $NodeJSInstallDir "pnpm-global"
+        $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-dir: $pnpmGlobalDir" -Type "Info"
+        & $PnpmExePath config set global-dir $pnpmGlobalDir
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Info"
+        & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm enable-pre-post-scripts: true" -Type "Info"
+        & $PnpmExePath config set enable-pre-post-scripts true
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
+        Write-Host "Y" | & $PnpmExePath setup
+
+        Configure-PnpmRegistry
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm configuration verified and fixed" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm not found, skipping" -Type "Warning"
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX [4/4] Checking yarn installation..." -Type "Info"
+    if (Test-Path $YarnExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX yarn already installed" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Installing yarn..." -Type "Warning"
+        & $NpmExePath install -g yarn
+        Start-Sleep -Milliseconds 500
+        if (Test-Path $YarnExePath) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX yarn installed successfully" -Type "Success"
         }
     }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX All configurations verified and fixed" -Type "Success"
+    Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
 
     return $true
 }
@@ -332,31 +412,29 @@ function Test-NodeJSInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Node.js installation..." -Type "Info"
 
     if (Test-Path $NodeExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Node.js version:" -Type "Info"
         & $NodeExePath --version
     }
 
     if (Test-Path $NpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX npm version:" -Type "Info"
         & $NpmExePath --version
     }
 
     if (Test-Path $PnpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm version:" -Type "Info"
         & $PnpmExePath --version
-    } else {
-        & $NpmExePath install -g pnpm
-        Start-Sleep -Milliseconds 500
-        if (Test-Path $PnpmExePath) {
-            & $PnpmExePath --version
-        }
     }
 
     if (Test-Path $YarnExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX yarn version:" -Type "Info"
         & $YarnExePath --version
-    } else {
-        & $NpmExePath install -g yarn
-        Start-Sleep -Milliseconds 500
-        if (Test-Path $YarnExePath) {
-            & $YarnExePath --version
-        }
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX Verifying pnpm configuration..." -Type "Info"
+    if (Test-Path $PnpmExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm config list:" -Type "Info"
+        & $PnpmExePath config list
     }
 
     return $true
@@ -372,7 +450,10 @@ $installSuccess = Install-NodeJS
 if ($installSuccess) {
     Write-ColorMessage -Message "$SCRIPT_INDEX Node.js installation completed successfully" -Type "Success"
 
-    # Test installation
+    Write-Host ""
+    Verify-AndFix-AllConfigs
+
+    Write-Host ""
     $testSuccess = Test-NodeJSInstallation
 
     if ($testSuccess) {

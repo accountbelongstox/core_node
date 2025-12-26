@@ -22,7 +22,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Get region information
 SELECTED_REGION=$(get_var "SELECTED_REGION")
 
-# Get USE_SUDO variable
+# Get USE_SUDO variable 
 USE_SUDO=$(get_var "USE_SUDO")
 if [ -z "$USE_SUDO" ]; then
     USE_SUDO="sudo"
@@ -168,6 +168,7 @@ configure_pnpm_global_dirs() {
     local pnpm_global_dir_target="$PNPM_GLOBAL_DIR"
     local pnpm_global_bin_target="$PNPM_GLOBAL_BIN_DIR"
 
+<<<<<<< HEAD
     # Check current pnpm config
     local pnpm_global_bin=$(run_pnpm_from_common_functions config get global-bin-dir 2>/dev/null)
     local pnpm_global_dir=$(run_pnpm_from_common_functions config get global-dir 2>/dev/null)
@@ -192,6 +193,49 @@ configure_pnpm_global_dirs() {
         echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin"
     fi
 
+=======
+    echo "[$SCRIPT_INDEX] Configuring pnpm global directories..."
+    echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir_target"
+    echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin_target"
+
+    # Always set pnpm config to ensure it's correct (don't skip even if already configured)
+    run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
+    run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
+    run_pnpm_from_common_functions config set enable-pre-post-scripts true
+
+    # Create directories
+    mkdir -p "$pnpm_global_dir_target"
+    mkdir -p "$pnpm_global_bin_target"
+
+    # Configure registry based on region
+    if [ "$SELECTED_REGION" = "China" ]; then
+        echo "[$SCRIPT_INDEX] Setting pnpm China mirror..."
+        run_pnpm_from_common_functions config set registry https://repo.huaweicloud.com/repository/npm/
+    else
+        echo "[$SCRIPT_INDEX] Setting pnpm default registry..."
+        run_pnpm_from_common_functions config set registry https://registry.npmjs.org/
+    fi
+
+    # Create or update .pnpmrc file
+    local user_home="$HOME"
+    local pnpmrc_path="$user_home/.pnpmrc"
+
+    echo "[$SCRIPT_INDEX] Creating/updating .pnpmrc file at: $pnpmrc_path"
+    if [ "$SELECTED_REGION" = "China" ]; then
+        cat > "$pnpmrc_path" <<EOF
+registry=https://repo.huaweicloud.com/repository/npm/
+enable-pre-post-scripts=true
+EOF
+    else
+        cat > "$pnpmrc_path" <<EOF
+registry=https://registry.npmjs.org/
+enable-pre-post-scripts=true
+EOF
+    fi
+
+    echo "[$SCRIPT_INDEX] pnpm global directories configured"
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # Save pnpm global bin directory to global variables
     local pnpm_global_bin_final=$(pnpm config get global-bin-dir 2>/dev/null)
     if [ -n "$pnpm_global_bin_final" ]; then
@@ -328,6 +372,36 @@ fi
 
 echo "[$SCRIPT_INDEX] Package installation process completed"
 
+# Function to verify pnpm configuration
+verify_pnpm_config() {
+    echo ""
+    echo "[$SCRIPT_INDEX] =================================================="
+    echo "[$SCRIPT_INDEX] Verifying pnpm configuration..."
+    echo "[$SCRIPT_INDEX] =================================================="
+
+    if command -v pnpm >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
+        echo ""
+        echo "[$SCRIPT_INDEX] pnpm configuration:"
+        pnpm config list
+
+        echo ""
+        echo "[$SCRIPT_INDEX] Checking enable-pre-post-scripts setting..."
+        local enable_scripts=$(pnpm config get enable-pre-post-scripts 2>/dev/null)
+        if [ "$enable_scripts" = "true" ]; then
+            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is set to true"
+        else
+            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts is NOT set correctly, fixing..."
+            pnpm config set enable-pre-post-scripts true
+            echo "[$SCRIPT_INDEX] âœ?enable-pre-post-scripts has been set to true"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] pnpm not found"
+    fi
+
+    echo "[$SCRIPT_INDEX] =================================================="
+}
+
 # Function to handle Node.js binary links
 handle_node_binaries() {
     echo "[$SCRIPT_INDEX] Creating symlinks for pnpm global packages..."
@@ -369,3 +443,11 @@ handle_node_binaries() {
 # Handle binary links
 echo "[$SCRIPT_INDEX] Setting up pnpm global package symlinks..."
 handle_node_binaries
+
+# Verify pnpm configuration at the end
+verify_pnpm_config
+
+echo ""
+echo "[$SCRIPT_INDEX] =================================================="
+echo "[$SCRIPT_INDEX] All tasks completed successfully"
+echo "[$SCRIPT_INDEX] =================================================="

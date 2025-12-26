@@ -25,9 +25,17 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AudioFileProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ImageFileProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyProcessor\AppQyV1VocabularyProcessor;
+use App\Traits\ApiResponse;
 
 class AppQyV1SystemInitializationController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     protected $storageManager;
     protected $databaseProcessor;
     protected $audioProcessor;
@@ -54,7 +62,6 @@ class AppQyV1SystemInitializationController extends Controller
      */
     public function initialize(Request $request)
     {
-        try {
             // Check if initialization already completed
             if ($this->markerManager->isInitializationComplete()) {
                 return response()->json([
@@ -154,18 +161,6 @@ class AppQyV1SystemInitializationController extends Controller
 
             return response()->json($response);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Initialization failed: ' . $e->getMessage(),
-                'progress' => [
-                    'vocabulary' => ['status' => 'error', 'progress' => 0],
-                    'database' => ['status' => 'error', 'progress' => 0],
-                    'audio' => ['status' => 'error', 'progress' => 0],
-                    'images' => ['status' => 'error', 'progress' => 0]
-                ]
-            ], 500);
-        }
     }
 
     /**
@@ -176,20 +171,12 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function processVocabularyFiles(): array
     {
-        try {
             $result = $this->vocabularyProcessor->processVocabularyFiles();
             return [
                 'status' => 'complete',
                 'progress' => 100,
                 'stats' => $result
             ];
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'progress' => 0,
-                'error' => $e->getMessage()
-            ];
-        }
     }
 
     /**
@@ -327,7 +314,6 @@ class AppQyV1SystemInitializationController extends Controller
      */
     public function processVocabularyOnly()
     {
-        try {
             $result = $this->processVocabularyFiles();
             
             if ($result['status'] === 'complete') {
@@ -343,12 +329,6 @@ class AppQyV1SystemInitializationController extends Controller
                     'error' => $result['error'] ?? 'Unknown error'
                 ], 500);
             }
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Vocabulary processing failed: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -358,7 +338,6 @@ class AppQyV1SystemInitializationController extends Controller
      */
     public function getVocabularyStatus()
     {
-        try {
             $stats = $this->vocabularyProcessor->getProcessingStats();
             
             return response()->json([
@@ -366,12 +345,6 @@ class AppQyV1SystemInitializationController extends Controller
                 'data' => $stats,
                 'processing_complete' => $this->markerManager->isVocabularyProcessingComplete()
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to get vocabulary status: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -381,7 +354,6 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function getStorageDirectoriesInfo(): array
     {
-        try {
             return [
                 'external_data_path' => $this->storageManager->getExternalDataPath(),
                 'legacy_database_path' => $this->storageManager->getLegacyDatabasePath(),
@@ -393,9 +365,6 @@ class AppQyV1SystemInitializationController extends Controller
                 'markers_path' => $this->storageManager->getMarkersPath(),
                 'storage_stats' => $this->storageManager->getStorageStats()
             ];
-        } catch (\Exception $e) {
-            return ['error' => 'Unable to retrieve storage directory information: ' . $e->getMessage()];
-        }
     }
 
     /**
@@ -468,12 +437,8 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function checkNewDatabaseExists(): bool
     {
-        try {
             // Check if we have any dictionary records in the main database
             return AppQyV1DictionaryModel::count() > 0;
-        } catch (\Exception $e) {
-            return false;
-        }
     }
 
     /**
@@ -483,17 +448,12 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function checkVocabularyMetadataProcessed(): bool
     {
-        try {
             $stats = $this->vocabularyProcessor->getProcessingStats();
             return isset($stats['processed_files']) && $stats['processed_files'] > 0;
-        } catch (\Exception $e) {
-            return false;
-        }
     }
 
     public function getDictionaryStatistics()
     {
-        try {
             $connection = 'AppQyV1';
             
             $languages = [
@@ -536,11 +496,5 @@ class AppQyV1SystemInitializationController extends Controller
                     ]
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to get dictionary statistics: ' . $e->getMessage()
-            ], 500);
-        }
     }
 }

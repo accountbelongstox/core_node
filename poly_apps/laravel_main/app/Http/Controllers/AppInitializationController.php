@@ -6,65 +6,65 @@ use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Traits\ApiResponse;
 
+/**
+ * App Initialization Controller
+ * Uses standardized ApiResponse trait
+ */
 class AppInitializationController extends Controller
 {
+    use ApiResponse;
+
     private $manager;
-    
+
     public function __construct()
     {
         $this->manager = new AppInitializationManager();
-        
         $this->manager->register(new AppQyV1Initializer());
     }
-    
+
     public function status(Request $request): JsonResponse
     {
         $detailed = $request->input('detailed', false);
-        
         $result = $this->manager->checkStatus();
-        
+
         if ($detailed) {
             $result['detailed'] = $this->manager->getDetailedStatus();
         }
-        
-        return response()->json($result);
+
+        return $this->success($result, 'Status retrieved successfully');
     }
-    
+
     public function initializeAll(Request $request): JsonResponse
     {
         $force = $request->input('force', false);
-        
         $result = $this->manager->initializeAll($force);
-        
-        return response()->json($result);
+
+        return $this->success($result, 'Initialization completed');
     }
-    
+
     public function initialize(Request $request, string $appName): JsonResponse
     {
         $force = $request->input('force', false);
-        
         $result = $this->manager->initialize($appName, $force);
-        
+
         if (!$result['success'] && isset($result['available_apps'])) {
-            return response()->json($result, 404);
+            return $this->notFound("App '{$appName}' not found");
         }
-        
-        return response()->json($result);
+
+        return $this->success($result, 'App initialized successfully');
     }
-    
+
     public function reset(Request $request, string $appName): JsonResponse
     {
         $result = $this->manager->reset($appName);
-        
-        return response()->json($result);
+        return $this->success($result, 'App reset successfully');
     }
-    
+
     public function listApps(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'apps' => $this->manager->getRegisteredApps(),
-        ]);
+        $apps = $this->manager->getRegisteredApps();
+        return $this->success(['apps' => $apps], 'Apps list retrieved successfully');
     }
 }

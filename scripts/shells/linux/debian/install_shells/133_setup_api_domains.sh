@@ -209,6 +209,26 @@ update_hosts_file() {
     fi
 }
 
+# Function to check SSL certificate status
+check_ssl_status() {
+    local domain="$1"
+
+    cd "$laravel_dir" || return 1
+
+    local cert_output
+    cert_output=$($USE_SUDO php artisan servermanager:certificate find "$domain" 2>&1)
+
+    if echo "$cert_output" | grep -q "Found certificate"; then
+        local expires_line
+        expires_line=$(echo "$cert_output" | grep "Expires:" || echo "Expires: unknown")
+        echo "[EXISTS] $expires_line"
+        return 0
+    else
+        echo "[NOT FOUND] No certificate found for domain"
+        return 1
+    fi
+}
+
 # Function to add API website
 add_api_website() {
     local api_domain="$1"
@@ -217,9 +237,16 @@ add_api_website() {
     echo "[$SCRIPT_INDEX]   Type: poly (Laravel main project)"
     echo "[$SCRIPT_INDEX]   PHP Mode: swoole (Octane)"
 
+    # IDEMPOTENCY CHECK: Check SSL certificate status before adding domain
+    echo "[$SCRIPT_INDEX]   [SSL CHECK] Verifying certificate status..."
+    local ssl_status
+    ssl_status=$(check_ssl_status "$api_domain")
+    echo "[$SCRIPT_INDEX]   [SSL STATUS] $ssl_status"
+
     # Add or update domain (Laravel handles idempotency automatically)
     # If domain exists: Laravel will update configuration (e.g., switch from FPM to Swoole)
     # If domain doesn't exist: Laravel will create new configuration
+    # SSL certificates are reused if valid (not regenerated)
     echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-mode=swoole"
 
     local output
@@ -230,6 +257,11 @@ add_api_website() {
     echo "$output" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]     $line"
     done
+
+    # POST-VERIFICATION: Check SSL certificate status after domain addition
+    echo "[$SCRIPT_INDEX]   [SSL VERIFY] Post-addition certificate status..."
+    ssl_status=$(check_ssl_status "$api_domain")
+    echo "[$SCRIPT_INDEX]   [SSL FINAL] $ssl_status"
 
     return $result
 }
@@ -484,10 +516,10 @@ if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
 
         if [ $? -eq 0 ]; then
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] âœ?Octane File Watcher installed successfully"
+            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installed successfully"
         else
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] âš?Octane File Watcher installation failed"
+            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installation failed"
         fi
     else
         echo "[$SCRIPT_INDEX] Error: Watcher installation script not found"

@@ -42,6 +42,10 @@ class User extends Authenticatable
         'email_verified_at',
         'email',
         'password',
+        'rolelevel',
+        'rolename',
+        'learning_languages',
+        'native_language',
     ];
 
     /**
@@ -66,5 +70,25 @@ class User extends Authenticatable
             'password' => 'hashed',
             'learning_languages' => 'array',
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->rolelevel >= 10;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->rolelevel >= 100;
+    }
+
+    public function hasRole(string $roleName): bool
+    {
+        return strtolower($this->rolename) === strtolower($roleName);
+    }
+
+    public function hasMinimumRoleLevel(int $level): bool
+    {
+        return $this->rolelevel >= $level;
     }
 }

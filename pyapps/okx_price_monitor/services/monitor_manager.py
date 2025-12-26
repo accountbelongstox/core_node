@@ -129,10 +129,10 @@ class MonitorManager:
             if self.table_manager.create_table_if_not_exists(coin):
                 if not table_existed:
                     new_tables.append(coin)
-                    print(f"  ✓ {coin:8s} - Table created")
+                    print(f"  OK {coin:8s} - Table created")
             else:
                 existing_tables.append(coin)
-                print(f"  • {coin:8s} - Table exists")
+                print(f"  * {coin:8s} - Table exists")
 
         print("-"*80)
         print(f"[SUMMARY] Tables: {len(new_tables)} created, {len(existing_tables)} existing")
@@ -141,6 +141,9 @@ class MonitorManager:
 
         # Create real-time price tables if enabled
         if self.realtime_manager:
+            from pyapps.okx_price_monitor.services.log_broadcaster import get_log_broadcaster
+            broadcaster = get_log_broadcaster()
+
             print("\n[Step 3.5] Creating real-time price tables...")
             print("="*80)
             print(f"Database: {self.realtime_manager.db_path}")
@@ -148,6 +151,8 @@ class MonitorManager:
             print(f"Sampling: {monitor_config.REALTIME_SAMPLING_INTERVAL_MS}ms minimum interval")
             print(f"Retention: {monitor_config.REALTIME_RETENTION_DAYS} days")
             print("-"*80)
+
+            broadcaster.broadcast_log("info", "Creating real-time price tables...")
 
             rt_new_tables = []
             rt_existing_tables = []
@@ -157,15 +162,21 @@ class MonitorManager:
                 if self.realtime_manager.create_table_if_not_exists(coin):
                     if not table_existed:
                         rt_new_tables.append(coin)
-                        print(f"  ✓ {coin:8s} - Real-time table created")
+                        log_msg = f"OK {coin:8s} - Real-time table created"
+                        print(f"  {log_msg}")
+                        broadcaster.broadcast_log("success", log_msg, coin=coin)
                 else:
                     rt_existing_tables.append(coin)
-                    print(f"  • {coin:8s} - Real-time table exists")
+                    log_msg = f"* {coin:8s} - Real-time table exists"
+                    print(f"  {log_msg}")
+                    broadcaster.broadcast_log("info", log_msg, coin=coin)
 
             print("-"*80)
             print(f"[SUMMARY] Real-time Tables: {len(rt_new_tables)} created, {len(rt_existing_tables)} existing")
             print(f"[TOTAL] {len(coins)} tables ready for real-time price data")
             print("="*80)
+
+            broadcaster.broadcast_log("success", f"Real-time Tables: {len(rt_new_tables)} created, {len(rt_existing_tables)} existing")
 
         print("\n[Step 4] Fetching historical data from OKX...")
         print(f"Target: {monitor_config.TARGET_RECORDS_PER_COIN:,} records per coin")
@@ -208,7 +219,7 @@ class MonitorManager:
             memory_records = len(tracker.candles_3h)
             total_memory_records += memory_records
 
-            print(f"  ✓ {coin:8s} - DB: {db_records:6d} records | Memory: {memory_records:4d} records (3h window)")
+            print(f"  OK {coin:8s} - DB: {db_records:6d} records | Memory: {memory_records:4d} records (3h window)")
 
         print("-"*80)
         print(f"[MEMORY SUMMARY]")
@@ -524,7 +535,7 @@ class MonitorManager:
                 ]
 
                 if new_coin_symbols:
-                    print(f"\n[NewCoinDetection] 🆕 Found {len(new_coin_symbols)} new coin(s):")
+                    print(f"\n[NewCoinDetection] NEW Found {len(new_coin_symbols)} new coin(s):")
                     for coin in new_coin_symbols:
                         print(f"[NewCoinDetection]    - {coin}")
 
@@ -549,12 +560,12 @@ class MonitorManager:
 
                 # Create table for new coin
                 if self.table_manager.create_table_if_not_exists(coin):
-                    print(f"[NewCoinDetection] ✓ Created table for {coin}")
+                    print(f"[NewCoinDetection] OK Created table for {coin}")
 
                 # Create real-time table if enabled
                 if self.realtime_manager:
                     if self.realtime_manager.create_table_if_not_exists(coin):
-                        print(f"[NewCoinDetection] ✓ Created real-time table for {coin}")
+                        print(f"[NewCoinDetection] OK Created real-time table for {coin}")
 
                 # Create tracker
                 tracker = CoinTracker(
@@ -566,14 +577,14 @@ class MonitorManager:
                 self.trackers[coin] = tracker
                 self.initialized_coins.append(coin)
 
-                print(f"[NewCoinDetection] ✓ Tracker created for {coin}")
+                print(f"[NewCoinDetection] OK Tracker created for {coin}")
 
                 # Subscribe to WebSocket (if running)
                 if self.ws_client and self.running:
                     # TODO: Add dynamic subscription to existing WebSocket connection
                     # This requires implementing a method in OKXWebSocketClient
                     # to subscribe to additional channels on the fly
-                    print(f"[NewCoinDetection] ⏳ WebSocket subscription for {coin} pending reconnection")
+                    print(f"[NewCoinDetection] WAIT WebSocket subscription for {coin} pending reconnection")
 
             except Exception as e:
                 print(f"[NewCoinDetection] Failed to add {coin}: {e}")

@@ -1,0 +1,383 @@
+/**
+ * Bing Dictionary Base Styles
+ * Core styles for main components (290 lines)
+ */
+
+/* ==========================================================================
+   Main Container
+   ========================================================================== */
+
+.bing-dictionary {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.dictionary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.dictionary-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.icon-button:hover {
+  background: #f1f5f9;
+  color: #374151;
+}
+
+/* ==========================================================================
+   Mode Toggle
+   ========================================================================== */
+
+.mode-toggle {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-toggle.active {
+  background: #0ea5e9;
+  color: white;
+}
+
+.mode-toggle:hover {
+  background: #0284c7;
+  color: white;
+}
+
+/* ==========================================================================
+   Search Box
+   ========================================================================== */
+
+.search-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #f8fafc;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  background: white;
+}
+
+.search-button {
+  padding: 10px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-button:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Loading & Error States
+   ========================================================================== */
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.error-icon {
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Result Container
+   ========================================================================== */
+
+.result-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.word-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.word-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.play-button {
+  padding: 6px 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.play-button:hover {
+  background: #059669;
+}
+
+/* ==========================================================================
+   Phonetic Section
+   ========================================================================== */
+
+.phonetic-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.phonetic-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.phonetic-text {
+  color: #3b82f6;
+  font-family: 'Courier New', monospace;
+}
+
+/* ==========================================================================
+   Section Title
+   ========================================================================== */
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Translations
+   ========================================================================== */
+
+.translations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.translation-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.translation-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  min-width: 60px;
+}
+
+.translation-text {
+  font-size: 13px;
+  color: #1e293b;
+}
+
+/* ==========================================================================
+   Examples
+   ========================================================================== */
+
+.examples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.example-item {
+  padding: 10px;
+  background: #fefce8;
+  border-left: 3px solid #eab308;
+  border-radius: 6px;
+}
+
+.example-text {
+  font-size: 13px;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+  font-style: italic;
+}
+
+.example-translation {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ==========================================================================
+   Synonyms
+   ========================================================================== */
+
+.synonyms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.synonym-tag {
+  padding: 4px 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.synonym-tag:hover {
+  background: #0ea5e9;
+  color: white;
+}
+
+/* ==========================================================================
+   History
+   ========================================================================== */
+
+.history-section {
+  margin-top: 16px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.history-item:hover {
+  background: #e0f2fe;
+}
+
+.history-word {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.history-time {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ==========================================================================
+   Empty State
+   ========================================================================== */
+
+.empty-state {
+  text-align: center;
+  padding: 32px;
+  color: #94a3b8;
+  font-size: 14px;
+}

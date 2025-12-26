@@ -26,5 +26,11 @@ Usage:
 
 from .nuxt_launcher import NuxtLauncher
 from .frontend_config import FrontendConfig
+<<<<<<< HEAD
 
 __all__ = ['NuxtLauncher', 'FrontendConfig']
+=======
+from .universal_launcher import UniversalFrontendLauncher, UniversalFrontendConfig
+
+__all__ = ['NuxtLauncher', 'FrontendConfig', 'UniversalFrontendLauncher', 'UniversalFrontendConfig']
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

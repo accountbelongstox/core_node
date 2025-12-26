@@ -13,6 +13,42 @@ from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig
 from pycore.callmodule.tray_menu import build_tray_menu
 
+<<<<<<< HEAD
+=======
+# Import management layer routers
+from pycore.callmodule.routers.management import (
+    status_router,
+    config_router,
+    control_router,
+    logs_router,
+    capabilities_router,
+    local_config_router,
+    local_stats_router,
+    local_test_router,
+)
+
+# Import local processing layer routers (NEW)
+from pycore.callmodule.routers.local import (
+    screenshot_router,
+    image_router,
+    audio_router,
+    file_router,
+    video_router,
+)
+
+# Import upload layer routers (NEW)
+from pycore.callmodule.routers.upload import router as upload_router
+
+# Import client layer routers (NEW)
+from pycore.callmodule.routers.client import router as client_router
+
+# Import legacy routers (from independent files - still active)
+from pycore.callmodule.routers.mcp_router import mcp_router
+from pycore.callmodule.routers.code_sync_router import router as code_sync_router
+from pycore.callmodule.routers.module_call_router import module_call_router
+from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 IS_WINDOWS = platform.system() == 'Windows'
 
 
@@ -30,6 +66,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     """
     ColorPrint.blue("[ConfigBuilder] Building launcher configuration...")
 
+<<<<<<< HEAD
     # Import routers (from independent files)
     from pycore.callmodule.routers.web_router import router as web_router
     from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
@@ -41,6 +78,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     from pycore.callmodule.routers.code_sync_router import router as code_sync_router
     from pycore.callmodule.routers.module_call_router import module_call_router
 
+=======
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # Define static mounts configuration
     PYCORE_ROOT = Path(__file__).parent.parent
     DESKTOP_UI_DIR = PYCORE_ROOT / "pyctl" / "desktop" / "ui"
@@ -62,6 +101,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'host': host,
             'debug': debug,
             'fastapi_routers': [
+<<<<<<< HEAD
                 web_router,              # Web UI routes
                 health_router,           # Health check and status routes
                 voice_subtitle_router,   # Voice subtitle API routes
@@ -71,6 +111,36 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 singleton_router,        # Singleton control routes
                 code_sync_router,        # Code sync routes
                 module_call_router       # Module call API routes
+=======
+                # === Management Layer Routers ===
+                status_router,           # System status endpoint
+                config_router,           # System configuration endpoints
+                control_router,          # System control operations
+                logs_router,             # Log management endpoints
+                capabilities_router,     # Local processing capabilities
+                local_config_router,     # Local processing configuration
+                local_stats_router,      # Local processing statistics
+                local_test_router,       # Local processing test endpoint
+
+                # === Local Processing Layer Routers (Edge Computing) ===
+                screenshot_router,       # Screenshot capture with auto-OCR
+                image_router,            # Image OCR and processing
+                audio_router,            # Audio transcription and subtitle generation
+                file_router,             # File analysis (PDF/DOCX/XLSX)
+                video_router,            # Video processing (audio extraction, subtitles)
+
+                # === Upload Layer Routers ===
+                upload_router,           # Upload task management and server config
+
+                # === Client Layer Routers ===
+                client_router,           # Remote server request forwarding
+
+                # === Legacy Routers (Still Active) ===
+                mcp_router,              # MCP backend routes (file, database, codebase tools)
+                code_sync_router,        # Code sync routes
+                module_call_router,      # Module call API routes
+                notebooklm_stt_router,   # NotebookLM STT routes
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             ],
             'static_mounts': static_mounts  # Mount static files
         },

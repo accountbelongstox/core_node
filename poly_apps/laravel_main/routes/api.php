@@ -35,6 +35,7 @@ Route::get('/health', function (): JsonResponse {
 
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
+require_once __DIR__ . '/files.php';
 
 // Octane Timer Status API Routes
 require_once __DIR__ . '/api/octane_timer.php';
@@ -54,6 +55,19 @@ require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
 
+// InviteCode Controller
+use App\Http\Controllers\InviteCodeController;
+
+// Invite Code Routes
+Route::get('/invite-codes/public', [InviteCodeController::class, 'listPublic']);
+Route::post('/invite-codes/validate', [InviteCodeController::class, 'validate']);
+
+Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+    Route::get('/invite-codes', [InviteCodeController::class, 'index']);
+    Route::post('/invite-codes', [InviteCodeController::class, 'create']);
+    Route::post('/invite-codes/{id}/deactivate', [InviteCodeController::class, 'deactivate']);
+});
+
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1ApiInfoCtl;
@@ -61,14 +75,15 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FileManag
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CodeExecutorCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1NginxManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1UnifiedManagerCtl;
+use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CertificateManagerCtl;
 
 // ServerManagerV1 API Routes
 Route::prefix('servermanager/v1')->group(function () {
 
-    // API Information Route
+    // API Information Route (Public)
     Route::get('info', [ServerManagerV1ApiInfoCtl::class, 'getApiInfo']);
 
-    // System Information Routes
+    // System Information Routes (Public for basic info, protected for sensitive ops)
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
         Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
@@ -96,7 +111,10 @@ Route::prefix('servermanager/v1')->group(function () {
     // Nginx Management Routes
     Route::prefix('nginx')->group(function () {
         Route::get('sites', [ServerManagerV1NginxManagerCtl::class, 'listSites']);
+        Route::post('sites', [ServerManagerV1NginxManagerCtl::class, 'createSite']);
         Route::get('config', [ServerManagerV1NginxManagerCtl::class, 'getSiteConfig']);
+        Route::put('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'updateSite']);
+        Route::delete('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'deleteSite']);
         Route::post('enable', [ServerManagerV1NginxManagerCtl::class, 'enableSite']);
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);
@@ -105,10 +123,30 @@ Route::prefix('servermanager/v1')->group(function () {
 
     // Unified Manager Routes
     Route::prefix('unified')->group(function () {
+        // App listing and status
         Route::get('apps', [ServerManagerV1UnifiedManagerCtl::class, 'listApps']);
-        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
         Route::get('status', [ServerManagerV1UnifiedManagerCtl::class, 'getAppStatus']);
         Route::get('logs', [ServerManagerV1UnifiedManagerCtl::class, 'getAppLogs']);
+
+        // App service management
+        Route::post('start', [ServerManagerV1UnifiedManagerCtl::class, 'startApp']);
+        Route::post('stop', [ServerManagerV1UnifiedManagerCtl::class, 'stopApp']);
+        Route::post('restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartApp']);
+        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
+
+        // Octane server management
+        Route::post('octane/restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartOctane']);
+        Route::post('octane/reload', [ServerManagerV1UnifiedManagerCtl::class, 'reloadOctane']);
+    });
+
+    // SSL Certificate Management Routes
+    Route::prefix('certificates')->group(function () {
+        Route::get('/', [ServerManagerV1CertificateManagerCtl::class, 'listCertificates']);
+        Route::post('generate', [ServerManagerV1CertificateManagerCtl::class, 'generateCertificate']);
+        Route::post('renew', [ServerManagerV1CertificateManagerCtl::class, 'renewCertificates']);
+        Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
+        Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
+        Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);
     });
 
 });
@@ -132,6 +170,7 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Words.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Wordqurey.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Dict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
@@ -139,3 +178,45 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
 
 // McpV1 routes - MCP application
 require_once __DIR__ . '/McpV1Router/api.php';
+
+// Global Task System Routes
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\WorkerController;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
+    Route::prefix('task')->group(function () {
+        Route::post('create', [TaskController::class, 'create']);
+        Route::get('{taskId}/status', [TaskController::class, 'status']);
+        Route::get('list', [TaskController::class, 'list']);
+        Route::get('stats', [TaskController::class, 'stats']);
+        Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
+        Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+    });
+
+    Route::prefix('worker')->group(function () {
+        Route::post('register', [WorkerController::class, 'register']);
+        Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
+        Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
+        Route::post('tasks/result', [WorkerController::class, 'submitResult']);
+        Route::get('list', [WorkerController::class, 'list']);
+        Route::get('stats', [WorkerController::class, 'stats']);
+    });
+});
+
+use App\Http\Controllers\PathConfigController;
+
+Route::prefix('config')->group(function () {
+    Route::get('paths', [PathConfigController::class, 'getPaths']);
+    Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
+});
+
+// Server Manager Routes (localhost only)
+use App\Http\Controllers\ServerManagerController;
+
+Route::post('server-manager/restart', [ServerManagerController::class, 'restartCurrent']);
+
+// Debug route - test if api routes are loaded
+Route::get('debug/test', function () {
+    return response()->json(['message' => 'API routes loaded successfully']);
+});

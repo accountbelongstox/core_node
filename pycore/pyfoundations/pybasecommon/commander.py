@@ -8,11 +8,11 @@ Provides unified command execution with real-time output and result collection
 import os
 import sys
 import platform
-import subprocess
 import shutil
 import re
 from typing import Optional, Union, List, Tuple
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.safe_subprocess import subprocess
 
 
 class CommandResult:
@@ -110,6 +110,8 @@ class Commander:
                 executable="/bin/bash",
                 bufsize=1,
                 universal_newlines=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=cwd
             )
         else:
@@ -124,6 +126,8 @@ class Commander:
                 stderr=subprocess.PIPE,
                 bufsize=1,
                 universal_newlines=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=cwd
             )
     
@@ -255,27 +259,33 @@ class Commander:
     def exec_silent(
         command: Union[str, List],
         info: bool = False,
-        cwd: Optional[str] = None
+        cwd: Optional[str] = None,
+        **kwargs  # Accept additional subprocess-compatible arguments (e.g., capture_output, text, timeout)
     ) -> CommandResult:
         """
         Execute command silently (no output display) but still collect results
-        
+
         This method:
         - Does NOT display output in real-time
         - Still collects all output (stdout, stderr, combined)
         - Returns CommandResult with all collected data
-        
+
         Recommended: Use returned CommandResult.get_output() or str(result) for checking results
         instead of relying on return_code alone.
-        
+
         Args:
             command: Command to execute (string or list)
             info: Show command info message (default: False for silent mode)
             cwd: Working directory for command execution
-        
+            **kwargs: Additional arguments (e.g., capture_output, text, timeout) are accepted for
+                     compatibility with subprocess.run() but may be ignored since exec_silent
+                     already captures output by default
+
         Returns:
             CommandResult object with return_code, stdout, stderr, and combined output
         """
+        # Note: kwargs like capture_output, text are ignored since exec_silent already captures output
+        # timeout is also handled internally by subprocess operations
         return Commander.exec_realtime(command, info, cwd, show_output=False)
 
 
@@ -293,7 +303,145 @@ def exec_capture(command: Union[str, List], info: bool = True, cwd: Optional[str
     return Commander.exec_capture(command, info, cwd, show_output)
 
 
-def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str] = None) -> CommandResult:
-    """Execute command silently but still collect results"""
-    return Commander.exec_silent(command, info, cwd)
+def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str] = None, **kwargs) -> CommandResult:
+    """Execute command silently but still collect results
+
+    Args:
+        command: Command to execute (string or list)
+        info: Show command info message (default: False)
+        cwd: Working directory for command execution
+        **kwargs: Additional arguments (e.g., capture_output, text, timeout) are accepted for
+                 compatibility with subprocess.run() but may be ignored
+
+    Returns:
+        CommandResult object with all collected data
+    """
+    return Commander.exec_silent(command, info, cwd, **kwargs)
+
+
+def exec_check(command: Union[str, List], cwd: Optional[str] = None) -> str:
+    """
+    Execute command and return stdout if successful, raise exception if failed
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+
+    Returns:
+        stdout as string
+
+    Raises:
+        RuntimeError: If command fails
+    """
+    result = Commander.exec_silent(command, info=False, cwd=cwd)
+    if not result.success:
+        raise RuntimeError(f"Command failed with code {result.return_code}: {result.stderr}")
+    return result.stdout
+
+
+def command_exists(command: str) -> bool:
+    """
+    Check if a command exists in PATH
+
+    Args:
+        command: Command name to check
+
+    Returns:
+        True if command exists
+    """
+    executable = Commander._get_executable(command)
+    return executable is not None
+
+
+def get_command_output(command: Union[str, List], cwd: Optional[str] = None) -> str:
+    """
+    Execute command and return stdout (silent mode)
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+
+    Returns:
+        stdout as string
+    """
+    result = Commander.exec_silent(command, info=False, cwd=cwd)
+    return result.stdout
+
+
+def run_background(
+    command: Union[str, List],
+    cwd: Optional[str] = None,
+    env: Optional[dict] = None,
+    log_file: Optional[str] = None,
+    detached: bool = True
+) -> subprocess.Popen:
+    """
+    Run command in background (detached process)
+
+    Args:
+        command: Command to execute
+        cwd: Working directory
+        env: Environment variables (if None, inherits from current process)
+        log_file: Path to log file for stdout/stderr (if None, uses DEVNULL)
+        detached: Whether to fully detach process (default: True)
+                  On Windows: uses DETACHED_PROCESS and CREATE_NEW_PROCESS_GROUP
+                  On Linux: uses start_new_session=True
+
+    Returns:
+        Popen process object
+    """
+    command_str, executable = Commander._prepare_command(command)
+
+    # Determine stdout/stderr
+    if log_file:
+        log_handle = open(log_file, 'w', encoding='utf-8')
+        stdout_target = log_handle
+        stderr_target = log_handle
+    else:
+        stdout_target = subprocess.DEVNULL
+        stderr_target = subprocess.DEVNULL
+
+    # Platform-specific process creation
+    system = platform.system()
+
+    if system == "Windows" and detached:
+        # Windows: Use detached process flags
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
+    elif system == "Linux" and detached:
+        # Linux: Use start_new_session for proper detachment
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            start_new_session=True,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
+    else:
+        # Other platforms or non-detached
+        return subprocess.Popen(
+            command_str,
+            shell=True,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_target,
+            stderr=stderr_target
+        )
 

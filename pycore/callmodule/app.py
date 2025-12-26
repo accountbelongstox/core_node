@@ -8,7 +8,36 @@ from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 
+<<<<<<< HEAD
 from .routers import health_router, module_call_router, ocr_router, translator_router, mcp_router, singleton_router, web_router, code_sync_router
+=======
+from .routers import (
+    # Management routers
+    status_router,
+    config_router,
+    control_router,
+    logs_router,
+    capabilities_router,
+    local_config_router,
+    local_stats_router,
+    local_test_router,
+    # Legacy routers
+    module_call_router,
+    mcp_router,
+    code_sync_router,
+    notebooklm_stt_router
+)
+# Import new layer routers
+from .routers.local import (
+    screenshot_router,
+    image_router,
+    audio_router,
+    file_router,
+    video_router,
+)
+from .routers.upload import router as upload_router
+from .routers.client import router as client_router
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from .global_config import get_global_config
 
 FastAPI = fastapi.FastAPI
@@ -51,14 +80,40 @@ def create_app() -> FastAPI:
         print(f"[App] Mounted desktop UI at /desktop -> {DESKTOP_UI_DIR}")
 
     # Register routers
-    app.include_router(health_router)
+    # Management layer routers (NEW)
+    app.include_router(status_router)
+    app.include_router(config_router)
+    app.include_router(control_router)
+    app.include_router(logs_router)
+    app.include_router(capabilities_router)
+    app.include_router(local_config_router)
+    app.include_router(local_stats_router)
+    app.include_router(local_test_router)
+
+    # Local processing layer routers
+    app.include_router(screenshot_router)
+    app.include_router(image_router)
+    app.include_router(audio_router)
+    app.include_router(file_router)
+    app.include_router(video_router)
+
+    # Upload layer router
+    app.include_router(upload_router)
+
+    # Client layer router
+    app.include_router(client_router)
+
+    # Legacy routers (still active)
     app.include_router(module_call_router)
-    app.include_router(ocr_router)
-    app.include_router(translator_router)
     app.include_router(mcp_router)  # MCP backend integrated routes
+<<<<<<< HEAD
     app.include_router(singleton_router)  # Singleton control routes
     app.include_router(web_router)  # Web UI routes
     app.include_router(code_sync_router)  # Code sync routes
+=======
+    app.include_router(code_sync_router)  # Code sync routes
+    app.include_router(notebooklm_stt_router)  # NotebookLM STT auto-convert routes
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
     @app.on_event("startup")
     async def startup_event():
@@ -69,10 +124,9 @@ def create_app() -> FastAPI:
         print("Pycore Module Caller FastAPI Server Started")
         print("=" * 60)
         print(f"Dashboard:     http://{config.host}:{config.http_port}/docs")
-        print(f"Health check:  http://{config.host}:{config.http_port}/health")
+        print(f"Status API:    GET  http://{config.host}:{config.http_port}/api/manage/status")
         print(f"API endpoint:  POST http://{config.host}:{config.http_port}/api/call")
         print(f"MCP Backend:   POST http://{config.host}:{config.http_port}/mcp/*")
-        print(f"Singleton Ctl: POST http://{config.host}:{config.http_port}/singleton/*")
         print("=" * 60)
 
     @app.on_event("shutdown")

@@ -87,6 +87,271 @@ install_packages_and_configure_git() {
     echo "Essential packages installed."
 }
 
+# Function to install optimized shells
+install_optimized_shells() {
+    echo "Installing optimized shells (zsh, fish)..."
+    
+    # Install zsh and fish
+    $USE_SUDO apt install -y zsh fish || {
+        echo "Warning: Failed to install some shell packages, continuing..."
+    }
+    
+    # Install zsh if successful
+    if command -v zsh >/dev/null 2>&1; then
+        echo "zsh installed: $(zsh --version)"
+        
+        # Install oh-my-zsh if not already installed
+        if [ ! -d "$HOME/.oh-my-zsh" ]; then
+            echo "Installing oh-my-zsh..."
+            if command -v curl >/dev/null 2>&1; then
+                sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended || {
+                    echo "Warning: oh-my-zsh installation failed, continuing..."
+                }
+            fi
+        else
+            echo "oh-my-zsh already installed"
+        fi
+        
+        # Set zsh as default shell for current user (if not root)
+        if [ "$(id -u)" -ne 0 ] && [ "$SHELL" != "$(command -v zsh)" ]; then
+            echo "Setting zsh as default shell for current user..."
+            $USE_SUDO chsh -s "$(command -v zsh)" "$(whoami)" || {
+                echo "Warning: Failed to set zsh as default shell"
+            }
+        fi
+    fi
+    
+    # Install fish if successful
+    if command -v fish >/dev/null 2>&1; then
+        echo "fish installed: $(fish --version)"
+        
+        # Configure fish with optimized settings
+        if [ ! -d "$HOME/.config/fish" ]; then
+            mkdir -p "$HOME/.config/fish"
+        fi
+        
+        # Add fish to available shells
+        if ! grep -q "$(command -v fish)" /etc/shells 2>/dev/null; then
+            echo "$(command -v fish)" | $USE_SUDO tee -a /etc/shells >/dev/null
+        fi
+    fi
+    
+    echo "Optimized shells installation completed."
+}
+
+# Function to install Linux tools required by GLM AI and other AI assistants
+install_ai_linux_tools() {
+    echo "Installing Linux tools required by GLM AI and other AI assistants..."
+    
+    # Core utilities that AI assistants commonly need
+    # Group 1: Essential file system and text tools
+    local essential_tools=(
+        "tree"           # Directory tree visualization
+        "jq"             # JSON processor (used in codebase)
+        "ncdu"           # Disk usage analyzer
+        "unzip"          # Archive extraction
+        "zip"            # Archive creation
+        "findutils"      # Find command utilities
+        "mlocate"        # Modern locate
+    )
+    
+    # Group 2: Modern CLI tools (may not be available in older distros)
+    local modern_tools=(
+        "ripgrep"        # Better grep (rg)
+        "fd-find"        # Better find (fd)
+        "bat"            # Better cat with syntax highlighting
+        "fzf"            # Fuzzy finder
+        "btop"           # Modern system monitor (if available)
+    )
+    
+    # Group 3: Terminal and system tools
+    local terminal_tools=(
+        "htop"           # Interactive process viewer
+        "tmux"           # Terminal multiplexer
+        "screen"         # Alternative terminal multiplexer
+    )
+    
+    # Install essential tools (should always work)
+    echo "Installing essential AI tools..."
+    $USE_SUDO apt install -y "${essential_tools[@]}" || {
+        echo "Warning: Some essential tools failed to install, trying individually..."
+        for tool in "${essential_tools[@]}"; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+                echo "  Attempting to install $tool individually..."
+                $USE_SUDO apt install -y "$tool" 2>/dev/null || {
+                    echo "  ✗ Failed to install $tool"
+                }
+            fi
+        done
+    }
+    
+    # Install modern tools (may not be available in all repositories)
+    echo "Installing modern CLI tools..."
+    $USE_SUDO apt install -y "${modern_tools[@]}" || {
+        echo "Warning: Some modern tools may not be available, trying individually..."
+        for tool in "${modern_tools[@]}"; do
+            # Check if tool or its alternative name is available
+            local tool_available=false
+            if command -v "$tool" >/dev/null 2>&1; then
+                tool_available=true
+            elif [ "$tool" = "fd-find" ] && command -v fd-find >/dev/null 2>&1; then
+                tool_available=true
+            elif [ "$tool" = "bat" ] && command -v batcat >/dev/null 2>&1; then
+                tool_available=true
+            fi
+            
+            if [ "$tool_available" = false ]; then
+                echo "  Attempting to install $tool individually..."
+                $USE_SUDO apt install -y "$tool" 2>/dev/null || {
+                    echo "  ✗ Failed to install $tool (may not be available in this repository)"
+                }
+            fi
+        done
+    }
+    
+    # Install terminal tools
+    echo "Installing terminal tools..."
+    $USE_SUDO apt install -y "${terminal_tools[@]}" || {
+        echo "Warning: Some terminal tools failed to install, trying individually..."
+        for tool in "${terminal_tools[@]}"; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+                echo "  Attempting to install $tool individually..."
+                $USE_SUDO apt install -y "$tool" 2>/dev/null || {
+                    echo "  ✗ Failed to install $tool"
+                }
+            fi
+        done
+    }
+    
+    # Create symlinks for tools with different command names
+    # batcat -> bat
+    if ! command -v bat >/dev/null 2>&1; then
+        if command -v batcat >/dev/null 2>&1; then
+            echo "Creating bat symlink (batcat -> bat)..."
+            $USE_SUDO mkdir -p /usr/local/bin
+            $USE_SUDO ln -sf "$(command -v batcat)" /usr/local/bin/bat || true
+            if command -v bat >/dev/null 2>&1; then
+                echo "  ✓ bat symlink created successfully"
+            fi
+        fi
+    else
+        echo "  ✓ bat already available"
+    fi
+    
+    # fd-find -> fd
+    if ! command -v fd >/dev/null 2>&1; then
+        if command -v fd-find >/dev/null 2>&1; then
+            echo "Creating fd symlink (fd-find -> fd)..."
+            $USE_SUDO mkdir -p /usr/local/bin
+            $USE_SUDO ln -sf "$(command -v fd-find)" /usr/local/bin/fd || true
+            if command -v fd >/dev/null 2>&1; then
+                echo "  ✓ fd symlink created successfully"
+            else
+                echo "  ✗ Warning: fd symlink creation failed"
+            fi
+        else
+            echo "  ✗ fd-find not found, cannot create fd symlink"
+        fi
+    else
+        echo "  ✓ fd already available"
+    fi
+    
+    # Verify installations
+    echo "Verifying installed tools..."
+    local verified_tools=()
+    local failed_tools=()
+    
+    for tool in tree jq ncdu htop rg fd bat fzf tmux screen; do
+        if command -v "$tool" >/dev/null 2>&1; then
+            verified_tools+=("$tool")
+            echo "  ✓ $tool: $(command -v $tool)"
+        else
+            failed_tools+=("$tool")
+            echo "  ✗ $tool: not found"
+        fi
+    done
+    
+    if [ ${#verified_tools[@]} -gt 0 ]; then
+        echo "Successfully installed: ${verified_tools[*]}"
+    fi
+    
+    if [ ${#failed_tools[@]} -gt 0 ]; then
+        echo "Warning: Some tools failed to install: ${failed_tools[*]}"
+        echo "These may require manual installation or are not available in the repository"
+    fi
+    
+    echo "AI Linux tools installation completed."
+}
+
+# Function to check and fix circular symlinks in /usr/local/bin
+check_and_fix_circular_symlinks() {
+    echo "Checking for circular symlinks in /usr/local/bin..."
+    
+    # Find all circular symlinks
+    local circular_symlinks=()
+    while IFS= read -r link; do
+        if [ -L "$link" ]; then
+            local target=$(readlink "$link" 2>/dev/null)
+            local basename_link=$(basename "$link")
+            
+            # Check if symlink points to itself (either absolute or basename)
+            if [ "$target" = "$link" ] || [ "$target" = "$basename_link" ] || [ "$target" = "/usr/local/bin/$basename_link" ]; then
+                circular_symlinks+=("$link")
+            fi
+        fi
+    done < <(find /usr/local/bin -type l 2>/dev/null)
+    
+    # Report findings
+    if [ ${#circular_symlinks[@]} -eq 0 ]; then
+        echo "[OK] No circular symlinks found"
+        return 0
+    fi
+    
+    echo "[WARN] Found ${#circular_symlinks[@]} circular symlinks:"
+    for link in "${circular_symlinks[@]}"; do
+        local target=$(readlink "$link" 2>/dev/null)
+        echo "  - $(basename "$link") -> $target"
+    done
+    
+    # Fix circular symlinks automatically
+    echo "Removing circular symlinks..."
+    local removed_count=0
+    for link in "${circular_symlinks[@]}"; do
+        if $USE_SUDO rm -f "$link" 2>/dev/null; then
+            ((removed_count++))
+            echo "  ✓ Removed: $(basename "$link")"
+        else
+            echo "  ✗ Failed to remove: $(basename "$link")"
+        fi
+    done
+    
+    if [ $removed_count -gt 0 ]; then
+        echo "[OK] Removed $removed_count circular symlinks"
+    fi
+    
+    # Verify critical tools still work
+    echo "Verifying critical tools after symlink cleanup..."
+    local critical_tools=("gzip" "tar" "curl" "wget" "bzip2" "xz")
+    local all_working=true
+    
+    for tool in "${critical_tools[@]}"; do
+        if command -v "$tool" >/dev/null 2>&1; then
+            echo "  ✓ $tool: $(command -v "$tool")"
+        else
+            echo "  ✗ $tool: not found"
+            all_working=false
+        fi
+    done
+    
+    if [ "$all_working" = true ]; then
+        echo "[OK] All critical tools verified"
+    else
+        echo "[WARN] Some tools may need reinstallation"
+    fi
+    
+    return 0
+}
+
 # Main execution
 echo "Starting system update and repair process..."
 
@@ -480,17 +745,17 @@ remove_edge_packages() {
 # Function to perform repository cleanup based on configuration
 perform_repository_cleanup() {
     echo "=== Repository Cleanup ==="
-    
+
     # Get configuration variables
-    local INSTALL_MYSQL=$(get_var "INSTALL_MYSQL" "false")
+    local START_MYSQL=$(get_var "START_MYSQL" "false")
     local INSTALL_EDGE=$(get_var "INSTALL_EDGE" "false")
 
-    echo "MySQL Status: $INSTALL_MYSQL"
+    echo "MySQL Status: $START_MYSQL"
     echo "Edge Status: $INSTALL_EDGE"
     echo "PHP Status: ALWAYS INSTALLED (required)"
 
     # Handle MySQL cleanup
-    if [ "$INSTALL_MYSQL" = "false" ]; then
+    if [ "$START_MYSQL" = "false" ]; then
         echo "MySQL is disabled - cleaning up..."
         remove_mariadb_repositories
         stop_mysql_services
@@ -630,6 +895,12 @@ fi
 # Install packages and configure Git
 install_packages_and_configure_git
 
+# Install optimized shells
+install_optimized_shells
+
+# Install Linux tools required by GLM AI and other AI assistants
+install_ai_linux_tools
+
 # Fix unauthenticated packages issue
 echo "Fixing unauthenticated packages issue..."
 if apt list --upgradable 2>&1 | grep -q "cannot be authenticated"; then
@@ -705,6 +976,9 @@ verify_system_health() {
 
 # Call the enhanced verification function
 verify_system_health
+
+# Check and fix circular symlinks
+check_and_fix_circular_symlinks
 
 # Check for unauthenticated packages
 echo "Checking for unauthenticated packages..."

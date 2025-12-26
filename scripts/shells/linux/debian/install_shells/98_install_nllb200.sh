@@ -81,9 +81,25 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: NLLB-200 requires transformers and sentencepiece"
 
+    # Check for GPU availability
+    print_info "Checking for GPU availability..."
+    local has_gpu=false
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        if nvidia-smi >/dev/null 2>&1; then
+            has_gpu=true
+            print_success "NVIDIA GPU detected"
+        else
+            print_warning "nvidia-smi found but GPU not accessible"
+        fi
+    else
+        print_info "No NVIDIA GPU detected, will use CPU version"
+    fi
+    echo ""
+
+    # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
-    $python_cmd -m pip install --upgrade transformers sentencepiece protobuf sacremoses
+    $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers sentencepiece protobuf sacremoses
     echo ""
 
     print_info "Verifying installation..."
@@ -108,17 +124,18 @@ test_model_load() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local test_script_path="$parent_dir_3/pytools/aitools/nllb200_tester.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local runner_script_path="$parent_dir_4/pytools/aitools/nllb200_tester.py"
 
-    if [ ! -f "$test_script_path" ]; then
-        print_error "Test script not found at: $test_script_path"
+    if [ ! -f "$runner_script_path" ]; then
+        print_error "Tester script not found at: $runner_script_path"
         return 1
     fi
 
-    print_info "Using shared test script: $test_script_path"
+    print_info "Using shared tester script: $runner_script_path"
 
     echo ""
-    $python_cmd "$test_script_path"
+    $python_cmd "$runner_script_path"
     echo ""
 
     print_success "========================================"
@@ -139,10 +156,11 @@ create_interactive_script() {
     local parent_dir_1="$(dirname "$script_dir")"
     local parent_dir_2="$(dirname "$parent_dir_1")"
     local parent_dir_3="$(dirname "$parent_dir_2")"
-    local test_script_path="$parent_dir_3/pytools/aitools/nllb200_tester.py"
+    local parent_dir_4="$(dirname "$parent_dir_3")"
+    local runner_script_path="$parent_dir_4/pytools/aitools/nllb200_translator.py"
 
-    if [ ! -f "$test_script_path" ]; then
-        print_error "Test script not found at: $test_script_path"
+    if [ ! -f "$runner_script_path" ]; then
+        print_error "Translator script not found at: $runner_script_path"
         return 1
     fi
 
@@ -156,7 +174,7 @@ echo "========================================"
 echo ""
 echo "Starting translator... Please wait..."
 echo ""
-$python_cmd "$test_script_path" --interactive
+$python_cmd "$runner_script_path"
 echo ""
 echo "========================================"
 echo "  Translation Ended"
@@ -169,7 +187,7 @@ BASH_EOF
 
     print_success "Interactive translation script generated:"
     print_info "  Shell: $shell_script"
-    print_info "  Using: $test_script_path"
+    print_info "  Using: $runner_script_path"
     echo ""
     print_info "To start translating, run:"
     print_info "  $shell_script"

@@ -1,5 +1,7 @@
-"""API routes module"""
+"""
+Matrix API - RPC v2 WebSocket Edition
 
+<<<<<<< HEAD
 from .config_routes import router as config_router
 from .device_routes import router as device_router
 from .health_routes import router as health_router
@@ -19,3 +21,23 @@ __all__ = [
     'group_router',
     'file_router'
 ]
+=======
+All Matrix APIs are exposed as RPC v2 WebSocket routes.
+
+Connection:
+    ws://localhost:48000/rpc/ws
+
+Protocol:
+    RPC v2 (request/response with ACK mechanism)
+
+Usage:
+    from pyapps.matrix.api.main import register_all_routes
+
+    # Called by pylauncher via rpc_init_callback
+    register_all_routes(rpc_server)
+"""
+
+from .main import register_all_routes
+
+__all__ = ['register_all_routes']
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

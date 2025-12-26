@@ -69,7 +69,18 @@ class OCRUtil
      */
     public static function getAvailableModels(): array
     {
-        return PycoreOCRUtil::getAvailableModels();
+        $models = PycoreOCRUtil::getAvailableModels();
+
+        // Handle case when Pycore service is unavailable
+        if ($models === null) {
+            return [
+                'success' => false,
+                'error' => 'OCR service is currently unavailable',
+                'models' => []
+            ];
+        }
+
+        return $models;
     }
 
     /**
@@ -80,6 +91,16 @@ class OCRUtil
      */
     public static function getEngineInfo(?string $modelType = null): array
     {
-        return PycoreOCRUtil::getEngineInfo($modelType);
+        $info = PycoreOCRUtil::getEngineInfo($modelType);
+
+        // Ensure we always return an array
+        if (!is_array($info)) {
+            return [
+                'success' => false,
+                'error' => 'Failed to retrieve engine information'
+            ];
+        }
+
+        return $info;
     }
 }

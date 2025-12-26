@@ -6,9 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyRecommendationController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private static $recommendedCollections = [
         'en' => [
             ['id' => 1, 'name' => 'TOEFL Core Vocabulary', 'total_words' => 3000, 'level' => 'B2-C1', 'category' => 'exam'],
@@ -166,31 +174,42 @@ class AppQyV1VocabularyRecommendationController extends BaseController
     {
         $userId = $request->user()->id;
 
-        $selected = DB::table('user_vocabulary_collections')
+        $selected = DB::connection('appqyv1')
+            ->table('app_qy_v1_user_vocabulary_selections')
             ->where('user_id', $userId)
-            ->pluck('collection_id')
+            ->where('is_active', true)
+            ->pluck('library_id')
             ->toArray();
 
-        $collections = [];
-        foreach (self::$recommendedCollections as $langCode => $langCollections) {
-            foreach ($langCollections as $collection) {
-                if (in_array($collection['id'], $selected)) {
-                    $collections[] = [
-                        'id' => $collection['id'],
-                        'name' => $collection['name'],
-                        'lang_code' => $langCode,
-                        'total_words' => $collection['total_words'],
-                        'level' => $collection['level'],
-                        'category' => $collection['category'],
-                    ];
-                }
-            }
+        if (empty($selected)) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'total' => 0,
+            ]);
         }
+
+        $libraries = DB::connection('appqyv1')
+            ->table('app_qy_v1_vocabulary_libraries')
+            ->whereIn('id', $selected)
+            ->select([
+                'id',
+                'name',
+                'description',
+                'language',
+                'total_words as word_count',
+                'difficulty_level as difficulty',
+                'category',
+                'image_url',
+                'is_recommended',
+            ])
+            ->get()
+            ->toArray();
 
         return response()->json([
             'success' => true,
-            'data' => $collections,
-            'total' => count($collections),
+            'data' => ['data' => $libraries],
+            'total' => count($libraries),
         ]);
     }
 

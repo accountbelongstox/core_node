@@ -20,8 +20,16 @@ use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
-class AppQyV1PersonalDictionaryDeletionController 
+use App\Traits\ApiResponse;
+class AppQyV1PersonalDictionaryDeletionController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public function deleteDictionaries($id) 
     {   
         $uid = Auth::id();
@@ -38,7 +46,10 @@ class AppQyV1PersonalDictionaryDeletionController
     {
         $supported_params = ['force'];
         $uid = Auth::id();
-        $force = $request->input('force') ?? false;
+        $force = false;
+        if ($request->has('force')) {
+            $force = $request->input('force');
+        }
         if($force === true){
             $deletedCount = PersonalDictionaries::where('uid', $uid)->forceDelete(); // Soft delete
         }else{

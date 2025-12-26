@@ -23,23 +23,28 @@ Supported MCP Servers:
 - MCPUnifiedServer: Unified MCP server (stdio transport)
 """
 
+import importlib.util
+import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Calculate paths relative to this script
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
+SECRET_SPEC = importlib.util.spec_from_file_location(
+    "ai_tools_secret_manager",
+    SECRET_MANAGER_PATH
+)
+SECRET_MODULE = importlib.util.module_from_spec(SECRET_SPEC)
+assert SECRET_SPEC.loader is not None
+SECRET_SPEC.loader.exec_module(SECRET_MODULE)
+get_secret_key = SECRET_MODULE.get_secret_key
 
 
 def get_secret_value(key_name: str) -> Optional[str]:
-    """Get secret value from secret manager"""
-    try:
-        from .secret_manager import get_secret_key
-        value = get_secret_key(key_name)
-        return value if value else None
-    except Exception as e:
-        print(f"[WARNING] Could not load secret {key_name}: {e}")
-        return None
+    value = get_secret_key(key_name)
+    return value if value else None
 
 
 class MCPConfig:
@@ -74,44 +79,33 @@ class MCPConfigProvider:
     @staticmethod
     def get_context7_config(target: str = "claude") -> Optional[MCPConfig]:
         """
-        Get Context7 MCP configuration
+        Get Context7 MCP configuration (HTTP transport for all tools)
 
         Args:
-            target: Target AI tool (claude uses HTTP, codex uses stdio with npx)
+            target: Target AI tool (claude, codex, droid, gemini)
 
         Returns:
-            MCPConfig with API key (if found) or empty string
+            MCPConfig with API key (if found) or None
         """
         context7_api_key = get_secret_value("CONTEXT7_API_KEY_1")
 
         if not context7_api_key:
-            print(f"[WARNING] CONTEXT7_API_KEY not found in secret manager")
-            print(f"[INFO] Adding Context7 MCP with empty API key (can be configured later)")
-            context7_api_key = ""
-        else:
-            print(f"[INFO] Context7 API key loaded successfully")
+            print("[ERROR] CONTEXT7_API_KEY not found in secret manager.")
+            print("[HINT] Please add CONTEXT7_API_KEY_1 via the secret manager.")
+            return None
 
-        # Codex uses stdio with npx, Claude uses HTTP
-        if target.lower() == "codex":
-            # Codex format: codex mcp add context7 -- npx -y @upstash/context7-mcp
-            return MCPConfig(
-                name="context7",
-                transport_type="stdio",
-                command="npx",
-                args=["-y", "@upstash/context7-mcp"],
-                env={"CONTEXT7_API_KEY": context7_api_key} if context7_api_key else {}
-            )
-        else:
-            # Claude format: HTTP transport with headers
-            return MCPConfig(
-                name="context7",
-                transport_type="http",
-                url="https://mcp.context7.com/mcp",
-                headers={
-                    "CONTEXT7_API_KEY": context7_api_key,
-                    "Accept": "application/json, text/event-stream"
-                }
-            )
+        print("[INFO] Context7 API key loaded successfully")
+
+        # All tools use HTTP transport with headers
+        return MCPConfig(
+            name="context7",
+            transport_type="http",
+            url="https://mcp.context7.com/mcp",
+            headers={
+                "CONTEXT7_API_KEY": context7_api_key,
+                "Accept": "application/json, text/event-stream"
+            }
+        )
 
     @staticmethod
     def get_unified_server_config() -> MCPConfig:
@@ -140,6 +134,23 @@ class MCPConfigProvider:
             env={"MCP_ALLOW_ALL_PATHS": "true"}
         )
 
+    @staticmethod
+    def get_chrome_mcp_config() -> MCPConfig:
+        """
+        Get Chrome MCP Server configuration (HTTP transport)
+
+        Reference: _prompt/mcpWindowsTemplate.json
+        URL: http://127.0.0.1:12306/mcp
+
+        Returns:
+            MCPConfig with HTTP transport configuration
+        """
+        return MCPConfig(
+            name="chrome",
+            transport_type="http",
+            url="http://127.0.0.1:12306/mcp"
+        )
+
     @classmethod
     def get_all_configs(cls, target: str = "claude") -> List[MCPConfig]:
         """
@@ -165,6 +176,10 @@ class MCPConfigProvider:
         unified_config = cls.get_unified_server_config()
         configs.append(unified_config)
 
+        # Chrome MCP Server (HTTP transport)
+        chrome_config = cls.get_chrome_mcp_config()
+        configs.append(chrome_config)
+
         print()
         print(f"[INFO] Loaded {len(configs)} MCP configuration(s):")
         for config in configs:
@@ -188,15 +203,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'unified'],
+                'include': ['context7', 'unified', 'chrome'],
                 'exclude': []
             }
         }

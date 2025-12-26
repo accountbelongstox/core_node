@@ -17,8 +17,16 @@ use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\ApiResponse;
 class AppQyV1PersonalDictionaryQueryBasePublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
 
     public static function queryPersonalDictionary($query_soft_delete = false, $return_model = false, $frequency_sort = true)
     {
@@ -64,14 +72,10 @@ class AppQyV1PersonalDictionaryQueryBasePublicController
             }
             $id = $queryrequest->id;
         }
-        try {
             if (is_string($personal_words)) {
                 $personal_words = json_decode($personal_words, true);
 
             }
-        } catch (\Exception $e) {
-            $personal_words = [];
-        }
         $count = ArrTool::count($personal_words);
         $personal_words = (array) $personal_words;
         asort($personal_words);

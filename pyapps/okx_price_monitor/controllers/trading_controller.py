@@ -123,95 +123,153 @@ class TradingController:
         days_to_load = strategy_config.HISTORY_INIT_DAYS
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days_to_load)
+        start_ts_ms = int(start_time.timestamp() * 1000)
+        end_ts_ms = int(end_time.timestamp() * 1000)
 
         print(f"Loading {days_to_load} days of data ({start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')})")
+        sys.stdout.flush()
         print("Data Flow: OKX API -> SQLite -> Redis")
+        sys.stdout.flush()
 
         # Load data for each coin
         loaded_count = 0
         failed_count = 0
 
         for i, coin_symbol in enumerate(self.coin_symbols, 1):
+            inst_id = f"{coin_symbol}-USDT"
+
+            # Query database with error handling
+            try:
+                existing_count = self.db_manager.count_records(coin_symbol, start_ts_ms, end_ts_ms)
+            except Exception as e:
+                print(f"\n[{i}/{len(self.coin_symbols)}] [ERROR] Failed to query database for {coin_symbol}: {e}")
+                sys.stdout.flush()
+                existing_count = 0
+
             print(f"[{i}/{len(self.coin_symbols)}] Loading {coin_symbol}...", end=' ')
+            sys.stdout.flush()
+            print(f"(existing rows: {existing_count})", end=' ')
+            sys.stdout.flush()
 
             # Check existing data in SQLite (both oldest and latest)
-            time_range = self.db_manager.get_time_range(coin_symbol)
+            try:
+                time_range = self.db_manager.get_time_range(coin_symbol)
+            except Exception as e:
+                print(f"[ERROR] Failed to get time range: {e}", end=' ')
+                sys.stdout.flush()
+                time_range = None
 
             if time_range:
                 oldest_ms, latest_ms = time_range
                 oldest_dt = datetime.fromtimestamp(oldest_ms / 1000)
                 latest_dt = datetime.fromtimestamp(latest_ms / 1000)
 
-                print(f"(DB: {oldest_dt.strftime('%m-%d')} to {latest_dt.strftime('%m-%d')})", end=' ')
+                print(f"(DB window: {oldest_dt.strftime('%m-%d %H:%M')} to {latest_dt.strftime('%m-%d %H:%M')})", end=' ')
+                sys.stdout.flush()
 
                 # Check for duplicates and deduplicate if needed
-                dup_count = self.db_manager.check_duplicates(coin_symbol)
-                if dup_count > 0:
-                    print(f"[Dedup: {dup_count}]", end=' ')
-                    self.db_manager.deduplicate_coin_data(coin_symbol)
+                try:
+                    dup_count = self.db_manager.check_duplicates(coin_symbol)
+                    if dup_count > 0:
+                        print(f"[Dedup before load: {dup_count}]", end=' ')
+                        sys.stdout.flush()
+                        self.db_manager.deduplicate_coin_data(coin_symbol)
+                except Exception as e:
+                    print(f"[WARN] Dedup failed: {e}", end=' ')
+                    sys.stdout.flush()
 
                 # Check if data is complete and up-to-date
                 has_enough_history = oldest_dt <= start_time
-                is_up_to_date = latest_dt >= end_time - timedelta(hours=1)
+                is_up_to_date = latest_dt >= end_time - timedelta(minutes=5)
 
                 if has_enough_history and is_up_to_date:
                     # Data is complete and recent, just load to Redis
                     print("[Up-to-date] Loading to Redis...", end=' ')
-                    self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
-                    print("[OK]")
-                    loaded_count += 1
-                    continue
+                    sys.stdout.flush()
+                    try:
+                        loaded_rows = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
+                        print(f"[OK] rows={loaded_rows}")
+                        sys.stdout.flush()
+                        loaded_count += 1
+                        continue
+                    except Exception as e:
+                        print(f"[FAIL] {e}")
+                        sys.stdout.flush()
+                        failed_count += 1
+                        continue
 
                 # Need to fetch missing data
                 if not has_enough_history and not is_up_to_date:
                     # Missing both historical and recent data
                     print(f"[Gap: full range]", end=' ')
+                    sys.stdout.flush()
                     candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
                 elif not is_up_to_date:
                     # Only need recent data (incremental update)
                     gap_start = latest_dt
                     gap_end = end_time
                     print(f"[Gap: {gap_start.strftime('%m-%d %H:%M')} to {gap_end.strftime('%m-%d %H:%M')}]", end=' ')
-                    inst_id = f"{coin_symbol}-USDT"
+                    sys.stdout.flush()
                     candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
                 else:
                     # Only need older historical data
                     gap_start = start_time
                     gap_end = oldest_dt
                     print(f"[Gap: {gap_start.strftime('%m-%d')} to {gap_end.strftime('%m-%d')}]", end=' ')
-                    inst_id = f"{coin_symbol}-USDT"
+                    sys.stdout.flush()
                     candles_data = self._fetch_all_candles(inst_id, gap_start, gap_end)
 
             else:
                 # No existing data, fetch full range
                 print("[New]", end=' ')
-                inst_id = f"{coin_symbol}-USDT"
+                sys.stdout.flush()
                 candles_data = self._fetch_all_candles(inst_id, start_time, end_time)
 
             # Process fetched data
             if not candles_data:
                 print("[FAIL] No data")
+                sys.stdout.flush()
                 failed_count += 1
                 continue
 
             # Save to SQLite (INSERT OR REPLACE handles duplicates)
-            for candle in candles_data:
-                self.db_manager.insert_historical_candle(coin_symbol, candle)
+            try:
+                for candle in candles_data:
+                    self.db_manager.insert_historical_candle(coin_symbol, candle)
+                fetched_count = len(candles_data)
 
-            # Load all data to Redis (including existing + new)
-            self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
+                # Load all data to Redis (including existing + new)
+                redis_loaded = self._load_to_redis_from_sqlite(coin_symbol, start_time, end_time)
 
-            print(f"[OK] +{len(candles_data)} candles")
-            loaded_count += 1
+                print(f"[OK] fetched={fetched_count} loaded_to_redis={redis_loaded}")
+                sys.stdout.flush()
+                loaded_count += 1
+            except Exception as e:
+                print(f"[FAIL] Error saving/loading: {e}")
+                sys.stdout.flush()
+                failed_count += 1
 
             # Rate limiting
             time.sleep(0.05)
 
         print("\n" + "-"*80)
+        sys.stdout.flush()
         print(f"Initialization complete: {loaded_count} coins loaded, {failed_count} failed")
+        sys.stdout.flush()
         print(f"SQLite: Historical data persisted")
+        sys.stdout.flush()
         print(f"Redis: {loaded_count} coins loaded and ready for calculations")
+        sys.stdout.flush()
         print("="*80 + "\n")
+        sys.stdout.flush()
+
+        # Data verification (random sample)
+        ENABLE_VERIFICATION = True  # Control flag
+        if ENABLE_VERIFICATION and loaded_count > 0:
+            from pyapps.okx_price_monitor.services.data_verifier import get_data_verifier
+
+            verifier = get_data_verifier(self.db_manager, max_gap_minutes=10)
+            verifier.verify_random_coin(self.coin_symbols, start_time, end_time)
 
     def _fetch_all_candles(self, inst_id: str, start_time: datetime, end_time: datetime) -> List:
         """
@@ -407,6 +465,8 @@ class TradingController:
                 'source': record['source'],
             }
             self.redis_manager.append_price_history(coin_symbol, price_data)
+
+        return len(records)
 
     def start_workers(self):
         """

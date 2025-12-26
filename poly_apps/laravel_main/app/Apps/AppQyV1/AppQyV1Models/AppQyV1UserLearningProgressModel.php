@@ -11,7 +11,7 @@ class AppQyV1UserLearningProgressModel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table;
 
     public function __construct(array $attributes = [])

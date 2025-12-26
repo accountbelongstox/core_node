@@ -599,48 +599,68 @@ download_with_fallback_from_common_functions() {
 
     print_step_from_common_functions "Starting download to: $output_file"
 
-    # Try each URL
-    for url in "${download_urls[@]}"; do
-        print_step_from_common_functions "Attempting to download from: $url"
+    # Try curl first (primary method)
+    if command -v curl >/dev/null 2>&1; then
+        for url in "${download_urls[@]}"; do
+            print_step_from_common_functions "Attempting curl download from: $url"
 
-        # Try with different wget options
-        local wget_options=(
-            "--timeout=30 --tries=3 --show-progress"
-            "--timeout=60 --tries=2 --no-check-certificate"
-            "--timeout=120 --tries=1 --no-dns-cache"
-        )
+            # Try with different curl options
+            local curl_options=(
+                "-L --connect-timeout 30 --max-time 600 --retry 3 --retry-delay 2"
+                "-L --connect-timeout 60 --max-time 900 --retry 2 --retry-delay 5 -k"
+                "-L --connect-timeout 120 --max-time 1200 --retry 1 -k"
+            )
 
-        for options in "${wget_options[@]}"; do
-            print_step_from_common_functions "Using wget options: $options"
-            if eval "wget $options -O \"$output_file\" \"$url\""; then
-                print_success_from_common_functions "Successfully downloaded from: $url"
-                downloaded=true
-                break 2
-            else
-                print_warning_from_common_functions "Failed with options: $options"
-                $USE_SUDO rm -f "$output_file" 2>/dev/null
-            fi
-        done
-
-        print_warning_from_common_functions "All wget attempts failed for: $url"
-    done
-
-    # Fallback to curl if wget failed
-    if [ "$downloaded" = "false" ]; then
-        print_step_from_common_functions "All wget sources failed. Checking if curl is available..."
-        if command -v curl >/dev/null 2>&1; then
-            print_step_from_common_functions "Trying with curl as fallback..."
-            for url in "${download_urls[@]}"; do
-                print_step_from_common_functions "Attempting curl download from: $url"
-                if curl -L --connect-timeout 30 --max-time 300 -o "$output_file" "$url"; then
+            for options in "${curl_options[@]}"; do
+                print_step_from_common_functions "Using curl options: $options"
+                if eval "curl $options --progress-bar -o \"$output_file\" \"$url\""; then
                     print_success_from_common_functions "Successfully downloaded with curl from: $url"
                     downloaded=true
-                    break
+                    break 2
                 else
-                    print_warning_from_common_functions "Curl failed for: $url"
-                    $USE_SUDO rm -f "$output_file" 2>/dev/null
+                    print_warning_from_common_functions "Failed with options: $options"
+                    rm -f "$output_file" 2>/dev/null
                 fi
             done
+
+            print_warning_from_common_functions "All curl attempts failed for: $url"
+        done
+    else
+        print_warning_from_common_functions "curl is not available, skipping curl method"
+    fi
+
+    # Fallback to wget if curl failed
+    if [ "$downloaded" = "false" ]; then
+        print_step_from_common_functions "curl failed. Checking if wget is available..."
+        if command -v wget >/dev/null 2>&1; then
+            print_step_from_common_functions "Trying with wget as fallback..."
+
+            for url in "${download_urls[@]}"; do
+                print_step_from_common_functions "Attempting wget download from: $url"
+
+                # Try with different wget options
+                local wget_options=(
+                    "--timeout=30 --tries=3 --show-progress"
+                    "--timeout=60 --tries=2 --no-check-certificate"
+                    "--timeout=120 --tries=1 --no-check-certificate"
+                )
+
+                for options in "${wget_options[@]}"; do
+                    print_step_from_common_functions "Using wget options: $options"
+                    if eval "wget $options -O \"$output_file\" \"$url\""; then
+                        print_success_from_common_functions "Successfully downloaded with wget from: $url"
+                        downloaded=true
+                        break 2
+                    else
+                        print_warning_from_common_functions "Failed with options: $options"
+                        rm -f "$output_file" 2>/dev/null
+                    fi
+                done
+
+                print_warning_from_common_functions "All wget attempts failed for: $url"
+            done
+        else
+            print_warning_from_common_functions "wget is not available either"
         fi
     fi
 
@@ -1741,7 +1761,11 @@ run_pnpm_from_common_functions() {
             pnpm "$@"
             return $?
         else
+<<<<<<< HEAD
             echo "Error: pnpm not found. Please install pnpm first." >&2
+=======
+            echo "Error: pnpm not found. Please install pnpm first (npm install -g pnpm)" >&2
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             return 127
         fi
     fi
@@ -1762,7 +1786,11 @@ run_pnpm_from_common_functions() {
     local old_path="$PATH"
     if [[ -n "$PNPM_GLOBAL_BIN_DIR" ]]; then
         export PATH="$PNPM_GLOBAL_BIN_DIR:$NODE_BIN_DIR:$PATH"
+<<<<<<< HEAD
     else
+=======
+    elif [[ -n "$NODE_BIN_DIR" ]]; then
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         export PATH="$NODE_BIN_DIR:$PATH"
     fi
 
@@ -1770,9 +1798,14 @@ run_pnpm_from_common_functions() {
     "$PNPM_BIN" "$@"
     local exit_code=$?
 
+<<<<<<< HEAD
     # Restore PATH
     export PATH="$old_path"
 
+=======
+    # Restore original PATH
+    export PATH="$old_path"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     return $exit_code
 }
 

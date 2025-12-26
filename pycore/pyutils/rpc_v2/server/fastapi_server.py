@@ -118,12 +118,25 @@ class FastAPIRPCServer:
 
         # Register FastAPI routers (from config)
         fastapi_routers = options.get("fastapi_routers", [])
+<<<<<<< HEAD
         for router in fastapi_routers:
             if self.debug:
                 ColorPrint.blue(f"[FastAPIRPC] Registering FastAPI router: {router}")
             self.app.include_router(router)
             if self.debug:
                 ColorPrint.green(f"[FastAPIRPC] Router registered")
+=======
+        if fastapi_routers:
+            router_names = []
+            for router in fastapi_routers:
+                self.app.include_router(router)
+                # Extract router name from tags or prefix
+                router_name = router.tags[0] if router.tags else (router.prefix or "unnamed")
+                router_names.append(router_name)
+
+            if self.debug:
+                ColorPrint.green(f"[FastAPIRPC] Registered {len(fastapi_routers)} routers: {', '.join(router_names)}")
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
         # Mount static directories (from config)
         static_mounts = options.get("static_mounts", [])
@@ -200,6 +213,27 @@ class FastAPIRPCServer:
                 if self.debug:
                     ColorPrint.yellow(f"[Broadcast] Failed to send to client {client_id[:8]}: {e}")
 
+    def broadcast_event_sync(self, event_name: str, data: Dict[str, Any]):
+        """
+        Synchronous wrapper for broadcast_event() for use from non-async contexts.
+
+        This method can be called from any thread (e.g., HeartbeatPusher thread).
+
+        Args:
+            event_name: Event name
+            data: Event data
+        """
+        if self._broadcast_loop is None:
+            if self.debug:
+                ColorPrint.yellow(f"[Broadcast] Event loop not ready for {event_name}, skipping")
+            return
+
+        # Schedule the coroutine in the uvicorn event loop
+        asyncio.run_coroutine_threadsafe(
+            self.broadcast_event(event_name, data),
+            self._broadcast_loop
+        )
+
     def register_thread_bus_listener(self, event_name: str):
         """
         Register a THREAD_BUS event listener that broadcasts to WebSocket clients.
@@ -227,11 +261,11 @@ class FastAPIRPCServer:
 
     # ------------------------------------------------------------------ Internal setup
     def _add_default_static_dirs(self):
-        """Serve RPC JS client at /js/rpc by default."""
+        """Serve RPC JS client at /rpc/src by default."""
         pyutils_root = Path(__file__).resolve().parents[2]
         client_js_dir = pyutils_root / "rpc_v2" / "client"
         if client_js_dir.exists():
-            self.add_static_dir("/js/rpc", str(client_js_dir))
+            self.add_static_dir("/rpc/src", str(client_js_dir))
 
     def _register_builtin_routes(self):
         """Wire HTTP + WebSocket endpoints."""
@@ -311,7 +345,8 @@ class FastAPIRPCServer:
         request_id = data.get("id") or data.get("request_id") or self._generate_request_id()
 
         if "params" in data:
-            params = data.get("params", {})
+            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
+            params = data.get("data") or data.get("params", {})
         else:
             params = {
                 k: v
@@ -432,6 +467,9 @@ class FastAPIRPCServer:
             if event and event.status == RequestStatus.COMPLETED:
                 if self.debug:
                     ColorPrint.green(f"[HTTP RPC] Sync route {route} completed, returning result")
+
+                # Mark sync responses as notified to skip ACK/redo flow
+                self.request_event_table.mark_notified(request_id)
 
                 # ✅ Return result immediately (no requires_ack)
                 return JSONResponse(
@@ -636,7 +674,7 @@ class FastAPIRPCServer:
         inventory_items = self.inventory_table.get_by_client(client_id)
 
         for event in pending_events[:10]:
-            await self.ack_manager.notify_websocket_with_retry(
+            self.ack_manager.notify_websocket_with_retry(
                 client_id=client_id,
                 request_id=event.request_id,
                 result=event.result,
@@ -707,7 +745,8 @@ class FastAPIRPCServer:
                 )
                 return
 
-            params = data.get("params", {})
+            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
+            params = data.get("data") or data.get("params", {})
 
             inventory_item = self.inventory_table.get(request_id, remove=True)
             if inventory_item:
@@ -729,7 +768,7 @@ class FastAPIRPCServer:
             existing_event = self.request_event_table.get_event(request_id)
             if existing_event:
                 if existing_event.status == RequestStatus.COMPLETED:
-                    await self.ack_manager.notify_websocket_with_retry(
+                    self.ack_manager.notify_websocket_with_retry(
                         client_id=client_id,
                         request_id=request_id,
                         result=existing_event.result,
@@ -748,6 +787,9 @@ class FastAPIRPCServer:
                     )
                     return
 
+            # ✅ Check if route is synchronous (immediate response)
+            is_sync = self.routes_manager.is_sync_route(route)
+
             self.request_event_table.create_event(
                 request_id=request_id,
                 route=route,
@@ -756,8 +798,13 @@ class FastAPIRPCServer:
                 client_type="websocket",
             )
 
-            asyncio.create_task(
-                self.request_processor.process_request_async(
+            if is_sync:
+                # ✅ Synchronous route: await processing and return immediately
+                if self.debug:
+                    ColorPrint.blue(f"[WS RPC] Sync route {route}, processing immediately...")
+
+                # Await processing completion
+                await self.request_processor.process_request_async(
                     request_id=request_id,
                     route=route,
                     params=params,
@@ -768,19 +815,77 @@ class FastAPIRPCServer:
                         client_id=client_id,
                         websocket=websocket,
                     ).__dict__,
-                    notify_callback=self.ack_manager.notify_websocket_with_retry,
+                    notify_callback=None  # No callback for sync routes
                 )
-            )
 
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["EVENT"],
-                    "route": "request_accepted",
-                    "event": "request_accepted",
-                    "id": request_id,
-                    "data": {"status": "accepted"},
-                }
-            )
+                # Get completed event
+                event = self.request_event_table.get_event(request_id)
+                if event and event.status == RequestStatus.COMPLETED:
+                    if self.debug:
+                        ColorPrint.green(f"[WS RPC] Sync route {route} completed, sending result")
+
+                    # Mark sync responses as notified so ACK manager does not retry them
+                    self.request_event_table.mark_notified(request_id)
+
+                    # ✅ Send result immediately (no ACK mechanism)
+                    await websocket.send_json(
+                        {
+                            "type": MSG_TYPES["RESPONSE"],
+                            "route": route,
+                            "id": request_id,
+                            "result": event.result,
+                            "error": event.error,
+                            "success": event.error is None,
+                            "sync_response": True,  # ✅ Mark as sync response
+                            "requires_ack": False,  # ✅ No ACK required
+                            "queue": None,
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                    return  # ✅ Sync route completed, exit handler
+                else:
+                    # Processing failed
+                    await websocket.send_json(
+                        {
+                            "type": MSG_TYPES["ERROR"],
+                            "route": route,
+                            "id": request_id,
+                            "error": event.error if event else "Processing failed",
+                            "success": False,
+                        }
+                    )
+                    return  # ✅ Sync route failed, exit handler
+            else:
+                # ✅ Asynchronous route: use ACK mechanism (original behavior)
+                if self.debug:
+                    ColorPrint.blue(f"[WS RPC] Async route {route}, using ACK mechanism...")
+
+                asyncio.create_task(
+                    self.request_processor.process_request_async(
+                        request_id=request_id,
+                        route=route,
+                        params=params,
+                        client_id=client_id,
+                        client_type="websocket",
+                        context=RPCRequestContext(
+                            transport="websocket",
+                            client_id=client_id,
+                            websocket=websocket,
+                        ).__dict__,
+                        notify_callback=self.ack_manager.notify_websocket_with_retry,
+                    )
+                )
+
+                # Send accepted event for async routes
+                await websocket.send_json(
+                    {
+                        "type": MSG_TYPES["EVENT"],
+                        "route": "request_accepted",
+                        "event": "request_accepted",
+                        "id": request_id,
+                        "data": {"status": "accepted"},
+                    }
+                )
 
         elif msg_type == MSG_TYPES["PING"]:
             await self.client_registry.update_client_ping(client_id)
@@ -798,7 +903,7 @@ class FastAPIRPCServer:
             )
 
             for event in pending_events[:5]:
-                await self.ack_manager.notify_websocket_with_retry(
+                self.ack_manager.notify_websocket_with_retry(
                     client_id=client_id,
                     request_id=event.request_id,
                     result=event.result,
@@ -875,6 +980,7 @@ class FastAPIRPCServerRunner:
             port=self.server.port,
             loop="asyncio",
             log_level="debug" if self.server.debug else "info",
+            access_log=False,  # Disable access log to prevent WebSocket binary spam
         )
         self._uvicorn_server = uvicorn.Server(config=config)
 

@@ -44,6 +44,7 @@ init_global_vars
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
+INSTALL_GITEA=$(get_var "INSTALL_GITEA" "true")
 FORCE_INSTALL=false
 CLEANUP_MODE=false
 
@@ -829,6 +830,90 @@ repair_gitea_configuration() {
     return 0
 }
 
+# Disable Gitea service
+disable_gitea_service() {
+    print_info_from_common_functions "Checking Gitea service status..."
+
+    # Check if Gitea is installed and running
+    local gitea_running=false
+    if systemctl is-active --quiet gitea 2>/dev/null; then
+        gitea_running=true
+        print_warning_from_common_functions "Gitea service is currently running"
+    elif is_gitea_installed; then
+        print_info_from_common_functions "Gitea is installed but not running"
+    else
+        print_info_from_common_functions "Gitea is not installed"
+        return 0
+    fi
+
+    # Only prompt if Gitea is installed
+    if is_gitea_installed || [[ "$gitea_running" == true ]]; then
+        echo ""
+        print_warning_from_common_functions "INSTALL_GITEA is set to false"
+        echo -n "Do you want to disable Gitea service? (Y/n) [Y]: "
+        read -r response
+
+        case "$response" in
+            [nN]|[nN][oO])
+                print_info_from_common_functions "Keeping Gitea service as is"
+                return 0
+                ;;
+            ""|[yY]|[yY][eE][sS])
+                print_info_from_common_functions "Disabling Gitea service..."
+
+                # Stop the service if running
+                if [[ "$gitea_running" == true ]]; then
+                    print_step_from_common_functions "Stopping Gitea service..."
+                    if $USE_SUDO systemctl stop gitea 2>/dev/null; then
+                        print_success_from_common_functions "Gitea service stopped"
+                    else
+                        print_warning_from_common_functions "Failed to stop Gitea service"
+                    fi
+                fi
+
+                # Disable the service
+                print_step_from_common_functions "Disabling Gitea service..."
+                if $USE_SUDO systemctl disable gitea 2>/dev/null; then
+                    print_success_from_common_functions "Gitea service disabled"
+                else
+                    print_warning_from_common_functions "Failed to disable Gitea service (may not be enabled)"
+                fi
+
+                # Optionally close firewall port
+                print_step_from_common_functions "Checking firewall configuration..."
+                if command -v ufw >/dev/null 2>&1 && $USE_SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
+                    print_info_from_common_functions "UFW firewall is active"
+                    echo -n "Do you want to close port $GITEA_PORT in firewall? (Y/n) [Y]: "
+                    read -r fw_response
+                    case "$fw_response" in
+                        ""|[yY]|[yY][eE][sS])
+                            if $USE_SUDO ufw delete allow "$GITEA_PORT/tcp" 2>/dev/null; then
+                                print_success_from_common_functions "Firewall rule removed for port $GITEA_PORT"
+                            else
+                                print_warning_from_common_functions "No firewall rule found for port $GITEA_PORT"
+                            fi
+                            ;;
+                        *)
+                            print_info_from_common_functions "Keeping firewall rule"
+                            ;;
+                    esac
+                fi
+
+                echo ""
+                print_success_from_common_functions "Gitea service has been disabled"
+                print_info_from_common_functions "To re-enable: sudo systemctl enable gitea && sudo systemctl start gitea"
+                return 0
+                ;;
+            *)
+                print_info_from_common_functions "Invalid choice, keeping current state"
+                return 0
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
 prompt_cleanup_reinstall() {
     if is_gitea_installed; then
         print_warning_from_common_functions "Gitea is already installed"
@@ -891,6 +976,18 @@ main() {
     if [[ "$CLEANUP_MODE" == true ]]; then
         cleanup_gitea
         exit $?
+    fi
+
+    # Check if Gitea installation is disabled via global variable
+    if [[ "$INSTALL_GITEA" == "false" ]]; then
+        print_header_from_common_functions "Gitea Installation Script"
+        print_warning_from_common_functions "INSTALL_GITEA is set to false"
+        print_info_from_common_functions "Gitea installation is disabled in configuration"
+        echo ""
+
+        # Check if Gitea is already installed and offer to disable it
+        disable_gitea_service
+        exit 0
     fi
 
     print_header_from_common_functions "Gitea Installation Script"

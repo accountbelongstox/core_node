@@ -4,6 +4,12 @@ Simple Sync Client - Syncs files from PRIMARY server
 
 Only handles SECONDARY client functionality.
 Uses global_config for shared state.
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=70) for graceful shutdown
+- Checks THREAD_BUS.is_shutdown_requested() in sync loop
+- Triggers 'device_sync.secondary.started', 'device_sync.secondary.stopped', and 'device_sync.secondary.synced' events
+- Backwards compatible: keeps existing thread management
 """
 
 import os
@@ -19,6 +25,7 @@ from ..core.config import get_global_config, DEFAULT_SYNC_INTERVAL
 from ..core.scanner import SimpleDeviceScanner
 from ..core.logging import setup_logging
 from ..core.database import get_sync_database
+from pycore import THREAD_BUS, ColorPrint
 
 logger = setup_logging(__name__)
 
@@ -69,15 +76,35 @@ class SimpleClient:
 
         # Start sync thread
         self.running = True
-        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
+        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True, name="DeviceSyncSecondary")
         self.sync_thread.start()
 
         self.config.client_running = True
 
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=70 for service threads (stops before singleton detector)
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=70,
+            name="device_sync_secondary"
+        )
+        ColorPrint.blue("[DeviceSync-Secondary] Registered THREAD_BUS shutdown handler (priority=70)")
+
+        # THREAD_BUS Integration: Trigger client started event
+        THREAD_BUS.trigger_event('device_sync.secondary.started', {
+            'primary_ip': self.config.primary_server_ip,
+            'primary_port': self.config.primary_server_port,
+            'sync_enabled': self.config.sync_enabled
+        }, async_mode=True)
+
         logger.info(f"✓ Sync client started (syncing from {self.config.primary_server_ip}:{self.config.primary_server_port})")
 
     def stop(self):
-        """Stop sync client"""
+        """
+        Stop sync client
+
+        THREAD_BUS Integration: Called by shutdown handler during graceful shutdown
+        """
         if not self.running:
             return
 
@@ -89,6 +116,12 @@ class SimpleClient:
             self.sync_thread.join(timeout=DEFAULT_SYNC_INTERVAL + 1)
 
         self.config.client_running = False
+
+        # THREAD_BUS Integration: Trigger client stopped event
+        THREAD_BUS.trigger_event('device_sync.secondary.stopped', {
+            'total_synced': self.total_synced,
+            'total_downloaded_mb': round(self.total_downloaded / 1024 / 1024, 2)
+        }, async_mode=True)
 
         logger.info("Sync client stopped")
 
@@ -148,6 +181,14 @@ class SimpleClient:
                 bytes_transferred=self.total_downloaded
             )
 
+            # THREAD_BUS Integration: Trigger sync completed event
+            THREAD_BUS.trigger_event('device_sync.secondary.synced', {
+                'files_scanned': len(file_list),
+                'files_changed': len(changed_files),
+                'files_synced': self.total_synced,
+                'timestamp': time.time()
+            }, async_mode=True)
+
             return True
 
         except Exception as e:
@@ -157,14 +198,24 @@ class SimpleClient:
             return False
 
     def _sync_loop(self):
-        """Auto sync loop (runs in background thread)"""
+        """
+        Auto sync loop (runs in background thread)
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
+        """
         while self.running:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[DeviceSync-Secondary] THREAD_BUS shutdown detected, stopping...")
+                break
+
             if self.config.sync_enabled:
                 self.sync_now()
 
             # Sleep interval
             for _ in range(DEFAULT_SYNC_INTERVAL * 10):
-                if not self.running:
+                if not self.running or THREAD_BUS.is_shutdown_requested():
                     break
                 time.sleep(0.1)
 

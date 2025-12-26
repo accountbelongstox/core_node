@@ -124,7 +124,10 @@ class ConfigManager:
                     }
                 ],
                 'MCPSupport': {
-                    'Enabled': False
+                    'Enabled': True,
+                    'SyncScript': 'droid_sync_mcp_servers.py',
+                    'PreLaunchScript': 'droid_pre_launch.ps1',
+                    'UpdateScript': 'droid_update.bat'
                 },
                 'SmartRecognition': {
                     'Enabled': False
@@ -484,7 +487,10 @@ class ConfigManager:
                     }
                 ],
                 'MCPSupport': {
-                    'Enabled': False
+                    'Enabled': True,
+                    'SyncScript': 'gemini_sync_mcp_servers.py',
+                    'PreLaunchScript': 'gemini_pre_launch.ps1',
+                    'UpdateScript': 'gemini_update.bat'
                 },
                 'SmartRecognition': {
                     'Enabled': False

@@ -4,12 +4,18 @@
 Hotkey Listener
 
 Global keyboard and mouse event listener with hotkey detection.
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=85) for graceful shutdown
+- Triggers 'hotkey.ctrl_click' events when Ctrl+Click detected
+- Triggers 'hotkey.ctrl_double_click' events when Ctrl+DoubleClick detected
+- Backwards compatible: keeps existing callback mechanism
 """
 
 import time
 import threading
 from typing import Optional, Callable
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pynput
 
 pynput = get_third_package_pynput()
@@ -59,6 +65,15 @@ class HotkeyListener:
             on_click=self._on_mouse_click
         )
         self.mouse_listener.start()
+
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=85 ensures hotkey listener stops before most services
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=85,
+            name="hotkey_listener"
+        )
+        ColorPrint.blue("[Hotkey] Registered THREAD_BUS shutdown handler (priority=85)")
 
         ColorPrint.green("[Hotkey] Listener started")
         ColorPrint.blue("[Hotkey] Ctrl+Click - Copy last recognized text")
@@ -115,6 +130,15 @@ class HotkeyListener:
         if time_since_last_click < self.double_click_threshold:
             # Double click detected
             ColorPrint.green("[Hotkey] Ctrl+DoubleClick detected")
+
+            # THREAD_BUS Integration: Trigger event (new mechanism)
+            THREAD_BUS.trigger_event('hotkey.ctrl_double_click', {
+                'x': x,
+                'y': y,
+                'timestamp': current_time
+            }, async_mode=True)
+
+            # Call legacy callback (backward compatibility)
             if self.on_ctrl_double_click:
                 # Run callback in separate thread to avoid blocking
                 threading.Thread(
@@ -127,6 +151,15 @@ class HotkeyListener:
         else:
             # Single click detected
             ColorPrint.green("[Hotkey] Ctrl+Click detected")
+
+            # THREAD_BUS Integration: Trigger event (new mechanism)
+            THREAD_BUS.trigger_event('hotkey.ctrl_click', {
+                'x': x,
+                'y': y,
+                'timestamp': current_time
+            }, async_mode=True)
+
+            # Call legacy callback (backward compatibility)
             if self.on_ctrl_click:
                 # Run callback in separate thread to avoid blocking
                 threading.Thread(

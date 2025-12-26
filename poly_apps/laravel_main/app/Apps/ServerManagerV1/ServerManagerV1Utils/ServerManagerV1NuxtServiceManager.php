@@ -18,8 +18,8 @@ use App\Providers\PathMapper;
  * - Factory directory: Uses factory build directory per app
  *
  * USER CONTEXT:
- * - CLI commands (artisan): Default user is detected real user (non-root)
- * - Web API calls: Default user is 'www-data' (current web user)
+ * - CLI commands (artisan): Default user is 'root' (system mode)
+ * - Web API calls: Dynamically detected real user (excludes system users)
  */
 class ServerManagerV1NuxtServiceManager
 {
@@ -521,30 +521,74 @@ SERVICE;
     /**
      * Determine service user based on execution context
      * For Nuxt services, we prefer the real user (non-root) for better permissions
+     * Logic based on: scripts/shells/linux/debian/debian_com/desktop_entry_manager.sh:detect_desktop_user()
      */
     public static function getDefaultServiceUser(): string
     {
-        // Try to detect actual desktop user
+        // System/service users to exclude
+        $excludedUsers = [
+            'git', 'nginx', 'www-data', 'mysql', 'postgres', 'redis', 'mongodb',
+            'docker', 'systemd-network', 'systemd-resolve', 'systemd-timesync',
+            '_apt', 'backup', 'bin', 'daemon', 'games', 'gnats', 'irc', 'list',
+            'lp', 'mail', 'man', 'news', 'proxy', 'sync', 'sys', 'uucp',
+            'sshd', 'postfix', 'ftp', 'nobody', 'nogroup', 'root'
+        ];
+
+        // 1. Try SUDO_USER first (if not excluded)
         $sudoUser = getenv('SUDO_USER');
-        if ($sudoUser && $sudoUser !== 'root') {
+        if ($sudoUser && !in_array($sudoUser, $excludedUsers)) {
             return $sudoUser;
         }
 
-        // Check for common non-root users
-        $commonUsers = ['ubuntu', 'www-data', 'nginx', 'node'];
-        foreach ($commonUsers as $user) {
-            $result = Process::run("id -u $user");
+        // 2. Try current USER environment variable (if not excluded)
+        $currentUser = getenv('USER');
+        if ($currentUser && !in_array($currentUser, $excludedUsers)) {
+            return $currentUser;
+        }
+
+        // 3. Try stat on laravel_main directory to get owner
+        $laravelMainDir = \App\Providers\PathMapper::getLaravelMainDir();
+        if ($laravelMainDir && file_exists($laravelMainDir)) {
+            $result = Process::run("stat -c '%U' " . escapeshellarg($laravelMainDir));
             if ($result->successful()) {
-                return $user;
+                $owner = trim($result->output());
+                if ($owner && !in_array($owner, $excludedUsers)) {
+                    return $owner;
+                }
             }
         }
 
-        // Fallback to www-data or root
-        if (php_sapi_name() === 'cli') {
-            return 'www-data';
+        // 4. Check /home directory for real user (prefer ubuntu)
+        if (is_dir('/home/ubuntu')) {
+            return 'ubuntu';
         }
 
-        return 'www-data';
+        // 5. Find any non-excluded user in /home with UID >= 1000
+        $result = Process::run("find /home -maxdepth 1 -mindepth 1 -type d 2>/dev/null");
+        if ($result->successful()) {
+            $homeDirs = explode("\n", trim($result->output()));
+            foreach ($homeDirs as $homeDir) {
+                $username = basename($homeDir);
+                if (!in_array($username, $excludedUsers)) {
+                    // Check UID
+                    $uidResult = Process::run("id -u " . escapeshellarg($username) . " 2>/dev/null");
+                    if ($uidResult->successful()) {
+                        $uid = (int)trim($uidResult->output());
+                        if ($uid >= 1000 && $uid < 60000) {
+                            return $username;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Last resort: return current process user
+        $result = Process::run("whoami");
+        if ($result->successful()) {
+            return trim($result->output());
+        }
+
+        return 'ubuntu'; // Final fallback
     }
 
     /**

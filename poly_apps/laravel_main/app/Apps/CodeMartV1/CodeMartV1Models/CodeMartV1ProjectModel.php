@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CodeMartV1ProjectModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_projects';
 
     protected $fillable = [

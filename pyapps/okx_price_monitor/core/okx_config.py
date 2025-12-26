@@ -19,7 +19,7 @@ class OKXConfig:
 
     # ==================== SYSTEM MODE ====================
     # Mode selection: 'MONITOR', 'TRADING_TEST', 'TRADING_LIVE'
-    SYSTEM_MODE: Literal['MONITOR', 'TRADING_TEST', 'TRADING_LIVE'] = 'TRADING_TEST'
+    SYSTEM_MODE: Literal['MONITOR', 'TRADING_TEST', 'TRADING_LIVE'] = 'MONITOR'
 
     # ==================== MONITOR MODE SETTINGS ====================
     # Used when SYSTEM_MODE = 'MONITOR'

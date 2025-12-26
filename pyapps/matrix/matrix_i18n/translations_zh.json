@@ -13,5 +13,7 @@
   "matrix.tray.exit": "退出",
   "matrix.services": "服务",
   "matrix.status": "状态",
-  "matrix.ready": "就绪"
+  "matrix.ready": "就绪",
+  "matrix.shortcut.name": "星灿传媒云矩阵",
+  "matrix.shortcut.description": "启动星灿传媒云矩阵 - 安卓设备管理器"
 }

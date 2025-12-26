@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Batch Database Writer - Optimize Database Writes
-批量数据库写入器 - 优化数据库写入性能
+Batch Database Writer - Optimize Database Write Performance
 
 Features:
 - Buffer price updates in memory

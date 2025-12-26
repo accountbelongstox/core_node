@@ -1,0 +1,34 @@
+{
+  "services": {
+    "mcp-chrome": {
+      "enabled": true,
+      "type": "http",
+      "url": "http://127.0.0.1:12306/mcp",
+      "description": "Chrome browser automation tools"
+    },
+    "example-custom-service": {
+      "enabled": false,
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp",
+      "description": "Example custom MCP service"
+    },
+    "example-module-service": {
+      "enabled": false,
+      "type": "module",
+      "module": "./ncore/custom_services/my_service.js",
+      "description": "Example module-based service"
+    }
+  },
+  "_instructions": {
+    "service_types": {
+      "http": "Connect to external HTTP MCP server",
+      "module": "Load Node.js module that implements MCP interface"
+    },
+    "tool_naming": "Tools are automatically prefixed: {serviceName}__{toolName}",
+    "example_tools": [
+      "mcp-chrome__chrome_navigate",
+      "mcp-chrome__chrome_screenshot",
+      "custom-service__my_tool"
+    ]
+  }
+}

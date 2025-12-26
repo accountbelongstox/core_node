@@ -4,6 +4,12 @@ Simple Primary HTTP Server - Serves files to secondary devices
 
 Only handles PRIMARY server functionality, no client logic.
 Uses global_config for shared state.
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=70) for graceful shutdown
+- Triggers 'device_sync.primary.started' and 'device_sync.primary.stopped' events
+- Uses HTTPServer.shutdown() for clean termination
+- Backwards compatible: keeps existing thread management
 """
 
 import os
@@ -18,6 +24,7 @@ import urllib.parse
 from ..core.config import get_global_config, DEFAULT_ROOT_DIR
 from ..core.logging import setup_logging
 from ..core.database import get_sync_database
+from pycore import THREAD_BUS, ColorPrint
 
 logger = setup_logging(__name__)
 
@@ -438,10 +445,26 @@ class SimplePrimaryServer:
 
             # Start server thread
             self.running = True
-            self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
+            self.server_thread = threading.Thread(target=self._server_loop, daemon=True, name="DeviceSyncPrimary")
             self.server_thread.start()
 
             self.config.server_running = True
+
+            # THREAD_BUS Integration: Register shutdown handler
+            # Priority=70 for service threads (stops before singleton detector)
+            THREAD_BUS.register_shutdown_handler(
+                self.stop,
+                priority=70,
+                name="device_sync_primary"
+            )
+            ColorPrint.blue("[DeviceSync-Primary] Registered THREAD_BUS shutdown handler (priority=70)")
+
+            # THREAD_BUS Integration: Trigger server started event
+            THREAD_BUS.trigger_event('device_sync.primary.started', {
+                'ip': self.config.local_ip,
+                'port': self.config.http_port,
+                'hostname': self.config.hostname
+            }, async_mode=True)
 
             logger.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
 
@@ -451,7 +474,11 @@ class SimplePrimaryServer:
             raise
 
     def stop(self):
-        """Stop PRIMARY server"""
+        """
+        Stop PRIMARY server
+
+        THREAD_BUS Integration: Called by shutdown handler during graceful shutdown
+        """
         if not self.running:
             return
 
@@ -467,6 +494,11 @@ class SimplePrimaryServer:
             self.server_thread.join(timeout=2)
 
         self.config.server_running = False
+
+        # THREAD_BUS Integration: Trigger server stopped event
+        THREAD_BUS.trigger_event('device_sync.primary.stopped', {
+            'hostname': self.config.hostname
+        }, async_mode=True)
 
         logger.info("PRIMARY server stopped")
 

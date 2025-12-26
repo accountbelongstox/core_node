@@ -127,12 +127,17 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
+<<<<<<< HEAD
             Text = "Start Android Emulator (adb/emu)";
+=======
+            Text = "Start Android Emulator (Stable)";
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             Values = @("default");
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
                 Clear-Host
+<<<<<<< HEAD
                 $workerScript = Join-Path $script:TOOLS_DIR "workers\AndroidEmulatorWorker.ps1"
                 if (Test-Path $workerScript) {
                     Write-ColorMessage -Message "Launching Android emulator worker via explorer (non-blocking)..." -Type "Info"
@@ -147,6 +152,19 @@ function Show-WindowsManagementSubMenu {
                     }
                 } else {
                     Write-ColorMessage -Message "Android worker script not found: $workerScript" -Type "Error"
+=======
+                $stableLauncher = Join-Path $script:TOOLS_DIR "AndroidEmulatorStableLauncher.ps1"
+                if (Test-Path $stableLauncher) {
+                    Write-ColorMessage -Message "Launching stable Android emulator launcher..." -Type "Info"
+                    Write-Host ""
+                    try {
+                        & powershell -NoProfile -ExecutionPolicy Bypass -File $stableLauncher
+                    } catch {
+                        Write-ColorMessage -Message "Failed to start emulator launcher: $($_.Exception.Message)" -Type "Error"
+                    }
+                } else {
+                    Write-ColorMessage -Message "Stable launcher script not found: $stableLauncher" -Type "Error"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 }
                 Write-Host ""
                 Read-Host "Press Enter to continue"

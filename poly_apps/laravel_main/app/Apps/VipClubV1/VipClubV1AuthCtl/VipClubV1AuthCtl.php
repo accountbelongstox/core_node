@@ -24,7 +24,8 @@ class VipClubV1AuthCtl extends Controller
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6',
+            // [Removed] Password 'min:6' validation removed - no minimum requirement
+            'password' => 'required|string',
             'full_name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:20'
         ]);

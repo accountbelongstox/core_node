@@ -20,8 +20,16 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\ApiResponse;
 class AppQyV1WordQueryController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     protected $storageManager;
     protected $markerManager;
 
@@ -286,5 +294,29 @@ class AppQyV1WordQueryController extends BaseController
         return response()->json([
             'results' => $results
         ]);
+    }
+
+    /**
+     * Get daily words for learning
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getDailyWords(Request $request)
+    {
+        if (!$this->markerManager->isInitialized()) {
+            return $this->error('System not initialized. Please initialize first.');
+        }
+
+        $limit = $request->input('limit', 10);
+        $words = AppQyV1DictionaryModel::inRandomOrder()
+            ->limit($limit)
+            ->get(['word', 'translation', 'phonetic']);
+
+        return $this->success([
+            'words' => $words,
+            'count' => $words->count(),
+            'date' => date('Y-m-d')
+        ], 'Daily words retrieved successfully');
     }
 } 

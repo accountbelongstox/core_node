@@ -17,19 +17,22 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ClientTokenAuth;
 use App\Http\Middleware\CustomAuthenticate;
 use App\Http\Middleware\GoLatency;
-
+use App\Http\Middleware\LocalAccessOnly;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        api: __DIR__.'/../routes/api.php',
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        apiPrefix: 'api',
         commands: __DIR__.'/../routes/console.php',
+        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
     ->withProviders([
@@ -46,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'client.token' => ClientTokenAuth::class,
             'custom.authenticate' => CustomAuthenticate::class,
+            'local.only' => LocalAccessOnly::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -66,5 +70,42 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Show all errors with full stack traces in debug mode
+        $exceptions->dontReport([]);
+
+        // Render all exceptions with full details
+        $exceptions->render(function (Throwable $e) {
+            if (config('app.debug')) {
+                // Return detailed JSON for API requests
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => collect($e->getTrace())->map(function ($trace) {
+                        return [
+                            'file' => $trace['file'] ?? null,
+                            'line' => $trace['line'] ?? null,
+                            'function' => $trace['function'] ?? null,
+                            'class' => $trace['class'] ?? null,
+                            'type' => $trace['type'] ?? null,
+                        ];
+                    })->all(),
+                    'previous' => $e->getPrevious() ? [
+                        'message' => $e->getPrevious()->getMessage(),
+                        'exception' => get_class($e->getPrevious()),
+                        'file' => $e->getPrevious()->getFile(),
+                        'line' => $e->getPrevious()->getLine(),
+                    ] : null,
+                ], 500);
+            }
+
+            // Production mode - minimal error info
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error',
+                'code' => 500,
+            ], 500);
+        });
     })->create();

@@ -30,7 +30,7 @@ class AppQyV1PersonalDictionariesModel extends Model
      *
      * @var string
      */
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
 
     /**
      * The table associated with the model.

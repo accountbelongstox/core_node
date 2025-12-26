@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Requests\Group;
+
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1BaseRequest;
+
+class AppQyV1AddLibraryToGroupRequest extends AppQyV1BaseRequest
+{
+    public function rules(): array
+    {
+        return [
+            'gid' => 'required|string',
+            'library_id' => 'required|integer|exists:appqyv1.app_qy_v1_vocabulary_libraries,id',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'gid.required' => 'Group ID is required',
+            'gid.string' => 'Group ID must be a string',
+            'library_id.required' => 'Library ID is required',
+            'library_id.integer' => 'Library ID must be an integer',
+            'library_id.exists' => 'Library not found',
+        ];
+    }
+}

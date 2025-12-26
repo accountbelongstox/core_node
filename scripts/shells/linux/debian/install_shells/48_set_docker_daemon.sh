@@ -24,7 +24,7 @@ SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-INSTALL_DOCKER=$(get_var "INSTALL_DOCKER")
+START_DOCKER=$(get_var "START_DOCKER" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
 # Source /etc/environment for CLOUD_PROVIDER
@@ -38,16 +38,30 @@ fi
 SELECTED_REGION=$(get_var "SELECTED_REGION")
 CLOUD_PROVIDER=${CLOUD_PROVIDER:-$(get_var "CLOUD_PROVIDER")}
 
+<<<<<<< HEAD
 if [ "$INSTALL_DOCKER" = "false" ]; then
     echo "Skipping Docker installation,INSTALL_DOCKER: $INSTALL_DOCKER,INSTALL_MODE: $INSTALL_MODE"
     exit 0
 fi
 
+=======
+# Check if Docker is installed
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is not installed. Skipping Docker daemon configuration."
     exit 0
 fi
 
+<<<<<<< HEAD
+=======
+# Check if Docker should be running
+if [ "$START_DOCKER" = "false" ]; then
+    echo "START_DOCKER is false. Skipping Docker daemon configuration."
+    echo "START_DOCKER: $START_DOCKER, INSTALL_MODE: $INSTALL_MODE"
+    exit 0
+fi
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 if ! $USE_SUDO systemctl is-active --quiet docker.service 2>/dev/null && ! $USE_SUDO systemctl is-enabled --quiet docker.service 2>/dev/null; then
     echo "Docker service is not available. Skipping Docker daemon configuration."
     exit 0

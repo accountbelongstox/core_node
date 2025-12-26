@@ -7,7 +7,11 @@ Serves static HTML pages and assets for UI components.
 
 from pathlib import Path
 from fastapi import APIRouter
+<<<<<<< HEAD
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+=======
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from fastapi.staticfiles import StaticFiles
 
 from pycore import ColorPrint
@@ -19,6 +23,9 @@ DESKTOP_UI_DIR = Path(__file__).parent.parent.parent / "pyctl" / "desktop" / "ui
 if DESKTOP_UI_DIR.exists():
     # This will be mounted by the server setup
     pass
+
+# Favicon path
+FAVICON_PATH = Path(__file__).parent.parent.parent / "static" / "favicon.ico"
 
 
 @router.get("/")
@@ -303,5 +310,24 @@ async def get_subtitle_ui():
     """
     ColorPrint.green(f"[WebRouter] Redirecting to desktop manager at /desktop/index.html")
     return RedirectResponse(url="/desktop/index.html", status_code=302)
+
+
+@router.get("/favicon.ico")
+async def get_favicon():
+    """
+    Serve favicon.ico
+
+    Returns:
+        FileResponse: Favicon file
+    """
+    if FAVICON_PATH.exists():
+        return FileResponse(
+            path=str(FAVICON_PATH),
+            media_type="image/x-icon",
+            headers={"Cache-Control": "public, max-age=31536000"}
+        )
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Favicon not found")
 
 

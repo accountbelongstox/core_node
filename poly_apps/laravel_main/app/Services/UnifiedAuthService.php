@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Atrox\Haikunator;
 
 class UnifiedAuthService
 {
@@ -58,9 +59,16 @@ class UnifiedAuthService
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
-                
+
                 if (isset($credentials['sub_app_data'])) {
                     $subAppUserData = array_merge($subAppUserData, $credentials['sub_app_data']);
+                }
+
+                if (!isset($subAppUserData['nickname']) || empty($subAppUserData['nickname'])) {
+                    $subAppUserData['nickname'] = Haikunator::haikunate([
+                        'tokenLength' => 4,
+                        'delimiter' => '-'
+                    ]);
                 }
                 
                 $subAppUserId = DB::connection($subAppConnection)->table('users')->insertGetId($subAppUserData);
@@ -72,8 +80,13 @@ class UnifiedAuthService
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('[UnifiedAuth] Registration failed: ' . $e->getMessage());
-            
+            Log::error('[UnifiedAuth] Registration exception: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -194,32 +207,112 @@ class UnifiedAuthService
                 ->table('users')
                 ->where('main_user_id', $mainUserId)
                 ->first();
-            
+
             if (!$subAppUser) {
                 return [
                     'success' => false,
                     'error' => 'Sub-app user not found',
                 ];
             }
-            
+
             unset($data['password']);
             unset($data['main_user_id']);
-            
+
             $data['updated_at'] = now();
-            
+
             DB::connection($subAppConnection)
                 ->table('users')
                 ->where('main_user_id', $mainUserId)
                 ->update($data);
-            
+
             return [
                 'success' => true,
                 'message' => 'Sub-app user data updated successfully',
             ];
-            
+
         } catch (\Exception $e) {
             Log::error('[UnifiedAuth] Update sub-app user failed: ' . $e->getMessage());
-            
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Update user profile in both main and sub-app tables
+     *
+     * @param int $userId Main user ID
+     * @param string|null $subAppConnection Sub-app database connection name
+     * @param array $data Data to update
+     * @return array
+     */
+    public static function updateUserProfile(int $userId, ?string $subAppConnection, array $data): array
+    {
+        DB::beginTransaction();
+
+        try {
+            $mainUpdateData = [];
+            $mainFields = ['nickname', 'name', 'email', 'phone', 'avatar', 'bio', 'location', 'native_language', 'learning_languages'];
+
+            foreach ($mainFields as $field) {
+                if (isset($data[$field])) {
+                    $mainUpdateData[$field] = $data[$field];
+                }
+            }
+
+            if (!empty($mainUpdateData)) {
+                User::where('id', $userId)->update($mainUpdateData);
+            }
+
+            if ($subAppConnection) {
+                $subAppUpdateData = [];
+                $syncFields = ['nickname', 'name', 'avatar', 'email', 'phone'];
+
+                foreach ($syncFields as $field) {
+                    if (isset($data[$field])) {
+                        $subAppUpdateData[$field] = $data[$field];
+                    }
+                }
+
+                if (!empty($subAppUpdateData)) {
+                    $subAppUpdateData['updated_at'] = now();
+
+                    $subAppUser = DB::connection($subAppConnection)
+                        ->table('users')
+                        ->where('main_user_id', $userId)
+                        ->first();
+
+                    if (!$subAppUser) {
+                        $subAppUserData = [
+                            'main_user_id' => $userId,
+                            'username' => User::find($userId)->username,
+                            'created_at' => now(),
+                        ];
+                        $subAppUserData = array_merge($subAppUserData, $subAppUpdateData);
+
+                        DB::connection($subAppConnection)->table('users')->insert($subAppUserData);
+                    } else {
+                        DB::connection($subAppConnection)
+                            ->table('users')
+                            ->where('main_user_id', $userId)
+                            ->update($subAppUpdateData);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            return [
+                'success' => true,
+                'message' => 'User profile updated successfully',
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('[UnifiedAuth] Update user profile failed: ' . $e->getMessage());
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1PhoneVerificationModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_phone_verifications';
 
     protected $fillable = [

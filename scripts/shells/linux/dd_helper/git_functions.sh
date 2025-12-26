@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Git Functions
+# Git Functions - Python-based with File Variables
 # =============================================================================
 
 # Source constants (backup copy)
@@ -20,29 +20,130 @@ source "$DD_HELPER_DIR/constants.sh"
 
 # Build full path from constants
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
+GIT_MANAGEMENT_PY="$CORE_NODE_ROOT_DIR/scripts/git/git_management.py"
 
-# Git Functions
-get_git() {
-    echo "Starting SAFE git pull operation..."
-    echo "Using unified git script for safe pull: $GITPUT_UNIFIED_SCRIPT_PATH"
+# File variables directory
+GIT_VARS_DIR="/var/_core_node/_build_global_vars"
 
-    # Determine target remote based on region setting
-    local selected_region=$(get_global_var "SELECTED_REGION")
-    local target_remote="gitee"  # default
-    if [ "$selected_region" = "Global" ]; then
-        target_remote="github"
-    fi
+# Helper functions for file variables
+read_git_var() {
+    local key="$1"
+    local default="$2"
+    local var_file="$GIT_VARS_DIR/$key"
 
-    echo "Target remote: $target_remote (based on region: $selected_region)"
-
-    # Execute safe pull using unified script
-    cd "$CORE_NODE_ROOT_DIR"
-    bash "$GITPUT_UNIFIED_SCRIPT_PATH" --pull "$target_remote"
-
-    if [ $? -eq 0 ]; then
-        echo "Safe git pull operation completed successfully!"
-        make_sh_executable
+    if [ -f "$var_file" ]; then
+        cat "$var_file"
     else
-        echo "Safe git pull operation failed. Please check the output above for resolution options."
+        echo "$default"
     fi
+}
+
+write_git_var() {
+    local key="$1"
+    local value="$2"
+
+    mkdir -p "$GIT_VARS_DIR" 2>/dev/null
+    echo "$value" > "$GIT_VARS_DIR/$key"
+}
+
+delete_git_var() {
+    local key="$1"
+    rm -f "$GIT_VARS_DIR/$key" 2>/dev/null
+}
+
+clear_git_vars() {
+    rm -f "$GIT_VARS_DIR"/git_* 2>/dev/null
+}
+
+# Git Management Submenu - Python-based
+show_git_management_menu() {
+    while true; do
+        # Clear previous variables
+        clear_git_vars
+
+        # Call Python to show menu and handle user input
+        python3 "$GIT_MANAGEMENT_PY"
+
+        # Read operation status from file variable
+        local operation_status=$(read_git_var "git_operation_status" "cancelled")
+        local operation_type=$(read_git_var "git_operation_type" "")
+        local menu_back=$(read_git_var "git_menu_back" "false")
+
+        # Check if user wants to go back to main menu
+        if [ "$menu_back" = "true" ]; then
+            clear_git_vars
+            return 0
+        fi
+
+        # Check operation status
+        if [ "$operation_status" = "cancelled" ]; then
+            echo ""
+            echo -e "\033[33mOperation cancelled.\033[0m"
+            read -p "Press Enter to return to Git Management menu..."
+            continue
+        fi
+
+        if [ "$operation_status" = "failed" ]; then
+            local error_msg=$(read_git_var "git_operation_message" "Unknown error")
+            echo ""
+            echo -e "\033[31mOperation failed: $error_msg\033[0m"
+            read -p "Press Enter to return to Git Management menu..."
+            continue
+        fi
+
+        # Execute the shell command if operation is pending
+        if [ "$operation_status" = "pending" ]; then
+            local shell_script=$(read_git_var "git_shell_script" "")
+
+            if [ -n "$shell_script" ]; then
+                echo ""
+                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+                echo -e "\033[36mExecuting Git operation...\033[0m"
+                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+                echo ""
+
+                # Execute the shell command
+                cd "$CORE_NODE_ROOT_DIR"
+                eval "$shell_script"
+                local exec_result=$?
+
+                # Update status based on execution result
+                if [ $exec_result -eq 0 ]; then
+                    write_git_var "git_operation_status" "success"
+                    echo ""
+                    echo -e "\033[32m�?Operation completed successfully!\033[0m"
+
+                    # Make shell scripts executable after pull operations
+                    if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
+                        make_sh_executable
+                    fi
+
+                    # Show backup branch info for force overwrite
+                    if [ "$operation_type" = "force_overwrite" ]; then
+                        local backup_branch=$(read_git_var "git_backup_branch" "")
+                        if [ -n "$backup_branch" ]; then
+                            echo ""
+                            echo -e "\033[36mYour local changes have been backed up to: $backup_branch\033[0m"
+                        fi
+                    fi
+                else
+                    write_git_var "git_operation_status" "failed"
+                    echo ""
+                    echo -e "\033[31m�?Operation failed.\033[0m"
+                    echo "Please check the output above for details."
+                fi
+
+                echo ""
+                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+            else
+                echo ""
+                echo -e "\033[31mError: No shell command generated.\033[0m"
+                write_git_var "git_operation_status" "failed"
+            fi
+        fi
+
+        # Pause before returning to menu
+        echo ""
+        read -p "Press Enter to return to Git Management menu..."
+    done
 }

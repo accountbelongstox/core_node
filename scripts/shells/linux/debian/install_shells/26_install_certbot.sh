@@ -19,36 +19,44 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Variables
-INSTALL_NGINX=$(get_var "INSTALL_NGINX")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
 echo "[$SCRIPT_INDEX] Certbot SSL Certificate Installation Script"
-echo "[$SCRIPT_INDEX] INSTALL_NGINX: $INSTALL_NGINX"
 echo "[$SCRIPT_INDEX] INSTALL_MODE: $INSTALL_MODE"
 
 # Function to check if Nginx is actually installed
 check_nginx_installed() {
+    # Check common nginx installation paths
+    local nginx_paths=(
+        "/usr/sbin/nginx"
+        "/usr/bin/nginx"
+        "/sbin/nginx"
+        "/usr/local/sbin/nginx"
+        "/usr/local/bin/nginx"
+    )
+
+    for path in "${nginx_paths[@]}"; do
+        if [ -x "$path" ]; then
+            return 0
+        fi
+    done
+
+    # Fallback to command -v (checks PATH)
     if command -v nginx >/dev/null 2>&1; then
         return 0
     fi
+
     return 1
 }
 
 # Check if Nginx is installed (Certbot depends on Nginx)
-if [ "$INSTALL_NGINX" != "true" ]; then
-    echo "[$SCRIPT_INDEX] INSTALL_NGINX is set to: $INSTALL_NGINX"
-    echo "[$SCRIPT_INDEX] Checking if Nginx is actually installed..."
-
-    if check_nginx_installed; then
-        echo "[$SCRIPT_INDEX] Nginx is installed, proceeding with Certbot installation"
-    else
-        echo "[$SCRIPT_INDEX] Skipping Certbot installation - Nginx is not installed"
-        echo "[$SCRIPT_INDEX] Certbot requires Nginx to be installed"
-        exit 0
-    fi
-else
-    echo "[$SCRIPT_INDEX] INSTALL_NGINX is enabled, proceeding with Certbot installation"
+if ! check_nginx_installed; then
+    echo "[$SCRIPT_INDEX] Skipping Certbot installation - Nginx is not installed"
+    echo "[$SCRIPT_INDEX] Certbot requires Nginx to be installed"
+    exit 0
 fi
+
+echo "[$SCRIPT_INDEX] Nginx is installed, proceeding with Certbot installation"
 
 check_and_install_sudo
 
@@ -81,15 +89,112 @@ install_certbot() {
     echo "[$SCRIPT_INDEX] Certbot installed successfully"
 }
 
+# Function to fix urllib3 compatibility with certbot
+fix_urllib3_compatibility() {
+    echo "[$SCRIPT_INDEX] =================================="
+    echo "[$SCRIPT_INDEX] URLLIB3 COMPATIBILITY CHECK"
+    echo "[$SCRIPT_INDEX] =================================="
+
+    # IDEMPOTENCY: Always check current state first
+    local current_version=$($USE_SUDO python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null || echo "not found")
+    echo "[$SCRIPT_INDEX] [CHECK] Current urllib3 version: $current_version"
+
+    # Test DEFAULT_CIPHERS availability (required by certbot 2.1.0)
+    echo "[$SCRIPT_INDEX] [CHECK] Testing DEFAULT_CIPHERS availability..."
+    if $USE_SUDO python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] DEFAULT_CIPHERS available"
+        local has_default_ciphers=true
+    else
+        echo "[$SCRIPT_INDEX] [WARN] DEFAULT_CIPHERS not available"
+        local has_default_ciphers=false
+    fi
+
+    # Test if certbot works
+    echo "[$SCRIPT_INDEX] [CHECK] Testing certbot plugins command..."
+    if $USE_SUDO certbot plugins >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] Certbot works correctly"
+        if [ "$has_default_ciphers" = true ]; then
+            echo "[$SCRIPT_INDEX] [SKIP] urllib3 is compatible, no fix needed"
+            return 0
+        fi
+    fi
+
+    # Need to fix urllib3
+    echo "[$SCRIPT_INDEX] [FIX] urllib3 incompatible with certbot, applying fix..."
+
+    # IDEMPOTENCY: Clean ALL urllib3 installations (system and user directories)
+    echo "[$SCRIPT_INDEX] [CLEANUP] Removing all urllib3 installations..."
+
+    # Remove from system directories
+    $USE_SUDO rm -rf /usr/local/lib/python3.*/dist-packages/urllib3* 2>/dev/null || true
+    $USE_SUDO rm -rf /usr/lib/python3/dist-packages/urllib3* 2>/dev/null || true
+
+    # Remove from user temporary directories
+    $USE_SUDO rm -rf /var/_core_node/Users/*/\.local/lib/python3.*/site-packages/urllib3* 2>/dev/null || true
+    $USE_SUDO rm -rf /root/.local/lib/python3.*/site-packages/urllib3* 2>/dev/null || true
+    $USE_SUDO rm -rf /home/*/.local/lib/python3.*/site-packages/urllib3* 2>/dev/null || true
+
+    # Uninstall via pip (both system and user)
+    $USE_SUDO pip3 uninstall -y urllib3 2>/dev/null || true
+    pip3 uninstall -y urllib3 2>/dev/null || true
+
+    echo "[$SCRIPT_INDEX] [INSTALL] Installing urllib3==1.26.18 to system location..."
+    # Force system-level installation (not user directory)
+    # Note: urllib3 1.26.18 is the last version compatible with certbot 2.1.0
+    # urllib3 2.x removed DEFAULT_CIPHERS constant that certbot depends on
+    $USE_SUDO pip3 install --break-system-packages --no-user urllib3==1.26.18 2>&1 | grep -E "Successfully|ERROR|Installing" | while IFS= read -r line; do
+        echo "[$SCRIPT_INDEX]   $line"
+    done
+
+    # Verify the fix with system Python
+    local new_version=$($USE_SUDO python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null || echo "not found")
+    echo "[$SCRIPT_INDEX] New urllib3 version: $new_version"
+
+    # Check urllib3 location
+    local urllib3_location=$($USE_SUDO python3 -c "import urllib3; print(urllib3.__file__)" 2>/dev/null || echo "not found")
+    echo "[$SCRIPT_INDEX] urllib3 location: $urllib3_location"
+
+    # Test DEFAULT_CIPHERS availability (required by certbot)
+    echo "[$SCRIPT_INDEX] [TEST] Checking DEFAULT_CIPHERS availability..."
+    if $USE_SUDO python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS; print('OK')" >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] DEFAULT_CIPHERS is available"
+    else
+        echo "[$SCRIPT_INDEX] [ERROR] DEFAULT_CIPHERS not found - certbot will fail"
+        echo "[$SCRIPT_INDEX] [ERROR] This should not happen with urllib3 1.26.18"
+        return 1
+    fi
+
+    # Test certbot plugins command
+    echo "[$SCRIPT_INDEX] [TEST] Testing certbot plugins command..."
+    if $USE_SUDO certbot plugins >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] Certbot compatibility fixed successfully"
+
+        # Show available plugins
+        echo "[$SCRIPT_INDEX] [INFO] Available certbot plugins:"
+        $USE_SUDO certbot plugins 2>&1 | grep -E "^\* " | while IFS= read -r line; do
+            echo "[$SCRIPT_INDEX]   $line"
+        done
+        return 0
+    else
+        echo "[$SCRIPT_INDEX] [ERROR] Certbot still has issues after fix"
+        echo "[$SCRIPT_INDEX] [DEBUG] Testing with verbose output..."
+        $USE_SUDO certbot plugins 2>&1 | head -20 | while IFS= read -r line; do
+            echo "[$SCRIPT_INDEX]   $line"
+        done
+        return 1
+    fi
+}
+
 # Function to install certbot-dns-dnspod plugin
 install_certbot_dnspod() {
     echo "[$SCRIPT_INDEX] =================================="
     echo "[$SCRIPT_INDEX] INSTALLING CERTBOT-DNS-DNSPOD PLUGIN"
     echo "[$SCRIPT_INDEX] =================================="
 
-    # Check if certbot is installed (should be from install_certbot)
+    # IDEMPOTENCY: Always check and fix certbot installation
+    echo "[$SCRIPT_INDEX] [CHECK] Verifying certbot availability..."
     if ! command -v certbot >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] certbot not found, installing base certbot first..."
+        echo "[$SCRIPT_INDEX] [INSTALL] certbot not found, installing base certbot..."
         $USE_SUDO apt-get update >/dev/null 2>&1
         $USE_SUDO apt-get install -y certbot >/dev/null 2>&1 || {
             echo "[$SCRIPT_INDEX] [FAIL] Failed to install certbot"
@@ -100,9 +205,10 @@ install_certbot_dnspod() {
         echo "[$SCRIPT_INDEX] [OK] certbot is available"
     fi
 
-    # Check if pip3 is available
+    # IDEMPOTENCY: Always check and fix pip3 installation
+    echo "[$SCRIPT_INDEX] [CHECK] Verifying pip3 availability..."
     if ! command -v pip3 >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] pip3 not found, installing python3-pip..."
+        echo "[$SCRIPT_INDEX] [INSTALL] pip3 not found, installing python3-pip..."
         $USE_SUDO apt-get update >/dev/null 2>&1
         $USE_SUDO apt-get install -y python3-pip >/dev/null 2>&1 || {
             echo "[$SCRIPT_INDEX] [FAIL] Failed to install python3-pip"
@@ -113,42 +219,46 @@ install_certbot_dnspod() {
         echo "[$SCRIPT_INDEX] [OK] pip3 is available"
     fi
 
-    # Check for zope.interface module (required by certbot-dns-dnspod)
-    echo "[$SCRIPT_INDEX] Checking zope.interface module..."
+    # IDEMPOTENCY: Always check and fix zope.interface module
+    echo "[$SCRIPT_INDEX] [CHECK] Verifying zope.interface module..."
     if python3 -c "import zope.interface" 2>/dev/null; then
         echo "[$SCRIPT_INDEX] [OK] zope.interface is available"
     else
-        echo "[$SCRIPT_INDEX] zope.interface not found, installing..."
+        echo "[$SCRIPT_INDEX] [INSTALL] zope.interface not found, installing..."
         if $USE_SUDO apt-get install -y python3-zope.interface >/dev/null 2>&1; then
             echo "[$SCRIPT_INDEX] [OK] zope.interface installed via apt-get"
-        elif $USE_SUDO pip3 install zope.interface --break-system-packages 2>/dev/null; then
+        elif $USE_SUDO pip3 install --break-system-packages --no-user zope.interface 2>/dev/null; then
             echo "[$SCRIPT_INDEX] [OK] zope.interface installed via pip3"
         else
             echo "[$SCRIPT_INDEX] [WARN] Failed to install zope.interface"
         fi
     fi
 
-    # Check if certbot-dns-dnspod is already installed
+    # IDEMPOTENCY: Always verify certbot-dns-dnspod installation
+    echo "[$SCRIPT_INDEX] [CHECK] Verifying certbot-dns-dnspod installation..."
     if pip3 list 2>/dev/null | grep -qi "certbot-dns-dnspod"; then
-        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod already installed"
         local version=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Version:" | cut -d' ' -f2)
-        echo "[$SCRIPT_INDEX]   Version: ${version:-unknown}"
-        return 0
-    fi
-
-    # Install certbot-dns-dnspod
-    echo "[$SCRIPT_INDEX] Installing certbot-dns-dnspod..."
-    $USE_SUDO pip3 install certbot-dns-dnspod --break-system-packages 2>&1 | while IFS= read -r line; do
-        echo "[$SCRIPT_INDEX]   $line"
-    done
-
-    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod installed successfully"
-        return 0
+        echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod already installed (version: ${version:-unknown})"
+        # IDEMPOTENCY: Even if installed, verify it's in the correct location
+        echo "[$SCRIPT_INDEX] [VERIFY] Checking installation location..."
+        local install_location=$(pip3 show certbot-dns-dnspod 2>/dev/null | grep "Location:" | cut -d' ' -f2)
+        echo "[$SCRIPT_INDEX] [INFO] Installed at: ${install_location:-unknown}"
     else
-        echo "[$SCRIPT_INDEX] [WARN] certbot-dns-dnspod installation had issues"
-        return 1
+        # Install certbot-dns-dnspod to system location
+        echo "[$SCRIPT_INDEX] [INSTALL] Installing certbot-dns-dnspod to system location..."
+        $USE_SUDO pip3 install --break-system-packages --no-user certbot-dns-dnspod 2>&1 | while IFS= read -r line; do
+            echo "[$SCRIPT_INDEX]   $line"
+        done
+
+        if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "[$SCRIPT_INDEX] [OK] certbot-dns-dnspod installed successfully"
+        else
+            echo "[$SCRIPT_INDEX] [WARN] certbot-dns-dnspod installation had issues"
+            return 1
+        fi
     fi
+
+    return 0
 }
 
 
@@ -582,10 +692,19 @@ EOF
 
 # Function to setup auto-renewal
 setup_auto_renewal() {
-    echo "[$SCRIPT_INDEX] Setting up automatic certificate renewal..."
-    
-    # Create renewal script
+    echo "[$SCRIPT_INDEX] [CHECK] Checking automatic certificate renewal setup..."
+
+    # IDEMPOTENCY: Always check and create/update renewal script
     local renewal_script="/usr/local/bin/certbot-renewal.sh"
+    echo "[$SCRIPT_INDEX] [VERIFY] Checking renewal script at $renewal_script..."
+
+    if [ -f "$renewal_script" ]; then
+        echo "[$SCRIPT_INDEX] [OK] Renewal script exists"
+    else
+        echo "[$SCRIPT_INDEX] [CREATE] Creating renewal script..."
+    fi
+
+    # Always recreate script to ensure it's up to date
     $USE_SUDO tee "$renewal_script" > /dev/null << 'EOF'
 #!/bin/bash
 # Certbot automatic renewal script
@@ -598,51 +717,64 @@ if [ $? -eq 0 ]; then
     systemctl reload nginx
 fi
 EOF
-    
+
     $USE_SUDO chmod +x "$renewal_script"
-    
-    # Add cron job for automatic renewal (twice daily)
+    echo "[$SCRIPT_INDEX] [OK] Renewal script created/updated"
+
+    # IDEMPOTENCY: Always check and add cron job
     local cron_job="0 */12 * * * root $renewal_script"
-    if ! $USE_SUDO crontab -l 2>/dev/null | grep -q "certbot-renewal"; then
+    echo "[$SCRIPT_INDEX] [CHECK] Verifying cron job for auto-renewal..."
+
+    if $USE_SUDO crontab -l 2>/dev/null | grep -q "certbot-renewal"; then
+        echo "[$SCRIPT_INDEX] [OK] Auto-renewal cron job already exists"
+    else
+        echo "[$SCRIPT_INDEX] [CREATE] Adding auto-renewal cron job..."
         (
             $USE_SUDO crontab -l 2>/dev/null || true
             echo "$cron_job"
         ) | $USE_SUDO crontab -
-        echo "[$SCRIPT_INDEX] Auto-renewal cron job added"
-    else
-        echo "[$SCRIPT_INDEX] Auto-renewal cron job already exists"
+        echo "[$SCRIPT_INDEX] [OK] Auto-renewal cron job added"
     fi
 }
 
 # Function to store Certbot information in global variables
 store_certbot_info() {
-    echo "[$SCRIPT_INDEX] Storing Certbot information in global variables..."
-    
-    # Add certbot to global path
-    local certbot_path=$(which certbot)
+    echo "[$SCRIPT_INDEX] [CHECK] Storing/updating Certbot information in global variables..."
+
+    # IDEMPOTENCY: Always check and create/update symlink
+    local certbot_path=$(which certbot 2>/dev/null)
     if [ -n "$certbot_path" ]; then
-        # Create symlink for certbot in /usr/local/bin if it doesn't exist
-        if [ ! -L "/usr/local/bin/certbot" ]; then
+        echo "[$SCRIPT_INDEX] [VERIFY] Certbot binary found at: $certbot_path"
+
+        # Always ensure symlink exists and points to correct location
+        if [ -L "/usr/local/bin/certbot" ]; then
+            local current_target=$(readlink -f /usr/local/bin/certbot)
+            if [ "$current_target" != "$certbot_path" ]; then
+                echo "[$SCRIPT_INDEX] [UPDATE] Updating certbot symlink..."
+                $USE_SUDO ln -sf "$certbot_path" /usr/local/bin/certbot
+                echo "[$SCRIPT_INDEX] [OK] Symlink updated: /usr/local/bin/certbot -> $certbot_path"
+            else
+                echo "[$SCRIPT_INDEX] [OK] Symlink correct: /usr/local/bin/certbot -> $certbot_path"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] [CREATE] Creating certbot symlink..."
             $USE_SUDO ln -sf "$certbot_path" /usr/local/bin/certbot
-            echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/certbot -> $certbot_path"
+            echo "[$SCRIPT_INDEX] [OK] Created symlink: /usr/local/bin/certbot -> $certbot_path"
         fi
+    else
+        echo "[$SCRIPT_INDEX] [WARN] Certbot binary not found in PATH"
     fi
-    
-    # Store binary path
+
+    # IDEMPOTENCY: Always store/update global variables
+    echo "[$SCRIPT_INDEX] [UPDATE] Storing global variables..."
     set_var "CERTBOT_BIN" "$certbot_path"
-    
-    # Store version
     set_var "CERTBOT_VERSION" "$(certbot --version 2>&1 | cut -d' ' -f2)"
-    
-    # Configuration will be managed by Laravel ServerManager
     set_var "CERTBOT_MANAGED_BY" "laravel_servermanager"
-    
-    # Store directories
     set_var "CERTBOT_CONFIG_DIR" "/etc/letsencrypt"
     set_var "CERTBOT_WORK_DIR" "/var/lib/letsencrypt"
     set_var "CERTBOT_LOG_DIR" "/var/log/letsencrypt"
-    
-    echo "[$SCRIPT_INDEX] Certbot information stored successfully"
+
+    echo "[$SCRIPT_INDEX] [OK] Certbot information stored successfully"
 }
 
 # Function to verify Certbot installation
@@ -682,41 +814,79 @@ verify_certbot_installation() {
     fi
 }
 
-# Main installation logic
+# Main installation logic - IDEMPOTENT: Always check and fix all steps
+echo "[$SCRIPT_INDEX] ================================="
 echo "[$SCRIPT_INDEX] CERTBOT INSTALLATION & CONFIGURATION"
+echo "[$SCRIPT_INDEX] IDEMPOTENT: Checking and fixing all steps"
+echo "[$SCRIPT_INDEX] ================================="
+echo ""
 
-# Step 1: Check if Certbot is already installed
+# STEP 1: Check and install/fix Certbot base
+echo "[$SCRIPT_INDEX] [STEP 1/8] Checking Certbot base installation..."
 if check_certbot; then
-    echo "[$SCRIPT_INDEX] ?Certbot is already installed: $(certbot --version 2>&1)"
+    echo "[$SCRIPT_INDEX] [OK] Certbot is already installed: $(certbot --version 2>&1)"
 else
-    echo "[$SCRIPT_INDEX] Installing Certbot..."
+    echo "[$SCRIPT_INDEX] [INSTALL] Installing Certbot..."
     install_certbot
     if ! check_certbot; then
-        echo "[$SCRIPT_INDEX] ?Certbot installation failed"
+        echo "[$SCRIPT_INDEX] [ERROR] Certbot installation failed"
         exit 1
     fi
-    echo "[$SCRIPT_INDEX] ?Certbot installed successfully: $(certbot --version 2>&1)"
+    echo "[$SCRIPT_INDEX] [OK] Certbot installed successfully: $(certbot --version 2>&1)"
 fi
-
-# Step 2: Install certbot-dns-dnspod plugin
 echo ""
+
+# STEP 2: Check and install/fix certbot-dns-dnspod plugin (includes urllib3 fix)
+echo "[$SCRIPT_INDEX] [STEP 2/8] Checking certbot-dns-dnspod plugin..."
 install_certbot_dnspod || {
-    echo "[$SCRIPT_INDEX] Warning: certbot-dns-dnspod installation failed, continuing..."
+    echo "[$SCRIPT_INDEX] [WARN] certbot-dns-dnspod installation had issues, but continuing..."
 }
+echo ""
 
-# Step 3: Show Laravel ServerManager certificate configuration
+# STEP 3: Check and fix urllib3 compatibility (always run)
+echo "[$SCRIPT_INDEX] [STEP 3/8] Verifying urllib3 compatibility..."
+fix_urllib3_compatibility || {
+    echo "[$SCRIPT_INDEX] [WARN] urllib3 compatibility check completed with warnings"
+}
+echo ""
+
+# STEP 4: Setup Laravel ServerManager SSL configuration (always run)
+echo "[$SCRIPT_INDEX] [STEP 4/8] Checking Laravel ServerManager SSL configuration..."
+create_laravel_ssl_config
+echo ""
+
+# STEP 5: Setup Nginx directories (always run)
+echo "[$SCRIPT_INDEX] [STEP 5/8] Checking Nginx directories..."
+setup_nginx_directories
+echo ""
+
+# STEP 6: Show Laravel ServerManager certificate configuration (always run)
+echo "[$SCRIPT_INDEX] [STEP 6/8] Displaying certificate configuration..."
 show_certificate_config
+echo ""
 
-# Step 4: Setup auto-renewal
+# STEP 7: Setup auto-renewal (always run)
+echo "[$SCRIPT_INDEX] [STEP 7/8] Checking auto-renewal configuration..."
 setup_auto_renewal
+echo ""
 
-# Step 5: Store Certbot information
+# STEP 8: Store Certbot information (always run)
+echo "[$SCRIPT_INDEX] [STEP 8/8] Storing Certbot information..."
 store_certbot_info
+echo ""
 
-# Step 9: Verify installation
+# FINAL VERIFICATION: Always verify installation status
+echo "[$SCRIPT_INDEX] ================================="
+echo "[$SCRIPT_INDEX] FINAL VERIFICATION"
+echo "[$SCRIPT_INDEX] ================================="
 if verify_certbot_installation; then
-    echo "[$SCRIPT_INDEX] CERTBOT INSTALLATION COMPLETED SUCCESSFULLY"
-    echo "[$SCRIPT_INDEX] Certbot Installation Status:"
+    echo ""
+    echo "[$SCRIPT_INDEX] ================================="
+    echo "[$SCRIPT_INDEX] CERTBOT SETUP COMPLETED"
+    echo "[$SCRIPT_INDEX] ================================="
+    echo "[$SCRIPT_INDEX] All checks passed, system is ready"
+    echo "[$SCRIPT_INDEX] "
+    echo "[$SCRIPT_INDEX] Installation Status:"
     echo "[$SCRIPT_INDEX] -------------------------"
     echo "[$SCRIPT_INDEX] Version: $(certbot --version 2>&1 | cut -d' ' -f2)"
     echo "[$SCRIPT_INDEX] Binary Path: $(which certbot)"
@@ -737,7 +907,9 @@ if verify_certbot_installation; then
     echo "[$SCRIPT_INDEX]    cd $CORE_NODE_DIR/poly_apps/laravel_main"
     echo "[$SCRIPT_INDEX]    php artisan servermanager:certificate add example.com --provider=dnspod"
     echo "[$SCRIPT_INDEX]    php artisan servermanager:website add example.com --type=html --ssl=auto"
+    echo "[$SCRIPT_INDEX] ================================="
 else
-    echo "[$SCRIPT_INDEX] ?Certbot installation verification failed"
+    echo "[$SCRIPT_INDEX] [ERROR] Certbot installation verification failed"
+    echo "[$SCRIPT_INDEX] Some checks did not pass, please review output above"
     exit 1
 fi

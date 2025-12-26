@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1MilestoneModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_milestones';
 
     protected $fillable = [

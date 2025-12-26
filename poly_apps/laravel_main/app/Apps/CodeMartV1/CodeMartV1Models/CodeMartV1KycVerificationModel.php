@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1KycVerificationModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_kyc_verifications';
 
     protected $fillable = [

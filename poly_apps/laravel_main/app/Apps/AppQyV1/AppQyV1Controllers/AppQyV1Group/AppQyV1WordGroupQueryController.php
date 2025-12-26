@@ -23,8 +23,20 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
+use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
+
 class AppQyV1WordGroupQueryController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     * Use AuthHelper for authentication
+     * Use ApiResponse trait methods (success/error/unauthorized/forbidden)
+     */
+
     public function isGroupNameExist($gname)
     {
         $uid = Auth::id();
@@ -55,7 +67,6 @@ class AppQyV1WordGroupQueryController
         $sort_by = $request->input(key: 'sort_by');
         $sort_asc = $request->input(key: 'sort_asc');
         $sort_frequency = $request->input(key: 'sort_frequency');
-        try {
             $user = Auth::user();
             if (!$user) {
                 return response()->json([
@@ -105,13 +116,6 @@ class AppQyV1WordGroupQueryController
                     'gcontent' => $fetch_gcontent ? $group->gcontent : null,
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 
     /**
@@ -123,7 +127,6 @@ class AppQyV1WordGroupQueryController
     public function getGroupByName(Request $request): JsonResponse
     {
         $supported_params = ['gname', 'fetch_gcontent', 'sort_by', 'sort_asc', 'sort_frequency'];
-        try {
             $validator = Validator::make($request->all(), [
                 'gname' => 'required|string',
                 'fetch_gcontent' => 'nullable|boolean'
@@ -198,13 +201,6 @@ class AppQyV1WordGroupQueryController
                     'words_frequency' => $group->words_frequency,
                 ]
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
-        }
     }
 
     public function getGFrequency(Request $request): JsonResponse
@@ -305,62 +301,71 @@ class AppQyV1WordGroupQueryController
      */
     public function getAllGroup(Request $request): JsonResponse
     {
-        $supported_params = ['start', 'limit'];
-        try {
-            $user = Auth::user();
-            DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
-            $start = $request->input(key: 'start') ?? 0;
-            $limit = $request->input(key: 'limit') ?? 1000;
-            if (!$user) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Unauthorized access',
-                    'supported_params' => $supported_params,
-                ], 401);
-            }
-            $groups = AppQyV1WordGroupModel::where('uid', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->skip($start)
-                ->take($limit)
-                ->get()
-                ->makeHidden('gcontent'); // hides gcontent in the collection
-
-            $uid = Auth::id();
-            return response()->json([
-                'status' => 'success',
-                'supported_params' => $supported_params,
-                'data' => [
-                    'uid' => $uid,
-                    'total' => $groups->count(),
-                    'start' => $start,
-                    'limit' => $limit,
-                    'groups_length' => $groups->count(),
-                    'groups' => $groups->map(function ($group) {
-                        if (is_string($group->gwords)) {
-                            $group->gwords = StrTool::extractWords($group->gcontent);
-                        }
-                        return [
-                            'gid' => $group->gid,
-                            'gname' => $group->gname,
-                            // 'gcontent' => $group->gcontent,
-                            'gwords' => $group->gwords,
-                            'total_words' => count($group->gwords),
-                            'created_at' => $group->created_at,
-                            'updated_at' => $group->updated_at,
-                            'words_frequency' => $group->words_frequency,
-
-                        ];
-                    }),
-                    // 'personal_words' => $personal_words,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'supported_params' => $supported_params,
-            ], 500);
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized('Authentication required');
         }
+
+        $validated = $request->validate([
+            'start' => 'nullable|integer|min:0',
+            'limit' => 'nullable|integer|min:1|max:1000',
+            'with_words' => 'nullable|boolean',
+        ]);
+
+        DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
+
+        $start = $validated['start'] ?? 0;
+        $limit = $validated['limit'] ?? 1000;
+        $withWords = $validated['with_words'] ?? false;
+
+        $query = AppQyV1WordGroupModel::forUser($user->id)
+            ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid', 'cover_url', 'thumbnail_url', 'cover_category', 'language', 'is_language_default'])
+            ->orderBy('created_at', 'desc');
+
+        if ($withWords) {
+            $query->withCount('groupWords');
+        }
+
+        $groups = $query->skip($start)
+            ->take($limit)
+            ->get();
+
+        $mappedGroups = $groups->map(function ($group) use ($withWords) {
+            $gwords = $group->gwords;
+            if (is_string($gwords)) {
+                $decodedGwords = json_decode($gwords, true);
+                $gwords = $decodedGwords ?? [];
+            }
+            if (!is_array($gwords)) {
+                $gwords = [];
+            }
+
+            $data = [
+                'gid' => $group->gid,
+                'gname' => $group->gname,
+                'gwords' => $gwords,
+                'total_words' => $withWords ? ($group->group_words_count ?? 0) : count($gwords),
+                'created_at' => $group->created_at,
+                'updated_at' => $group->updated_at,
+                'words_frequency' => $group->words_frequency,
+                'cover_url' => $group->cover_url ?? null,
+                'thumbnail_url' => $group->thumbnail_url ?? null,
+                'cover_category' => $group->cover_category ?? 'custom',
+                'language' => $group->language ?? 'en',
+                'is_language_default' => $group->is_language_default ?? false,
+            ];
+
+            return $data;
+        });
+
+        return $this->success([
+            'uid' => $user->id,
+            'total' => $groups->count(),
+            'start' => $start,
+            'limit' => $limit,
+            'groups_length' => $groups->count(),
+            'groups' => $mappedGroups,
+        ], 'Groups retrieved successfully');
     }
 }
 

@@ -2,6 +2,8 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PhoneVerificationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
@@ -17,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 
 class CodeMartV1RegistrationCtl extends Controller
 {
+    use ApiResponse;
+
     private CodeMartV1EmailService $emailService;
     private CodeMartV1OtpService $otpService;
     private CodeMartV1FileUploadService $fileUploadService;
@@ -42,54 +46,38 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $user = CodeMartV1UserModel::create([
-                'username' => $request->username,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-                'name' => $request->real_name,
-                'rolename' => $request->role_type,
-                'rolelevel' => 0,
-            ]);
+        $user = CodeMartV1UserModel::create([
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'name' => $request->real_name,
+            'rolename' => $request->role_type,
+            'rolelevel' => 0,
+        ]);
 
-            CodeMartV1UserRoleModel::create([
-                'user_id' => $user->id,
-                'role_type' => $request->role_type,
-                'role_status' => 'pending',
-            ]);
+        CodeMartV1UserRoleModel::create([
+            'user_id' => $user->id,
+            'role_type' => $request->role_type,
+            'role_status' => 'pending',
+        ]);
 
-            $emailToken = $this->emailService->createEmailVerification($request->email);
-            $this->emailService->sendVerificationEmail($request->email, $emailToken);
+        $emailToken = $this->emailService->createEmailVerification($request->email);
+        $this->emailService->sendVerificationEmail($request->email, $emailToken);
 
-            DB::commit();
+        DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Registration successful. Please verify your email.',
-                'data' => [
-                    'user_id' => $user->id,
-                    'username' => $user->username,
-                    'email' => $user->email,
-                    'role_type' => $request->role_type,
-                    'next_step' => 'email_verification',
-                ],
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Registration failed: ' . $e->getMessage(),
-            ], 500);
-        }
+        return $this->success([
+            'user_id' => $user->id,
+            'username' => $user->username,
+            'email' => $user->email,
+            'role_type' => $request->role_type,
+            'next_step' => 'email_verification',
+        ], 'Registration successful. Please verify your email.', 201);
     }
 
     public function verifyEmail(Request $request): JsonResponse
@@ -100,123 +88,72 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
         if (!$this->emailService->verifyToken($request->email, $request->token)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid or expired verification token',
-            ], 422);
+            return $this->error('Invalid or expired verification token', 422);
         }
 
         $user = CodeMartV1UserModel::where('email', $request->email)->first();
 
         if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found',
-            ], 404);
+            return $this->notFound('User not found');
         }
 
         $user->update(['email_verified_at' => now()]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Email verified successfully',
-            'data' => [
-                'user_id' => $user->id,
-                'next_step' => 'phone_verification',
-            ],
-        ], 200);
+        return $this->success([
+            'user_id' => $user->id,
+            'next_step' => 'phone_verification',
+        ], 'Email verified successfully');
     }
 
     public function requestPhoneVerification(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'phone' => 'required|string|regex:/^[0-9]{10,15}$/',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
         $otpData = $this->otpService->createOtpRecord($user->id, $request->phone);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'OTP sent to your phone',
-            'data' => $otpData,
-        ], 200);
+        return $this->success($otpData, 'OTP sent to your phone');
     }
 
     public function verifyPhoneOtp(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'otp_code' => 'required|string|regex:/^[0-9]{6}$/',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
         if (!$this->otpService->verifyOtp($user->id, $request->otp_code)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid or expired OTP code',
-            ], 422);
+            return $this->error('Invalid or expired OTP code', 422);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Phone number verified successfully',
-            'data' => [
-                'user_id' => $user->id,
-                'next_step' => 'kyc_verification',
-            ],
-        ], 200);
+        return $this->success([
+            'user_id' => $user->id,
+            'next_step' => 'kyc_verification',
+        ], 'Phone number verified successfully');
     }
 
     public function uploadKycDocuments(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'identity_type' => 'required|in:ID_CARD,PASSPORT,DRIVING_LICENSE',
@@ -229,80 +166,59 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $idFrontPath = $this->fileUploadService->uploadKycImage(
-                $request->file('id_front_image'),
-                'id_front'
+        $idFrontPath = $this->fileUploadService->uploadKycImage(
+            $request->file('id_front_image'),
+            'id_front'
+        );
+
+        $idBackPath = null;
+        if ($request->hasFile('id_back_image')) {
+            $idBackPath = $this->fileUploadService->uploadKycImage(
+                $request->file('id_back_image'),
+                'id_back'
             );
+        }
 
-            $idBackPath = null;
-            if ($request->hasFile('id_back_image')) {
-                $idBackPath = $this->fileUploadService->uploadKycImage(
-                    $request->file('id_back_image'),
-                    'id_back'
-                );
-            }
+        $selfiePath = $this->fileUploadService->uploadKycImage(
+            $request->file('selfie_image'),
+            'selfie'
+        );
 
-            $selfiePath = $this->fileUploadService->uploadKycImage(
-                $request->file('selfie_image'),
-                'selfie'
-            );
-
-            if (!$idFrontPath || !$selfiePath) {
-                throw new \Exception('File upload failed');
-            }
-
-            $kycVerification = CodeMartV1KycVerificationModel::create([
-                'user_id' => $user->id,
-                'identity_type' => $request->identity_type,
-                'identity_number' => $request->identity_number,
-                'real_name' => $request->real_name,
-                'date_of_birth' => $request->date_of_birth,
-                'id_front_image_path' => $idFrontPath,
-                'id_back_image_path' => $idBackPath,
-                'selfie_image_path' => $selfiePath,
-                'verification_status' => 'pending',
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'KYC documents uploaded. Awaiting manual verification.',
-                'data' => [
-                    'kyc_id' => $kycVerification->id,
-                    'verification_status' => 'pending',
-                    'next_step' => 'deposit_payment',
-                ],
-            ], 201);
-        } catch (\Exception $e) {
+        if (!$idFrontPath || !$selfiePath) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Upload failed: ' . $e->getMessage(),
-            ], 500);
+            return $this->error('File upload failed', 500);
         }
+
+        $kycVerification = CodeMartV1KycVerificationModel::create([
+            'user_id' => $user->id,
+            'identity_type' => $request->identity_type,
+            'identity_number' => $request->identity_number,
+            'real_name' => $request->real_name,
+            'date_of_birth' => $request->date_of_birth,
+            'id_front_image_path' => $idFrontPath,
+            'id_back_image_path' => $idBackPath,
+            'selfie_image_path' => $selfiePath,
+            'verification_status' => 'pending',
+        ]);
+
+        DB::commit();
+
+        return $this->success([
+            'kyc_id' => $kycVerification->id,
+            'verification_status' => 'pending',
+            'next_step' => 'deposit_payment',
+        ], 'KYC documents uploaded. Awaiting manual verification.', 201);
     }
 
     public function getRegistrationStatus(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $userModel = CodeMartV1UserModel::with([
             'userRoles',
@@ -311,10 +227,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ])->find($user->id);
 
         if (!$userModel) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found',
-            ], 404);
+            return $this->notFound('User not found');
         }
 
         $emailVerified = $userModel->email_verified_at !== null;
@@ -327,19 +240,16 @@ class CodeMartV1RegistrationCtl extends Controller
             ->pluck('role_status', 'role_type')
             ->toArray();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'user_id' => $userModel->id,
-                'username' => $userModel->username,
-                'email' => $userModel->email,
-                'email_verified' => $emailVerified,
-                'phone_verified' => $phoneVerified,
-                'kyc_status' => $kycStatus,
-                'roles' => $userRoles,
-                'registration_complete' => $this->isRegistrationComplete($userModel),
-            ],
-        ], 200);
+        return $this->success([
+            'user_id' => $userModel->id,
+            'username' => $userModel->username,
+            'email' => $userModel->email,
+            'email_verified' => $emailVerified,
+            'phone_verified' => $phoneVerified,
+            'kyc_status' => $kycStatus,
+            'roles' => $userRoles,
+            'registration_complete' => $this->isRegistrationComplete($userModel),
+        ]);
     }
 
     private function isRegistrationComplete(CodeMartV1UserModel $user): bool

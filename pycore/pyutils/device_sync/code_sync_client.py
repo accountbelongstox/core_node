@@ -4,6 +4,12 @@ Code Sync Client - Receive code changes from server
 
 Scans LAN for code sync servers (port 59000).
 Receives code changes and prompts for overwrite (test mode).
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=70) for graceful shutdown
+- Checks THREAD_BUS.is_shutdown_requested() in scan loop
+- Triggers 'code_sync.client.started' and 'code_sync.client.stopped' events
+- Backwards compatible: keeps existing thread management
 """
 
 import os
@@ -17,7 +23,11 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
 
+<<<<<<< HEAD
 from pycore import ColorPrint
+=======
+from pycore import ColorPrint, THREAD_BUS
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from pycore.pyfoundations.system_paths import get_app_data_dir, CORE_NODE_ROOT
 from pycore.pyfoundations.third_party import get_third_package_requests
 
@@ -478,10 +488,33 @@ class CodeSyncClient:
         )
         self.scan_thread.start()
 
+<<<<<<< HEAD
+=======
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=70 for service threads (stops before singleton detector)
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=70,
+            name="code_sync_client"
+        )
+        ColorPrint.blue("[CodeSync Client] Registered THREAD_BUS shutdown handler (priority=70)")
+
+        # THREAD_BUS Integration: Trigger client started event
+        THREAD_BUS.trigger_event('code_sync.client.started', {
+            'target_dir': str(self.target_dir),
+            'client_id': self.client_id,
+            'backup_enabled': self.enable_backup
+        }, async_mode=True)
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         ColorPrint.green("[CodeSync Client] Started")
 
     def stop(self):
-        """Stop code sync client"""
+        """
+        Stop code sync client
+
+        THREAD_BUS Integration: Called by shutdown handler during graceful shutdown
+        """
         if not self.running:
             return
 
@@ -494,6 +527,14 @@ class CodeSyncClient:
         if self.scan_thread:
             self.scan_thread.join(timeout=2.0)
 
+<<<<<<< HEAD
+=======
+        # THREAD_BUS Integration: Trigger client stopped event
+        THREAD_BUS.trigger_event('code_sync.client.stopped', {
+            'servers_count': len(self.servers)
+        }, async_mode=True)
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         ColorPrint.yellow("[CodeSync Client] Stopped")
 
     def _generate_client_id(self) -> str:
@@ -507,7 +548,12 @@ class CodeSyncClient:
         return f"{hostname}_{mac}_{int(time.time())}"
 
     def _scan_loop(self):
-        """Server scanner loop"""
+        """
+        Server scanner loop
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
+        """
         ColorPrint.green("[CodeSync Client] Server scanner started")
 
         # Initial scan
@@ -515,10 +561,20 @@ class CodeSyncClient:
 
         # Periodic re-scan for new servers
         while self.running:
+<<<<<<< HEAD
+            try:
+                time.sleep(30)  # Re-scan every 30 seconds for new servers
+=======
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow("[CodeSync Client] THREAD_BUS shutdown detected, stopping scanner...")
+                break
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+
             try:
                 time.sleep(30)  # Re-scan every 30 seconds for new servers
 
-                if not self.running:
+                if not self.running or THREAD_BUS.is_shutdown_requested():
                     break
 
                 self._scan_for_servers()

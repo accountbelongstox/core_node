@@ -1790,6 +1790,7 @@ main() {
             echo -e "${WHITE}This tool sets up a NAT Gateway, allowing LAN devices to access internet through WAN interface.${NC}"
             echo ""
             echo -e "${CYAN}Features:${NC}"
+<<<<<<< HEAD
             echo -e "  ${GREEN}ï¿½?{NC} NAT Gateway: Share WAN internet connection with LAN devices"
             echo -e "  ${GREEN}ï¿½?{NC} Keyword-based interface matching (hot-plug support)"
             echo -e "  ${GREEN}ï¿½?{NC} Automatic NAT Gateway setup when interfaces are available"
@@ -1797,6 +1798,15 @@ main() {
             echo -e "  ${GREEN}ï¿½?{NC} Real-time monitoring (checks every 5 seconds)"
             echo -e "  ${GREEN}ï¿½?{NC} Interactive menu for configuration management"
             echo -e "  ${GREEN}ï¿½?{NC} Systemd service for automatic startup"
+=======
+            echo -e "  ${GREEN}ï¿?{NC} NAT Gateway: Share WAN internet connection with LAN devices"
+            echo -e "  ${GREEN}ï¿?{NC} Keyword-based interface matching (hot-plug support)"
+            echo -e "  ${GREEN}ï¿?{NC} Automatic NAT Gateway setup when interfaces are available"
+            echo -e "  ${GREEN}ï¿?{NC} Auto-configure LAN interface as gateway (default: 192.168.2.1/24)"
+            echo -e "  ${GREEN}ï¿?{NC} Real-time monitoring (checks every 5 seconds)"
+            echo -e "  ${GREEN}ï¿?{NC} Interactive menu for configuration management"
+            echo -e "  ${GREEN}ï¿?{NC} Systemd service for automatic startup"
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             echo ""
             echo -e "${YELLOW}Installation Process:${NC}"
             echo -e "  1. Create 'natgateway' command (available immediately)"

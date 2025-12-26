@@ -87,6 +87,7 @@ class AppQyV1VocabularyCoverService
 
     public function getDefaultCoverUrl(): string
     {
+<<<<<<< HEAD
         $record = AppQyV1VocabularyCoverModel::query()->firstOrCreate(
             ['library_id' => 0],
             [
@@ -104,6 +105,9 @@ class AppQyV1VocabularyCoverService
         }
 
         return $this->buildCoverUrl($record->cover_filename);
+=======
+        return $this->buildCoverUrl($this->defaultFilename);
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     }
 
     public function getCoverPath(string $filename): string

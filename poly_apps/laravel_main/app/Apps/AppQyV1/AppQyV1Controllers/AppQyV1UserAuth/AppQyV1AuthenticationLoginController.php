@@ -28,8 +28,16 @@ use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use Illuminate\Routing\Controller as BaseController;
+use App\Traits\ApiResponse;
 class AppQyV1AuthenticationLoginController extends BaseController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     /**
      * Send SMS verification code
      */
@@ -146,7 +154,6 @@ class AppQyV1AuthenticationLoginController extends BaseController
             ], 401);
         }
 
-        try {
             // Find or create user
             $user = User::where('phone', $phoneNumber)->first();
 
@@ -188,15 +195,6 @@ class AppQyV1AuthenticationLoginController extends BaseController
                 ]
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => [
-                    'code' => 'SERVICE_UNAVAILABLE',
-                    'message' => 'Authentication failed'
-                ]
-            ], 500);
-        }
     }
 
     /**
@@ -329,7 +327,6 @@ class AppQyV1AuthenticationLoginController extends BaseController
 
     public function login(Request $request)
     {
-        try {
             $username = $request->input('username');
             $password = $request->input('password');
             $userAuthToken = $request->header(Gvar::AuthUserToken);
@@ -362,8 +359,14 @@ class AppQyV1AuthenticationLoginController extends BaseController
             
             // Add user learning data
             $user = $authData['user'];
-            $learningLanguages = $user->learning_languages ?? ['en'];
-            $nativeLanguage = $user->native_language ?? 'zh';
+            $learningLanguages = ['en'];
+            if (isset($user->learning_languages)) {
+                $learningLanguages = $user->learning_languages;
+            }
+            $nativeLanguage = 'zh';
+            if (isset($user->native_language)) {
+                $nativeLanguage = $user->native_language;
+            }
             
             // Get learning stats for all languages or first learning language
             $langCode = !empty($learningLanguages) ? $learningLanguages[0] : 'en';
@@ -373,7 +376,12 @@ class AppQyV1AuthenticationLoginController extends BaseController
             $response['data']['user']['learning_languages'] = $learningLanguages;
             $response['data']['user']['native_language'] = $nativeLanguage;
             $response['data']['user']['learning_stats'] = $learningStats;
-            
+
+            // Add avatar_url using AvatarService
+            if (isset($user->avatar)) {
+                $response['data']['user']['avatar_url'] = \App\Services\AvatarService::getAvatarUrl($user->avatar);
+            }
+
             // Add stats to top level for compatibility
             if (isset($learningStats['stats'])) {
                 $stats = $learningStats['stats'];
@@ -386,18 +394,9 @@ class AppQyV1AuthenticationLoginController extends BaseController
                 $response['data']['user']['streak_days'] = $stats['streak_days'] ?? 0;
                 $response['data']['user']['study_days'] = $stats['study_days'] ?? 0;
             }
-            
+
             return response()->json($response);
             
-        } catch (ValidationException $e) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'message' => 'Invalid credentials or username or password or user-auth-token',
-                    'errors' => $e->errors(),
-                ], 422);
-            }
-            throw $e;
-        }
     }
 
     public function loginByUserToken($userAuthToken)
@@ -445,7 +444,10 @@ class AppQyV1AuthenticationLoginController extends BaseController
      */
     public function refreshUserToken(Request $request)
     {
-        $userToken = $request->header(Gvar::AuthUserToken) ?? $request->input('user_token');
+        $userToken = $request->input('user_token');
+        if ($request->header(Gvar::AuthUserToken) !== null) {
+            $userToken = $request->header(Gvar::AuthUserToken);
+        }
         
         if (!$userToken) {
             return response()->json([
@@ -471,7 +473,10 @@ class AppQyV1AuthenticationLoginController extends BaseController
      */
     public function getUserByToken(Request $request)
     {
-        $userToken = $request->header(Gvar::AuthUserToken) ?? $request->input('user_token');
+        $userToken = $request->input('user_token');
+        if ($request->header(Gvar::AuthUserToken) !== null) {
+            $userToken = $request->header(Gvar::AuthUserToken);
+        }
         
         if (!$userToken) {
             return response()->json([

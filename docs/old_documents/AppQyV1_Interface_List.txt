@@ -1,0 +1,314 @@
+AppQyV1 Interface Inventory
+All URLs begin with `/api`. Authentication shortcuts:
+- `public` – no auth required.
+- `auth:sanctum` – Bearer token created by Laravel Sanctum login.
+- `custom.authenticate` – accepts a Sanctum token, `Auth-User-Token` header, or `Auth-Username`/`Auth-Password` headers (falls back to debug token when enabled).
+- `client.token` – requires a valid `Client-Token` header (or `client_token` field) that matches `config('auth.client_tokens')`.
+
+---
+=== AppQyV1Auth (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Auth.php | prefix `/api/dict/v1`) ===
+/register (ANY, public)
+- Request: `username` (string, required), `password` (string, required), optional `email`, `nickname`, `name`.
+- Response: `token`, `token_type`, `expiration`, `uid`, `user` object, message/status; 400 when username exists, 422 for validation errors.
+
+/forgot-password (ANY, public)
+- Request: `email` (string, required).
+- Response: `{ "status": "<Password::RESET_LINK_SENT translation>" }`; 422 on invalid email.
+
+/reset-password (ANY, public)
+- Request: `token`, `email`, `password`, `password_confirmation`.
+- Response: `{ "status": "<Password::PASSWORD_RESET translation>" }`; 422 when broker rejects credentials.
+
+/verify-email/{id}/{hash} (ANY, middleware: `auth`, `signed`, `throttle:6,1`)
+- Request: route params plus authenticated user session.
+- Response: `{status: "already_verified"|"verified", message: string}`.
+
+/email/verification-notification (ANY, middleware: `auth`, `throttle:6,1`)
+- Response: `{status: "already_verified"}` when already verified, otherwise `{status: "verification-link-sent"}`.
+
+/login (ANY, public)
+- Request: either (`username` + `password`) or header `Auth-User-Token`. Uses `CommonAuthService`.
+- Response: JSON payload `{token, login_by, data.user}` with expanded learning stats.
+- Errors: 422 when missing credentials or invalid.
+
+/logout (ANY, `custom.authenticate`)
+- Revokes current Sanctum token if present or session otherwise. Response `{message: "Successfully logged out"}`.
+
+/user (ANY, `custom.authenticate`)
+- Response: authenticated `Request->user()` object serialized as JSON.
+
+---
+=== AppQyV1System (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1System.php | prefix `/api/dict/v1`) ===
+/system/initialize (POST, public)
+- Triggers storage preparation and legacy data import; returns `status`, `message`, `storage_directories`, `current_progress`, `detailed_status`, and optional `download_instructions`.
+
+/system/initialization-status (GET, public)
+- Response: `{status: "complete"|"pending", progress: {vocabulary|database|audio|images}}`.
+
+/system/process-vocabulary (POST, public)
+- Response: success with `data` stats when vocabulary generation completes, or error details.
+
+/system/vocabulary-status (GET, public)
+- Response: `{status: "success", data: {...processing stats...}, processing_complete: bool}`.
+
+/system/dictionary-statistics (GET, public)
+- Response: `data.languages[]` summarizing total/AI reviewed counts per language plus global summary.
+
+/system/supported-languages (GET, public)
+- Response: `{success: true, data: [{code,name,native_name,voice_id,has_tts}, ...], total: int}`.
+
+/system/supported-languages/{code} (GET, public)
+- Response: `{success: true, data: {...language info...}}` or 404.
+
+/word/{word}/enhanced (GET/POST, `custom.authenticate`)
+- Request: either query/body `word` or path param for POST.
+- Response: translation, phonetics, remote audio URLs, image URLs, metadata, and raw dictionary payload.
+
+/untranslated (GET, `custom.authenticate`)
+- Query params: `limit` (<=500), `offset`, `filter_by` (`translation|phonetic|audio|images|all`).
+- Response: `data.words[]` entries with missing fields and priority scores, pagination block, stats.
+
+/untranslated/priority (GET, `custom.authenticate`)
+- Query params: `limit`, `min_priority`.
+- Response: prioritized word list showing `priority`, `query_count`, and `issues`.
+
+/word/{word}/translation (POST, `custom.authenticate`)
+- Request: `translation` (string), optional `phonetic`, `us_phonetic`, `uk_phonetic`, `definition`, `source`, `provider_id`.
+- Response: success message, stored translation data, phonetics, and dictionary record id.
+
+/word/{word}/audio (POST, `custom.authenticate`)
+- Request: `audio` file (mp3/wav/ogg, <=10 MB), optional `type` (`word|sentence`), `quality`, `source`.
+- Response: stored filename/url/type plus validation metadata; errors for invalid MIME/size.
+
+/word/{word}/images (POST, `custom.authenticate`)
+- Request: `images[]` (jpg/png/gif/webp, <=5 MB ea, max 10) with optional `descriptions[]`.
+- Response: uploaded file metadata list and cumulative total.
+
+/word/{word}/complete (POST, `custom.authenticate`)
+- Request: combination of translation fields plus optional `audio` and `images[]`; orchestrates the three submissions above and returns each sub-result.
+
+/system/reinitialize (POST, `client.token`)
+- Same payload/response as `/system/initialize` but locked to trusted machine-to-machine calls via `Client-Token`.
+
+---
+=== AppQyV1Words (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Words.php | prefix `/api/words`) ===
+Routes are declared for `/daily`, `/{id}`, `/{id}/learn`, `/{id}/review`, `/{id}/favorite`, `/search/{query}` (all `auth:sanctum`) plus `/words/public/{word}` (public). However, methods such as `getDailyWords`, `getWordDetails`, `markAsLearned`, `markAsReviewed`, `toggleFavorite`, `searchWords`, and `publicWordLookup` are not implemented in any controller; the endpoints currently throw 500 errors if invoked.
+
+---
+=== AppQyV1Wordqurey (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Wordqurey.php | prefix `/api/dict/v1`) ===
+/lookup (GET, public)
+- Request: `word` (required), optional `language` (`english` default) and `generate_audio` (bool).
+- Response: when found, `{success: true, word, language, data: {word_id, phonetics, translation/images/audio info}}`; 404 when missing.
+
+/lookup/batch (POST, public)
+- Request: `words` array, optional `language`, `generate_audio`.
+- Response: `{success: true, count: n, results: [<lookup responses>]}`.
+
+/word_exists (ANY, `client.token`)
+- Request: `word`.
+- Response: `{exists: true, data: {...dictionary fields...}}` or `{exists: false}`, after ensuring initialization completed.
+
+/qurey_word (ANY) & /word/{word} (GET) (`client.token`)
+- Equivalent to `/word_exists` but `word` may be provided either in request body or path.
+
+/qurey_words (ANY, `client.token`)
+- Request: `words` array.
+- Response: `{results: [{word, exists, data?}, ...]}`.
+
+---
+=== AppQyV1User (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1User.php | prefix `/api/dict/v1/user`, `auth:sanctum`) ===
+/initialization-status (GET)
+- Response: `data` from `AppQyV1UserInitializationService::getStatus()` (flags for onboarding completion, selected languages, etc.).
+
+/initialize (POST)
+- Request: `learning_languages` (array 1–5 ISO codes), optional `native_language`, `occupation` (one of predefined values), `daily_words_target` (5–1000), `daily_study_time` (5–600 minutes), `preferences` (theme/notification/audio/difficulty/daily_reminder_time).
+- Response: success message and status snapshot; 422 if validation fails or unsupported languages supplied.
+
+/progress (GET)
+- Returns mocked data: `{totalWords, learnedWords, reviewedWords, studyStreak, lastStudyDate}` for UI scaffolding.
+
+/stats (GET)
+- Returns static metrics: `{studyDays, totalWords, completionRate, averageAccuracy, totalStudyTime}`.
+
+/profile (GET)
+- Response includes logged-in user id, displayName, avatar, study level, joinDate (derived from `auth()->user()`).
+
+/profile (PUT)
+- Request: optional `displayName` (string <=255) and `avatar` (URL).
+- Response: `{message: "Profile updated successfully"}`.
+
+---
+=== AppQyV1Vocabulary (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Vocabulary.php | prefix `/api/dict/v1/vocabulary`, public) ===
+/libraries/recommended (GET)
+- Query params: `language` (defaults `english`), `limit` (1–50).
+- Response: `{success: true, data: [recommended library cards with id/name/word_count/difficulty/tags/image_url/etc]}`.
+
+/libraries (GET)
+- Query params: `page`, `per_page` (1–100), optional `language`, `category`, `difficulty`, `search`.
+- Response: `data.libraries[]` plus `pagination` block (current_page, per_page, total, last_page, has_more).
+
+---
+=== AppQyV1Learning (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Learning.php | prefix `/api/dict/v1/learning`, `auth:sanctum`) ===
+/languages (GET/POST)
+- GET returns `learning_languages` and `native_language` from the user record.
+- POST requires `learning_languages` array and optional `native_language`; responds with updated preferences.
+
+/libraries (GET)
+- Optional `lang_code`; falls back to first learning language.
+- Response contains `public_libraries` and `user_libraries`, each with `is_selected` flag and cover info.
+
+/libraries/select (POST)
+- Request: `collection_id`, `lang_code`, `action` (`select|deselect`).
+- Response: success message; selecting also initializes words in user progress, deselecting removes them.
+
+/recommendations (GET)
+- Params: `lang_codes` array (default `["en"]`), `level` or `category` filters.
+- Response: sorted list of curated collections plus `filters.levels/categories`, with `is_selected` flags when user has prior picks.
+
+/collections/select (POST)
+- Request: `collection_id`, optional `action` (default `select`).
+- Response: toggles entry in `user_vocabulary_collections`.
+
+/collections/selected (GET)
+- Response: currently selected recommendation entries (id, name, lang_code, total_words, level, category).
+
+/words (GET)
+- Params: `lang_code` (default `en`), `limit` (<=100).
+- Response: `data.words[]` containing spaced-repetition stats, dictionary translations, phonetics, TTS/audio/image metadata, and `next_review_at`.
+
+/progress (POST)
+- Request: `progress_id` and `correct` (boolean).
+- Response: updated `learning_status`, `familiarity_level`, counts, and `next_review_at`.
+
+/stats (GET)
+- Optional `lang_code`. Response merges `AppQyV1UserLearningProgressModel::getUserStats()` with counts of selected libraries and stored language preferences.
+
+/upload (POST)
+- Request: `document` (string content), `collection_name`, `lang_code`, optional `description`.
+- Response: success flag, importer result (word count, created collection id, etc.); 400 if no words extracted.
+
+/libraries/{library_id} (DELETE)
+- Deletes a user-owned vocabulary collection; ensures `owner_id` matches current user.
+
+---
+=== AppQyV1AITools (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1AITools.php | prefixes `/api/app_qy_v1` and `/api/app_qy_v1/ai_tools`) ===
+/invitation-code (GET, public)
+- Reads `storage/data/app_qy_v1_invitation_code.json`; returns `{success, masked_code}`, masking all but first two and last character; default mask `AP**********5`.
+
+Public translation metadata (GET):
+- `/ai_tools/translation/languages` → `{success: true, languages: [...]}` from `AppQyV1TranslationService`.
+- `/ai_tools/translation/types` → available translation types (`general`, `literature`, etc.).
+- `/ai_tools/translation/models` → aggregated list from OpenRouter/DeepSeek/Gemini; stores index→model mapping file.
+- `/ai_tools/translation/templates` → language-specific prompt templates.
+
+Authenticated translation jobs (`auth:sanctum`):
+- `/translation/translate` (POST): `text`, `target_language`, optional `type`, `model` index. Response from translation service (contains `success`, `translation`, `provider`, optional `usage`).
+- `/translation/batch` (POST): `texts[]`, `target_language`, optional `type`/`model`. Response `{success: true, results: [..per item..]}`.
+- `/translation/simple/google` (POST): `text`, `target_language`; proxies to Pycore translator and returns `{translated_text, original_text, src_lang, dest_lang, provider: "google"}` on success.
+- `/translation/learning` (POST): `text`, `target_languages[]`, optional `options`, `model`, `generate_audio`. Returns aggregated translations per language (and, optionally, generated TTS URLs).
+- `/translation/task/{taskId}` (GET) & `/translation/process-next` (POST): currently respond `{success: false, error: "Task system not yet implemented in AppQyV1"}`.
+
+Public TTS metadata:
+- `/ai_tools/tts/voices` (GET): `{success: true, voices: [...]}` from `AppQyV1TTSService`.
+- `/ai_tools/tts/audio/{language}/{type}/{filename}` (GET) and `/ai_tools/tts/audio/{language}/{type}/{speed}/{filename}` (GET): stream stored audio files; 404 when missing.
+
+Authenticated TTS generation (`auth:sanctum`):
+- `/tts/generate` (POST): `text`, `language`, optional `type`, `options`. Response from TTS service, typically `{success, audio_url, audio_path, cached, ...}`.
+- `/tts/batch-generate` (POST): `items[]` each containing `text`, `language`, optional `type/options`; response `{success: true, results: [...]}`.
+
+---
+=== AppQyV1Dict & Word Group APIs (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Dict.php | prefix `/api/dict/v1`, `custom.authenticate` unless noted) ===
+/create_group (ANY)
+- Request: `gname` (string), `gcontent` (string), optional `gwords` string list and `sort` bool.
+- Response: success with `data` containing `gid`, `did` (personal dictionary id), `new_words`, frequencies, etc. Creates or appends to groups and updates personal dictionaries.
+
+/query_all_groups (ANY)
+- Query params: `start` (offset), `limit` (default 1000).
+- Response: `data.groups` array with each group's `gid`, `gname`, `gwords`, `words_frequency`, timestamps.
+
+/query_group_by_name` & `/query_group_by_gid` (ANY)
+- Params: `gname` or `gid`, optional `fetch_gcontent`, `sort_by` (field), `sort_asc` bool, `sort_frequency`.
+- Response includes selected group metadata plus personal dictionary snapshot (`personal_words`, `dictionaries_length`, etc.). 404 when group not found.
+
+/query_gwords (ANY)
+- Param: `gid`. Response: `data` containing `gwords` and `words_frequency`.
+
+/query_gcontent (ANY)
+- Params: `gid`, optional `gwords` (bool to include stored `gwords` column). Response returns `gcontent` plus metadata.
+
+/query_gfrequency (ANY)
+- Params: `gid`, optional `sort_frequency` bool. Response lists `words_frequency` map.
+
+/delete_group_by_name` / `/delete_group_by_gid` (ANY)
+- Request: `gname` or `gid`. Response: success/404.
+
+Client-token protected dictionary maintenance (requires `Client-Token`):
+- `/add_dictionary` (ANY) → `AppQyV1DictionaryManagementController@filterAndAddDictionaryList`
+  - Request: `entries` array; each entry may include `content`, `translation` JSON, phonetics, voice/image metadata. Existing words are skipped with their `queryCount` incremented, new ones are inserted. Response: `status`, `add_success`, `filter_count`, `ext` stats.
+- `/find_non_existing_dictionary` (ANY) → `AppQyV1DictionaryQueryController@findNonExistingEntries`
+  - Request: either `content` (string with `delimiter`, default comma) or `contents[]` array.
+  - Response: `missing_entries` array plus `total_checked`, `existing_count`, `missing_count`, and overall dictionary stats (`all_records`, `has_translation`, `has_voice`). Errors return 422 for invalid payloads.
+
+---
+=== AppQyV1PersonDict (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1PersonDict.php | prefix `/api/dict/v1`, `custom.authenticate`) ===
+/create_personal_dictionary (ANY)
+- Request: `dictionaries` (string/JSON list). Controller normalizes via `StrTool::toWordArray`.
+- Response: `{status: "success", dictionaries_length, id (record id), data}` representing stored dictionary content.
+
+/query_personal_dictionary (ANY)
+- Optional `query_soft_delete` (bool).
+- Response: merges `AppQyV1PersonalDictionaryQueryBasePublicController::queryPersonalDictionary` data into JSON (records, lengths, `query_soft_delete` flag).
+
+/query_personal_dictionary_by_words (ANY)
+- Request: `words` (string/list).
+- Response: `data` from `queryPDByWord`, listing matching entries.
+
+/delete_personal_dictionary_by_id (ANY)
+- Request: `id` (required).
+- Response: success with deleted record id and `data` (decoded `personal_dicts`), or 400/404 for validation issues.
+
+/delete_personal_all_dictionary (ANY)
+- Optional `force` (bool). Response includes `deleted_count`, `delete_type` (`soft|force`).
+
+---
+=== AppQyV1Manager (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Manager.php | prefix `/api/dict/v1/manager`, `custom.authenticate`) ===
+/get_all_groups_by_manager (ANY)
+- Requires authenticated user with `rolelevel == 1`. Supports `start`/`limit`.
+- Response: same schema as `/query_all_groups` but for all users; 401 when caller not level 1.
+
+---
+=== AppQyV1Ploymerization (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Ploymerization.php | prefix `/api/dict/v1`, `custom.authenticate`) ===
+/create_group_and_fetch_list (ANY)
+- Supported params: `gname`, `gcontent`, `gwords`, `sort_by`, `sort_asc`, `gid`, `fetch_gcontent`, `fetch_personal_words`, `fetch_words_frequency`, `fetch_gwords`, `sort_frequency`, `query_soft_delete`.
+- Response: wraps `AppQyV1GroupPolymerizationController::queryGroupFetchList`, returning status/message/data and HTTP code representing insert/query results.
+
+---
+=== AppQyV1WordOperate (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1WordOperate.php | prefix `/api/dict/v1`, `custom.authenticate`) ===
+/up_learned, /up_read, /up_weight, /up_reviewed (ANY)
+- Request: `words` (string/list) and optional `safe_update` bool.
+- Response: `{status: "success", message, supported_params, data}` where `data` is the result of updating corresponding personal dictionary metrics (learned/read/weight/reviewed). Validation errors return 400.
+
+---
+=== AppQyV1Word Data Submission Utilities ===
+All `/word/{word}/...` endpoints listed under AppQyV1System share the same auth (`custom.authenticate`) and rely on initialization markers. See the earlier System section for parameter details.
+
+---
+=== AppQyV1Vocabulary Upload (within learning routes) ===
+Documented above; no additional standalone endpoints.
+
+---
+=== AppQyV1Word Lookup / Untranslated Utilities ===
+Documented under AppQyV1Wordqurey; includes `/untranslated` and `/untranslated/priority` plus `/word_exists`/`/qurey_word`.
+
+---
+=== AppQyV1Word Learning Status APIs (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Learning.php and AppQyV1WordOperate) ===
+See AppQyV1Learning + AppQyV1WordOperate sections for specific endpoints.
+
+---
+=== AppQyV1AITools Task Placeholders ===
+`/translation/task/{taskId}` and `/translation/process-next` currently return `{success: false, error: "Task system not yet implemented in AppQyV1"}` for transparency.
+
+---
+=== AppQyV1Test (poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Test.php | prefix `/api/dict/v1`, `custom.authenticate`) ===
+/get_gvars (ANY)
+- Response: associative array from `App\Providers\GlobalVar::all()` mapping filenames under `/usr/core_node` (or `$HOME/core_node`) to their file contents. Requires custom auth; treat as diagnostic/debug endpoint.

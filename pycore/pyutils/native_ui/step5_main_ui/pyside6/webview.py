@@ -7,13 +7,13 @@ WebView widget using QWebEngineView for displaying web content.
 """
 
 from PySide6.QtCore import QUrl, Signal, Slot, QTimer
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
+from PySide6.QtGui import QColor
 
 from typing import Optional
 from pathlib import Path
-import tempfile
 
 
 class PySide6WebView(QWidget):
@@ -68,8 +68,16 @@ class PySide6WebView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # Create stacked widget for smooth transitions
+        self.stacked_widget = QStackedWidget()
+
         # Create web view
         self.web_view = QWebEngineView()
+
+        # Set background color to prevent white flash
+        # Must match the React app's background color (#030305)
+        page = self.web_view.page()
+        # page.setBackgroundColor(QColor("#030305"))
 
         # Configure settings
         settings = self.web_view.settings()
@@ -78,11 +86,17 @@ class PySide6WebView(QWidget):
             self.enable_javascript
         )
 
-        if self.enable_dev_tools:
-            settings.setAttribute(
-                QWebEngineSettings.WebAttribute.DeveloperExtrasEnabled,
-                True
-            )
+        # NOTE: DeveloperExtrasEnabled does NOT exist in Qt WebEngine (it was in old QtWebKit)
+        # Developer tools are enabled via:
+        # 1. Environment variable QTWEBENGINE_REMOTE_DEBUGGING (set via Chromium flags)
+        # 2. QWebEnginePage.setDevToolsPage() for in-app dev tools
+        # Since we're already setting Chromium flags, remote debugging is handled there.
+        # For additional in-app dev tools, we would need to create a separate QWebEnginePage.
+
+        # CRITICAL: Apply Tier 3 QtWebEngine configuration for WebCodecs/WebGL support
+        # This is the final redundant layer after Tier 1 (env) and Tier 2 (qputenv)
+        from .webengine_config import configure_webengine_tier3_settings
+        configure_webengine_tier3_settings(settings)
 
         # Connect signals
         self.web_view.loadStarted.connect(self._on_load_started)
@@ -94,12 +108,15 @@ class PySide6WebView(QWidget):
         # Create loading widget
         self._create_loading_widget()
 
-        # Add to layout (loading widget shown first)
-        layout.addWidget(self.loading_widget)
-        layout.addWidget(self.web_view)
+        # Add widgets to stacked widget
+        self.stacked_widget.addWidget(self.loading_widget)  # Index 0
+        self.stacked_widget.addWidget(self.web_view)        # Index 1
 
-        # Hide web view initially
-        self.web_view.hide()
+        # Show loading widget initially
+        self.stacked_widget.setCurrentIndex(0)
+
+        # Add stacked widget to layout
+        layout.addWidget(self.stacked_widget)
 
     def _create_loading_widget(self):
         """Create loading page widget."""
@@ -257,14 +274,9 @@ class PySide6WebView(QWidget):
             # Use built-in loading page
             html_content = self._generate_loading_html(style, text, background)
 
-            # Create temp loading page
-            temp_file = Path(tempfile.gettempdir()) / "loading.html"
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            # Load in web view
+            # Load HTML directly (no temp file needed)
             temp_web = QWebEngineView(self.loading_widget)
-            temp_web.load(QUrl.fromLocalFile(str(temp_file)))
+            temp_web.setHtml(html_content)
 
         # Replace loading widget layout
         layout = self.loading_widget.layout()
@@ -275,14 +287,19 @@ class PySide6WebView(QWidget):
 
         layout.addWidget(temp_web)
 
-        # Show loading widget
-        self.loading_widget.show()
-        self.web_view.hide()
+        # Switch to loading widget
+        self.stacked_widget.setCurrentIndex(0)
 
     def hide_loading_page(self):
         """Hide loading page and show web view."""
-        self.loading_widget.hide()
-        self.web_view.show()
+        # Disable updates to prevent flicker
+        self.stacked_widget.setUpdatesEnabled(False)
+
+        # Switch to webview
+        self.stacked_widget.setCurrentIndex(1)
+
+        # Re-enable updates
+        self.stacked_widget.setUpdatesEnabled(True)
 
     def _generate_loading_html(
         self,
@@ -358,8 +375,8 @@ class PySide6WebView(QWidget):
     def _on_load_finished(self, success: bool):
         """Handle load finished."""
         if success:
-            # Hide loading page after a short delay
-            QTimer.singleShot(500, self.hide_loading_page)
+            # Hide loading page immediately (no delay needed with QStackedWidget)
+            self.hide_loading_page()
 
         self.load_finished.emit(success)
 
