@@ -409,6 +409,8 @@ java_pid*.hprof
 # Gradle cache directories (user-specific build cache)
 **/.gradle/
 **/.gradle/**
+**/.output/**
+**/.venv/**
 
 # Project-specific gradle wrapper directories (distribution cache)
 # Note: gradlew scripts and gradle-wrapper.properties should be committed

@@ -273,6 +273,8 @@ class GitManagement:
         print("\033[36mChecking git-filter-repo installation...\033[0m")
         sys.stdout.flush()
 
+        # Check if git-filter-repo is available
+        git_filter_repo_available = False
         try:
             result = subprocess.run(
                 ['git', 'filter-repo', '--help'],
@@ -280,104 +282,244 @@ class GitManagement:
                 text=True,
                 timeout=5
             )
-            if result.returncode != 0:
-                raise FileNotFoundError("git-filter-repo not found")
+            if result.returncode == 0:
+                git_filter_repo_available = True
         except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # Also try python -m git_filter_repo (Windows fallback)
+        if not git_filter_repo_available:
+            try:
+                result = subprocess.run(
+                    [sys.executable, '-m', 'git_filter_repo', '--help'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    git_filter_repo_available = True
+                    # Use python -m git_filter_repo for Windows
+                    os.environ['GIT_FILTER_REPO_USE_PYTHON'] = '1'
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+
+        if not git_filter_repo_available:
             print("\033[33mgit-filter-repo not found. Installing...\033[0m")
             sys.stdout.flush()
 
             try:
-                print("\033[90m[DEBUG] Attempting pip3 install with --break-system-packages...\033[0m")
+                # Determine pip command and install flags based on OS
+                print(f"\033[90m[DEBUG] Platform: {platform.system()}, is_windows: {self.is_windows}\033[0m")
+                sys.stdout.flush()
+                
+                if self.is_windows:
+                    # Try python -m pip first (more reliable on Windows)
+                    pip_cmd = [sys.executable, '-m', 'pip', 'install', '--user', 'git-filter-repo']
+                    print("\033[90m[DEBUG] Attempting python -m pip install (Windows)...\033[0m")
+                else:
+                    pip_cmd = ['pip3', 'install', '--user', '--break-system-packages', 'git-filter-repo']
+                    print("\033[90m[DEBUG] Attempting pip3 install with --break-system-packages (Linux)...\033[0m")
                 sys.stdout.flush()
 
                 install_result = subprocess.run(
-                    ['pip3', 'install', '--user', '--break-system-packages', 'git-filter-repo'],
+                    pip_cmd,
                     capture_output=True,
                     text=True,
                     check=False
                 )
 
                 if install_result.returncode != 0:
-                    print(f"\033[33mWarning: pip3 install returned {install_result.returncode}\033[0m")
-                    print(f"\033[90m[DEBUG] stderr: {install_result.stderr}\033[0m")
+                    print(f"\033[33mWarning: pip install returned {install_result.returncode}\033[0m")
+                    if install_result.stdout:
+                        print(f"\033[90m[DEBUG] stdout: {install_result.stdout}\033[0m")
+                    if install_result.stderr:
+                        print(f"\033[90m[DEBUG] stderr: {install_result.stderr}\033[0m")
                     sys.stdout.flush()
-
-                user_base = site.USER_BASE
-                filter_repo_paths = glob.glob(f"{user_base}/bin/git-filter-repo")
-
-                print(f"\033[90m[DEBUG] Searching in: {user_base}/bin/git-filter-repo\033[0m")
-                print(f"\033[90m[DEBUG] Found paths: {filter_repo_paths}\033[0m")
-                sys.stdout.flush()
-
-                if filter_repo_paths:
-                    filter_repo_path = filter_repo_paths[0]
-                    print(f"\033[90m[DEBUG] Copying from: {filter_repo_path}\033[0m")
-                    sys.stdout.flush()
-
-                    try:
-                        shutil.copy(filter_repo_path, '/usr/local/bin/git-filter-repo')
-                        os.chmod('/usr/local/bin/git-filter-repo', 0o755)
-                        print("\033[32m✓ Installed to /usr/local/bin/git-filter-repo\033[0m")
+                    
+                    # On Windows, try alternative: direct pip command
+                    if self.is_windows:
+                        print("\033[90m[DEBUG] Trying alternative: pip command directly...\033[0m")
                         sys.stdout.flush()
-                    except PermissionError:
-                        print("\033[33m⚠ No permission for /usr/local/bin, using ~/.local/bin\033[0m")
-                        sys.stdout.flush()
-                        local_bin = Path.home() / '.local' / 'bin'
-                        local_bin.mkdir(parents=True, exist_ok=True)
-                        shutil.copy(filter_repo_path, local_bin / 'git-filter-repo')
-                        os.chmod(local_bin / 'git-filter-repo', 0o755)
-                        print(f"\033[32m✓ Installed to {local_bin}/git-filter-repo\033[0m")
-                        sys.stdout.flush()
-
-                        path_env = os.environ.get('PATH', '')
-                        if str(local_bin) not in path_env:
-                            print(f"\033[33m⚠ Adding {local_bin} to PATH for this session\033[0m")
-                            os.environ['PATH'] = f"{local_bin}:{path_env}"
+                        pip_cmd_alt = ['pip', 'install', '--user', 'git-filter-repo']
+                        install_result = subprocess.run(
+                            pip_cmd_alt,
+                            capture_output=True,
+                            text=True,
+                            check=False
+                        )
+                        if install_result.returncode == 0:
+                            print("\033[32m✓ Installation succeeded with pip command\033[0m")
+                            sys.stdout.flush()
+                        else:
+                            print(f"\033[33mWarning: Alternative pip install also returned {install_result.returncode}\033[0m")
+                            if install_result.stderr:
+                                print(f"\033[90m[DEBUG] stderr: {install_result.stderr}\033[0m")
                             sys.stdout.flush()
                 else:
-                    print("\033[31m✗ git-filter-repo not found after installation\033[0m")
-                    print(f"\033[33mTrying alternative locations...\033[0m")
+                    print("\033[32m✓ Installation command executed\033[0m")
                     sys.stdout.flush()
 
-                    alt_paths = [
-                        Path.home() / '.local' / 'bin' / 'git-filter-repo',
-                        Path('/usr/local/bin/git-filter-repo'),
-                        Path('/usr/bin/git-filter-repo')
-                    ]
-
-                    for alt_path in alt_paths:
-                        if alt_path.exists():
-                            print(f"\033[32m✓ Found at: {alt_path}\033[0m")
-                            sys.stdout.flush()
-                            break
+                # First, try to verify it's installed as a Python module (works on all platforms)
+                print("\033[90m[DEBUG] Checking if git-filter-repo is available as Python module...\033[0m")
+                sys.stdout.flush()
+                try:
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'git_filter_repo', '--help'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        print("\033[32m✓ git-filter-repo available as Python module\033[0m")
+                        os.environ['GIT_FILTER_REPO_USE_PYTHON'] = '1'
+                        git_filter_repo_available = True
+                        sys.stdout.flush()
                     else:
-                        print("\033[31m✗ git-filter-repo not found in any location\033[0m")
+                        raise FileNotFoundError("Module not working")
+                except:
+                    print("\033[90m[DEBUG] Python module not available, searching for executable...\033[0m")
+                    sys.stdout.flush()
+                    
+                    # Search for installed git-filter-repo in different locations
+                    search_paths = []
+                    user_base = site.USER_BASE
+                    
+                    if self.is_windows:
+                        # Windows: check Scripts directory
+                        scripts_dir = Path(user_base) / 'Scripts'
+                        search_paths.extend([
+                            scripts_dir / 'git-filter-repo.exe',
+                            scripts_dir / 'git-filter-repo',
+                            scripts_dir / 'git-filter-repo.py',
+                        ])
+                        # Also check common Windows Python locations
+                        local_appdata = os.environ.get('LOCALAPPDATA', '')
+                        if local_appdata:
+                            search_paths.extend([
+                                Path(local_appdata) / 'Programs' / 'Python' / 'Python*' / 'Scripts' / 'git-filter-repo.exe',
+                            ])
+                        appdata_roaming = os.environ.get('APPDATA', '')
+                        if appdata_roaming:
+                            search_paths.extend([
+                                Path(appdata_roaming) / 'Python' / 'Python*' / 'Scripts' / 'git-filter-repo.exe',
+                            ])
+                    else:
+                        # Linux/Mac: check bin directory
+                        search_paths.extend([
+                            Path(user_base) / 'bin' / 'git-filter-repo',
+                            Path.home() / '.local' / 'bin' / 'git-filter-repo',
+                            Path('/usr/local/bin/git-filter-repo'),
+                            Path('/usr/bin/git-filter-repo'),
+                        ])
+
+                    print(f"\033[90m[DEBUG] Searching in: {user_base}\033[0m")
+                    if self.is_windows:
+                        print(f"\033[90m[DEBUG] Windows Scripts dir: {Path(user_base) / 'Scripts'}\033[0m")
+                    sys.stdout.flush()
+
+                    found_path = None
+                    for search_path in search_paths:
+                        # Handle glob patterns
+                        if '*' in str(search_path):
+                            matches = glob.glob(str(search_path))
+                            if matches:
+                                found_path = Path(matches[0])
+                                break
+                        elif search_path.exists():
+                            found_path = search_path
+                            break
+
+                    if found_path:
+                        print(f"\033[90m[DEBUG] Found at: {found_path}\033[0m")
+                        sys.stdout.flush()
+
+                        if self.is_windows:
+                            # On Windows, add Scripts directory to PATH if not already there
+                            scripts_dir = found_path.parent
+                            path_env = os.environ.get('PATH', '')
+                            if str(scripts_dir) not in path_env:
+                                print(f"\033[33m⚠ Adding {scripts_dir} to PATH for this session\033[0m")
+                                os.environ['PATH'] = f"{scripts_dir}{os.pathsep}{path_env}"
+                                sys.stdout.flush()
+                            print(f"\033[32m✓ git-filter-repo found at: {found_path}\033[0m")
+                        else:
+                            # On Linux, try to copy to a system location or use local bin
+                            try:
+                                shutil.copy(found_path, '/usr/local/bin/git-filter-repo')
+                                os.chmod('/usr/local/bin/git-filter-repo', 0o755)
+                                print("\033[32m✓ Installed to /usr/local/bin/git-filter-repo\033[0m")
+                                sys.stdout.flush()
+                            except PermissionError:
+                                print("\033[33m⚠ No permission for /usr/local/bin, using ~/.local/bin\033[0m")
+                                sys.stdout.flush()
+                                local_bin = Path.home() / '.local' / 'bin'
+                                local_bin.mkdir(parents=True, exist_ok=True)
+                                shutil.copy(found_path, local_bin / 'git-filter-repo')
+                                os.chmod(local_bin / 'git-filter-repo', 0o755)
+                                print(f"\033[32m✓ Installed to {local_bin}/git-filter-repo\033[0m")
+                                sys.stdout.flush()
+
+                                path_env = os.environ.get('PATH', '')
+                                if str(local_bin) not in path_env:
+                                    print(f"\033[33m⚠ Adding {local_bin} to PATH for this session\033[0m")
+                                    os.environ['PATH'] = f"{local_bin}{os.pathsep}{path_env}"
+                                    sys.stdout.flush()
+                    else:
+                        print("\033[31m✗ git-filter-repo not found after installation\033[0m")
                         print("\033[33mPlease install manually:\033[0m")
-                        print("  \033[37mpip3 install --user --break-system-packages git-filter-repo\033[0m")
-                        print("  \033[37mor\033[0m")
-                        print("  \033[37msudo apt install git-filter-repo\033[0m")
+                        if self.is_windows:
+                            print("  \033[37mpython -m pip install --user git-filter-repo\033[0m")
+                            print("  \033[37mor\033[0m")
+                            print("  \033[37mpip install --user git-filter-repo\033[0m")
+                        else:
+                            print("  \033[37mpip3 install --user --break-system-packages git-filter-repo\033[0m")
+                            print("  \033[37mor\033[0m")
+                            print("  \033[37msudo apt install git-filter-repo\033[0m")
                         sys.stdout.flush()
                         self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
                         input("\n\033[33mPress Enter to continue...\033[0m")
                         return
 
-                print("\033[32mgit-filter-repo installed successfully\033[0m")
-                sys.stdout.flush()
-
-                test_result = subprocess.run(
-                    ['git', 'filter-repo', '--help'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    check=False
-                )
-
-                if test_result.returncode == 0:
-                    print("\033[32m✓ git-filter-repo is working\033[0m")
+                # Final verification: try Python module first (most reliable)
+                if not git_filter_repo_available:
+                    print("\033[90m[DEBUG] Verifying installation...\033[0m")
                     sys.stdout.flush()
-                else:
-                    print(f"\033[33m⚠ git-filter-repo test failed: {test_result.returncode}\033[0m")
-                    sys.stdout.flush()
+                    
+                    # Try Python module first (works on all platforms after pip install)
+                    try:
+                        result = subprocess.run(
+                            [sys.executable, '-m', 'git_filter_repo', '--help'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if result.returncode == 0:
+                            print("\033[32m✓ git-filter-repo is working (Python module)\033[0m")
+                            os.environ['GIT_FILTER_REPO_USE_PYTHON'] = '1'
+                            git_filter_repo_available = True
+                            sys.stdout.flush()
+                        else:
+                            raise FileNotFoundError("Module test failed")
+                    except:
+                        # Fallback: try git filter-repo command
+                        print("\033[90m[DEBUG] Python module not available, trying git filter-repo command...\033[0m")
+                        sys.stdout.flush()
+                        test_result = subprocess.run(
+                            ['git', 'filter-repo', '--help'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                            check=False
+                        )
+
+                        if test_result.returncode == 0:
+                            print("\033[32m✓ git-filter-repo is working (command)\033[0m")
+                            sys.stdout.flush()
+                        else:
+                            print(f"\033[33m⚠ git-filter-repo test failed: {test_result.returncode}\033[0m")
+                            if test_result.stderr:
+                                print(f"\033[90m[DEBUG] stderr: {test_result.stderr}\033[0m")
+                            sys.stdout.flush()
 
             except Exception as e:
                 print(f"\033[31mFailed to install git-filter-repo: {e}\033[0m")
@@ -462,7 +604,12 @@ class GitManagement:
         print("\033[36mRunning git-filter-repo to clean history...\033[0m")
         sys.stdout.flush()
 
-        filter_args = ['git', 'filter-repo']
+        # Determine the command to use for git-filter-repo
+        if os.environ.get('GIT_FILTER_REPO_USE_PYTHON') == '1':
+            filter_args = [sys.executable, '-m', 'git_filter_repo']
+        else:
+            filter_args = ['git', 'filter-repo']
+        
         for dir_path_clean in directories:
             filter_args.extend(['--path', dir_path_clean, '--invert-paths'])
         filter_args.append('--force')
@@ -525,11 +672,34 @@ class GitManagement:
             print(f"\033[32m✓ Remote URL restored to default: {default_remote}\033[0m")
             sys.stdout.flush()
 
-            repo_size = subprocess.run(
-                ['du', '-sh', '.git'],
-                capture_output=True,
-                text=True
-            ).stdout.strip()
+            # Calculate repository size (cross-platform)
+            try:
+                if self.is_windows:
+                    # Windows: use PowerShell to get directory size
+                    ps_cmd = f'(Get-ChildItem -Path ".git" -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum / 1MB'
+                    repo_size_result = subprocess.run(
+                        ['powershell', '-Command', ps_cmd],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.core_node_root
+                    )
+                    if repo_size_result.returncode == 0:
+                        size_mb = float(repo_size_result.stdout.strip())
+                        repo_size = f"{size_mb:.2f} MB"
+                    else:
+                        repo_size = "N/A"
+                else:
+                    # Linux/Mac: use du command
+                    repo_size = subprocess.run(
+                        ['du', '-sh', '.git'],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.core_node_root
+                    ).stdout.strip()
+            except Exception as e:
+                print(f"\033[90m[DEBUG] Could not calculate repo size: {e}\033[0m")
+                repo_size = "N/A"
+            
             print()
             print(f"\033[36mRepository size after cleanup: {repo_size}\033[0m")
             sys.stdout.flush()
