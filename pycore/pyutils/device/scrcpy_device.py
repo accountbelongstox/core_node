@@ -9,6 +9,7 @@ to scrcpy-server for video streaming and device control.
 import os
 import sys
 import random
+import select
 import socket
 import struct
 import subprocess
@@ -37,13 +38,13 @@ from pycore.pyutils.device.server_params import ServerParams, VideoCodec
 
 
 # ============================================================================
-# ADB COMMAND QUEUE (用队列序列化 ADB 命令，避免 Windows ADB 服务器 bug)
+# ADB COMMAND QUEUE (Serialize ADB commands to avoid Windows ADB server bug)
 # ============================================================================
 # Windows ADB server has a bug where it cannot handle 19+ concurrent device-specific
 # commands (even with -s or ANDROID_SERIAL). The solution is to serialize ALL ADB
 # commands through a queue, ensuring only ONE adb command runs at a time.
 #
-# Reference: User requirement - "不要使用线程锁，使用队列" (Don't use thread locks, use queues)
+# Reference: User requirement - Use queues instead of thread locks for serialization
 # ============================================================================
 
 # Global ADB command queue
@@ -127,6 +128,12 @@ def _run_adb_command_via_queue(cmd: list, env: dict, timeout: float = 10.0) -> s
         RuntimeError: If command fails or times out
     """
     _ensure_adb_queue_worker()
+
+    # CRITICAL: Ensure MSYS_NO_PATHCONV is set for Git Bash compatibility
+    # This prevents path conversion issues on Windows when using Git Bash
+    if 'MSYS_NO_PATHCONV' not in env:
+        env = env.copy()
+        env['MSYS_NO_PATHCONV'] = '1'
 
     # Create event and result container
     result_event = threading.Event()
@@ -212,7 +219,7 @@ class ScrcpyDevice(AndroidDevice):
         Raises:
             RuntimeError: If server fails to start
 
-        Reference: scrcpy develop.md, user requirement "使用队列" (use queues)
+        Reference: scrcpy develop.md, user requirement to use queues for serialization
         """
         # NOTE: Stagger delay removed - queue serialization already prevents contention
         # QtScrcpy achieves 1.8s connection time without artificial delays
@@ -230,22 +237,29 @@ class ScrcpyDevice(AndroidDevice):
 
         # Generate random SCID (Session ID)
         scid = random.randint(0, 0x7FFFFFFF)  # 31-bit random number
-        device_socket_name = f"scrcpy_{scid:08x}"  # e.g., scrcpy_1a2b3c4d
+        scid_hex = f"{scid:08x}"  # e.g., "1a2b3c4d"
+        # CRITICAL: Both device socket name AND scid parameter use hex format!
+        # Server parses scid with Integer.parseInt(value, 0x10) - expects hex string!
+        device_socket_name = f"scrcpy_{scid_hex}"  # e.g., scrcpy_1a2b3c4d
 
         print(f"\n[ScrcpyDevice] Starting scrcpy-server for {self.serial}")
-        print(f"[ScrcpyDevice] SCID: {scid:08x}")
+        print(f"[ScrcpyDevice] SCID: {scid_hex} (hex), {scid} (decimal)")
         print(f"[ScrcpyDevice] Device socket: localabstract:{device_socket_name}")
         print(f"[ScrcpyDevice] Tunnel port: {video_port} (both video and control use same port)")
 
         # Setup tunnel with automatic fallback (REVERSE → FORWARD)
         tunnel_mode = self._setup_tunnel(video_port, device_socket_name)
 
-        # Build server command (pass tunnel_mode for proper parameter)
-        server_cmd = self._build_server_command(scid, tunnel_mode)
+        # Build server command (pass scid_hex for proper parsing)
+        server_cmd = self._build_server_command(scid_hex, tunnel_mode)
 
         # Use ANDROID_SERIAL environment variable for adb shell
         env = os.environ.copy()
         env['ANDROID_SERIAL'] = self.serial
+        # CRITICAL: Disable Git Bash path conversion for CLASSPATH
+        # Without this, /data/local/tmp becomes D:/applications/Git/data/local/tmp
+        # This affects CLASSPATH variable even inside adb shell commands
+        env['MSYS_NO_PATHCONV'] = '1'
 
         # CRITICAL FIX: Pass command as single string to shell
         # Environment variable CLASSPATH=... must be interpreted by shell, not as separate arg
@@ -253,7 +267,7 @@ class ScrcpyDevice(AndroidDevice):
 
         adb_cmd = [
             self.adb_path,
-            "-s", self.serial,  # ✅ Explicit -s parameter for Windows reliability
+            "-s", self.serial,  # ✅ Must use -s with 19 devices
             "shell",
             shell_command  # Pass as single string for proper shell parsing
         ]
@@ -263,13 +277,47 @@ class ScrcpyDevice(AndroidDevice):
         print(f"[ScrcpyDevice] ADB command: {' '.join(adb_cmd)}")
 
         # Start scrcpy-server process
+        # CRITICAL: stdout/stderr MUST be consumed by background threads to prevent PIPE deadlock!
+        # Server with log_level=debug produces large output. If PIPE is used without reading,
+        # the buffer (~64KB) fills up, causing server's write() to block.
+        # Background threads continuously consume output, preventing deadlock while capturing errors.
+        # Reference: https://docs.python.org/3/library/subprocess.html#subprocess.Popen
         self._server_process = subprocess.Popen(
             adb_cmd,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE
+            stdin=subprocess.DEVNULL,
+            text=True,
+            bufsize=1  # Line buffered
         )
+
+        # Background threads to consume Server output (prevent PIPE deadlock)
+        def _read_server_output(pipe, prefix):
+            print(f"[Server-{self.serial}] [{prefix}] Thread started")
+            try:
+                for line in pipe:
+                    line = line.rstrip()
+                    if line:  # Only print non-empty lines
+                        print(f"[Server-{self.serial}] [{prefix}] {line}")
+                print(f"[Server-{self.serial}] [{prefix}] Thread finished (EOF)")
+            except Exception as e:
+                print(f"[Server-{self.serial}] [{prefix}] Thread error: {e}")
+
+        self._server_stdout_thread = threading.Thread(
+            target=_read_server_output,
+            args=(self._server_process.stdout, "OUT"),
+            daemon=True
+        )
+        self._server_stderr_thread = threading.Thread(
+            target=_read_server_output,
+            args=(self._server_process.stderr, "ERR"),
+            daemon=True
+        )
+        self._server_stdout_thread.start()
+        self._server_stderr_thread.start()
+
+        print(f"[ScrcpyDevice] Server process started (PID: {self._server_process.pid})")
 
         # ============================================================================
         # Socket connection handling (different for REVERSE vs FORWARD mode)
@@ -298,61 +346,23 @@ class ScrcpyDevice(AndroidDevice):
             # FORWARD MODE: Device listens, PC connects to device
             print(f"[ScrcpyDevice] FORWARD mode: Waiting for device to start listening...")
 
-            # Give device time to start scrcpy-server and listen
-            # QtScrcpy achieves 1.8s total connection time
-            # Increased to 1.0s to ensure server is fully started before connecting
-            time.sleep(1.0)
+            # CRITICAL: Give server time to fully initialize before connecting
+            # Server needs to: load classes → create LocalServerSocket → bind to socket name
+            # Without this delay, PC may connect before server is ready to accept
+            time.sleep(3.0)  # 3 second delay - allows server initialization (Android 7.0 is slow)
 
             # PC connects to forwarded port
-            # Official scrcpy uses 50 retries at 100ms intervals for reliable connection
             print(f"[ScrcpyDevice] Connecting to forwarded port {video_port}...")
             self._video_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._video_socket.settimeout(10.0)
 
-            max_retries = 50  # Increased from 10 to 50 (official scrcpy standard)
+            max_retries = 150  # Increased from 50 to 150 for multi-device queue delays
             retry_interval = 0.1  # 100ms intervals (official scrcpy standard)
+            # Total timeout: 150 × 0.1 = 15 seconds (covers ADB queue delays)
             for retry in range(max_retries):
                 try:
                     self._video_socket.connect(('localhost', video_port))
                     print(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
-
-                    # CRITICAL: Read dummy byte in FORWARD mode (QtScrcpy pattern)
-                    # scrcpy-server sends 1 dummy byte first in tunnel_forward mode
-                    try:
-                        dummy_byte = self._video_socket.recv(1)
-                        if dummy_byte:
-                            print(f"[ScrcpyDevice] Read dummy byte in FORWARD mode: {dummy_byte.hex()}")
-                        else:
-                            # Empty byte string means connection closed!
-                            print(f"[ScrcpyDevice] [ERROR] Connection closed while reading dummy byte!")
-                            # Read server output to see what went wrong (even if process is still running)
-                            if self._server_process:
-                                print(f"[ScrcpyDevice] Attempting to read server output...")
-                                try:
-                                    # Give process a moment to exit
-                                    time.sleep(0.5)
-                                    # Try to read output (will timeout if process hangs)
-                                    stdout, stderr = self._server_process.communicate(timeout=2.0)
-                                    if stdout:
-                                        print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout.decode('utf-8', errors='replace')}")
-                                    if stderr:
-                                        print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr.decode('utf-8', errors='replace')}")
-                                    else:
-                                        print(f"[ScrcpyDevice] [SERVER] No error output captured")
-                                except subprocess.TimeoutExpired:
-                                    print(f"[ScrcpyDevice] [SERVER] Process still running, killing it...")
-                                    self._server_process.kill()
-                                    stdout, stderr = self._server_process.communicate()
-                                    if stdout:
-                                        print(f"[ScrcpyDevice] [SERVER STDOUT]: {stdout.decode('utf-8', errors='replace')}")
-                                    if stderr:
-                                        print(f"[ScrcpyDevice] [SERVER STDERR]: {stderr.decode('utf-8', errors='replace')}")
-                                except Exception as e:
-                                    print(f"[ScrcpyDevice] [SERVER] Failed to read output: {e}")
-                            raise RuntimeError("Connection closed by server while reading dummy byte")
-                    except socket.timeout:
-                        print(f"[ScrcpyDevice] [WARN] Timeout reading dummy byte, continuing anyway")
-
                     break
                 except (ConnectionRefusedError, OSError) as e:
                     if retry < max_retries - 1:
@@ -361,6 +371,25 @@ class ScrcpyDevice(AndroidDevice):
                         time.sleep(retry_interval)
                     else:
                         raise RuntimeError(f"Failed to connect to device after {max_retries} retries: {e}")
+
+            # CRITICAL: Read dummy byte IMMEDIATELY after connecting first socket (FORWARD mode only)
+            # Based on official scrcpy client: app/src/server.c:467-483 connect_and_read_byte()
+            # Server sends dummy byte on FIRST socket only (DesktopConnection.java:68-71)
+            # Must read it NOW, before connecting other sockets, to detect connection errors
+            print(f"[ScrcpyDevice] Reading dummy byte from first socket (FORWARD mode)...")
+            ready_sockets, _, _ = select.select([self._video_socket], [], [], 5.0)
+
+            if not ready_sockets:
+                print(f"[ScrcpyDevice] [ERROR] Timeout waiting for dummy byte!")
+                raise RuntimeError("Timeout waiting for dummy byte from first socket (FORWARD mode)")
+
+            dummy_byte = self._video_socket.recv(1)
+            if not dummy_byte:
+                print(f"[ScrcpyDevice] [ERROR] Connection closed while reading dummy byte!")
+                raise RuntimeError("Connection closed while reading dummy byte from first socket (FORWARD mode)")
+
+            print(f"[ScrcpyDevice] [OK] Dummy byte received: {dummy_byte.hex()}")
+            print(f"[ScrcpyDevice] First socket ready, now connecting control socket...")
 
         # Setup control socket (ALWAYS - scrcpy-server v3.3.3 expects 2 sockets)
         # QtScrcpy pattern: Always connect control socket even if control=False
@@ -407,20 +436,15 @@ class ScrcpyDevice(AndroidDevice):
                             raise RuntimeError(f"Failed to connect control socket after {max_retries} retries: {e}")
 
         # Read device metadata
+        # Note: Dummy byte was already read after connecting first socket in FORWARD mode (line 386-391)
         print(f"[ScrcpyDevice] Reading device metadata...")
-        try:
-            self._read_device_metadata()
-            print(f"[ScrcpyDevice] [OK] Device: {self.info.model}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to read device metadata from {self.serial}: {e}")
+        self._read_device_metadata()
+        print(f"[ScrcpyDevice] [OK] Device: {self.info.model}")
 
         # Read codec metadata
         print(f"[ScrcpyDevice] Reading video codec metadata...")
-        try:
-            self._read_video_codec_metadata()
-            print(f"[ScrcpyDevice] [OK] Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to read video codec metadata from {self.serial}: {e}")
+        self._read_video_codec_metadata()
+        print(f"[ScrcpyDevice] [OK] Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
 
         # Switch to blocking mode for long-running streams
         if self._video_socket:
@@ -558,7 +582,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         # Remove reverse tunnels (via queue)
-        cmd = [self.adb_path, "-s", self.serial, "reverse", "--remove-all"]
+        cmd = [self.adb_path, "-s", self.serial, "reverse", "--remove-all"]  # ✅ Must use -s with 19 devices
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
@@ -569,7 +593,7 @@ class ScrcpyDevice(AndroidDevice):
             print(f"[ScrcpyDevice] [WARN] Error cleaning reverse tunnels: {e}")
 
         # Remove forward tunnels (via queue) - critical for fallback support
-        cmd = [self.adb_path, "-s", self.serial, "forward", "--remove-all"]
+        cmd = [self.adb_path, "-s", self.serial, "forward", "--remove-all"]  # ✅ Must use -s with 19 devices
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
@@ -580,7 +604,7 @@ class ScrcpyDevice(AndroidDevice):
             print(f"[ScrcpyDevice] [WARN] Error cleaning forward tunnels: {e}")
 
         # Kill old scrcpy-server processes (via queue)
-        cmd = [self.adb_path, "-s", self.serial, "shell", "pkill -f com.genymobile.scrcpy.Server"]
+        cmd = [self.adb_path, "-s", self.serial, "shell", "pkill -f com.genymobile.scrcpy.Server"]  # ✅ Must use -s with 19 devices
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
@@ -629,6 +653,9 @@ class ScrcpyDevice(AndroidDevice):
             RuntimeError: If both modes fail
         """
         env = os.environ.copy()
+        # ✅ CRITICAL: Set ANDROID_SERIAL environment variable
+        # This is the CORRECT way to specify device for ADB commands
+        # The -s parameter is NOT enough when multiple devices are connected
         env['ANDROID_SERIAL'] = self.serial
 
         # ============================================================================
@@ -637,7 +664,7 @@ class ScrcpyDevice(AndroidDevice):
         try:
             cmd = [
                 self.adb_path,
-                "-s", self.serial,
+                "-s", self.serial,  # ✅ MUST use -s for reverse/forward when 19 devices connected
                 "reverse",
                 f"localabstract:{device_socket_name}",
                 f"tcp:{local_port}"
@@ -645,6 +672,7 @@ class ScrcpyDevice(AndroidDevice):
 
             print(f"[ScrcpyDevice] [TUNNEL] Trying REVERSE mode for {self.serial}...")
             print(f"[ScrcpyDevice] [TUNNEL] Command: {' '.join(cmd)}")
+            print(f"[ScrcpyDevice] [TUNNEL] ANDROID_SERIAL={self.serial}")
 
             result = _run_adb_command_via_queue(cmd, env, timeout=10.0)
 
@@ -668,7 +696,7 @@ class ScrcpyDevice(AndroidDevice):
             try:
                 cmd = [
                     self.adb_path,
-                    "-s", self.serial,
+                    "-s", self.serial,  # ✅ MUST use -s for reverse/forward when 19 devices connected
                     "forward",
                     f"tcp:{local_port}",
                     f"localabstract:{device_socket_name}"
@@ -676,6 +704,7 @@ class ScrcpyDevice(AndroidDevice):
 
                 print(f"[ScrcpyDevice] [TUNNEL] Trying FORWARD mode for {self.serial}...")
                 print(f"[ScrcpyDevice] [TUNNEL] Command: {' '.join(cmd)}")
+                print(f"[ScrcpyDevice] [TUNNEL] ANDROID_SERIAL={self.serial}")
 
                 result = _run_adb_command_via_queue(cmd, env, timeout=10.0)
 
@@ -735,46 +764,70 @@ class ScrcpyDevice(AndroidDevice):
         print(f"[ScrcpyDevice] Socket connected successfully to port {port}")
         return sock
 
-    def _build_server_command(self, scid: int, tunnel_mode: str) -> list:
+    def _build_server_command(self, scid_hex: str, tunnel_mode: str) -> list:
         """
-        Build scrcpy-server shell command for v3.3.3 (supports both REVERSE and FORWARD)
+        Build scrcpy-server shell command for v3.3.4 (supports both REVERSE and FORWARD)
 
         Args:
-            scid: 31-bit random session ID
+            scid_hex: Session ID in 8-digit hex format (e.g., "1a2b3c4d")
             tunnel_mode: "reverse" or "forward" - determines tunnel_forward parameter
 
-        Reference: scrcpy_source/server/src/main/java/com/genymobile/scrcpy/Options.java
+        Reference: https://github.com/genymobile/scrcpy/blob/master/doc/develop.md
         """
-        # scrcpy v3.3.3 server command - supports both tunnel modes
+        # Official scrcpy v3.3.4 server command format (Android 7.0 compatible):
+        # cd /data/local/tmp && CLASSPATH=scrcpy-server app_process . com.genymobile.scrcpy.Server 3.3.4 ...
+        # CRITICAL: Android 7.0 ClassLoader requirements (TECHNICAL_SPECIFICATION.md line 366-376):
+        # 1. MUST cd to /data/local/tmp first
+        # 2. CLASSPATH MUST be relative path (scrcpy-server, not /data/local/tmp/scrcpy-server)
+        # 3. app_process MUST use "." (current dir), not "/" (root dir)
+        # 4. File MUST be pushed WITHOUT .jar extension (scrcpy-server, not scrcpy-server.jar)
+        # 5. Version MUST match jar file version (scrcpy-server.jar in resources is v3.3.4)
+        # 6. SCID MUST be hex string (server parses with Integer.parseInt(value, 0x10))
         cmd = [
-            "CLASSPATH=/data/local/tmp/scrcpy-server.jar",
+            "cd", "/data/local/tmp", "&&",  # CRITICAL: cd to /data/local/tmp first
+            "CLASSPATH=scrcpy-server",       # CRITICAL: relative path, NO .jar extension!
             "app_process",
-            "/",
+            ".",                              # CRITICAL: current directory, not /
             "com.genymobile.scrcpy.Server",
-            "3.3.3",  # Version (args[0]) - must match BuildConfig.VERSION_NAME
-            f"scid={scid:08x}",
+            "3.3.4",  # Version (args[0]) - must match BuildConfig.VERSION_NAME in scrcpy-server.jar
+            f"scid={scid_hex}",  # CRITICAL: Must be HEX string (e.g., "1a2b3c4d"), not decimal!
             "log_level=debug",
-            "audio=false",  # Audio streaming is currently disabled for web tests
-            f"max_size={self.params.max_size}",
-            f"max_fps={self.params.max_fps}",
+            "audio=false",  # CRITICAL: Must disable audio since we don't connect audio socket
+            f"max_size={self.params.max_size}",  # Video resolution limit
         ]
 
-        if self.params.bit_rate:
-            cmd.append(f"video_bit_rate={self.params.bit_rate}")
+        # NOTE: Commenting out unsupported parameters
+        # if self.params.bit_rate:
+        #     cmd.append(f"video_bit_rate={self.params.bit_rate}")
+        #
+        # if self.params.codec:
+        #     cmd.append(f"video_codec={self.params.codec.value}")
 
-        if self.params.codec:
-            cmd.append(f"video_codec={self.params.codec.value}")
-
-        if not self.params.control:
-            cmd.append("control=false")
+        # NOTE: 'control' is NOT a valid server parameter (TECHNICAL_SPECIFICATION.md line 560-562)
+        # Control functionality is handled by connecting/not connecting the control socket
+        # Server does not have a control=false parameter - it will cause "Aborted" crash
 
         if self.params.locked_video_orientation != -1:
             cmd.append(f"locked_video_orientation={self.params.locked_video_orientation}")
 
-        # CRITICAL: Add tunnel_forward=true in FORWARD mode (QtScrcpy pattern)
-        # This tells scrcpy-server to use FORWARD mode protocol
+        # CRITICAL: tunnel_forward parameter controls server socket behavior
+        # Based on official scrcpy source code analysis (DesktopConnection.java:64-101):
+        #   - tunnel_forward=true  → Server creates LocalServerSocket and WAITS (FORWARD mode)
+        #   - tunnel_forward=false → Server CONNECTS to socket as client (REVERSE mode)
+        #
+        # Tunnel modes explained correctly:
+        #   - FORWARD mode (adb forward): PC CONNECTS to localhost:PORT → ADB forwards to device
+        #     → Device server WAITS (LocalServerSocket.accept()) → tunnel_forward=true
+        #     → Dummy byte IS sent after accept()
+        #   - REVERSE mode (adb reverse): PC LISTENS on localhost:PORT ← ADB forwards from device
+        #     → Device server CONNECTS (LocalSocket.connect()) → tunnel_forward=false
+        #     → NO dummy byte
+        #
+        # See: SCRCPY_CONNECTION_SEQUENCE_ANALYSIS.md for detailed analysis
         if tunnel_mode == "forward":
             cmd.append("tunnel_forward=true")
+            # Server creates LocalServerSocket and waits for PC to connect via adb forward tunnel
+            # Dummy byte is sent after accept() on first socket
 
         return cmd
 
@@ -789,10 +842,9 @@ class ScrcpyDevice(AndroidDevice):
 
         Reference: https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/DesktopConnection.java#L151
         """
-        # Read device name (64 bytes, null-terminated string)
+        # Read 64-byte device name from socket (both REVERSE and FORWARD modes)
         name_bytes = self._recv_exactly(self._video_socket, 64)
         device_name = name_bytes.split(b'\x00')[0].decode('utf-8')
-
         print(f"[ScrcpyDevice] Device name from metadata: {device_name}")
 
         # Get additional device info from ADB (scrcpy protocol doesn't provide these)
@@ -870,7 +922,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "wm", "density"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             # Output format: "Physical density: 440"
             output = result.stdout.strip()
@@ -885,7 +937,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.release"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             return result.stdout.strip()
         return "Unknown"
@@ -896,7 +948,19 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.sdk"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             return int(result.stdout.strip())
         return 0  # Unknown SDK version
+
+    def _get_device_model(self) -> str:
+        """Get device model via ADB (via queue)"""
+        env = os.environ.copy()
+        env['ANDROID_SERIAL'] = self.serial
+
+        cmd = [self.adb_path, "-s", self.serial, "shell", "getprop ro.product.model"]
+        result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        return "Unknown"
+

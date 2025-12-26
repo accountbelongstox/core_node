@@ -14,10 +14,10 @@ import time
 import threading
 from typing import Optional
 from pycore import ColorPrint
-from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
-from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInfo, DeviceState, DeviceType
-from pyapps.matrix.adb_device_manager.network_scanner import NetworkScanner
-from pyapps.matrix.adb_device_manager.usb_monitor import USBMonitor
+from pyapps.matrix.adb_device_manager.adb_executor import adb_executor, ADBExecutor
+from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTable, DeviceInfo, DeviceState, DeviceType
+from pyapps.matrix.adb_device_manager.network_scanner import network_scanner, NetworkScanner
+from pyapps.matrix.adb_device_manager.usb_monitor import get_usb_monitor
 
 
 class ADBHeartbeatThread(threading.Thread):
@@ -64,14 +64,11 @@ class ADBHeartbeatThread(threading.Thread):
         self._running = False
         self.rpc_server = None
 
-        self.device_table = DeviceTable()
-        self.adb = ADBExecutor(adb_path=adb_path)
-        self.network_scanner = NetworkScanner(port=5555, timeout=0.2)
-        self.usb_monitor = USBMonitor(
-            adb_executor=self.adb,
-            device_table=self.device_table,
-            auto_convert=True
-        )
+        # ✅ 使用全局导出的实例（模块级别单例）
+        self.device_table = device_table
+        self.adb = adb_executor
+        self.network_scanner = network_scanner
+        self.usb_monitor = get_usb_monitor()
 
         self._last_network_scan = 0.0
         self._last_usb_scan = 0.0

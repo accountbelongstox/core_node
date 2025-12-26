@@ -22,8 +22,10 @@ from pathlib import Path
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import Commander
 from pycore.pyfoundations.system_paths import map_web_path
+from pycore.pyutils.robust_downloader import RobustDownloader
 
-# FFmpeg download URLs
+# FFmpeg download URLs (gyan.dev builds - updated 2025-12-18)
+# Source: https://www.gyan.dev/ffmpeg/builds/
 FFMPEG_WINDOWS_URL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-2025-12-10-git-4f947880bd-essentials_build.7z"
 FFMPEG_WINDOWS_FALLBACK_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z"
 
@@ -139,7 +141,7 @@ def check_ffmpeg_in_install_dir():
 
 def download_file(url, destination):
     """
-    Download file from URL to destination
+    Download file from URL to destination using RobustDownloader
 
     Args:
         url: Download URL
@@ -151,44 +153,35 @@ def download_file(url, destination):
     ColorPrint.blue(f"[FFmpegInstaller] Downloading from: {url}")
     ColorPrint.blue(f"[FFmpegInstaller] Destination: {destination}")
 
-    # Import requests using lazy loader
-    from pycore.pyfoundations.third_party import get_third_package_requests
-    requests = get_third_package_requests()
-
-    if not requests:
-        ColorPrint.red("[FFmpegInstaller] ✗ requests package not available")
-        return False
-
     # Create parent directory
     os.makedirs(os.path.dirname(destination), exist_ok=True)
 
-    # Download with streaming
-    response = requests.get(url, stream=True)
+    # Use RobustDownloader with retry support
+    downloader = RobustDownloader(
+        max_retries=5,
+        timeout=120,  # 120s timeout for large FFmpeg packages
+        chunk_size=8192,
+        retry_delay=2.0,
+        max_retry_delay=30.0
+    )
 
-    if response.status_code != 200:
-        ColorPrint.red(f"[FFmpegInstaller] ✗ Download failed with status: {response.status_code}")
-        return False
+    def progress_callback(downloaded: int, total: int, attempt: int):
+        if total > 0:
+            # Progress indicator every 10MB
+            if downloaded % (10 * 1024 * 1024) < 8192 or downloaded == total:
+                progress = (downloaded / total * 100)
+                mb_downloaded = downloaded / (1024 * 1024)
+                mb_total = total / (1024 * 1024)
+                ColorPrint.blue(f"[FFmpegInstaller] Attempt {attempt}/5: {progress:.1f}% ({mb_downloaded:.2f}/{mb_total:.2f} MB)")
 
-    total_size = int(response.headers.get('content-length', 0))
-    ColorPrint.blue(f"[FFmpegInstaller] File size: {total_size / (1024*1024):.2f} MB")
+    success = downloader.download(url, Path(destination), progress_callback)
 
-    # Write to file
-    downloaded = 0
-    chunk_size = 8192
+    if success:
+        ColorPrint.green(f"[FFmpegInstaller] ✓ Download complete: {destination}")
+    else:
+        ColorPrint.red(f"[FFmpegInstaller] ✗ Download failed")
 
-    with open(destination, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=chunk_size):
-            if chunk:
-                f.write(chunk)
-                downloaded += len(chunk)
-
-                # Progress indicator every 10MB
-                if downloaded % (10 * 1024 * 1024) < chunk_size:
-                    progress = (downloaded / total_size * 100) if total_size > 0 else 0
-                    ColorPrint.blue(f"[FFmpegInstaller] Progress: {progress:.1f}% ({downloaded / (1024*1024):.2f} MB)")
-
-    ColorPrint.green(f"[FFmpegInstaller] ✓ Download complete: {destination}")
-    return True
+    return success
 
 
 def extract_7z_windows(archive_path, extract_to):
