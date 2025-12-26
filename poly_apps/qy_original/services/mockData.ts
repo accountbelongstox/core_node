@@ -1,4 +1,3 @@
-
 import { Word, WordGroup, User, SupportedLanguage, LeaderboardUser, Achievement, QuizQuestion, RetentionStat, Friend, ActivityLog, Announcement } from '../types';
 
 export const MOCK_USER: User = {

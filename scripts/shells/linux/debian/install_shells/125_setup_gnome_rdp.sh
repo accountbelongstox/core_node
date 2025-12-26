@@ -333,7 +333,7 @@ enable_rdp() {
     echo "Method 1: Disable NLA in RDP connection (Recommended)"
     echo "  1. Open Remote Desktop Connection (mstsc)"
     echo "  2. Enter IP address, click 'Show Options'"
-    echo "  3. Go to 'Advanced' tab â†?'Settings'"
+    echo "  3. Go to 'Advanced' tab ï¿½?'Settings'"
     echo "  4. Set authentication to 'Do not connect if authentication fails'"
     echo ""
     echo "Method 2: Create .rdp file with:"

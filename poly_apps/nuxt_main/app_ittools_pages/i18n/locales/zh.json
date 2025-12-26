@@ -1,0 +1,241 @@
+{
+  "app": {
+    "name": "IT 工具集",
+    "tagline": "开发者的便捷在线工具",
+    "description": "88+ 款便捷的开发者在线工具集合"
+  },
+
+  "nav": {
+    "tools": "工具",
+    "favorites": "收藏",
+    "history": "历史",
+    "search": "搜索",
+    "settings": "设置",
+    "browser_automation": "浏览器自动化",
+    "windows_operations": "Windows 操作",
+    "nginx_management": "Nginx 管理"
+  },
+
+  "common": {
+    "search": "搜索",
+    "search_tools": "按名称、分类或关键词搜索工具...",
+    "all_tools": "所有工具",
+    "recently_used": "最近使用",
+    "most_popular": "最受欢迎",
+    "no_results": "未找到结果",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "warning": "警告",
+    "info": "信息",
+    "copy": "复制",
+    "paste": "粘贴",
+    "clear": "清除",
+    "reset": "重置",
+    "download": "下载",
+    "upload": "上传",
+    "input": "输入",
+    "output": "输出",
+    "result": "结果",
+    "options": "选项",
+    "execute": "执行",
+    "cancel": "取消",
+    "close": "关闭",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "view": "查看",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "submit": "提交",
+    "confirm": "确认"
+  },
+
+  "categories": {
+    "all": "所有分类",
+    "crypto": "加密与安全",
+    "converter": "转换器",
+    "web": "Web 开发",
+    "text": "文本处理",
+    "math": "数学计算",
+    "network": "网络工具",
+    "color": "颜色工具",
+    "calculator": "计算器",
+    "development": "开发工具",
+    "measurement": "测量工具",
+    "data": "数据工具",
+    "formatter": "格式化工具"
+  },
+
+  "favorites": {
+    "title": "收藏的工具",
+    "no_favorites": "还没有收藏的工具",
+    "add": "添加到收藏",
+    "remove": "从收藏移除",
+    "added": "已添加到收藏",
+    "removed": "已从收藏移除"
+  },
+
+  "history": {
+    "title": "最近使用的工具",
+    "no_history": "没有最近使用的工具",
+    "clear": "清除历史",
+    "cleared": "历史已清除"
+  },
+
+  "tools": {
+    "select_tool": "选择工具",
+    "select_tool_desc": "从左侧边栏或顶部菜单选择一个实用工具开始工作",
+    "tool_not_found": "未找到工具",
+    "execution_failed": "工具执行失败",
+    "execution_success": "工具执行成功"
+  },
+
+  "crypto": {
+    "hash_text": "哈希文本",
+    "hash_text_desc": "生成 MD5、SHA1、SHA256、SHA512 哈希值",
+    "bcrypt_hash": "BCrypt 哈希",
+    "bcrypt_hash_desc": "使用 BCrypt 对密码进行哈希",
+    "bcrypt_verify": "BCrypt 验证",
+    "bcrypt_verify_desc": "验证 BCrypt 密码哈希",
+    "uuid_generator": "UUID 生成器",
+    "uuid_generator_desc": "生成 v4 UUID",
+    "ulid_generator": "ULID 生成器",
+    "ulid_generator_desc": "生成 ULID",
+    "token_generator": "令牌生成器",
+    "token_generator_desc": "生成随机令牌",
+    "basic_auth": "Basic Auth 生成器",
+    "basic_auth_desc": "生成 HTTP Basic Auth 头",
+    "hmac_generator": "HMAC 生成器",
+    "hmac_generator_desc": "生成 HMAC 签名",
+    "rsa_key_pair": "RSA 密钥对生成器",
+    "rsa_key_pair_desc": "生成 RSA 公钥/私钥对",
+    "bip39_generator": "BIP39 助记词",
+    "bip39_generator_desc": "生成 BIP39 助记词",
+    "otp_generator": "OTP 生成器",
+    "otp_generator_desc": "生成一次性密码",
+    "password_strength": "密码强度",
+    "password_strength_desc": "分析密码强度",
+    "encryption": "加密工具",
+    "encryption_desc": "加密和解密文本"
+  },
+
+  "converter": {
+    "base64_encode": "Base64 编码",
+    "base64_encode_desc": "将文本编码为 Base64",
+    "base64_decode": "Base64 解码",
+    "base64_decode_desc": "将 Base64 解码为文本",
+    "url_encode": "URL 编码",
+    "url_encode_desc": "对 URL 文本进行编码",
+    "url_decode": "URL 解码",
+    "url_decode_desc": "对 URL 编码的文本进行解码",
+    "case_converter": "大小写转换",
+    "case_converter_desc": "转换文本大小写格式",
+    "color_converter": "颜色转换",
+    "color_converter_desc": "转换颜色格式",
+    "slugify": "Slug 化",
+    "slugify_desc": "将文本转换为 URL 友好的 slug",
+    "json_to_yaml": "JSON 转 YAML",
+    "json_to_yaml_desc": "将 JSON 转换为 YAML 格式",
+    "yaml_to_json": "YAML 转 JSON",
+    "yaml_to_json_desc": "将 YAML 转换为 JSON 格式",
+    "xml_to_json": "XML 转 JSON",
+    "xml_to_json_desc": "将 XML 转换为 JSON 格式",
+    "json_to_xml": "JSON 转 XML",
+    "json_to_xml_desc": "将 JSON 转换为 XML 格式",
+    "temperature_converter": "温度转换",
+    "temperature_converter_desc": "在温度单位之间转换",
+    "roman_numeral": "罗马数字转换",
+    "roman_numeral_desc": "罗马数字和阿拉伯数字之间转换",
+    "datetime_converter": "日期时间转换",
+    "datetime_converter_desc": "转换日期和时间格式",
+    "base_converter": "进制转换",
+    "base_converter_desc": "在不同进制之间转换",
+    "list_converter": "列表转换",
+    "list_converter_desc": "转换列表格式"
+  },
+
+  "web": {
+    "json_prettify": "JSON 格式化",
+    "json_prettify_desc": "格式化和美化 JSON",
+    "json_minify": "JSON 压缩",
+    "json_minify_desc": "通过删除空白来压缩 JSON",
+    "json_diff": "JSON 对比",
+    "json_diff_desc": "比较两个 JSON 对象",
+    "jwt_parser": "JWT 解析器",
+    "jwt_parser_desc": "解析和解码 JWT 令牌",
+    "html_encode": "HTML 编码",
+    "html_encode_desc": "编码 HTML 实体",
+    "html_decode": "HTML 解码",
+    "html_decode_desc": "解码 HTML 实体",
+    "markdown_to_html": "Markdown 转 HTML",
+    "markdown_to_html_desc": "将 Markdown 转换为 HTML",
+    "sql_formatter": "SQL 格式化",
+    "sql_formatter_desc": "格式化 SQL 查询",
+    "qr_code_generator": "二维码生成器",
+    "qr_code_generator_desc": "生成二维码",
+    "http_status": "HTTP 状态码",
+    "http_status_desc": "HTTP 状态码参考",
+    "mime_types": "MIME 类型",
+    "mime_types_desc": "MIME 类型参考"
+  },
+
+  "text": {
+    "text_statistics": "文本统计",
+    "text_statistics_desc": "分析文本统计信息",
+    "regex_tester": "正则表达式测试器",
+    "regex_tester_desc": "测试正则表达式",
+    "url_parser": "URL 解析器",
+    "url_parser_desc": "解析和分析 URL",
+    "lorem_ipsum": "Lorem Ipsum 生成器",
+    "lorem_ipsum_desc": "生成 Lorem Ipsum 文本",
+    "text_diff": "文本对比",
+    "text_diff_desc": "比较两个文本块",
+    "numeronym": "数字缩写生成器",
+    "numeronym_desc": "从文本生成数字缩写"
+  },
+
+  "math": {
+    "expression_evaluator": "表达式计算器",
+    "expression_evaluator_desc": "计算数学表达式",
+    "percentage_calculator": "百分比计算器",
+    "percentage_calculator_desc": "计算百分比",
+    "eta_calculator": "ETA 计算器",
+    "eta_calculator_desc": "计算预计到达时间"
+  },
+
+  "network": {
+    "ipv4_converter": "IPv4 转换器",
+    "ipv4_converter_desc": "转换 IPv4 地址格式",
+    "ipv4_subnet": "IPv4 子网计算器",
+    "ipv4_subnet_desc": "计算 IPv4 子网",
+    "mac_generator": "MAC 地址生成器",
+    "mac_generator_desc": "生成随机 MAC 地址",
+    "port_generator": "随机端口生成器",
+    "port_generator_desc": "生成随机端口号",
+    "device_info": "设备信息",
+    "device_info_desc": "查看设备信息"
+  },
+
+  "status": {
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "connecting": "连接中...",
+    "partial": "部分连接",
+    "fully_connected": "完全连接",
+    "http_connected": "HTTP 已连接"
+  },
+
+  "errors": {
+    "generic": "发生错误",
+    "network": "网络错误",
+    "api": "API 错误",
+    "validation": "验证错误",
+    "not_found": "未找到",
+    "unauthorized": "未授权",
+    "forbidden": "禁止访问",
+    "server_error": "服务器错误",
+    "timeout": "请求超时"
+  }
+}

@@ -8,7 +8,6 @@ import './styles/theme.css';
 import './styles/components.css';
 import './styles/utilities.css';
 import './styles/pages.css'; // NEW: Page-specific layouts
-
 // Pages
 import LoginPage from './pages/Auth/Login';
 import DashboardPage from './pages/Dashboard/Home';

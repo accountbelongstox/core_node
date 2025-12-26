@@ -91,4 +91,3 @@ else
     print_info_from_common_functions "Command: $0 --fix"
     exit 1
 fi
-
