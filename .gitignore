@@ -396,11 +396,6 @@ java_pid*.hprof
 **/__misc__/.archives/**
 **/.archives/**
 
-<<<<<<< HEAD
-# Ignore paths containing colons
-**/*:*
-=======
 # Paths containing colons (invalid file names on Windows, but may exist on other systems)
 **/*:*
 **/*:*/**
->>>>>>> 389cb4d110293fad9f9cf0dafee542486af46760
