@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-诊断ADB offline设备问题 / Diagnose ADB Offline Devices
+Diagnose ADB Offline Devices
 """
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Setup paths
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from pycore.pyutils.scrcpy_init import get_initializer
 
 # Get ADB path
@@ -15,12 +16,12 @@ scrcpy_init = get_initializer()
 ADB_PATH = scrcpy_init.get_adb_path()
 
 print("=" * 70)
-print("ADB Offline 设备诊断工具")
+print("ADB Offline Device Diagnostic Tool")
 print("=" * 70)
-print(f"ADB路径: {ADB_PATH}\n")
+print(f"ADB Path: {ADB_PATH}\n")
 
 # Get ADB version
-print("[诊断1] 检查ADB版本...")
+print("[Diagnosis 1] Checking ADB version...")
 result = subprocess.run(
     [str(ADB_PATH), "version"],
     capture_output=True,
@@ -30,7 +31,7 @@ print(result.stdout.strip())
 print()
 
 # Get devices
-print("[诊断2] 获取设备列表...")
+print("[Diagnosis 2] Getting device list...")
 result = subprocess.run(
     [str(ADB_PATH), "devices", "-l"],
     capture_output=True,
@@ -48,40 +49,39 @@ for line in result.stdout.splitlines()[1:]:
             offline_devices.append(serial)
 
 if not offline_devices:
-    print("没有offline设备")
+    print("No offline devices found")
     sys.exit(0)
 
-print(f"发现 {len(offline_devices)} 个offline设备\n")
+print(f"Found {len(offline_devices)} offline device(s)\n")
 
 # Try to reconnect each offline device
-print("[诊断3] 尝试重新连接offline设备...\n")
+print("[Diagnosis 3] Attempting to reconnect offline devices...\n")
 
 for i, serial in enumerate(offline_devices, 1):
-    print(f"--- 设备 {i}/{len(offline_devices)}: {serial} ---")
+    print(f"--- Device {i}/{len(offline_devices)}: {serial} ---")
 
     # Step 1: Disconnect
-    print(f"  [1] 断开连接...")
+    print(f"  [1] Disconnecting...")
     subprocess.run(
         [str(ADB_PATH), "disconnect", serial],
         capture_output=True
     )
 
     # Step 2: Wait
-    import time
     time.sleep(1)
 
     # Step 3: Reconnect
-    print(f"  [2] 重新连接...")
+    print(f"  [2] Reconnecting...")
     result = subprocess.run(
         [str(ADB_PATH), "connect", serial],
         capture_output=True,
         text=True,
         timeout=10
     )
-    print(f"      结果: {result.stdout.strip()}")
+    print(f"      Result: {result.stdout.strip()}")
 
     # Step 4: Check status
-    print(f"  [3] 检查状态...")
+    print(f"  [3] Checking status...")
     result = subprocess.run(
         [str(ADB_PATH), "-s", serial, "get-state"],
         capture_output=True,
@@ -91,10 +91,10 @@ for i, serial in enumerate(offline_devices, 1):
 
     if result.returncode == 0:
         state = result.stdout.strip()
-        print(f"      状态: {state}")
+        print(f"      Status: {state}")
 
         if state == "device":
-            print(f"      [成功] 设备已在线")
+            print(f"      [SUCCESS] Device is online")
 
             # Try to get device info
             result = subprocess.run(
@@ -105,16 +105,16 @@ for i, serial in enumerate(offline_devices, 1):
             )
             if result.returncode == 0:
                 model = result.stdout.strip()
-                print(f"      型号: {model}")
+                print(f"      Model: {model}")
     else:
-        error = result.stderr.strip() if result.stderr else "超时或无响应"
-        print(f"      [失败] {error}")
+        error = result.stderr.strip() if result.stderr else "Timeout or no response"
+        print(f"      [FAILED] {error}")
 
     print()
 
 # Final status
 print("=" * 70)
-print("[最终状态]")
+print("[Final Status]")
 print("=" * 70)
 result = subprocess.run(
     [str(ADB_PATH), "devices"],
@@ -131,24 +131,24 @@ for line in result.stdout.splitlines()[1:]:
     elif 'offline' in line:
         offline_count += 1
 
-print(f"在线: {online_count} | 离线: {offline_count}")
+print(f"Online: {online_count} | Offline: {offline_count}")
 
 if offline_count > 0:
     print("\n" + "=" * 70)
-    print("常见offline原因及解决方法:")
+    print("Common Offline Causes and Solutions:")
     print("=" * 70)
-    print("1. ADB版本不匹配")
-    print("   解决: 在设备上重启adbd服务")
-    print("   命令: adb shell \"su -c 'setprop service.adb.tcp.port 5555 && stop adbd && start adbd'\"")
+    print("1. ADB version mismatch")
+    print("   Solution: Restart adbd service on device")
+    print("   Command: adb shell \"su -c 'setprop service.adb.tcp.port 5555 && stop adbd && start adbd'\"")
     print()
-    print("2. 设备未授权")
-    print("   解决: 通过USB连接设备，接受授权弹窗")
+    print("2. Device not authorized")
+    print("   Solution: Connect device via USB and accept authorization popup")
     print()
-    print("3. 设备上adbd守护进程崩溃")
-    print("   解决: 重启设备或手动重启adbd")
+    print("3. adbd daemon crashed on device")
+    print("   Solution: Restart device or manually restart adbd")
     print()
-    print("4. 防火墙阻止")
-    print("   解决: 检查设备和电脑的防火墙设置")
+    print("4. Firewall blocking")
+    print("   Solution: Check firewall settings on both device and computer")
     print()
-    print("5. 网络延迟过高")
-    print("   解决: 检查网络连接，尝试使用有线连接")
+    print("5. High network latency")
+    print("   Solution: Check network connection, try using wired connection")
