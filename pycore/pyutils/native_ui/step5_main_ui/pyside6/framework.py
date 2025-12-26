@@ -168,13 +168,8 @@ class PySide6Framework(QObject):
         # Default: No startup window (use TkinterStartupThread via launcher_with_startup.py instead)
         self.startup_config = startup_config or StartupWindowConfig(
             app_name=self.config.app_name,
-<<<<<<< HEAD
-            show_startup=True,  # Default: show startup window
-            auto_close=True  # Default: auto-close when PySide6 starts
-=======
             show_startup=False,  # Default: False (changed to avoid duplicate windows)
             auto_close=True
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         )
 
         # Qt Application
@@ -281,8 +276,6 @@ class PySide6Framework(QObject):
 
         # Create Qt application if not exists
         ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
-<<<<<<< HEAD
-=======
 
         # CRITICAL: Configure QtWebEngine BEFORE QApplication creation
         # This enables WebCodecs, WebGL, hardware acceleration for H.264 video streaming
@@ -294,7 +287,6 @@ class PySide6Framework(QObject):
         # Suppress Qt CSS warnings for unsupported properties
         os.environ.setdefault('QT_LOGGING_RULES', 'qt.qpa.*.warning=false;*.debug=false')
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         if not QApplication.instance():
             self.qt_app = QApplication(sys.argv)
             self._qt_app_created_internally = True
@@ -374,8 +366,6 @@ class PySide6Framework(QObject):
         # Start Qt event loop (blocking)
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
-<<<<<<< HEAD
-=======
 
             # Install signal handler for Ctrl+C (SIGINT)
             # This allows KeyboardInterrupt to properly close the application
@@ -400,7 +390,6 @@ class PySide6Framework(QObject):
 
             ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             sys.exit(self.qt_app.exec())
 
     def _create_components(self):
@@ -460,13 +449,8 @@ class PySide6Framework(QObject):
 
             # Load URL with minimal delay (100ms for UI initialization)
             if self.config.webview_url:
-<<<<<<< HEAD
-                ColorPrint.blue(f"[PySide6Framework] Scheduling URL load (500ms delay): {self.config.webview_url}")
-                QTimer.singleShot(500, lambda: self.webview.load_url(self.config.webview_url))
-=======
                 ColorPrint.blue(f"[PySide6Framework] Scheduling URL load (100ms delay): {self.config.webview_url}")
                 QTimer.singleShot(100, lambda: self.webview.load_url(self.config.webview_url))
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
             self.main_window.set_content(self.webview)
             ColorPrint.green("[PySide6Framework] WebView attached to main window")
@@ -483,13 +467,6 @@ class PySide6Framework(QObject):
 
             # Create default menu if no custom items
             if not self.config.tray_menu_items:
-<<<<<<< HEAD
-                ColorPrint.blue("[PySide6Framework] Creating default tray menu...")
-                menu_items = create_default_tray_menu(
-                    show_callback=self.show_window,
-                    hide_callback=self.hide_window,
-                    quit_callback=self.quit
-=======
                 ColorPrint.blue("[PySide6Framework] Creating default i18n event-driven tray menu...")
                 # Use i18n + event-driven menu (automatically updates with language changes)
                 menu_items = create_i18n_event_driven_tray_menu(
@@ -497,7 +474,6 @@ class PySide6Framework(QObject):
                     enable_show_hide=True,
                     enable_maximize=True,
                     enable_restart=False  # Restart not implemented yet
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 )
                 self.system_tray.set_menu_items(menu_items)
 
@@ -644,10 +620,6 @@ class PySide6Framework(QObject):
                 self.show_window()
 
     def quit(self):
-<<<<<<< HEAD
-        """Quit application."""
-        # Trigger global shutdown if configured
-=======
         """
         Quit application.
 
@@ -656,25 +628,18 @@ class PySide6Framework(QObject):
         2. After THREAD_BUS shutdown complete (cleanup and close window)
         """
         # Trigger global shutdown if configured and not already requested
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         if self.config.trigger_shutdown_on_close and not THREAD_BUS.is_shutdown_requested():
             ColorPrint.blue("[PySide6Framework] Triggering global shutdown via THREAD_BUS...")
             THREAD_BUS.request_shutdown(
                 reason="UI window closed",
                 execute_handlers=True
             )
-<<<<<<< HEAD
-            # Return early - shutdown handlers will clean up everything
-            return
-
-=======
             # Return early - shutdown handlers will call quit() again after shutdown complete
             return
 
         # Shutdown already complete or not needed - proceed with cleanup
         ColorPrint.blue("[PySide6Framework] Shutdown complete, cleaning up UI...")
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         # Stop tick timer
         if self.tick_timer:
             self.tick_timer.stop()

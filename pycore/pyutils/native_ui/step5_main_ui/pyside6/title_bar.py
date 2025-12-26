@@ -208,11 +208,7 @@ class PySide6TitleBar(QWidget):
         if self.menu_icon_path and Path(self.menu_icon_path).exists():
             self.menu_btn = QPushButton()
             self.menu_btn.setFixedSize(self.styles.button_width, self.styles.button_height)
-<<<<<<< HEAD
-            self.menu_btn.setToolTip("Menu")
-=======
             self.menu_btn.setToolTip(i18n.get(I18nKeys.WINDOW_BUTTON_MENU))
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             self.menu_btn.setFlat(True)
             self.menu_btn.setCursor(Qt.PointingHandCursor)
 

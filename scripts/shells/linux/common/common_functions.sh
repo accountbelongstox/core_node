@@ -1761,11 +1761,7 @@ run_pnpm_from_common_functions() {
             pnpm "$@"
             return $?
         else
-<<<<<<< HEAD
-            echo "Error: pnpm not found. Please install pnpm first." >&2
-=======
             echo "Error: pnpm not found. Please install pnpm first (npm install -g pnpm)" >&2
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             return 127
         fi
     fi
@@ -1786,11 +1782,7 @@ run_pnpm_from_common_functions() {
     local old_path="$PATH"
     if [[ -n "$PNPM_GLOBAL_BIN_DIR" ]]; then
         export PATH="$PNPM_GLOBAL_BIN_DIR:$NODE_BIN_DIR:$PATH"
-<<<<<<< HEAD
-    else
-=======
     elif [[ -n "$NODE_BIN_DIR" ]]; then
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         export PATH="$NODE_BIN_DIR:$PATH"
     fi
 
@@ -1798,14 +1790,8 @@ run_pnpm_from_common_functions() {
     "$PNPM_BIN" "$@"
     local exit_code=$?
 
-<<<<<<< HEAD
-    # Restore PATH
-    export PATH="$old_path"
-
-=======
     # Restore original PATH
     export PATH="$old_path"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     return $exit_code
 }
 

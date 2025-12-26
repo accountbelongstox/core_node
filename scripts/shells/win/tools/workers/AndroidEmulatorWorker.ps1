@@ -107,9 +107,6 @@ function Describe-Environment {
     $script:AVD_DIRS = @(
         (Join-Path $env:USERPROFILE ".android\avd")
     )
-<<<<<<< HEAD
-    $script:SCAN_ROOTS = ($script:SDK_ROOTS + $script:AVD_DIRS) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-=======
     $rawRoots = ($script:SDK_ROOTS + $script:AVD_DIRS) | Where-Object { $_ -and (Test-Path $_) }
     $script:SCAN_ROOTS = @()
     foreach ($r in $rawRoots) {
@@ -123,7 +120,6 @@ function Describe-Environment {
             }
         }
     }
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     Write-InfoLine "Active scan roots:"
     foreach ($r in $script:SCAN_ROOTS) { Write-Host "  $r" }
     if (-not (Test-Path $script:CACHE_DIR)) {

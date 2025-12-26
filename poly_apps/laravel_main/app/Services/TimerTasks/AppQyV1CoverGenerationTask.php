@@ -138,11 +138,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     private function processCover(AppQyV1VocabularyCoverModel $cover): array
     {
         try {
-<<<<<<< HEAD
-            return DB::connection('AppQyV1')->transaction(function () use ($cover) {
-=======
             return DB::connection('appqyv1')->transaction(function () use ($cover) {
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 $lockedCover = AppQyV1VocabularyCoverModel::query()
                     ->where('id', $cover->id)
                     ->whereIn('status', ['pending', 'retry'])

@@ -6,11 +6,6 @@ Centralized configuration management following pycore standards
 
 import os
 import platform
-<<<<<<< HEAD
-from pathlib import Path
-
-from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
-=======
 import shutil
 import traceback
 from pathlib import Path
@@ -18,7 +13,6 @@ from pathlib import Path
 from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
 from pycore import ColorPrint
 from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 
 class Config:
@@ -43,64 +37,13 @@ class Config:
         Get ADB executable path
 
         Priority:
-<<<<<<< HEAD
-        1. Local resources/adb/{platform}/adb
-=======
         1. User data directory (from scrcpy_init.py)
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         2. System PATH adb
         3. Return "adb" (fallback)
 
         Returns:
             ADB executable path
         """
-<<<<<<< HEAD
-        import shutil
-
-        system = platform.system()
-        adb_exe = "adb.exe" if system == 'Windows' else "adb"
-
-        # 1. Check local ADB
-        if system == 'Windows':
-            adb_path = Config.RESOURCES_DIR / "adb" / "windows" / adb_exe
-        elif system == 'Darwin':  # macOS
-            adb_path = Config.RESOURCES_DIR / "adb" / "macos" / adb_exe
-        else:  # Linux
-            adb_path = Config.RESOURCES_DIR / "adb" / "linux" / adb_exe
-
-        if adb_path.exists():
-            return str(adb_path)
-
-        # 2. Check system PATH
-        adb_in_path = shutil.which(adb_exe)
-        if adb_in_path:
-            return adb_in_path
-
-        # 3. Fallback
-        return "adb"
-
-    # scrcpy-server configuration (must match scrcpy_source version)
-    SCRCPY_SERVER_JAR = RESOURCES_DIR / "scrcpy-server.jar"
-    SCRCPY_SERVER_VERSION = "3.3.3"
-
-    # ==================== Web Service Configuration ====================
-    WEB_HOST = "0.0.0.0"
-    WEB_PORT = 8000
-
-    # Frontend configuration (HARDCODED - modify here to change settings)
-    FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "nuxt_main"
-    FRONTEND_PORT = 38007  # Matrix frontend port (from app-config.json) - 38007 to avoid common port conflicts
-    FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}"
-
-    # Frontend mode: 'dev' (separate ports) or 'production' (unified port with backend)
-    FRONTEND_MODE = "production"  # Change to "dev" for development
-
-    # Skip build: True to skip compilation (use existing .output), False to compile
-    FRONTEND_SKIP_BUILD = True  # Change to False to force rebuild
-
-    # Force rebuild: True to force rebuild even if .output exists, False for normal behavior
-    FRONTEND_FORCE_REBUILD = False  # Change to True to force rebuild
-=======
         # 1. Try to get from user data directory (auto-extracts if needed)
         try:
             ColorPrint.blue("[Config] Initializing ADB from scrcpy_init...")
@@ -172,7 +115,6 @@ class Config:
     # Build control (production mode only)
     FRONTEND_SKIP_BUILD = False  # False: build when needed, True: use existing dist
     FRONTEND_FORCE_REBUILD = False  # True: always rebuild, False: normal behavior
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
     # Static files directory (production mode)
     STATIC_DIR = APP_ROOT / "static"
@@ -183,8 +125,6 @@ class Config:
     DEFAULT_MAX_FPS = 60            # Max frame rate
     DEFAULT_CODEC = "h264"          # Video codec
 
-<<<<<<< HEAD
-=======
     # Video Stream Mode:
     # - "h264": H.264 direct transmission (requires WebCodecs API with proprietary codecs)
     # - "yuv": YUV420P decoded stream (works on all browsers, compatible with Qt WebEngine)
@@ -197,7 +137,6 @@ class Config:
     HEALTH_RECONNECT_BASE_DELAY = 1     # Base delay for exponential backoff (seconds)
     HEALTH_RECONNECT_MAX_DELAY = 4      # Maximum reconnection delay (seconds)
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     # ==================== WebSocket Configuration ====================
     WS_BASE_PATH = "/ws"
     WS_VIDEO_PATH = "/ws/video/{serial}"      # Video stream
@@ -234,15 +173,6 @@ class Config:
         "codec": DEFAULT_CODEC,
         "control": True,
         "locked_video_orientation": -1,  # -1 = auto
-<<<<<<< HEAD
-    }
-
-    # ==================== CORS Configuration ====================
-    # Matrix frontend runs on port 38007 (defined in app-config.json)
-    CORS_ALLOW_ORIGINS = [
-        f"http://localhost:{FRONTEND_PORT}",
-        f"http://127.0.0.1:{FRONTEND_PORT}",
-=======
         "video_stream_mode": DEFAULT_VIDEO_STREAM_MODE,  # "h264" or "yuv"
     }
 
@@ -289,7 +219,6 @@ class Config:
         f"http://127.0.0.1:{FRONTEND_PORT}",
         f"http://localhost:{WEB_PORT}",  # Backend port (48000)
         f"http://127.0.0.1:{WEB_PORT}",  # Backend port (48000)
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_METHODS = ["*"]

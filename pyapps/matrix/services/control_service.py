@@ -13,15 +13,11 @@ import asyncio
 from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
 from pycore.pyutils.device_manager import device_manager
 from pycore.pyutils.device import ADBManager
-<<<<<<< HEAD
-from pyapps.matrix.matrix_config import Config
-=======
 from pycore.pyutils.group import SyncEvent
 from pyapps.matrix.matrix_config import Config
 
 if TYPE_CHECKING:
     from .group_service import GroupService
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 
 class ControlService:

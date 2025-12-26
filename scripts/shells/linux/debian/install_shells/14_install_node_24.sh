@@ -170,69 +170,8 @@ detect_and_fix_previous_issues() {
 
 # Function to configure pnpm mirror and global settings
 configure_npm_settings() {
-<<<<<<< HEAD
-    echo "Configuring pnpm and npm settings..."
-
-    # First ensure npm is available (comes with Node.js)
-    local npm_bin="$NODE_BIN_DIR/npm"
-    if [ ! -f "$npm_bin" ]; then
-        echo "Warning: npm binary not found at $npm_bin, trying system npm..."
-        npm_bin=$(which npm 2>/dev/null)
-        if [ -z "$npm_bin" ]; then
-            echo "Error: npm not found in system PATH"
-            return 1
-        fi
-    fi
-
-    # Install pnpm globally using npm if not already installed
-    if ! command -v pnpm >/dev/null 2>&1; then
-        echo "Installing pnpm globally..."
-        if [ "$(id -u)" -eq 0 ]; then
-            "$npm_bin" install -g pnpm
-        else
-            $USE_SUDO "$npm_bin" install -g pnpm
-        fi
-
-        # Create symlink for pnpm
-        local pnpm_path="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/pnpm"
-        if [ -f "$pnpm_path" ]; then
-            $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm
-            echo "Created symlink: /usr/local/bin/pnpm -> $pnpm_path"
-        fi
-    fi
-
-    # Configure pnpm
-    if command -v pnpm >/dev/null 2>&1; then
-        # Configure pnpm global directories
-        local pnpm_global_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
-        local pnpm_global_bin="$pnpm_global_dir/bin"
-
-        echo "Configuring pnpm global directories..."
-        pnpm config set global-dir "$pnpm_global_dir"
-        pnpm config set global-bin-dir "$pnpm_global_bin"
-
-        # Ensure directories exist
-        mkdir -p "$pnpm_global_dir"
-        mkdir -p "$pnpm_global_bin"
-
-        # Configure registry based on region
-        if [ "$SELECTED_REGION" = "China" ]; then
-            echo "Region is set to China, configuring pnpm to use China mirror..."
-            pnpm config set registry https://repo.huaweicloud.com/repository/npm/
-        else
-            echo "Region is Global, using default pnpm registry..."
-            pnpm config set registry https://registry.npmjs.org/
-        fi
-
-        echo "pnpm configuration completed:"
-        pnpm config list
-    else
-        echo "Warning: pnpm installation failed, falling back to npm"
-    fi
-=======
     echo "Configuring npm settings..."
     return 0
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 }
 
 check_node_installation() {

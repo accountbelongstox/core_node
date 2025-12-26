@@ -228,11 +228,7 @@ setup_php_default() {
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
         if [ "$current_php" = "/usr/bin/php8.5" ]; then
-<<<<<<< HEAD
             echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is now the system default �?{NC}"
-=======
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is now the system default �?{NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default verification failed${NC}"
         fi
@@ -248,11 +244,7 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
         if [[ "$php_version" == "8.5"* ]]; then
-<<<<<<< HEAD
             echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is active and working �?{NC}"
-=======
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is active and working �?{NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.5.x, got $php_version${NC}"
         fi
@@ -285,11 +277,7 @@ setup_php_default() {
         local alternatives_count=$(echo "$alternatives_list" | wc -l)
 
         if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.5"; then
-<<<<<<< HEAD
             echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.5 is in alternatives �?{NC}"
-=======
-            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.5 is in alternatives �?{NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
             echo "$alternatives_list"
@@ -324,51 +312,31 @@ main() {
 
     echo -e "${CYAN}$SCRIPT_INDEX [PRECISION MODE] Running ALL configuration steps regardless of current state${NC}"
 
-<<<<<<< HEAD
-    # Step 1: Configure PHP-FPM (ALWAYS run - 精细化修复第1项)
-=======
-    # Step 1: Configure PHP-FPM (ALWAYS run - 精细化修复第1�?
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+    # Step 1: Configure PHP-FPM (ALWAYS run - 精细化修复第1�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 1/5] Configuring PHP-FPM...${NC}"
     configure_php_fpm || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM configuration completed with warnings${NC}"
     }
 
-<<<<<<< HEAD
-    # Step 2: Configure PHP for Laravel (ALWAYS run - 精细化修复第2项)
-=======
-    # Step 2: Configure PHP for Laravel (ALWAYS run - 精细化修复第2�?
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+    # Step 2: Configure PHP for Laravel (ALWAYS run - 精细化修复第2�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Configuring PHP for Laravel...${NC}"
     configure_php_for_laravel || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP Laravel configuration completed with warnings${NC}"
     }
 
-<<<<<<< HEAD
-    # Step 3: Set directory permissions (ALWAYS run - 精细化修复第3项)
-=======
-    # Step 3: Set directory permissions (ALWAYS run - 精细化修复第3�?
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+    # Step 3: Set directory permissions (ALWAYS run - 精细化修复第3�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Setting directory permissions...${NC}"
     set_directory_permissions || {
         echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"
     }
 
-<<<<<<< HEAD
-    # Step 4: Set PHP 8.5 as default (ALWAYS run - 精细化修复第4项)
-=======
-    # Step 4: Set PHP 8.5 as default (ALWAYS run - 精细化修复第4�?
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+    # Step 4: Set PHP 8.5 as default (ALWAYS run - 精细化修复第4�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 4/5] Setting PHP 8.5 as default...${NC}"
     setup_php_default || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default setup completed with warnings${NC}"
     }
 
-<<<<<<< HEAD
-    # Step 5: Update web server configurations (ALWAYS check - 精细化修复第5项)
-=======
-    # Step 5: Update web server configurations (ALWAYS check - 精细化修复第5�?
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
+    # Step 5: Update web server configurations (ALWAYS check - 精细化修复第5�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Updating web server configurations...${NC}"
     if [ "$INSTALL_NGINX" = "true" ]; then
         update_nginx_config || {

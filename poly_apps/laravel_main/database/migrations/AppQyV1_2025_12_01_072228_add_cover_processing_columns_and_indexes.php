@@ -11,11 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-<<<<<<< HEAD
-        Schema::connection('AppQyV1')->table('app_qy_v1_vocabulary_covers', function (Blueprint $table) {
-=======
         Schema::connection('appqyv1')->table('app_qy_v1_vocabulary_covers', function (Blueprint $table) {
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             // Add attempts column for retry tracking
             $table->integer('attempts')->default(0)->after('priority');
 
@@ -30,11 +26,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-<<<<<<< HEAD
-        Schema::connection('AppQyV1')->table('app_qy_v1_vocabulary_covers', function (Blueprint $table) {
-=======
         Schema::connection('appqyv1')->table('app_qy_v1_vocabulary_covers', function (Blueprint $table) {
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
             $table->dropIndex('idx_cover_processing');
             $table->dropColumn('attempts');
         });

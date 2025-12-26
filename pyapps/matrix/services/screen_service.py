@@ -11,11 +11,7 @@ except ImportError:
 import asyncio
 from typing import Optional, Dict
 from pycore.pyutils.device import ADBManager
-<<<<<<< HEAD
-from pycore.pyutils.device_manager import DeviceManager
-=======
 from pycore.pyutils.device_manager import device_manager
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from pyapps.matrix.matrix_config import Config
 
 

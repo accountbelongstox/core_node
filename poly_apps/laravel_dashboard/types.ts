@@ -11,9 +11,6 @@ export enum ViewType {
   CODE_BROWSER = 'code',
   TOOLS = 'tools',
   API_TESTER = 'api',
-<<<<<<< HEAD
-  SETTINGS = 'settings'
-=======
   SETTINGS = 'settings',
   SYSTEM_INFO = 'system',
   VOCABULARY = 'vocabulary',
@@ -22,7 +19,6 @@ export enum ViewType {
   SERVER_MANAGER = 'server',
   AI_TOOLS = 'ai_tools',
   INVITE_CODE_MANAGER = 'invite_codes'
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 }
 
 export interface NavItem {
@@ -42,15 +38,12 @@ export interface FileNode {
   isOpen?: boolean;
 }
 
-<<<<<<< HEAD
-=======
 export interface FileTreeResponse {
   items: FileNode[];
   path: string;
   realPath: string;
 }
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export type ToolStatus = 'available' | 'todo' | 'beta';
 
 export interface ToolItem {
@@ -182,8 +175,6 @@ export interface ClipboardData {
         size: number;
     }>;
     updated_at: string;
-<<<<<<< HEAD
-=======
     namespace?: string;
     history?: ClipboardHistory[];
     file_count?: number;
@@ -914,5 +905,4 @@ export interface FullApiInfo {
   api_reference: {
     [appName: string]: ApiInfo;
   };
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 }

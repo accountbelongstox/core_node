@@ -23,11 +23,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Tuple
 
-<<<<<<< HEAD
-from pycore import ColorPrint
-=======
 from pycore import ColorPrint, THREAD_BUS
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 from pycore.pyfoundations.system_paths import get_app_data_dir, CORE_NODE_ROOT
 from pycore.pyfoundations.third_party import get_third_package_requests
 
@@ -488,8 +484,6 @@ class CodeSyncClient:
         )
         self.scan_thread.start()
 
-<<<<<<< HEAD
-=======
         # THREAD_BUS Integration: Register shutdown handler
         # Priority=70 for service threads (stops before singleton detector)
         THREAD_BUS.register_shutdown_handler(
@@ -506,7 +500,6 @@ class CodeSyncClient:
             'backup_enabled': self.enable_backup
         }, async_mode=True)
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         ColorPrint.green("[CodeSync Client] Started")
 
     def stop(self):
@@ -527,14 +520,11 @@ class CodeSyncClient:
         if self.scan_thread:
             self.scan_thread.join(timeout=2.0)
 
-<<<<<<< HEAD
-=======
         # THREAD_BUS Integration: Trigger client stopped event
         THREAD_BUS.trigger_event('code_sync.client.stopped', {
             'servers_count': len(self.servers)
         }, async_mode=True)
 
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         ColorPrint.yellow("[CodeSync Client] Stopped")
 
     def _generate_client_id(self) -> str:
@@ -561,15 +551,10 @@ class CodeSyncClient:
 
         # Periodic re-scan for new servers
         while self.running:
-<<<<<<< HEAD
-            try:
-                time.sleep(30)  # Re-scan every 30 seconds for new servers
-=======
             # THREAD_BUS Integration: Check if global shutdown was requested
             if THREAD_BUS.is_shutdown_requested():
                 ColorPrint.yellow("[CodeSync Client] THREAD_BUS shutdown detected, stopping scanner...")
                 break
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
             try:
                 time.sleep(30)  # Re-scan every 30 seconds for new servers

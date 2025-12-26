@@ -244,19 +244,12 @@ function Install-PackageManagers {
 
         & $PnpmExePath config set global-dir $pnpmGlobalDir
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
-<<<<<<< HEAD
-        & $PnpmExePath setup
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
-        Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
-=======
         & $PnpmExePath config set enable-pre-post-scripts true
         Write-Host "Y" | & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true" -Type "Success"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
     }
 

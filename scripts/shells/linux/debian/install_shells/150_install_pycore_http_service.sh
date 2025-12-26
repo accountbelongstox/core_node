@@ -80,11 +80,7 @@ sleep 3
 
 # Check service status
 if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-<<<<<<< HEAD
     echo "ï¿½?Pycore FastAPI service started successfully"
-=======
-    echo "ï¿?Pycore FastAPI service started successfully"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     echo "  Service: $SERVICE_NAME"
     echo "  Port: $SERVICE_PORT"
     echo "  Health: http://127.0.0.1:$SERVICE_PORT/health"
@@ -92,21 +88,12 @@ if systemctl is-active --quiet "$SERVICE_NAME.service"; then
 
     # Test health endpoint
     if curl -s "http://127.0.0.1:$SERVICE_PORT/health" > /dev/null 2>&1; then
-<<<<<<< HEAD
         echo "ï¿½?Health check passed"
     else
         echo "ï¿½?Health check failed"
     fi
 else
     echo "ï¿½?Failed to start Pycore FastAPI service"
-=======
-        echo "ï¿?Health check passed"
-    else
-        echo "ï¿?Health check failed"
-    fi
-else
-    echo "ï¿?Failed to start Pycore FastAPI service"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     systemctl status "$SERVICE_NAME.service" --no-pager
     exit 1
 fi

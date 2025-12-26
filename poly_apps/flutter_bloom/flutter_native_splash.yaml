@@ -2,17 +2,10 @@ flutter_native_splash:
   # Basic splash screen configuration
   # Either color or background_image is required
   color: #667eea
-<<<<<<< HEAD
-  background_image: assets/apps/app_main/launch/background.png
-  
-  # Splash screen logo/image
-  #image: assets/apps/app_main/icons/logo.png
-=======
   background_image: assets/apps/app_bank/launch/background.jpg
   
   # Splash screen logo/image
   #image: assets/apps/app_bank/icons/logo.png
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   
   # Branding image (appears at bottom)
   #branding: "assets/common/launch/branding.png"
@@ -21,13 +14,8 @@ flutter_native_splash:
   
   # Dark mode variants
   color_dark: #121212
-<<<<<<< HEAD
-  background_image_dark: assets/apps/app_main/launch/background.png
-  #image_dark: assets/apps/app_main/icons/logo.png
-=======
   background_image_dark: assets/apps/app_bank/launch/background.jpg
   #image_dark: assets/apps/app_bank/icons/logo.png
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   #branding_dark: "assets/common/launch/branding_dark.png"
   
   # Android 12+ specific configuration
@@ -36,13 +24,8 @@ flutter_native_splash:
     color_dark: #121212
     icon_background_color: #667eea
     icon_background_color_dark: #121212
-<<<<<<< HEAD
-    #image: assets/apps/app_main/icons/logo.png
-    #image_dark: assets/apps/app_main/icons/logo.png
-=======
     #image: assets/apps/app_bank/icons/logo.png
     #image_dark: assets/apps/app_bank/icons/logo.png
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     #branding: "assets/common/launch/branding.png"
   
   # Platform toggles

@@ -119,11 +119,7 @@ ensure_php_symlink() {
     fi
 
     if /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.5"; then
-<<<<<<< HEAD
         echo -e "${GREEN}$SCRIPT_INDEX ï¿½?PHP 8.5 is available at /usr/bin/php${NC}"
-=======
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?PHP 8.5 is available at /usr/bin/php${NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
@@ -325,11 +321,7 @@ verify_swoole() {
 
     if php -m | grep -q "swoole"; then
         local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
-<<<<<<< HEAD
         echo -e "${GREEN}$SCRIPT_INDEX ï¿½?Swoole installed successfully${NC}"
-=======
-        echo -e "${GREEN}$SCRIPT_INDEX ï¿?Swoole installed successfully${NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         echo -e "${GREEN}$SCRIPT_INDEX   Version: $swoole_version${NC}"
 
         echo ""
@@ -338,11 +330,7 @@ verify_swoole() {
 
         return 0
     else
-<<<<<<< HEAD
         echo -e "${RED}$SCRIPT_INDEX ï¿½?Swoole verification failed${NC}"
-=======
-        echo -e "${RED}$SCRIPT_INDEX ï¿?Swoole verification failed${NC}"
->>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         return 1
     fi
 }
