@@ -13,6 +13,10 @@ from .file_service import FileService
 from .logging_service import LoggingService
 from .screen_service import ScreenService
 from .recording_service import RecordingService
+<<<<<<< HEAD
+=======
+from .device_id_manager import DeviceIDManager
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 __all__ = [
     'ConfigService',
@@ -24,4 +28,8 @@ __all__ = [
     'LoggingService',
     'ScreenService',
     'RecordingService',
+<<<<<<< HEAD
+=======
+    'DeviceIDManager',
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 ]

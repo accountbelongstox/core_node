@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
+use Illuminate\Support\Facades\DB;
 
 class AppQyV1WordGroupModel extends Model
 {
@@ -28,7 +30,7 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var string
      */
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
 
     /**
      * The table associated with the model.
@@ -58,6 +60,12 @@ class AppQyV1WordGroupModel extends Model
         'gcontent',
         'gwords',
         'words_frequency',
+        'cover_image_uuid',
+        'cover_category',
+        'cover_url',
+        'thumbnail_url',
+        'language',
+        'is_language_default',
     ];
 
     /**
@@ -68,7 +76,17 @@ class AppQyV1WordGroupModel extends Model
     protected $casts = [
         'gwords' => 'array',
         'words_frequency' => 'array',
+        'is_language_default' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (AppQyV1WordGroupModel $group) {
+            if (!$group->cover_image_uuid) {
+                $group->generateCoverImage();
+            }
+        });
+    }
 
     /**
      * Get the user that owns the word group.
@@ -76,6 +94,72 @@ class AppQyV1WordGroupModel extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'uid');
+    }
+
+    /**
+     * Get group words (many-to-many relationship)
+     */
+    public function groupWords()
+    {
+        return $this->hasMany(AppQyV1GroupWordModel::class, 'group_id');
+    }
+
+    /**
+     * Get words through group_words pivot table
+     */
+    public function words()
+    {
+        return $this->belongsToMany(
+            AppQyV1VocabularyItemModel::class,
+            'app_qy_v1_group_words',
+            'group_id',
+            'word_id',
+            'id',
+            'id'
+        )->withTimestamps()
+         ->withPivot('language_code', 'added_at')
+         ->using(AppQyV1GroupWordModel::class);
+    }
+
+    /**
+     * Get libraries through group_libraries pivot table
+     */
+    public function libraries()
+    {
+        return $this->belongsToMany(
+            AppQyV1VocabularyLibraryModel::class,
+            'app_qy_v1_group_libraries',
+            'group_id',
+            'library_id',
+            'id',
+            'id'
+        )->withTimestamps()
+         ->withPivot('added_at')
+         ->using(AppQyV1GroupLibraryModel::class);
+    }
+
+    /**
+     * Get user progress for this group
+     */
+    public function userProgress()
+    {
+        return $this->hasMany(AppQyV1UserWordProgressModel::class, 'group_id');
+    }
+
+    /**
+     * Scope: Get groups for a specific user
+     */
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('uid', $userId);
+    }
+
+    /**
+     * Scope: Get group by gid
+     */
+    public function scopeByGid($query, string $gid)
+    {
+        return $query->where('gid', $gid);
     }
 
     /**
@@ -88,7 +172,7 @@ class AppQyV1WordGroupModel extends Model
         if (empty($this->gwords)) {
             return [];
         }
-        return $this->gwords;       
+        return $this->gwords;
     }
 
     /**
@@ -116,5 +200,36 @@ class AppQyV1WordGroupModel extends Model
         $wordsToRemove = is_array($words) ? $words : explode(',', $words);
         $this->words_frequency = array_values(array_diff($currentWords, array_filter(array_map('trim', $wordsToRemove))));
     }
-}
 
+    /**
+     * Generate cover image for this group
+     */
+    public function generateCoverImage(): bool
+    {
+        $category = AppQyV1CoverImageService::inferCategory($this->gname);
+
+        $wordCount = DB::connection('appqyv1')
+            ->table('app_qy_v1_group_words')
+            ->where('group_id', $this->id)
+            ->count();
+
+        $result = AppQyV1CoverImageService::generateGroupCover(
+            $this->gname,
+            $category,
+            $wordCount,
+            true
+        );
+
+        if ($result['success']) {
+            $this->cover_image_uuid = $result['uuid'];
+            $this->cover_category = $result['category'];
+            $this->cover_url = $result['main']['url'];
+            $this->thumbnail_url = $result['thumbnail']['url'] ?? null;
+            $this->saveQuietly();  // Save without triggering events
+
+            return true;
+        }
+
+        return false;
+    }
+}

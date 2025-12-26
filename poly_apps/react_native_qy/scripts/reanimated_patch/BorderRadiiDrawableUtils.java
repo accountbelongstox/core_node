@@ -13,7 +13,11 @@ public class BorderRadiiDrawableUtils {
       return defaultValue;
     }
     Rect bounds = view.getBackground().getBounds();
+<<<<<<< HEAD
     return length.resolve((float) bounds.width()).toPixelFromDIP().getHorizontal();
+=======
+    return length.resolve((float) bounds.width());
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   }
 
   public static ReactNativeUtils.BorderRadii getBorderRadii(View view) {

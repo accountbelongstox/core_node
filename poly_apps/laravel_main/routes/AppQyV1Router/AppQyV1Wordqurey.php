@@ -17,7 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryControl
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordLookupController;
 
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::get('/lookup', [AppQyV1WordLookupController::class, 'lookup']);

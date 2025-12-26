@@ -8,7 +8,7 @@ Manages encrypted constants storage and retrieval from .secret_ignore directory.
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
-from utils.common_utils import ColorMessage, show_menu, clear_screen
+from utils.common_utils import ColorMessage, show_menu, clear_screen, safe_write_secret, safe_read_secret
 from managers.file_number_manager import FileNumberManager
 from managers.variable_input_handler import VariableInputHandler
 from config.path_config import get_path_config
@@ -158,7 +158,7 @@ class EncryptedConstantsManager:
             secret_file = self.raw_dir / secret_key_name
 
             try:
-                secret_file.write_text(var_value, encoding='utf-8')
+                safe_write_secret(secret_file, var_value)
                 ColorMessage.write(f"[OK] Saved {var_name} (#{file_number}) to .secret_ignore", 'success')
                 saved_count += 1
             except Exception as e:
@@ -222,7 +222,7 @@ class EncryptedConstantsManager:
             ColorMessage.write(f"{display_name}:", 'info', no_newline=True)
             if secret_file.exists():
                 try:
-                    value = secret_file.read_text(encoding='utf-8').strip()
+                    value = safe_read_secret(secret_file).strip()
                     if value:
                         if len(value) > 8:
                             preview = value[:8] + "..."

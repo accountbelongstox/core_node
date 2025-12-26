@@ -1,5 +1,9 @@
 
+<<<<<<< HEAD
 import { Word, WordGroup, User, SupportedLanguage, LeaderboardUser, Achievement, QuizQuestion, RetentionStat, Friend, ActivityLog } from '../types';
+=======
+import { Word, WordGroup, User, SupportedLanguage, LeaderboardUser, Achievement, QuizQuestion, RetentionStat, Friend, ActivityLog, Announcement } from '../types';
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
 export const MOCK_USER: User = {
   id: 'u1',
@@ -15,6 +19,15 @@ export const MOCK_USER: User = {
   learningLanguages: ['en', 'jp'], // Default learning English and Japanese
 };
 
+<<<<<<< HEAD
+=======
+export const MOCK_ANNOUNCEMENTS: Announcement[] = [
+  { id: 'a1', title: 'New Feature', message: 'Try the new Passive Listening mode!', type: 'info', date: '2025-11-01' },
+  { id: 'a2', title: 'Challenge', message: 'Complete 7-day streak for a Pro badge.', type: 'promo', date: '2025-10-28' },
+  { id: 'a3', title: 'System', message: 'Offline sync completed successfully.', type: 'alert', date: '2025-11-02' },
+];
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'en', name: 'English', flag: '🇺🇸', ttsCode: 'en-US' },
   { code: 'jp', name: 'Japanese', flag: '🇯🇵', ttsCode: 'ja-JP' },

@@ -34,6 +34,7 @@ class InitializeApps extends Command
         $this->info('Creating external storage directories...');
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
+            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . '/appqyv1',
             'uploads' => \App\Providers\PathMapper::getLaravelUploadsDir(),
             'static' => \App\Providers\PathMapper::getLaravelStaticDir(),
             'cache' => \App\Providers\PathMapper::getLaravelCacheDir(),
@@ -56,63 +57,103 @@ class InitializeApps extends Command
         $this->runSafeMigrations();
         $this->newLine();
 
+        $this->info('Creating invite code tables...');
+        $inviteCodeResults = \App\Services\InviteCodeInitializer::ensureTablesExist();
+        foreach (['invite_codes', 'invite_code_usage', 'default_codes'] as $key) {
+            if (isset($inviteCodeResults[$key])) {
+                $status = $inviteCodeResults[$key];
+                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+                $this->line("  {$icon} {$key}: {$status}");
+            }
+        }
+
+        if (isset($inviteCodeResults['codes'])) {
+            $this->line("  <fg=cyan>Generated Invite Codes:</>");
+            foreach ($inviteCodeResults['codes'] as $type => $code) {
+                $this->line("    • {$type}: {$code}");
+            }
+        }
+
+        if (isset($inviteCodeResults['error'])) {
+            $this->error("  ❌ Error: {$inviteCodeResults['error']}");
+        }
+
+        $inviteStats = \App\Services\InviteCodeInitializer::getTableStats();
+        if (!isset($inviteStats['error'])) {
+            $this->line("  <fg=gray>Stats: {$inviteStats['invite_codes']['total']} codes ({$inviteStats['invite_codes']['active']} active), {$inviteStats['invite_code_usage']['total']} usages</>");
+        }
+        $this->newLine();
+
         $results = \App\Services\UserSyncService::ensureUserTablesExist();
-        
+
         $this->info('Database initialization results:');
-        
+
         foreach ($results as $dbName => $status) {
             $icon = in_array($status, ['created', 'exists']) ? '✅' : '❌';
             $this->line("{$icon} {$dbName}: {$status}");
-            
-            $connection = $dbName === 'Main' ? 'sqlite' : strtolower($dbName);
-            
-            try {
-                if (config("database.connections.{$connection}")) {
-                    $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
-                    
-                    if (!empty($tables)) {
-                        foreach ($tables as $table) {
-                            $tableName = $table->name;
-                            $count = \DB::connection($connection)->table($tableName)->count();
-                            $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
-                            $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
-                            
-                            $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
-                            $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
 
-                            $output = "   • <fg=cyan;options=bold>{$tableName}</>";
-                            if ($colNames) {
-                                $output .= " | Cols: {$colNames}";
-                            }
-                            if ($idxNames) {
-                                $output .= " | Idx: {$idxNames}";
-                            }
-                            $output .= " | {$count} rows";
+            if ($this->getOutput()->isVerbose()) {
+                $connection = $dbName === 'Main' ? 'sqlite' : strtolower($dbName);
 
-                            $this->line($output);
+                try {
+                    if (config("database.connections.{$connection}")) {
+                        $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+
+                        if (!empty($tables)) {
+                            foreach ($tables as $table) {
+                                $tableName = $table->name;
+                                $count = \DB::connection($connection)->table($tableName)->count();
+                                $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
+                                $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
+
+                                $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
+                                $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
+
+                                $output = "   • <fg=cyan;options=bold>{$tableName}</>";
+                                if ($colNames) {
+                                    $output .= " | Cols: {$colNames}";
+                                }
+                                if ($idxNames) {
+                                    $output .= " | Idx: {$idxNames}";
+                                }
+                                $output .= " | {$count} rows";
+
+                                $this->line($output);
+                            }
+                        } else {
+                            $this->line("   <fg=gray>No tables</>");
                         }
-                    } else {
-                        $this->line("   <fg=gray>No tables</>");
                     }
+                } catch (\Exception $e) {
+                    $this->line("   <fg=red>Error: {$e->getMessage()}</>");
                 }
-            } catch (\Exception $e) {
-                $this->line("   <fg=red>Error: {$e->getMessage()}</>");
+
+                $this->newLine();
             }
-            
-            $this->newLine();
         }
         
         $successCount = collect($results)->filter(fn($s) => in_array($s, ['created', 'exists']))->count();
         $totalCount = count($results);
         $this->info("Successfully initialized {$successCount}/{$totalCount} databases.");
         $this->newLine();
-        
-        $this->info('Creating TTS cache tables...');
-        $ttsResults = \App\Services\UserSyncService::ensureTTSCacheTablesExist();
-        foreach ($ttsResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
-            $this->line("  {$icon} {$table}: {$status}");
+
+        $this->info('Cleaning up conflicting tables...');
+        $cleanupResult = $this->cleanupConflictingTables();
+        if ($cleanupResult['deleted'] > 0) {
+            $this->line("  ✅ Deleted {$cleanupResult['deleted']} conflicting tables");
+        } else {
+            $this->line("  ✓ No conflicting tables found");
         }
+        $this->newLine();
+
+        $this->info('Creating TTS cache tables (EdgeTTS 91 languages)...');
+        $dictResults = \App\Services\UserSyncService::ensureMultiLangDictionaryTablesExist(function($current, $total) {
+            $percentage = round(($current / $total) * 100);
+            $this->line("  <fg=gray>Progress: {$current}/{$total} ({$percentage}%)</>");
+        });
+        $createdCount = count(array_filter($dictResults, fn($s) => $s === 'created'));
+        $existsCount = count(array_filter($dictResults, fn($s) => $s === 'exists'));
+        $this->line("  ✅ Created: {$createdCount}, Exists: {$existsCount}, Total: " . count($dictResults));
         $this->newLine();
 
         $this->info('Creating voice subtitle user settings tables...');
@@ -123,11 +164,61 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating multilingual word tables...');
-        $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
-        foreach ($wordTableResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+        $this->info('Creating unified TTS queue table (word/sentence/article)...');
+        $ttsQueueResults = \App\Services\AppQyV1TTSQueueInitializer::ensureTablesExist();
+        foreach ($ttsQueueResults as $table => $status) {
+            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : ($status === 'migrated' ? '🔄' : '❌'));
             $this->line("  {$icon} {$table}: {$status}");
+        }
+
+        $ttsQueueStats = \App\Services\AppQyV1TTSQueueInitializer::getTableStats();
+        if (!isset($ttsQueueStats['error'])) {
+            $this->line("  <fg=gray>Stats: {$ttsQueueStats['by_status']['pending']} pending, {$ttsQueueStats['by_status']['processing']} processing, {$ttsQueueStats['by_status']['completed']} completed, {$ttsQueueStats['by_status']['failed']} failed</>");
+            $this->line("  <fg=gray>Types: {$ttsQueueStats['by_type']['word']} words, {$ttsQueueStats['by_type']['sentence']} sentences, {$ttsQueueStats['by_type']['article']} articles</>");
+        }
+        $this->newLine();
+
+        $this->info('Creating article library tables (all languages)...');
+        $articleLibResults = \App\Services\AppQyV1ArticleLibraryInitializer::ensureTablesExist();
+        $articleCreated = count(array_filter($articleLibResults, fn($s) => $s === 'created'));
+        $articleMigrated = count(array_filter($articleLibResults, fn($s) => $s === 'migrated'));
+        $articleExists = count(array_filter($articleLibResults, fn($s) => $s === 'exists'));
+        $articleTotal = count($articleLibResults);
+
+        if ($articleCreated > 0) {
+            $this->line("  ✅ Created: {$articleCreated} tables");
+        }
+        if ($articleMigrated > 0) {
+            $this->line("  🔄 Migrated: {$articleMigrated} tables");
+        }
+        if ($articleExists > 0) {
+            $this->line("  ✓ Exists: {$articleExists} tables");
+        }
+        $this->line("  <fg=cyan>Total: {$articleTotal} article library tables</>");
+
+        $articleStats = \App\Services\AppQyV1ArticleLibraryInitializer::getTableStats();
+        if (!isset($articleStats['error'])) {
+            $this->line("  <fg=gray>Articles: {$articleStats['total_articles']} total, {$articleStats['total_with_audio']} with audio, {$articleStats['total_without_audio']} without audio</>");
+        }
+        $this->newLine();
+
+        $wordTableResults = \App\Services\UserSyncService::ensureMultilingualWordTablesExist();
+        $totalTables = count($wordTableResults);
+        $this->info("Creating word learning tables ({$totalTables} tables)...");
+
+        $displayLimit = 10;
+        $displayedCount = 0;
+        foreach ($wordTableResults as $table => $status) {
+            if ($displayedCount < $displayLimit) {
+                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+                $this->line("  {$icon} {$table}: {$status}");
+                $displayedCount++;
+            }
+        }
+
+        if ($totalTables > $displayLimit) {
+            $remaining = $totalTables - $displayLimit;
+            $this->line("  <fg=gray>... and {$remaining} more tables</>");
         }
         $this->newLine();
         
@@ -194,29 +285,48 @@ class InitializeApps extends Command
         
         $this->newLine();
         
-        $this->info('AppQyV1 word tables summary:');
+        $this->info('AppQyV1 dictionary tables summary:');
         try {
             $connection = 'appqyv1';
-            $tables = [
-                'app_qy_v1_words_english',
-                'app_qy_v1_words_lao',
-                'app_qy_v1_words_japanese',
-                'app_qy_v1_words_vietnamese',
-                'app_qy_v1_tts_cache',
-            ];
-            
-            foreach ($tables as $table) {
+            $allDictTables = \DB::connection($connection)
+                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
+
+            $tablesWithData = [];
+            $tablesEmpty = [];
+
+            foreach ($allDictTables as $tableObj) {
+                $tableName = $tableObj->name;
                 try {
-                    $count = \DB::connection($connection)->table($table)->count();
-                    $this->line("  • {$table}: {$count} rows");
+                    $count = \DB::connection($connection)->table($tableName)->count();
+                    if ($count > 0) {
+                        $langCode = str_replace(['app_qy_v1_', '_dictionaries'], '', $tableName);
+                        $tablesWithData[] = ['name' => $tableName, 'code' => $langCode, 'count' => $count];
+                    } else {
+                        $tablesEmpty[] = $tableName;
+                    }
                 } catch (\Exception $e) {
-                    $this->line("  • {$table}: <fg=red>not exists</>");
+                    continue;
                 }
             }
+
+            if (!empty($tablesWithData)) {
+                $this->line("  <fg=green>Tables with data:</>");
+                foreach ($tablesWithData as $tableInfo) {
+                    $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries");
+                }
+            }
+
+            $emptyCount = count($tablesEmpty);
+            if ($emptyCount > 0) {
+                $this->line("  <fg=gray>Empty tables: {$emptyCount} (ready for import)</>");
+            }
+
+            $totalDictTables = count($allDictTables);
+            $this->line("  <fg=cyan>Total dictionary tables: {$totalDictTables}</>");
         } catch (\Exception $e) {
             $this->line("  <fg=red>Error: {$e->getMessage()}</>");
         }
-        
+
         $this->newLine();
 
         $this->info('Creating AppQyV1 user initialization tables...');
@@ -300,6 +410,49 @@ class InitializeApps extends Command
         
         $this->newLine();
 
+<<<<<<< HEAD
+=======
+        $this->info('Initializing Global Task System...');
+        $globalTaskResults = \App\Services\GlobalTaskSystemInitializer::ensureTablesExist();
+
+        foreach ($globalTaskResults as $table => $status) {
+            if (str_starts_with($status, 'error:')) {
+                $this->line("  ❌ {$table}: {$status}");
+            } elseif ($status === 'created') {
+                $this->line("  ✅ {$table}: table created");
+            } elseif ($status === 'updated') {
+                $this->line("  ✅ {$table}: fields added");
+            } elseif ($status === 'exists') {
+                $this->line("  ✓ {$table}: already configured");
+            } elseif ($status === 'table_missing') {
+                $this->line("  ⚠️  {$table}: base table not found");
+            } else {
+                $this->line("  • {$table}: {$status}");
+            }
+        }
+
+        // Show statistics
+        $taskStats = \App\Services\GlobalTaskSystemInitializer::getTableStats();
+        if (!empty($taskStats) && !isset($taskStats['error'])) {
+            $this->newLine();
+            $this->line('  Global Task System Statistics:');
+
+            if (isset($taskStats['global_tasks'])) {
+                $stats = $taskStats['global_tasks'];
+                $this->line("    Tasks: {$stats['total']} total ({$stats['pending']} pending, {$stats['processing']} processing, {$stats['completed']} completed, {$stats['failed']} failed)");
+            }
+
+            if (isset($taskStats['workers'])) {
+                $stats = $taskStats['workers'];
+                $this->line("    Workers: {$stats['total']} total ({$stats['online']} online, {$stats['busy']} busy, {$stats['offline']} offline)");
+            }
+        } elseif (isset($taskStats['error'])) {
+            $this->line("  ⚠️  Could not fetch statistics: {$taskStats['error']}");
+        }
+
+        $this->newLine();
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         $this->info('Verifying AI providers...');
         $aiRouter = new UnifiedAIRouter();
         $providersStatus = $aiRouter->getProvidersStatus();
@@ -598,15 +751,14 @@ class InitializeApps extends Command
     private function runSafeMigrations()
     {
         try {
-            $this->line("  <fg=cyan>Running database migrations with refresh and seed</>");
+            $this->line("  <fg=cyan>Running database migrations (safe mode - only new migrations)</>");
 
-            $exitCode = $this->call('migrate:refresh', [
+            $exitCode = $this->call('migrate', [
                 '--force' => true,
-                '--seed' => true,
             ]);
 
             if ($exitCode === 0) {
-                $this->line("  ✅ Database migrations and seeding completed successfully");
+                $this->line("  ✅ Database migrations completed successfully");
             } else {
                 $this->warn("  ⚠️  Some migrations encountered issues");
             }
@@ -729,5 +881,31 @@ class InitializeApps extends Command
         } else {
             $this->error("  ❌ chokidar not found after installation");
         }
+    }
+
+    private function cleanupConflictingTables(): array
+    {
+        $connection = 'appqyv1';
+        $schema = \DB::connection($connection)->getSchemaBuilder();
+
+        $learningTables = ['english', 'lao', 'japanese', 'vietnamese'];
+        $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
+
+        $deleted = 0;
+
+        foreach ($supportedLanguages as $langCode) {
+            if (in_array($langCode, $learningTables)) {
+                continue;
+            }
+
+            $oldTableName = "app_qy_v1_words_{$langCode}";
+
+            if ($schema->hasTable($oldTableName)) {
+                $schema->drop($oldTableName);
+                $deleted++;
+            }
+        }
+
+        return ['deleted' => $deleted];
     }
 }

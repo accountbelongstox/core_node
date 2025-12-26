@@ -250,6 +250,20 @@ $Global:WINDOWS_10_ESSENTIAL_PATCHES = @{
             }
         )
     }
+    Bandizip = @{
+        PackageId          = "Bandisoft.Bandizip"
+        Exec              = "Bandizip.exe"
+        Name              = "Bandizip"
+        Description       = "Lightweight, fast and free All-In-One Zip Archiver - Essential for Windows 10"
+        InstallType       = "winget"
+        ForceToInstallDir = $false
+        VerifySuffix      = ""
+        IncludeSystemPaths = $true
+        AdditionalKeywords = @("bandizip", "bz")
+        EnvVars           = @()
+        DesktopShortcuts  = @()
+        PostInstallCallbacks = @()
+    }
 }
 
 $Global:BasePackages = @{
@@ -384,9 +398,9 @@ $Global:BasePackages = @{
         DesktopShortcuts   = $null
     }
     Java       = @{
-        PackageId          = "Oracle.JDK.17"
+        PackageId          = "Oracle.JDK.21"
         Exec              = "java.exe"
-        Name              = "Java"
+        Name              = "Java21"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
         Description       = "Java Development Kit - Programming language and runtime"
         InstallType       = "winget"
@@ -1176,19 +1190,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Type = @("Path")
             }
         )
-        PostInstallCallbacks = @(
-            @{
-                Type = "mcp"
-                Operation = "copy_config"
-                TargetDirectory = "$env:USERPROFILE\.claude"
-            }
-            @{
-                Type = "mcp"
-                Operation = "exec_command"
-                Command = 'npx claude mcp add context7 -- cmd /c "npx -y @upstash/context7-mcp"'
-                Description = "Add context7 MCP service to Claude"
-            }
-        )
     }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
@@ -1635,18 +1636,6 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
                 CreateDesktopShortcut = $true
             }
         )
-    }
-    WeChatInput    = @{
-        PackageId            = "Tencent.WeType"
-        Exec                = "wetype_service.exe"
-        Name                = "WeChatInput"
-        Description         = "Intelligent input method by WeChat"
-        InstallType         = "winget"
-        ForceToInstallDir   = $false
-        VerifySuffix        = ""
-        AppCustomInstallDir = "C:\Program Files\Tencent\WeType\"
-        AdditionalKeywords  = @("wetype")
-        DesktopShortcuts    = @()
     }
     Chrome         = @{
         PackageId           = "Google.Chrome"

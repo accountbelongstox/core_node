@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrcpy WebGL - YUV Streaming</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 20px;
+            min-height: calc(100vh - 180px);
+        }
+
+        .devices-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .device-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s;
+        }
+
+        .device-card.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .device-info {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .device-serial {
+            color: #999;
+            font-family: 'Courier New', monospace;
+            margin-top: 5px;
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .device-action {
+            flex: 1;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 0;
+            font-weight: 600;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s ease;
+        }
+
+        .device-action.start {
+            background: #10b981;
+        }
+
+        .device-action.start:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .device-action.stop {
+            background: #ef4444;
+        }
+
+        .device-action.stop:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .device-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .stream-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .streams-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            min-height: 320px;
+        }
+
+        .stream-container {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 9 / 19.5;
+        }
+
+        .stream-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+        }
+
+        .stream-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .stream-stats {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.5;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Scrcpy WebGL - YUV Streaming</h1>
+            <div class="status">
+                <div class="status-item">
+                    <div class="status-indicator"></div>
+                    <span id="wsStatus">Connecting...</span>
+                </div>
+                <div class="status-item">
+                    <span id="deviceCount">0 devices</span>
+                </div>
+                <div class="status-item">
+                    <span id="activeStreams">0 active streams</span>
+                </div>
+                <div class="status-item">
+                    <span style="color: #667eea; font-weight: 600;">WebGL YUV Rendering</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="devices-panel">
+                <div class="panel-title">
+                    <span>📱 Available Devices</span>
+                    <button class="refresh-btn" onclick="scanDevices()">🔄 Refresh</button>
+                </div>
+                <div class="device-list" id="deviceList"></div>
+            </div>
+
+            <div class="stream-panel">
+                <div class="panel-title">
+                    <span>📺 Active Streams</span>
+                </div>
+                <div class="streams-grid" id="streamsGrid">
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <p>No active streams</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Click "Start Stream" on a device to begin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * WebGL YUV Renderer
+         * Based on QtScrcpy qyuvopenglwidget.cpp implementation
+         * Renders YUV420P data using WebGL shaders
+         */
+        class WebGLYUVRenderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.gl = canvas.getContext('webgl');
+
+                if (!this.gl) {
+                    throw new Error('WebGL not supported');
+                }
+
+                this.frameWidth = 0;
+                this.frameHeight = 0;
+                this.textureY = null;
+                this.textureU = null;
+                this.textureV = null;
+                this.shaderProgram = null;
+
+                this.initShaders();
+                this.initBuffers();
+            }
+
+            initShaders() {
+                const gl = this.gl;
+
+                // Vertex shader (same as QtScrcpy)
+                const vertexShaderSource = `
+                    attribute vec3 vertexIn;
+                    attribute vec2 textureIn;
+                    varying vec2 textureOut;
+
+                    void main(void) {
+                        gl_Position = vec4(vertexIn, 1.0);
+                        textureOut = textureIn;
+                    }
+                `;
+
+                // Fragment shader (BT.709 color space - same as QtScrcpy)
+                const fragmentShaderSource = `
+                    precision mediump float;
+
+                    varying vec2 textureOut;
+                    uniform sampler2D textureY;
+                    uniform sampler2D textureU;
+                    uniform sampler2D textureV;
+
+                    void main(void) {
+                        vec3 yuv;
+                        vec3 rgb;
+
+                        // BT.709 color space conversion coefficients (SDL2/QtScrcpy)
+                        const vec3 Rcoeff = vec3(1.1644,  0.000,  1.7927);
+                        const vec3 Gcoeff = vec3(1.1644, -0.2132, -0.5329);
+                        const vec3 Bcoeff = vec3(1.1644,  2.1124,  0.000);
+
+                        // Sample YUV planes
+                        yuv.x = texture2D(textureY, textureOut).r;
+                        yuv.y = texture2D(textureU, textureOut).r - 0.5;
+                        yuv.z = texture2D(textureV, textureOut).r - 0.5;
+
+                        // YUV → RGB conversion (GPU accelerated)
+                        yuv.x = yuv.x - 0.0625;
+                        rgb.r = dot(yuv, Rcoeff);
+                        rgb.g = dot(yuv, Gcoeff);
+                        rgb.b = dot(yuv, Bcoeff);
+
+                        gl_FragColor = vec4(rgb, 1.0);
+                    }
+                `;
+
+                // Compile shaders
+                const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertexShaderSource);
+                const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+                // Link shader program
+                this.shaderProgram = gl.createProgram();
+                gl.attachShader(this.shaderProgram, vertexShader);
+                gl.attachShader(this.shaderProgram, fragmentShader);
+                gl.linkProgram(this.shaderProgram);
+
+                if (!gl.getProgramParameter(this.shaderProgram, gl.LINK_STATUS)) {
+                    console.error('Shader program link error:', gl.getProgramInfoLog(this.shaderProgram));
+                    throw new Error('Failed to link shader program');
+                }
+
+                gl.useProgram(this.shaderProgram);
+
+                // Set texture units
+                gl.uniform1i(gl.getUniformLocation(this.shaderProgram, 'textureY'), 0);
+                gl.uniform1i(gl.getUniformLocation(this.shaderProgram, 'textureU'), 1);
+                gl.uniform1i(gl.getUniformLocation(this.shaderProgram, 'textureV'), 2);
+            }
+
+            compileShader(type, source) {
+                const gl = this.gl;
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    const typeName = type === gl.VERTEX_SHADER ? 'Vertex' : 'Fragment';
+                    console.error(`${typeName} shader compile error:`, gl.getShaderInfoLog(shader));
+                    throw new Error(`Failed to compile ${typeName.toLowerCase()} shader`);
+                }
+
+                return shader;
+            }
+
+            initBuffers() {
+                const gl = this.gl;
+
+                // Vertex coordinates and texture coordinates (same as QtScrcpy)
+                const vertices = new Float32Array([
+                    // Vertex coordinates (x, y, z)
+                    -1.0, -1.0, 0.0,
+                     1.0, -1.0, 0.0,
+                    -1.0,  1.0, 0.0,
+                     1.0,  1.0, 0.0,
+                    // Texture coordinates (u, v)
+                     0.0,  1.0,
+                     1.0,  1.0,
+                     0.0,  0.0,
+                     1.0,  0.0
+                ]);
+
+                // Create VBO
+                const vbo = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+                gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+                // Set vertex attribute
+                const vertexIn = gl.getAttribLocation(this.shaderProgram, 'vertexIn');
+                gl.vertexAttribPointer(vertexIn, 3, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(vertexIn);
+
+                // Set texture coordinate attribute
+                const textureIn = gl.getAttribLocation(this.shaderProgram, 'textureIn');
+                gl.vertexAttribPointer(textureIn, 2, gl.FLOAT, false, 0, 12 * 4);
+                gl.enableVertexAttribArray(textureIn);
+            }
+
+            initTextures(width, height) {
+                const gl = this.gl;
+
+                this.frameWidth = width;
+                this.frameHeight = height;
+
+                // Create Y texture (full resolution)
+                this.textureY = this.createTexture(width, height);
+
+                // Create U/V textures (half resolution - YUV420P)
+                this.textureU = this.createTexture(width / 2, height / 2);
+                this.textureV = this.createTexture(width / 2, height / 2);
+            }
+
+            createTexture(width, height) {
+                const gl = this.gl;
+
+                const texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+
+                // Set texture parameters (same as QtScrcpy)
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+                // Allocate texture storage
+                gl.texImage2D(
+                    gl.TEXTURE_2D, 0, gl.LUMINANCE,
+                    width, height, 0,
+                    gl.LUMINANCE, gl.UNSIGNED_BYTE, null
+                );
+
+                return texture;
+            }
+
+            renderFrame(yPlane, uPlane, vPlane, width, height) {
+                const gl = this.gl;
+
+                // Initialize textures on first frame or size change
+                if (width !== this.frameWidth || height !== this.frameHeight) {
+                    this.initTextures(width, height);
+
+                    // Update canvas size
+                    this.canvas.width = width;
+                    this.canvas.height = height;
+                    gl.viewport(0, 0, width, height);
+                }
+
+                // Update Y texture
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.textureY);
+                gl.texSubImage2D(
+                    gl.TEXTURE_2D, 0, 0, 0,
+                    width, height,
+                    gl.LUMINANCE, gl.UNSIGNED_BYTE,
+                    yPlane
+                );
+
+                // Update U texture
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_2D, this.textureU);
+                gl.texSubImage2D(
+                    gl.TEXTURE_2D, 0, 0, 0,
+                    width / 2, height / 2,
+                    gl.LUMINANCE, gl.UNSIGNED_BYTE,
+                    uPlane
+                );
+
+                // Update V texture
+                gl.activeTexture(gl.TEXTURE2);
+                gl.bindTexture(gl.TEXTURE_2D, this.textureV);
+                gl.texSubImage2D(
+                    gl.TEXTURE_2D, 0, 0, 0,
+                    width / 2, height / 2,
+                    gl.LUMINANCE, gl.UNSIGNED_BYTE,
+                    vPlane
+                );
+
+                // Draw rectangle (execute YUV→RGB conversion in shader)
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            }
+
+            destroy() {
+                const gl = this.gl;
+
+                if (this.textureY) gl.deleteTexture(this.textureY);
+                if (this.textureU) gl.deleteTexture(this.textureU);
+                if (this.textureV) gl.deleteTexture(this.textureV);
+                if (this.shaderProgram) gl.deleteProgram(this.shaderProgram);
+            }
+        }
+
+        // Application state
+        let ws = null;
+        let devices = [];
+        let activeStreams = new Map();
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.hostname}:27881/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('✓ WebSocket connected');
+                document.getElementById('wsStatus').textContent = 'Connected';
+                scanDevices();
+            };
+
+            ws.onmessage = async (event) => {
+                if (event.data instanceof Blob) {
+                    console.log(`[DEBUG] Received Blob data, size: ${event.data.size}`);
+                    const arrayBuffer = await event.data.arrayBuffer();
+                    handleBinaryMessage(arrayBuffer);
+                } else {
+                    console.log(`[DEBUG] Received text data`);
+                    const data = JSON.parse(event.data);
+                    handleJsonMessage(data);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                document.getElementById('wsStatus').textContent = 'Error';
+            };
+
+            ws.onclose = () => {
+                console.log('✗ WebSocket disconnected');
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function handleBinaryMessage(arrayBuffer) {
+            console.log(`[DEBUG] Received binary message: ${arrayBuffer.byteLength} bytes`);
+
+            const data = new Uint8Array(arrayBuffer);
+
+            // Parse protocol header
+            let offset = 0;
+            const serialLen = data[offset++];
+            const serial = new TextDecoder().decode(data.slice(offset, offset + serialLen));
+            offset += serialLen;
+
+            const view = new DataView(arrayBuffer);
+            const pts = view.getBigUint64(offset); offset += 8;
+            const width = view.getUint16(offset); offset += 2;
+            const height = view.getUint16(offset); offset += 2;
+            const ySize = view.getInt32(offset); offset += 4;
+            const uSize = view.getInt32(offset); offset += 4;
+            const vSize = view.getInt32(offset); offset += 4;
+
+            console.log(`[DEBUG] YUV frame: ${serial}, ${width}x${height}, Y=${ySize} U=${uSize} V=${vSize}`);
+
+            // Extract YUV planes
+            const yPlane = data.slice(offset, offset + ySize); offset += ySize;
+            const uPlane = data.slice(offset, offset + uSize); offset += uSize;
+            const vPlane = data.slice(offset, offset + vSize);
+
+            // Render frame
+            const stream = activeStreams.get(serial);
+            if (stream && stream.renderer) {
+                console.log(`[DEBUG] Rendering frame to canvas`);
+                stream.renderer.renderFrame(yPlane, uPlane, vPlane, width, height);
+
+                // Update stats
+                stream.frameCount++;
+                stream.lastFrameTime = Date.now();
+                updateStreamStats(serial);
+            } else {
+                console.warn(`[DEBUG] No stream found for ${serial}, activeStreams keys:`, Array.from(activeStreams.keys()));
+            }
+        }
+
+        function handleJsonMessage(data) {
+            console.log('Received:', data);
+
+            switch (data.type) {
+                case 'stream_started':
+                case 'stream_attached':
+                    if (data.info) {
+                        createStreamElement(data.serial, data.info);
+                    }
+                    break;
+
+                case 'stream_stopped':
+                case 'stream_detached':
+                    removeStreamElement(data.serial);
+                    break;
+
+                case 'error':
+                    console.error('Server error:', data.message);
+                    alert(`Error: ${data.message}`);
+                    break;
+            }
+
+            updateActiveStreamsCount();
+        }
+
+        function createStreamElement(serial, info) {
+            if (activeStreams.has(serial)) {
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'stream-container';
+            container.dataset.serial = serial;
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'stream-canvas';
+            container.appendChild(canvas);
+
+            const streamInfo = document.createElement('div');
+            streamInfo.className = 'stream-info';
+            streamInfo.textContent = `${info.model} (${serial})`;
+            container.appendChild(streamInfo);
+
+            const stats = document.createElement('div');
+            stats.className = 'stream-stats';
+            stats.id = `stats-${serial}`;
+            container.appendChild(stats);
+
+            const grid = document.getElementById('streamsGrid');
+            const emptyState = grid.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            grid.appendChild(container);
+
+            // Create WebGL renderer
+            const renderer = new WebGLYUVRenderer(canvas);
+
+            // Setup touch controls
+            setupTouchControls(canvas, serial, info.resolution);
+
+            activeStreams.set(serial, {
+                container,
+                canvas,
+                renderer,
+                frameCount: 0,
+                startTime: Date.now(),
+                lastFrameTime: Date.now()
+            });
+
+            updateDeviceList();
+        }
+
+        function removeStreamElement(serial) {
+            const stream = activeStreams.get(serial);
+            if (stream) {
+                stream.renderer.destroy();
+                stream.container.remove();
+                activeStreams.delete(serial);
+
+                const grid = document.getElementById('streamsGrid');
+                if (grid.children.length === 0) {
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <p>No active streams</p>
+                            <p style="font-size: 12px; margin-top: 8px;">Click "Start Stream" on a device to begin</p>
+                        </div>
+                    `;
+                }
+            }
+
+            updateDeviceList();
+        }
+
+        function updateStreamStats(serial) {
+            const stream = activeStreams.get(serial);
+            if (!stream) return;
+
+            const elapsed = (Date.now() - stream.startTime) / 1000;
+            const fps = stream.frameCount / elapsed;
+
+            const statsElement = document.getElementById(`stats-${serial}`);
+            if (statsElement) {
+                statsElement.innerHTML = `
+                    Frames: ${stream.frameCount}<br>
+                    FPS: ${fps.toFixed(1)}<br>
+                    Time: ${elapsed.toFixed(1)}s
+                `;
+            }
+        }
+
+        function setupTouchControls(canvas, serial, resolution) {
+            let isPointerDown = false;
+
+            const sendTouchEvent = (action, x, y) => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+                ws.send(JSON.stringify({
+                    command: 'touch_event',
+                    serial: serial,
+                    action: action,
+                    x: Math.floor(x),
+                    y: Math.floor(y),
+                    pressure: 1.0,
+                    pointerId: 0
+                }));
+            };
+
+            const getDeviceCoordinates = (clientX, clientY) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = ((clientX - rect.left) / rect.width) * resolution.width;
+                const y = ((clientY - rect.top) / rect.height) * resolution.height;
+                return { x, y };
+            };
+
+            canvas.addEventListener('mousedown', (e) => {
+                isPointerDown = true;
+                const { x, y } = getDeviceCoordinates(e.clientX, e.clientY);
+                sendTouchEvent('down', x, y);
+                e.preventDefault();
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isPointerDown) {
+                    const { x, y } = getDeviceCoordinates(e.clientX, e.clientY);
+                    sendTouchEvent('move', x, y);
+                }
+                e.preventDefault();
+            });
+
+            canvas.addEventListener('mouseup', (e) => {
+                if (isPointerDown) {
+                    const { x, y } = getDeviceCoordinates(e.clientX, e.clientY);
+                    sendTouchEvent('up', x, y);
+                    isPointerDown = false;
+                }
+                e.preventDefault();
+            });
+
+            canvas.addEventListener('dblclick', (e) => {
+                const { x, y } = getDeviceCoordinates(e.clientX, e.clientY);
+                sendTouchEvent('double_tap', x, y);
+                e.preventDefault();
+            });
+        }
+
+        function scanDevices() {
+            fetch('/api/devices')
+                .then(res => res.json())
+                .then(data => {
+                    devices = data.devices || [];
+                    updateDeviceList();
+                    document.getElementById('deviceCount').textContent = `${devices.length} device${devices.length !== 1 ? 's' : ''}`;
+                })
+                .catch(err => {
+                    console.error('Failed to scan devices:', err);
+                });
+        }
+
+        function updateDeviceList() {
+            const deviceList = document.getElementById('deviceList');
+
+            if (devices.length === 0) {
+                deviceList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No devices found</p>';
+                return;
+            }
+
+            deviceList.innerHTML = devices.map(device => {
+                const isActive = activeStreams.has(device.serial);
+                return `
+                    <div class="device-card ${isActive ? 'active' : ''}">
+                        <div class="device-name">${device.manufacturer} ${device.model}</div>
+                        <div class="device-info">
+                            Android ${device.android_version}
+                        </div>
+                        <div class="device-serial">${device.serial}</div>
+                        <div class="device-actions">
+                            <button class="device-action start"
+                                    onclick="startStream('${device.serial}')"
+                                    ${isActive ? 'disabled' : ''}>
+                                Start Stream
+                            </button>
+                            <button class="device-action stop"
+                                    onclick="stopStream('${device.serial}')"
+                                    ${!isActive ? 'disabled' : ''}>
+                                Stop Stream
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function startStream(serial) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket not connected');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                command: 'start_stream',
+                serial: serial
+            }));
+        }
+
+        function stopStream(serial) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket not connected');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                command: 'stop_stream',
+                serial: serial
+            }));
+        }
+
+        function updateActiveStreamsCount() {
+            const count = activeStreams.size;
+            document.getElementById('activeStreams').textContent = `${count} active stream${count !== 1 ? 's' : ''}`;
+        }
+
+        // Initialize
+        connectWebSocket();
+    </script>
+</body>
+</html>

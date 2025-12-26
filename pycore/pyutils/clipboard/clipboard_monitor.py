@@ -4,12 +4,18 @@
 Clipboard Monitor
 
 Monitors system clipboard for changes and syncs with clipboard history.
+
+THREAD_BUS Integration:
+- Registers shutdown handler (priority=80) for graceful shutdown
+- Triggers 'clipboard.changed' events when clipboard content changes
+- Checks THREAD_BUS.is_shutdown_requested() in monitor loop
+- Backwards compatible: keeps existing callback mechanism
 """
 
 import threading
 import time
 from typing import Optional, Callable
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pyperclip
 from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
 
@@ -66,6 +72,15 @@ class ClipboardMonitor:
         )
         self.monitor_thread.start()
 
+        # THREAD_BUS Integration: Register shutdown handler
+        # Priority=80 ensures clipboard monitor stops before core services
+        THREAD_BUS.register_shutdown_handler(
+            self.stop,
+            priority=80,
+            name=f"clipboard_monitor_{self.client_id}"
+        )
+        ColorPrint.blue(f"[ClipboardMonitor] Registered THREAD_BUS shutdown handler (priority=80)")
+
         ColorPrint.green(f"[ClipboardMonitor] Started for client: {self.client_id}")
 
     def stop(self):
@@ -82,8 +97,19 @@ class ClipboardMonitor:
         ColorPrint.yellow(f"[ClipboardMonitor] Stopped for client: {self.client_id}")
 
     def _monitor_loop(self):
-        """Main monitoring loop"""
+        """
+        Main monitoring loop
+
+        THREAD_BUS Integration:
+        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
+        - Triggers 'clipboard.changed' events when content changes
+        """
         while self.running:
+            # THREAD_BUS Integration: Check if global shutdown was requested
+            if THREAD_BUS.is_shutdown_requested():
+                ColorPrint.yellow(f"[ClipboardMonitor] THREAD_BUS shutdown detected, stopping...")
+                break
+
             # Get current clipboard content
             current_content = pyperclip.paste()
 
@@ -97,7 +123,15 @@ class ClipboardMonitor:
                         content_type="text"
                     )
 
-                    # Call callback if set
+                    # THREAD_BUS Integration: Trigger event (new mechanism)
+                    THREAD_BUS.trigger_event('clipboard.changed', {
+                        'content': current_content,
+                        'content_type': 'text',
+                        'client_id': self.client_id,
+                        'timestamp': time.time()
+                    }, async_mode=True)
+
+                    # Call legacy callback (backward compatibility)
                     if self.on_change:
                         self.on_change(current_content)
 

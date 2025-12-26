@@ -19,8 +19,16 @@ use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDAPublic;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDQBasePublic;
+use App\Traits\ApiResponse;
 class AppQyV1PersonalDictionaryQueryPublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static function queryPDByWord($word)
     {
         $queryResult = PDQBasePublic::queryPersonalDictionary(false);

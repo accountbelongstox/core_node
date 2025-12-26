@@ -1,0 +1,183 @@
+# Third-Party Package System - Emergency Update
+
+## Issue Fixed
+
+**Error**: `ModuleNotFoundError: No module named 'flask'`
+
+**Cause**: Flask and psutil were not included in the third_party.py dependency management system.
+
+## Changes Made
+
+### 1. Updated DEPENDENCY_MAP
+
+Added missing packages:
+```python
+DEPENDENCY_MAP = {
+    # ... existing packages ...
+    "flask": "flask",      # NEW - Web framework
+    "psutil": "psutil",    # NEW - Process management
+}
+```
+
+### 2. Added Getter Functions
+
+**Flask Functions** (7 new functions):
+- `get_third_package_flask()` - Flask module
+- `get_third_package_Flask()` - Flask class
+- `get_third_package_flask_render_template_string()`
+- `get_third_package_flask_jsonify()`
+- `get_third_package_flask_request()`
+- `get_third_package_flask_send_file()`
+- `get_third_package_flask_Response()`
+
+**Psutil Function**:
+- `get_third_package_psutil()` - Process management
+
+### 3. Updated Module Wrapper
+
+Added to `_ThirdPartyModule.__getattr__`:
+```python
+# Flask web framework
+elif name == 'flask': return get_third_package_flask()
+elif name == 'Flask': return get_third_package_Flask()
+elif name == 'render_template_string': ...
+elif name == 'jsonify': ...
+elif name == 'request': ...
+elif name == 'send_file': ...
+elif name == 'Response': ...
+
+# Process management
+elif name == 'psutil': return get_third_package_psutil()
+```
+
+### 4. Updated Files to Use third_party
+
+**utils/source_viewer_server.py**:
+```python
+# Before:
+from flask import Flask, render_template_string, jsonify, request, send_file, Response
+
+# After:
+from third_party import Flask, render_template_string, jsonify, request, send_file, Response
+```
+
+**controllers/step19_view_effects_controller.py**:
+```python
+# Before:
+import psutil
+
+# After:
+from third_party import psutil
+```
+
+## Complete Package List
+
+Now managing all third-party packages in build_scripts:
+
+### Required Packages
+1. ✅ **Pillow** - Image processing (Image, ImageOps, ImageDraw, ImageFont)
+2. ✅ **pyyaml** - YAML configuration
+3. ✅ **flask** - Web framework (Flask, render_template_string, jsonify, request, send_file, Response)
+4. ✅ **psutil** - Process management
+
+### Optional Packages
+5. ✅ **opencv-python** - Computer vision (cv2)
+6. ✅ **numpy** - Numerical computing
+
+## Usage Examples
+
+### Flask (Web Server)
+
+```python
+from third_party import Flask, jsonify, request
+
+app = Flask(__name__)
+
+@app.route('/api/data')
+def get_data():
+    return jsonify({"status": "ok"})
+
+app.run(port=8081)
+```
+
+### psutil (Process Management)
+
+```python
+from third_party import psutil
+
+# Get process info
+process = psutil.Process()
+print(f"CPU: {process.cpu_percent()}%")
+print(f"Memory: {process.memory_info().rss / 1024 / 1024} MB")
+
+# Kill process by PID
+psutil.Process(pid).kill()
+```
+
+## Verification
+
+```bash
+# Check no direct imports remain
+grep -r "^from flask import\|^import flask\|^import psutil" --include="*.py" . | grep -v third_party.py
+# Result: (empty - all imports now use third_party)
+
+# Check third_party imports exist
+grep -r "from third_party import" --include="*.py" . | grep -E "(Flask|psutil)"
+# Result:
+# ./controllers/step19_view_effects_controller.py:from third_party import psutil
+# ./utils/source_viewer_server.py:from third_party import Flask, render_template_string, jsonify, request, send_file, Response
+```
+
+## Testing
+
+```bash
+# Test Flask import
+cd build_scripts
+python -c "from third_party import Flask; print('✅ Flask import works')"
+
+# Test psutil import
+python -c "from third_party import psutil; print('✅ psutil import works')"
+
+# Test all Flask utilities
+python -c "from third_party import Flask, jsonify, request, send_file, Response; print('✅ All Flask utilities work')"
+```
+
+## Impact
+
+### Files Modified: 3
+1. `third_party.py` - Added Flask and psutil support (+60 lines)
+2. `utils/source_viewer_server.py` - Updated import (1 line)
+3. `controllers/step19_view_effects_controller.py` - Updated import (1 line)
+
+### Auto-Installation
+When you run `start.sh` or `main.py`:
+1. Flask will auto-install if missing
+2. psutil will auto-install if missing
+3. All other packages continue to work as before
+
+### No Breaking Changes
+- Existing functionality preserved
+- Only import sources changed
+- Automatic dependency installation
+
+## Resolution
+
+The original error:
+```
+ModuleNotFoundError: No module named 'flask'
+```
+
+Will now be automatically resolved by:
+1. Third-party system detects missing flask
+2. Automatically runs: `pip install flask`
+3. Imports flask and continues execution
+
+**Status**: ✅ RESOLVED
+
+---
+
+**Date**: 2025-01-XX
+**Issue**: Flask and psutil not in third_party system
+**Resolution**: Added to DEPENDENCY_MAP with full support
+**Files Changed**: 3
+**New Packages Managed**: 2 (flask, psutil)

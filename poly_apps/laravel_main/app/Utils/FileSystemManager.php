@@ -83,13 +83,8 @@ class FileSystemManager
 
     public static function mkdir(string $path, int $mode = 0755, bool $recursive = true): bool
     {
-        $result = null;
-
         if (file_exists($path)) {
             if (is_dir($path)) {
-                if (self::$autoFixPermissions) {
-                    self::fixPermissions($path);
-                }
                 return true;
             }
             return false;
@@ -97,8 +92,13 @@ class FileSystemManager
 
         $result = mkdir($path, $mode, $recursive);
 
-        if ($result && self::$autoFixPermissions) {
-            self::fixPermissions($path);
+        if ($result) {
+            $userInfo = SystemUserDetector::getActualUser();
+            if ($userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
+                @chown($path, $userInfo['uid']);
+                @chgrp($path, $userInfo['gid']);
+            }
+            @chmod($path, $mode);
         }
 
         return $result;
@@ -106,40 +106,26 @@ class FileSystemManager
 
     public static function writeFile(string $path, string $content): bool
     {
-        $result = null;
-
         $path = self::mapExternalPath($path);
 
-        $userInfo = self::$cachedUserInfo;
-        if ($userInfo === null) {
-            $userInfo = SystemUserDetector::getActualUser();
-            self::$cachedUserInfo = $userInfo;
-        }
+        $userInfo = SystemUserDetector::getActualUser();
 
         $parentDir = dirname($path);
         if (!file_exists($parentDir)) {
             self::mkdir($parentDir, 0755, true);
+            if ($userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
+                @chown($parentDir, $userInfo['uid']);
+                @chgrp($parentDir, $userInfo['gid']);
+                @chmod($parentDir, 0755);
+            }
         }
 
-        if (self::$autoFixPermissions && file_exists($parentDir)) {
-            self::fixPermissions($parentDir);
-        }
+        $result = file_put_contents($path, $content) !== false;
 
-        $tempFile = tempnam(sys_get_temp_dir(), 'fsm_');
-        file_put_contents($tempFile, $content);
-
-        $escapedSource = escapeshellarg($tempFile);
-        $escapedDest = escapeshellarg($path);
-        $username = escapeshellarg($userInfo['username']);
-
-        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
-        $output = shell_exec($command);
-        $result = file_exists($path);
-
-        @unlink($tempFile);
-
-        if ($result && self::$autoFixPermissions) {
-            self::fixPermissions($path);
+        if ($result && $userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
+            @chown($path, $userInfo['uid']);
+            @chgrp($path, $userInfo['gid']);
+            @chmod($path, 0644);
         }
 
         return $result;

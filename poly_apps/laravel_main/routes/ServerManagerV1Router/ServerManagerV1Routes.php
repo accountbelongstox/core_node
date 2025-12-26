@@ -55,10 +55,20 @@ Route::prefix('servermanager/v1')->group(function () {
     
     // Unified Manager Routes
     Route::prefix('unified')->group(function () {
+        // App listing and status
         Route::get('apps', [ServerManagerV1UnifiedManagerCtl::class, 'listApps']);
-        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
         Route::get('status', [ServerManagerV1UnifiedManagerCtl::class, 'getAppStatus']);
         Route::get('logs', [ServerManagerV1UnifiedManagerCtl::class, 'getAppLogs']);
+
+        // App service management
+        Route::post('start', [ServerManagerV1UnifiedManagerCtl::class, 'startApp']);
+        Route::post('stop', [ServerManagerV1UnifiedManagerCtl::class, 'stopApp']);
+        Route::post('restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartApp']);
+        Route::post('deploy', [ServerManagerV1UnifiedManagerCtl::class, 'deployApp']);
+
+        // Octane server management
+        Route::post('octane/restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartOctane']);
+        Route::post('octane/reload', [ServerManagerV1UnifiedManagerCtl::class, 'reloadOctane']);
     });
     
     // SSL Certificate Management Routes

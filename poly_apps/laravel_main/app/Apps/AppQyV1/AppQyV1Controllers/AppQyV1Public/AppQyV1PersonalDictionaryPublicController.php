@@ -19,9 +19,17 @@ use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDQBasePublic;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\ApiResponse;
 
 class AppQyV1PersonalDictionaryPublicController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public static function addPersonDictionaries($dictionaries, $sort_frequency = true, $query_soft_delete = false, )
     {
         if($sort_frequency == null)$sort_frequency = true;

@@ -78,11 +78,19 @@ def _register_builtin_handlers():
 # ============================================================
 
 def start_heartbeat(config: Dict[str, Any]) -> Any:
+<<<<<<< HEAD
     """Start heartbeat service (original class)"""
     # Register built-in handlers on first service start
     _register_builtin_handlers()
 
     ColorPrint.blue("[heartbeat] Starting Heartbeat System...")
+=======
+    """Start heartbeat service (unified architecture)"""
+    # Register built-in handlers on first service start
+    _register_builtin_handlers()
+
+    ColorPrint.blue("[heartbeat] Starting Unified Heartbeat System...")
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     from pycore.pyheartbeat import initialize_heartbeat_system
 
     instance = initialize_heartbeat_system()
@@ -102,7 +110,7 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
         name="heartbeat"
     )
 
-    ColorPrint.green("[heartbeat] Heartbeat System started")
+    ColorPrint.green("[heartbeat] Unified Heartbeat System started")
     return instance
 
 
@@ -119,6 +127,10 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     # Extract router and static mount configurations
     fastapi_routers = config.get('fastapi_routers', [])
     static_mounts = config.get('static_mounts', [])
+<<<<<<< HEAD
+=======
+    init_callback = config.get('init_callback')  # Optional callback to register routes
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 
     ColorPrint.blue(f"[rpc_v2] Starting RPC v2 Server on {host}:{port}...")
     if fastapi_routers:
@@ -136,6 +148,12 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
         static_mounts=static_mounts
     )
     instance.start()
+
+    # Call init callback if provided (for registering RPC v2 routes)
+    if init_callback and callable(init_callback):
+        ColorPrint.blue(f"[rpc_v2] Calling initialization callback...")
+        init_callback(instance.server)
+        ColorPrint.green(f"[rpc_v2] Initialization callback completed")
 
     # Register shutdown handler
     def stop_rpc_v2():

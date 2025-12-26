@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
@@ -55,16 +56,86 @@ const FriendsPage = () => {
           
           <Card className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white !border-none mt-4">
              <div className="flex justify-between items-center">
+=======
+import React, { useContext } from 'react';
+import { AppContext } from '../../contexts/AppContext';
+import { Card, Icons } from '../../components/UI';
+import { MOCK_FRIENDS, MOCK_ACTIVITIES } from '../../services/mockData';
+
+const FriendsPage = () => {
+  const { navigate } = useContext(AppContext);
+
+  return (
+    <div className="h-full flex flex-col p-5 pt-12 animate-slide-up relative overflow-hidden">
+       {/* Header */}
+       <div className="flex items-center justify-between mb-8 z-10">
+          <div className="flex items-center gap-3">
+             <button onClick={() => navigate('home')} className="p-2 rounded-full bg-white/10 hover:bg-white/20"><Icons.Back /></button>
+             <h1 className="text-2xl font-bold dark:text-white">Friends</h1>
+          </div>
+          <button className="bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition-transform">+ Add Friend</button>
+       </div>
+
+       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
+          {/* Active Friends Horizontal Scroll */}
+          <div className="mb-8">
+             <h3 className="settings-section-title">Active Now</h3>
+             <div className="flex gap-4 overflow-x-auto no-scrollbar px-1 pb-4">
+                {MOCK_FRIENDS.map(f => (
+                   <div key={f.id} className="flex flex-col items-center gap-2 min-w-[70px] cursor-pointer group">
+                      <div className="relative">
+                         <img src={f.avatar} className="w-16 h-16 rounded-2xl border-2 border-white/20 shadow-sm group-hover:scale-105 transition-transform" />
+                         <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-900 ${f.status === 'online' ? 'bg-green-500' : f.status === 'studying' ? 'bg-blue-500' : 'bg-slate-500'}`}></div>
+                      </div>
+                      <span className="text-xs font-bold text-secondary truncate w-full text-center">{f.name.split(' ')[0]}</span>
+                   </div>
+                ))}
+             </div>
+          </div>
+
+          {/* Activity Feed */}
+          <div>
+             <h3 className="settings-section-title">Activity Feed</h3>
+             <div className="space-y-3">
+                {MOCK_ACTIVITIES.map(a => (
+                   <div key={a.id} className="friend-activity-card">
+                      <img src={a.userAvatar} className="w-12 h-12 rounded-full border border-white/10" />
+                      <div className="flex-1">
+                         <p className="text-sm text-primary leading-snug">
+                            <span className="font-bold">{a.userName}</span> {a.action}
+                         </p>
+                         <p className="text-xs text-tertiary mt-1 font-medium">{a.time}</p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center gap-1">
+                         <button className="text-slate-400 hover:text-red-500 transition-colors">♥</button>
+                         <span className="text-xs text-slate-500">{a.likes}</span>
+                      </div>
+                   </div>
+                ))}
+             </div>
+             
+             <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-5 rounded-2xl mt-6 flex justify-between items-center shadow-lg">
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 <div>
                    <h3 className="font-bold text-lg">Invite Friends</h3>
                    <p className="text-white/80 text-sm">Get 1 month Pro for free!</p>
                 </div>
+<<<<<<< HEAD
                 <div className="text-3xl">🎁</div>
              </div>
           </Card>
+=======
+                <div className="text-4xl animate-bounce">🎁</div>
+             </div>
+          </div>
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
        </div>
     </div>
   );
 };
 
+<<<<<<< HEAD
 export default FriendsPage;
+=======
+export default FriendsPage;
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

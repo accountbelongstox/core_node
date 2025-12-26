@@ -8,13 +8,11 @@ with automatic dependency checking and installation.
 
 All third-party packages MUST be imported through this module.
 Usage: from pycore.pyfoundations.third_party import aiohttp, netifaces, etc.
-
 The module automatically checks and installs missing packages on first import.
-"""
+""" 
 
 import os
 import sys
-import subprocess
 import importlib
 import importlib.util
 import platform
@@ -96,11 +94,7 @@ DEPENDENCY_MAP = {
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
 
-    # For network interface detection (pyutils.rpc.discovery)
-    "netifaces": "netifaces",
-
-    # For WebView GUI (pyutils.web, pyutils.native_ui)
-    "webview": "pywebview",
+    # For GUI and HTML rendering
     "tkinterweb": "tkinterweb",
     "tkhtmlview": "tkhtmlview",
     "pystray": "pystray",
@@ -182,6 +176,12 @@ OPTIONAL_PACKAGES = {
     "edge_tts": "edge-tts",
     # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
     "whisper": "openai-whisper",
+
+    # For native Linux system tray (Ubuntu/GNOME) - optional
+    # Note: Requires system packages: gir1.2-appindicator3-0.1, libgirepository1.0-dev
+    # Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+    # Or: ./scripts/install_ubuntu_tray_support.sh
+    "gi": "PyGObject",
 }
 
 # Windows-only packages
@@ -223,7 +223,7 @@ def build_pip_install_command(package_name: str) -> list:
         package_name: The package name to install
 
     Returns:
-        List of command arguments for subprocess.run()
+        List of command arguments for exec_silent()
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
@@ -599,11 +599,87 @@ def get_third_package_aiohttp_web():
     return _PACKAGE_CACHE['aiohttp_web']
 
 
-def get_third_package_netifaces():
-    """Get netifaces package (lazy load)"""
-    return _lazy_import('netifaces', 'import netifaces')
+def get_third_package_yaml():
+    """Get yaml package (lazy load)"""
+    return _lazy_import('yaml', 'import yaml')
 
 
+# PIL/Pillow packages
+def get_third_package_PIL():
+    """Get PIL (Pillow) package (lazy load)"""
+    return _lazy_import('PIL', 'import PIL')
+
+
+def get_third_package_PIL_Image():
+    """Get PIL.Image module (lazy load)"""
+    if 'PIL_Image' not in _PACKAGE_CACHE:
+        from PIL import Image as PIL_Image
+        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
+    return _PACKAGE_CACHE['PIL_Image']
+
+
+def get_third_package_PIL_ImageDraw():
+    """Get PIL.ImageDraw module (lazy load)"""
+    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
+        from PIL import ImageDraw as PIL_ImageDraw
+        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
+    return _PACKAGE_CACHE['PIL_ImageDraw']
+
+
+def get_third_package_PIL_ImageFont():
+    """Get PIL.ImageFont module (lazy load)"""
+    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
+        from PIL import ImageFont as PIL_ImageFont
+        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
+    return _PACKAGE_CACHE['PIL_ImageFont']
+
+
+def get_third_package_PIL_ImageTk():
+    """Get PIL.ImageTk module (lazy load) - requires tkinter"""
+    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
+        from PIL import ImageTk as PIL_ImageTk
+        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
+    return _PACKAGE_CACHE['PIL_ImageTk']
+
+
+# Computer vision and automation packages
+def get_third_package_cv2():
+    """Get cv2 (OpenCV) package (lazy load)"""
+    return _lazy_import('cv2', 'import cv2')
+
+
+def get_third_package_pyautogui():
+    """Get pyautogui package (lazy load)"""
+    return _lazy_import('pyautogui', 'import pyautogui')
+
+
+def get_third_package_psutil():
+    """Get psutil package (lazy load)"""
+    return _lazy_import('psutil', 'import psutil')
+
+
+def get_third_package_mss():
+    """Get mss package (lazy load)"""
+    return _lazy_import('mss', 'import mss')
+
+
+# Deep learning packages
+def get_third_package_torch():
+    """Get torch (PyTorch) package (lazy load) - Heavy package"""
+    return _lazy_import('torch', 'import torch')
+
+
+def get_third_package_ultralytics():
+    """Get ultralytics (YOLO) package (lazy load) - Heavy package"""
+    return _lazy_import('ultralytics', 'import ultralytics')
+
+
+def get_third_package_numpy():
+    """Get numpy package (lazy load)"""
+    return _lazy_import('numpy', 'import numpy')
+
+
+# Network and web packages
 def get_third_package_websockets():
     """Get websockets package (lazy load)"""
     return _lazy_import('websockets', 'import websockets')
@@ -624,6 +700,7 @@ def get_third_package_fastapi():
     return _lazy_import('fastapi', 'import fastapi')
 
 
+<<<<<<< HEAD
 def get_third_package_starlette_staticfiles():
     """Get starlette.staticfiles.StaticFiles (lazy load, installed with fastapi)"""
     if 'starlette_StaticFiles' not in _PACKAGE_CACHE:
@@ -798,24 +875,34 @@ def get_third_package_webdriver_manager_firefox():
     return _PACKAGE_CACHE['webdriver_manager_firefox']
 
 
+=======
+# Device and streaming packages
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 def get_third_package_adb_shell():
     """Get adb_shell package (lazy load)"""
     return _lazy_import('adb_shell', 'import adb_shell')
 
 
 def get_third_package_av():
-    """Get av package (lazy load)"""
+    """Get av (PyAV) package (lazy load)"""
     return _lazy_import('av', 'import av')
 
 
+# Logging
 def get_third_package_loguru():
     """Get loguru package (lazy load)"""
     return _lazy_import('loguru', 'import loguru')
 
 
-def get_third_package_yaml():
-    """Get yaml package (lazy load)"""
-    return _lazy_import('yaml', 'import yaml')
+# Browser automation
+def get_third_package_selenium():
+    """Get selenium package (lazy load)"""
+    return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_webdriver_manager():
+    """Get webdriver_manager package (lazy load)"""
+    return _lazy_import('webdriver_manager', 'import webdriver_manager')
 
 
 def get_third_package_webview():
@@ -1230,7 +1317,6 @@ __all__ = [
     # Lazy loading getter functions (use these instead of direct imports)
     'get_third_package_aiohttp',
     'get_third_package_aiohttp_web',
-    'get_third_package_netifaces',
     'get_third_package_websockets',
     'get_third_package_requests',
     'get_third_package_uvicorn',

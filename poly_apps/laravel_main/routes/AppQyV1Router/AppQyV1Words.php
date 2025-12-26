@@ -15,16 +15,19 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryControl
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
 use Illuminate\Support\Facades\Route;
 
+$apiVersionPrefix = 'app_qy_v1';
+
 /*
 |--------------------------------------------------------------------------
 | AppQyV1 Words Routes
 |--------------------------------------------------------------------------
 |
 | Routes for word management and learning features
-| Base path: /api/words/
+| Base path: /api/app_qy_v1/words/
 |
 */
 
+Route::prefix($apiVersionPrefix)->group(function () {
 Route::prefix('words')->middleware('auth:sanctum')->group(function () {
 
     // Daily words
@@ -51,4 +54,5 @@ Route::prefix('words/public')->group(function () {
     // Basic word lookup
     Route::get('/{word}', [AppQyV1WordQueryController::class, 'publicWordLookup']);
 
+});
 });

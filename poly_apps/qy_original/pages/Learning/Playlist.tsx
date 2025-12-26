@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Icons } from '../../components/UI';
@@ -10,6 +13,7 @@ const PlaylistPage = () => {
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [pageWords, setPageWords] = useState<Word[]>([]);
+<<<<<<< HEAD
   
   // Player State
   const [localIndex, setLocalIndex] = useState(0); // Index within the current page
@@ -39,11 +43,36 @@ const PlaylistPage = () => {
     api.getWordsForGroup('g1').then(data => {
       // Mock large dataset for testing pagination
       const expanded = [...data, ...data, ...data, ...data, ...data]; // ~40 words
+=======
+  const [scrollY, setScrollY] = useState(0);
+  const [activeTab, setActiveTab] = useState<'page' | 'learning'>('page');
+  
+  // Player State
+  const [localIndex, setLocalIndex] = useState(0); 
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  
+  const playerStateRef = useRef({ localIndex: 0, isPlaying: false });
+  const listRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    playerStateRef.current.localIndex = localIndex;
+    playerStateRef.current.isPlaying = isPlaying;
+  }, [localIndex, isPlaying]);
+
+  useEffect(() => {
+    api.getWordsForGroup('g1').then(data => {
+      const expanded = [...data, ...data, ...data, ...data, ...data];
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       setAllWords(expanded);
     });
   }, []);
 
+<<<<<<< HEAD
   // Handle Paging
+=======
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   useEffect(() => {
     const start = currentPageIndex * playlistSettings.wordsPerPage;
     const end = start + playlistSettings.wordsPerPage;
@@ -52,14 +81,35 @@ const PlaylistPage = () => {
     setIsReviewMode(false);
   }, [allWords, currentPageIndex, playlistSettings.wordsPerPage]);
 
+<<<<<<< HEAD
   // Player Engine
   useEffect(() => {
     let timer: any;
     
+=======
+  // Scroll handler for header transparency
+  useEffect(() => {
+    const handleScroll = () => {
+      if (listRef.current) {
+        setScrollY(listRef.current.scrollTop);
+      }
+    };
+
+    const scrollElement = listRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll);
+      return () => scrollElement.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
+
+  useEffect(() => {
+    let timer: any;
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     const tick = () => {
       const state = playerStateRef.current;
       if (!state.isPlaying || pageWords.length === 0) return;
 
+<<<<<<< HEAD
       // Logic: 
       // 1. Handle Repeat Count (Simplification: Just play once for now, or implement counter)
       // 2. Handle Instant Review (IR)
@@ -103,6 +153,17 @@ const PlaylistPage = () => {
          }
       }
 
+=======
+      let nextIndex = state.localIndex + 1;
+      if (nextIndex >= pageWords.length) {
+          if ((currentPageIndex + 1) * playlistSettings.wordsPerPage < allWords.length) {
+              setCurrentPageIndex(p => p + 1);
+          } else {
+              setIsPlaying(false);
+          }
+          return;
+      }
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       setLocalIndex(nextIndex);
       scrollToItem(nextIndex);
     };
@@ -111,6 +172,7 @@ const PlaylistPage = () => {
        const intervalMs = (playlistSettings.playInterval * 1000) / playlistSettings.playbackSpeed;
        timer = setInterval(tick, intervalMs);
     }
+<<<<<<< HEAD
 
     return () => clearInterval(timer);
   }, [isPlaying, pageWords, playlistSettings, currentPageIndex, allWords.length]);
@@ -118,6 +180,13 @@ const PlaylistPage = () => {
 
   const scrollToItem = (index: number) => {
     if (listRef.current && playlistSettings.autoScroll) {
+=======
+    return () => clearInterval(timer);
+  }, [isPlaying, pageWords, playlistSettings, currentPageIndex]);
+
+  const scrollToItem = (index: number) => {
+    if (listRef.current) {
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       const item = listRef.current.children[index] as HTMLElement;
       if (item) {
         item.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -128,6 +197,7 @@ const PlaylistPage = () => {
   const handleManualClick = (index: number) => {
     setLocalIndex(index);
     scrollToItem(index);
+<<<<<<< HEAD
     setIsPlaying(true);
   };
 
@@ -181,10 +251,82 @@ const PlaylistPage = () => {
            const isDetailed = playlistSettings.displayMode === 'detailed';
            const largeFont = playlistSettings.largeFont;
            
+=======
+    setIsPlaying(false);
+  };
+
+  const currentWordIndex = currentPageIndex * playlistSettings.wordsPerPage + localIndex + 1;
+  const totalWords = allWords.length;
+  const currentPageWords = pageWords.length;
+  
+  // Calculate header opacity based on scroll
+  const headerOpacity = Math.min(0.98, 0.7 + (scrollY / 150) * 0.28);
+  const headerBlur = Math.min(30, 15 + (scrollY / 150) * 15);
+
+  return (
+    <div className="playlist-wrapper-standard animate-slide-up">
+      {/* Top Header with Progress */}
+      <div 
+        ref={headerRef}
+        className="playlist-header-standard"
+        style={{
+          background: `rgba(255, 255, 255, ${headerOpacity})`,
+          backdropFilter: `blur(${headerBlur}px)`,
+          WebkitBackdropFilter: `blur(${headerBlur}px)`,
+        }}
+      >
+         <div className="playlist-header-row">
+             <button onClick={() => navigate('home')} className="playlist-back-btn">
+                 <Icons.Back />
+             </button>
+             <div className="playlist-progress-info">
+                 <div className="playlist-progress-text">
+                     {currentWordIndex} / {totalWords} ({currentPageWords} total)
+                 </div>
+                 <div className="playlist-progress-bar">
+                     <div 
+                         className="playlist-progress-fill-standard" 
+                         style={{ width: `${(currentWordIndex / totalWords) * 100}%` }}
+                     ></div>
+                 </div>
+             </div>
+             <button onClick={() => navigate('playlist_config')} className="playlist-settings-btn">
+                 <Icons.Settings />
+             </button>
+         </div>
+         
+         {/* Tabs and Speed */}
+         <div className="playlist-tabs-row">
+             <div className="playlist-tabs">
+                 <button 
+                     className={`playlist-tab ${activeTab === 'page' ? 'active' : ''}`}
+                     onClick={() => setActiveTab('page')}
+                 >
+                     PAGE {currentPageIndex + 1}
+                 </button>
+                 <button 
+                     className={`playlist-tab ${activeTab === 'learning' ? 'active' : ''}`}
+                     onClick={() => setActiveTab('learning')}
+                 >
+                     LEARNING MODE
+                 </button>
+             </div>
+             <div className="playlist-speed-display">
+                 {playlistSettings.playbackSpeed}X • {playlistSettings.playInterval}S
+             </div>
+         </div>
+      </div>
+
+      {/* Scrollable Word List */}
+      <div ref={listRef} className="playlist-scroll-area-standard">
+         {pageWords.map((word, i) => {
+           const isActive = i === localIndex;
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
            return (
              <div 
                key={`${word.id}-${i}`}
                onClick={() => handleManualClick(i)}
+<<<<<<< HEAD
                className={`
                  relative p-4 rounded-2xl transition-all duration-300 cursor-pointer border
                  ${isActive 
@@ -258,9 +400,91 @@ const PlaylistPage = () => {
                 <Icons.ChevronRight />
              </button>
          </div>
+=======
+               className={`playlist-word-card-standard ${isActive ? 'active' : ''}`}
+             >
+                <div className="playlist-word-content">
+                   <div className="playlist-word-left">
+                      <h3 className={`playlist-word-title ${isActive ? 'active' : ''}`}>
+                        {word.text}
+                      </h3>
+                      <p className={`playlist-word-phonetic-standard ${isActive ? 'active' : ''}`}>
+                          {word.phonetic}
+                      </p>
+                      {isActive && word.example && (
+                          <p className="playlist-word-example-standard">
+                              {word.example}
+                          </p>
+                      )}
+                   </div>
+                   <div className={`playlist-word-translation-standard ${isActive ? 'active' : ''}`}>
+                      {word.translation}
+                   </div>
+                </div>
+             </div>
+           );
+         })}
+      </div>
+
+      {/* Bottom Playback Controls */}
+      <div className="playlist-bottom-controls">
+         <button 
+             onClick={() => {
+                 const newIndex = Math.max(0, localIndex - 5);
+                 setLocalIndex(newIndex);
+                 scrollToItem(newIndex);
+             }}
+             className="playlist-control-btn-bottom"
+         >
+             <Icons.Rewind />
+         </button>
+         <button 
+             onClick={() => {
+                 const newIndex = Math.max(0, localIndex - 1);
+                 setLocalIndex(newIndex);
+                 scrollToItem(newIndex);
+             }}
+             className="playlist-control-btn-bottom"
+             disabled={localIndex === 0}
+         >
+             <Icons.Back />
+         </button>
+         <button 
+             onClick={() => setIsPlaying(!isPlaying)} 
+             className="playlist-play-btn-bottom"
+         >
+             {isPlaying ? <Icons.Pause /> : <Icons.Play />}
+         </button>
+         <button 
+             onClick={() => {
+                 const newIndex = Math.min(pageWords.length - 1, localIndex + 1);
+                 setLocalIndex(newIndex);
+                 scrollToItem(newIndex);
+             }}
+             className="playlist-control-btn-bottom"
+             disabled={localIndex >= pageWords.length - 1}
+         >
+             <Icons.ChevronRight />
+         </button>
+         <button 
+             onClick={() => {
+                 const newIndex = Math.min(pageWords.length - 1, localIndex + 5);
+                 setLocalIndex(newIndex);
+                 scrollToItem(newIndex);
+             }}
+             className="playlist-control-btn-bottom playlist-fast-forward"
+         >
+             <Icons.ChevronRight />
+             <Icons.ChevronRight style={{ marginLeft: '-0.5rem' }} />
+         </button>
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       </div>
     </div>
   );
 };
 
 export default PlaylistPage;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

@@ -60,7 +60,7 @@ function Install-PnpmAndYarn {
 
     if (Test-Path $pnpmPath) {
         Write-Host "$LogPrefix Running pnpm setup..." -ForegroundColor Yellow
-        & $pnpmPath setup
+        Write-Host "Y" | & $pnpmPath setup
         Write-Host "$LogPrefix pnpm setup completed" -ForegroundColor Green
     }
 

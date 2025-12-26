@@ -7,11 +7,19 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
 use App\Services\OpenRouterClient;
 use App\Services\DeepSeekClient;
 use App\Services\GeminiClient;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class AppQyV1TranslationController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $translationService;
     
     public function __construct()
@@ -54,15 +62,26 @@ class AppQyV1TranslationController extends Controller
         
         $modelInfo = $this->resolveModelId($request->input('model'));
         
+        $model = null;
+        $provider = 'openrouter';
+        if ($modelInfo) {
+            if (isset($modelInfo['model'])) {
+                $model = $modelInfo['model'];
+            }
+            if (isset($modelInfo['provider'])) {
+                $provider = $modelInfo['provider'];
+            }
+        }
+        
         $result = $this->translationService->translate(
             text: $request->input('text'),
             targetLanguage: $request->input('target_language'),
             type: $request->input('type', 'general'),
-            model: $modelInfo['model'] ?? null,
-            provider: $modelInfo['provider'] ?? 'openrouter'
+            model: $model,
+            provider: $provider
         );
         
-        return response()->json($result);
+        return $this->success($result, 'Translation completed successfully');
     }
     
     public function batchTranslate(Request $request): JsonResponse
@@ -77,37 +96,43 @@ class AppQyV1TranslationController extends Controller
         
         $modelInfo = $this->resolveModelId($request->input('model'));
         
+        $model = null;
+        $provider = 'openrouter';
+        if ($modelInfo) {
+            if (isset($modelInfo['model'])) {
+                $model = $modelInfo['model'];
+            }
+            if (isset($modelInfo['provider'])) {
+                $provider = $modelInfo['provider'];
+            }
+        }
+        
         $results = [];
         foreach ($request->input('texts') as $text) {
             $results[] = $this->translationService->translate(
                 text: $text,
                 targetLanguage: $request->input('target_language'),
                 type: $request->input('type', 'general'),
-                model: $modelInfo['model'] ?? null,
-                provider: $modelInfo['provider'] ?? 'openrouter'
+                model: $model,
+                provider: $provider
             );
         }
         
-        return response()->json([
-            'success' => true,
-            'results' => $results,
-        ]);
+        return $this->success(['results' => $results], 'Batch translation completed successfully');
     }
     
     public function getLanguages(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'languages' => $this->translationService->getAvailableLanguages(),
-        ]);
+        ], 'Languages retrieved successfully');
     }
     
     public function getTypes(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'types' => $this->translationService->getAvailableTypes(),
-        ]);
+        ], 'Types retrieved successfully');
     }
     
     public function getModels(Request $request): JsonResponse
@@ -155,10 +180,9 @@ class AppQyV1TranslationController extends Controller
             'provider_mapping' => $providerMapping,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'models' => $uniqueModels,
-        ]);
+        ], 'Models retrieved successfully');
     }
     
     public function simpleTranslateWithGoogle(Request $request): JsonResponse
@@ -181,29 +205,44 @@ class AppQyV1TranslationController extends Controller
         );
         
         if (isset($result['error'])) {
-            return response()->json([
-                'success' => false,
-                'error' => $result['error'],
-                'details' => $result['details'] ?? null,
-            ]);
+            $details = null;
+            if (isset($result['details'])) {
+                $details = $result['details'];
+            }
+            return $this->error($result['error'], 400, ['details' => $details]);
         }
         
-        return response()->json([
-            'success' => true,
-            'translated_text' => $result['translated_text'] ?? '',
-            'original_text' => $result['original_text'] ?? $text,
-            'src_lang' => $result['src_lang'] ?? 'auto',
-            'dest_lang' => $result['dest_lang'] ?? $targetLanguage,
+        $translatedText = '';
+        if (isset($result['translated_text'])) {
+            $translatedText = $result['translated_text'];
+        }
+        $originalText = $text;
+        if (isset($result['original_text'])) {
+            $originalText = $result['original_text'];
+        }
+        $srcLang = 'auto';
+        if (isset($result['src_lang'])) {
+            $srcLang = $result['src_lang'];
+        }
+        $destLang = $targetLanguage;
+        if (isset($result['dest_lang'])) {
+            $destLang = $result['dest_lang'];
+        }
+        
+        return $this->success([
+            'translated_text' => $translatedText,
+            'original_text' => $originalText,
+            'src_lang' => $srcLang,
+            'dest_lang' => $destLang,
             'provider' => 'google',
-        ]);
+        ], 'Translation completed successfully');
     }
     
     public function getTemplates(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'templates' => $this->translationService->getLanguageTemplates(),
-        ]);
+        ], 'Templates retrieved successfully');
     }
     
     public function learningMode(Request $request): JsonResponse
@@ -224,65 +263,87 @@ class AppQyV1TranslationController extends Controller
         $text = $request->input('text');
         $generateAudio = $request->input('generate_audio', false);
 
+        $model = null;
+        $provider = 'google';
+        if ($modelInfo) {
+            if (isset($modelInfo['model'])) {
+                $model = $modelInfo['model'];
+            }
+            if (isset($modelInfo['provider'])) {
+                $provider = $modelInfo['provider'];
+            }
+        }
+
         $results = [];
 
         foreach ($targetLanguages as $targetLang) {
-            try {
                 $translation = $this->translationService->translateWithModel(
                     text: $text,
                     targetLanguage: $targetLang,
-                    model: $modelInfo['model'] ?? null,
-                    provider: $modelInfo['provider'] ?? 'google',
+                    model: $model,
+                    provider: $provider,
                     options: $request->input('options', [])
                 );
 
                 if ($translation['success']) {
+                    $translationProvider = 'unknown';
+                    if (isset($translation['provider'])) {
+                        $translationProvider = $translation['provider'];
+                    }
                     $results[$targetLang] = [
                         'translation' => $translation['translation'],
-                        'provider' => $translation['provider'] ?? 'unknown',
+                        'provider' => $translationProvider,
                     ];
 
                     if ($generateAudio && isset($translation['translation'])) {
-                        $ttsService = new \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService();
+                        $ttsService = new \App\Services\EdgeTTS\EdgeTTSService();
                         $audioResult = $ttsService->generateAudio($translation['translation'], $targetLang, 'sentence');
+                        $audioResult = $this->fixAudioUrl($audioResult);
 
                         if ($audioResult['success']) {
                             $results[$targetLang]['audio_url'] = $audioResult['audio_url'];
                         }
                     }
                 } else {
+                    $errorMessage = 'Translation failed';
+                    if (isset($translation['error'])) {
+                        $errorMessage = $translation['error'];
+                    }
                     $results[$targetLang] = [
-                        'error' => $translation['error'] ?? 'Translation failed',
+                        'error' => $errorMessage,
                     ];
                 }
-            } catch (\Exception $e) {
-                $results[$targetLang] = [
-                    'error' => $e->getMessage(),
-                ];
-            }
         }
 
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'status' => 'completed',
             'result' => $results,
             'processing_time' => 0,
-        ]);
+        ], 'Learning mode translation completed successfully');
     }
     
     public function getTaskStatus(Request $request, string $taskId): JsonResponse
     {
-        return response()->json([
-            'success' => false,
-            'error' => 'Task system not yet implemented in AppQyV1',
-        ]);
+        return $this->error('Task system not yet implemented in AppQyV1', 501);
     }
     
     public function processNextTask(Request $request): JsonResponse
     {
-        return response()->json([
-            'success' => false,
-            'error' => 'Task system not yet implemented in AppQyV1',
-        ]);
+        return $this->error('Task system not yet implemented in AppQyV1', 501);
+    }
+
+    /**
+     * Fix audio_url path to use AppQyV1 route prefix
+     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
+     */
+    private function fixAudioUrl(array $result): array
+    {
+        if (isset($result['audio_url'])) {
+            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
+                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
+            }
+        }
+
+        return $result;
     }
 }

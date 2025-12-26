@@ -14,42 +14,55 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict;
 
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1QueryPersonalDictionaryRequest;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1QueryPersonalDictionaryByWordsRequest;
+use App\Traits\ApiResponse;
 
-class AppQyV1PersonalDictionaryQueryController 
+class AppQyV1PersonalDictionaryQueryController
 {
-    public function queryPDictionary(Request $request)
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
+    public function queryPDictionary(AppQyV1QueryPersonalDictionaryRequest $request): JsonResponse
     {
-        $supported_params = ['query_soft_delete'];
-        $isQueryAlreadSoftDelete  = $request->input('query_soft_delete') ?? false;
-        $queryResult = PDQBasePublic::queryPersonalDictionary($isQueryAlreadSoftDelete);
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Personal dictionary created successfully',
-            'supported_params' => $supported_params,
+        $isQueryAlreadSoftDelete = false;
+        if ($request->has('query_soft_delete')) {
+            $isQueryAlreadSoftDelete = $request->input('query_soft_delete');
+        }
+
+        $userId = Auth::id();
+        $cacheKey = "personal_dictionary:{$userId}:" . ($isQueryAlreadSoftDelete ? 'soft' : 'active');
+
+        $queryResult = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($isQueryAlreadSoftDelete) {
+            return PDQBasePublic::queryPersonalDictionary($isQueryAlreadSoftDelete);
+        });
+
+        return $this->success([
             ...$queryResult
-        ], 200);
+        ], 'Personal dictionary queried successfully');
     }
 
-    public function queryPDictionaryByWords(Request $request)
+    public function queryPDictionaryByWords(AppQyV1QueryPersonalDictionaryByWordsRequest $request): JsonResponse
     {
-        $supported_params = ['words'];
         $words = $request->input('words');
         $words = StrTool::toWordArray($words);
-        $queryResult = PDQPublic::queryPDByWord($words);
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Personal dictionary created successfully',
-            'supported_params' => $supported_params,
+        $queryResult = PDQBasePublic::queryPDByWord($words);
+
+        return $this->success([
             ...$queryResult
-        ], 200);
+        ], 'Personal dictionary queried by words successfully');
     }
 
 }

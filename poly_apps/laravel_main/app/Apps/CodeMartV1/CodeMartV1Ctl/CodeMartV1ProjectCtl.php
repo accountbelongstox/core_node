@@ -2,9 +2,10 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1MilestoneModel;
-use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Validator;
 
 class CodeMartV1ProjectCtl extends Controller
 {
+    use ApiResponse;
+
     private CodeMartV1FileUploadService $fileUploadService;
 
     public function __construct(CodeMartV1FileUploadService $fileUploadService)
@@ -23,6 +26,9 @@ class CodeMartV1ProjectCtl extends Controller
 
     public function getProjects(Request $request): JsonResponse
     {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $query = CodeMartV1ProjectModel::query();
 
         if ($request->has('status')) {
@@ -35,8 +41,10 @@ class CodeMartV1ProjectCtl extends Controller
 
         if ($request->has('search')) {
             $search = $request->search;
-            $query->where('title', 'like', "%{$search}%")
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
+            });
         }
 
         $page = $request->get('page', 1);
@@ -44,27 +52,25 @@ class CodeMartV1ProjectCtl extends Controller
 
         $total = $query->count();
         $projects = $query->orderBy('created_at', 'desc')
-                          ->paginate($pageSize, ['*'], 'page', $page);
+                          ->offset(($page - 1) * $pageSize)
+                          ->limit($pageSize)
+                          ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'items' => $projects->items(),
-                'total' => $total,
+        return $this->success([
+            'projects' => $projects,
+            'pagination' => [
                 'page' => $page,
                 'pageSize' => $pageSize,
+                'total' => $total,
                 'totalPages' => ceil($total / $pageSize),
             ],
-        ], 200);
+        ]);
     }
 
     public function createProject(Request $request): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
-
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-        }
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
@@ -82,82 +88,64 @@ class CodeMartV1ProjectCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $project = CodeMartV1ProjectModel::create([
-                'client_id' => $user->id,
-                'title' => $request->title,
-                'description' => $request->description,
-                'complexity' => $request->complexity,
-                'budget' => $request->budget,
-                'budget_type' => $request->budget_type,
-                'currency' => $request->currency,
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
-                'skills' => $request->skills,
-                'languages' => $request->languages,
-                'frameworks' => $request->frameworks,
-                'databases' => $request->databases,
-                'status' => 'draft',
-            ]);
+        $project = CodeMartV1ProjectModel::create([
+            'client_id' => $user->id,
+            'title' => $request->title,
+            'description' => $request->description,
+            'complexity' => $request->complexity,
+            'budget' => $request->budget,
+            'budget_type' => $request->budget_type,
+            'currency' => $request->currency,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'required_skills' => json_encode($request->skills ?? []),
+            'languages' => json_encode($request->languages ?? []),
+            'frameworks' => json_encode($request->frameworks ?? []),
+            'databases' => json_encode($request->databases ?? []),
+            'status' => 'draft',
+        ]);
 
-            DB::commit();
+        DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Project created successfully',
-                'data' => $project,
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create project: ' . $e->getMessage(),
-            ], 500);
-        }
+        return $this->success($project, 'Project created successfully', 201);
     }
 
-    public function getProject(int $projectId): JsonResponse
+    public function getProject(Request $request, $projectId): JsonResponse
     {
-        $project = CodeMartV1ProjectModel::with([
-            'client',
-            'milestones',
-            'proposal',
-            'attachments',
-        ])->find($projectId);
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
+        $project = CodeMartV1ProjectModel::with(['milestones', 'attachments'])->find($projectId);
 
         if (!$project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project not found',
-            ], 404);
+            return $this->notFound('Project not found');
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $project,
-        ], 200);
+        if ($project->client_id !== $user->id && $project->architect_id !== $user->id) {
+            return $this->forbidden('You do not have access to this project');
+        }
+
+        return $this->success($project);
     }
 
-    public function updateProject(Request $request, int $projectId): JsonResponse
+    public function updateProject(Request $request, $projectId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $project = CodeMartV1ProjectModel::find($projectId);
 
         if (!$project) {
-            return response()->json(['success' => false, 'message' => 'Project not found'], 404);
+            return $this->notFound('Project not found');
         }
 
-        if ($project->client_id !== $user->id && $user->rolelevel < 2) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        if ($project->client_id !== $user->id) {
+            return $this->forbidden('Only the project owner can update this project');
         }
 
         $validator = Validator::make($request->all(), [
@@ -169,68 +157,68 @@ class CodeMartV1ProjectCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            $project->update($validator->validated());
+        DB::beginTransaction();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Project updated successfully',
-                'data' => $project,
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update project: ' . $e->getMessage(),
-            ], 500);
-        }
+        $project->update($request->only([
+            'title',
+            'description',
+            'status',
+            'complexity',
+            'budget',
+        ]));
+
+        DB::commit();
+
+        return $this->success($project, 'Project updated successfully');
     }
 
-    public function publishProject(int $projectId): JsonResponse
+    public function publishProject(Request $request, $projectId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $project = CodeMartV1ProjectModel::find($projectId);
 
         if (!$project) {
-            return response()->json(['success' => false, 'message' => 'Project not found'], 404);
+            return $this->notFound('Project not found');
         }
 
         if ($project->client_id !== $user->id) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return $this->forbidden('Only the project owner can publish this project');
         }
 
-        try {
-            $project->update(['status' => 'open']);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Project published successfully',
-                'data' => $project,
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to publish project: ' . $e->getMessage(),
-            ], 500);
+        if ($project->status !== 'draft') {
+            return $this->error('Only draft projects can be published');
         }
+
+        DB::beginTransaction();
+
+        $project->update([
+            'status' => 'open',
+            'published_at' => now(),
+        ]);
+
+        DB::commit();
+
+        return $this->success($project, 'Project published successfully');
     }
 
-    public function createMilestone(Request $request, int $projectId): JsonResponse
+    public function createMilestone(Request $request, $projectId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $project = CodeMartV1ProjectModel::find($projectId);
 
         if (!$project) {
-            return response()->json(['success' => false, 'message' => 'Project not found'], 404);
+            return $this->notFound('Project not found');
         }
 
-        if ($project->client_id !== $user->id) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        if ($project->client_id !== $user->id && $project->architect_id !== $user->id) {
+            return $this->forbidden('You do not have permission to create milestones for this project');
         }
 
         $validator = Validator::make($request->all(), [
@@ -242,56 +230,39 @@ class CodeMartV1ProjectCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            DB::beginTransaction();
+        DB::beginTransaction();
 
-            $order = $project->milestones()->max('order') ?? 0;
+        $milestone = CodeMartV1MilestoneModel::create([
+            'project_id' => $projectId,
+            'title' => $request->title,
+            'description' => $request->description,
+            'due_date' => $request->due_date,
+            'budget' => $request->budget,
+            'deliverables' => json_encode($request->deliverables ?? []),
+            'status' => 'pending',
+        ]);
 
-            $milestone = CodeMartV1MilestoneModel::create([
-                'project_id' => $projectId,
-                'title' => $request->title,
-                'description' => $request->description,
-                'due_date' => $request->due_date,
-                'budget' => $request->budget,
-                'deliverables' => $request->deliverables,
-                'order' => $order + 1,
-            ]);
+        DB::commit();
 
-            $project->update(['total_milestones' => $project->total_milestones + 1]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Milestone created successfully',
-                'data' => $milestone,
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create milestone: ' . $e->getMessage(),
-            ], 500);
-        }
+        return $this->success($milestone, 'Milestone created successfully', 201);
     }
 
-    public function uploadProjectAttachment(Request $request, int $projectId): JsonResponse
+    public function uploadProjectAttachment(Request $request, $projectId): JsonResponse
     {
-        $user = auth()->guard('sanctum')->user();
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
         $project = CodeMartV1ProjectModel::find($projectId);
 
         if (!$project) {
-            return response()->json(['success' => false, 'message' => 'Project not found'], 404);
+            return $this->notFound('Project not found');
         }
 
         if ($project->client_id !== $user->id) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return $this->forbidden('Only the project owner can upload attachments');
         }
 
         $validator = Validator::make($request->all(), [
@@ -299,43 +270,24 @@ class CodeMartV1ProjectCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        try {
-            $file = $request->file('file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $path = 'codemart/projects/' . $projectId . '/' . $fileName;
+        DB::beginTransaction();
 
-            \Storage::disk('public')->putFileAs(
-                'codemart/projects/' . $projectId,
-                $file,
-                $fileName
-            );
+        $uploadResult = $this->fileUploadService->uploadFile($request->file('file'), 'projects');
 
-            $attachment = CodeMartV1ProjectAttachmentModel::create([
-                'project_id' => $projectId,
-                'file_name' => $fileName,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'size' => $file->getSize(),
-                'path' => $path,
-                'uploaded_by' => $user->id,
-            ]);
+        $attachment = CodeMartV1ProjectAttachmentModel::create([
+            'project_id' => $projectId,
+            'file_name' => $uploadResult['original_name'],
+            'file_path' => $uploadResult['path'],
+            'file_size' => $uploadResult['size'],
+            'file_type' => $uploadResult['mime_type'],
+            'uploaded_by' => $user->id,
+        ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'File uploaded successfully',
-                'data' => $attachment,
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to upload file: ' . $e->getMessage(),
-            ], 500);
-        }
+        DB::commit();
+
+        return $this->success($attachment, 'Attachment uploaded successfully', 201);
     }
 }

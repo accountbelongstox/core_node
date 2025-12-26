@@ -17,7 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDiction
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryCreationController as PDAController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict\AppQyV1PersonalDictionaryDeletionController as PDDController;
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::middleware(['custom.authenticate'])->group(function () {
         Route::any('/create_personal_dictionary', [PDAController::class, 'createPersonalDictionary']);

@@ -129,10 +129,7 @@ function Get-SSHSecret {{
         return ""
     }}
 
-    if ($result.StartsWith([char]0xFEFF)) {{
-        $result = $result.Substring(1)
-    }}
-
+    # Note: BOM is already handled by secret_read.py, no need to strip again
     return $result
 }}
 

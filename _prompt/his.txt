@@ -1,8 +1,0 @@
-  File "/www/programing/core_node/poly_apps/flutter_bloom/scripts/build_scripts/utils/source_viewer_server.py", line 15, in <module>
-    from flask import Flask, render_template_string, jsonify, request, send_file, Response
-ModuleNotFoundError: No module named 'flask'
-[DEBUG] Python script exit code: 1
-[ERROR] App selection failed
-
-对build_scripts 设计一个合局的第三方包管理系统，参考 pycore\pyfoundations\third_party.py ，之后 build_scripts 中的所有第三方包都从该库中引用。
-

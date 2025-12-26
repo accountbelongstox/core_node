@@ -26,7 +26,7 @@ param(
 
 .PARAMETER SkipInitialization
     When this switch is provided, the script will skip Process-PsFiles and Process-Directories operations.
-    This parameter is used when returning from other scripts (like unified_manager.ps1) to avoid redundant processing
+    This parameter is used when returning from other scripts (like unified_manager_windows.ps1) to avoid redundant processing
     and provide faster menu display.
 
 .EXAMPLE
@@ -68,6 +68,14 @@ $scriptProcessorPath = Join-Path $PSScriptRoot "tools\ScriptProcessor.ps1"
 # Import WindowsPathFunction.ps1 for environment variable management
 $windowsPathFunctionPath = Join-Path $PSScriptRoot "win_common\WindowsPathFunction.ps1"
 . $windowsPathFunctionPath
+
+# Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
+$gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
+Import-Module $gitManagementFunctionsPath -Force
+
+# Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
+$gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
+Import-Module $gitManagementFunctionsPath -Force
 
 #region Variable Declarations 
 # =============================================================================
@@ -173,7 +181,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager.ps1"
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager_windows.ps1"
             $shellCandidates = @('pwsh', 'powershell')
             $shellExecutable = $null
 
@@ -185,7 +193,7 @@ $script:MenuItems = @(
             }
 
             if ($null -eq $shellExecutable) {
-                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager.ps1" -Type "Error"
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager_windows.ps1" -Type "Error"
                 Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
                 return
@@ -469,17 +477,25 @@ function Invoke-InteractiveMenu {
 
 function Set-ProjectEnvironmentVariables {
     Write-ColorMessage -Message "Setting project environment variables..." -Type "Info"
-    
-    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_DIR
-    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_DIR
-    Write-ColorMessage -Message "Added PROJECT_DIR to PATH: $PROJECT_DIR" -Type "Success"
-    
-    # Use WindowsPathFunction.ps1 with parameters to add PROJECT_SCRIPTS_DIR
-    & $windowsPathFunctionPath -action "add" -param1 $PROJECT_SCRIPTS_DIR
-    Write-ColorMessage -Message "Added PROJECT_SCRIPTS_DIR to PATH: $PROJECT_SCRIPTS_DIR" -Type "Success"
-    
-    # Refresh environment variables using WindowsPathFunction.ps1
-    & $windowsPathFunctionPath -action "refresh-bat"
+
+    try {
+        # First call - execute initialization
+        Write-ColorMessage -Message "First call to WindowsPathFunction - performing initialization" -Type "Info"
+        & $windowsPathFunctionPath -action "add" -param1 $PROJECT_DIR
+        Write-ColorMessage -Message "Added PROJECT_DIR to PATH: $PROJECT_DIR" -Type "Success"
+
+        # Subsequent calls - skip initialization
+        Write-ColorMessage -Message "Subsequent calls - skipping initialization" -Type "Info"
+        & $windowsPathFunctionPath -action "add" -param1 $PROJECT_SCRIPTS_DIR -SkipInit
+        Write-ColorMessage -Message "Added PROJECT_SCRIPTS_DIR to PATH: $PROJECT_SCRIPTS_DIR" -Type "Success"
+
+        # Refresh environment variables - skip initialization
+        & $windowsPathFunctionPath -action "refresh-bat" -SkipInit
+        Write-ColorMessage -Message "Environment variables refresh batch created" -Type "Success"
+    } catch {
+        Write-ColorMessage -Message "Warning: Failed to configure environment: $($_.Exception.Message)" -Type "Warning"
+        Write-ColorMessage -Message "Continuing with initialization..." -Type "Info"
+    }
 }
 
 function Initialize-Environment {
@@ -579,14 +595,7 @@ function Show-GitSourceSubMenu {
 }
 
 function Invoke-GitBackupPrompt {
-    $backupChoice = Read-Host "Run Backup Management before git operation? (yes/no)"
-    if ($backupChoice -eq "yes") {
-        $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
-        Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
-    } else {
-        Write-ColorMessage -Message "Skipping backup before git operation." -Type "Warning"
-    }
+    Write-ColorMessage -Message "Auto-skipping backup (non-interactive mode)." -Type "Info"
 }
 
 function Invoke-GitCommitAllChanges {
@@ -596,18 +605,9 @@ function Invoke-GitCommitAllChanges {
     Set-Location $CORE_NODE_DIR
     $statusOutput = git status --porcelain
     if (-not [string]::IsNullOrWhiteSpace($statusOutput)) {
-        Write-ColorMessage -Message "Local changes detected. Preparing to add and commit before pull." -Type "Info"
-        $shouldCommit = Read-Host "Stage and commit all changes? (yes/no)"
-        if ($shouldCommit -eq "yes") {
-            $commitMessage = Read-Host "Commit message (default: $DefaultMessage)"
-            if ([string]::IsNullOrWhiteSpace($commitMessage)) {
-                $commitMessage = $DefaultMessage
-            }
-            git add .
-            git commit -m $commitMessage
-        } else {
-            Write-ColorMessage -Message "Skipping commit; pull may fail if conflicts occur." -Type "Warning"
-        }
+        Write-ColorMessage -Message "Local changes detected. Auto-committing..." -Type "Info"
+        git add .
+        git commit -m $DefaultMessage
     } else {
         Write-ColorMessage -Message "No local changes detected. Continuing." -Type "Info"
     }
@@ -634,14 +634,8 @@ function Invoke-RegionAwarePull {
 }
 
 function Get-LatestGitVersion {
-    $confirm = Read-Host "Are you sure you want to safely pull the latest git version? (yes/no)"
-    if ($confirm -ne "yes") {
-        Write-ColorMessage -Message "Git pull cancelled." -Type "Warning"
-        return
-    }
-    
-    Write-ColorMessage -Message "Starting region-aware git pull with pre-checks..." -Type "Info"
-    
+    Write-ColorMessage -Message "Auto-executing git pull (non-interactive mode)..." -Type "Info"
+
     Invoke-GitBackupPrompt
     Invoke-GitCommitAllChanges
     Invoke-RegionAwarePull
@@ -650,185 +644,19 @@ function Get-LatestGitVersion {
         Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
         Make-PsExecutable
     } else {
-        Write-ColorMessage -Message "Git pull operation failed. Please check the output above." -Type "Error"
+        Write-ColorMessage -Message "Git pull operation failed" -Type "Error"
     }
-}
-
-function Show-GitManagementMenu {
-    while ($true) {
-        Clear-Host
-        Write-Host ""
-        Write-ColorMessage -Message "==================== Git Management ====================" -Type "Info"
-        Write-Host "  1. Get the latest git version (backup + commit + pull)"
-        Write-Host "  2. Git time travel"
-        Write-Host "  3. Back"
-        Write-ColorMessage -Message "========================================================" -Type "Info"
-        $choice = Read-Host "Select an option (1-3)"
-
-        switch ($choice) {
-            "1" {
-                Get-LatestGitVersion
-                Read-Host "Press Enter to return to Git Management menu"
-            }
-            "2" {
-                $gitTimeTravelScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\git_time_travel.ps1"
-                Write-ColorMessage -Message "Launching Git Time Travel..." -Type "Info"
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $gitTimeTravelScript
-                Read-Host "Press Enter to return to Git Management menu"
-            }
-            "3" {
-                return
-            }
-            default {
-                Write-ColorMessage -Message "Invalid option. Please try again." -Type "Warning"
-                Start-Sleep -Seconds 1
-            }
-        }
-    }
-}
-
-
-
-function Show-DynamicTestInstaller {
-    # Define the install_powershells directory path
-    $installPowershellsDir = Join-Path $script:PS_CURENT_DIR "install_powershells"
-    
-    # Check if directory exists
-    if (-not (Test-Path $installPowershellsDir -PathType Container)) {
-        Write-ColorMessage -Message "Install PowerShells directory not found: $installPowershellsDir" -Type "Error"
-        Read-Host "Press Enter to continue"
-        return
-    }
-    
-    # Scan for PowerShell scripts in the directory and sort by step number
-    # Force the result to always be an array to safely use .Count and indexing
-    $availableScripts = @(
-        Get-ChildItem -Path $installPowershellsDir -Filter "*.ps1" -File |
-            Where-Object { $_.Name -match "^Step\d+_" } |
-            ForEach-Object {
-                # Extract step number for sorting
-                if ($_.Name -match "^Step(\d+)_") {
-                    [PSCustomObject]@{
-                        Name = $_.Name
-                        StepNumber = [int]$matches[1]
-                        FullPath = $_.FullName
-                    }
-                }
-            } |
-            Sort-Object StepNumber |
-            Select-Object -ExpandProperty Name
-    )
-    
-    if ($availableScripts.Count -eq 0) {
-        Write-ColorMessage -Message "No Step scripts found in: $installPowershellsDir" -Type "Warning"
-        Read-Host "Press Enter to continue"
-        return
-    }
-    
-    # Display available scripts
-    Clear-Host
-    Write-ColorMessage -Message "Available Test Scripts in install_powershells directory:" -Type "Info"
-    Write-ColorMessage -Message "Directory: $installPowershellsDir" -Type "Info"
-    Write-ColorMessage -Message "=" -Type "Info"
-    
-    for ($i = 0; $i -lt $availableScripts.Count; $i++) {
-        Write-Host ("  {0}" -f $availableScripts[$i])
-    }
-    
-    Write-Host ""
-    Write-ColorMessage -Message "Enter search keyword to find and execute script:" -Type "Info"
-    Write-ColorMessage -Message "  - Type keyword to search (e.g., 'java', 'git', 'chrome', '1', '46')" -Type "Info"
-    Write-ColorMessage -Message "  - Type 'back' to return to menu" -Type "Info"
-    Write-ColorMessage -Message "  - Type 'quit' to exit" -Type "Info"
-    Write-Host ""
-    
-    $userChoice = (Read-Host "Enter keyword").Trim()
-    
-    # Handle special commands
-    if ($userChoice -eq "back" -or $userChoice -eq "b") {
-        Write-ColorMessage -Message "Returning to installer menu..." -Type "Info"
-        return
-    }
-    
-    if ($userChoice -eq "quit" -or $userChoice -eq "q") {
-        Write-ColorMessage -Message "Exiting..." -Type "Info"
-        exit
-    }
-    
-    # Handle keyword search - find first match
-    if (-not [string]::IsNullOrWhiteSpace($userChoice)) {
-        $matchingScript = $availableScripts | Where-Object { $_ -match [regex]::Escape($userChoice) -or $_ -like "*$userChoice*" } | Select-Object -First 1
-        
-        if (-not $matchingScript) {
-            Write-ColorMessage -Message "No scripts found matching keyword: '$userChoice'" -Type "Warning"
-            Read-Host "Press Enter to continue"
-            return
-        }
-        
-        Write-ColorMessage -Message "Found matching script: $matchingScript" -Type "Success"
-        $scriptPath = Join-Path $installPowershellsDir $matchingScript
-        Write-ColorMessage -Message "Script absolute path: $scriptPath" -Type "Info"
-        Write-ColorMessage -Message "Press any key to execute, or 'q' to cancel" -Type "Info"
-        $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        if ($key.Character -ne 'q' -and $key.Character -ne 'Q') {
-            Execute-TestScript -ScriptName $matchingScript -ScriptDir $installPowershellsDir
-        } else {
-            Write-ColorMessage -Message "Script execution cancelled." -Type "Warning"
-        }
-    } else {
-        Write-ColorMessage -Message "No input provided. Returning to installer menu..." -Type "Info"
-    }
-}
-
-function Execute-TestScript {
-    param(
-        [string]$ScriptName,
-        [string]$ScriptDir
-    )
-    
-    $scriptPath = Join-Path $ScriptDir $ScriptName
-    
-    if (-not (Test-Path $scriptPath -PathType Leaf)) {
-        Write-ColorMessage -Message "Script not found: $scriptPath" -Type "Error"
-        Read-Host "Press Enter to continue"
-        return
-    }
-    
-    Write-ColorMessage -Message "Executing script: $ScriptName" -Type "Info"
-    Write-ColorMessage -Message "Script absolute path: $scriptPath" -Type "Info"
-    Write-ColorMessage -Message "=" -Type "Info"
-    
-    try {
-        # Unblock the file to ensure it can be executed
-        Unblock-File -Path $scriptPath -ErrorAction SilentlyContinue
-        
-        # Execute the script
-        & $scriptPath
-        
-        Write-ColorMessage -Message "=" -Type "Info"
-        Write-ColorMessage -Message "Script execution completed: $ScriptName" -Type "Success"
-        
-    } catch {
-        Write-ColorMessage -Message "=" -Type "Info"
-        Write-ColorMessage -Message "Script execution failed: $($_.Exception.Message)" -Type "Error"
-    }
-    
-    # Pause to allow user to review output (as requested - no exit, no return to menu)
-    Write-Host ""
-    Write-ColorMessage -Message "Script execution finished. Press any key to continue..." -Type "Info"
-    $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function Show-InstallerSubMenu {
     $subItems = @(
-        @{ 
-            Text = "Run DevInstaller"; 
-            Values = @("base", "server", "full"); 
-            CurrentValueIndex = 0; 
-            Key = "INSTALL_TYPE"; 
-            Action = { 
+        @{
+            Text = "Run DevInstaller";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = "INSTALL_TYPE";
+            Action = {
                 $installType = $subItems[0].Values[$subItems[0].CurrentValueIndex]
-                Set-GlobalVar -Key "INSTALL_TYPE" -Value $installType
                 Write-ColorMessage -Message "Installation type set to: $installType" -Type "Info"
                 & $script:LOCAL_INSTALLER_SCRIPT
             } 
@@ -839,7 +667,7 @@ function Show-InstallerSubMenu {
             CurrentValueIndex = 0;
             Key = "SELECTED_TEST_STEP";
             Action = {
-                Show-DynamicTestInstaller
+                & $script:LOCAL_TEST_INSTALLER_SCRIPT
             }
         },
         @{

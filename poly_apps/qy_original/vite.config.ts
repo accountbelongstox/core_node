@@ -6,7 +6,11 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
+<<<<<<< HEAD
         port: 3000,
+=======
+        port: parseInt(process.env.PORT || "3000"),
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
         host: '0.0.0.0',
       },
       plugins: [react()],
@@ -16,8 +20,16 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
+<<<<<<< HEAD
           '@': path.resolve(__dirname, '.'),
         }
       }
     };
 });
+=======
+          '@': path.resolve('.'),
+        }
+      }
+    };
+});
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

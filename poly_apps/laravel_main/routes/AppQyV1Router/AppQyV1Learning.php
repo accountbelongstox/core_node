@@ -6,7 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VocabularyUploadC
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VocabularyRecommendationController;
 
 $version = getAppVersionFromFilename(__FILE__);
-$apiVersionPrefix = 'dict/' . $version;
+$apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function () {
 
@@ -22,6 +22,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::get('/collections/selected', [AppQyV1VocabularyRecommendationController::class, 'getSelectedCollections']);
 
         Route::get('/words', [AppQyV1LearningController::class, 'getWordCards']);
+        Route::get('/review-queue', [AppQyV1LearningController::class, 'getReviewQueue']);
         Route::post('/progress', [AppQyV1LearningController::class, 'updateProgress']);
         Route::get('/stats', [AppQyV1LearningController::class, 'getLearningStats']);
 

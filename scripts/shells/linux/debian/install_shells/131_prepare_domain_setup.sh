@@ -140,84 +140,99 @@ select_domain_prefixes() {
 # DIFFERENTIAL FUNCTIONS - Specific to domain setup
 # ============================================================================
 
-# Function to initialize secrets with password prompt
+# Function to initialize secrets by reading from .secret_ignore files
 initialize_secrets() {
-    if ! type secret_get_key >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] WARNING: secret_get_key function not found, using get_secret_content" >&2
-        DNSPOD_EMAIL=$(get_secret_content "DNS_DNSPOD_EMAILS")
-        DNSPOD_API_TOKEN=$(get_secret_content "DNS_DNSPOD_API_TOKENS")
-        DOMAINS_LISTS_CONTENT=$(get_secret_content "DOMAINS_LISTS")
-        return 0
+    local secret_dir="$CORE_NODE_DIR/.secret_keys/.secret_ignore"
+
+    echo "[$SCRIPT_INDEX] Reading secrets from: $secret_dir" >&2
+
+    # Check if secret directory exists
+    if [ ! -d "$secret_dir" ]; then
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] ERROR: Secret directory not found"
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] Directory: $secret_dir"
+        echo "[$SCRIPT_INDEX]"
+        echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets first:"
+        echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR"
+        echo "[$SCRIPT_INDEX]   dd.sh"
+        echo "[$SCRIPT_INDEX] =================================="
+        return 1
     fi
 
-    if [ "$IS_PRODUCTION" != true ]; then
-        echo "[$SCRIPT_INDEX] Desktop/WSL environment detected - checking for cached secrets"
-
-        DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "")
-        if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
-            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_EMAILS" >&2
+    # Read DNS_DNSPOD_EMAILS
+    if [ -f "$secret_dir/DNS_DNSPOD_EMAILS" ]; then
+        DNSPOD_EMAIL=$(cat "$secret_dir/DNS_DNSPOD_EMAILS" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -z "$DNSPOD_EMAIL" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: DNS_DNSPOD_EMAILS file is empty" >&2
+            echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets" >&2
             return 1
         fi
-
-        DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "")
-        if [ $? -ne 0 ] || [ -z "$DNSPOD_API_TOKEN" ]; then
-            echo "[$SCRIPT_INDEX] ERROR: Failed to load DNS_DNSPOD_API_TOKENS" >&2
-            return 1
-        fi
-
-        DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "")
-        if [ $? -ne 0 ] || [ -z "$DOMAINS_LISTS_CONTENT" ]; then
-            echo "[$SCRIPT_INDEX] ERROR: Failed to load DOMAINS_LISTS" >&2
-            return 1
-        fi
-
-        echo "[$SCRIPT_INDEX] [OK]All secrets loaded from cache" >&2
-        return 0
-    fi
-
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] SERVER ENVIRONMENT DETECTED"
-    echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] For security, encrypted secrets require password authentication."
-    echo "[$SCRIPT_INDEX]"
-
-    local password=""
-    if type _secret_read_password >/dev/null 2>&1; then
-        password=$(_secret_read_password "[$SCRIPT_INDEX] Enter decryption password: " "asterisk")
+        echo "[$SCRIPT_INDEX] [OK] Loaded DNS_DNSPOD_EMAILS" >&2
+        echo "[$SCRIPT_INDEX] [DEBUG] DNS_DNSPOD_EMAILS content: $DNSPOD_EMAIL" >&2
     else
-        echo -n "[$SCRIPT_INDEX] Enter decryption password: " >&2
-        read -s password
-        echo "" >&2
-    fi
-
-    if [ -z "$password" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Password cannot be empty" >&2
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] ERROR: DNS_DNSPOD_EMAILS not found"
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] File: $secret_dir/DNS_DNSPOD_EMAILS"
+        echo "[$SCRIPT_INDEX]"
+        echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets first:"
+        echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR"
+        echo "[$SCRIPT_INDEX]   dd.sh"
+        echo "[$SCRIPT_INDEX] =================================="
         return 1
     fi
 
-    echo "[$SCRIPT_INDEX] Decrypting required secrets..." >&2
-
-    DNSPOD_EMAIL=$(secret_get_key "DNS_DNSPOD_EMAILS" "$password")
-    if [ $? -ne 0 ] || [ -z "$DNSPOD_EMAIL" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_EMAILS" >&2
+    # Read DNS_DNSPOD_API_TOKENS
+    if [ -f "$secret_dir/DNS_DNSPOD_API_TOKENS" ]; then
+        DNSPOD_API_TOKEN=$(cat "$secret_dir/DNS_DNSPOD_API_TOKENS" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -z "$DNSPOD_API_TOKEN" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: DNS_DNSPOD_API_TOKENS file is empty" >&2
+            echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets" >&2
+            return 1
+        fi
+        echo "[$SCRIPT_INDEX] [OK] Loaded DNS_DNSPOD_API_TOKENS" >&2
+        echo "[$SCRIPT_INDEX] [DEBUG] DNS_DNSPOD_API_TOKENS length: ${#DNSPOD_API_TOKEN} characters" >&2
+    else
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] ERROR: DNS_DNSPOD_API_TOKENS not found"
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] File: $secret_dir/DNS_DNSPOD_API_TOKENS"
+        echo "[$SCRIPT_INDEX]"
+        echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets first:"
+        echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR"
+        echo "[$SCRIPT_INDEX]   dd.sh"
+        echo "[$SCRIPT_INDEX] =================================="
         return 1
     fi
 
-    DNSPOD_API_TOKEN=$(secret_get_key "DNS_DNSPOD_API_TOKENS" "$password")
-    if [ $? -ne 0 ] || [ -z "$DNSPOD_API_TOKEN" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DNS_DNSPOD_API_TOKENS" >&2
+    # Read DOMAINS_LISTS
+    if [ -f "$secret_dir/DOMAINS_LISTS" ]; then
+        DOMAINS_LISTS_CONTENT=$(cat "$secret_dir/DOMAINS_LISTS" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+        if [ -z "$DOMAINS_LISTS_CONTENT" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: DOMAINS_LISTS file is empty" >&2
+            echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets" >&2
+            return 1
+        fi
+        echo "[$SCRIPT_INDEX] [OK] Loaded DOMAINS_LISTS" >&2
+        echo "[$SCRIPT_INDEX] [DEBUG] DOMAINS_LISTS content:" >&2
+        echo "$DOMAINS_LISTS_CONTENT" | while IFS= read -r line; do
+            echo "[$SCRIPT_INDEX] [DEBUG]   - $line" >&2
+        done
+    else
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] ERROR: DOMAINS_LISTS not found"
+        echo "[$SCRIPT_INDEX] =================================="
+        echo "[$SCRIPT_INDEX] File: $secret_dir/DOMAINS_LISTS"
+        echo "[$SCRIPT_INDEX]"
+        echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets first:"
+        echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR"
+        echo "[$SCRIPT_INDEX]   dd.sh"
+        echo "[$SCRIPT_INDEX] =================================="
         return 1
     fi
 
-    DOMAINS_LISTS_CONTENT=$(secret_get_key "DOMAINS_LISTS" "$password")
-    if [ $? -ne 0 ] || [ -z "$DOMAINS_LISTS_CONTENT" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Failed to decrypt DOMAINS_LISTS" >&2
-        return 1
-    fi
-
-    echo "[$SCRIPT_INDEX] [OK]All secrets decrypted successfully" >&2
-    echo "[$SCRIPT_INDEX] =================================="
-
+    echo "[$SCRIPT_INDEX] [OK] All secrets loaded successfully" >&2
     return 0
 }
 
@@ -299,41 +314,106 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir"
 
-    if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    # Trust that pnpm is available via global variables (信任式编�?
+    pnpm_cmd="${PNPM_BIN:-$NODE_BIN_DIR/pnpm}"
+    echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
+
+    # Check Node.js
+    if command -v node >/dev/null 2>&1; then
         node_ver=$(node --version)
-        pnpm_ver=$(pnpm --version)
-        echo "[$SCRIPT_INDEX] [OK]Node.js: $node_ver"
-        echo "[$SCRIPT_INDEX] [OK]pnpm: $pnpm_ver"
+        pnpm_ver=$("$pnpm_cmd" --version)
+        echo "[$SCRIPT_INDEX] [OK] Node.js: $node_ver"
+        echo "[$SCRIPT_INDEX] [OK] pnpm: $pnpm_ver"
 
         echo "[$SCRIPT_INDEX] Installing/Verifying chokidar..."
         if [ -d "node_modules/chokidar" ]; then
             echo "[$SCRIPT_INDEX] chokidar exists, verifying..."
-            pnpm install --save-dev chokidar >/dev/null 2>&1
+            "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
         else
             echo "[$SCRIPT_INDEX] Installing chokidar..."
-            pnpm install --save-dev chokidar >/dev/null 2>&1
+            "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
         fi
 
         if [ -d "node_modules/chokidar" ]; then
-            chokidar_ver=$(pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "installed")
-            echo "[$SCRIPT_INDEX] [OK]chokidar: $chokidar_ver"
+            chokidar_ver=$("$pnpm_cmd" list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "installed")
+            echo "[$SCRIPT_INDEX] [OK] chokidar: $chokidar_ver"
 
             if node -e "require('chokidar'); console.log('OK')" 2>/dev/null | grep -q "OK"; then
-                echo "[$SCRIPT_INDEX] [OK]chokidar test passed - hot-reload ready"
+                echo "[$SCRIPT_INDEX] [OK] chokidar test passed - hot-reload ready"
             else
-                echo "[$SCRIPT_INDEX] [WARN]chokidar test failed but module exists"
+                echo "[$SCRIPT_INDEX] [WARN] chokidar test failed but module exists"
             fi
         else
-            echo "[$SCRIPT_INDEX] [ERROR]chokidar installation failed"
+            echo "[$SCRIPT_INDEX] [ERROR] chokidar installation failed"
         fi
     else
-        echo "[$SCRIPT_INDEX] [WARN]Node.js/pnpm not found - hot-reload unavailable"
-        echo "[$SCRIPT_INDEX] Install Node.js and pnpm to enable Octane --watch mode"
+        echo "[$SCRIPT_INDEX] [WARN] Node.js not found - hot-reload unavailable"
+        echo "[$SCRIPT_INDEX] Install Node.js to enable Octane --watch mode"
     fi
 
     cd - >/dev/null
 else
-    echo "[$SCRIPT_INDEX] [ERROR]Laravel directory not found"
+    echo "[$SCRIPT_INDEX] [ERROR] Laravel directory not found"
+fi
+
+# IDEMPOTENT: Check and refresh Octane service configuration
+# This ensures service configuration is always up-to-date with latest code
+# Requirement: "131 就要启动服务，反复运行时要修复问题"
+echo ""
+echo "[$SCRIPT_INDEX] =================================="
+echo "[$SCRIPT_INDEX] CHECKING OCTANE SERVICE"
+echo "[$SCRIPT_INDEX] =================================="
+
+laravel_dir=$(get_laravel_dir)
+if [ -d "$laravel_dir" ]; then
+    cd "$laravel_dir" || exit 1
+
+    # Check if any Octane services exist
+    echo "[$SCRIPT_INDEX] Checking for existing Octane services..."
+    octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep "octane-poly" | head -1)
+
+    if [ -n "$octane_services" ]; then
+        echo "[$SCRIPT_INDEX] Found existing Octane service"
+        echo "[$SCRIPT_INDEX] Refreshing service configuration (idempotent)..."
+
+        # Get first API domain from database to trigger service refresh
+        # Fixed query: simpler grep pattern for "Website: domain.com"
+        first_domain=$($USE_SUDO php artisan servermanager:website list 2>/dev/null | grep "^Website:" | head -1 | awk '{print $2}')
+
+        if [ -n "$first_domain" ]; then
+            echo "[$SCRIPT_INDEX] Using domain: $first_domain"
+            echo "[$SCRIPT_INDEX] Regenerating service configuration with latest settings..."
+
+            # This triggers the idempotent logic in ServerManagerV1WebsiteCommand.php
+            # STEP 1: Regenerates service file with ProtectSystem=full
+            # STEP 2: Reloads systemd daemon
+            # STEP 3: Restarts service to apply changes
+            $USE_SUDO php artisan servermanager:website add "$first_domain" \
+                --type=poly --ssl=auto --php-mode=swoole 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config" | while read -r line; do
+                echo "[$SCRIPT_INDEX]   $line"
+            done
+
+            echo "[$SCRIPT_INDEX] Service configuration refreshed"
+
+            # Verify service is running
+            service_status=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "● octane-poly")
+            if echo "$service_status" | grep -q "●"; then
+                echo "[$SCRIPT_INDEX] ✓ Octane service is active"
+            else
+                echo "[$SCRIPT_INDEX] ⚠ Octane service may need manual check"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] ERROR: No domains found in database"
+            echo "[$SCRIPT_INDEX] Cannot refresh service without domain"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] No existing Octane service found"
+        echo "[$SCRIPT_INDEX] Service will be created when domains are added"
+    fi
+
+    cd - >/dev/null
+else
+    echo "[$SCRIPT_INDEX] Laravel directory not found, skipping service check"
 fi
 
 # Display summary

@@ -12,7 +12,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [int]$MaxCommits = 50
+    [int]$MaxCommits = 10000
 )
 
 # Declare all variables at the beginning
@@ -104,8 +104,23 @@ function Save-LocalChanges {
 function Load-CommitHistory {
     Write-ColorText "`n=== Loading Commit History ===" -ForegroundColor Cyan
 
+    # Get total commit count first
+    $totalCommitCount = git rev-list --count HEAD 2>$null
+    if ($totalCommitCount) {
+        Write-ColorText "Total commits in repository: $totalCommitCount" -ForegroundColor Cyan
+    }
+
+    # Determine how many commits to load
+    $loadCount = $MaxCommits
+    if ($MaxCommits -ge $totalCommitCount) {
+        $loadCount = $totalCommitCount
+        Write-ColorText "Loading all $loadCount commits..." -ForegroundColor Green
+    } else {
+        Write-ColorText "Loading last $loadCount commits (use -MaxCommits parameter to load more)..." -ForegroundColor Yellow
+    }
+
     # Get commit history with format: hash|short_hash|date|author|subject
-    $gitLog = git log --oneline --format="%H|%h|%ci|%an|%s" -n $MaxCommits 2>$null
+    $gitLog = git log --oneline --format="%H|%h|%ci|%an|%s" -n $loadCount 2>$null
 
     if (-not $gitLog) {
         throw "Failed to load commit history"
@@ -125,7 +140,7 @@ function Load-CommitHistory {
         }
     }
 
-    Write-ColorText "Loaded $($script:commitHistory.Count) commits" -ForegroundColor Green
+    Write-ColorText "Loaded $($script:commitHistory.Count) commits successfully" -ForegroundColor Green
 }
 
 # Function to display current commit info
@@ -137,6 +152,23 @@ function Show-CurrentCommit {
     Write-ColorText "===============================================" -ForegroundColor Cyan
     Write-ColorText "        GIT TIME TRAVEL" -ForegroundColor Magenta
     Write-ColorText "===============================================" -ForegroundColor Cyan
+    Write-ColorText ""
+
+    # Show working directory
+    Write-ColorText "Working Directory:" -ForegroundColor Yellow
+    Write-ColorText "  $coreNodeDir" -ForegroundColor White
+
+    # Show current branch info
+    if ($script:originalBranch) {
+        Write-ColorText "Original Branch: " -ForegroundColor Yellow -NoNewline
+        Write-ColorText $script:originalBranch -ForegroundColor Green
+    }
+
+    if ($script:detachedHead) {
+        Write-ColorText "Current State: " -ForegroundColor Yellow -NoNewline
+        Write-ColorText "DETACHED HEAD" -ForegroundColor Red
+    }
+
     Write-ColorText ""
 
     # Show position

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MediaBrowser from './components/views/MediaBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
+<<<<<<< HEAD
 import ToolsDashboard from './components/views/ToolsDashboard';
 import ApiTester from './components/views/ApiTester';
 import LoginModal from './components/LoginModal';
@@ -37,6 +38,88 @@ const App: React.FC = () => {
 
   const handleAuthAction = () => {
     if (isLoggedIn) {
+=======
+import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
+import ApiTester from './components/views/ApiTester';
+import VocabularyLearning from './components/views/VocabularyLearning';
+import AITools from './components/views/AITools';
+import MCPManager from './components/views/MCPManager';
+import OctaneTasks from './components/views/OctaneTasks';
+import ServerManager from './components/views/ServerManager';
+import Settings from './components/views/Settings';
+import LoginModal from './components/LoginModal';
+import AuthGuard from './components/auth/AuthGuard';
+import { HtmlErrorModal } from './components/debug/HtmlErrorModal';
+import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
+import { AppStateProvider, useAppState } from './contexts/AppStateContext';
+import { ToastProvider, InviteCodeManager } from './components/admin';
+import { api } from './core/api';
+import { useUser } from './hooks/useUser';
+import { ViewType } from './types';
+import { TRANSLATIONS, APP_NAME, APP_VERSION } from './constants';
+import { Power, Sun, Moon, Languages, LogIn } from "lucide-react";
+import { ApiEndpointSwitcher } from './components/ApiEndpointSwitcher';
+import { apiManager } from './services/ApiManager';
+import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
+
+const AppContent: React.FC = () => {
+  const { config } = useApiConfig();
+  const {
+    activeView,
+    setActiveView,
+    lang,
+    toggleLang,
+    theme,
+    toggleTheme,
+    isLoggedIn,
+    setIsLoggedIn
+  } = useAppState();
+  const { isLoggedIn: userIsLoggedIn, logout: userLogout, user } = useUser();
+
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [htmlError, setHtmlError] = useState<HtmlErrorEvent | null>(null);
+
+  // Initialize API Manager on mount
+  useEffect(() => {
+    const initializeApi = async () => {
+      await apiManager.initialize({
+        autoDetect: true,
+        timeout: 1000
+      });
+
+      const baseUrl = apiManager.getCurrentBaseUrl();
+      api.updateBaseURL(baseUrl);
+      console.log('[ApiManager] Initialized with:', baseUrl);
+    };
+
+    initializeApi();
+  }, []);
+
+  useEffect(() => {
+    api.updateBaseURL(config.baseUrl);
+  }, [config]);
+
+  useEffect(() => {
+    setIsLoggedIn(userIsLoggedIn);
+  }, [userIsLoggedIn, setIsLoggedIn]);
+
+  // Listen for HTML error events
+  useEffect(() => {
+    const unsubscribe = htmlErrorManager.addListener((event) => {
+      setHtmlError(event);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    console.log('[App] Mounted with activeView:', activeView);
+  }, []);
+
+  const handleAuthAction = async () => {
+    if (isLoggedIn) {
+      await userLogout();
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       setIsLoggedIn(false);
     } else {
       setShowLoginModal(true);
@@ -44,12 +127,29 @@ const App: React.FC = () => {
   };
 
   const handleLoginSuccess = () => {
+<<<<<<< HEAD
     setIsLoggedIn(true);
+=======
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     setShowLoginModal(false);
   };
 
   const t = TRANSLATIONS[lang];
 
+<<<<<<< HEAD
+=======
+  // NO ?? or || allowed - backend MUST return complete translation structure
+  const settingsAuthRequired = t.settings.auth_required;
+  const serverManagerAuthRequired = t.server_manager.auth_required;
+  const inviteCodesAuthRequired = t.invite_codes.auth_required;
+  const inviteCodesTitle = t.header.titles.invite_codes;
+
+  // Global variable to control authentication requirements
+  // Default: true (authentication disabled for testing)
+  // To enable auth: Set window.DISABLE_AUTH = false in browser console
+  const disableAuth = (window as any).DISABLE_AUTH !== false;
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
   const renderView = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
@@ -57,9 +157,56 @@ const App: React.FC = () => {
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
+<<<<<<< HEAD
         return <ToolsDashboard />;
       case ViewType.API_TESTER:
         return <ApiTester />;
+=======
+        return <UnifiedToolsPage lang={lang} />;
+      case ViewType.API_TESTER:
+        return <ApiTester />;
+      case ViewType.VOCABULARY:
+        return <VocabularyLearning />;
+      case ViewType.AI_TOOLS:
+        return <AITools />;
+      case ViewType.MCP_MANAGER:
+        return <MCPManager lang={lang} />;
+      case ViewType.OCTANE_TASKS:
+        return <OctaneTasks lang={lang} />;
+      case ViewType.SERVER_MANAGER:
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={!disableAuth}
+            fallbackMessage={serverManagerAuthRequired}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <ServerManager lang={lang} />
+          </AuthGuard>
+        );
+      case ViewType.SETTINGS:
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={!disableAuth}
+            fallbackMessage={settingsAuthRequired}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <Settings lang={lang} />
+          </AuthGuard>
+        );
+      case ViewType.INVITE_CODE_MANAGER:
+        return (
+          <AuthGuard
+            lang={lang}
+            requireAuth={!disableAuth}
+            fallbackMessage={inviteCodesAuthRequired}
+            onLoginRequest={() => setShowLoginModal(true)}
+          >
+            <InviteCodeManager lang={lang} />
+          </AuthGuard>
+        );
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -76,6 +223,16 @@ const App: React.FC = () => {
       case ViewType.CODE_BROWSER: return t.header.titles.code;
       case ViewType.TOOLS: return t.header.titles.tools;
       case ViewType.API_TESTER: return t.header.titles.api;
+<<<<<<< HEAD
+=======
+      case ViewType.VOCABULARY: return t.header.titles.vocabulary;
+      case ViewType.AI_TOOLS: return t.header.titles.ai_tools;
+      case ViewType.MCP_MANAGER: return t.header.titles.mcp;
+      case ViewType.OCTANE_TASKS: return t.header.titles.octane;
+      case ViewType.SERVER_MANAGER: return t.header.titles.server;
+      case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
+      case ViewType.SETTINGS: return t.header.titles.settings;
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
       default: return APP_NAME;
     }
   };
@@ -106,25 +263,43 @@ const App: React.FC = () => {
         
         <main className="flex-1 flex flex-col min-w-0 bg-transparent relative">
           {/* Top Header */}
+<<<<<<< HEAD
           <header className="h-16 flex items-center justify-between px-6 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
              <div className="flex items-center gap-4">
                 <h1 className="text-lg font-bold tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
                    {getPageTitle()}
                 </h1>
                 <span className="hidden md:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
+=======
+          <header className="min-h-16 flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-3 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md z-40 transition-colors duration-300">
+             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 min-w-0">
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-white truncate">
+                   {getPageTitle()}
+                </h1>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0">
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                   {APP_NAME} {APP_VERSION}
                 </span>
              </div>
 
+<<<<<<< HEAD
              <div className="flex items-center gap-4 md:gap-6 text-xs font-medium">
                 {/* System Status */}
                 <div className="hidden md:flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                     <span className={isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'}>
+=======
+             <div className="flex items-center gap-2 sm:gap-4 text-xs font-medium flex-wrap">
+                {/* System Status */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                    <span className={`${isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'} whitespace-nowrap`}>
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       {isLoggedIn ? t.header.system_online : t.header.system_offline}
                     </span>
                 </div>
 
+<<<<<<< HEAD
                 <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block"></div>
 
                 {/* Controls */}
@@ -132,6 +307,18 @@ const App: React.FC = () => {
                     {/* Language Switcher */}
                     <button 
                       onClick={toggleLang}
+=======
+                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-2">
+                    {/* API Endpoint Switcher */}
+                    <ApiEndpointSwitcher />
+
+                    {/* Language Switcher */}
+                    <button
+                      onClick={() => toggleLang(true)}
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Switch Language"
                     >
@@ -139,8 +326,13 @@ const App: React.FC = () => {
                     </button>
 
                     {/* Theme Switcher */}
+<<<<<<< HEAD
                     <button 
                       onClick={toggleTheme}
+=======
+                    <button
+                      onClick={() => toggleTheme(true)}
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                       className="p-2 rounded-lg text-slate-500 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
                       title="Toggle Theme"
                     >
@@ -148,6 +340,7 @@ const App: React.FC = () => {
                     </button>
                 </div>
 
+<<<<<<< HEAD
                 <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10"></div>
 
                 {/* User Info / Auth */}
@@ -165,16 +358,43 @@ const App: React.FC = () => {
                         px-4 py-2 rounded-lg transition-all flex items-center gap-2 border font-semibold
                         ${isLoggedIn 
                           ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20' 
+=======
+                <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block"></div>
+
+                {/* User Info / Auth */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {isLoggedIn && (
+                      <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          <span className="text-xs">{t.header.logged_in_as}</span>
+                          <span className="text-slate-800 dark:text-white font-bold text-xs">adminroot</span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleAuthAction}
+                      className={`
+                        px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all flex items-center gap-1.5 border font-semibold text-xs sm:text-sm flex-shrink-0
+                        ${isLoggedIn
+                          ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20'
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                           : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-lg shadow-indigo-500/20'}
                       `}
                     >
                         {isLoggedIn ? (
                           <>
+<<<<<<< HEAD
                             <Power size={14} /> <span className="hidden sm:inline">{t.header.logout}</span>
                           </>
                         ) : (
                           <>
                             <LogIn size={14} /> <span>{t.header.login}</span>
+=======
+                            <Power size={14} /> <span className="hidden sm:inline whitespace-nowrap">{t.header.logout}</span>
+                          </>
+                        ) : (
+                          <>
+                            <LogIn size={14} /> <span className="whitespace-nowrap">{t.header.login}</span>
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                           </>
                         )}
                     </button>
@@ -194,6 +414,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Login Modal */}
+<<<<<<< HEAD
       <LoginModal 
         isOpen={showLoginModal} 
         onClose={() => setShowLoginModal(false)}
@@ -201,8 +422,42 @@ const App: React.FC = () => {
         lang={lang}
       />
 
+=======
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+        lang={lang}
+      />
+
+      {/* HTML Error Debug Modal */}
+      <HtmlErrorModal
+        isOpen={htmlError !== null}
+        onClose={() => setHtmlError(null)}
+        htmlContent={htmlError?.htmlContent || ''}
+        url={htmlError?.url || ''}
+        statusCode={htmlError?.statusCode}
+      />
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
     </div>
   );
 };
 
+<<<<<<< HEAD
+=======
+// Main App Component with AppStateProvider, ApiConfigProvider and ToastProvider
+const App: React.FC = () => {
+  return (
+    <AppStateProvider>
+      <ApiConfigProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </ApiConfigProvider>
+    </AppStateProvider>
+  );
+};
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export default App;

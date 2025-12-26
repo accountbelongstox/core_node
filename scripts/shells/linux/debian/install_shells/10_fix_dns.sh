@@ -31,6 +31,12 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 source "$COMMON_DIR/common_functions.sh"
 
+# Get region from global variable
+SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
+if [ -z "$SELECTED_REGION" ]; then
+    SELECTED_REGION="Global"
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -56,6 +62,45 @@ test_dns() {
     if ping -c 1 -W 2 "$test_domain" >/dev/null 2>&1; then
         return 0
     else
+        return 1
+    fi
+}
+
+# Function to check if internet is working (region-aware)
+check_internet_working() {
+    log_info "Checking if internet is already working..."
+    log_info "Region: $SELECTED_REGION"
+
+    local test_domain=""
+    if [ "$SELECTED_REGION" = "China" ]; then
+        test_domain="baidu.com"
+        log_info "Testing China-specific domain: $test_domain"
+    else
+        test_domain="google.com"
+        log_info "Testing Global domain: $test_domain"
+    fi
+
+    # Test DNS resolution
+    if test_dns "$test_domain"; then
+        log_info "Successfully resolved $test_domain"
+
+        # Test actual HTTP connection
+        if command -v curl >/dev/null 2>&1; then
+            if curl -s --max-time 5 --head "https://$test_domain" >/dev/null 2>&1; then
+                log_info "Successfully connected to $test_domain via HTTPS"
+                return 0
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget --timeout=5 --tries=1 --spider "https://$test_domain" >/dev/null 2>&1; then
+                log_info "Successfully connected to $test_domain via HTTPS"
+                return 0
+            fi
+        fi
+
+        log_warning "DNS works but HTTP connection failed"
+        return 1
+    else
+        log_warning "Failed to resolve $test_domain"
         return 1
     fi
 }
@@ -157,8 +202,9 @@ fix_systemd_resolved() {
         log_info "systemd-resolved started successfully"
     fi
 
-    # Configure systemd-resolved to use public DNS
+    # Configure systemd-resolved to use public DNS based on region
     log_info "Configuring /etc/systemd/resolved.conf with DNS servers..."
+    log_info "Region: $SELECTED_REGION"
 
     local config_file="/etc/systemd/resolved.conf"
 
@@ -177,10 +223,17 @@ fix_systemd_resolved() {
         echo "[Resolve]" | $USE_SUDO tee -a "$config_file" > /dev/null
     fi
 
-    # Update or add DNS configurations
+    # Update or add DNS configurations based on region
     log_info "Updating DNS configuration entries:"
-    update_resolved_conf_line "DNS" "8.8.8.8 8.8.4.4"
-    update_resolved_conf_line "FallbackDNS" "1.1.1.1 1.0.0.1"
+    if [ "$SELECTED_REGION" = "China" ]; then
+        log_info "Using Alibaba Cloud DNS for China region"
+        update_resolved_conf_line "DNS" "223.5.5.5 223.6.6.6"
+        update_resolved_conf_line "FallbackDNS" "114.114.114.114 119.29.29.29"
+    else
+        log_info "Using Google DNS for Global region"
+        update_resolved_conf_line "DNS" "8.8.8.8 8.8.4.4"
+        update_resolved_conf_line "FallbackDNS" "1.1.1.1 1.0.0.1"
+    fi
     update_resolved_conf_line "DNSSEC" "no"
     update_resolved_conf_line "DNSOverTLS" "no"
 
@@ -199,6 +252,7 @@ fix_systemd_resolved() {
 # Function to create static resolv.conf
 create_static_resolv_conf() {
     log_info "Creating static /etc/resolv.conf with public DNS servers..."
+    log_info "Region: $SELECTED_REGION"
 
     backup_resolv_conf
 
@@ -208,17 +262,30 @@ create_static_resolv_conf() {
         $USE_SUDO rm -f /etc/resolv.conf
     fi
 
-    # Create static resolv.conf
-    $USE_SUDO tee /etc/resolv.conf > /dev/null << 'EOF'
+    # Create static resolv.conf based on region
+    if [ "$SELECTED_REGION" = "China" ]; then
+        log_info "Using Alibaba Cloud DNS for China region"
+        $USE_SUDO tee /etc/resolv.conf > /dev/null << 'EOF'
 # Static DNS configuration - created by fix_dns.sh
-nameserver 8.8.8.8
-nameserver 1.1.1.1
-nameserver 8.8.4.4
-nameserver 1.0.0.1
+# Alibaba Cloud DNS (China optimized)
 nameserver 223.5.5.5
 nameserver 223.6.6.6
+nameserver 114.114.114.114
+nameserver 119.29.29.29
 options timeout:2 attempts:3 rotate
 EOF
+    else
+        log_info "Using Google DNS for Global region"
+        $USE_SUDO tee /etc/resolv.conf > /dev/null << 'EOF'
+# Static DNS configuration - created by fix_dns.sh
+# Google & Cloudflare DNS (Global optimized)
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+nameserver 1.0.0.1
+options timeout:2 attempts:3 rotate
+EOF
+    fi
 
     # Make it immutable to prevent systemd from overwriting
     $USE_SUDO chattr +i /etc/resolv.conf 2>/dev/null || log_warning "Could not make resolv.conf immutable"
@@ -399,12 +466,34 @@ main() {
     print_header_from_common_functions "DNS Resolution Fix"
 
     log_info "Starting DNS resolution diagnostic and fix..."
+    log_info "Selected Region: $SELECTED_REGION"
+    echo ""
+
+    # Step 0: Check if internet is already working
+    log_info "Step 0: Pre-check - Testing if internet is already working..."
+    if check_internet_working; then
+        log_info "====================================================="
+        log_info "Internet is already working properly!"
+        log_info "====================================================="
+        log_info "No DNS fix needed. System can access:"
+        if [ "$SELECTED_REGION" = "China" ]; then
+            log_info "  âœ?baidu.com (China test site)"
+        else
+            log_info "  âœ?google.com (Global test site)"
+        fi
+        log_info ""
+        log_info "Skipping DNS modifications to avoid breaking working configuration."
+        return 0
+    else
+        log_warning "Internet connectivity check failed"
+        log_warning "Will proceed with DNS fixes..."
+    fi
     echo ""
 
     # Step 1: Test current DNS resolution
     log_info "Step 1: Testing current DNS resolution..."
     if verify_dns; then
-        log_info "DNS resolution is already working!"
+        log_info "DNS resolution is working!"
         log_info "No fixes needed"
         return 0
     else
@@ -461,10 +550,14 @@ main() {
             echo ""
             log_info "=== Fix Complete ==="
             log_info "Summary:"
-            log_info "  - DNS servers: 8.8.8.8, 1.1.1.1, 8.8.4.4, 1.0.0.1"
+            log_info "  - Region: $SELECTED_REGION"
+            if [ "$SELECTED_REGION" = "China" ]; then
+                log_info "  - DNS servers: Alibaba Cloud (223.5.5.5, 223.6.6.6)"
+            else
+                log_info "  - DNS servers: Google (8.8.8.8, 8.8.4.4)"
+            fi
             log_info "  - DNS resolution: Working"
             log_info "  - Network download: Working"
-            log_info "  - Tested sites: npm registry, Google, GitHub"
             echo ""
             log_info "Your system can now:"
             log_info "  âœ?Resolve domain names"

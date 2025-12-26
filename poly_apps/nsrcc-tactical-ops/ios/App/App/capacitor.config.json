@@ -1,0 +1,20 @@
+{
+	"appId": "com.nsrcc.tacticalops",
+	"appName": "NSRCC Tactical Ops",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"plugins": {
+		"Keyboard": {
+			"resize": "body",
+			"style": "DARK",
+			"resizeOnFullScreen": true
+		}
+	},
+	"packageClassList": [
+		"CAPCameraPlugin",
+		"FilesystemPlugin",
+		"GeolocationPlugin"
+	]
+}

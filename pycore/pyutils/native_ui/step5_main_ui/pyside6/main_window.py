@@ -20,11 +20,12 @@ from enum import Enum
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS
+    from pycore import THREAD_BUS, ColorPrint
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
+    from pycore import ColorPrint
 
 # Import window state manager
 from .window_state import WindowStateManager
@@ -107,6 +108,10 @@ class PySide6MainWindow(QMainWindow):
         self._min_width = 800
         self._min_height = 600
 
+        # Close handling - prevent multiple shutdown triggers
+        self._close_requested = False  # Tracks if app.close event was triggered
+        self._force_close = False  # Allows forced close after shutdown complete
+
         # Setup window (will load cached state if available)
         self._setup_window(width, height)
         self._create_ui()
@@ -128,7 +133,10 @@ class PySide6MainWindow(QMainWindow):
             if not icon.isNull():
                 self.setWindowIcon(icon)
             else:
+<<<<<<< HEAD
                 from pycore import ColorPrint
+=======
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
                 ColorPrint.red(f"[MainWindow] Failed to load window icon from: {self._icon_path}")
 
         # Load cached window state if available
@@ -147,6 +155,15 @@ class PySide6MainWindow(QMainWindow):
 
         # Set minimum size
         self.setMinimumSize(self._min_width, self._min_height)
+
+        # Set maximum size to screen size to prevent window from exceeding screen
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            max_width = screen_geometry.width()
+            max_height = screen_geometry.height()
+            self.setMaximumSize(max_width, max_height)
+            ColorPrint.print_info(f"[MainWindow] Maximum size set to screen: {max_width}x{max_height}")
 
         # Enable frameless if configured
         if self._frameless:
@@ -173,14 +190,37 @@ class PySide6MainWindow(QMainWindow):
             self._center_window()
 
     def _center_window(self):
-        """Center window on screen."""
+        """Center window on screen if position is negative."""
         screen = QApplication.primaryScreen()
         if screen:
             screen_geometry = screen.availableGeometry()
             window_geometry = self.frameGeometry()
-            center_point = screen_geometry.center()
-            window_geometry.moveCenter(center_point)
-            self.move(window_geometry.topLeft())
+            current_pos = window_geometry.topLeft()
+
+            # Only adjust if position is negative (outside screen bounds)
+            if current_pos.x() < 0 or current_pos.y() < 0:
+                # Check if window size is equal or greater than screen size (fullscreen mode)
+                if (window_geometry.width() >= screen_geometry.width() - 20 and
+                    window_geometry.height() >= screen_geometry.height() - 20):
+                    # Fullscreen or near-fullscreen: position at screen origin
+                    self.move(screen_geometry.topLeft())
+                    ColorPrint.print_info(
+                        f"[MainWindow] Position negative, fullscreen detected, "
+                        f"positioning at screen origin: {screen_geometry.topLeft()}"
+                    )
+                else:
+                    # Normal window: center on screen
+                    center_point = screen_geometry.center()
+                    window_geometry.moveCenter(center_point)
+                    self.move(window_geometry.topLeft())
+                    ColorPrint.print_info(
+                        f"[MainWindow] Position negative, centering window"
+                    )
+            else:
+                # Position is valid (>= 0), keep as is
+                ColorPrint.print_info(
+                    f"[MainWindow] Position valid ({current_pos.x()}, {current_pos.y()}), keeping original position"
+                )
 
     def _create_ui(self):
         """Create UI components."""
@@ -451,26 +491,51 @@ class PySide6MainWindow(QMainWindow):
     # ========== Window Events ==========
 
     def closeEvent(self, event):
-        """Handle window close event."""
-        # Save window state before closing
-        self._save_window_state()
+        """
+        Handle window close event.
 
-        # Trigger app.close event first (allows handlers to cleanup)
-        if HAS_THREAD_BUS:
-            # Trigger synchronously to ensure cleanup completes
-            THREAD_BUS.trigger_event('app.close', {
-                'source': 'window_close',
-                'window': self
-            }, async_mode=False)
+        Implements proper shutdown flow:
+        1. First close attempt: Trigger app.close event and ignore close (prevent window from closing)
+        2. THREAD_BUS shutdown handlers execute (stop services, cleanup)
+        3. After shutdown complete: Framework calls window.close() with _force_close=True
+        4. Second close attempt: Accept close and window closes gracefully
+        """
+        # If force close is set, directly close window (called after shutdown complete)
+        if self._force_close:
+            ColorPrint.blue("[MainWindow] Force close enabled, closing window...")
+            self._save_window_state()
+            self.window_closing.emit()
+            event.accept()
+            self.window_closed.emit()
+            return
 
-        # Emit closing signal
-        self.window_closing.emit()
+        # First close attempt: Trigger shutdown flow
+        if not self._close_requested:
+            ColorPrint.blue("[MainWindow] Close button clicked, triggering app.close event...")
+            self._close_requested = True
 
-        # Accept close
+            # Save window state before shutdown
+            self._save_window_state()
+
+            # Trigger app.close event (THREAD_BUS will handle shutdown flow)
+            if HAS_THREAD_BUS:
+                # Use async mode to avoid blocking Qt event loop
+                THREAD_BUS.trigger_event('app.close', {
+                    'source': 'window_close_button',
+                    'window': self
+                }, async_mode=True)
+                ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
+
+            # IMPORTANT: Ignore this close event to prevent window from closing immediately
+            # Window will be closed later by framework.quit() after shutdown completes
+            event.ignore()
+            ColorPrint.blue("[MainWindow] Close event ignored, waiting for shutdown to complete...")
+            return
+
+        # If we reach here without force_close, something went wrong
+        # Just accept the close to prevent window from becoming unresponsive
+        ColorPrint.yellow("[MainWindow] Close event without force_close flag, accepting anyway...")
         event.accept()
-
-        # Emit closed signal
-        self.window_closed.emit()
 
     def changeEvent(self, event):
         """Handle window state change event."""

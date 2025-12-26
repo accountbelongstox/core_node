@@ -133,45 +133,103 @@ class ServerManagerV1ApiInfo
             // Nginx Management APIs
             [
                 'path' => $apiPrefix . '/nginx/sites',
-                'feature' => 'auth_required/GET|List all nginx sites and their configurations|ServerManagerV1NginxManagerCtl|response:sites(array,Site list),enabled_count(int,Enabled sites),total_count(int,Total sites)|tags:server,nginx'
+                'feature' => 'auth_required/GET|List all nginx sites and their configurations|ServerManagerV1NginxManagerCtl@listSites|response:sites(array,Site list),enabled_count(int,Enabled sites),total_count(int,Total sites)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites',
+                'feature' => 'auth_required/POST|Create new nginx site configuration|ServerManagerV1NginxManagerCtl@createSite|params:site_name(string,required,example.com),domain(string,required,example.com),site_type(string,optional,laravel),config(object,optional,{})|response:site_name(string,Site name),domain(string,Domain name),config_file(string,Config file path)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/{site_name}',
+                'feature' => 'auth_required/PUT|Update existing nginx site configuration|ServerManagerV1NginxManagerCtl@updateSite|params:site_name(string,required,example.com),site_config(string,required,nginx config content)|response:site_name(string,Site name),updated(boolean,Update status)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/{site_name}',
+                'feature' => 'auth_required/DELETE|Delete nginx site and configuration|ServerManagerV1NginxManagerCtl@deleteSite|params:site_name(string,required,example.com)|response:site_name(string,Site name),deleted(boolean,Deletion status)|tags:server,nginx'
             ],
             [
                 'path' => $apiPrefix . '/nginx/config',
-                'feature' => 'auth_required/GET|Get nginx site configuration|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:config(string,Site config),path(string,Config file path)|tags:server,nginx'
+                'feature' => 'auth_required/GET|Get nginx site configuration content|ServerManagerV1NginxManagerCtl@getSiteConfig|params:site_name(string,required,example.com)|response:content(string,Config content),parsed_info(object,Parsed configuration)|tags:server,nginx'
             ],
             [
                 'path' => $apiPrefix . '/nginx/enable',
-                'feature' => 'auth_required/POST|Enable nginx site|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:success(boolean,Operation success),message(string,Result message)|tags:server,nginx'
+                'feature' => 'auth_required/POST|Enable nginx site by creating symlink|ServerManagerV1NginxManagerCtl@enableSite|params:site_name(string,required,example.com)|response:enabled(boolean,Enable status),enabled_file(string,Symlink path)|tags:server,nginx'
             ],
             [
                 'path' => $apiPrefix . '/nginx/disable',
-                'feature' => 'auth_required/POST|Disable nginx site|ServerManagerV1NginxManagerCtl|params:site_name(string,required,example.com)|response:success(boolean,Operation success),message(string,Result message)|tags:server,nginx'
+                'feature' => 'auth_required/POST|Disable nginx site by removing symlink|ServerManagerV1NginxManagerCtl@disableSite|params:site_name(string,required,example.com)|response:enabled(boolean,Disable status)|tags:server,nginx'
             ],
             [
                 'path' => $apiPrefix . '/nginx/test',
-                'feature' => 'auth_required/POST|Test nginx configuration validity|ServerManagerV1NginxManagerCtl|response:valid(boolean,Config valid),errors(array,Configuration errors),warnings(array,Configuration warnings)|tags:server,nginx'
+                'feature' => 'auth_required/POST|Test nginx configuration syntax validity|ServerManagerV1NginxManagerCtl@testConfig|response:valid(boolean,Config validity),output(string,Test output),error(string,Error message)|tags:server,nginx'
             ],
             [
                 'path' => $apiPrefix . '/nginx/reload',
-                'feature' => 'auth_required/POST|Reload nginx configuration|ServerManagerV1NginxManagerCtl|response:success(boolean,Reload success),message(string,Result message)|tags:server,nginx'
+                'feature' => 'auth_required/POST|Reload nginx configuration without restart|ServerManagerV1NginxManagerCtl@reloadNginx|response:reloaded(boolean,Reload status),output(string,Command output)|tags:server,nginx'
             ],
 
             // Unified Manager APIs
             [
                 'path' => $apiPrefix . '/unified/apps',
-                'feature' => 'auth_required/GET|List applications from unified manager registry|ServerManagerV1UnifiedManagerCtl|response:apps(array,Application list),total_count(int,Total apps)|tags:server,deploy'
-            ],
-            [
-                'path' => $apiPrefix . '/unified/deploy',
-                'feature' => 'auth_required/POST|Deploy application using unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main)|response:deployment_id(string,Deployment ID),status(string,Deployment status),message(string,Result message)|tags:server,deploy'
+                'feature' => 'auth_required/GET|List all applications with service status|ServerManagerV1UnifiedManagerCtl@listApps|response:apps(array,Application list with service status),total_apps(int,Total apps),base_port(int,Base port number)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/status',
-                'feature' => 'auth_required/GET|Get application status from unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main)|response:status(string,App status),uptime(string,App uptime),health(object,Health info)|tags:server,deploy'
+                'feature' => 'auth_required/GET|Get detailed application status|ServerManagerV1UnifiedManagerCtl@getAppStatus|params:app_name(string,required,laravel_main),app_type(string,required,polyApp)|response:service_status(object,Service status),service_name(string,Service name),launcher_exists(boolean,Launcher script exists)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/logs',
-                'feature' => 'auth_required/GET|Get application logs from unified manager|ServerManagerV1UnifiedManagerCtl|params:app_name(string,required,laravel_main),lines(int,optional,100)|response:logs(array,Log entries),total_lines(int,Total log lines)|tags:server,deploy'
+                'feature' => 'auth_required/GET|Get application logs from systemd and app files|ServerManagerV1UnifiedManagerCtl@getAppLogs|params:app_name(string,required,laravel_main),lines(int,optional,100)|response:logs(array,Log entries),total_lines(int,Total log lines),log_sources(array,Log sources)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/start',
+                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/stop',
+                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/restart',
+                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/deploy',
+                'feature' => 'auth_required/POST|Deploy application using unified manager|ServerManagerV1UnifiedManagerCtl@deployApp|params:app_name(string,required,laravel_main),action(string,required,deploy)|response:deployment_id(string,Deployment ID),success(boolean,Success status),output(string,Command output),execution_time(number,Execution time)|tags:server,deploy'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/octane/restart',
+                'feature' => 'auth_required/POST|Restart Octane server (Laravel main API server)|ServerManagerV1UnifiedManagerCtl@restartOctane|response:service_name(string,Service name),output(string,Command output)|tags:server,octane'
+            ],
+            [
+                'path' => $apiPrefix . '/unified/octane/reload',
+                'feature' => 'auth_required/POST|Reload Octane server gracefully without downtime|ServerManagerV1UnifiedManagerCtl@reloadOctane|response:service_name(string,Service name),output(string,Command output)|tags:server,octane'
+            ],
+
+            // SSL Certificate Management APIs
+            [
+                'path' => $apiPrefix . '/certificates/',
+                'feature' => 'auth_required/GET|List all SSL certificates on server|ServerManagerV1CertificateManagerCtl@listCertificates|response:certificates(array,Certificate list),total_certificates(int,Total count)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/generate',
+                'feature' => 'auth_required/POST|Generate new SSL certificate using DNS validation|ServerManagerV1CertificateManagerCtl@generateCertificate|params:domain(string,required,example.com),provider(string,optional,dnspod),staging(boolean,optional,false)|response:domain(string,Domain name),certificate_path(string,Certificate directory),output(string,Certbot output)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/renew',
+                'feature' => 'auth_required/POST|Renew SSL certificates|ServerManagerV1CertificateManagerCtl@renewCertificates|params:domain(string,optional,example.com),all(boolean,optional,false)|response:domain(string,Domain name),nginx_reloaded(boolean,Nginx reload status),output(string,Command output)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/status',
+                'feature' => 'auth_required/GET|Get SSL certificate status and expiry info|ServerManagerV1CertificateManagerCtl@getCertificateStatus|params:domain(string,required,example.com)|response:expiry_date(string,Expiry date),days_until_expiry(int,Days remaining),status(string,Status),issuer(string,Certificate issuer)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/install-certbot',
+                'feature' => 'auth_required/POST|Install certbot and nginx plugin|ServerManagerV1CertificateManagerCtl@installCertbot|response:installed(boolean,Installation status),output(string,Installation output),exit_code(int,Exit code)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/detect-certbot',
+                'feature' => 'auth_required/GET|Detect certbot installation and version|ServerManagerV1CertificateManagerCtl@detectCertbot|response:installed(boolean,Installation status),path(string,Certbot path),version(string,Version),nginx_plugin(boolean,Plugin status)|tags:server,ssl,certificate'
             ]
         ];
     }

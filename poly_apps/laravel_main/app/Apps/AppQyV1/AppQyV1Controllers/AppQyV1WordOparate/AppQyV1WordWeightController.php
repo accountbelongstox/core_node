@@ -20,8 +20,16 @@ use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
-class AppQyV1WordWeightController 
+use App\Traits\ApiResponse;
+class AppQyV1WordWeightController
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     public function upWeight(Request $request)
     {
         $supported_params = ['words','safe_update'];

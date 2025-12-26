@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星灿传媒 云矩阵</title>
+
+    <!-- Phosphor Icons - Local Assets (No CDN dependency) -->
+    <!-- Multiple styles: regular, bold, fill -->
+    <link rel="stylesheet" href="/fonts/phosphor/regular/style.css">
+    <link rel="stylesheet" href="/fonts/phosphor/bold/style.css">
+    <link rel="stylesheet" href="/fonts/phosphor/fill/style.css">
+
+    <!-- Google Fonts - Local fallback with system fonts -->
+    <style>
+      /* System font stack - No CDN dependency */
+      @font-face {
+        font-family: 'Inter';
+        src: local('Arial'), local('Helvetica'), local('Microsoft YaHei'), local('PingFang SC');
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: local('Consolas'), local('Monaco'), local('Courier New'), local('monospace');
+        font-display: swap;
+      }
+    </style>
+
+    <!-- Theme detection script - Prevent white flash on load -->
+    <script>
+      (function() {
+        // Set background color immediately to prevent white flash
+        if (document.documentElement) {
+          document.documentElement.style.backgroundColor = '#030305';
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        // Wait for body element to load
+        if (document.body) {
+          document.body.style.backgroundColor = '#030305';
+        } else {
+          document.addEventListener('DOMContentLoaded', function() {
+            if (document.body) {
+              document.body.style.backgroundColor = '#030305';
+            }
+          });
+        }
+      })();
+    </script>
+
+    <!-- Resource preloading -->
+    <link rel="preload" href="/index.css" as="style">
+    <link rel="preload" href="/fonts/phosphor/regular/style.css" as="style">
+    <link rel="preload" href="/fonts/phosphor/bold/style.css" as="style">
+    <link rel="preload" href="/fonts/phosphor/fill/style.css" as="style">
+
+    <!-- Preload entry script -->
+    <link rel="modulepreload" href="/index.tsx">
+
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "url": "https://aistudiocdn.com/url@^0.11.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root" class="h-full w-full relative z-10"></div>
+
+    <!-- Dynamic background atmosphere effects -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden dynamic-bg">
+      <div class="absolute inset-0 noise-bg z-[1]"></div>
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="scanlines absolute inset-0 z-[2]"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 z-[3]"></div>
+    </div>
+
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

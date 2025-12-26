@@ -57,7 +57,7 @@
 #      * cpu_limit (optional): CPU limit like "20%" (default: auto-calculated based on system)
 #      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated based on system RAM)
 #    - Default limits are applied automatically if not specified
-#    - Example: create_systemd_service "my-service" "My Service" "/usr/bin/python3 /app/main.py" "/app" "www-data"
+#    - Example: create_systemd_service "my-service" "My Service" "/usr/bin/python3 /app/main.py" "/app" "ubuntu"
 #
 # 2. create_ncore_service(script_path, [custom_name], [description], [cpu_limit], [memory_limit])
 #    - Creates or updates a systemd service with ncore-* naming convention

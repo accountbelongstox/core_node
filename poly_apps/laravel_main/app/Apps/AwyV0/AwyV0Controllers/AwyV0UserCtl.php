@@ -117,7 +117,8 @@ class AwyV0UserCtl extends Controller
     {
         $validator = Validator::make($request->all(), [
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:6|confirmed'
+            // [Removed] Password 'min:6' validation removed - no minimum requirement
+            'new_password' => 'required|string|confirmed'
         ]);
 
         if ($validator->fails()) {

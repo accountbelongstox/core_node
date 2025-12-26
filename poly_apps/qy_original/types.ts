@@ -1,4 +1,8 @@
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 // Data Models
 export interface Word {
   id: string;
@@ -87,6 +91,17 @@ export interface ActivityLog {
   likes: number;
 }
 
+<<<<<<< HEAD
+=======
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'promo' | 'alert';
+  date: string;
+}
+
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 export interface User {
   id: string;
   name: string;
@@ -236,3 +251,53 @@ export type SupportedLanguage = {
   flag: string;
   ttsCode: string;
 };
+<<<<<<< HEAD
+=======
+
+// Nexus / GenAI Types
+export enum AppMode {
+  CHAT = 'chat',
+  IMAGE = 'image',
+  VISION = 'vision',
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+}
+
+// Added for MuseView
+export interface Message {
+  id: string;
+  role: 'user' | 'model';
+  content: string;
+  timestamp: number;
+}
+
+export interface ProcessingState {
+  isProcessing: boolean;
+  error: string | null;
+}
+
+// Added for general loading states
+export interface LoadingState {
+  isLoading: boolean;
+  error?: string | null;
+}
+
+export interface GeneratedImage {
+  id: string;
+  url: string;
+  prompt: string;
+  timestamp: number;
+}
+
+export interface VisionAnalysis {
+  id: string;
+  imageUrl: string;
+  analysis: string;
+  timestamp: number;
+}
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798

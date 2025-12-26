@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1RefundModel extends Model
 {
+    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_refunds';
 
     protected $fillable = [

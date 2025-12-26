@@ -3,17 +3,25 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
 use App\Http\Controllers\Controller;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
+use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Traits\ApiResponse;
 
 class AppQyV1WordLookupController extends Controller
 {
+    use ApiResponse;
+
+    /**
+     * NO try-catch allowed - trust Laravel validation
+     * NO ?? or || allowed - use explicit if statements
+     */
+
     private $ttsService;
     
     public function __construct()
     {
-        $this->ttsService = new AppQyV1TTSService();
+        $this->ttsService = new EdgeTTSService();
     }
     
     public function lookup(Request $request)
@@ -37,12 +45,10 @@ class AppQyV1WordLookupController extends Controller
             ->first();
         
         if (!$wordData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Word not found',
+            return $this->notFound('Word not found', [
                 'word' => $word,
                 'language' => $language
-            ], 404);
+            ]);
         }
         
         $result = [
@@ -76,7 +82,8 @@ class AppQyV1WordLookupController extends Controller
             
             if ($langCode) {
                 $audioResult = $this->ttsService->generateAudio($word, $langCode, 'word');
-                
+                $audioResult = $this->fixAudioUrl($audioResult);
+
                 if ($audioResult['success']) {
                     $result['data']['audio'] = [
                         'url' => $audioResult['audio_url'],
@@ -98,7 +105,7 @@ class AppQyV1WordLookupController extends Controller
             }
         }
         
-        return response()->json($result);
+        return $this->success($result, 'Word lookup completed successfully');
     }
     
     public function batchLookup(Request $request)
@@ -127,11 +134,10 @@ class AppQyV1WordLookupController extends Controller
             $results[] = json_decode($response->getContent(), true);
         }
         
-        return response()->json([
-            'success' => true,
+        return $this->success([
             'count' => count($results),
             'results' => $results
-        ]);
+        ], 'Batch lookup completed successfully');
     }
     
     private function getLanguageCode(string $language): ?string
@@ -144,5 +150,20 @@ class AppQyV1WordLookupController extends Controller
         ];
         
         return $map[$language] ?? null;
+    }
+
+    /**
+     * Fix audio_url path to use AppQyV1 route prefix
+     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
+     */
+    private function fixAudioUrl(array $result): array
+    {
+        if (isset($result['audio_url'])) {
+            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
+                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
+            }
+        }
+
+        return $result;
     }
 }

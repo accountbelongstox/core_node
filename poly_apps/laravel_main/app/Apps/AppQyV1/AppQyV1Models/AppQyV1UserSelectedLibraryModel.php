@@ -10,7 +10,7 @@ class AppQyV1UserSelectedLibraryModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'AppQyV1';
+    protected $connection = 'appqyv1';
     protected $table;
 
     public function __construct(array $attributes = [])

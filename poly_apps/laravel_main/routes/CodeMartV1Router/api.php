@@ -16,6 +16,11 @@ use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1RegistrationCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ProjectCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1TaskCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1PaymentCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1DepositCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1AIAnalysisCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ArchitectCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ReviewerCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1TaskMarketplaceCtl;
 
 Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
 
@@ -80,6 +85,42 @@ Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
             Route::post('/request', [CodeMartV1PaymentCtl::class, 'requestRefund'])->name('request');
             Route::post('/{refundId}/approve', [CodeMartV1PaymentCtl::class, 'approveRefund'])->name('approve');
             Route::post('/{refundId}/process', [CodeMartV1PaymentCtl::class, 'processRefund'])->name('process');
+        });
+
+        Route::prefix('/deposits')->name('deposits.')->group(function () {
+            Route::get('/info', [CodeMartV1DepositCtl::class, 'getDepositInfo'])->name('info');
+            Route::post('/', [CodeMartV1DepositCtl::class, 'createDepositPayment'])->name('create');
+            Route::get('/{depositId}/status', [CodeMartV1DepositCtl::class, 'getDepositStatus'])->name('status');
+            Route::post('/{depositId}/confirm', [CodeMartV1DepositCtl::class, 'confirmDepositPayment'])->name('confirm');
+            Route::get('/history', [CodeMartV1DepositCtl::class, 'getDepositHistory'])->name('history');
+        });
+
+        Route::prefix('/ai-analysis')->name('ai-analysis.')->group(function () {
+            Route::post('/projects/{projectId}/analyze', [CodeMartV1AIAnalysisCtl::class, 'analyzeProject'])->name('analyze');
+            Route::get('/{analysisId}', [CodeMartV1AIAnalysisCtl::class, 'getAnalysisResult'])->name('result');
+            Route::post('/{analysisId}/accept', [CodeMartV1AIAnalysisCtl::class, 'acceptProposal'])->name('accept');
+            Route::post('/{analysisId}/revision', [CodeMartV1AIAnalysisCtl::class, 'requestRevision'])->name('revision');
+        });
+
+        Route::prefix('/architect')->name('architect.')->group(function () {
+            Route::get('/eligibility', [CodeMartV1ArchitectCtl::class, 'checkPromotionEligibility'])->name('eligibility');
+            Route::post('/apply', [CodeMartV1ArchitectCtl::class, 'applyForArchitect'])->name('apply');
+            Route::get('/tasks', [CodeMartV1ArchitectCtl::class, 'getArchitectTasks'])->name('tasks');
+            Route::post('/tasks/{projectId}/accept', [CodeMartV1ArchitectCtl::class, 'acceptArchitectTask'])->name('accept-task');
+            Route::post('/deposit/complete', [CodeMartV1ArchitectCtl::class, 'completeArchitectDeposit'])->name('complete-deposit');
+        });
+
+        Route::prefix('/reviewer')->name('reviewer.')->group(function () {
+            Route::post('/apply', [CodeMartV1ReviewerCtl::class, 'startReviewerApplication'])->name('apply');
+            Route::post('/application/{applicationId}/submit', [CodeMartV1ReviewerCtl::class, 'submitReviewerTest'])->name('submit-test');
+            Route::get('/tasks', [CodeMartV1ReviewerCtl::class, 'getReviewTasks'])->name('tasks');
+            Route::post('/reviews/{submissionId}', [CodeMartV1ReviewerCtl::class, 'submitCodeReview'])->name('submit-review');
+        });
+
+        Route::prefix('/marketplace')->name('marketplace.')->group(function () {
+            Route::get('/tasks', [CodeMartV1TaskMarketplaceCtl::class, 'browseTasks'])->name('browse');
+            Route::post('/tasks/{taskId}/accept', [CodeMartV1TaskMarketplaceCtl::class, 'acceptTask'])->name('accept');
+            Route::get('/my-tasks', [CodeMartV1TaskMarketplaceCtl::class, 'getMyTasks'])->name('my-tasks');
         });
     });
 });

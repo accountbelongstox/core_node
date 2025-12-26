@@ -27,6 +27,7 @@ declare -a MENU_CONFIG=(
     "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
     "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
+    "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
@@ -458,7 +459,7 @@ manage_nginx_service() {
         fi
 
         echo "Nginx service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_NGINX=true and run the installation script."
+        echo "To re-enable, set START_NGINX=true and run the installation script."
     else
         echo "Nginx is not installed."
     fi
@@ -499,7 +500,7 @@ manage_mysql_service() {
         fi
 
         echo "$found_service service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_MYSQL=true and run the installation script."
+        echo "To re-enable, set START_MYSQL=true and run the installation script."
     else
         echo "MySQL/MariaDB is not installed."
     fi
@@ -540,7 +541,7 @@ manage_redis_service() {
         fi
 
         echo "$found_service service has been stopped and disabled."
-        echo "To re-enable, set INSTALL_REDIS=true and run the installation script."
+        echo "To re-enable, set START_REDIS=true and run the installation script."
     else
         echo "Redis is not installed."
     fi

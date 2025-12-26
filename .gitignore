@@ -21,7 +21,11 @@ webpack_dist/
 **/secret_keys/raw/**
 **/storage/**
 **/.app-backups/**
+<<<<<<< HEAD
 # Deployment configs should be committed (contains encrypted files)
+=======
+# Deployment configs should be committed (contains encrypted files) 
+>>>>>>> 85fd4acd3319ff914dde3f9897481e0c0a6a4798
 .AppleDouble
 .LSOverride
 public/uploads/*
@@ -31,9 +35,16 @@ public/uploads/*
 .strapi-cloud.json
 pyenv_*/
 **/.dart_tool-dev/
-app.*.symbols
+app.*.symbols 
 **/*.vsix
 **/*.test/
+**/test/
+**/tests/
+**/.nuxt/
+/test/
+/tests/
+/.venv/
+**/.venv/
 /~
 /Microsoft
 /Microsoft/
@@ -68,17 +79,19 @@ app.*.symbols
 **/log/
 **/.runtime_cache/
 
-#  Cache 
+#  Cache
 **/cache/
 **/.cache/
 **/tmp/
 **/temp/
 **/tmp_*
 **/test_*
+**/.vite/
 
 # Flutter/Dart Test
 
 **/.dart_tool/
+**/.dart_tool/**
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 **/.packages
@@ -346,3 +359,66 @@ apps/**/pnpm-lock.yaml
 [cC][oO][mM]2
 # pyMatrix runtime configuration storage
 poly_apps/pyMatrix/storage/
+
+# Java heap dumps
+*.hprof
+java_pid*.hprof
+**/*.hprof
+**/java_pid*.hprof
+# Large database and media files
+**/word_content.sqlitemate
+**/word_content.sqlite
+**/*.sqlitemate
+**/recordings/*.mp4
+**/recordings/*.mkv
+**/recordings/*.avi
+
+# Build artifacts and binaries
+**/third_party/ffmpeg/lib/*.a
+**/screenshot/*.png
+**/*.pdb
+
+# Large binary executables (scrcpy, adb, etc)
+**/scrcpy/scrcpy
+**/scrcpy/adb
+**/extra/*/scrcpy/scrcpy
+**/extra/*/scrcpy/adb
+**/third_party/adb/**/adb
+
+# Large WASM files
+**/*.wasm
+**/ort-wasm-*.wasm
+**/ort-wasm-*.jsep.wasm
+
+# Image backups and large assets
+**/.image_backups/**
+**/assets/apps/**/login.jpg
+**/assets/common/fonts/*.otf
+**/assets/common/fonts/*.ttf
+
+# Archive files in misc directories
+**/__misc__/.archives/**
+**/.archives/**
+
+# Paths containing colons (invalid file names on Windows, but may exist on other systems)
+**/*:*
+**/*:*/**
+
+# Gradle distributions and wrappers
+# Gradle distributions in any directory (all versions: gradle-8.9, gradle-8.10, gradle-9.0, etc.)
+**/gradle-*/
+**/gradle-*.*/
+**/gradle-*.*.*/
+
+# Gradle cache directories (user-specific build cache)
+**/.gradle/
+**/.gradle/**
+
+# Project-specific gradle wrapper directories (distribution cache)
+# Note: gradlew scripts and gradle-wrapper.properties should be committed
+**/android/.gradle/
+**/android/gradle/
+**/scrcpy_source/gradle/
+poly_apps/**/android/.gradle/
+poly_apps/**/android/gradle/
+pyapps/**/scrcpy_source/gradle/

@@ -17,12 +17,13 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
      * The name and signature of the console command.
      */
     protected $signature = 'servermanager:website
-                            {action : Action to perform (add|list|summary|status|remove|cleanup)}
-                            {domain? : Domain name (required for add, status, remove)}
+                            {action : Action to perform (add|list|summary|status|remove|cleanup|refresh)}
+                            {domain? : Domain name (required for add, status, remove, refresh)}
                             {--type= : Website type (default: laravel)}
                             {--ssl= : SSL mode (auto|true|false, default: auto)}
                             {--php-version= : PHP version (default: 8.2)}
-                            {--php-mode= : PHP mode (fpm|swoole, default: fpm)}';
+                            {--php-mode= : PHP mode (fpm|swoole, default: fpm)}
+                            {--all : Apply action to all websites (for refresh)}';
 
     /**
      * The console command description.
@@ -48,6 +49,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             'status' => $this->showStatus($domain),
             'remove' => $this->removeWebsite($domain),
             'cleanup' => $this->cleanupOrphanedServices(),
+            'refresh' => $this->refreshWebsites($domain),
             default => $this->showHelp()
         };
     }
@@ -206,43 +208,45 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                     exec("systemctl is-active $serviceName 2>/dev/null", $output, $return_code);
                     $serviceActive = ($return_code === 0);
 
+                    // IDEMPOTENT DESIGN: Always regenerate service configuration
+                    // This ensures configuration fixes (ProtectSystem, ReadWritePaths) are applied
+                    // regardless of service state (running, stopped, or failed)
+                    // Requirement: "反复运行时要修复问题，不能因为修复一个完成而跳过另一个"
+                    $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+
+                    // STEP 1: ALWAYS regenerate service file with latest configuration
+                    // SYNC: This will use latest PHP code with ProtectSystem=full (Line 656)
+                    ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
+                        $wwwDir,
+                        $port,
+                        $workers,
+                        $wwwDir,
+                        null,
+                        null,
+                        $description
+                    );
+
+                    // STEP 2: ALWAYS reload systemd daemon to pick up configuration changes
+                    exec('systemctl daemon-reload 2>&1');
+
+                    // STEP 3: Start or restart service based on current state
                     if ($serviceActive) {
-                        // Service already running, update description to include all domains
-                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
+                        // Service was running, restart to apply configuration changes
+                        exec("systemctl restart $serviceName 2>&1", $output, $code);
 
-                        // Regenerate service file with updated description
-                        ServerManagerV1OctaneServiceManager::createOctaneServiceFromPath(
-                            $wwwDir,
-                            $port,
-                            $workers,
-                            $wwwDir,
-                            null,
-                            null,
-                            $description
-                        );
-
-                        // Reload systemd daemon to pick up the updated description
-                        exec('systemctl daemon-reload 2>&1');
-
-                        $this->info("Swoole service shared (service: $serviceName, port: $port, domains: $domainCount)");
-                    } else {
-                        // Service not running, start it
-                        $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
-
-                        $deployed = ServerManagerV1OctaneServiceManager::deployOctaneServiceFromPath(
-                            $wwwDir,
-                            $port,
-                            $workers,
-                            $wwwDir,
-                            null,
-                            null,
-                            $description
-                        );
-
-                        if ($deployed) {
-                            $this->info("Swoole service started (service: $serviceName, port: $port, workers: $workers, domains: $domainCount)");
+                        if ($code === 0) {
+                            $this->info("Swoole service restarted with updated config (service: $serviceName, port: $port, domains: $domainCount)");
                         } else {
-                            $this->warn("Failed to start Swoole service");
+                            $this->warn("Service config updated but restart failed - manual restart may be needed");
+                        }
+                    } else {
+                        // Service was not running, start it
+                        $started = ServerManagerV1OctaneServiceManager::startOctaneService($serviceName);
+
+                        if ($started) {
+                            $this->info("Swoole service started with updated config (service: $serviceName, port: $port, workers: $workers, domains: $domainCount)");
+                        } else {
+                            $this->warn("Failed to start Swoole service after config update");
                         }
                     }
                 }
@@ -616,6 +620,62 @@ HTML;
     }
 
     /**
+     * Refresh nginx configuration for websites
+     */
+    private function refreshWebsites(?string $domain): int
+    {
+        if ($this->option('all')) {
+            $this->info("Refreshing all website configurations...");
+
+            $websites = ServerManagerV1DomainManager::getAllDomains();
+            if (empty($websites)) {
+                $this->info("No websites found");
+                return 0;
+            }
+
+            $successCount = 0;
+            $failCount = 0;
+
+            foreach ($websites as $site) {
+                $siteDomain = $site['domain'];
+                $this->line("Refreshing: $siteDomain");
+
+                $result = ServerManagerV1DomainManager::refreshDomainConfig($siteDomain);
+
+                if ($result) {
+                    $successCount++;
+                    $this->info("  ✓ Refreshed: $siteDomain");
+                } else {
+                    $failCount++;
+                    $this->error("  ✗ Failed: $siteDomain");
+                }
+            }
+
+            $this->line("");
+            $this->info("Refresh completed: $successCount succeeded, $failCount failed");
+
+            return $failCount > 0 ? 1 : 0;
+        }
+
+        if (!$domain) {
+            $this->error("Domain is required for refresh action (or use --all)");
+            return 1;
+        }
+
+        $this->info("Refreshing nginx configuration for: $domain");
+
+        $result = ServerManagerV1DomainManager::refreshDomainConfig($domain);
+
+        if ($result) {
+            $this->info("Configuration refreshed successfully: $domain");
+            return 0;
+        } else {
+            $this->error("Failed to refresh configuration: $domain");
+            return 1;
+        }
+    }
+
+    /**
      * Show help information
      */
     private function showHelp(): int
@@ -628,6 +688,8 @@ HTML;
         $this->line("  summary          - Show websites summary");
         $this->line("  status <domain>  - Show website status");
         $this->line("  remove <domain>  - Remove website configuration");
+        $this->line("  refresh <domain> - Refresh nginx configuration for domain");
+        $this->line("  refresh --all    - Refresh all website configurations");
         $this->line("");
         $this->info("Options:");
         $this->line("  --type           - Website type: html|laravel|poly (default: laravel)");
@@ -637,6 +699,7 @@ HTML;
         $this->line("                     poly: Bind to current Laravel main project");
         $this->line("  --ssl            - SSL mode (auto|true|false, default: auto)");
         $this->line("  --php-version    - PHP version (default: 8.2)");
+        $this->line("  --all            - Apply to all websites (for refresh)");
         $this->line("");
         $this->info("Examples:");
         $this->line("  php artisan servermanager:website add local.example.com --type=html");
@@ -644,6 +707,8 @@ HTML;
         $this->line("  php artisan servermanager:website add example.com --type=laravel");
         $this->line("  php artisan servermanager:website list");
         $this->line("  php artisan servermanager:website status example.com");
+        $this->line("  php artisan servermanager:website refresh example.com");
+        $this->line("  php artisan servermanager:website refresh --all");
 
         return 0;
     }

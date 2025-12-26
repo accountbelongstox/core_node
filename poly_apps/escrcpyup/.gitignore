@@ -1,0 +1,60 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# User
+node_modules
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+*.local
+*.d.ts
+**/.vitepress/cache
+
+# Dist
+dist
+dist-ssr
+dist-electron
+dist-release
+dist-docs
+
+# Binary Files
+# All binaries are auto-downloaded via scripts/download-binaries.ps1 or scripts/download-binaries.sh
+# No need to commit binaries to git - they will be downloaded automatically during build/runtime
+electron/resources/extra/**/*.exe
+electron/resources/extra/**/*.dll
+electron/resources/extra/**/*.so
+electron/resources/extra/**/*.dylib
+electron/resources/extra/**/*.bat
+electron/resources/extra/**/*.vbs
+
+# Specific binary executables without extension (Linux/Mac)
+electron/resources/extra/**/adb
+electron/resources/extra/**/scrcpy
+electron/resources/extra/**/scrcpy-server
+electron/resources/extra/**/gnirehtet
+
+# Download temporary files
+.temp-downloads/
+*.zip
+*.tar.gz
+*.tar
+# But keep important archives in specific locations if any
+!docs/**/*.zip
+!assets/**/*.zip

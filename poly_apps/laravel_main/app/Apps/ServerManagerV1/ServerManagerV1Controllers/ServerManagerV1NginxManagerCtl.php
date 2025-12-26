@@ -95,6 +95,9 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $domain = $request->input('domain');
             $siteType = $request->input('site_type', 'laravel');
             $config = $request->input('config', []);
+            $sslEnabled = $request->input('ssl_enabled', false);
+            $autoSsl = $request->input('auto_ssl', false);
+            $dnsProvider = $request->input('dns_provider', 'none');
 
             // Validate required parameters
             if (empty($siteName) || empty($domain)) {
@@ -114,7 +117,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Write configuration file
             if (file_put_contents($configFile, $nginxConfig) === false) {
-                return $this->errorResponse("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -125,20 +128,60 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 return $this->errorResponse('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
-            Log::info('ServerManagerV1: Nginx site created', [
-                'site_name' => $siteName,
-                'domain' => $domain,
-                'type' => $siteType,
-                'ip' => $request->ip()
-            ]);
-
-            return $this->successResponse([
+            $responseData = [
                 'site_name' => $siteName,
                 'domain' => $domain,
                 'type' => $siteType,
                 'config_file' => $configFile,
-                'enabled' => false
-            ], 'Site created successfully');
+                'enabled' => false,
+                'ssl_enabled' => $sslEnabled
+            ];
+
+            // Auto-generate SSL certificate if requested
+            if ($sslEnabled && $autoSsl) {
+                Log::info('ServerManagerV1: Auto-generating SSL certificate', [
+                    'domain' => $domain,
+                    'dns_provider' => $dnsProvider
+                ]);
+
+                try {
+                    // Use CertificateManagerCtl to generate certificate
+                    $certRequest = new Request([
+                        'domain' => $domain,
+                        'provider' => $dnsProvider !== 'none' ? $dnsProvider : null,
+                        'staging' => false
+                    ]);
+
+                    $certCtl = new ServerManagerV1CertificateManagerCtl();
+                    $certResult = $certCtl->generateCertificate($certRequest);
+
+                    if ($certResult->getData()->success ?? false) {
+                        $responseData['ssl_generated'] = true;
+                        $responseData['ssl_message'] = 'SSL certificate generation initiated';
+                    } else {
+                        $responseData['ssl_generated'] = false;
+                        $responseData['ssl_message'] = 'SSL certificate generation failed: ' . ($certResult->getData()->message ?? 'Unknown error');
+                    }
+                } catch (\Exception $e) {
+                    Log::error('ServerManagerV1: SSL generation failed', [
+                        'domain' => $domain,
+                        'error' => $e->getMessage()
+                    ]);
+                    $responseData['ssl_generated'] = false;
+                    $responseData['ssl_message'] = 'SSL generation error: ' . $e->getMessage();
+                }
+            }
+
+            Log::info('ServerManagerV1: Nginx site created', [
+                'site_name' => $siteName,
+                'domain' => $domain,
+                'type' => $siteType,
+                'ssl_enabled' => $sslEnabled,
+                'auto_ssl' => $autoSsl,
+                'ip' => $request->ip()
+            ]);
+
+            return $this->successResponse($responseData, 'Site created successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_create_site');
@@ -176,7 +219,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if ($content === false) {
                 return $this->errorResponse(
                     "Failed to read site configuration: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             
@@ -229,12 +272,12 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             // Backup current configuration
             $backupFile = $nginxPaths['backup_path'] . '/' . $siteName . '_' . date('Y-m-d_H-i-s') . '.backup';
             if (!copy($configFile, $backupFile)) {
-                return $this->errorResponse("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Write new configuration
             if (file_put_contents($configFile, $siteConfig) === false) {
-                return $this->errorResponse("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -297,7 +340,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Delete configuration file
             if (!unlink($configFile)) {
-                return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_SERVER_ERROR);
+                return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             Log::info('ServerManagerV1: Nginx site deleted', [
@@ -365,7 +408,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!symlink($availableFile, $enabledFile)) {
                 return $this->errorResponse(
                     "Failed to enable site: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             
@@ -427,7 +470,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!unlink($enabledFile)) {
                 return $this->errorResponse(
                     "Failed to disable site: $siteName",
-                    ServerManagerV1Constants::RESPONSE_SERVER_ERROR
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
             

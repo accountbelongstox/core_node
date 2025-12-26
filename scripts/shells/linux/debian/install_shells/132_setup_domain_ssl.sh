@@ -30,6 +30,8 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 laravel_dir=""
 SELECTED_PREFIXES=""
 DOMAINS_LISTS_CONTENT=""
+DNSPOD_EMAIL=""
+DNSPOD_API_TOKEN=""
 success_count=0
 total_count=0
 SETUP_STATE_DIR="$HOME/.domain_setup_state"
@@ -91,7 +93,6 @@ setup_ssl_certificate() {
     echo "[$SCRIPT_INDEX] Setting up SSL certificate for: $domain"
     echo "[$SCRIPT_INDEX] Prefixes: $cert_prefixes"
     echo "[$SCRIPT_INDEX] =================================="
-    echo "[$SCRIPT_INDEX] Note: Laravel automatically handles certificate updates and renewals"
 
     # Change to Laravel directory
     cd "$laravel_dir" || {
@@ -99,11 +100,40 @@ setup_ssl_certificate() {
         return 1
     }
 
+    # PRE-CHECK: Check existing certificate status (IDEMPOTENCY)
+    echo "[$SCRIPT_INDEX] [IDEMPOTENT] Checking existing certificate status..."
+    local pre_cert_output
+    pre_cert_output=$($USE_SUDO php artisan servermanager:certificate find "$domain" 2>&1)
+
+    if echo "$pre_cert_output" | grep -q "Found certificate"; then
+        echo "[$SCRIPT_INDEX] [CERTIFICATE EXISTS] Certificate already exists for: $domain"
+        echo "[$SCRIPT_INDEX] Certificate details:"
+        echo "$pre_cert_output" | while IFS= read -r line; do
+            echo "[$SCRIPT_INDEX]   $line"
+        done
+
+        # Check expiry status
+        if echo "$pre_cert_output" | grep -q "Expires:"; then
+            local expires_info
+            expires_info=$(echo "$pre_cert_output" | grep "Expires:")
+            echo "[$SCRIPT_INDEX] [EXPIRY CHECK] $expires_info"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] [NEW CERTIFICATE] No existing certificate found for: $domain"
+    fi
+
     # Add/Update SSL certificate with selected prefixes
     # Laravel's certificate command handles:
-    # - Duplicate detection (won't recreate if already exists)
-    # - Certificate renewal (updates expiring certificates)
+    # - Duplicate detection (won't recreate if already exists and valid)
+    # - Automatic certificate renewal (updates expiring/expired certificates)
     # - Idempotent behavior (safe to run multiple times)
+    # Certificates naturally expire and are auto-renewed when needed
+
+    # Debug: Show environment variables before executing
+    echo "[$SCRIPT_INDEX] [DEBUG] Environment check before certificate command:"
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_EMAIL in env: ${DNSPOD_EMAIL:-NOT SET}"
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_API_TOKEN in env: ${DNSPOD_API_TOKEN:+SET (${#DNSPOD_API_TOKEN} chars)}"
+
     echo "[$SCRIPT_INDEX] Executing: $USE_SUDO php artisan servermanager:certificate add \"$domain\" --prefixes=$cert_prefixes --provider=dnspod"
 
     local ssl_output
@@ -114,6 +144,22 @@ setup_ssl_certificate() {
     echo "$ssl_output" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]   $line"
     done
+
+    # POST-VERIFICATION: Check certificate status after operation
+    echo "[$SCRIPT_INDEX] [POST-VERIFY] Verifying certificate status after operation..."
+    local post_cert_output
+    post_cert_output=$($USE_SUDO php artisan servermanager:certificate find "$domain" 2>&1)
+
+    if echo "$post_cert_output" | grep -q "Found certificate"; then
+        echo "[$SCRIPT_INDEX] [VERIFICATION OK] Certificate verified for: $domain"
+        if echo "$post_cert_output" | grep -q "Expires:"; then
+            local final_expires
+            final_expires=$(echo "$post_cert_output" | grep "Expires:")
+            echo "[$SCRIPT_INDEX] [FINAL STATUS] $final_expires"
+        fi
+    else
+        echo "[$SCRIPT_INDEX] [VERIFICATION FAILED] Certificate not found after operation"
+    fi
 
     if [ $ssl_result -eq 0 ]; then
         echo "[$SCRIPT_INDEX] [OK] SSL certificate processed successfully for: $domain"
@@ -136,6 +182,8 @@ fi
 # Load state from previous script
 SELECTED_PREFIXES=$(load_state "SELECTED_PREFIXES")
 DOMAINS_LISTS_CONTENT=$(load_state "DOMAINS_LISTS_CONTENT")
+DNSPOD_EMAIL=$(load_state "DNSPOD_EMAIL")
+DNSPOD_API_TOKEN=$(load_state "DNSPOD_API_TOKEN")
 
 if [ -z "$SELECTED_PREFIXES" ]; then
     echo "[$SCRIPT_INDEX] ERROR: SELECTED_PREFIXES not found in state"
@@ -149,6 +197,31 @@ if [ -z "$DOMAINS_LISTS_CONTENT" ]; then
     exit 1
 fi
 
+# Debug: Print DNSPod credentials status
+echo "[$SCRIPT_INDEX] [DEBUG] DNSPod Credentials Status:"
+if [ -n "$DNSPOD_EMAIL" ]; then
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_EMAIL: $DNSPOD_EMAIL"
+else
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_EMAIL: NOT LOADED"
+fi
+
+if [ -n "$DNSPOD_API_TOKEN" ]; then
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_API_TOKEN: ${DNSPOD_API_TOKEN:0:20}... (length: ${#DNSPOD_API_TOKEN} chars)"
+else
+    echo "[$SCRIPT_INDEX] [DEBUG]   DNSPOD_API_TOKEN: NOT LOADED"
+fi
+
+# Export DNSPod credentials as environment variables for Laravel
+if [ -n "$DNSPOD_EMAIL" ]; then
+    export DNSPOD_EMAIL
+    echo "[$SCRIPT_INDEX] [DEBUG] Exported DNSPOD_EMAIL to environment"
+fi
+
+if [ -n "$DNSPOD_API_TOKEN" ]; then
+    export DNSPOD_API_TOKEN
+    echo "[$SCRIPT_INDEX] [DEBUG] Exported DNSPOD_API_TOKEN to environment"
+fi
+
 # Get Laravel directory
 laravel_dir=$(get_laravel_dir)
 if [ -z "$laravel_dir" ]; then
@@ -159,6 +232,7 @@ fi
 echo "[$SCRIPT_INDEX] Configuration:"
 echo "[$SCRIPT_INDEX]   Laravel directory: $laravel_dir"
 echo "[$SCRIPT_INDEX]   Selected prefixes: $SELECTED_PREFIXES"
+echo "[$SCRIPT_INDEX]   Certificate management: Automatic renewal for expired/expiring certs"
 echo "[$SCRIPT_INDEX]"
 
 # Get domains list
