@@ -22,7 +22,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 # Directories to create/use
 LOGS_DIR = ROOT_DIR / "logs"
 BUGREPORTS_DIR = LOGS_DIR / "bugreports"
-API_TEST_RESULTS_DIR = ROOT_DIR / "api_test_results"
+API_TEST_RESULTS_DIR = ROOT_DIR / "scripts" / "testing" / "api_test_results"
 DOCS_REPORTS_DIR = ROOT_DIR / "docs" / "reports"
 
 def sanitize_filename(filename):

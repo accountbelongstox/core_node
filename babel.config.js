@@ -9,7 +9,7 @@
 // 7. Do not modify these rules.
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
-
+ 
 const path = require("path");
 const { appname } = require(`./ncore/globalvars`);
 
