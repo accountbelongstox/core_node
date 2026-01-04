@@ -15,8 +15,10 @@
 # Core Library for Unified App Manager
 # Contains reusable functions and utilities
 
-# Source configuration (trust-based coding)
-source "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh"
+# Source configuration
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh" ]; then
+    source "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh"
+fi
 
 # ============================================================================
 # LOGGING AND OUTPUT FUNCTIONS
