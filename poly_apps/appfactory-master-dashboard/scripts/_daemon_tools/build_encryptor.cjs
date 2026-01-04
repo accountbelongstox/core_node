@@ -1,13 +1,8 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import zlib from 'zlib';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
 
 // Default encryption password (can be overridden)
 const DEFAULT_PASSWORD = "BuildFactoryEncryptionKey2025";
@@ -98,21 +93,21 @@ async function generateEncryptedFile(encryptedData, originalName, outputDir) {
 // Original file: ${originalName}
 // Generated at: ${new Date().toISOString()}
 
-export const encrypted = "${encryptedData}";
+const encrypted = "${encryptedData}";
 
 // Decryption function (requires password)
-export async function decrypt(password = "BuildFactoryEncryptionKey2025") {
-    const zlib = await import('zlib');
+async function decrypt(password = "BuildFactoryEncryptionKey2025") {
+    const zlib = require('zlib');
 
     try {
         // Decode base64
-        const encrypted = Buffer.from(exports.encrypted, 'base64');
+        const encryptedBuffer = Buffer.from(encrypted, 'base64');
 
         // XOR decrypt
         const passwordBuffer = Buffer.from(password, 'utf8');
-        const compressed = Buffer.alloc(encrypted.length);
-        for (let i = 0; i < encrypted.length; i++) {
-            compressed[i] = encrypted[i] ^ passwordBuffer[i % passwordBuffer.length];
+        const compressed = Buffer.alloc(encryptedBuffer.length);
+        for (let i = 0; i < encryptedBuffer.length; i++) {
+            compressed[i] = encryptedBuffer[i] ^ passwordBuffer[i % passwordBuffer.length];
         }
 
         // Decompress
@@ -124,6 +119,8 @@ export async function decrypt(password = "BuildFactoryEncryptionKey2025") {
         return Buffer.from('');
     }
 }
+
+module.exports = { encrypted, decrypt };
 `;
 
         await fs.promises.writeFile(outputPath, fileContent, 'utf8');
@@ -194,7 +191,7 @@ function decryptContent(base64String, password = DEFAULT_PASSWORD) {
 }
 
 // Export functions for use by other modules
-export {
+module.exports = {
     xorEncryptDecrypt,
     compressData,
     decompressData,
@@ -263,8 +260,8 @@ Examples:
             process.exit(1);
         }
 
-        const { encrypted } = await import(path.resolve(filePath));
-        const decrypted = decryptContent(encrypted, password);
+        const encryptedModule = require(path.resolve(filePath));
+        const decrypted = decryptContent(encryptedModule.encrypted, password);
 
         process.stdout.write(decrypted);
         return;
@@ -297,6 +294,6 @@ Examples:
 }
 
 // Run CLI if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
     main().catch(console.error);
 }

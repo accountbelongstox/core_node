@@ -15,10 +15,8 @@
 # Core Library for Unified App Manager
 # Contains reusable functions and utilities
 
-# Source configuration
-if [ -f "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh" ]; then
-    source "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh"
-fi
+# Source configuration (trust-based coding)
+source "$(dirname "${BASH_SOURCE[0]}")/../config/unified_config.sh"
 
 # ============================================================================
 # LOGGING AND OUTPUT FUNCTIONS
@@ -31,17 +29,17 @@ log_header() {
 
 log_success() {
     local message="$1"
-    echo -e "${COLOR_SUCCESS}âœ?$message${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}ï¿½?$message${COLOR_RESET}"
 }
 
 log_warning() {
     local message="$1"
-    echo -e "${COLOR_WARNING}âš?$message${COLOR_RESET}"
+    echo -e "${COLOR_WARNING}ï¿½?$message${COLOR_RESET}"
 }
 
 log_error() {
     local message="$1"
-    echo -e "${COLOR_ERROR}âœ?$message${COLOR_RESET}"
+    echo -e "${COLOR_ERROR}ï¿½?$message${COLOR_RESET}"
 }
 
 log_info() {

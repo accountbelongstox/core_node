@@ -143,13 +143,9 @@
 # Debian Service Manager for NCore Applications
 # Manages systemd services with ncore-* naming convention
 
-# Source gvar_common.sh for path mapping functions
+# Source gvar_common.sh for path mapping functions (trust-based coding)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/gvar_common.sh" ]; then
-    source "$SCRIPT_DIR/gvar_common.sh"
-else
-    echo "[WARNING] gvar_common.sh not found, using default paths"
-fi
+source "$SCRIPT_DIR/gvar_common.sh"
 
 # Variables declaration
 PROJECT_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"

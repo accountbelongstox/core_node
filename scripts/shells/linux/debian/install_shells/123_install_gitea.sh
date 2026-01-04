@@ -239,40 +239,48 @@ ensure_gitea_user_privileges() {
 
     local user_home="/home/$GITEA_USER"
     local required_groups=("sudo")
-    local current_shell
 
+    # Ensure home directory exists
     if [[ ! -d "$user_home" ]]; then
         $USE_SUDO mkdir -p "$user_home"
         print_info_from_common_functions "Created home directory at $user_home"
     fi
 
+    # Fix home directory ownership and permissions (always)
     $USE_SUDO chown $GITEA_USER:$GITEA_USER "$user_home"
     $USE_SUDO chmod 750 "$user_home"
+    print_info_from_common_functions "Fixed $user_home ownership and permissions"
 
-    current_shell=$(getent passwd "$GITEA_USER" | cut -d: -f7)
-    if [[ "$current_shell" != "/bin/bash" ]]; then
-        $USE_SUDO usermod --shell /bin/bash "$GITEA_USER"
-        print_info_from_common_functions "Updated $GITEA_USER shell to /bin/bash"
-    fi
+    # Fix user shell (always)
+    $USE_SUDO usermod --shell /bin/bash "$GITEA_USER"
+    print_info_from_common_functions "Ensured $GITEA_USER shell is /bin/bash"
 
+    # Ensure user is in required groups (always)
     for group in "${required_groups[@]}"; do
         if getent group "$group" >/dev/null 2>&1; then
-            if ! id -nG "$GITEA_USER" 2>/dev/null | tr ' ' '\n' | grep -Fxq "$group"; then
-                $USE_SUDO usermod -aG "$group" "$GITEA_USER"
-                print_info_from_common_functions "Added $GITEA_USER to $group group"
-            else
-                print_info_from_common_functions "$GITEA_USER already in $group group"
-            fi
+            $USE_SUDO usermod -aG "$group" "$GITEA_USER" 2>/dev/null || true
+            print_info_from_common_functions "Ensured $GITEA_USER is in $group group"
         else
             print_warning_from_common_functions "Required group $group not found on system"
         fi
     done
 
+    # Fix Gitea base directory permissions (always)
     if [[ -d "$GITEA_BASE_DIR" ]]; then
         $USE_SUDO chown -R $GITEA_USER:$GITEA_USER "$GITEA_BASE_DIR"
+        $USE_SUDO chmod -R 750 "$GITEA_BASE_DIR"
+        $USE_SUDO chmod 770 "$GITEA_CONFIG_DIR" 2>/dev/null || true
+        print_info_from_common_functions "Fixed $GITEA_BASE_DIR ownership and permissions"
     fi
 
-    print_success_from_common_functions "$GITEA_USER user permissions verified"
+    # Fix binary permissions (always)
+    if [[ -f "$GITEA_BINARY" ]]; then
+        $USE_SUDO chown root:root "$GITEA_BINARY"
+        $USE_SUDO chmod 755 "$GITEA_BINARY"
+        print_info_from_common_functions "Fixed $GITEA_BINARY ownership and permissions"
+    fi
+
+    print_success_from_common_functions "$GITEA_USER user permissions verified and fixed"
 }
 
 verify_cached_binary() {
@@ -482,6 +490,10 @@ create_gitea_config() {
         $USE_SUDO sed -i "s|^PATH.*=.*attachments|PATH = $GITEA_DATA_DIR/attachments|" "$config_file" 2>/dev/null || true
         $USE_SUDO sed -i "s|^PROVIDER_CONFIG.*=.*|PROVIDER_CONFIG = $GITEA_DATA_DIR/sessions|" "$config_file" 2>/dev/null || true
 
+        # Fix permissions (always)
+        $USE_SUDO chown $GITEA_USER:$GITEA_USER "$config_file"
+        $USE_SUDO chmod 640 "$config_file"
+
         print_success_from_common_functions "Gitea configuration updated with current paths"
         return 0
     fi
@@ -614,6 +626,38 @@ detect_ip_addresses() {
     echo "${ips[@]}"
 }
 
+# Display user accounts
+display_user_accounts() {
+    print_step_from_common_functions "Checking Gitea administrator accounts..."
+
+    # List only admin users
+    local user_list_output
+    user_list_output=$($USE_SUDO -u $GITEA_USER $GITEA_BINARY --config "$GITEA_CONFIG_DIR/app.ini" --work-path "$GITEA_DATA_DIR" --custom-path "$GITEA_CUSTOM_DIR" admin user list --admin 2>&1)
+    local list_exit_code=$?
+
+    if [[ $list_exit_code -eq 0 ]]; then
+        echo ""
+        print_info_from_common_functions "Registered administrator accounts:"
+        echo "$user_list_output"
+
+        # Check if output only contains header (no actual users)
+        local user_count=$(echo "$user_list_output" | grep -v "^ID" | grep -v "^$" | wc -l)
+        if [[ $user_count -eq 0 ]]; then
+            echo ""
+            print_warning_from_common_functions "No administrator accounts found"
+            print_info_from_common_functions "Create admin account:"
+            echo "  gitea --config $GITEA_CONFIG_DIR/app.ini --work-path $GITEA_DATA_DIR --custom-path $GITEA_CUSTOM_DIR admin user create --username admin --password YourPassword --email admin@example.com --admin"
+        fi
+        echo ""
+    else
+        echo ""
+        print_warning_from_common_functions "Unable to list administrator accounts"
+        print_info_from_common_functions "Error output:"
+        echo "$user_list_output"
+        echo ""
+    fi
+}
+
 # Display web access information
 display_web_access_info() {
     print_header_from_common_functions "Gitea Web Access Information"
@@ -635,6 +679,9 @@ display_web_access_info() {
     echo "  - Config file: $GITEA_CONFIG_DIR/app.ini"
     echo "  - Log directory: $GITEA_LOG_DIR"
     echo ""
+
+    display_user_accounts
+
     print_info_from_common_functions "First-time setup:"
     echo "  1. Open any of the URLs above in your browser"
     echo "  2. Complete the initial configuration wizard"
@@ -801,6 +848,10 @@ repair_gitea_configuration() {
     print_step_from_common_functions "Verifying directory structure..."
     create_directories
 
+    # Ensure user privileges and permissions are correct
+    print_step_from_common_functions "Verifying user privileges..."
+    ensure_gitea_user_privileges
+
     # Update configuration file (preserves existing config, only updates paths)
     print_step_from_common_functions "Updating configuration file..."
     create_gitea_config
@@ -812,6 +863,10 @@ repair_gitea_configuration() {
     # Ensure firewall rules are in place
     print_step_from_common_functions "Verifying firewall rules..."
     configure_firewall
+
+    # Regenerate Git hooks to ensure paths are correct
+    print_step_from_common_functions "Regenerating repository Git hooks..."
+    $USE_SUDO -u $GITEA_USER $GITEA_BINARY --config "$GITEA_CONFIG_DIR/app.ini" --work-path "$GITEA_DATA_DIR" --custom-path "$GITEA_CUSTOM_DIR" admin regenerate hooks 2>/dev/null || true
 
     # Restart service to apply changes
     print_step_from_common_functions "Restarting Gitea service..."
@@ -850,15 +905,11 @@ disable_gitea_service() {
     if is_gitea_installed || [[ "$gitea_running" == true ]]; then
         echo ""
         print_warning_from_common_functions "INSTALL_GITEA is set to false"
-        echo -n "Do you want to disable Gitea service? (Y/n) [Y]: "
+        echo -n "Do you want to disable Gitea service? (y/N) [N]: "
         read -r response
 
         case "$response" in
-            [nN]|[nN][oO])
-                print_info_from_common_functions "Keeping Gitea service as is"
-                return 0
-                ;;
-            ""|[yY]|[yY][eE][sS])
+            [yY]|[yY][eE][sS])
                 print_info_from_common_functions "Disabling Gitea service..."
 
                 # Stop the service if running
@@ -883,10 +934,10 @@ disable_gitea_service() {
                 print_step_from_common_functions "Checking firewall configuration..."
                 if command -v ufw >/dev/null 2>&1 && $USE_SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
                     print_info_from_common_functions "UFW firewall is active"
-                    echo -n "Do you want to close port $GITEA_PORT in firewall? (Y/n) [Y]: "
+                    echo -n "Do you want to close port $GITEA_PORT in firewall? (y/N) [N]: "
                     read -r fw_response
                     case "$fw_response" in
-                        ""|[yY]|[yY][eE][sS])
+                        [yY]|[yY][eE][sS])
                             if $USE_SUDO ufw delete allow "$GITEA_PORT/tcp" 2>/dev/null; then
                                 print_success_from_common_functions "Firewall rule removed for port $GITEA_PORT"
                             else
@@ -902,6 +953,10 @@ disable_gitea_service() {
                 echo ""
                 print_success_from_common_functions "Gitea service has been disabled"
                 print_info_from_common_functions "To re-enable: sudo systemctl enable gitea && sudo systemctl start gitea"
+                return 0
+                ;;
+            ""|[nN]|[nN][oO])
+                print_info_from_common_functions "Keeping Gitea service as is"
                 return 0
                 ;;
             *)
@@ -927,6 +982,8 @@ prompt_cleanup_reinstall() {
         fi
 
         echo ""
+        display_user_accounts
+
         print_info_from_common_functions "Available actions:"
         echo "  1) Repair configuration (recommended - preserves all data)"
         echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
@@ -951,6 +1008,21 @@ prompt_cleanup_reinstall() {
                 ;;
             3|""|[nN]|[nN][oO])
                 print_info_from_common_functions "Keeping current installation"
+
+                # Restart service when installation is allowed
+                if [[ "$INSTALL_GITEA" != "false" ]]; then
+                    print_step_from_common_functions "Restarting Gitea service..."
+                    if $USE_SUDO systemctl restart gitea 2>/dev/null; then
+                        print_success_from_common_functions "Gitea service restarted"
+                    else
+                        print_warning_from_common_functions "Failed to restart Gitea service"
+                    fi
+
+                    # Display access info
+                    echo ""
+                    display_web_access_info
+                fi
+
                 return 1
                 ;;
             1|[yY]|[yY][eE][sS])
@@ -984,6 +1056,11 @@ main() {
         print_warning_from_common_functions "INSTALL_GITEA is set to false"
         print_info_from_common_functions "Gitea installation is disabled in configuration"
         echo ""
+
+        # Show current user accounts if Gitea is installed
+        if is_gitea_installed; then
+            display_user_accounts
+        fi
 
         # Check if Gitea is already installed and offer to disable it
         disable_gitea_service

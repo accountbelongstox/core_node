@@ -1,68 +1,50 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import { processBatchEncryption, DEFAULT_PASSWORD } from './_daemon_tools/build_encryptor.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const { getRealUser, isRoot } = require('../../../scripts/nodetools/get_real_user.js');
+const { processBatchEncryption, DEFAULT_PASSWORD } = require('./_daemon_tools/build_encryptor.cjs');
+const { mapWebPath } = require('../../../scripts/nodetools/gvar_common.js');
 
 console.log("=== Build Factory Daemon Service (Node.js) ===");
 console.log("Started at:", new Date().toISOString());
-console.log("Working directory:", process.cwd());
-console.log("APP_ROOT:", process.env.APP_ROOT || "N/A");
-console.log("DEBUG_MODE:", process.env.DEBUG_MODE || "false");
+console.log("Script directory:", __dirname);
 console.log("");
 
 // Configuration
-const CORE_NODE_ROOT = process.env.CORE_NODE_ROOT ||
-                       path.resolve(__dirname, '../../..');
+const CORE_NODE_ROOT = path.resolve(__dirname, '../../..');
 
-const APP_NAME = process.env.APP_NAME ||
-                 path.basename(process.env.APP_ROOT || process.cwd());
+// APP_NAME is the parent directory name of the scripts directory
+// e.g., for poly_apps/appfactory-master-dashboard/scripts/daemon.cjs
+// APP_NAME will be 'appfactory-master-dashboard'
+const APP_NAME = path.basename(path.resolve(__dirname, '..'));
 
-const OUTPUT_DIR = path.join(CORE_NODE_ROOT, 'poly_apps/appfactory-master-dashboard');
+const OUTPUT_DIR = path.join(CORE_NODE_ROOT, 'poly_apps', APP_NAME);
 
 const SCAN_INTERVAL = 1000;
 
 const BATCH_SIZE = 10;
 const BATCH_TIMEOUT = 5000;
 
-// Simple path mapping without bash dependency
+// Use mapWebPath from gvar_common.js module
 function getWebPath(pathKey) {
-    const baseDir = process.env.WEB_BASE_DIR || '/www';
-
-    switch (pathKey) {
-        case 'www':
-            return baseDir;
-        case 'build_dir':
-            return path.join(baseDir, '_build_dir');
-        default:
-            return baseDir;
+    // Map 'build_dir' to www/_build_dir
+    if (pathKey === 'build_dir') {
+        const wwwPath = mapWebPath('www');
+        return path.join(wwwPath, '_build_dir');
     }
+    // Use mapWebPath for other keys
+    return mapWebPath(pathKey);
 }
 
 function getBuildDirectory() {
-    // Allow custom build directory via environment variable
-    if (process.env.BUILD_DIR) {
-        return process.env.BUILD_DIR;
-    }
     return getWebPath('build_dir');
 }
 
 function getAppBuildDirectory() {
     const buildDir = getBuildDirectory();
-    // If custom BUILD_DIR is set and already includes app name, use it directly
-    if (process.env.BUILD_DIR && path.basename(buildDir) === APP_NAME) {
-        return buildDir;
-    }
     return path.join(buildDir, APP_NAME);
-}
-
-function getRealUser() {
-    return process.env.SUDO_USER || process.env.USER || 'ubuntu';
 }
 
 function ensureDirectory(dirPath) {
@@ -71,14 +53,10 @@ function ensureDirectory(dirPath) {
         fs.mkdirSync(dirPath, { recursive: true, mode: 0o755 });
 
         const user = getRealUser();
-        if (process.getuid && process.getuid() === 0 && user !== 'root') {
+        if (isRoot() && user !== 'root') {
             try {
-                import('child_process').then(({ execSync }) => {
-                    execSync(`chown -R ${user}:${user} "${dirPath}"`, { stdio: 'ignore' });
-                    execSync(`chmod -R 755 "${dirPath}"`, { stdio: 'ignore' });
-                }).catch(error => {
-                    console.warn(`[WARN] Could not change permissions: ${error.message}`);
-                });
+                execSync(`chown -R ${user}:${user} "${dirPath}"`, { stdio: 'ignore' });
+                execSync(`chmod -R 755 "${dirPath}"`, { stdio: 'ignore' });
             } catch (error) {
                 console.warn(`[WARN] Could not change permissions: ${error.message}`);
             }
@@ -253,6 +231,7 @@ console.log("");
 const realUser = getRealUser();
 console.log("=== User Detection ===");
 console.log("Real system user:", realUser);
+console.log("Running as root:", isRoot());
 console.log("");
 
 ensureDirectory(buildDir);
@@ -269,40 +248,7 @@ console.log("");
 
 const intervalId = setInterval(mainLoop, SCAN_INTERVAL);
 
-process.on('SIGINT', async () => {
-    console.log("");
-    console.log("=== Daemon Shutdown ===");
-    console.log("Received SIGINT signal");
-
-    clearInterval(intervalId);
-
-    if (pendingFiles.length > 0) {
-        console.log("Processing remaining", pendingFiles.length, "file(s)...");
-        await processBatch();
-    }
-
-    console.log("Total scans:", scanCount);
-    console.log("Total processed files:", processedFiles.size);
-    console.log("Goodbye!");
-    process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-    console.log("");
-    console.log("=== Daemon Shutdown ===");
-    console.log("Received SIGTERM signal");
-
-    clearInterval(intervalId);
-
-    if (pendingFiles.length > 0) {
-        console.log("Processing remaining", pendingFiles.length, "file(s)...");
-        await processBatch();
-    }
-
-    console.log("Total scans:", scanCount);
-    console.log("Total processed files:", processedFiles.size);
-    console.log("Goodbye!");
-    process.exit(0);
-});
+// Note: Signal handlers removed - systemd will handle service termination
+// The daemon will run continuously until stopped by systemd
 
 mainLoop();

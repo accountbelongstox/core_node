@@ -296,7 +296,7 @@ find_and_remove_old_installers() {
             print_info_from_common_functions "  Removing: $(basename "$file")"
             rm -f "$file" 2>/dev/null || true
             files_removed=$((files_removed + 1))
-        done < <(find "$dir" -maxdepth 1 -name "$pattern" -type f -print0 2>/dev/null)
+        done < <(find "$dir" -maxdepth 1 -iname "$pattern" -type f -print0 2>/dev/null)
     done
 
     if [[ $files_removed -gt 0 ]]; then
@@ -979,6 +979,19 @@ install_cursor() {
 
     # Track if this is an upgrade operation
     local is_upgrade_operation=false
+    local remote_version=""
+
+    # Always get remote version from API (for both first install and upgrade)
+    print_step_from_common_functions "Checking for latest version from Cursor API..."
+    remote_version=$(get_remote_cursor_version)
+
+    if [[ -n "$remote_version" ]]; then
+        print_info_from_common_functions "Latest version available: $remote_version"
+    else
+        print_warning_from_common_functions "Unable to retrieve remote version from API"
+        print_info_from_common_functions "Will proceed with version detection from installer files"
+        remote_version=""
+    fi
 
     # Prompt for root mode if not already specified via command line
     if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
@@ -1015,23 +1028,11 @@ install_cursor() {
             print_info_from_common_functions "Installation type: $installed_type"
         fi
 
-        # Get remote version from API
-        print_step_from_common_functions "Checking for updates from Cursor API..."
-        local remote_version=$(get_remote_cursor_version)
-
-        if [[ -n "$remote_version" ]]; then
-            print_info_from_common_functions "Latest version available: $remote_version"
-
-            # Compare versions
-            if [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
-                print_success_from_common_functions "Cursor is already up to date (version $installed_version)"
-                print_info_from_common_functions "No upgrade needed"
-                return 0
-            fi
-        else
-            print_warning_from_common_functions "Unable to retrieve remote version from API"
-            print_info_from_common_functions "Will proceed with manual version check"
-            remote_version="$CURSOR_VERSION"
+        # Compare versions (remote_version already fetched above)
+        if [[ -n "$remote_version" ]] && [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
+            print_success_from_common_functions "Cursor is already up to date (version $installed_version)"
+            print_info_from_common_functions "No upgrade needed"
+            return 0
         fi
 
         # Compare versions and prompt for upgrade
@@ -1080,10 +1081,18 @@ install_cursor() {
             # Mark as upgrade operation
             is_upgrade_operation=true
 
-            # Remove old installer files from Downloads to force fresh download
-            print_step_from_common_functions "Removing old installer files from Downloads..."
-            find_and_remove_old_installers "cursor*.AppImage"
-            find_and_remove_old_installers "cursor*.deb"
+            # NOTE: Do NOT delete old installer files yet!
+            # Keep them as fallback in case download fails
+            print_info_from_common_functions "Old installer files in Downloads will be kept as fallback"
+
+            # For upgrades, open download page immediately to prepare user
+            if [[ -n "$remote_version" ]]; then
+                print_step_from_common_functions "Opening Cursor download page..."
+                print_info_from_common_functions "Please download Cursor version $remote_version"
+                open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+                print_info_from_common_functions "The script will try to auto-download, but manual download may be needed"
+                sleep 2  # Give browser time to open
+            fi
         fi
     fi
 
@@ -1099,6 +1108,7 @@ install_cursor() {
     local cursor_file=""
     local install_type=""
     local installed_type=$(get_installed_type)
+    local existing_file_version=""
 
     if [[ -n "$appimage_file" ]] && [[ -n "$deb_file" ]]; then
         # Both AppImage and .deb found
@@ -1136,22 +1146,40 @@ install_cursor() {
         print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
     fi
 
+    # If we found an existing file, check its version
     if [[ -n "$cursor_file" ]]; then
+        existing_file_version=$(extract_version_from_filename "$cursor_file")
+        print_info_from_common_functions "Found installer version: $existing_file_version"
+
+        # Check if existing file matches the target version
+        if [[ -n "$remote_version" ]] && [[ "$existing_file_version" == "$remote_version" ]]; then
+            print_success_from_common_functions "Found installer already matches target version: $remote_version"
+            print_info_from_common_functions "No download needed - using existing file"
+        elif [[ -n "$remote_version" ]] && [[ "$existing_file_version" != "$remote_version" ]]; then
+            print_warning_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
+            print_info_from_common_functions "Will attempt to download newer version..."
+
+            # Keep the old file path for fallback
+            local fallback_file="$cursor_file"
+            local fallback_type="$install_type"
+
+            # Clear cursor_file to trigger download attempt
+            cursor_file=""
+            install_type=""
+        fi
+
         # Check for installation type conflict
-        if [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
+        if [[ -n "$cursor_file" ]] && [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
             print_warning_from_common_functions "Installation type conflict detected!"
             print_warning_from_common_functions "  Currently installed: $installed_type"
             print_warning_from_common_functions "  About to install: $install_type"
             print_step_from_common_functions "Cleaning up old installation to prevent conflicts..."
             cleanup_cursor
         fi
-    else
-        if [[ "$is_upgrade_operation" == true ]]; then
-            print_warning_from_common_functions "No Cursor installer found (upgrade requires fresh download)"
-            print_info_from_common_functions "Old installer files were removed to ensure clean upgrade"
-        else
-            print_warning_from_common_functions "No Cursor installer detected in any Downloads directories"
-        fi
+    fi
+
+    # If no matching file found, try to download
+    if [[ -z "$cursor_file" ]]; then
         print_step_from_common_functions "Attempting automatic download from Cursor API..."
         print_info_from_common_functions "API URL: $CURSOR_API_URL"
 
@@ -1180,6 +1208,13 @@ install_cursor() {
             elif [[ "$file_ext" == "deb" ]]; then
                 install_type="deb"
             fi
+
+            # Download succeeded - now safe to remove old files if they exist
+            if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
+                print_step_from_common_functions "Removing outdated installer files..."
+                rm -f "$fallback_file" 2>/dev/null || true
+                print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
+            fi
         else
             # Function failed to return path, try scanning Downloads directory
             print_warning_from_common_functions "Download function did not return file path, scanning Downloads..."
@@ -1188,32 +1223,133 @@ install_cursor() {
 
             local appimage_file=$(find_file_in_downloads_from_common_functions "cursor*.AppImage" "newest")
             if [[ -n "$appimage_file" ]] && [[ -f "$appimage_file" ]]; then
-                print_success_from_common_functions "Found downloaded AppImage: $(basename "$appimage_file")"
-                cursor_file="$appimage_file"
-                install_type="appimage"
+                local scanned_version=$(extract_version_from_filename "$appimage_file")
+
+                # Check if this is a newly downloaded file (matches target version)
+                if [[ -n "$remote_version" ]] && [[ "$scanned_version" == "$remote_version" ]]; then
+                    print_success_from_common_functions "Found downloaded AppImage: $(basename "$appimage_file")"
+                    cursor_file="$appimage_file"
+                    install_type="appimage"
+
+                    # Download succeeded - remove old files
+                    if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
+                        print_step_from_common_functions "Removing outdated installer files..."
+                        rm -f "$fallback_file" 2>/dev/null || true
+                        print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
+                    fi
+                else
+                    # This is the old file, download failed
+                    print_warning_from_common_functions "Auto-download failed"
+
+                    # Check if we have a fallback file
+                    if [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
+                        print_warning_from_common_functions "Download of version $remote_version failed"
+                        print_info_from_common_functions "Fallback option available: $(basename "$fallback_file") (version: $existing_file_version)"
+
+                        if [[ "$is_upgrade_operation" == true ]]; then
+                            echo ""
+                            echo -n "Download failed. Use older version from Downloads? (y/N): "
+                            read -r use_fallback
+
+                            case "$use_fallback" in
+                                [yY]|[yY][eE][sS])
+                                    print_info_from_common_functions "Using fallback file: $(basename "$fallback_file")"
+                                    cursor_file="$fallback_file"
+                                    install_type="$fallback_type"
+                                    ;;
+                                *)
+                                    print_info_from_common_functions "Fallback declined, switching to manual download..."
+                                    cursor_file=""
+                                    ;;
+                            esac
+                        else
+                            # First-time install - use fallback automatically
+                            print_info_from_common_functions "Using available installer: $(basename "$fallback_file")"
+                            cursor_file="$fallback_file"
+                            install_type="$fallback_type"
+                        fi
+                    fi
+
+                    # If still no file, try manual download
+                    if [[ -z "$cursor_file" ]]; then
+                        print_warning_from_common_functions "Switching to manual download mode"
+                        print_step_from_common_functions "Opening Cursor download page for manual download..."
+                        open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+
+                        # Use global function for manual download prompt
+                        cursor_file=$(prompt_and_wait_for_download_from_common_functions \
+                            "$CURSOR_DOWNLOAD_URL" \
+                            "cursor*.AppImage" \
+                            0)
+
+                        if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+                            print_error_from_common_functions "Manual download is required before installation can continue"
+                            return 1
+                        fi
+
+                        # Detect type from manual download
+                        local file_ext="${cursor_file##*.}"
+                        if [[ "$file_ext" == "AppImage" ]]; then
+                            install_type="appimage"
+                        elif [[ "$file_ext" == "deb" ]]; then
+                            install_type="deb"
+                        fi
+                    fi
+                fi
             else
-                # Auto-download failed, fallback to manual download
-                print_warning_from_common_functions "Auto-download failed, switching to manual download mode"
-                print_step_from_common_functions "Opening Cursor download page for manual download..."
-                open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+                # No files found at all - check for fallback
+                if [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
+                    print_warning_from_common_functions "Download failed, but fallback file is available"
+                    print_info_from_common_functions "Fallback: $(basename "$fallback_file") (version: $existing_file_version)"
 
-                # Use global function for manual download prompt
-                cursor_file=$(prompt_and_wait_for_download_from_common_functions \
-                    "$CURSOR_DOWNLOAD_URL" \
-                    "cursor*.AppImage" \
-                    0)
+                    if [[ "$is_upgrade_operation" == true ]]; then
+                        echo ""
+                        echo -n "Download failed. Use older version from Downloads? (y/N): "
+                        read -r use_fallback
 
-                if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-                    print_error_from_common_functions "Manual download is required before installation can continue"
-                    return 1
+                        case "$use_fallback" in
+                            [yY]|[yY][eE][sS])
+                                print_info_from_common_functions "Using fallback file: $(basename "$fallback_file")"
+                                cursor_file="$fallback_file"
+                                install_type="$fallback_type"
+                                ;;
+                            *)
+                                print_info_from_common_functions "Fallback declined"
+                                cursor_file=""
+                                ;;
+                        esac
+                    else
+                        # First-time install - use fallback automatically
+                        print_info_from_common_functions "Using available installer: $(basename "$fallback_file")"
+                        cursor_file="$fallback_file"
+                        install_type="$fallback_type"
+                    fi
                 fi
 
-                # Detect type from manual download
-                local file_ext="${cursor_file##*.}"
-                if [[ "$file_ext" == "AppImage" ]]; then
-                    install_type="appimage"
-                elif [[ "$file_ext" == "deb" ]]; then
-                    install_type="deb"
+                # If still no file, manual download required
+                if [[ -z "$cursor_file" ]]; then
+                    print_warning_from_common_functions "Auto-download failed, switching to manual download mode"
+                    print_step_from_common_functions "Opening Cursor download page for manual download..."
+                    open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
+
+                    # Use global function for manual download prompt
+                    cursor_file=$(prompt_and_wait_for_download_from_common_functions \
+                        "$CURSOR_DOWNLOAD_URL" \
+                        "cursor*.AppImage" \
+                        0)
+
+                    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+                        print_error_from_common_functions "Manual download is required before installation can continue"
+                        return 1
+                    fi
+
+                    # Detect type from manual download
+                    local file_ext="${cursor_file##*.}"
+                    if [[ "$file_ext" == "AppImage" ]]; then
+                        install_type="appimage"
+                    elif [[ "$file_ext" == "deb" ]]; then
+                        install_type="deb"
+                    fi
                 fi
             fi
         fi

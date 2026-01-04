@@ -216,8 +216,13 @@ class GitManagement:
             print("\033[36m║         REMOVE DIRECTORIES FROM GIT HISTORY                   ║\033[0m")
             print("\033[36m╚════════════════════════════════════════════════════════════════╝\033[0m")
             print()
-            print("\033[33mExamples: .venv, node_modules, dist, __pycache__\033[0m")
+            print("\033[33mExamples:\033[0m")
+            print("  • \033[37mDirect path:\033[0m .venv, node_modules, dist, __pycache__")
+            print("  • \033[37mWildcard pattern:\033[0m **/.outputs (all .outputs dirs)")
+            print("  • \033[37mMultiple patterns:\033[0m **/.venv **/node_modules")
+            print()
             print("\033[33mYou can enter multiple directories separated by spaces\033[0m")
+            print("\033[33mSupports wildcards: * (any chars), ** (recursive), ? (single char)\033[0m")
             print()
 
             sys.stdout.flush()
@@ -418,21 +423,73 @@ class GitManagement:
         print("\033[36mRemoving directories from current HEAD...\033[0m")
         sys.stdout.flush()
 
+        removed_count = 0
         for dir_path in directories:
-            dir_path_clean = dir_path.rstrip('/')
-            dir_full_path = self.core_node_root / dir_path_clean
-            print(f"\033[90m[DEBUG] Checking path: {dir_full_path}\033[0m")
-            sys.stdout.flush()
+            dir_path_clean = dir_path.rstrip('/').rstrip('\\')  # Handle both / and \ for Windows
 
-            if dir_full_path.exists():
-                print(f"\033[90m[DEBUG] Removing: {dir_full_path}\033[0m")
+            # Check if pattern contains wildcards
+            has_wildcards = any(char in dir_path_clean for char in ['*', '?', '[', ']'])
+
+            if has_wildcards:
+                print(f"\033[36mSearching for pattern: {dir_path_clean}\033[0m")
                 sys.stdout.flush()
-                shutil.rmtree(dir_full_path)
-                print(f"\033[32m✓ Removed from HEAD: {dir_path_clean}\033[0m")
+
+                # Use pathlib's glob for cross-platform compatibility
+                matched_paths = list(self.core_node_root.glob(dir_path_clean))
+
+                if not matched_paths:
+                    print(f"\033[33m⚠ No directories matched pattern: {dir_path_clean}\033[0m")
+                    sys.stdout.flush()
+                    continue
+
+                print(f"\033[36m  Found {len(matched_paths)} matching director{'y' if len(matched_paths) == 1 else 'ies'}\033[0m")
                 sys.stdout.flush()
+
+                for matched_path in matched_paths:
+                    if matched_path.is_dir():
+                        # Get relative path for display
+                        try:
+                            rel_path = matched_path.relative_to(self.core_node_root)
+                        except ValueError:
+                            rel_path = matched_path
+
+                        print(f"\033[90m[DEBUG] Removing: {rel_path}\033[0m")
+                        sys.stdout.flush()
+
+                        try:
+                            shutil.rmtree(matched_path)
+                            print(f"\033[32m  ✓ Removed: {rel_path}\033[0m")
+                            removed_count += 1
+                        except Exception as e:
+                            print(f"\033[31m  ✗ Failed to remove {rel_path}: {e}\033[0m")
+                        sys.stdout.flush()
+                    else:
+                        print(f"\033[33m  ⚠ Skipping file (not a directory): {matched_path.name}\033[0m")
+                        sys.stdout.flush()
             else:
-                print(f"\033[33m⚠ Directory not found in current HEAD: {dir_path_clean}\033[0m")
+                # Direct path without wildcards
+                dir_full_path = self.core_node_root / dir_path_clean
+                print(f"\033[90m[DEBUG] Checking path: {dir_full_path}\033[0m")
                 sys.stdout.flush()
+
+                if dir_full_path.exists() and dir_full_path.is_dir():
+                    print(f"\033[90m[DEBUG] Removing: {dir_full_path}\033[0m")
+                    sys.stdout.flush()
+
+                    try:
+                        shutil.rmtree(dir_full_path)
+                        print(f"\033[32m✓ Removed from HEAD: {dir_path_clean}\033[0m")
+                        removed_count += 1
+                    except Exception as e:
+                        print(f"\033[31m✗ Failed to remove {dir_path_clean}: {e}\033[0m")
+                    sys.stdout.flush()
+                else:
+                    print(f"\033[33m⚠ Directory not found in current HEAD: {dir_path_clean}\033[0m")
+                    sys.stdout.flush()
+
+        print()
+        print(f"\033[36mTotal directories removed: {removed_count}\033[0m")
+        sys.stdout.flush()
 
         print()
         print("\033[36mStaging changes...\033[0m")
