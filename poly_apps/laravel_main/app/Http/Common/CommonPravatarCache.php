@@ -26,8 +26,8 @@ class CommonPravatarCache
      */
     private static function getCacheDir(): string
     {
-        // Use Laravel storage path for cache
-        $basePath = storage_path('app/' . self::CACHE_SUBDIR);
+        // Use PathMapper for external static file storage
+        $basePath = PathMapper::mapWebPath('wwwroot', 'cache/avatars');
 
         if (!file_exists($basePath)) {
             mkdir($basePath, 0755, true);
