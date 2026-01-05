@@ -919,16 +919,32 @@ function Invoke-GitOperations {
         Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
         Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
-        
-        # Always pull to prevent push conflicts
-        Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
-        Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-        git pull origin $currentBranch --no-edit
 
-        # Push changes to remote
-        Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
-        Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-        git push --set-upstream origin $currentBranch
+        # Ask if user wants to force push BEFORE any pull operations
+        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $forcePushChoice = Read-Host
+
+        if ($forcePushChoice -match '^[Yy]$') {
+            # Force push mode - skip pull completely
+            Write-ColorText "=== FORCE PUSH MODE ===" -ForegroundColor Red
+            Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
+            Write-ColorText "WARNING: Force pushing all changes..." -ForegroundColor Red
+            Write-ColorText "Executing: git push --force --set-upstream origin $currentBranch" -ForegroundColor DarkGray
+            git push --force --set-upstream origin $currentBranch
+        } else {
+            # Normal push mode - pull first to prevent conflicts
+            Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
+            # Always pull to prevent push conflicts
+            Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
+            Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
+            git pull origin $currentBranch --no-edit
+
+            # Push changes to remote
+            Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
+            Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
+            git push --set-upstream origin $currentBranch
+        }
+
         Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkBlue
     }
     
