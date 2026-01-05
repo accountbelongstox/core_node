@@ -6,6 +6,7 @@ import { AppRelease } from '../types';
 import { QRCode } from './QRCode';
 import { useApp } from '../contexts/AppContext';
 import { getAppNameById } from '../utils/dataHelpers';
+import { encryptedImageService } from '../services/encryptedImageService';
 
 /**
  * APP发布详情页面
@@ -16,6 +17,8 @@ export const AppReleaseDetail: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useApp();
   const [appRelease, setAppRelease] = useState<AppRelease | null>(null);
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [splashUrl, setSplashUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -25,6 +28,22 @@ export const AppReleaseDetail: React.FC = () => {
 
     if (release) {
       setAppRelease(release);
+      
+      // Load app icon and splash from centralized mock data
+      const app = modelService.getApps()?.find(a => a.id === release.appId);
+      if (app) {
+        const loadImages = async () => {
+          if (app.icon) {
+            const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
+            setIconUrl(icon);
+          }
+          if (app.splash) {
+            const splash = await encryptedImageService.loadAppSplash(app.id, app.splash);
+            setSplashUrl(splash);
+          }
+        };
+        loadImages();
+      }
     }
   }, [id]);
 
@@ -87,8 +106,21 @@ export const AppReleaseDetail: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 左侧：APP封面和基本信息 */}
         <div className="space-y-6">
-          {/* APP封面 */}
-          {appRelease.coverImage ? (
+          {/* APP封面 - 优先显示splash，然后是coverImage，最后是icon */}
+          {splashUrl ? (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
+                <img
+                  src={splashUrl}
+                  alt={`${getAppNameById(appRelease.appId)} splash`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+          ) : appRelease.coverImage ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
                 <img
@@ -101,11 +133,46 @@ export const AppReleaseDetail: React.FC = () => {
                 />
               </div>
             </div>
+          ) : iconUrl ? (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+              <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+                <img
+                  src={iconUrl}
+                  alt={`${getAppNameById(appRelease.appId)} icon`}
+                  className="w-32 h-32 rounded-xl"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12">
               <div className="flex flex-col items-center justify-center text-slate-400">
                 <ImageIcon size={48} />
                 <p className="mt-4 text-sm">{t('appRelease.noCoverImage')}</p>
+              </div>
+            </div>
+          )}
+          
+          {/* APP图标和名称 */}
+          {iconUrl && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
+                  <img
+                    src={iconUrl}
+                    alt={`${getAppNameById(appRelease.appId)} icon`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">{getAppNameById(appRelease.appId)}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('appRelease.appIcon')}</p>
+                </div>
               </div>
             </div>
           )}

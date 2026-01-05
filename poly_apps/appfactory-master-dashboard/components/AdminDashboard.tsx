@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -33,6 +33,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { modelService } from '../services/modelService';
 import { AppStatus, UserRole, AppCategory, AppInstance } from '../types';
+import { encryptedImageService } from '../services/encryptedImageService';
 import { StatCard } from './StatCard';
 import { useApp } from '../contexts/AppContext';
 import { AppGenerationForm } from './AppGenerationForm';
@@ -805,7 +806,16 @@ const AppsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showGenerationForm, setShowGenerationForm] = useState(false);
 
-  const apps = useMemo(() => modelService.getApps() || [], []);
+  const allApps = useMemo(() => modelService.getApps() || [], []);
+  // Only show first 5 apps (app1-app5) with icon/splash
+  const apps = useMemo(() => allApps.filter(app => {
+    const match = app.id.match(/app(\d+)/);
+    if (match) {
+      const index = parseInt(match[1]);
+      return index >= 1 && index <= 5;
+    }
+    return false;
+  }), [allApps]);
   const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
   const filteredApps = apps.filter(app => {
     const matchesSearch = app.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -843,98 +853,20 @@ const AppsList = () => {
           </div>
         </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 dark:bg-slate-700 border-b border-slate-100 dark:border-slate-600">
-            <tr>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.name')}</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.status')}</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.revenue')}</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assigned CS</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('apps.actions')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {filteredApps.map(app => (
-                <tr key={app.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-bold">
-                        {app.name.substring(0, 1)}
-                      </div>
-                      <div className="flex flex-col">
-                        <Link to={`/apps/${app.id}`} className="font-bold text-slate-800 dark:text-white hover:text-indigo-600 transition-colors">{app.name}</Link>
-                        <span className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded w-fit mt-1">{app.category}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`flex items-center gap-1.5 w-fit px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                      app.status === AppStatus.LIVE ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800' :
-                      app.status === AppStatus.PENDING ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-100 dark:border-amber-800' : 
-                      app.status === AppStatus.GENERATING ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 animate-pulse' :
-                      'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border border-rose-100 dark:border-rose-800'
-                    }`}>
-                      {app.status === AppStatus.LIVE && <CheckCircle2 size={10} />}
-                      {app.status === AppStatus.PENDING && <Clock size={10} />}
-                      {app.status === AppStatus.FAILED && <AlertCircle size={10} />}
-                      {t(`apps.${app.status.toLowerCase()}`)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, (app.visits/30000)*100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-medium text-slate-500">{app.visits.toLocaleString()} visits</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (app.dailyActiveUsers/6000)*100)}%` }} />
-                        </div>
-                        <span className="text-[10px] font-medium text-slate-500">{app.dailyActiveUsers.toLocaleString()} DAU</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</span>
-                      <div className="flex items-center text-[10px] text-emerald-500 font-bold">
-                        <ArrowUpRight size={10} />
-                        12%
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex -space-x-2">
-                      {app.assignedCSIds.map(csId => {
-                        const cs = csTeam.find(c => c.id === csId);
-                        return cs ? (
-                          <img 
-                            key={cs.id} 
-                            src={cs.avatar} 
-                            alt={cs.name} 
-                            className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-100 dark:ring-slate-700" 
-                            title={cs.name}
-                          />
-                        ) : null;
-                      })}
-                      <button className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 border-2 border-white dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors">
-                        <PlusCircle size={14} />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all">
-                      <MoreVertical size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Apps Grid with Icons and Splashes - Only show first 5 apps */}
+      {filteredApps.length === 0 ? (
+        <div className="p-12 text-center">
+          <p className="text-slate-500 dark:text-slate-400">{t('apps.noApps')}</p>
         </div>
+      ) : (
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredApps.map(app => (
+              <AppCard key={app.id} app={app} csTeam={csTeam} />
+            ))}
+          </div>
+        </div>
+      )}
       </div>
       {showGenerationForm && (
         <AppGenerationForm
@@ -943,6 +875,148 @@ const AppsList = () => {
         />
       )}
     </>
+  );
+};
+
+/**
+ * App Card Component with encrypted icon and splash support
+ * Shows app icon, splash screen, and app information
+ */
+const AppCard: React.FC<{
+  app: AppInstance;
+  csTeam: any[];
+}> = ({ app, csTeam }) => {
+  const { t } = useApp();
+  const navigate = useNavigate();
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [splashUrl, setSplashUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadImages = async () => {
+      if (app.icon) {
+        const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
+        setIconUrl(icon);
+      }
+      if (app.splash) {
+        const splash = await encryptedImageService.loadAppSplash(app.id, app.splash);
+        setSplashUrl(splash);
+      }
+    };
+    loadImages();
+  }, [app.id, app.icon, app.splash]);
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden hover:shadow-xl transition-all cursor-pointer" onClick={() => navigate(`/apps/${app.id}`)}>
+      {/* Splash Screen */}
+      {splashUrl ? (
+        <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 relative overflow-hidden">
+          <img
+            src={splashUrl}
+            alt={`${app.name} splash`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      ) : (
+        <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt={`${app.name} icon`}
+              className="w-24 h-24 rounded-xl"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <span className="text-white text-4xl font-bold">
+              {app.name.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {iconUrl && (
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
+                <img
+                  src={iconUrl}
+                  alt={`${app.name} icon`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-1">
+                {app.name}
+              </h3>
+              <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded w-fit mt-1 inline-block">
+                {app.category}
+              </span>
+            </div>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${
+            app.status === AppStatus.LIVE ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+            app.status === AppStatus.PENDING ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
+            app.status === AppStatus.GENERATING ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 animate-pulse' :
+            'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+          }`}>
+            {app.status === AppStatus.LIVE && <CheckCircle2 size={10} className="inline mr-1" />}
+            {app.status === AppStatus.PENDING && <Clock size={10} className="inline mr-1" />}
+            {app.status === AppStatus.FAILED && <AlertCircle size={10} className="inline mr-1" />}
+            {t(`apps.${app.status.toLowerCase()}`)}
+          </span>
+        </div>
+
+        {app.description && (
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
+            {app.description}
+          </p>
+        )}
+
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">{t('apps.revenue')}:</span>
+            <span className="font-bold text-slate-800 dark:text-white">${app.revenue.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">{t('apps.visits')}:</span>
+            <span className="font-bold text-slate-800 dark:text-white">{app.visits.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">DAU:</span>
+            <span className="font-bold text-slate-800 dark:text-white">{app.dailyActiveUsers.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {app.assignedCSIds.length > 0 && (
+          <div className="flex items-center gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Assigned CS:</span>
+            <div className="flex -space-x-2">
+              {app.assignedCSIds.map(csId => {
+                const cs = csTeam.find(c => c.id === csId);
+                return cs ? (
+                  <img 
+                    key={cs.id} 
+                    src={cs.avatar} 
+                    alt={cs.name} 
+                    className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-100 dark:ring-slate-700" 
+                    title={cs.name}
+                  />
+                ) : null;
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

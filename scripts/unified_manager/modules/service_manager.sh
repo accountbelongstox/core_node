@@ -14,35 +14,37 @@
 # Service Manager Module (Refactored)
 # Uses core library for service management and configuration
 
-# Get script directory and root directory
-# IMPORTANT: When sourced, use ROOT_DIR from parent if available
-if [ -z "$ROOT_DIR" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-    echo -e "\033[33m[service_manager.sh] ROOT_DIR not set, calculated: $ROOT_DIR\033[0m" >&2
-else
-    echo -e "\033[32m[service_manager.sh] Using ROOT_DIR from parent: $ROOT_DIR\033[0m" >&2
-fi
+# Get absolute path of script directory using standard bash pattern
+SERVICE_MANAGER_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Save ROOT_DIR before sourcing core_lib (which may reset it)
-SAVED_ROOT_DIR="$ROOT_DIR"
+# Calculate ROOT_DIR (3 levels up from modules/)
+SERVICE_MANAGER_ROOT_DIR="$( cd "$SERVICE_MANAGER_DIR/../../.." && pwd )"
 
-# Source core library
-CORE_LIB="$ROOT_DIR/scripts/unified_manager/lib/core_lib.sh"
-if [ -f "$CORE_LIB" ]; then
-    source "$CORE_LIB"
-else
-    echo -e "\033[31m[service_manager.sh] Core library not found: $CORE_LIB\033[0m" >&2
-fi
+# Pre-calculate all paths before sourcing (prevent variable pollution)
+GVAR_COMMON_PATH="$SERVICE_MANAGER_DIR/../../shells/linux/common/gvar_common.sh"
+GET_REAL_USER_PATH="$SERVICE_MANAGER_DIR/../../shells/linux/common/get_real_user.sh"
+CORE_LIB_PATH="$SERVICE_MANAGER_DIR/../lib/core_lib.sh"
+DEBIAN_SERVICE_MANAGER_PATH="$SERVICE_MANAGER_DIR/../../shells/linux/common/debian_service_manager.sh"
+FIREWALL_MANAGER_PATH="$SERVICE_MANAGER_DIR/../../shells/linux/common/firewall_manager.sh"
+PERMISSIONS_FIXER_PATH="$SERVICE_MANAGER_DIR/../../shells/linux/common/permissions_fixer_lib.sh"
 
-# Restore ROOT_DIR after sourcing
-ROOT_DIR="$SAVED_ROOT_DIR"
+# Temporarily disable error propagation for sourcing
+set +e
+
+# Source all required files (trust-based coding)
+source "$GVAR_COMMON_PATH" 2>/dev/null
+source "$GET_REAL_USER_PATH" 2>/dev/null
+source "$CORE_LIB_PATH" 2>/dev/null
+source "$DEBIAN_SERVICE_MANAGER_PATH" 2>/dev/null
+source "$FIREWALL_MANAGER_PATH" 2>/dev/null
+source "$PERMISSIONS_FIXER_PATH" 2>/dev/null
+
+# Re-enable error propagation
+set -e
+
+# Restore and export ROOT_DIR after sourcing (prevent overwrite)
+ROOT_DIR="$SERVICE_MANAGER_ROOT_DIR"
 export ROOT_DIR
-
-# Source all required managers (trust-based coding)
-source "$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
-source "$ROOT_DIR/scripts/shells/linux/common/common_service_manager.sh"
-source "$ROOT_DIR/scripts/shells/linux/common/firewall_manager.sh"
 
 # Get fixed port for specific app (using core library)
 get_app_fixed_port() {
@@ -253,56 +255,11 @@ print(launcher_path)
     echo -e "\033[32m✓ Daemon launcher script generated\033[0m"
     echo -e "\033[90m$daemon_launcher_script\033[0m"
 
-    # Fix _build_dir permissions for daemon access
+    # Fix permissions for daemon access using permissions_fixer_lib
     echo ""
-    echo -e "\033[36m=== Fixing Build Directory Permissions ===\033[0m"
-
-    # Get real user (non-root)
-    local get_real_user_script="$ROOT_DIR/scripts/shells/linux/common/get_real_user.sh"
-    local real_user=$(bash "$get_real_user_script")
-
-    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
-        echo -e "\033[33m⚠ Could not detect real user, using default: ubuntu\033[0m"
-        real_user="ubuntu"
-    fi
-
-    echo -e "\033[90mReal user: $real_user\033[0m"
-
-    # Calculate _build_dir path from app_path
-    # app_path: /www/programing/core_node/poly_apps/appfactory-master-dashboard
-    # parent of core_node: /www/programing
-    # build_dir: /www/programing/_build_dir
-    local core_node_path=$(dirname $(dirname "$app_path"))
-    local parent_dir=$(dirname "$core_node_path")
-    local build_dir="$parent_dir/_build_dir"
-    local app_build_dir="$build_dir/$app_name"
-
-    echo -e "\033[90mBuild directory: $build_dir\033[0m"
-    echo -e "\033[90mApp build directory: $app_build_dir\033[0m"
-
-    # Create and fix permissions for build directories
-    if [ ! -d "$build_dir" ]; then
-        echo -e "\033[90mCreating build directory...\033[0m"
-        sudo mkdir -p "$build_dir"
-    fi
-
-    if [ ! -d "$app_build_dir" ]; then
-        echo -e "\033[90mCreating app build directory...\033[0m"
-        sudo mkdir -p "$app_build_dir"
-    fi
-
-    # Fix ownership and permissions
-    echo -e "\033[90mSetting ownership to $real_user...\033[0m"
-    sudo chown -R "$real_user:$real_user" "$build_dir" 2>/dev/null || {
-        echo -e "\033[33m⚠ Could not change ownership (may already be correct)\033[0m"
-    }
-
-    echo -e "\033[90mSetting permissions to 755...\033[0m"
-    sudo chmod -R 755 "$build_dir" 2>/dev/null || {
-        echo -e "\033[33m⚠ Could not change permissions (may already be correct)\033[0m"
-    }
-
-    echo -e "\033[32m✓ Build directory permissions fixed\033[0m"
+    fix_permissions_build_dir
+    echo ""
+    fix_permissions_app_dir "$app_name"
     echo ""
 
     # Create daemon service (depends on main service)
@@ -335,6 +292,11 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CPUQuota=$daemon_cpu
 MemoryMax=$daemon_memory
 MemoryHigh=0M
+
+# Security (service runs as root, ProtectSystem provides protection)
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
 
 [Install]
 WantedBy=multi-user.target

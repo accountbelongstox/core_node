@@ -166,11 +166,7 @@ verify_service_config() {
 # CRITICAL SYNC REQUIREMENTS WITH PHP:
 # 1. User=root, Group=root (MUST match PHP getDefaultServiceUser)
 # 2. ProtectSystem=full (NOT strict)
-# 3. ReadWritePaths MUST include:
-#    - ${laravel_path}/storage
-#    - ${laravel_path}/bootstrap/cache
-#    - /www/wwwroot/laravel_db
-#    - /www/programing/core_node/_prompts
+# 3. No ReadWritePaths needed (service runs as root)
 create_octane_service() {
     local domain="$1"
     local port="${2:-}"
@@ -269,15 +265,11 @@ Environment="NODE_PATH=/usr/local/lib/node_modules"
 
 # Security (Relaxed for development/TTS requirements)
 # SYNC WITH PHP: Line 651-657 (PATH-BASED) and Line 776-786 (LEGACY)
-# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
-# CRITICAL: ReadWritePaths MUST match PHP getExternalWritePaths() output
+# CRITICAL: Service runs as root, ProtectSystem=full provides sufficient protection
+# CRITICAL: No ReadWritePaths needed when running as root
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=full
-ReadWritePaths=${laravel_path}/storage
-ReadWritePaths=${laravel_path}/bootstrap/cache
-ReadWritePaths=/www/wwwroot/laravel_db
-ReadWritePaths=/www/programing/core_node/_prompts
 
 [Install]
 WantedBy=multi-user.target

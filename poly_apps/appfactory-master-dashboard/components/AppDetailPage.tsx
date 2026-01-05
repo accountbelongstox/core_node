@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, TrendingUp, Users, DollarSign, Star, Calendar, Code, Edit2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppInstance, AppStatus } from '../types';
 import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { encryptedImageService } from '../services/encryptedImageService';
 
 export const AppDetailPage: React.FC = () => {
   const { t } = useApp();
@@ -46,8 +47,40 @@ export const AppDetailPage: React.FC = () => {
     }));
   }, [dailyStats, app.revenue]);
 
+  // Load encrypted images
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [splashUrl, setSplashUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadImages = async () => {
+      if (app.icon) {
+        const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
+        setIconUrl(icon);
+      }
+      if (app.splash) {
+        const splash = await encryptedImageService.loadAppSplash(app.id, app.splash);
+        setSplashUrl(splash);
+      }
+    };
+    loadImages();
+  }, [app.id, app.icon, app.splash]);
+
   return (
     <div className="space-y-6">
+      {/* App Icon and Splash Section */}
+      {splashUrl && (
+        <div className="relative w-full h-64 rounded-xl overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600">
+          <img
+            src={splashUrl}
+            alt={`${app.name} splash`}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/apps')}
@@ -55,6 +88,18 @@ export const AppDetailPage: React.FC = () => {
         >
           <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
         </button>
+        {iconUrl && (
+          <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
+            <img
+              src={iconUrl}
+              alt={`${app.name} icon`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        )}
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">{app.name}</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">{app.description}</p>

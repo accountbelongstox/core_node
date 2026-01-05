@@ -68,6 +68,8 @@ export interface AppInstance {
   monthlyRevenue: number;
   dailyActiveUsers: number;
   rating?: number;
+  icon?: string; // Encrypted icon filename (e.g., 'app_icon1.en.png')
+  splash?: string; // Encrypted splash filename (e.g., 'app_splash1.en.png')
 }
 
 // CS-APP Revenue Tracking (many-to-many)
@@ -333,4 +335,35 @@ export interface PaymentVerificationRequest {
   repliedAt?: string; // Reply timestamp
   createdAt: string;
   updatedAt: string;
+}
+
+// Avatar Provider
+export interface AvatarProvider {
+  short_code: string;
+  name: string;
+  max_size: number;
+  supports_size: boolean;
+  deterministic: boolean;
+}
+
+// Avatar Providers List Response
+export interface AvatarProvidersListResponse {
+  success: boolean;
+  providers: AvatarProvider[];
+  default: string;
+}
+
+// Avatar Cache Stats Response
+export interface AvatarCacheStatsResponse {
+  cache_dir: string;
+  total_files: number;
+  total_size: number;
+  total_size_mb: number;
+}
+
+// Avatar Cache Clear Response
+export interface AvatarCacheClearResponse {
+  success: boolean;
+  message?: string;
+  deleted_count?: number;
 }

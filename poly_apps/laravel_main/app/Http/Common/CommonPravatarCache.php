@@ -17,7 +17,8 @@ class CommonPravatarCache
 {
     private const PRAVATAR_API_BASE = 'https://i.pravatar.cc/150';
     private const CACHE_SUBDIR = 'pravatar_cache';
-    private const DEFAULT_SIZE = 150;
+    private const DEFAULT_SIZE = 512; // Default to maximum size
+    private const MAX_CACHE_SIZE = 512; // Always cache at maximum resolution
 
     /**
      * Get avatar cache directory using PathMapper
@@ -26,8 +27,8 @@ class CommonPravatarCache
      */
     private static function getCacheDir(): string
     {
-        // Use PathMapper for external static file storage
-        $basePath = PathMapper::mapWebPath('wwwroot', 'cache/avatars');
+        // Use PathMapper laravel cache directory for external static file storage
+        $basePath = PathMapper::getLaravelCacheDir() . '/avatars';
 
         if (!file_exists($basePath)) {
             mkdir($basePath, 0755, true);
@@ -51,12 +52,12 @@ class CommonPravatarCache
 
     /**
      * Get cached avatar or fetch from pravatar.cc if not exists
+     * Always caches at maximum resolution (512x512) for keyword
      *
      * @param string $name User identifier
-     * @param int $size Avatar size (default: 150)
      * @return array Response data with ['success' => bool, 'data' => mixed, 'path' => string]
      */
-    public static function getAvatar(string $name, int $size = self::DEFAULT_SIZE): array
+    public static function getAvatar(string $name): array
     {
         $cacheDir = self::getCacheDir();
         $filename = self::getCacheFilename($name);
@@ -78,13 +79,14 @@ class CommonPravatarCache
             ];
         }
 
-        // Fetch from pravatar.cc
+        // Fetch from pravatar.cc at maximum resolution
         try {
-            $url = self::PRAVATAR_API_BASE . '?u=' . urlencode($name) . '&size=' . $size;
+            $url = self::PRAVATAR_API_BASE . '?u=' . urlencode($name) . '&size=' . self::MAX_CACHE_SIZE;
 
             Log::info('[CommonPravatarCache] Fetching from pravatar.cc', [
                 'name' => $name,
                 'url' => $url,
+                'cache_size' => self::MAX_CACHE_SIZE,
             ]);
 
             $response = Http::timeout(10)->get($url);
@@ -121,10 +123,11 @@ class CommonPravatarCache
                 ];
             }
 
-            Log::info('[CommonPravatarCache] Avatar fetched and cached', [
+            Log::info('[CommonPravatarCache] Avatar fetched and cached at max resolution', [
                 'name' => $name,
                 'path' => $cachePath,
                 'size' => strlen($imageData),
+                'resolution' => self::MAX_CACHE_SIZE . 'x' . self::MAX_CACHE_SIZE,
             ]);
 
             return [
@@ -149,15 +152,112 @@ class CommonPravatarCache
     }
 
     /**
+     * Resize image to specified dimensions
+     *
+     * @param string $imageData Original image binary data
+     * @param int $targetSize Target size (square dimensions)
+     * @return string|false Resized image binary data or false on failure
+     */
+    private static function resizeImage(string $imageData, int $targetSize)
+    {
+        try {
+            // Create image from string
+            $sourceImage = imagecreatefromstring($imageData);
+            if ($sourceImage === false) {
+                Log::error('[CommonPravatarCache] Failed to create image from string');
+                return false;
+            }
+
+            // Get original dimensions
+            $originalWidth = imagesx($sourceImage);
+            $originalHeight = imagesy($sourceImage);
+
+            // If already the correct size, return original
+            if ($originalWidth === $targetSize && $originalHeight === $targetSize) {
+                imagedestroy($sourceImage);
+                return $imageData;
+            }
+
+            // Create new image at target size
+            $targetImage = imagecreatetruecolor($targetSize, $targetSize);
+            if ($targetImage === false) {
+                imagedestroy($sourceImage);
+                Log::error('[CommonPravatarCache] Failed to create target image');
+                return false;
+            }
+
+            // Preserve transparency for PNG
+            imagealphablending($targetImage, false);
+            imagesavealpha($targetImage, true);
+
+            // Resize using high-quality bicubic interpolation
+            $resized = imagecopyresampled(
+                $targetImage,
+                $sourceImage,
+                0, 0, 0, 0,
+                $targetSize, $targetSize,
+                $originalWidth, $originalHeight
+            );
+
+            if (!$resized) {
+                imagedestroy($sourceImage);
+                imagedestroy($targetImage);
+                Log::error('[CommonPravatarCache] Failed to resize image');
+                return false;
+            }
+
+            // Capture output to string
+            ob_start();
+            imagepng($targetImage, null, 9); // Max compression
+            $resizedData = ob_get_clean();
+
+            // Clean up
+            imagedestroy($sourceImage);
+            imagedestroy($targetImage);
+
+            Log::info('[CommonPravatarCache] Image resized', [
+                'from' => $originalWidth . 'x' . $originalHeight,
+                'to' => $targetSize . 'x' . $targetSize,
+                'original_size' => strlen($imageData),
+                'resized_size' => strlen($resizedData),
+            ]);
+
+            return $resizedData;
+
+        } catch (\Exception $e) {
+            Log::error('[CommonPravatarCache] Exception during image resize', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Get avatar and return as HTTP response
+     * Fetches from cache (512x512) and resizes to requested size
      *
      * @param string $name User identifier
-     * @param int $size Avatar size
+     * @param int|null $size Avatar size (default: 512, returns full resolution)
      * @return \Illuminate\Http\Response
      */
-    public static function getAvatarResponse(string $name, int $size = self::DEFAULT_SIZE)
+    public static function getAvatarResponse(string $name, ?int $size = null)
     {
-        $result = self::getAvatar($name, $size);
+        // Default to max size if not specified
+        $size = $size ?? self::DEFAULT_SIZE;
+
+        // Store original requested size for header
+        $requestedSize = $size;
+
+        // Clamp size to valid range (1 to MAX_CACHE_SIZE)
+        if ($size < 1) {
+            $size = 1;
+        } elseif ($size > self::MAX_CACHE_SIZE) {
+            $size = self::MAX_CACHE_SIZE;
+        }
+
+        // Get avatar from cache (always 512x512)
+        $result = self::getAvatar($name);
 
         if (!$result['success']) {
             return Response::json([
@@ -165,11 +265,40 @@ class CommonPravatarCache
             ], $result['status_code'] ?? 500);
         }
 
-        return Response::make($result['data'], 200, [
+        $imageData = $result['data'];
+        $fromCache = $result['from_cache'];
+
+        // Resize if needed
+        if ($size !== self::MAX_CACHE_SIZE) {
+            $resizedData = self::resizeImage($imageData, $size);
+
+            if ($resizedData === false) {
+                // If resize fails, return original image
+                Log::warning('[CommonPravatarCache] Resize failed, returning original', [
+                    'name' => $name,
+                    'requested_size' => $size,
+                ]);
+            } else {
+                $imageData = $resizedData;
+            }
+        }
+
+        // Prepare response headers
+        $headers = [
             'Content-Type' => 'image/png',
             'Cache-Control' => 'public, max-age=86400',
-            'X-From-Cache' => $result['from_cache'] ? 'true' : 'false',
-        ]);
+            'X-From-Cache' => $fromCache ? 'true' : 'false',
+            'X-Cached-Resolution' => self::MAX_CACHE_SIZE . 'x' . self::MAX_CACHE_SIZE,
+            'X-Returned-Size' => $size . 'x' . $size,
+        ];
+
+        // Add warning header if size was clamped
+        if ($requestedSize !== $size) {
+            $headers['X-Size-Clamped'] = 'true';
+            $headers['X-Requested-Size'] = $requestedSize . 'x' . $requestedSize;
+        }
+
+        return Response::make($imageData, 200, $headers);
     }
 
     /**

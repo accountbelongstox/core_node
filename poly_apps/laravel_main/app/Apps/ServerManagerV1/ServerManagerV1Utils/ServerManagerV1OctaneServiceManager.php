@@ -557,12 +557,8 @@ class ServerManagerV1OctaneServiceManager
      *
      * SYNC REQUIREMENTS:
      * 1. User=$serviceUser (must be 'root' from getDefaultServiceUser)
-     * 2. ProtectSystem=full (NOT strict) - Shell Line 246
-     * 3. ReadWritePaths must include:
-     *    - $laravelPath/storage
-     *    - $laravelPath/bootstrap/cache
-     *    - /www/wwwroot/laravel_db (via getExternalWritePaths)
-     *    - /www/programing/core_node/_prompts (via getExternalWritePaths)
+     * 2. ProtectSystem=full (NOT strict)
+     * 3. No ReadWritePaths needed (service runs as root)
      *
      * Features:
      * - Auto-restart on failure
@@ -592,10 +588,6 @@ class ServerManagerV1OctaneServiceManager
 
         $pathHash = self::getPathHash($wwwDir);
         $descLine = $description ? " ($description)" : '';
-
-        // Get external directories that need write access (sessions, temp files, etc.)
-        $externalPaths = self::getExternalWritePaths($laravelPath);
-        $readWritePaths = "{$laravelPath}/storage {$laravelPath}/bootstrap/cache " . implode(' ', $externalPaths);
 
         $phpBinary = PathMapper::getPhpBinaryPath();
 
@@ -649,50 +641,16 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
 
 # Security (Relaxed for development/TTS requirements)
-# SYNC: octane_service_manager.sh Line 243-250
-# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
+# SYNC: octane_service_manager.sh Line 270-276
+# CRITICAL: Service runs as root, ProtectSystem=full provides sufficient protection
+# CRITICAL: No ReadWritePaths needed when running as root
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=full
-ReadWritePaths={$readWritePaths}
 
 [Install]
 WantedBy=multi-user.target
 EOF;
-    }
-
-    /**
-     * Get external paths that need write access for Laravel operations
-     * Returns paths like session directories, temp directories managed by PathMapper
-     *
-     * SYNC: octane_service_manager.sh Line 249-250
-     * MUST INCLUDE:
-     * - /www/wwwroot/laravel_db (TTS queue file writes)
-     * - /www/programing/core_node/_prompts (prompt storage)
-     *
-     * CRITICAL: These paths MUST match shell script ReadWritePaths
-     */
-    private static function getExternalWritePaths(string $laravelPath): array
-    {
-        $sessionDir = PathMapper::getLaravelSessionsDir();
-        $laravel_db = dirname($sessionDir);  // SYNC: Shell Line 249 - /www/wwwroot/laravel_db
-        $coreNodeDir = PathMapper::getCoreNodeDir();
-        $promptsDir = $coreNodeDir . '/_prompts';  // SYNC: Shell Line 250 - /_prompts
-
-        $paths = [$laravel_db];  // CRITICAL: Always include laravel_db first
-
-        if (is_dir($promptsDir) || is_link($promptsDir)) {
-            $paths[] = $promptsDir;
-        }
-
-        Log::info('Added external write paths', [
-            'paths' => $paths,
-            'laravel_db' => $laravel_db,
-            'session_dir' => $sessionDir,
-            'prompts_dir' => $promptsDir
-        ]);
-
-        return $paths;
     }
 
     /**
@@ -704,12 +662,8 @@ EOF;
      *
      * SYNC REQUIREMENTS:
      * 1. User=$serviceUser (must be 'root' from getDefaultServiceUser)
-     * 2. ProtectSystem=full (NOT strict) - Shell Line 246
-     * 3. ReadWritePaths must include:
-     *    - $laravelPath/storage - Shell Line 247
-     *    - $laravelPath/bootstrap/cache - Shell Line 248
-     *    - /www/wwwroot/laravel_db - Shell Line 249
-     *    - /www/programing/core_node/_prompts - Shell Line 250
+     * 2. ProtectSystem=full (NOT strict)
+     * 3. No ReadWritePaths needed (service runs as root)
      *
      * Features:
      * - Auto-restart on failure
@@ -774,16 +728,12 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
 
 # Security (Relaxed for development/TTS requirements)
-# SYNC: octane_service_manager.sh Line 243-250
-# CRITICAL: ProtectSystem MUST be 'full' not 'strict'
-# CRITICAL: ReadWritePaths MUST match shell script exactly
+# SYNC: octane_service_manager.sh Line 270-276
+# CRITICAL: Service runs as root, ProtectSystem=full provides sufficient protection
+# CRITICAL: No ReadWritePaths needed when running as root
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=full
-ReadWritePaths={$laravelPath}/storage
-ReadWritePaths={$laravelPath}/bootstrap/cache
-ReadWritePaths=/www/wwwroot/laravel_db
-ReadWritePaths=/www/programing/core_node/_prompts
 
 [Install]
 WantedBy=multi-user.target

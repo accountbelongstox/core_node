@@ -18,8 +18,10 @@ import {
   MOCK_PROMOTION_TRACKS,
   MOCK_DAILY_STATS,
   MOCK_CS_APP_REVENUE,
+  MOCK_AVATAR_PROVIDERS_LIST_RESPONSE,
+  MOCK_AVATAR_CACHE_STATS,
 } from '../constants';
-import { AppInstance, CustomerService, TechMember, AppGenerationRequest, AppRelease, Promoter, PromotionRecord, PromotionTrack, DailyStat, CSAppRevenue } from '../types';
+import { AppInstance, CustomerService, TechMember, AppGenerationRequest, AppRelease, Promoter, PromotionRecord, PromotionTrack, DailyStat, CSAppRevenue, AvatarProvidersListResponse, AvatarCacheStatsResponse, AvatarCacheClearResponse } from '../types';
 
 class ApiService {
   /**
@@ -267,6 +269,67 @@ class ApiService {
    */
   async getCSAppRevenue(): Promise<CSAppRevenue[]> {
     return this.get<CSAppRevenue[]>('/api/cs-app-revenue', undefined, () => Promise.resolve([...MOCK_CS_APP_REVENUE]));
+  }
+
+  // ===== Avatar API Methods =====
+
+  /**
+   * Get avatar URL
+   * Note: This returns a URL string, not an image blob
+   * The actual image is served directly by the backend
+   */
+  getAvatarUrl(name: string, size: number = 512, provider: string | number = 'pravatar'): string {
+    const baseUrl = apiManager.getCurrentBaseUrl() || 'http://localhost:9000';
+    const providerParam = typeof provider === 'number' ? provider : provider;
+    return `${baseUrl}/api/public/avatar/${encodeURIComponent(name)}?size=${size}&provider=${providerParam}`;
+  }
+
+  /**
+   * List all avatar providers
+   */
+  async getAvatarProviders(): Promise<AvatarProvidersListResponse> {
+    return this.get<AvatarProvidersListResponse>(
+      '/api/public/avatar-providers/list',
+      undefined,
+      () => Promise.resolve({ ...MOCK_AVATAR_PROVIDERS_LIST_RESPONSE })
+    );
+  }
+
+  /**
+   * Get avatar cache statistics
+   */
+  async getAvatarCacheStats(): Promise<AvatarCacheStatsResponse> {
+    return this.get<AvatarCacheStatsResponse>(
+      '/api/public/avatar-cache/stats',
+      undefined,
+      () => Promise.resolve({ ...MOCK_AVATAR_CACHE_STATS })
+    );
+  }
+
+  /**
+   * Clear avatar cache for a specific user
+   */
+  async clearAvatarCache(name: string, provider?: string): Promise<AvatarCacheClearResponse> {
+    const endpoint = provider
+      ? `/api/public/avatar-cache/${encodeURIComponent(name)}?provider=${encodeURIComponent(provider)}`
+      : `/api/public/avatar-cache/${encodeURIComponent(name)}`;
+    
+    return this.delete<AvatarCacheClearResponse>(
+      endpoint,
+      undefined,
+      () => Promise.resolve({ success: true, message: 'Cache cleared' })
+    );
+  }
+
+  /**
+   * Clear all avatar cache
+   */
+  async clearAllAvatarCache(): Promise<AvatarCacheClearResponse> {
+    return this.delete<AvatarCacheClearResponse>(
+      '/api/public/avatar-cache',
+      undefined,
+      () => Promise.resolve({ success: true, deleted_count: MOCK_AVATAR_CACHE_STATS.total_files })
+    );
   }
 }
 

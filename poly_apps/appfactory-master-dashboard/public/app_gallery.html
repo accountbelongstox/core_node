@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Gallery - Encrypted Assets Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            padding: 60px;
+        }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .app-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .app-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .app-splash {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .app-splash img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-splash .placeholder {
+            color: white;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .app-content {
+            padding: 20px;
+        }
+
+        .app-header {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .app-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 12px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .app-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-icon .placeholder {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .app-info {
+            flex: 1;
+        }
+
+        .app-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .app-developer {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .app-rating {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .stars {
+            color: #ffa500;
+        }
+
+        .rating-value {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .downloads {
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .app-description {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .app-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .app-features {
+            margin-bottom: 16px;
+        }
+
+        .features-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .feature-tag {
+            display: inline-block;
+            background: #e7f3ff;
+            color: #2196F3;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 0 6px 6px 0;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        .info-panel h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .info-panel p {
+            color: #555;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .tech-details {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .tech-details h3 {
+            color: white;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .tech-item {
+            color: white;
+            opacity: 0.9;
+            font-size: 14px;
+            line-height: 1.8;
+            display: flex;
+            gap: 8px;
+        }
+
+        .tech-label {
+            font-weight: 600;
+            min-width: 140px;
+        }
+
+        @media (max-width: 768px) {
+            .app-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 App Gallery</h1>
+            <p>Encrypted Assets Demo - Build Factory System</p>
+        </div>
+
+        <div class="info-panel">
+            <h3>📦 Hardcoded Encrypted Assets</h3>
+            <p>
+                This demo showcases 5 mock applications, each with encrypted icon and splash screen images.
+                All assets are hardcoded (not dynamically scanned) and automatically decrypted using the XOR algorithm.
+                <br><br>
+                <strong>Assets:</strong> app_icon1-5.en.png, app_splash1-5.en.png (10 files total)
+            </p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>🔓 Loading and decrypting assets...</p>
+        </div>
+
+        <div id="appGrid" class="app-grid" style="display: none;"></div>
+
+        <div class="tech-details">
+            <h3>🔧 Technical Implementation</h3>
+            <div class="tech-item">
+                <span class="tech-label">Backend Encryption:</span>
+                <span>/scripts/_daemon_tools/image_encryptor.cjs</span>
+            </div>
+            <div class="tech-item">
+                <span class="tech-label">Frontend Decryption:</span>
+                <span>/public/js/image_decryptor.js</span>
+            </div>
+            <div class="tech-item">
+                <span class="tech-label">Assets Manager:</span>
+                <span>/public/js/encrypted_app_assets.js</span>
+            </div>
+            <div class="tech-item">
+                <span class="tech-label">Mock Data:</span>
+                <span>/public/js/mock_app_data.js</span>
+            </div>
+            <div class="tech-item">
+                <span class="tech-label">Algorithm:</span>
+                <span>XOR (symmetric encryption)</span>
+            </div>
+            <div class="tech-item">
+                <span class="tech-label">Password:</span>
+                <span>BuildFactoryEncryptionKey2025</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/image_decryptor.js"></script>
+    <script src="/js/encrypted_app_assets.js"></script>
+    <script src="/js/mock_app_data.js"></script>
+    <script>
+        async function renderApps() {
+            const assetsManager = new EncryptedAppAssetsManager();
+            const appGrid = document.getElementById('appGrid');
+            const loading = document.getElementById('loading');
+
+            try {
+                const appsWithAssets = await loadAllAppAssets(assetsManager);
+
+                loading.style.display = 'none';
+                appGrid.style.display = 'grid';
+
+                appsWithAssets.forEach(({ app, icon, splash }) => {
+                    const card = document.createElement('div');
+                    card.className = 'app-card';
+
+                    const stars = '⭐'.repeat(Math.floor(app.rating));
+
+                    card.innerHTML = `
+                        <div class="app-splash">
+                            <img src="${splash}" alt="${app.name} splash">
+                        </div>
+                        <div class="app-content">
+                            <div class="app-header">
+                                <div class="app-icon">
+                                    <img src="${icon}" alt="${app.name} icon">
+                                </div>
+                                <div class="app-info">
+                                    <div class="app-name">${app.name}</div>
+                                    <div class="app-developer">${app.developer}</div>
+                                    <div class="app-rating">
+                                        <span class="stars">${stars}</span>
+                                        <span class="rating-value">${app.rating}</span>
+                                        <span class="downloads">${app.downloads}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="app-description">${app.description}</div>
+                            <div class="app-meta">
+                                <span class="meta-item">📁 ${app.size}</span>
+                                <span class="meta-item">📱 ${app.category}</span>
+                                <span class="meta-item">🔄 v${app.version}</span>
+                            </div>
+                            <div class="app-features">
+                                <div class="features-title">✨ Key Features</div>
+                                ${app.features.slice(0, 3).map(f => `<span class="feature-tag">${f}</span>`).join('')}
+                            </div>
+                            <div class="app-actions">
+                                <button class="btn btn-primary" onclick="alert('Install ${app.name}')">Install</button>
+                                <button class="btn btn-secondary" onclick="alert('More info about ${app.name}')">Details</button>
+                            </div>
+                        </div>
+                    `;
+
+                    appGrid.appendChild(card);
+                });
+
+                console.log('✅ All apps loaded successfully');
+                console.log('Apps:', appsWithAssets);
+
+            } catch (error) {
+                console.error('❌ Error loading apps:', error);
+                loading.innerHTML = '<p style="color: #ff6b6b;">❌ Failed to load encrypted assets. Check console for details.</p>';
+            }
+        }
+
+        renderApps();
+    </script>
+</body>
+</html>

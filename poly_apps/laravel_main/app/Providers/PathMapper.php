@@ -34,7 +34,7 @@ class PathMapper
      * @param string|null $subPath Optional sub-path to append
      * @return string The mapped path based on environment
      */
-    public static function mapWebPath(string $pathKey, ?string $subPath = null): string
+    public static function mapWebPath(string $pathKey, ?string $subPath = ""): string
     {
         // Detect environment
         $isWsl = self::isWSL();
@@ -262,80 +262,115 @@ class PathMapper
     /**
      * Get www root directory
      */
-    public static function getWwwRoot(): string
+    public static function getWwwRoot(?string $subPath = ""): string
     {
-        return self::mapWebPath('wwwroot');
+        return self::mapWebPath('wwwroot', $subPath);
     }
 
     /**
      * Get Laravel public path
      */
-    public static function getLaravelPublicPath(): string
+    public static function getLaravelPublicPath(?string $subPath = ""): string
     {
-        return self::mapWebPath('laravel_data_dir');
+        return self::mapWebPath('laravel_data_dir', $subPath);
     }
 
     /**
      * Get Laravel database directory
      */
-    public static function getLaravelDatabaseDir(): string
+    public static function getLaravelDatabaseDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('laravel_data_dir');
+        return self::mapWebPath('laravel_data_dir', $subPath);
     }
 
     /**
      * Get Laravel data directory (alias for getLaravelDatabaseDir)
      */
-    public static function getLaravelDataDir(): string
+    public static function getLaravelDataDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir();
+        return self::getLaravelDatabaseDir($subPath);
     }
 
     /**
      * Get Laravel sessions directory (within laravel_db)
      */
-    public static function getLaravelSessionsDir(): string
+    public static function getLaravelSessionsDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/sessions';
+        $basePath = self::getLaravelDatabaseDir() . '/sessions';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get Laravel tmp directory (within laravel_db)
      */
-    public static function getLaravelTmpDir(): string
+    public static function getLaravelTmpDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/tmp';
+        $basePath = self::getLaravelDatabaseDir() . '/tmp';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
-    public static function getLaravelAvatarsDir(): string
+    public static function getLaravelAvatarsDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/avatars';
+        $basePath = self::getLaravelDatabaseDir() . '/avatars';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
-    public static function getLaravelUploadsDir(): string
+    public static function getLaravelUploadsDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/uploads';
+        $basePath = self::getLaravelDatabaseDir() . '/uploads';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
-    public static function getLaravelStaticDir(): string
+    public static function getLaravelStaticDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/static';
+        $basePath = self::getLaravelDatabaseDir() . '/static';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
-    public static function getLaravelCacheDir(): string
+    public static function getLaravelCacheDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/cache';
+        $basePath = self::getLaravelDatabaseDir() . '/cache';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
-    public static function getLaravelLogsDir(): string
+    public static function getLaravelLogsDir(?string $subPath = ""): string
     {
-        return self::getLaravelDatabaseDir() . '/logs';
+        $basePath = self::getLaravelDatabaseDir() . '/logs';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get default database path
      */
-    public static function getDefaultDatabasePath(string $databaseName = 'database.sqlite'): string
+    public static function getDefaultDatabasePath(string $databaseName = 'database.sqlite', ?string $subPath = ""): string
     {
         $defaultDatabasePath = env('DB_DATABASE');
         $laravelDatabaseDir = self::getLaravelDatabaseDir();
@@ -348,7 +383,14 @@ class PathMapper
             mkdir($defaultDatabasePath, 0755, true);
         }
 
-        return $defaultDatabasePath . '/' . $databaseName;
+        $fullPath = $defaultDatabasePath . '/' . $databaseName;
+
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $fullPath = rtrim($fullPath, '/') . '/' . $subPath;
+        }
+
+        return $fullPath;
     }
 
     // ==========================================
@@ -358,49 +400,64 @@ class PathMapper
     /**
      * Get nginx config directory
      */
-    public static function getNginxConfig(): string
+    public static function getNginxConfig(?string $subPath = ""): string
     {
-        return self::mapWebPath('nginxconfig');
+        return self::mapWebPath('nginxconfig', $subPath);
     }
 
     /**
      * Get SSL certificate directory
      */
-    public static function getSSLDir(): string
+    public static function getSSLDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('nginxconfig', 'ssl');
+        $basePath = self::mapWebPath('nginxconfig', 'ssl');
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get sites-available directory
      */
-    public static function getSitesAvailable(): string
+    public static function getSitesAvailable(?string $subPath = ""): string
     {
-        return self::mapWebPath('nginxconfig', 'sites-available');
+        $basePath = self::mapWebPath('nginxconfig', 'sites-available');
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get sites-enabled directory
      */
-    public static function getSitesEnabled(): string
+    public static function getSitesEnabled(?string $subPath = ""): string
     {
-        return self::mapWebPath('nginxconfig', 'sites-enabled');
+        $basePath = self::mapWebPath('nginxconfig', 'sites-enabled');
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get shared data directory
      */
-    public static function getSharedData(): string
+    public static function getSharedData(?string $subPath = ""): string
     {
-        return self::mapWebPath('shared-data');
+        return self::mapWebPath('shared-data', $subPath);
     }
 
     /**
      * Get backup directory
      */
-    public static function getBackupDir(): string
+    public static function getBackupDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('backup');
+        return self::mapWebPath('backup', $subPath);
     }
 
     // ==========================================
@@ -424,14 +481,14 @@ class PathMapper
     /**
      * Get external storage path for a specific type
      */
-    public static function getExternalStoragePath(string $type): string
+    public static function getExternalStoragePath(string $type, ?string $subPath = ""): string
     {
         $os = self::getOS();
         $config = config("storage.external.{$type}");
-        
+
         if (!$config || !isset($config[$os])) {
             // Fallback to mapped paths
-            return match($type) {
+            $basePath = match($type) {
                 'upload' => self::mapWebPath('wwwroot', 'laravel_main/uploads'),
                 'static' => self::mapWebPath('wwwroot', 'laravel_main/static'),
                 'backup' => self::mapWebPath('backup'),
@@ -441,72 +498,77 @@ class PathMapper
                 'temp' => sys_get_temp_dir(),
                 default => throw new \InvalidArgumentException("External storage path not configured for type '{$type}' on OS '{$os}'")
             };
+        } else {
+            $basePath = $config[$os];
+
+            // Auto-create directory if enabled
+            if (config('storage.auto_create', true)) {
+                self::ensureDirectoryExists($basePath);
+            }
         }
-        
-        $path = $config[$os];
-        
-        // Auto-create directory if enabled
-        if (config('storage.auto_create', true)) {
-            self::ensureDirectoryExists($path);
+
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
         }
-        
-        return $path;
+
+        return $basePath;
     }
 
     /**
      * Get upload directory path
      */
-    public static function getUploadPath(): string
+    public static function getUploadPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('upload');
+        return self::getExternalStoragePath('upload', $subPath);
     }
 
     /**
      * Get static files directory path
      */
-    public static function getStaticPath(): string
+    public static function getStaticPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('static');
+        return self::getExternalStoragePath('static', $subPath);
     }
 
     /**
      * Get backup directory path (external storage)
      */
-    public static function getExternalBackupPath(): string
+    public static function getExternalBackupPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('backup');
+        return self::getExternalStoragePath('backup', $subPath);
     }
 
     /**
      * Get cache directory path
      */
-    public static function getCachePath(): string
+    public static function getCachePath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('cache');
+        return self::getExternalStoragePath('cache', $subPath);
     }
 
     /**
      * Get updates directory path
      */
-    public static function getUpdatesPath(): string
+    public static function getUpdatesPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('updates');
+        return self::getExternalStoragePath('updates', $subPath);
     }
 
     /**
      * Get logs directory path (external storage)
      */
-    public static function getExternalLogsPath(): string
+    public static function getExternalLogsPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('logs');
+        return self::getExternalStoragePath('logs', $subPath);
     }
 
     /**
      * Get temp directory path
      */
-    public static function getTempPath(): string
+    public static function getTempPath(?string $subPath = ""): string
     {
-        return self::getExternalStoragePath('temp');
+        return self::getExternalStoragePath('temp', $subPath);
     }
 
     /**
@@ -782,81 +844,96 @@ class PathMapper
     /**
      * Get scripts directory
      */
-    public static function getScriptsDir(): string
+    public static function getScriptsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('scripts_dir');
+        return self::mapWebPath('scripts_dir', $subPath);
     }
 
     /**
      * Get shells directory
      */
-    public static function getShellsDir(): string
+    public static function getShellsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('shells_dir');
+        return self::mapWebPath('shells_dir', $subPath);
     }
 
     /**
      * Get Linux shells directory
      */
-    public static function getLinuxShellsDir(): string
+    public static function getLinuxShellsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('linux_shells_dir');
+        return self::mapWebPath('linux_shells_dir', $subPath);
     }
 
     /**
      * Get Debian shells directory
      */
-    public static function getDebianShellsDir(): string
+    public static function getDebianShellsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('debian_shells_dir');
+        return self::mapWebPath('debian_shells_dir', $subPath);
     }
 
     /**
      * Get install shells directory
      */
-    public static function getInstallShellsDir(): string
+    public static function getInstallShellsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('install_shells_dir');
+        return self::mapWebPath('install_shells_dir', $subPath);
     }
 
     /**
      * Get common shells directory
      */
-    public static function getCommonShellsDir(): string
+    public static function getCommonShellsDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('common_shells_dir');
+        return self::mapWebPath('common_shells_dir', $subPath);
     }
 
     /**
      * Get dd helper directory
      */
-    public static function getDdHelperDir(): string
+    public static function getDdHelperDir(?string $subPath = ""): string
     {
-        return self::mapWebPath('dd_helper_dir');
+        return self::mapWebPath('dd_helper_dir', $subPath);
     }
 
     /**
      * Get node installation script path
      */
-    public static function getNodeInstallScript(): string
+    public static function getNodeInstallScript(?string $subPath = ""): string
     {
-        return self::getInstallShellsDir() . '/14_install_node_22.sh';
+        $basePath = self::getInstallShellsDir() . '/14_install_node_22.sh';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get Go installation script path
      */
-    public static function getGoInstallScript(): string
+    public static function getGoInstallScript(?string $subPath = ""): string
     {
-        return self::getInstallShellsDir() . '/53_install_golang22.sh';
+        $basePath = self::getInstallShellsDir() . '/53_install_golang22.sh';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     /**
      * Get Flutter installation script path
      */
-    public static function getFlutterInstallScript(): string
+    public static function getFlutterInstallScript(?string $subPath = ""): string
     {
-        return self::getInstallShellsDir() . '/38_install_flutter.sh';
+        $basePath = self::getInstallShellsDir() . '/38_install_flutter.sh';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
     }
 
     // ==========================================

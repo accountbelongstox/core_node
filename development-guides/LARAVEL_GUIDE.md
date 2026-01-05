@@ -23,6 +23,8 @@ This guide provides core development rules for the `laravel_main` project.
 - **Development Standards**: All code uses **English**. Prohibited from running test commands during development, writing and creating unspecified documentation.
 - **Localization System**: All UI text must use localization keys (e.g., `QyAppLocalizationKeys.xxx.tr(context)`), no hardcoded strings. Language switching is handled centrally in main entry (`main_common.dart`), using `Localizations.localeOf(context)` to establish dependencies. All pages automatically rebuild when language changes, no manual listeners needed.
 - **Multi-endpoint Discovery**: API clients must probe configured base URLs directly (root path), treating any 2xx–4xx HTTP status as reachable for health checks. Endpoint discovery stops immediately after finding the first available endpoint and only retries on app restart, with a notification displayed after 10 seconds if no endpoint is available.
+- **Server Port**: Laravel server runs on **port 9000** by default. All API endpoints should be accessed via `http://localhost:9000` or the configured server address with port 9000.
+- **System Service Management**: Low-privilege users can restart any systemd service (including root services) via GET API: `/api/servermanager/v1/system/service/restart?service_name={name}` or restart by keyword: `/api/servermanager/v1/system/service/restart-by-keyword?keyword={keyword}` or by app name: `/api/servermanager/v1/system/service/restart-by-appname?app_name={poly_apps_name}`. All endpoints return detailed service status including existence, running state, and restart confirmation.
 
 ## 2.1. Code Organization and Standards
 

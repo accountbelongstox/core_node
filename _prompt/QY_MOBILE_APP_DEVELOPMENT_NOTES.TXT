@@ -1,0 +1,18 @@
+# QY Mobile App Development Notes
+
+Continue fixing opened error files, check opened areas. Found you did not set centralized model. In code there are still hardcoded arrays, and code still has zh. Please use multi-language system. Also note theme centralization. Use holographic white, frosted glass, blur background, dynamic gradient effects. Also use bento box layout. Also call common area components to extend. Also theme centralization. Theme defined in one directory. Data centralization (do not define data in multiple places). Settings, state centralization. Use standardized multi-language effects and define multi-language KEY. Use global storage effects. When code does not comply with above specifications, you must fix. Reference file structure: poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt
+
+Comprehensive upgrade, ensure styles, positions, fonts, sizes, display effects are completely the same. Extend for sub-apps, but note some places inherit lib/common.
+
+Code still has multiple language, route hardcoding, and code still has zh. Please use multi-language system, centralized route system. Also note theme centralization. Also call common area components to extend. Also theme centralization. Theme defined in one directory. Data centralization (do not define data in multiple places). Settings, state centralization. Use standardized multi-language effects and define multi-language KEY. Use global storage effects. When code does not comply with above specifications, you must fix. Reference file structure: poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt
+
+Continue comprehensive 1:1 refinement extension according to react-version proportions and display effects. Next step.
+
+poly_apps\flutter_bloom\lib - scan entire architecture. Now fix global status and provider linkage. Solve current issue where setting language/dark/light mode does not immediately refresh UI. http://127.0.0.1:10005/#/qy/home
+
+Update this specification to development-guides\LARAVEL_GUIDE.md. Can only use 2 lines or less to explain. If there are conflicts, change conflicting parts.
+
+Just encoded, please also set KEY:VAL, and solve all. http://192.168.50.2:9000/api_info - access to get backend API information. Now adjust API endpoints, use multiple baseURL combined endpoints. https://api.si.12gm.com/ https://api.si.15gm.com/ and 192.168.50.2:9000 domain has no port. On startup quickly scan available URLs as baseURL. Multi-endpoint detection extension in common area, but configuration hardcoded in app configuration area. Reference development-guides\LARAVEL_GUIDE.md. Now may need to simultaneously check lib/common area availability and sub-app configuration extensibility. Note: common area cannot reference sub-app content. Reference file structure: poly_apps\flutter_bloom\lib\apps\app_qy\app_qy_tree_code_assets.txt
+
+Please do not repeatedly define multiple language endpoints.
+

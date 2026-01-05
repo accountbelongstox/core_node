@@ -10,8 +10,6 @@
 
 **CMG** - Capital Management Group Co., Ltd.
 
-**Chinese Name**: 资本管理集团有限公司
-
 **Company Overview**:
 - **Established**: 2025
 - **Headquarters**: Vientiane, Laos
@@ -147,5 +145,78 @@ We established the Nine Life Bodyguard Academy in 2006, which is a training inst
 
 **Li Xu** (China's First Bodyguard)
 
-Mr. Li Xu entered the bodyguard industry in 1990, engaged in protection and bodyguard teaching work for 30 years.
+Mr. Li Xu entered the bodyguard industry in 1990, engaged in protection and bodyguard teaching work for 30 years, with rich practical experience, having traveled to more than 70 countries for exchange and learning of protection tactics. Established Nine Life Bodyguard Academy in 2005. The first Chinese person to participate in world-class bodyguard championship competitions. Multiple times served as team instructor for international bodyguard competitions and European bodyguard competitions. The first person in China to write books promoting international bodyguard concepts and techniques. The first bodyguard in China to hold internationally certified protection expert qualifications. Served as IBF International Bodyguard Federation China Regional General Manager, IBSA International Bodyguard Shooting Association China Regional General Manager, IBF International Bodyguard Federation China Regional Competition Representative, etc. Author of books: "China's First Bodyguard", "Be Your Own Bodyguard", "Security Defense War", "My Safety, My Decision".
 
+**Personal Vision**: How to provide professional protection services, combine advanced foreign concepts and technologies with domestic work characteristics, research a complete set of work methods suitable for domestic practitioners in this industry, committed to promoting international advanced protection tactics and concepts in China, helping practitioners gradually clarify professional thinking and move toward standardization, keeping pace with the times and integrating with international peers, and striving to promote the concept that the best bodyguard is ordinary people's personal safety and family safety, helping ordinary people improve personal protection skills.
+
+**Market Positioning**: Southeast Asia High-end Security Service Leader
+
+**Core Competitiveness**: Nine Life Bodyguard Academy System (Global Top 1% Elite Certification) + China-Laos Border Rapid Response Network
+
+**Service Sectors**:
+- VIP Protection: National-level summits, diplomatic personnel and family members full escort
+- Commercial Security: Chinese enterprise executives, cross-border investment team risk control
+- Tactical Training: Provide internationally standardized tactical courses for Laos military and police (IBF/IBSA certification)
+
+**Market Positioning**:
+- Security Services (per capita revenue 200,000 yuan/year)
+- Armed Escort (single project profit starting from 300,000 yuan)
+- Government Cooperation Training (annual training 2000 people)
+
+## THE VISET RARE EARTH FULL INDUSTRIAL CHAIN PROJECT IN LAOS
+(RESOURCE DEVELOPMENT AND PROCESSING)
+
+**Positioning**: Strategic Development of Scarce Resources in Southeast Asia
+
+**Core Assets**: Mining Rights
+- 50 square kilometers rare earth exploration rights in Huaphan Province
+- Government support letter and mining license complete
+
+**Processing Capacity**:
+- Annual processing of 5000 tons of monazite concentrate
+- Output: 6300 tons of solid rare earth chloride and 11000 m³ liquid rare earth chloride
+- Rare earth oxides (La₂O₃, Nd₂O₃, etc.) annual production of 3000 tons, purity meets international standards
+
+**Technical Advantages**: China-Laos dual-base linkage (Laos factory), fully enclosed extraction and separation technology, environmental standards met
+
+**Policy Support**: Approved by Laos Ministry of Planning and Investment and Ministry of Energy and Mines, listed as a national strategic resource project
+
+**Address**: Lao Viset Rare Mining Processed Factory (LAO VISET RARE MINING PROCESSED FACTORY)
+- Located in Kongsa-an Village, Xaysettha District, Vientiane City, outside the mineral concession area
+- Factory area: 7.2 hectares
+
+## Development Requirements
+
+Add the above pages to the project. Note: Do not delete original pages, but add new pages, and replace APP information above.
+
+On the current page basis, retain current style in shooting range section, while modifying hotel to a new style, golf to a new style. Add a new page for "China-Laos International Security Group (VIP Protection/Armed Escort/Tactical Training)" and "Laos Viset Rare Earth Company (Mining/Processing/Separation)". Use different styles. Note: Do not delete previous pages, but write multiple styles, and modify homepage style to cultural tourism.
+
+Expand more information and elements, add hotel booking, shooting projects, golf projects, VIP introduction. VIP page should be designed more complex. Add more elements. Extend on current basis.
+
+On current page, add registration, login, become VIP elements, also add Apple APP download, Android APP download. Highly beautify navigation bar. Use assets/logo.png as icon. Note: Do not delete current pages, you can only extend. Do not delete logo file.
+
+Add multi-language support, can switch multiple languages, add dark/light mode.
+
+Continue completing: On current page, add registration, login, become VIP elements, also add Apple APP download, Android APP download pages. Highly beautify navigation bar. Use assets/logo.png as icon. Note: Do not delete current pages, you can only extend. Do not delete logo file. Add multi-language support, can switch multiple languages, add dark/light mode.
+
+Homepage add booking elements for the above items. Also registration and login pages display download APP. Homepage carousel also displays download APP carousel. Do not delete current pages.
+
+Add hotel booking, shooting projects, golf projects, VIP introduction. VIP page should be designed more complex. Add more elements. Extend on current basis.
+
+Homepage add: hotel booking, shooting projects, golf projects, VIP introduction. VIP page should be designed more complex. Add more elements. Extend on current basis. On existing basis extend, also add map showing shooting range location. Note: Do not delete current pages, extend on current basis.
+
+Resort changed to introduction plus price plus booking. Also add a customer service icon in top navigation of entire APP, and add corresponding page. Note: Do not delete current pages, extend on current basis.
+
+"More" section changed to display other businesses that don't fit: including National Defense, Cultural Tourism, Security, Mining, Real Estate. Change current bottom icon "National Defense Cultural Tourism" to Golf, and set up separate page with project introduction, booking services, and introduction. VIP privileges, etc. Note: Do not delete current pages, extend on current basis.
+
+Change current bottom icon "National Defense Cultural Tourism" to Golf, and set up separate page. Note: Do not delete current pages, extend on current basis.
+
+Set up separate registration and login pages. Can register using multiple country phone numbers, email. Support third-party login: Google/Facebook/etc. Note: Do not delete current pages, extend on current basis. Also have VIP referral area.
+
+In "More" section, add settings center. Can set some information without login, dark/light mode, etc. Add "My" page, displayed after login, not displayed when not logged in. Enter from top menu icon click. Note: Do not delete current pages, extend on current basis.
+
+When clicking top LOGO CMG, top menu automatically drops down and displays a large LOGO image and introduction: Board of Directors, Direct Management Departments, Wholly-owned Subsidiaries, Strategic Cooperation Sectors, Strategic Decision Committee, Finance and Risk Control Center, International Shooting Range (Military/Commercial Range + Theme Entertainment Complex), Laos Ministry of Defense, Strategic Investment Department, Operations Management Center, China-Laos International Security Group (VIP Protection/Armed Escort/Tactical Training), Laos Viset Rare Earth Company (Mining/Processing/Separation), International Capital and Industrial Technology Partners, Enterprise Introduction. Also have booking entrance, customer service entrance, use bento box layout. Click other locations to collapse top menu, also have a collapse button. Also display a search box. Search box at the top. Note: Do not delete current pages, extend on current basis.
+
+For homepage's all-black background, use gradient dynamic blur background. Do not modify other styles. Also beautify bottom menu, entire menu floats but stays at bottom, with black purple gradient effects. Homepage changed to "Reservation". Note: Do not delete current pages, extend on current basis. Note: Do not change other places.
+
+For homepage background, all 80% black, 10% other colors dynamic gradient effect. Note: Do not change other styles.

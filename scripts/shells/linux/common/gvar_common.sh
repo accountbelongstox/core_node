@@ -999,6 +999,9 @@ map_web_path() {
         "backup")
             mapped_path="$base_path/backup"
             ;;
+        "cache")
+            mapped_path="$base_path/cache"
+            ;;
         "www")
             mapped_path="$base_path"
             ;;
@@ -1090,7 +1093,7 @@ map_web_path() {
     # - Only auto-create the main path_key directories when explicitly needed
     # - Scripts should use ensure_web_directory() for intentional directory creation
     case "$path_key" in
-        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"compile_dir")
+        "wwwroot"|"nginxconfig"|"shared-data"|"backup"|"cache"|"compile_dir")
             # Only auto-create if no sub_path is provided (these are the target installation paths)
             if [ -z "$sub_path" ] && [ ! -d "$mapped_path" ]; then
                 echo "Creating directory: $mapped_path" >&2
@@ -1422,15 +1425,15 @@ set_env_and_var() {
     set_var "$key" "$val"
 
     # Ensure /etc/environment contains the variable
-    if grep -q "^${key}=" /etc/environment; then
-        $USE_SUDO sed -i "s|^${key}=.*|${key}=\"${val}\"|g" /etc/environment
+    if grep -q "^${key}=" /etc/environment 2>/dev/null; then
+        $USE_SUDO sed -i "s|^${key}=.*|${key}=\"${val}\"|g" /etc/environment 2>/dev/null || true
     else
-        echo "${key}=\"${val}\"" | $USE_SUDO tee -a /etc/environment >/dev/null
+        echo "${key}=\"${val}\"" | $USE_SUDO tee -a /etc/environment >/dev/null 2>&1 || true
     fi
     if [ "$USE_SUDO" = "sudo" ]; then
-        sudo bash -c "source /etc/environment"
+        sudo bash -c "source /etc/environment" 2>/dev/null || true
     else
-        source /etc/environment
+        source /etc/environment 2>/dev/null || true
     fi
 }
 

@@ -144,8 +144,11 @@
 # Manages systemd services with ncore-* naming convention
 
 # Source gvar_common.sh for path mapping functions (trust-based coding)
+# Only source if not already sourced (check for map_web_path function)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/gvar_common.sh"
+if ! type map_web_path >/dev/null 2>&1; then
+    source "$SCRIPT_DIR/gvar_common.sh"
+fi
 
 # Variables declaration
 PROJECT_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"

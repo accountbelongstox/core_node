@@ -56,8 +56,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
 
 # Cache configuration - use mapped cache directory
-CACHE_DIR=$(map_web_path "cache" "system")
-mkdir -p "$CACHE_DIR" 2>/dev/null
+CACHE_BASE=$(map_web_path "cache")
+CACHE_DIR="$CACHE_BASE/system"
 CACHE_FILE="$CACHE_DIR/.real_user_cache"
 
 CACHE_TTL=300  # 5 minutes
@@ -82,7 +82,7 @@ is_cache_valid() {
 # Read from cache
 read_cache() {
     if is_cache_valid; then
-        cat "$CACHE_FILE" 2>/dev/null
+        sudo cat "$CACHE_FILE" 2>/dev/null
         return 0
     fi
     return 1
@@ -97,7 +97,8 @@ write_cache() {
         return 1
     fi
 
-    echo "$username|$user_home" > "$CACHE_FILE" 2>/dev/null || true
+    sudo mkdir -p "$CACHE_DIR" 2>/dev/null || true
+    echo "$username|$user_home" | sudo tee "$CACHE_FILE" >/dev/null 2>&1 || true
 }
 
 # Detect if running in desktop environment

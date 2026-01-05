@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserRole } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { Zap, Mail, Lock, ShieldCheck, Headphones, Code, Globe, CheckCircle2 } from 'lucide-react';
@@ -15,6 +15,37 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Super debug authentication bypass via URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugUser = urlParams.get('user');
+    const debugPwd = urlParams.get('pwd') || urlParams.get('password');
+
+    if (debugUser && debugPwd) {
+      console.log('[DEBUG AUTH] Auto-login with URL parameters:', { user: debugUser });
+      setLoading(true);
+
+      authService.login({
+        email: debugUser,
+        password: debugPwd,
+        role: activeRole,
+      }).then(result => {
+        if (result.success && result.user && result.token) {
+          console.log('[DEBUG AUTH] Auto-login successful');
+          login(result.user, result.token);
+        } else {
+          console.error('[DEBUG AUTH] Auto-login failed:', result.message);
+          setError(result.message || 'Auto-login failed');
+          setLoading(false);
+        }
+      }).catch(err => {
+        console.error('[DEBUG AUTH] Auto-login error:', err);
+        setError(err.message || 'Auto-login error');
+        setLoading(false);
+      });
+    }
+  }, [activeRole, login]);
 
   // 根据选择的角色，自动填充示例账号
   const getExampleAccount = () => {
