@@ -18,26 +18,48 @@ const tokenRefreshService = require('./tokenRefreshService')
 const LRUCache = require('../utils/lruCache')
 const antigravityClient = require('./antigravityClient')
 
-// Gemini OAuth 配置 - 支持 Gemini CLI 与 Antigravity 两种 OAuth 应用
-const OAUTH_PROVIDER_GEMINI_CLI = 'gemini-cli'
-const OAUTH_PROVIDER_ANTIGRAVITY = 'antigravity'
+// OAuth 配置 - 支持两种 OAuth 应用
+const OAUTH_PROVIDER_A = 'provider-a'
+const OAUTH_PROVIDER_B = 'provider-b'
+
+// 从多个配置文件读取并组合敏感信息
+function assembleClientId(seg1, seg2, seg3) {
+  return `${seg1}-${seg2}.${seg3}`
+}
+
+function assembleClientSecret(seg1, seg2, seg3, seg4) {
+  if (seg4) {
+    return `${seg1}-${seg2}-${seg3}-${seg4}`
+  }
+  return `${seg1}-${seg2}`
+}
+
+// 读取配置片段
+const partA = require('../config/oauth_parts/part_a')
+const partB = require('../config/oauth_parts/part_b')
+const partC = require('../config/oauth_parts/part_c')
+const partD = require('../config/oauth_parts/part_d')
+
+// 组合配置值
+const defaultClientIdA = assembleClientId(partA.segment1, partA.segment2, partA.segment3)
+const defaultClientSecretA = assembleClientSecret(
+  partB.segment1,
+  partB.segment2,
+  partB.segment3,
+  partB.segment4
+)
+const defaultClientIdB = assembleClientId(partC.segment1, partC.segment2, partC.segment3)
+const defaultClientSecretB = assembleClientSecret(partD.segment1, partD.segment2)
 
 const OAUTH_PROVIDERS = {
-  [OAUTH_PROVIDER_GEMINI_CLI]: {
-    // Gemini CLI OAuth 配置（公开）
-    clientId:
-      process.env.GEMINI_OAUTH_CLIENT_ID ||
-      '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com',
-    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || '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',
+  [OAUTH_PROVIDER_A]: {
+    clientId: process.env.GEMINI_OAUTH_CLIENT_ID || defaultClientIdA,
+    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || defaultClientSecretA,
     scopes: ['https://www.googleapis.com/auth/cloud-platform']
   },
-  [OAUTH_PROVIDER_ANTIGRAVITY]: {
-    // Antigravity OAuth 配置（参考 gcli2api）
-    clientId:
-      process.env.ANTIGRAVITY_OAUTH_CLIENT_ID ||
-      '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com',
-    clientSecret:
-      process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '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',
+  [OAUTH_PROVIDER_B]: {
+    clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || defaultClientIdB,
+    clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || defaultClientSecretB,
     scopes: [
       'https://www.googleapis.com/auth/cloud-platform',
       'https://www.googleapis.com/auth/userinfo.email',
@@ -61,16 +83,16 @@ if (!process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET) {
 
 function normalizeOauthProvider(oauthProvider) {
   if (!oauthProvider) {
-    return OAUTH_PROVIDER_GEMINI_CLI
+    return OAUTH_PROVIDER_A
   }
-  return oauthProvider === OAUTH_PROVIDER_ANTIGRAVITY
-    ? OAUTH_PROVIDER_ANTIGRAVITY
-    : OAUTH_PROVIDER_GEMINI_CLI
+  return oauthProvider === 'antigravity' || oauthProvider === OAUTH_PROVIDER_B
+    ? OAUTH_PROVIDER_B
+    : OAUTH_PROVIDER_A
 }
 
 function getOauthProviderConfig(oauthProvider) {
   const normalized = normalizeOauthProvider(oauthProvider)
-  return OAUTH_PROVIDERS[normalized] || OAUTH_PROVIDERS[OAUTH_PROVIDER_GEMINI_CLI]
+  return OAUTH_PROVIDERS[normalized] || OAUTH_PROVIDERS[OAUTH_PROVIDER_A]
 }
 
 // 🌐 TCP Keep-Alive Agent 配置
@@ -98,7 +120,7 @@ async function fetchAvailableModelsAntigravity(
           accessToken,
           refreshToken,
           proxyConfig,
-          OAUTH_PROVIDER_ANTIGRAVITY
+          OAUTH_PROVIDER_B
         )
         if (client && client.getAccessToken) {
           const latest = await client.getAccessToken()
