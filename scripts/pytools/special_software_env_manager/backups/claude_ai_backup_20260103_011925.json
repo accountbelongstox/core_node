@@ -1,0 +1,10 @@
+{
+  "config_name": "Claude AI",
+  "timestamp": "20260103_011925",
+  "platform": "windows",
+  "environment_variables": {
+    "ANTHROPIC_BASE_URL": "https://ai.toprouter.cn/api",
+    "ANTHROPIC_AUTH_TOKEN": "cr_6ea40f40f4924673cc8d22f9b77803f8fd4045aba6f4629e3f74af75bea1447a",
+    "ANTHROPIC_API_KEY": "cr_6ea40f40f4924673cc8d22f9b77803f8fd4045aba6f4629e3f74af75bea1447a"
+  }
+}

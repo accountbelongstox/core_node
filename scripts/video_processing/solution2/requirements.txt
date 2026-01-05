@@ -1,0 +1,32 @@
+# Solution 2: High Precision Combination Dependencies
+# FFmpeg → WhisperX → GPT-SoVITS → MoviePy
+
+# Speech Recognition (word-level timestamps)
+whisperx>=3.1.0
+
+# Video Processing
+moviepy>=1.0.3
+
+# PyTorch (choose based on your system)
+# CPU version:
+# torch>=2.0.0
+# torchaudio>=2.0.0
+
+# GPU version (CUDA):
+# torch>=2.0.0+cu118
+# torchaudio>=2.0.0+cu118
+
+# Base Dependencies
+numpy>=1.24.0
+pillow>=10.0.0
+
+# Notes:
+# 1. FFmpeg needs to be installed separately
+#    Windows: https://ffmpeg.org/download.html
+#    Linux: sudo apt-get install ffmpeg
+#    macOS: brew install ffmpeg
+#
+# 2. GPT-SoVITS needs to be installed and configured separately
+#    Reference: https://github.com/RVC-Boss/GPT-SoVITS
+#    If not configured, fallback solution will be used (extract sentence segments from original audio)
+
