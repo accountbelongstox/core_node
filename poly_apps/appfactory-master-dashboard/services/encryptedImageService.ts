@@ -1,21 +1,40 @@
 /**
- * Encrypted Image Service - Lightweight TypeScript Adapter
+ * Encrypted Image Service - React-Integrated TypeScript Service
  *
- * 这是一个轻量级适配器，直接使用 EncryptedAppAssetsManager
- * 不重复实现任何加密逻辑，只提供 TypeScript 类型和接口
+ * Architecture Design:
+ * - Uses React Context (PasswordContext) to get password from URL parameters
+ * - Automatically clears cache and re-decrypts when password changes
+ * - Provides TypeScript type-safe interfaces
+ * - Adapts to existing component API calls
  *
- * 架构：
- * encryptedImageService (TS适配器)
+ * Architecture Layers:
+ * React Components (using usePasswordChange hook)
  *   ↓
- * EncryptedAppAssetsManager (资源管理)
+ * PasswordContext (React Context API - monitors URL changes via useLocation)
  *   ↓
- * ImageDecryptor (XOR解密)
+ * encryptedImageService (singleton service)
+ *   ↓
+ * EncryptedAppAssetsManager (asset management)
+ *   ↓
+ * DynamicDecryptionManager (cache management)
+ *   ↓
+ * ImageDecryptor (XOR decryption)
+ *
+ * Password Refresh Flow:
+ * 1. URL changes → React Router's useLocation detects change
+ * 2. PasswordContext extracts password from URL hash (#/path?pp=xxx)
+ * 3. PasswordContext updates password state
+ * 4. encryptedImageService.setPassword() is called
+ * 5. EncryptedAppAssetsManager clears cache
+ * 6. Components using usePasswordChange hook detect password change
+ * 7. Components re-render and reload images with new password
  */
 
-// 全局类型声明
-declare const EncryptedAppAssetsManager: any;
+import { EncryptedAppAssetsManager } from './encryptedAppAssets';
+import type { EncryptedAsset } from './dynamicDecryptionManager';
+import { getPasswordFromWindowLocation } from '../utils/passwordUtils';
 
-// TypeScript 接口
+// TypeScript interfaces
 interface DecryptedImage {
   blobUrl: string;
   filename: string;
@@ -33,43 +52,55 @@ interface DecryptedImage {
  * - 所有实际功能由 EncryptedAppAssetsManager 实现
  */
 class EncryptedImageService {
-  private assetsManager: any = null;
+  private assetsManager: EncryptedAppAssetsManager;
+  private passwordChangeUnsubscribe: (() => void) | null = null;
 
   constructor() {
-    this.initializeManager();
-  }
-
-  /**
-   * 初始化 EncryptedAppAssetsManager
-   * 如果不存在，等待 DOM 加载完成后重试
-   */
-  private initializeManager() {
-    if (typeof window === 'undefined') return;
-
-    if (typeof EncryptedAppAssetsManager !== 'undefined') {
-      this.assetsManager = new EncryptedAppAssetsManager();
-    } else {
-      // 延迟初始化，等待脚本加载
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => this.initializeManager());
+    // Initialize manager (no longer depends on global window object)
+    // Uses TypeScript module imports, fully integrated into React architecture
+    this.assetsManager = new EncryptedAppAssetsManager();
+    
+    // Initialize password from URL (will be managed by React Context later)
+    // This ensures it works even before PasswordContext is initialized
+    // Uses common utility function to extract password from URL (supports both BrowserRouter and HashRouter)
+    if (typeof window !== 'undefined') {
+      const urlPassword = getPasswordFromWindowLocation();
+      
+      if (urlPassword) {
+        console.log(`[EncryptedImageService] Initializing with password from URL: "${urlPassword}"`);
+        this.assetsManager.setPassword(urlPassword);
       }
     }
+    
+    // Subscribe to password change callbacks (for logging)
+    // Actual cache clearing is handled automatically by DynamicDecryptionManager.setPassword
+    // React components monitor password changes via usePasswordChange hook and re-render
+    this.passwordChangeUnsubscribe = this.assetsManager.onPasswordChange((newPassword) => {
+      console.log(`[EncryptedImageService] Password changed to: "${newPassword}"`);
+    });
   }
 
   /**
-   * 标准化文件路径
-   * - 转换旧格式: .en.png → .en.js
-   * - 添加前导斜杠: app_icon1.en.js → /app_icon1.en.js
+   * Get internal manager instance (for internal methods)
+   */
+  private getManager(): EncryptedAppAssetsManager {
+    return this.assetsManager;
+  }
+
+  /**
+   * Normalize file path
+   * - Convert old format: .en.png → .en.js
+   * - Add leading slash: app_icon1.en.js → /app_icon1.en.js
    */
   private normalizePath(path: string): string {
     let normalized = path;
 
-    // 转换旧格式
+    // Convert old format
     if (normalized.endsWith('.en.png')) {
       normalized = normalized.replace('.en.png', '.en.js');
     }
 
-    // 添加前导斜杠
+    // Add leading slash
     if (!normalized.startsWith('/')) {
       normalized = `/${normalized}`;
     }
@@ -78,7 +109,7 @@ class EncryptedImageService {
   }
 
   /**
-   * 提取索引号（从 app1 → 1）
+   * Extract index number (from app1 → 1)
    */
   private extractIndex(appId: string): number | null {
     const match = appId.match(/app(\d+)/);
@@ -89,77 +120,83 @@ class EncryptedImageService {
   }
 
   /**
-   * 加载加密图片文件
+   * Load encrypted image file
    */
   async loadEncryptedImage(filename: string): Promise<DecryptedImage> {
-    if (!this.assetsManager) {
-      console.error('[EncryptedImageService] EncryptedAppAssetsManager not initialized');
-      return this.createErrorImage(filename);
-    }
+    const manager = this.getManager();
 
     try {
       const normalizedPath = this.normalizePath(filename);
-      const asset = await this.assetsManager.loadEncryptedFile(normalizedPath);
+      const asset = await manager.loadEncryptedFile(normalizedPath);
 
       return {
         blobUrl: asset.blobUrl,
-        filename: asset.originalName || normalizedPath,
+        filename: asset.originalName ? asset.originalName : normalizedPath,
         mimeType: 'image/png',
         decrypted: true
       };
     } catch (error) {
+      // catch block is necessary: must be kept
+      // Reason: Async file loading may fail (network error, file not found, decryption failure, etc.)
+      // Need to catch errors and return error image to avoid application crash
       console.error(`[EncryptedImageService] Failed to load ${filename}:`, error);
       return this.createErrorImage(filename);
     }
   }
 
   /**
-   * 按索引加载图标 (1-5)
+   * Load icon by index (1-5)
    */
   async loadIconByIndex(index: number): Promise<string | null> {
-    if (!this.assetsManager) return null;
     if (index < 1 || index > 5) return null;
 
+    const manager = this.getManager();
+
     try {
-      const asset = await this.assetsManager.loadIcon(index);
+      const asset = await manager.loadIcon(index);
       return asset.blobUrl;
     } catch (error) {
+      // Error handling is necessary: must be kept
+      // Reason: Async file loading may fail, need to catch errors and return null
       console.error(`[EncryptedImageService] Failed to load icon ${index}:`, error);
       return null;
     }
   }
 
   /**
-   * 按索引加载启动画面 (1-5)
+   * Load splash screen by index (1-5)
    */
   async loadSplashByIndex(index: number): Promise<string | null> {
-    if (!this.assetsManager) return null;
     if (index < 1 || index > 5) return null;
 
+    const manager = this.getManager();
+
     try {
-      const asset = await this.assetsManager.loadSplash(index);
+      const asset = await manager.loadSplash(index);
       return asset.blobUrl;
     } catch (error) {
+      // Error handling is necessary: must be kept
+      // Reason: Async file loading may fail, need to catch errors and return null
       console.error(`[EncryptedImageService] Failed to load splash ${index}:`, error);
       return null;
     }
   }
 
   /**
-   * 加载 App 图标
-   * 支持：
-   * - 直接路径: '/app_icon1.en.js'
-   * - 旧格式: 'app_icon1.en.png' (自动转换)
-   * - App ID推断: 'app1' → 加载 icon 1
+   * Load App icon
+   * Supports:
+   * - Direct path: '/app_icon1.en.js'
+   * - Old format: 'app_icon1.en.png' (auto-converted)
+   * - App ID inference: 'app1' → load icon 1
    */
   async loadAppIcon(appId: string, iconFilename?: string): Promise<string | null> {
-    // 如果提供了文件名，直接加载
+    // If filename is provided, load directly
     if (iconFilename) {
       const result = await this.loadEncryptedImage(iconFilename);
       return result.blobUrl;
     }
 
-    // 从 appId 推断索引
+    // Infer index from appId
     const index = this.extractIndex(appId);
     if (index) {
       return this.loadIconByIndex(index);
@@ -169,7 +206,7 @@ class EncryptedImageService {
   }
 
   /**
-   * 加载 App 启动画面
+   * Load App splash screen
    */
   async loadAppSplash(appId: string, splashFilename?: string): Promise<string | null> {
     if (splashFilename) {
@@ -186,34 +223,34 @@ class EncryptedImageService {
   }
 
   /**
-   * 加载所有图标 (1-5)
+   * Load all icons (1-5)
    */
   async loadAllIcons(): Promise<(string | null)[]> {
-    if (!this.assetsManager) {
-      return [null, null, null, null, null];
-    }
+    const manager = this.getManager();
 
     try {
-      const assets = await this.assetsManager.loadAllIcons();
-      return assets.map((asset: any) => asset.blobUrl);
+      const assets = await manager.loadAllIcons();
+      return assets.map((asset: EncryptedAsset) => asset.blobUrl);
     } catch (error) {
+      // Error handling is necessary: must be kept
+      // Reason: Batch loading may partially fail, need to catch errors and return empty array
       console.error('[EncryptedImageService] Failed to load all icons:', error);
       return [null, null, null, null, null];
     }
   }
 
   /**
-   * 加载所有启动画面 (1-5)
+   * Load all splash screens (1-5)
    */
   async loadAllSplashes(): Promise<(string | null)[]> {
-    if (!this.assetsManager) {
-      return [null, null, null, null, null];
-    }
+    const manager = this.getManager();
 
     try {
-      const assets = await this.assetsManager.loadAllSplashes();
-      return assets.map((asset: any) => asset.blobUrl);
+      const assets = await manager.loadAllSplashes();
+      return assets.map((asset: EncryptedAsset) => asset.blobUrl);
     } catch (error) {
+      // Error handling is necessary: must be kept
+      // Reason: Batch loading may partially fail, need to catch errors and return empty array
       console.error('[EncryptedImageService] Failed to load all splashes:', error);
       return [null, null, null, null, null];
     }
@@ -242,7 +279,7 @@ class EncryptedImageService {
   }
 
   /**
-   * 检查是否为有效的加密资源
+   * Check if filename is a valid encrypted asset
    */
   isValidEncryptedAsset(filename: string): boolean {
     const normalized = this.normalizePath(filename);
@@ -252,32 +289,29 @@ class EncryptedImageService {
   }
 
   /**
-   * 清除缓存和撤销 Blob URLs
+   * Clear cache and revoke all Blob URLs
    */
   revokeAllUrls(): void {
-    if (this.assetsManager?.revokeAllUrls) {
-      this.assetsManager.revokeAllUrls();
-    }
+    this.assetsManager.revokeAllUrls();
   }
 
   /**
-   * 设置密码（更新底层管理器）
+   * Set password (updates underlying manager)
+   * Note: Usually called by PasswordContext, components should use usePasswordChange hook
    */
-  setDefaultPassword(password: string): void {
-    if (this.assetsManager?.setPassword) {
-      this.assetsManager.setPassword(password);
-    }
+  setPassword(password: string): void {
+    this.assetsManager.setPassword(password);
   }
 
   /**
-   * 设置基础路径（已弃用，保留接口兼容性）
+   * Set base path (deprecated, kept for interface compatibility)
    */
   setBasePath(_path: string): void {
     console.warn('[EncryptedImageService] setBasePath is deprecated - files are in /public/ root');
   }
 
   /**
-   * 创建错误占位图
+   * Create error placeholder image
    */
   private createErrorImage(filename: string): DecryptedImage {
     const errorBlob = new Blob([''], { type: 'text/plain' });
@@ -292,5 +326,5 @@ class EncryptedImageService {
   }
 }
 
-// 导出单例实例
+// Export singleton instance
 export const encryptedImageService = new EncryptedImageService();

@@ -1,8 +1,52 @@
 /**
  * Model Data Centralized Service
  * Unified management of all data models and state
+ * 
+ * Mock data (from constants.ts) should NEVER be cached
+ * Only user-generated data should be cached
  */
 import { storageService } from './storageService';
+import {
+  AppInstance,
+  CustomerService,
+  TechMember,
+  PromotionTrack,
+  PromotionRecord,
+  Promoter,
+  AppRelease,
+  DailyStat,
+  CSAppRevenue,
+  Notification,
+  Bug,
+  Build,
+  ChatSession,
+  ChatMessage,
+  ScriptTemplate,
+  PaymentVerificationRequest,
+  SystemStats,
+  RevenueSummary,
+  AppGenerationRequest,
+  CSDashboardData,
+} from '../types';
+import { 
+  MOCK_CS, 
+  MOCK_TECH, 
+  MOCK_APPS, 
+  MOCK_PROMOTERS, 
+  MOCK_PROMOTION_TRACKS, 
+  MOCK_APP_RELEASES, 
+  MOCK_PROMOTION_RECORDS, 
+  MOCK_APP_REQUESTS, 
+  MOCK_CS_APP_REVENUE, 
+  MOCK_DAILY_STATS, 
+  MOCK_NOTIFICATIONS, 
+  MOCK_BUGS, 
+  MOCK_BUILDS, 
+  MOCK_CHAT_SESSIONS, 
+  MOCK_CHAT_MESSAGES, 
+  MOCK_SCRIPT_TEMPLATES, 
+  MOCK_PAYMENT_VERIFICATION_REQUESTS 
+} from '../constants';
 
 // Model data keys
 export const MODEL_KEYS = {
@@ -28,612 +72,739 @@ export const MODEL_KEYS = {
 } as const;
 
 /**
+ * Mock data keys that should NEVER be cached
+ * These always return fresh data from constants.ts
+ */
+const MOCK_DATA_KEYS = new Set<string>([
+  MODEL_KEYS.APPS,
+  MODEL_KEYS.CS_TEAM,
+  MODEL_KEYS.TECH_TEAM,
+  MODEL_KEYS.PROMOTION_TRACKS,
+  MODEL_KEYS.APP_RELEASES,
+  MODEL_KEYS.PROMOTERS,
+  MODEL_KEYS.PROMOTION_RECORDS,
+  MODEL_KEYS.APP_REQUESTS,
+  MODEL_KEYS.CS_APP_REVENUE,
+  MODEL_KEYS.DAILY_STATS,
+  MODEL_KEYS.NOTIFICATIONS,
+  MODEL_KEYS.BUGS,
+  MODEL_KEYS.BUILDS,
+  MODEL_KEYS.CHAT_SESSIONS,
+  MODEL_KEYS.CHAT_MESSAGES,
+  MODEL_KEYS.SCRIPT_TEMPLATES,
+  MODEL_KEYS.PAYMENT_VERIFICATION_REQUESTS,
+]);
+
+/**
  * Model Data Centralized Service Class
  */
 class ModelService {
   /**
-   * Get model data
+   * Get model data from cache
+   * Returns defaultValue if not found
    */
-  getModel<T>(key: string, defaultValue?: T): T | null {
-    return storageService.get<T>(key, defaultValue);
+  private getCachedModel<T>(key: string, defaultValue: T): T {
+    return storageService.get<T>(key, defaultValue) ?? defaultValue;
+  }
+
+  /**
+   * Set model data to cache
+   */
+  private setCachedModel<T>(key: string, value: T): void {
+    storageService.set(key, value);
+  }
+
+  /**
+   * Remove model data from cache
+   */
+  private removeCachedModel(key: string): void {
+    storageService.remove(key);
+  }
+
+  /**
+   * Check if a key is mock data (should not be cached)
+   */
+  private isMockData(key: string): boolean {
+    return MOCK_DATA_KEYS.has(key);
+  }
+
+  /**
+   * Get model data
+   * Mock data always returns fresh data from constants.ts
+   * User-generated data returns cached data or defaultValue
+   */
+  getModel<T>(key: string, defaultValue: T): T {
+    // Mock data should never be cached - always return defaultValue (from constants)
+    if (this.isMockData(key)) {
+      return defaultValue;
+    }
+    // User-generated data can be cached
+    return this.getCachedModel(key, defaultValue);
   }
 
   /**
    * Set model data
+   * Mock data cannot be set (will be ignored)
+   * Only user-generated data can be cached
    */
   setModel<T>(key: string, value: T): void {
-    storageService.set(key, value);
+    // Mock data should never be cached - ignore set operations
+    if (this.isMockData(key)) {
+      console.warn(`[ModelService] Attempted to cache mock data for key: ${key}. This operation is ignored.`);
+      return;
+    }
+    // Only cache user-generated data
+    this.setCachedModel(key, value);
   }
 
   /**
    * Remove model data
    */
   removeModel(key: string): void {
-    storageService.remove(key);
+    this.removeCachedModel(key);
   }
 
   /**
-   * Clear all model data
+   * Clear all cached model data
+   * Note: Mock data is never cached, so this only clears user-generated data
    */
   clearAllModels(): void {
     Object.values(MODEL_KEYS).forEach((key) => {
-      this.removeModel(key);
+      // Only clear user-generated data (mock data is never cached)
+      if (!this.isMockData(key)) {
+        this.removeModel(key);
+      }
     });
   }
 
   /**
    * Get apps list
+   * Mock data - always returns fresh data from constants.ts
    */
-  getApps() {
-    return this.getModel(MODEL_KEYS.APPS, []);
+  getApps(): AppInstance[] {
+    return MOCK_APPS;
   }
 
   /**
    * Set apps list
+   * Mock data cannot be cached - this operation is ignored
+   * Use addApp() or updateApp() to add/modify user-generated apps
    */
-  setApps(apps: any[]) {
-    this.setModel(MODEL_KEYS.APPS, apps);
+  setApps(apps: AppInstance[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setApps() called - Mock data cannot be cached. Use addApp() or updateApp() instead.');
+  }
+
+  /**
+   * Add user-generated app
+   */
+  addApp(app: AppInstance): AppInstance {
+    // User-generated apps should be stored separately
+    // For now, this is a no-op since we only support mock apps
+    console.warn('[ModelService] addApp() called - User-generated apps not yet supported');
+    return app;
+  }
+
+  /**
+   * Update app
+   */
+  updateApp(id: string, updates: Partial<AppInstance>): AppInstance | null {
+    // User-generated apps should be stored separately
+    // For now, this is a no-op since we only support mock apps
+    console.warn('[ModelService] updateApp() called - User-generated apps not yet supported');
+    return null;
   }
 
   /**
    * Get customer service team data
+   * Mock data - always returns fresh data from constants.ts
    */
-  getCSTeam() {
-    return this.getModel(MODEL_KEYS.CS_TEAM, []);
+  getCSTeam(): CustomerService[] {
+    return MOCK_CS;
+  }
+
+  /**
+   * Get CS by ID with fallback logic
+   * Returns first CS if not found (for dashboard compatibility)
+   */
+  getCSById(csId: string | null | undefined): CustomerService | null {
+    const csTeam = this.getCSTeam();
+    if (!csId) {
+      return csTeam.length > 0 ? csTeam[0] : null;
+    }
+    const cs = csTeam.find(c => c.id === csId);
+    return cs || (csTeam.length > 0 ? csTeam[0] : null);
+  }
+
+  /**
+   * Get CS dashboard data with all computed fields
+   * This centralizes all calculation logic, avoiding redundancy in components
+   */
+  getCSDashboardData(csId: string | null | undefined): CSDashboardData | null {
+    const cs = this.getCSById(csId);
+    if (!cs) return null;
+
+    const apps = this.getApps();
+    const csAppRevenue = this.getCSAppRevenue();
+
+    // Get assigned apps
+    const assignedApps = apps.filter(app => cs.assignedAppIds.includes(app.id));
+
+    // Calculate total revenue from assigned apps
+    const totalRevenue = assignedApps.reduce((acc, app) => acc + app.revenue, 0);
+
+    // Get CS revenue records
+    const csRevenue = csAppRevenue.filter(r => r.csId === cs.id);
+
+    // Calculate total promotions
+    const totalPromotions = csRevenue.reduce((acc, r) => acc + r.promotions, 0);
+
+    // Calculate rank
+    const csTeam = this.getCSTeam();
+    const sortedCS = [...csTeam].sort((a, b) => b.totalEarnings - a.totalEarnings);
+    const rank = sortedCS.findIndex(c => c.id === cs.id) + 1;
+
+    return {
+      cs,
+      assignedApps,
+      totalRevenue,
+      totalPromotions,
+      csRevenue,
+      rank,
+      totalCS: csTeam.length,
+    };
   }
 
   /**
    * Set customer service team data
+   * Mock data cannot be cached - this operation is ignored
    */
-  setCSTeam(team: any[]) {
-    this.setModel(MODEL_KEYS.CS_TEAM, team);
+  setCSTeam(team: CustomerService[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setCSTeam() called - Mock data cannot be cached.');
+  }
+
+  /**
+   * Add customer service member
+   */
+  addCS(cs: CustomerService): CustomerService {
+    // User-generated CS members should be stored separately
+    console.warn('[ModelService] addCS() called - User-generated CS members not yet supported');
+    return cs;
+  }
+
+  /**
+   * Update customer service member
+   */
+  updateCS(id: string, updates: Partial<CustomerService>): CustomerService | null {
+    // User-generated CS members should be stored separately
+    console.warn('[ModelService] updateCS() called - User-generated CS members not yet supported');
+    return null;
   }
 
   /**
    * Get tech team data
+   * Mock data - always returns fresh data from constants.ts
    */
-  getTechTeam() {
-    return this.getModel(MODEL_KEYS.TECH_TEAM, []);
+  getTechTeam(): TechMember[] {
+    return MOCK_TECH;
   }
 
   /**
    * Set tech team data
+   * Mock data cannot be cached - this operation is ignored
    */
-  setTechTeam(team: any[]) {
-    this.setModel(MODEL_KEYS.TECH_TEAM, team);
+  setTechTeam(team: TechMember[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setTechTeam() called - Mock data cannot be cached.');
   }
 
   /**
    * Get revenue data
+   * User-generated data - can be cached
    */
-  getRevenue() {
-    return this.getModel(MODEL_KEYS.REVENUE, {});
+  getRevenue(): RevenueSummary {
+    return this.getModel<RevenueSummary>(MODEL_KEYS.REVENUE, {
+      totalRevenue: 0,
+      todayRevenue: 0,
+      monthRevenue: 0,
+      yearRevenue: 0,
+      growth: 0,
+    });
   }
 
   /**
    * Set revenue data
+   * User-generated data - can be cached
    */
-  setRevenue(revenue: any) {
+  setRevenue(revenue: RevenueSummary): void {
     this.setModel(MODEL_KEYS.REVENUE, revenue);
   }
 
   /**
    * Get statistics data
+   * User-generated data - can be cached
    */
-  getStatistics() {
-    return this.getModel(MODEL_KEYS.STATISTICS, {});
+  getStatistics(): SystemStats {
+    return this.getModel<SystemStats>(MODEL_KEYS.STATISTICS, {
+      totalApps: 0,
+      liveApps: 0,
+      totalCS: 0,
+      totalTech: 0,
+      totalRevenue: 0,
+      totalVisits: 0,
+      avgRating: 0,
+    });
   }
 
   /**
    * Set statistics data
+   * User-generated data - can be cached
    */
-  setStatistics(statistics: any) {
+  setStatistics(statistics: SystemStats): void {
     this.setModel(MODEL_KEYS.STATISTICS, statistics);
   }
 
   /**
    * Get promotion tracks data
+   * Mock data - always returns fresh data from constants.ts
    */
-  getPromotionTracks() {
-    return this.getModel(MODEL_KEYS.PROMOTION_TRACKS, []);
+  getPromotionTracks(): PromotionTrack[] {
+    return MOCK_PROMOTION_TRACKS;
   }
 
   /**
    * Set promotion tracks data
+   * Mock data cannot be cached - this operation is ignored
    */
-  setPromotionTracks(tracks: any[]) {
-    this.setModel(MODEL_KEYS.PROMOTION_TRACKS, tracks);
+  setPromotionTracks(tracks: PromotionTrack[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setPromotionTracks() called - Mock data cannot be cached.');
   }
 
   /**
    * Add promotion track
    */
-  addPromotionTrack(track: any) {
-    const tracks = this.getPromotionTracks() || [];
-    tracks.unshift(track); // Add to beginning
-    this.setPromotionTracks(tracks);
+  addPromotionTrack(track: PromotionTrack): PromotionTrack {
+    // User-generated tracks should be stored separately
+    console.warn('[ModelService] addPromotionTrack() called - User-generated tracks not yet supported');
     return track;
   }
 
   /**
    * Get app releases
+   * Mock data - always returns fresh data from constants.ts
    */
-  getAppReleases() {
-    return this.getModel(MODEL_KEYS.APP_RELEASES, []);
+  getAppReleases(): AppRelease[] {
+    return MOCK_APP_RELEASES;
   }
 
   /**
    * Set app releases
+   * Mock data cannot be cached - this operation is ignored
    */
-  setAppReleases(releases: any[]) {
-    this.setModel(MODEL_KEYS.APP_RELEASES, releases);
+  setAppReleases(releases: AppRelease[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setAppReleases() called - Mock data cannot be cached.');
   }
 
   /**
    * Add app release
    */
-  addAppRelease(release: any) {
-    const releases = this.getAppReleases() || [];
-    releases.unshift(release); // Add to beginning
-    this.setAppReleases(releases);
+  addAppRelease(release: AppRelease): AppRelease {
+    // User-generated releases should be stored separately
+    console.warn('[ModelService] addAppRelease() called - User-generated releases not yet supported');
     return release;
   }
 
   /**
    * Get promoters list
+   * Mock data - always returns fresh data from constants.ts
    */
-  getPromoters() {
-    return this.getModel(MODEL_KEYS.PROMOTERS, []);
+  getPromoters(): Promoter[] {
+    return MOCK_PROMOTERS;
   }
 
   /**
    * Set promoters list
+   * Mock data cannot be cached - this operation is ignored
    */
-  setPromoters(promoters: any[]) {
-    this.setModel(MODEL_KEYS.PROMOTERS, promoters);
+  setPromoters(promoters: Promoter[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setPromoters() called - Mock data cannot be cached.');
   }
 
   /**
    * Add promoter
    */
-  addPromoter(promoter: any) {
-    const promoters = this.getPromoters() || [];
-    promoters.push(promoter);
-    this.setPromoters(promoters);
+  addPromoter(promoter: Promoter): Promoter {
+    // User-generated promoters should be stored separately
+    console.warn('[ModelService] addPromoter() called - User-generated promoters not yet supported');
     return promoter;
   }
 
   /**
    * Update promoter
    */
-  updatePromoter(id: string, updates: any) {
-    const promoters = this.getPromoters() || [];
-    const index = promoters.findIndex((p: any) => p.id === id);
-    if (index !== -1) {
-      promoters[index] = { ...promoters[index], ...updates, updatedAt: new Date().toISOString() };
-      this.setPromoters(promoters);
-      return promoters[index];
-    }
+  updatePromoter(id: string, updates: Partial<Promoter>): Promoter | null {
+    // User-generated promoters should be stored separately
+    console.warn('[ModelService] updatePromoter() called - User-generated promoters not yet supported');
     return null;
   }
 
   /**
    * Get promotion records list
+   * Mock data - always returns fresh data from constants.ts
    */
-  getPromotionRecords() {
-    return this.getModel(MODEL_KEYS.PROMOTION_RECORDS, []);
+  getPromotionRecords(): PromotionRecord[] {
+    return MOCK_PROMOTION_RECORDS;
   }
 
   /**
    * Set promotion records list
+   * Mock data cannot be cached - this operation is ignored
    */
-  setPromotionRecords(records: any[]) {
-    this.setModel(MODEL_KEYS.PROMOTION_RECORDS, records);
+  setPromotionRecords(records: PromotionRecord[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setPromotionRecords() called - Mock data cannot be cached.');
   }
 
   /**
    * Add promotion record
    */
-  addPromotionRecord(record: any) {
-    const records = this.getPromotionRecords() || [];
-    records.unshift(record); // Add to beginning
-    this.setPromotionRecords(records);
+  addPromotionRecord(record: PromotionRecord): PromotionRecord {
+    // User-generated records should be stored separately
+    console.warn('[ModelService] addPromotionRecord() called - User-generated records not yet supported');
     return record;
   }
 
   /**
-   * Update promotion record
-   */
-  updatePromotionRecord(id: string, updates: any) {
-    const records = this.getPromotionRecords() || [];
-    const index = records.findIndex((r: any) => r.id === id);
-    if (index !== -1) {
-      records[index] = { ...records[index], ...updates, updatedAt: new Date().toISOString() };
-      this.setPromotionRecords(records);
-      return records[index];
-    }
-    return null;
-  }
-
-  /**
-   * Update customer service member
-   */
-  updateCS(id: string, updates: any) {
-    const csTeam = this.getCSTeam() || [];
-    const index = csTeam.findIndex((cs: any) => cs.id === id);
-    if (index !== -1) {
-      csTeam[index] = { ...csTeam[index], ...updates };
-      this.setCSTeam(csTeam);
-      return csTeam[index];
-    }
-    return null;
-  }
-
-  /**
-   * Add customer service member
-   */
-  addCS(cs: any) {
-    const csTeam = this.getCSTeam() || [];
-    csTeam.push(cs);
-    this.setCSTeam(csTeam);
-    return cs;
-  }
-
-  /**
-   * Delete customer service member
-   */
-  deleteCS(id: string) {
-    const csTeam = this.getCSTeam() || [];
-    const filtered = csTeam.filter((cs: any) => cs.id !== id);
-    this.setCSTeam(filtered);
-    return true;
-  }
-
-  /**
    * Get app generation requests
+   * Mock data - always returns fresh data from constants.ts
    */
-  getAppRequests() {
-    return this.getModel(MODEL_KEYS.APP_REQUESTS, []);
+  getAppRequests(): AppGenerationRequest[] {
+    return MOCK_APP_REQUESTS;
   }
 
   /**
    * Set app generation requests
+   * Mock data cannot be cached - this operation is ignored
    */
-  setAppRequests(requests: any[]) {
-    this.setModel(MODEL_KEYS.APP_REQUESTS, requests);
+  setAppRequests(requests: AppGenerationRequest[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setAppRequests() called - Mock data cannot be cached.');
   }
 
   /**
    * Get CS app revenue
+   * Mock data - always returns fresh data from constants.ts
    */
-  getCSAppRevenue() {
-    return this.getModel(MODEL_KEYS.CS_APP_REVENUE, []);
+  getCSAppRevenue(): CSAppRevenue[] {
+    return MOCK_CS_APP_REVENUE;
   }
 
   /**
    * Set CS app revenue
+   * Mock data cannot be cached - this operation is ignored
    */
-  setCSAppRevenue(revenue: any[]) {
-    this.setModel(MODEL_KEYS.CS_APP_REVENUE, revenue);
+  setCSAppRevenue(revenue: CSAppRevenue[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setCSAppRevenue() called - Mock data cannot be cached.');
   }
 
   /**
-   * Get daily statistics
+   * Get daily stats
+   * Mock data - always returns fresh data from constants.ts
    */
-  getDailyStats() {
-    return this.getModel(MODEL_KEYS.DAILY_STATS, []);
+  getDailyStats(): DailyStat[] {
+    return MOCK_DAILY_STATS;
   }
 
   /**
-   * Set daily statistics
+   * Set daily stats
+   * Mock data cannot be cached - this operation is ignored
    */
-  setDailyStats(stats: any[]) {
-    this.setModel(MODEL_KEYS.DAILY_STATS, stats);
-  }
-
-  /**
-   * Get app by ID
-   */
-  getAppById(appId: string) {
-    const apps = this.getApps() || [];
-    return apps.find((app: any) => app.id === appId) || null;
-  }
-
-  /**
-   * Get CS by ID
-   */
-  getCSById(csId: string) {
-    const csTeam = this.getCSTeam() || [];
-    return csTeam.find((cs: any) => cs.id === csId) || null;
-  }
-
-  /**
-   * Get tech by ID
-   */
-  getTechById(techId: string) {
-    const techTeam = this.getTechTeam() || [];
-    return techTeam.find((tech: any) => tech.id === techId) || null;
+  setDailyStats(stats: DailyStat[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setDailyStats() called - Mock data cannot be cached.');
   }
 
   /**
    * Get notifications
+   * Mock data - always returns fresh data from constants.ts
    */
-  getNotifications() {
-    return this.getModel(MODEL_KEYS.NOTIFICATIONS, []);
+  getNotifications(): Notification[] {
+    return MOCK_NOTIFICATIONS;
   }
 
   /**
    * Set notifications
+   * Mock data cannot be cached - this operation is ignored
    */
-  setNotifications(notifications: any[]) {
-    this.setModel(MODEL_KEYS.NOTIFICATIONS, notifications);
+  setNotifications(notifications: Notification[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setNotifications() called - Mock data cannot be cached.');
   }
 
   /**
    * Add notification
    */
-  addNotification(notification: any) {
-    const notifications = this.getNotifications() || [];
-    notifications.unshift(notification);
-    this.setNotifications(notifications);
+  addNotification(notification: Notification): Notification {
+    // User-generated notifications should be stored separately
+    console.warn('[ModelService] addNotification() called - User-generated notifications not yet supported');
     return notification;
   }
 
   /**
    * Get bugs
+   * Mock data - always returns fresh data from constants.ts
    */
-  getBugs() {
-    return this.getModel(MODEL_KEYS.BUGS, []);
+  getBugs(): Bug[] {
+    return MOCK_BUGS;
   }
 
   /**
    * Set bugs
+   * Mock data cannot be cached - this operation is ignored
    */
-  setBugs(bugs: any[]) {
-    this.setModel(MODEL_KEYS.BUGS, bugs);
+  setBugs(bugs: Bug[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setBugs() called - Mock data cannot be cached.');
   }
 
   /**
    * Add bug
    */
-  addBug(bug: any) {
-    const bugs = this.getBugs() || [];
-    bugs.unshift(bug);
-    this.setBugs(bugs);
+  addBug(bug: Bug): Bug {
+    // User-generated bugs should be stored separately
+    console.warn('[ModelService] addBug() called - User-generated bugs not yet supported');
     return bug;
   }
 
   /**
    * Get builds list
+   * Mock data - always returns fresh data from constants.ts
    */
-  getBuilds() {
-    return this.getModel(MODEL_KEYS.BUILDS, []);
+  getBuilds(): Build[] {
+    return MOCK_BUILDS;
   }
 
   /**
    * Set builds list
+   * Mock data cannot be cached - this operation is ignored
    */
-  setBuilds(builds: any[]) {
-    this.setModel(MODEL_KEYS.BUILDS, builds);
+  setBuilds(builds: Build[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setBuilds() called - Mock data cannot be cached.');
   }
 
   /**
    * Add build
    */
-  addBuild(build: any) {
-    const builds = this.getBuilds() || [];
-    builds.unshift(build);
-    this.setBuilds(builds);
+  addBuild(build: Build): Build {
+    // User-generated builds should be stored separately
+    console.warn('[ModelService] addBuild() called - User-generated builds not yet supported');
     return build;
   }
 
   /**
-   * Update build
-   */
-  updateBuild(id: string, updates: any) {
-    const builds = this.getBuilds() || [];
-    const index = builds.findIndex((b: any) => b.id === id);
-    if (index !== -1) {
-      builds[index] = { ...builds[index], ...updates };
-      this.setBuilds(builds);
-      return builds[index];
-    }
-    return null;
-  }
-
-  /**
    * Get chat sessions
+   * Mock data - always returns fresh data from constants.ts
    */
-  getChatSessions() {
-    return this.getModel(MODEL_KEYS.CHAT_SESSIONS, []);
+  getChatSessions(): ChatSession[] {
+    return MOCK_CHAT_SESSIONS;
   }
 
   /**
    * Set chat sessions
+   * Mock data cannot be cached - this operation is ignored
    */
-  setChatSessions(sessions: any[]) {
-    this.setModel(MODEL_KEYS.CHAT_SESSIONS, sessions);
+  setChatSessions(sessions: ChatSession[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setChatSessions() called - Mock data cannot be cached.');
   }
 
   /**
    * Add chat session
    */
-  addChatSession(session: any) {
-    const sessions = this.getChatSessions() || [];
-    sessions.unshift(session);
-    this.setChatSessions(sessions);
+  addChatSession(session: ChatSession): ChatSession {
+    // User-generated sessions should be stored separately
+    console.warn('[ModelService] addChatSession() called - User-generated sessions not yet supported');
     return session;
   }
 
   /**
    * Update chat session
    */
-  updateChatSession(id: string, updates: any) {
-    const sessions = this.getChatSessions() || [];
-    const index = sessions.findIndex((s: any) => s.id === id);
-    if (index !== -1) {
-      sessions[index] = { ...sessions[index], ...updates, updatedAt: new Date().toISOString() };
-      this.setChatSessions(sessions);
-      return sessions[index];
-    }
+  updateChatSession(id: string, updates: Partial<ChatSession>): ChatSession | null {
+    // User-generated sessions should be stored separately
+    console.warn('[ModelService] updateChatSession() called - User-generated sessions not yet supported');
     return null;
   }
 
   /**
    * Get chat messages
+   * Mock data - always returns fresh data from constants.ts
    */
-  getChatMessages() {
-    return this.getModel(MODEL_KEYS.CHAT_MESSAGES, []);
+  getChatMessages(): ChatMessage[] {
+    return MOCK_CHAT_MESSAGES;
   }
 
   /**
    * Set chat messages
+   * Mock data cannot be cached - this operation is ignored
    */
-  setChatMessages(messages: any[]) {
-    this.setModel(MODEL_KEYS.CHAT_MESSAGES, messages);
+  setChatMessages(messages: ChatMessage[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setChatMessages() called - Mock data cannot be cached.');
   }
 
   /**
    * Add chat message
    */
-  addChatMessage(message: any) {
-    const messages = this.getChatMessages() || [];
-    messages.push(message);
-    this.setChatMessages(messages);
-    // Update session last message
-    const sessions = this.getChatSessions() || [];
-    const sessionIndex = sessions.findIndex((s: any) => s.id === message.sessionId);
-    if (sessionIndex !== -1) {
-      const session = sessions[sessionIndex];
-      session.lastMessage = message.content;
-      session.lastMessageTime = message.timestamp;
-      if (message.senderType === 'customer') {
-        session.unreadCount = (session.unreadCount || 0) + 1;
-      }
-      session.updatedAt = new Date().toISOString();
-      this.setChatSessions(sessions);
-    }
+  addChatMessage(message: ChatMessage): ChatMessage {
+    // User-generated messages should be stored separately
+    console.warn('[ModelService] addChatMessage() called - User-generated messages not yet supported');
     return message;
   }
 
   /**
    * Get messages by session ID
+   * Filters messages from all chat messages by sessionId
    */
-  getMessagesBySessionId(sessionId: string) {
-    const messages = this.getChatMessages() || [];
-    return messages.filter((m: any) => m.sessionId === sessionId).sort((a: any, b: any) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+  getMessagesBySessionId(sessionId: string): ChatMessage[] {
+    const allMessages = this.getChatMessages();
+    return allMessages.filter(msg => msg.sessionId === sessionId);
   }
 
   /**
-   * Mark messages as read in session
+   * Mark all messages in a session as read
    */
-  markSessionMessagesAsRead(sessionId: string) {
-    const messages = this.getChatMessages() || [];
-    const updatedMessages = messages.map((m: any) => 
-      m.sessionId === sessionId && !m.isRead ? { ...m, isRead: true } : m
-    );
-    this.setChatMessages(updatedMessages);
-    // Reset unread count
-    const sessions = this.getChatSessions() || [];
-    const sessionIndex = sessions.findIndex((s: any) => s.id === sessionId);
-    if (sessionIndex !== -1) {
-      sessions[sessionIndex].unreadCount = 0;
-      this.setChatSessions(sessions);
+  markSessionMessagesAsRead(sessionId: string): void {
+    const allMessages = this.getChatMessages();
+    const sessionMessages = allMessages.filter(msg => msg.sessionId === sessionId && !msg.isRead);
+    
+    if (sessionMessages.length > 0) {
+      // Update messages to mark as read
+      // Since mock data cannot be cached, we'll need to handle this differently
+      // For now, this is a no-op for mock data, but the structure is ready for user-generated messages
+      console.warn('[ModelService] markSessionMessagesAsRead() called - User-generated messages not yet supported');
     }
   }
 
   /**
    * Get script templates
+   * Mock data - always returns fresh data from constants.ts
+   * Usage counts are merged from localStorage
    */
-  getScriptTemplates() {
-    return this.getModel(MODEL_KEYS.SCRIPT_TEMPLATES, []);
+  getScriptTemplates(): ScriptTemplate[] {
+    return MOCK_SCRIPT_TEMPLATES.map(template => {
+      // Get stored usage count for this template
+      const usageKey = `script_template_usage_${template.id}`;
+      const storedUsage = storageService.get<number>(usageKey, 0);
+      
+      return {
+        ...template,
+        usageCount: template.usageCount + storedUsage
+      };
+    });
   }
 
   /**
    * Set script templates
+   * Mock data cannot be cached - this operation is ignored
    */
-  setScriptTemplates(templates: any[]) {
-    this.setModel(MODEL_KEYS.SCRIPT_TEMPLATES, templates);
+  setScriptTemplates(templates: ScriptTemplate[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setScriptTemplates() called - Mock data cannot be cached.');
   }
 
   /**
    * Add script template
    */
-  addScriptTemplate(template: any) {
-    const templates = this.getScriptTemplates() || [];
-    templates.push(template);
-    this.setScriptTemplates(templates);
+  addScriptTemplate(template: ScriptTemplate): ScriptTemplate {
+    // User-generated templates should be stored separately
+    console.warn('[ModelService] addScriptTemplate() called - User-generated templates not yet supported');
     return template;
   }
 
   /**
    * Update script template
    */
-  updateScriptTemplate(id: string, updates: any) {
-    const templates = this.getScriptTemplates() || [];
-    const index = templates.findIndex((t: any) => t.id === id);
-    if (index !== -1) {
-      templates[index] = { ...templates[index], ...updates, updatedAt: new Date().toISOString() };
-      this.setScriptTemplates(templates);
-      return templates[index];
-    }
+  updateScriptTemplate(id: string, updates: Partial<ScriptTemplate>): ScriptTemplate | null {
+    // User-generated templates should be stored separately
+    console.warn('[ModelService] updateScriptTemplate() called - User-generated templates not yet supported');
     return null;
   }
 
   /**
    * Increment script template usage count
+   * Stores usage count in localStorage (separate from mock data)
    */
-  incrementScriptUsage(id: string) {
-    const templates = this.getScriptTemplates() || [];
-    const index = templates.findIndex((t: any) => t.id === id);
-    if (index !== -1) {
-      templates[index].usageCount = (templates[index].usageCount || 0) + 1;
-      this.setScriptTemplates(templates);
+  incrementTemplateUsage(id: string): void {
+    try {
+      const usageKey = `script_template_usage_${id}`;
+      const currentCount = storageService.get<number>(usageKey, 0);
+      storageService.set(usageKey, currentCount + 1);
+    } catch (error) {
+      console.warn('[ModelService] Failed to increment template usage:', error);
     }
   }
 
   /**
-   * Get payment verification requests
+   * Get script template with usage count
+   * Combines mock data with stored usage counts
    */
-  getPaymentVerificationRequests() {
-    return this.getModel(MODEL_KEYS.PAYMENT_VERIFICATION_REQUESTS, []);
+  getScriptTemplateWithUsage(id: string): ScriptTemplate | null {
+    const templates = this.getScriptTemplates();
+    const template = templates.find(t => t.id === id);
+    if (!template) return null;
+    
+    // Get stored usage count
+    const usageKey = `script_template_usage_${id}`;
+    const storedUsage = storageService.get<number>(usageKey, 0);
+    
+    return {
+      ...template,
+      usageCount: template.usageCount + storedUsage
+    };
+  }
+
+  /**
+   * Get payment verification requests
+   * Mock data - always returns fresh data from constants.ts
+   */
+  getPaymentVerificationRequests(): PaymentVerificationRequest[] {
+    return MOCK_PAYMENT_VERIFICATION_REQUESTS;
   }
 
   /**
    * Set payment verification requests
+   * Mock data cannot be cached - this operation is ignored
    */
-  setPaymentVerificationRequests(requests: any[]) {
-    this.setModel(MODEL_KEYS.PAYMENT_VERIFICATION_REQUESTS, requests);
+  setPaymentVerificationRequests(requests: PaymentVerificationRequest[]): void {
+    // Mock data should never be cached
+    console.warn('[ModelService] setPaymentVerificationRequests() called - Mock data cannot be cached.');
   }
 
   /**
    * Add payment verification request
    */
-  addPaymentVerificationRequest(request: any) {
-    const requests = this.getPaymentVerificationRequests() || [];
-    requests.unshift(request);
-    this.setPaymentVerificationRequests(requests);
+  addPaymentVerificationRequest(request: PaymentVerificationRequest): PaymentVerificationRequest {
+    // User-generated requests should be stored separately
+    console.warn('[ModelService] addPaymentVerificationRequest() called - User-generated requests not yet supported');
     return request;
   }
 
   /**
    * Update payment verification request
    */
-  updatePaymentVerificationRequest(id: string, updates: any) {
-    const requests = this.getPaymentVerificationRequests() || [];
-    const index = requests.findIndex((r: any) => r.id === id);
-    if (index !== -1) {
-      requests[index] = { ...requests[index], ...updates, updatedAt: new Date().toISOString() };
-      this.setPaymentVerificationRequests(requests);
-      return requests[index];
-    }
+  updatePaymentVerificationRequest(id: string, updates: Partial<PaymentVerificationRequest>): PaymentVerificationRequest | null {
+    // User-generated requests should be stored separately
+    console.warn('[ModelService] updatePaymentVerificationRequest() called - User-generated requests not yet supported');
     return null;
   }
 }
 
 // Export singleton
 export const modelService = new ModelService();
-
-

@@ -34,7 +34,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
     e.preventDefault();
 
     // 如果没有填写昵称，自动生成
-    const nickname = formData.nickname?.trim() || generateNickname();
+    const nickname = formData.nickname?.trim() ?? generateNickname();
 
     const newCS: CustomerService = {
       id: generateId('cs'),
@@ -43,14 +43,14 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
       role: UserRole.CS,
       contact: formData.contact!,
       joinDate: formData.joinDate!,
-      level: formData.level || '初级',
+      level: formData.level ?? '初级',
       nickname,
       photo: formData.photo,
-      status: formData.status || 'Offline',
+      status: formData.status ?? 'Offline',
       totalEarnings: 0,
       assignedAppIds: [],
-      commissionRate: formData.commissionRate || 10,
-      commissionPercentage: formData.commissionPercentage || formData.commissionRate || 10,
+      commissionRate: formData.commissionRate ?? 10,
+      commissionPercentage: formData.commissionPercentage ?? formData.commissionRate ?? 10,
       businessAmount: 0,
       commissionAmount: 0,
       totalPrice: 0,

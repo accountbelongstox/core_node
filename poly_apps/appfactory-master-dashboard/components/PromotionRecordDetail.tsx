@@ -19,7 +19,7 @@ export const PromotionRecordDetail: React.FC = () => {
   useEffect(() => {
     if (!id) return;
 
-    const records = modelService.getPromotionRecords() || [];
+    const records = modelService.getPromotionRecords();
     const record = records.find((r: PromotionRecord) => r.id === id);
 
     if (record) {

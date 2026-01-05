@@ -19,6 +19,9 @@ export const zh: TranslationKeys = {
     export: '导出',
     settings: '设置',
     logout: '退出登录',
+    noDataAvailable: '暂无数据',
+    unknown: '未知',
+    unknownError: '未知错误',
   },
   nav: {
     overview: '总览',
@@ -58,6 +61,8 @@ export const zh: TranslationKeys = {
     pending: '待处理',
     failed: '失败',
     idle: '空闲',
+    splashImage: '{appName} 启动画面',
+    iconImage: '{appName} 图标',
   },
   cs: {
     title: '客户成功团队',

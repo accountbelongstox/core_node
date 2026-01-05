@@ -69,8 +69,8 @@ export const PaymentVerificationRequest: React.FC<PaymentVerificationRequestProp
       return;
     }
 
-    const finalAmount = amount || parseFloat(customAmount);
-    if (isNaN(finalAmount) || finalAmount <= 0) {
+    const finalAmount = amount ?? parseFloat(customAmount);
+    if (isNaN(finalAmount) ? true : finalAmount <= 0) {
       alert(t('paymentVerification.invalidAmount'));
       return;
     }
@@ -84,18 +84,18 @@ export const PaymentVerificationRequest: React.FC<PaymentVerificationRequestProp
 
     try {
       // In real app, upload screenshot to server and get URL
-      const screenshotUrl = screenshot || undefined;
+      const screenshotUrl = screenshot ? screenshot : undefined;
 
       const request: PaymentVerificationRequestType = {
         id: `pvr_${Date.now()}`,
         sessionId,
-        customerId: customerId || user?.id || 'customer',
-        customerName: customerName || user?.name || 'Customer',
+        customerId: customerId ?? user?.id ?? 'customer',
+        customerName: customerName ?? user?.name ?? 'Customer',
         customerAvatar: user?.avatar,
         appId,
         appName,
         amount: finalAmount,
-        username: username || undefined,
+        username: username ? username : undefined,
         screenshot: screenshotUrl,
         status: 'pending',
         createdAt: new Date().toISOString(),

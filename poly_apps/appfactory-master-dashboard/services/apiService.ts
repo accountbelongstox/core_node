@@ -7,6 +7,9 @@
  * - Mock data is used when apiManager.isMockMode() returns true
  */
 import { apiManager } from './ApiManager';
+import { API_ENDPOINTS, buildApiUrl } from '../config/api-endpoints';
+import { generateAvatarUrl } from '../utils/avatarUtils';
+import { generateImageUrl, getImageUrlForCustomer, ImageType } from '../utils/imageUrlUtils';
 import {
   MOCK_APPS,
   MOCK_CS,
@@ -21,7 +24,7 @@ import {
   MOCK_AVATAR_PROVIDERS_LIST_RESPONSE,
   MOCK_AVATAR_CACHE_STATS,
 } from '../constants';
-import { AppInstance, CustomerService, TechMember, AppGenerationRequest, AppRelease, Promoter, PromotionRecord, PromotionTrack, DailyStat, CSAppRevenue, AvatarProvidersListResponse, AvatarCacheStatsResponse, AvatarCacheClearResponse } from '../types';
+import { AppInstance, CustomerService, TechMember, AppGenerationRequest, AppRelease, Promoter, PromotionRecord, PromotionTrack, DailyStat, CSAppRevenue, AvatarProvidersListResponse, AvatarCacheStatsResponse, AvatarCacheClearResponse, AppStatus, AppCategory } from '../types';
 
 class ApiService {
   /**
@@ -91,6 +94,9 @@ class ApiService {
 
       return await response.json();
     } catch (error) {
+      // catch block is necessary: must be kept
+      // Reason: Network requests may fail (network error, timeout, server error, etc.)
+      // Need to catch errors and provide mock data fallback to avoid application crash
       console.error(`API Service: Request error for ${endpoint}:`, error);
       // Try mock data fallback on error
       if (mockDataFallback) {
@@ -114,7 +120,7 @@ class ApiService {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: any, options?: RequestInit, mockDataFallback?: () => T | Promise<T>): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown, options?: RequestInit, mockDataFallback?: () => T | Promise<T>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -125,7 +131,7 @@ class ApiService {
   /**
    * PUT request
    */
-  async put<T>(endpoint: string, data?: any, options?: RequestInit, mockDataFallback?: () => T | Promise<T>): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown, options?: RequestInit, mockDataFallback?: () => T | Promise<T>): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
@@ -159,7 +165,7 @@ class ApiService {
   async getAppById(appId: string): Promise<AppInstance | null> {
     return this.get<AppInstance | null>(`/api/apps/${appId}`, undefined, () => {
       const app = MOCK_APPS.find(a => a.id === appId);
-      return Promise.resolve(app || null);
+      return Promise.resolve(app ?? null);
     });
   }
 
@@ -170,9 +176,9 @@ class ApiService {
     return this.post<AppInstance>('/api/apps', data, undefined, () => {
       const newApp: AppInstance = {
         id: `app${Date.now()}`,
-        name: data.name || 'New App',
-        status: data.status || 'Pending' as any,
-        category: data.category || 'other' as any,
+        name: data.name ?? 'New App',
+        status: (data.status ?? 'Pending') as AppStatus,
+        category: (data.category ?? 'other') as AppCategory,
         visits: 0,
         revenue: 0,
         monthlyRevenue: 0,
@@ -274,14 +280,22 @@ class ApiService {
   // ===== Avatar API Methods =====
 
   /**
-   * Get avatar URL
+   * Get avatar URL using multi-API system
    * Note: This returns a URL string, not an image blob
-   * The actual image is served directly by the backend
+   * The actual image is served directly by the backend (laravel_main)
+   * 
+   * Uses current API endpoint from ApiManager:
+   * - Priority 1: localhost:9000 (local development)
+   * - Priority 2: 192.168.50.3:9000 (LAN server)
+   * - Priority 3: https://api.si.12gm.com (cloud production)
+   * 
+   * If no endpoint is available, falls back to first endpoint in config
+   * This ensures avatar URLs always work even during initialization
    */
   getAvatarUrl(name: string, size: number = 512, provider: string | number = 'pravatar'): string {
-    const baseUrl = apiManager.getCurrentBaseUrl() || 'http://localhost:9000';
-    const providerParam = typeof provider === 'number' ? provider : provider;
-    return `${baseUrl}/api/public/avatar/${encodeURIComponent(name)}?size=${size}&provider=${providerParam}`;
+    // Use unified avatar URL utility library
+    const providerStr = typeof provider === 'number' ? provider.toString() : provider;
+    return generateAvatarUrl(name, size, providerStr);
   }
 
   /**
@@ -293,6 +307,46 @@ class ApiService {
       undefined,
       () => Promise.resolve({ ...MOCK_AVATAR_PROVIDERS_LIST_RESPONSE })
     );
+  }
+
+  // ===== Image URL Methods =====
+
+  /**
+   * Get image URL using multi-API system
+   * References old .js code image processing logic, uses multi-API system to generate absolute URL
+   * 
+   * @param relativePath - Relative path or identifier (e.g. 'customer1' or 'avatars/appqyv1/avatar_1.png')
+   * @param imageType - Image type, defaults to 'avatar'
+   * @param options - Additional options (size, provider, etc.)
+   * @returns Absolute URL
+   */
+  getImageUrl(
+    relativePath: string | null | undefined,
+    imageType: ImageType = 'avatar',
+    options: {
+      size?: number;
+      provider?: string;
+      [key: string]: any;
+    } = {}
+  ): string {
+    return generateImageUrl(relativePath, imageType, options);
+  }
+
+  /**
+   * Get image URL for customer (customer1, etc.)
+   * Specifically for image URL generation for user identifiers like customer1
+   * 
+   * @param customerId - Customer ID, e.g. 'customer1'
+   * @param size - Image size, defaults to 150
+   * @param provider - Avatar provider, defaults to 'pravatar'
+   * @returns Absolute URL
+   */
+  getCustomerImageUrl(
+    customerId: string | null | undefined,
+    size: number = 150,
+    provider: string = 'pravatar'
+  ): string {
+    return getImageUrlForCustomer(customerId, size, provider);
   }
 
   /**

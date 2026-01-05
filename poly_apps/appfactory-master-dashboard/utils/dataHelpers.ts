@@ -19,7 +19,7 @@ export const getAppById = (appId: string): AppInstance | undefined => {
  */
 export const getAppNameById = (appId: string): string => {
   const app = getAppById(appId);
-  return app?.name || 'Unknown App';
+  return app?.name ?? 'Unknown App';
 };
 
 /**
@@ -34,7 +34,7 @@ export const getCSById = (csId: string): CustomerService | undefined => {
  */
 export const getCSNameById = (csId: string): string => {
   const cs = getCSById(csId);
-  return cs?.name || 'Unknown CS';
+  return cs?.name ?? 'Unknown CS';
 };
 
 /**
@@ -49,7 +49,7 @@ export const getTechById = (techId: string): TechMember | undefined => {
  */
 export const getTechNameById = (techId: string): string => {
   const tech = getTechById(techId);
-  return tech?.name || 'Unknown Tech';
+  return tech?.name ?? 'Unknown Tech';
 };
 
 /**
@@ -64,7 +64,7 @@ export const getPromoterById = (promoterId: string): Promoter | undefined => {
  */
 export const getPromoterNameById = (promoterId: string): string => {
   const promoter = getPromoterById(promoterId);
-  return promoter?.name || 'Unknown Promoter';
+  return promoter?.name ?? 'Unknown Promoter';
 };
 
 /**
@@ -91,6 +91,6 @@ export const translateRequestStatus = (status: string, t: (key: string) => strin
     'completed': t('appGeneration.statusCompleted'),
     'failed': t('appGeneration.statusFailed'),
   };
-  return statusMap[status] || status;
+  return statusMap[status] ?? status;
 };
 

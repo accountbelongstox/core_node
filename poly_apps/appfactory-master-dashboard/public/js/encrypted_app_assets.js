@@ -10,15 +10,25 @@
  * Splashes: app_splash1-5.en.js
  *
  * 约定目录: /public/encrypted_assets/
+ * 
+ * Dynamic Decryption:
+ * - Extends DynamicDecryptionManager for automatic password change detection
+ * - Automatically re-decrypts when URL password parameter changes
+ * - Clears cache and reloads images when password changes
  */
 
-class EncryptedAppAssetsManager {
+class EncryptedAppAssetsManager extends DynamicDecryptionManager {
     constructor(options = {}) {
-        // 从 URL GET 参数获取密码，默认空字符串
-        const urlParams = new URLSearchParams(window.location.search);
-        this.password = urlParams.get('password') || urlParams.get('pwd') || urlParams.get('pp') || '';
-
+        super(options);
+        
+        // Initialize decryptor with current password
+        this.password = this.getCurrentPassword();
         this.decryptor = new ImageDecryptor({ password: this.password });
+        
+        // Store instance globally so React Context can access it
+        if (typeof window !== 'undefined') {
+            window.__encryptedAssetsManagerInstance = this;
+        }
 
         // Hardcoded file paths (cannot dynamically scan)
         // Files are in encrypted_assets/ directory (mapped from build dist/public)
@@ -38,28 +48,51 @@ class EncryptedAppAssetsManager {
                 '/encrypted_assets/app_splash5.en.js'
             ]
         };
+    }
 
-        this.cache = new Map();
-        this.loading = new Map();
+    /**
+     * Override onPasswordChanged to update decryptor password
+     */
+    onPasswordChanged(newPassword) {
+        console.log(`[EncryptedAppAssetsManager] Password changed, updating decryptor and clearing cache`);
+        this.password = newPassword;
+        this.decryptor.setPassword(newPassword);
+        
+        // Call parent to clear cache
+        super.onPasswordChanged(newPassword);
     }
 
     async loadEncryptedFile(filePath) {
-        if (this.cache.has(filePath)) {
-            return this.cache.get(filePath);
+        // Check if password has changed (dynamic decryption)
+        const currentPassword = this.getCurrentPassword();
+        if (currentPassword !== this.password) {
+            console.log(`[EncryptedAppAssetsManager] Password changed during load, clearing cache for ${filePath}`);
+            this.onPasswordChanged(currentPassword);
         }
 
-        if (this.loading.has(filePath)) {
-            return this.loading.get(filePath);
+        // Create cache key that includes password to prevent using wrong password's cache
+        const cacheKey = `${filePath}:${this.password}`;
+        
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey);
+        }
+
+        if (this.loading.has(cacheKey)) {
+            return this.loading.get(cacheKey);
         }
 
         const loadPromise = this._loadAndDecrypt(filePath);
-        this.loading.set(filePath, loadPromise);
+        this.loading.set(cacheKey, loadPromise);
 
-        const result = await loadPromise;
-        this.loading.delete(filePath);
-        this.cache.set(filePath, result);
-
-        return result;
+        try {
+            const result = await loadPromise;
+            this.loading.delete(cacheKey);
+            this.cache.set(cacheKey, result);
+            return result;
+        } catch (error) {
+            this.loading.delete(cacheKey);
+            throw error;
+        }
     }
 
     async _loadAndDecrypt(filePath) {
@@ -146,18 +179,13 @@ class EncryptedAppAssetsManager {
     }
 
     revokeAllUrls() {
-        for (const asset of this.cache.values()) {
-            if (asset.blobUrl) {
-                URL.revokeObjectURL(asset.blobUrl);
-            }
-        }
-        this.cache.clear();
+        // Use parent's clearCache which handles blob URL revocation
+        this.clearCache();
     }
 
     setPassword(newPassword) {
-        this.password = newPassword;
-        this.decryptor.setPassword(newPassword);
-        this.cache.clear();
+        // Use parent's setPassword which handles password change detection
+        super.setPassword(newPassword);
     }
 }
 

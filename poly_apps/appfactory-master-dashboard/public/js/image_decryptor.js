@@ -14,38 +14,48 @@
  *   const imageBlob = await decryptor.decryptImage(encryptedBase64);
  *   const imageUrl = URL.createObjectURL(imageBlob);
  *
- * Password Sources:
- *   1. Constructor parameter: new ImageDecryptor({ password: 'xxx' })
- *   2. Constants file: import { DECRYPT_PASSWORD } from './constants.js'
- *   3. GET parameter: ?password=xxx
- *   4. POST request: fetch('/api/get-password')
+ * Password Sources (priority order):
+ *   1. GET parameter: ?password=xxx, ?pwd=xxx, or ?pp=xxx (HashRouter: params in hash)
+ *   2. Constructor parameter: new ImageDecryptor({ password: 'xxx' })
+ *   3. Constants file: window.DECRYPT_PASSWORD or window.APP_CONFIG.decryptPassword
+ *   4. API request: fetch('/api/decrypt-password')
+ * 
+ * Default Password: Empty string '' (no hardcoded password)
+ * Password must be provided via GET parameter for security.
  */
 
 class ImageDecryptor {
     constructor(options = {}) {
-        this.password = options.password || this.DEFAULT_PASSWORD;
+        // Default password is empty string, must be provided via GET parameter
+        this.password = options.password ?? '';
         this.passwordSource = options.passwordSource || 'default';
     }
 
     get DEFAULT_PASSWORD() {
-        return "BuildFactoryEncryptionKey2025";
+        // No hardcoded password, must be provided via GET parameter
+        return '';
     }
 
     async initializePassword() {
         switch (this.passwordSource) {
             case 'url':
-                this.password = this.getPasswordFromURL() || this.DEFAULT_PASSWORD;
+                // Get password from URL GET parameter, default to empty string
+                this.password = this.getPasswordFromURL() ?? '';
                 break;
 
             case 'api':
-                this.password = await this.getPasswordFromAPI() || this.DEFAULT_PASSWORD;
+                // Get password from API, default to empty string
+                this.password = await this.getPasswordFromAPI() ?? '';
                 break;
 
             case 'constants':
-                this.password = await this.getPasswordFromConstants() || this.DEFAULT_PASSWORD;
+                // Get password from constants, default to empty string
+                this.password = await this.getPasswordFromConstants() ?? '';
                 break;
 
             default:
+                // Default to empty string if no password source specified
+                this.password = '';
                 break;
         }
 
@@ -53,8 +63,13 @@ class ImageDecryptor {
     }
 
     getPasswordFromURL() {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('password') || urlParams.get('pwd') || urlParams.get('pp');
+        // HashRouter: params are in hash after ?
+        // Get password from GET parameters: ?password=xxx, ?pwd=xxx, or ?pp=xxx
+        // Returns empty string if no password parameter found
+        const hashParts = window.location.hash.split('?');
+        const queryString = hashParts.length > 1 ? hashParts[1] : '';
+        const urlParams = new URLSearchParams(queryString);
+        return urlParams.get('password') || urlParams.get('pwd') || urlParams.get('pp') || '';
     }
 
     async getPasswordFromAPI() {

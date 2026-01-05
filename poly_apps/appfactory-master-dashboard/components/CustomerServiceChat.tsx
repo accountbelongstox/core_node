@@ -5,6 +5,7 @@ import { modelService } from '../services/modelService';
 import { ChatWindow } from './ChatWindow';
 import { ScriptList } from './ScriptList';
 import { ChatSession } from '../types';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 export const CustomerServiceChat: React.FC = () => {
   const { t, user } = useApp();
@@ -15,8 +16,8 @@ export const CustomerServiceChat: React.FC = () => {
   const [scriptMessage, setScriptMessage] = useState<string>('');
 
   const sessions = useMemo(() => {
-    const allSessions = modelService.getChatSessions() || [];
-    const apps = modelService.getApps() || [];
+    const allSessions = modelService.getChatSessions();
+    const apps = modelService.getApps();
     
     // Enrich sessions with full app information
     const enrichedSessions = allSessions.map(session => {
@@ -31,16 +32,16 @@ export const CustomerServiceChat: React.FC = () => {
     
     return enrichedSessions.filter(session => {
       // Filter by assigned CS or unassigned
-      const matchesCS = !session.csId || session.csId === user?.id;
-      const matchesSearch = session.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           session.lastMessage?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           session.appName?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
+      const matchesCS = session.csId === undefined ? true : session.csId === user?.id;
+      const matchesSearch = session.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ? true :
+                           ((session.lastMessage?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ? true :
+                           (session.appName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false));
+      const matchesStatus = filterStatus === 'all' ? true : session.status === filterStatus;
       return matchesCS && matchesSearch && matchesStatus;
     }).sort((a, b) => {
       // Sort by last message time, most recent first
-      const timeA = new Date(a.lastMessageTime || a.updatedAt).getTime();
-      const timeB = new Date(b.lastMessageTime || b.updatedAt).getTime();
+      const timeA = new Date(a.lastMessageTime ?? a.updatedAt).getTime();
+      const timeB = new Date(b.lastMessageTime ?? b.updatedAt).getTime();
       return timeB - timeA;
     });
   }, [user, searchTerm, filterStatus]);
@@ -62,7 +63,7 @@ export const CustomerServiceChat: React.FC = () => {
   };
 
   const handleSendMessage = (content: string) => {
-    if (!selectedSessionId || !user) return;
+    if (!selectedSessionId || user === null) return;
 
     const newMessage = {
       id: `msg_${Date.now()}`,
@@ -205,7 +206,7 @@ export const CustomerServiceChat: React.FC = () => {
                       <div className="relative flex-shrink-0">
                         {session.customerAvatar ? (
                           <img
-                            src={session.customerAvatar}
+                            src={getAvatarUrl(session.customerAvatar, 150, 'pravatar')}
                             alt={session.customerName}
                             className={`w-12 h-12 rounded-full ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-800 ${
                               isSelected ? 'ring-indigo-600' : 'ring-transparent'

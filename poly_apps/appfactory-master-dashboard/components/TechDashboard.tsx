@@ -44,11 +44,11 @@ const TechOverview = () => {
   const { t, user } = useApp();
   
   const techStats = useMemo(() => {
-    const techTeam = modelService.getTechTeam() || [];
-    const appRequests = modelService.getAppRequests() || [];
-    const apps = modelService.getApps() || [];
+    const techTeam = modelService.getTechTeam();
+    const appRequests = modelService.getAppRequests();
+    const apps = modelService.getApps();
     
-    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
+    const tech = techTeam.find(t => t.id === (user?.id ?? 'tech1'));
     if (!tech) return null;
     
     const myTasks = appRequests.filter(r => r.assignedTechId === tech.id);
@@ -80,7 +80,7 @@ const TechOverview = () => {
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t('techDashboard.buildActivity')}</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={modelService.getDailyStats() || []}>
+                <AreaChart data={modelService.getDailyStats()}>
                   <defs>
                     <linearGradient id="colorBuild" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
@@ -313,7 +313,7 @@ const GenerationQueue = () => {
 // Build & Deployment Component
 const BuildDeployment = () => {
   const { t } = useApp();
-  const builds = useMemo(() => modelService.getBuilds() || [], []);
+  const builds = useMemo(() => modelService.getBuilds(), []);
 
   return (
     <div className="space-y-6">
@@ -414,9 +414,9 @@ const BuildDeployment = () => {
 const PerformanceMonitoring = () => {
   const { t, user } = useApp();
   const apps = useMemo(() => {
-    const techTeam = modelService.getTechTeam() || [];
-    const apps = modelService.getApps() || [];
-    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
+    const techTeam = modelService.getTechTeam();
+    const apps = modelService.getApps();
+    const tech = techTeam.find(t => t.id === (user?.id ?? 'tech1'));
     if (!tech) return [];
     return apps.filter(a => a.assignedTechId === tech.id).slice(0, 5);
   }, [user]);
@@ -494,7 +494,7 @@ const PerformanceMonitoring = () => {
 // Bug Tracking Component
 const BugTracking = () => {
   const { t } = useApp();
-  const bugs = useMemo(() => modelService.getBugs() || [], []);
+  const bugs = useMemo(() => modelService.getBugs(), []);
 
   return (
     <div className="space-y-6">
@@ -573,7 +573,7 @@ const TaskDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const req = useMemo(() => {
-    const appRequests = modelService.getAppRequests() || [];
+    const appRequests = modelService.getAppRequests();
     return appRequests.find(r => r.id === id);
   }, [id]);
 
@@ -712,9 +712,9 @@ const TaskDetails = () => {
 const MyProjects = () => {
   const { t, user } = useApp();
   const myProjects = useMemo(() => {
-    const techTeam = modelService.getTechTeam() || [];
-    const apps = modelService.getApps() || [];
-    const tech = techTeam.find(t => t.id === user?.id || 'tech1');
+    const techTeam = modelService.getTechTeam();
+    const apps = modelService.getApps();
+    const tech = techTeam.find(t => t.id === (user?.id ?? 'tech1'));
     if (!tech) return [];
     return apps.filter(a => a.assignedTechId === tech.id);
   }, [user]);
@@ -840,7 +840,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
             {user ? user.name.substring(0, 2).toUpperCase() : 'TE'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || t('techDashboard.techUser')}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name ?? t('techDashboard.techUser')}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">{t('techDashboard.technicalEngineer')}</p>
           </div>
           <button onClick={onOpenSettings} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">

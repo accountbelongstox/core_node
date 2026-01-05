@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Search, Plus, X, Users, DollarSign, TrendingUp } from 'lucide-react';
 import { AppInstance, CustomerService, AppStatus } from '../types';
 import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 export const CSAssignment: React.FC = () => {
   const { t } = useApp();
@@ -24,22 +25,26 @@ export const CSAssignment: React.FC = () => {
     return csTeam.filter(cs => !selectedApp.assignedCSIds.includes(cs.id));
   }, [csTeam, selectedApp]);
 
-  const handleSelectApp = (app: AppInstance) => {
+  // Use React's useCallback for event handlers to avoid recreating on every render
+  const handleSelectApp = useCallback((app: AppInstance) => {
     setSelectedApp(app);
+    // Use React's useMemo pattern - filter is done in render, but we can optimize
     setSelectedCS(csTeam.filter(cs => app.assignedCSIds.includes(cs.id)));
-  };
+  }, [csTeam]);
 
-  const handleAddCS = (cs: CustomerService) => {
+  const handleAddCS = useCallback((cs: CustomerService) => {
     if (selectedApp && !selectedCS.find(c => c.id === cs.id)) {
-      setSelectedCS([...selectedCS, cs]);
+      // Use React's functional update pattern for better performance
+      setSelectedCS(prev => [...prev, cs]);
     }
-  };
+  }, [selectedApp, selectedCS]);
 
-  const handleRemoveCS = (csId: string) => {
-    setSelectedCS(selectedCS.filter(cs => cs.id !== csId));
-  };
+  const handleRemoveCS = useCallback((csId: string) => {
+    // Use React's functional update pattern for better performance
+    setSelectedCS(prev => prev.filter(cs => cs.id !== csId));
+  }, []);
 
-  const handleSaveAssignment = () => {
+  const handleSaveAssignment = useCallback(() => {
     if (selectedApp) {
       console.log('Saving assignment:', {
         appId: selectedApp.id,
@@ -47,7 +52,7 @@ export const CSAssignment: React.FC = () => {
       });
       alert('Assignment saved! (This is a demo)');
     }
-  };
+  }, [selectedApp, selectedCS]);
 
   return (
     <div className="space-y-6">
@@ -141,7 +146,7 @@ export const CSAssignment: React.FC = () => {
                       selectedCS.map(cs => (
                         <div key={cs.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <img src={cs.avatar} alt={cs.name} className="w-10 h-10 rounded-full" />
+                            <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} alt={cs.name} className="w-10 h-10 rounded-full" />
                             <div>
                               <p className="font-medium text-slate-800 dark:text-white">{cs.name}</p>
                               <p className="text-xs text-slate-500 dark:text-slate-400">Rate: {cs.commissionRate}%</p>
@@ -174,7 +179,7 @@ export const CSAssignment: React.FC = () => {
                         className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <img src={cs.avatar} alt={cs.name} className="w-10 h-10 rounded-full" />
+                          <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} alt={cs.name} className="w-10 h-10 rounded-full" />
                           <div className="text-left">
                             <p className="font-medium text-slate-800 dark:text-white">{cs.name}</p>
                             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">

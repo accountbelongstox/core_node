@@ -18,6 +18,7 @@ import {
   Users,
   MessageCircle
 } from 'lucide-react';
+import { AppImageDisplay } from './AppImageDisplay';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line } from 'recharts';
 import { useApp } from '../contexts/AppContext';
 import { UserRole, AppStatus } from '../types';
@@ -29,23 +30,17 @@ import { CustomerServiceChat } from './CustomerServiceChat';
 const CSOverview = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const csTeam = modelService.getCSTeam() || [];
-    const apps = modelService.getApps() || [];
-    const csAppRevenue = modelService.getCSAppRevenue() || [];
-    
-    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
-    if (!cs) return null;
-    
-    const assignedApps = apps.filter(app => cs.assignedAppIds.includes(app.id));
-    const totalRevenue = assignedApps.reduce((acc, app) => acc + app.revenue, 0);
-    const csRevenue = csAppRevenue.filter(r => r.csId === cs.id);
-    const totalPromotions = csRevenue.reduce((acc, r) => acc + r.promotions, 0);
-    
-    return { cs, assignedApps, totalRevenue, totalPromotions, csRevenue };
+    // Use centralized method to get CS dashboard data
+    // All calculations are done in modelService, avoiding redundant logic
+    return modelService.getCSDashboardData(user?.id ?? 'cs1');
   }, [user]);
 
   if (!csData) {
-    return <div className="text-slate-400">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-400">{t('common.noDataAvailable')}</div>
+      </div>
+    );
   }
 
   return (
@@ -97,24 +92,32 @@ const MyApps = () => {
   const { t, user } = useApp();
   const navigate = useNavigate();
   const csData = useMemo(() => {
-    const csTeam = modelService.getCSTeam() || [];
-    const apps = modelService.getApps() || [];
-    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
-    if (!cs) return null;
-    return {
-      cs,
-      assignedApps: apps.filter(app => cs.assignedAppIds.includes(app.id))
-    };
+    // Use centralized method to get CS dashboard data
+    return modelService.getCSDashboardData(user?.id ?? 'cs1');
   }, [user]);
 
-  if (!csData) return <div className="text-slate-400">Loading...</div>;
+  if (!csData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-400">{t('common.loading')}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('csDashboard.myApps')}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {csData.assignedApps.map(app => (
-          <div key={app.id} className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+          <div 
+            key={app.id} 
+            className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => navigate(`/my-apps/${app.id}`)}
+          >
+            {/* App Image Display - uses encrypted images based on pp= parameter */}
+            <AppImageDisplay app={app} mode="card" />
+            
+            <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white">{app.name}</h3>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -143,12 +146,16 @@ const MyApps = () => {
               </div>
             )}
             <button
-              onClick={() => navigate(`/my-apps/${app.id}`)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/my-apps/${app.id}`);
+                }}
               className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
             >
               <Eye size={16} />
               {t('csDashboard.viewDetails')}
             </button>
+            </div>
           </div>
         ))}
       </div>
@@ -159,19 +166,19 @@ const MyApps = () => {
 const Promotions = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const csTeam = modelService.getCSTeam() || [];
-    const csAppRevenue = modelService.getCSAppRevenue() || [];
-    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
-    if (!cs) return null;
-    return {
-      cs,
-      promotions: csAppRevenue.filter(r => r.csId === cs.id)
-    };
+    // Use centralized method to get CS dashboard data
+    return modelService.getCSDashboardData(user?.id ?? 'cs1');
   }, [user]);
 
-  if (!csData) return <div className="text-slate-400">Loading...</div>;
+  if (!csData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-400">{t('common.noDataAvailable')}</div>
+      </div>
+    );
+  }
 
-  const promotionData = csData.promotions.map(p => ({
+  const promotionData = csData.csRevenue.map(p => ({
     date: p.lastUpdated,
     promotions: p.promotions,
     revenue: p.revenue,
@@ -227,12 +234,12 @@ const Promotions = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {csData.promotions.map(p => {
-                const apps = modelService.getApps() || [];
+              {csData.csRevenue.map(p => {
+                const apps = modelService.getApps();
                 const app = apps.find(a => a.id === p.appId);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{app?.name || 'Unknown'}</td>
+                    <td className="px-6 py-4 font-medium text-slate-800 dark:text-white">{app?.name ?? t('common.unknown')}</td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{p.promotions}</td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-400">${p.revenue.toLocaleString()}</td>
                     <td className="px-6 py-4 text-emerald-600 dark:text-emerald-400 font-semibold">${p.commission.toLocaleString()}</td>
@@ -251,15 +258,17 @@ const Promotions = () => {
 const Performance = () => {
   const { t, user } = useApp();
   const csData = useMemo(() => {
-    const csTeam = modelService.getCSTeam() || [];
-    const cs = csTeam.find(c => c.id === user?.id || 'cs1');
-    if (!cs) return null;
-    const allCS = csTeam.sort((a, b) => b.totalEarnings - a.totalEarnings);
-    const rank = allCS.findIndex(c => c.id === cs.id) + 1;
-    return { cs, rank, totalCS: allCS.length };
+    // Use centralized method to get CS dashboard data (includes rank and totalCS)
+    return modelService.getCSDashboardData(user?.id ?? 'cs1');
   }, [user]);
 
-  if (!csData) return <div className="text-slate-400">Loading...</div>;
+  if (!csData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-400">{t('common.noDataAvailable')}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -353,7 +362,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
             {user ? user.name.substring(0, 2).toUpperCase() : 'CS'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || t('user.csUser')}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name ?? t('user.csUser')}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">{t('user.csSpecialist')}</p>
           </div>
           <button onClick={onOpenSettings} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">

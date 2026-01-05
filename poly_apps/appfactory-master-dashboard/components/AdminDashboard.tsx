@@ -32,10 +32,10 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 import { modelService } from '../services/modelService';
-import { AppStatus, UserRole, AppCategory, AppInstance } from '../types';
-import { encryptedImageService } from '../services/encryptedImageService';
+import { AppStatus, UserRole, AppCategory, AppInstance, CustomerService } from '../types';
 import { StatCard } from './StatCard';
 import { useApp } from '../contexts/AppContext';
+import { getAvatarUrl } from '../utils/avatarUtils';
 import { AppGenerationForm } from './AppGenerationForm';
 import { AppDetailPage } from './AppDetailPage';
 import { CSAssignment } from './CSAssignment';
@@ -46,6 +46,7 @@ import { AppReleaseDetail } from './AppReleaseDetail';
 import { PromotionRecordList } from './PromotionRecordList';
 import { PromotionRecordDetail } from './PromotionRecordDetail';
 import { PromoterList } from './PromoterList';
+import { AppImageDisplay } from './AppImageDisplay';
 import { CSList } from './CSList';
 import { AddPromoterForm } from './AddPromoterForm';
 import { AddCSForm } from './AddCSForm';
@@ -61,11 +62,11 @@ import { PaymentVerificationManagement } from './PaymentVerificationManagement';
 const RevenueAnalytics = () => {
   const { t } = useApp();
   
-  const apps = useMemo(() => modelService.getApps() || [], []);
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
-  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
-  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
-  const appRequests = useMemo(() => modelService.getAppRequests() || [], []);
+  const apps = useMemo(() => modelService.getApps() ?? [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() ?? [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() ?? [], []);
+  const appRequests = useMemo(() => modelService.getAppRequests() ?? [], []);
 
   const topApps = useMemo(() => 
     [...apps].sort((a, b) => b.revenue - a.revenue).slice(0, 10),
@@ -75,7 +76,8 @@ const RevenueAnalytics = () => {
   const revenueByCategory = useMemo(() => {
     const categoryMap = new Map<string, number>();
     apps.forEach(app => {
-      const current = categoryMap.get(app.category) || 0;
+      const current = categoryMap.get(app.category) ?? 0;
+      categoryMap.set(app.category, current + app.revenue);
       categoryMap.set(app.category, current + app.revenue);
     });
     return Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value }));
@@ -194,7 +196,7 @@ const RevenueAnalytics = () => {
 // Commission Management Component
 const CommissionManagement = () => {
   const { t } = useApp();
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -220,7 +222,7 @@ const CommissionManagement = () => {
               <tr key={cs.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <img src={cs.avatar} className="w-10 h-10 rounded-full" />
+                    <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} className="w-10 h-10 rounded-full" />
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-white">{cs.name}</p>
                       <p className="text-xs text-slate-500">{cs.email}</p>
@@ -265,8 +267,8 @@ const CommissionManagement = () => {
 // APP-CS Revenue Matrix Component
 const RevenueMatrix = () => {
   const { t } = useApp();
-  const apps = useMemo(() => modelService.getApps() || [], []);
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const apps = useMemo(() => modelService.getApps() ?? [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
   
   return (
     <div className="space-y-6">
@@ -290,7 +292,7 @@ const RevenueMatrix = () => {
                 {csTeam.map(cs => (
                   <th key={cs.id} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase text-center min-w-[120px]">
                     <div className="flex flex-col items-center gap-1">
-                      <img src={cs.avatar} className="w-6 h-6 rounded-full" />
+                      <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} className="w-6 h-6 rounded-full" />
                       <span>{cs.name}</span>
                     </div>
                   </th>
@@ -352,10 +354,10 @@ const AppDetails = () => {
   const navigate = useNavigate();
   const { t } = useApp();
   
-  const apps = useMemo(() => modelService.getApps() || [], []);
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
-  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
-  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const apps = useMemo(() => modelService.getApps() ?? [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() ?? [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() ?? [], []);
   const app = useMemo(() => apps.find(a => a.id === id), [apps, id]);
 
   if (!app) return <div className="p-8 text-center">App not found</div>;
@@ -405,7 +407,7 @@ const AppDetails = () => {
                     }`}>{app.status}</span>
                     <span className="flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold">
                       <Star size={12} fill="currentColor" />
-                      {app.rating || '4.5'}
+                      {app.rating ?? '4.5'}
                     </span>
                   </div>
                 </div>
@@ -488,7 +490,7 @@ const AppDetails = () => {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Technical Leader</p>
                 <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-3">
-                    <img src={techTeam[0]?.avatar} className="w-10 h-10 rounded-full" />
+                    <img src={techTeam[0] ? getAvatarUrl(techTeam[0].avatar, 150, 'pravatar') : ''} className="w-10 h-10 rounded-full" />
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-white">{techTeam[0]?.name}</p>
                       <p className="text-[10px] text-slate-500">{techTeam[0]?.specialization}</p>
@@ -506,7 +508,7 @@ const AppDetails = () => {
                     return cs ? (
                       <div key={cs.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-3">
-                          <img src={cs.avatar} className="w-8 h-8 rounded-full" />
+                          <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} className="w-8 h-8 rounded-full" />
                           <div>
                             <p className="text-xs font-bold text-slate-800 dark:text-white">{cs.name}</p>
                             <p className="text-[10px] text-slate-500">{cs.status}</p>
@@ -559,7 +561,7 @@ const AppDetails = () => {
 // Technical Team List Component
 const TechTeam = () => {
   const { t } = useApp();
-  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() ?? [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -578,7 +580,7 @@ const TechTeam = () => {
           <div key={tech.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col items-center text-center group transition-all hover:shadow-xl hover:shadow-slate-500/5">
             <div className="relative mb-4">
               <div className="p-1 rounded-full border-2 border-slate-100 dark:border-slate-700 group-hover:border-indigo-500 transition-colors">
-                <img src={tech.avatar} alt="" className="w-20 h-20 rounded-full" />
+                <img src={getAvatarUrl(tech.avatar, 150, 'pravatar')} alt="" className="w-20 h-20 rounded-full" />
               </div>
               <div className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 ${
                 tech.status === 'Available' ? 'bg-emerald-500' : 'bg-amber-500'
@@ -614,10 +616,10 @@ const TechTeam = () => {
 // Dashboard Overview Page
 const DashboardOverview = () => {
   const { t } = useApp();
-  const apps = useMemo(() => modelService.getApps() || [], []);
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
-  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
-  const appRequests = useMemo(() => modelService.getAppRequests() || [], []);
+  const apps = useMemo(() => modelService.getApps() ?? [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() ?? [], []);
+  const appRequests = useMemo(() => modelService.getAppRequests() ?? [], []);
   
   const stats = useMemo(() => {
     const totalRevenue = apps.reduce((acc, app) => acc + app.revenue, 0);
@@ -731,7 +733,7 @@ const DashboardOverview = () => {
 
 // CS Assignment Modal Component
 const CSAssignmentModal = ({ isOpen, onClose, app }: { isOpen: boolean; onClose: () => void; app: AppInstance }) => {
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
   const { t } = useApp();
   const [selectedCS, setSelectedCS] = useState<string[]>(app.assignedCSIds);
 
@@ -771,7 +773,7 @@ const CSAssignmentModal = ({ isOpen, onClose, app }: { isOpen: boolean; onClose:
               }`}
             >
               <div className="flex items-center gap-4">
-                <img src={cs.avatar} className="w-12 h-12 rounded-full" />
+                <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} className="w-12 h-12 rounded-full" />
                 <div>
                   <p className="font-bold text-slate-800 dark:text-white">{cs.name}</p>
                   <p className="text-xs text-slate-500">{cs.email} • {cs.assignedAppIds.length} apps</p>
@@ -806,7 +808,7 @@ const AppsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showGenerationForm, setShowGenerationForm] = useState(false);
 
-  const allApps = useMemo(() => modelService.getApps() || [], []);
+  const allApps = useMemo(() => modelService.getApps(), []);
   // Only show first 5 apps (app1-app5) with icon/splash
   const apps = useMemo(() => allApps.filter(app => {
     const match = app.id.match(/app(\d+)/);
@@ -816,13 +818,13 @@ const AppsList = () => {
     }
     return false;
   }), [allApps]);
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
   const filteredApps = apps.filter(app => {
     const matchesSearch = app.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
 
-  const handleGenerateApp = (appData: any) => {
+  const handleGenerateApp = (appData: { name: string; category: AppCategory; description: string; targetAudience: string; features: string[]; assignedTechId?: string; requestedAt: string }) => {
     console.log('Generating app:', appData);
     alert('APP generation started! (This is a demo)');
   };
@@ -881,78 +883,30 @@ const AppsList = () => {
 /**
  * App Card Component with encrypted icon and splash support
  * Shows app icon, splash screen, and app information
+ * Uses AppImageDisplay component for consistent image handling
  */
 const AppCard: React.FC<{
   app: AppInstance;
-  csTeam: any[];
+  csTeam: CustomerService[];
 }> = ({ app, csTeam }) => {
   const { t } = useApp();
   const navigate = useNavigate();
-  const [iconUrl, setIconUrl] = useState<string | null>(null);
-  const [splashUrl, setSplashUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadImages = async () => {
-      if (app.icon) {
-        const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
-        setIconUrl(icon);
-      }
-      if (app.splash) {
-        const splash = await encryptedImageService.loadAppSplash(app.id, app.splash);
-        setSplashUrl(splash);
-      }
-    };
-    loadImages();
-  }, [app.id, app.icon, app.splash]);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden hover:shadow-xl transition-all cursor-pointer" onClick={() => navigate(`/apps/${app.id}`)}>
-      {/* Splash Screen */}
-      {splashUrl ? (
-        <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 relative overflow-hidden">
-          <img
-            src={splashUrl}
-            alt={`${app.name} splash`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </div>
-      ) : (
-        <div className="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
-          {iconUrl ? (
-            <img
-              src={iconUrl}
-              alt={`${app.name} icon`}
-              className="w-24 h-24 rounded-xl"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <span className="text-white text-4xl font-bold">
-              {app.name.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Splash Screen - uses AppImageDisplay component for consistent image handling */}
+      <AppImageDisplay app={app} mode="card" />
 
       <div className="p-6">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            {iconUrl && (
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
-                <img
-                  src={iconUrl}
-                  alt={`${app.name} icon`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
+            {/* Small icon - uses AppImageDisplay component for consistent image handling */}
+            <AppImageDisplay 
+              app={app} 
+              mode="icon-only" 
+              iconSize="small"
+              className="rounded-lg"
+            />
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-1">
                 {app.name}
@@ -1005,7 +959,7 @@ const AppCard: React.FC<{
                 return cs ? (
                   <img 
                     key={cs.id} 
-                    src={cs.avatar} 
+                    src={getAvatarUrl(cs.avatar, 150, 'pravatar')} 
                     alt={cs.name} 
                     className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-100 dark:ring-slate-700" 
                     title={cs.name}
@@ -1023,7 +977,7 @@ const AppCard: React.FC<{
 // CS Management Page
 const CSTeam = () => {
   const { t } = useApp();
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1044,7 +998,7 @@ const CSTeam = () => {
             
             <div className="relative mb-4">
               <div className="p-1 rounded-full border-2 border-indigo-100 dark:border-indigo-900/50 group-hover:border-indigo-500 transition-colors">
-                <img src={cs.avatar} alt={cs.name} className="w-20 h-20 rounded-full object-cover" />
+                <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} alt={cs.name} className="w-20 h-20 rounded-full object-cover" />
               </div>
               <div className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 ${cs.status === 'Online' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
             </div>
@@ -1092,8 +1046,8 @@ const CSTeam = () => {
               <option>This Year</option>
             </select>
           </div>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-80 min-h-[320px]">
+            <ResponsiveContainer width="100%" height="100%" minHeight={320}>
               <BarChart data={csTeam}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
@@ -1111,7 +1065,7 @@ const CSTeam = () => {
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Top Performing CS</h3>
           <div className="space-y-4">
-            {csTeam.sort((a, b) => b.totalEarnings - a.totalEarnings).map((cs, index) => (
+            {[...csTeam].sort((a, b) => b.totalEarnings - a.totalEarnings).map((cs, index) => (
               <div key={cs.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
@@ -1122,7 +1076,7 @@ const CSTeam = () => {
                   }`}>
                     {index + 1}
                   </div>
-                  <img src={cs.avatar} alt="" className="w-10 h-10 rounded-full" />
+                  <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} alt="" className="w-10 h-10 rounded-full" />
                   <div>
                     <p className="text-sm font-bold text-slate-800 dark:text-white">{cs.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{cs.assignedAppIds.length} apps assigned</p>
@@ -1200,7 +1154,7 @@ const Sidebar: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) =
             {user ? user.name.substring(0, 2).toUpperCase() : 'AD'}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user?.name || t('user.adminUser')}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{user !== null && user !== undefined && user.name !== null && user.name !== undefined ? user.name : t('user.adminUser')}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">{user?.role === UserRole.ADMIN ? t('user.superAdmin') : user?.role}</p>
           </div>
           <button onClick={onOpenSettings} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">

@@ -6,6 +6,8 @@ import { AppRelease } from '../types';
 import { QRCode } from './QRCode';
 import { getAppNameById } from '../utils/dataHelpers';
 import { useApp } from '../contexts/AppContext';
+import { useOrigin } from '../contexts/OriginContext';
+import { useClipboard } from '../hooks/useClipboard';
 
 /**
  * APP访问页面
@@ -74,8 +76,8 @@ export const AppAccessPage: React.FC = () => {
   }
 
   const qrCodeUrl = appRelease.encryptedString 
-    ? `${window.location.origin}/#/${appRelease.encryptedString}`
-    : `${window.location.origin}/#/${encryptedString}`;
+    ? `${origin}/#/${appRelease.encryptedString}`
+    : `${origin}/#/${encryptedString}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -153,8 +155,8 @@ export const AppAccessPage: React.FC = () => {
                   {qrCodeUrl}
                 </code>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(qrCodeUrl);
+                  onClick={async () => {
+                    await copyToClipboard(qrCodeUrl);
                     alert(t('appAccess.linkCopied'));
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-bold"

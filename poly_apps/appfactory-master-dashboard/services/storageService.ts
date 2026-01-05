@@ -42,6 +42,9 @@ class StorageService {
       if (!item) return defaultValue ?? null;
       return JSON.parse(item) as T;
     } catch (error) {
+      // catch 代码必要性：必须保留
+      // 原因：localStorage 可能失败（存储空间满、隐私模式、跨域等）
+      // 需要捕获错误并返回默认值，避免应用崩溃
       console.error(`Error getting item from storage: ${key}`, error);
       return defaultValue ?? null;
     }
@@ -54,6 +57,9 @@ class StorageService {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
+      // catch 代码必要性：必须保留
+      // 原因：localStorage 可能失败（存储空间满、隐私模式、跨域等）
+      // 需要捕获错误，避免应用崩溃
       console.error(`Error setting item in storage: ${key}`, error);
     }
   }
@@ -65,6 +71,9 @@ class StorageService {
     try {
       localStorage.removeItem(key);
     } catch (error) {
+      // catch 代码必要性：必须保留
+      // 原因：localStorage 可能失败（隐私模式、跨域等）
+      // 需要捕获错误，避免应用崩溃
       console.error(`Error removing item from storage: ${key}`, error);
     }
   }
@@ -76,6 +85,9 @@ class StorageService {
     try {
       localStorage.clear();
     } catch (error) {
+      // catch 代码必要性：必须保留
+      // 原因：localStorage 可能失败（隐私模式、跨域等）
+      // 需要捕获错误，避免应用崩溃
       console.error('Error clearing storage', error);
     }
   }
@@ -86,7 +98,8 @@ class StorageService {
    * 获取当前语言
    */
   getLanguage(): string {
-    return this.get<string>(STORAGE_KEYS.LANGUAGE, 'zh') || 'zh';
+    const lang = this.get<string>(STORAGE_KEYS.LANGUAGE, 'zh');
+    return lang ?? 'zh';
   }
 
   /**
@@ -100,7 +113,8 @@ class StorageService {
    * 获取当前主题
    */
   getTheme(): 'light' | 'dark' {
-    return this.get<'light' | 'dark'>(STORAGE_KEYS.THEME, 'light') || 'light';
+    const theme = this.get<'light' | 'dark'>(STORAGE_KEYS.THEME, 'light');
+    return theme ?? 'light';
   }
 
   /**
@@ -111,7 +125,8 @@ class StorageService {
   }
 
   /**
-   * 获取用户信息
+   * Get user info
+   * Avatar URLs are generated dynamically at render time using avatarUtils.getAvatarUrl()
    */
   getUserInfo(): UserInfo | null {
     return this.get<UserInfo>(STORAGE_KEYS.USER_INFO);
@@ -142,17 +157,14 @@ class StorageService {
    * 获取应用设置
    */
   getSettings(): AppSettings {
-    return this.get<AppSettings>(STORAGE_KEYS.SETTINGS, {
-      language: 'zh',
-      theme: 'light',
-      notifications: true,
-      autoRefresh: true,
-    }) || {
+    const defaultSettings: AppSettings = {
       language: 'zh',
       theme: 'light',
       notifications: true,
       autoRefresh: true,
     };
+    const settings = this.get<AppSettings>(STORAGE_KEYS.SETTINGS, defaultSettings);
+    return settings ?? defaultSettings;
   }
 
   /**

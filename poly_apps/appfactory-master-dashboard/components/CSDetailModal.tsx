@@ -3,6 +3,8 @@ import { X, Edit2, Trash2, User, Phone, Calendar, Award, DollarSign, Image as Im
 import { modelService } from '../services/modelService';
 import { CustomerService } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { useConfirm } from '../hooks/useConfirm';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 interface CSDetailModalProps {
   cs: CustomerService;
@@ -12,12 +14,14 @@ interface CSDetailModalProps {
 }
 
 /**
- * 客服详情和编辑弹窗组件
+ * CS detail and edit modal component
  */
 export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpdate, onDelete }) => {
   const { user, t } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<CustomerService>>(cs);
+  // Use React Hook for confirmation instead of direct window.confirm access
+  const confirm = useConfirm();
 
   useEffect(() => {
     setFormData(cs);
@@ -34,8 +38,8 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
     onUpdate();
   };
 
-  const handleDelete = () => {
-    if (window.confirm(t('csManagement.confirmDelete', { name: cs.name }))) {
+  const handleDelete = async () => {
+    if (await confirm(t('csManagement.confirmDelete', { name: cs.name }))) {
       modelService.deleteCS(cs.id);
       onDelete();
       onClose();
@@ -155,14 +159,14 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
                     {t('csManagement.csLevel')} <span className="text-rose-500">*</span>
                   </label>
                   <select
-                    value={formData.level || '初级'}
+                    value={formData.level || 'Junior'}
                     onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                     required
                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
                   >
-                    <option value="初级">{t('csManagement.levelJunior')}</option>
-                    <option value="中级">{t('csManagement.levelIntermediate')}</option>
-                    <option value="高级">{t('csManagement.levelSenior')}</option>
+                    <option value="Junior">{t('csManagement.levelJunior')}</option>
+                    <option value="Intermediate">{t('csManagement.levelIntermediate')}</option>
+                    <option value="Senior">{t('csManagement.levelSenior')}</option>
                   </select>
                 </div>
 
@@ -236,9 +240,9 @@ export const CSDetailModal: React.FC<CSDetailModalProps> = ({ cs, onClose, onUpd
           ) : (
             <div className="space-y-6">
               <div className="flex items-start gap-6">
-                {cs.photo ? (
+                {(cs.photo || cs.avatar) ? (
                   <img
-                    src={cs.photo}
+                    src={getAvatarUrl(cs.photo || cs.avatar, 150, 'pravatar')}
                     alt={cs.name}
                     className="w-24 h-24 rounded-full object-cover border-4 border-slate-200 dark:border-slate-600"
                   />

@@ -20,12 +20,12 @@ export const calculateCSMetrics = (cs: CustomerService): {
   unsettledAmount: number;
 } => {
   // Get all promotion records for this CS
-  const allRecords = modelService.getPromotionRecords() || [];
+  const allRecords = modelService.getPromotionRecords();
   
   // Filter records where CS is involved (through assigned apps)
   const csRecords = allRecords.filter(record => {
-    const app = modelService.getApps()?.find(a => a.id === record.appId);
-    return app?.assignedCSIds?.includes(cs.id);
+    const app = modelService.getApps().find(a => a.id === record.appId);
+    return app?.assignedCSIds?.includes(cs.id) ?? false;
   });
 
   // Calculate from promotion records
@@ -76,7 +76,7 @@ export const calculatePromoterMetrics = (promoter: Promoter): {
   unsettledAmount: number;
 } => {
   // Get all promotion records for this promoter
-  const allRecords = modelService.getPromotionRecords() || [];
+  const allRecords = modelService.getPromotionRecords();
   const promoterRecords = allRecords.filter(r => r.promoterId === promoter.id);
 
   let totalValidCount = 0;

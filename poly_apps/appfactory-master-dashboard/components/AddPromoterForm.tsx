@@ -35,7 +35,7 @@ export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuc
       region: formData.region!,
       joinDate: formData.joinDate!,
       photo: formData.photo,
-      unitPrice: formData.unitPrice || 50,
+      unitPrice: formData.unitPrice ?? 50,
       totalValidCount: 0,
       totalPrice: 0,
       totalDeduction: 0,

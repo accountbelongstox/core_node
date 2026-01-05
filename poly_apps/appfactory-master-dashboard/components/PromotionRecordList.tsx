@@ -15,17 +15,15 @@ export const PromotionRecordList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'settled' | 'unsettled'>('all');
 
-  const records = useMemo(() => {
-    return modelService.getPromotionRecords() || [];
-  }, []);
+  const records = useMemo(() => modelService.getPromotionRecords(), []);
 
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
       // Get app name from central data source
       const appName = getAppNameById(record.appId);
-      const matchesSearch = appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      const matchesSearch = appName.toLowerCase().includes(searchQuery.toLowerCase()) ? true :
                            record.promoterName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || 
+      const matchesStatus = statusFilter === 'all' ? true : 
                            (statusFilter === 'settled' ? record.isSettled : !record.isSettled);
       return matchesSearch && matchesStatus;
     });
@@ -59,7 +57,7 @@ export const PromotionRecordList: React.FC = () => {
             <Filter size={18} className="text-slate-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'settled' | 'unsettled')}
               className="px-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             >
               <option value="all">{t('promotionRecord.allStatus')}</option>

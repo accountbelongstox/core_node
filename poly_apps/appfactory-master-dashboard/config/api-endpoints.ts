@@ -33,28 +33,41 @@ export const getEndpointById = (id: string): ApiEndpoint | undefined => {
 
 /**
  * All available API endpoint list
- * Sorted by priority (smaller priority number means higher priority)
+ * Detection priority order (smaller priority number = higher priority):
+ * 1. 127.0.0.1:9000 (localhost) - Tested first
+ * 2. 192.168.50.3:9000 (LAN server) - Tested second
+ * 3. api.si.12gm.com (Remote HTTPS) - Tested last
  * 
- * Strategy: Local first, automatically switch to cloud server when local is unavailable
+ * Strategy: Test endpoints in priority order, use first available endpoint
+ * This ensures local development is preferred, then LAN, then remote
  */
 export const API_ENDPOINTS: ApiEndpoint[] = [
   {
     id: 'localhost',
-    url: 'localhost',
-    protocol: 'http',
+    url: '127.0.0.1',
+    protocol: 'http' as const,
     port: 9000,
-    priority: 1,
+    priority: 1, // Highest priority - tested first
     isLocal: true,
-    description: 'Local Development Server',
+    description: 'Local Development Server (127.0.0.1:9000)',
+  },
+  {
+    id: 'lan-server',
+    url: '192.168.50.3',
+    protocol: 'http' as const,
+    port: 9000,
+    priority: 2, // Second priority - tested if localhost unavailable
+    isLocal: true,
+    description: 'LAN Server (192.168.50.3:9000)',
   },
   {
     id: 'cloud-production',
     url: 'api.si.12gm.com',
-    protocol: 'https',
+    protocol: 'https' as const,
     port: undefined,
-    priority: 2,
+    priority: 3, // Lowest priority - tested last
     isLocal: false,
-    description: 'Cloud Production Server',
+    description: 'Cloud Production Server (HTTPS)',
   },
-].sort((a, b) => a.priority - b.priority); // Sort by priority
+].sort((a, b) => a.priority - b.priority); // Sort by priority: 1 → 2 → 3
 

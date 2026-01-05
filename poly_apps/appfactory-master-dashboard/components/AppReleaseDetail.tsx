@@ -7,6 +7,7 @@ import { QRCode } from './QRCode';
 import { useApp } from '../contexts/AppContext';
 import { getAppNameById } from '../utils/dataHelpers';
 import { encryptedImageService } from '../services/encryptedImageService';
+import { usePasswordChange } from '../hooks/usePasswordChange';
 
 /**
  * APP发布详情页面
@@ -19,20 +20,36 @@ export const AppReleaseDetail: React.FC = () => {
   const [appRelease, setAppRelease] = useState<AppRelease | null>(null);
   const [iconUrl, setIconUrl] = useState<string | null>(null);
   const [splashUrl, setSplashUrl] = useState<string | null>(null);
+  // Use React state instead of direct DOM manipulation for error handling
+  const [showSplash, setShowSplash] = useState(true);
+  const [showCoverImage, setShowCoverImage] = useState(true);
+  const [showIcon, setShowIcon] = useState(true);
+  const [showSmallIcon, setShowSmallIcon] = useState(true);
+  
+  // Use React Hook to monitor password changes - reload images when password changes
+  const password = usePasswordChange();
 
   useEffect(() => {
     if (!id) return;
 
-    const releases = modelService.getAppReleases() || [];
+    const releases = modelService.getAppReleases() ?? [];
     const release = releases.find(r => r.id === id);
 
     if (release) {
       setAppRelease(release);
       
       // Load app icon and splash from centralized mock data
-      const app = modelService.getApps()?.find(a => a.id === release.appId);
+      const app = modelService.getApps().find(a => a.id === release.appId);
       if (app) {
         const loadImages = async () => {
+          // Clear previous URLs to force reload with new password
+          setIconUrl(null);
+          setSplashUrl(null);
+          setShowSplash(true);
+          setShowCoverImage(true);
+          setShowIcon(true);
+          setShowSmallIcon(true);
+          
           if (app.icon) {
             const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
             setIconUrl(icon);
@@ -45,7 +62,7 @@ export const AppReleaseDetail: React.FC = () => {
         loadImages();
       }
     }
-  }, [id]);
+  }, [id, password]); // Reload when password changes
 
   if (!appRelease) {
     return (
@@ -64,16 +81,19 @@ export const AppReleaseDetail: React.FC = () => {
   }
 
   const accessUrl = appRelease.encryptedString 
-    ? `${window.location.origin}/#/${appRelease.encryptedString}`
+    ? `${origin}/#/${appRelease.encryptedString}`
     : '';
 
-  const copyToClipboard = (text: string, label: string) => {
+  // Use React Hook for clipboard operations
+  const handleCopyToClipboard = async (text: string, label: string) => {
     if (!text) {
       alert(t('appRelease.linkUnavailable'));
       return;
     }
-    navigator.clipboard.writeText(text);
-    alert(t('appRelease.copiedToClipboard', { label }));
+    const success = await copyToClipboardHook(text);
+    if (success) {
+      alert(t('appRelease.copiedToClipboard', { label }));
+    }
   };
 
   return (
@@ -107,41 +127,44 @@ export const AppReleaseDetail: React.FC = () => {
         {/* 左侧：APP封面和基本信息 */}
         <div className="space-y-6">
           {/* APP封面 - 优先显示splash，然后是coverImage，最后是icon */}
-          {splashUrl ? (
+          {splashUrl && showSplash ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
                 <img
                   src={splashUrl}
                   alt={`${getAppNameById(appRelease.appId)} splash`}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
+                  onError={() => {
+                    // Use React state instead of direct DOM manipulation
+                    setShowSplash(false);
                   }}
                 />
               </div>
             </div>
-          ) : appRelease.coverImage ? (
+          ) : appRelease.coverImage && showCoverImage ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
                 <img
                   src={appRelease.coverImage}
                   alt={getAppNameById(appRelease.appId)}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
+                  onError={() => {
+                    // Use React state instead of direct DOM manipulation
+                    setShowCoverImage(false);
                   }}
                 />
               </div>
             </div>
-          ) : iconUrl ? (
+          ) : iconUrl && showIcon ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
                 <img
                   src={iconUrl}
                   alt={`${getAppNameById(appRelease.appId)} icon`}
                   className="w-32 h-32 rounded-xl"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
+                  onError={() => {
+                    // Use React state instead of direct DOM manipulation
+                    setShowIcon(false);
                   }}
                 />
               </div>
@@ -159,15 +182,22 @@ export const AppReleaseDetail: React.FC = () => {
           {iconUrl && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
-                  <img
-                    src={iconUrl}
-                    alt={`${getAppNameById(appRelease.appId)} icon`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0 flex items-center justify-center">
+                  {showSmallIcon ? (
+                    <img
+                      src={iconUrl}
+                      alt={`${getAppNameById(appRelease.appId)} icon`}
+                      className="w-full h-full object-cover"
+                      onError={() => {
+                        // Use React state instead of direct DOM manipulation
+                        setShowSmallIcon(false);
+                      }}
+                    />
+                  ) : (
+                    <span className="text-slate-400 dark:text-slate-500 font-bold text-xl">
+                      {getAppNameById(appRelease.appId).charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 dark:text-white">{getAppNameById(appRelease.appId)}</h3>
@@ -193,7 +223,7 @@ export const AppReleaseDetail: React.FC = () => {
                 {appRelease.downloadUrl}
               </code>
               <button
-                onClick={() => copyToClipboard(appRelease.downloadUrl, t('appRelease.downloadLink'))}
+                onClick={() => handleCopyToClipboard(appRelease.downloadUrl, t('appRelease.downloadLink'))}
                 className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
                 <Copy size={18} />
@@ -246,7 +276,7 @@ export const AppReleaseDetail: React.FC = () => {
                     {accessUrl}
                   </code>
                   <button
-                    onClick={() => copyToClipboard(accessUrl, t('appRelease.accessURL'))}
+                    onClick={() => handleCopyToClipboard(accessUrl, t('appRelease.accessURL'))}
                     className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     <Copy size={18} />
@@ -280,7 +310,7 @@ export const AppReleaseDetail: React.FC = () => {
                   {appRelease.secondaryUrl}
                 </code>
                 <button
-                  onClick={() => copyToClipboard(appRelease.secondaryUrl!, t('appRelease.secondaryURL'))}
+                  onClick={() => handleCopyToClipboard(appRelease.secondaryUrl!, t('appRelease.secondaryURL'))}
                   className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   <Copy size={18} />
