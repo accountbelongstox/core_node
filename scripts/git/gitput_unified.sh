@@ -469,10 +469,58 @@ initialize_git_config() {
     write_color_text "Git configuration initialized successfully!" "Green" >&2
 }
 
+# Function to detect platform and distribution
+get_platform_info() {
+    local platform=""
+    local distro=""
+
+    # Detect OS type
+    if [ -f /etc/os-release ]; then
+        # Linux
+        platform="linux"
+        # Get distribution name
+        distro=$(grep "^ID=" /etc/os-release | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+        # Handle common distributions
+        case "$distro" in
+            ubuntu|debian|centos|fedora|arch|manjaro|opensuse|alpine|rhel|rocky|alma)
+                # Use as-is
+                ;;
+            *)
+                # Default to "linux" if unknown
+                distro="linux"
+                ;;
+        esac
+    elif [ -d "/mnt/c/Windows" ] || [ -d "/mnt/c/WINDOWS" ]; then
+        # WSL (Windows Subsystem for Linux)
+        platform="wsl"
+        distro=$(grep "^ID=" /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+        [ -z "$distro" ] && distro="ubuntu"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        platform="macos"
+        distro=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1-2)
+        [ -z "$distro" ] && distro="macos"
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
+        # Windows (Git Bash / MSYS / Cygwin)
+        platform="windows"
+        # Try to get Windows version
+        if command -v wmic >/dev/null 2>&1; then
+            distro=$(wmic os get Caption 2>/dev/null | grep -i windows | head -n1 | sed 's/Microsoft Windows //' | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+        fi
+        [ -z "$distro" ] && distro="10"
+    else
+        # Unknown platform
+        platform="unknown"
+        distro="unknown"
+    fi
+
+    echo "${platform}-${distro}"
+}
+
 # Function to get commit message (session-scoped only)
 get_commit_message() {
     local commit_file="/tmp/git_commit_message_$$"
-    
+
     # Check if we have a stored commit message
     if [ -f "$commit_file" ]; then
         local stored_message=$(cat "$commit_file")
@@ -482,24 +530,28 @@ get_commit_message() {
             return
         fi
     fi
-    
+
+    # Get platform info for default message
+    local platform_info=$(get_platform_info)
+    local default_message="${platform_info}-${TIMESTAMP}"
+
     # Ask user for input (first time only)
-    write_color_text "Enter commit message (press Enter to use timestamp): " "Yellow" >&2
+    write_color_text "Enter commit message (press Enter to use: $default_message): " "Yellow" >&2
     # Ensure the prompt is fully displayed before accepting input
     sleep 0.1
     read -r user_input
-    
+
     if [ -z "$user_input" ]; then
-        COMMIT_MESSAGE="$TIMESTAMP"
-        write_color_text "Using timestamp as commit message: $TIMESTAMP" "Cyan" >&2
+        COMMIT_MESSAGE="$default_message"
+        write_color_text "Using default commit message: $default_message" "Cyan" >&2
     else
         COMMIT_MESSAGE="$user_input"
         write_color_text "Using custom commit message: $user_input" "Green" >&2
     fi
-    
+
     # Store the commit message in a file
     echo "$COMMIT_MESSAGE" > "$commit_file"
-    
+
     echo "$COMMIT_MESSAGE"
 }
 

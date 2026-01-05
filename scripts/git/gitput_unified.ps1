@@ -186,25 +186,62 @@ function Get-GlobalVar {
     return $null
 }
 
+# Function to detect platform and distribution
+function Get-PlatformInfo {
+    $platform = "windows"
+    $distro = ""
+
+    try {
+        # Get Windows version
+        $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+        if ($osInfo) {
+            $caption = $osInfo.Caption
+            if ($caption -match "Windows 11") {
+                $distro = "11"
+            } elseif ($caption -match "Windows 10") {
+                $distro = "10"
+            } elseif ($caption -match "Windows Server 2022") {
+                $distro = "server2022"
+            } elseif ($caption -match "Windows Server 2019") {
+                $distro = "server2019"
+            } elseif ($caption -match "Windows Server") {
+                $distro = "server"
+            } else {
+                $distro = "10"
+            }
+        } else {
+            $distro = "10"
+        }
+    } catch {
+        $distro = "10"
+    }
+
+    return "$platform-$distro"
+}
+
 # Function to get commit message (session-scoped only)
 function Get-CommitMessage {
     # If we already have a commit message in this session, use it
     if ($script:CommitMessage) {
         return $script:CommitMessage
     }
-    
+
+    # Get platform info for default message
+    $platformInfo = Get-PlatformInfo
+    $defaultMessage = "$platformInfo-$timestamp"
+
     # Ask user for input
-    Write-ColorText "Enter commit message (press Enter to use timestamp): " -ForegroundColor Yellow -NoNewline
+    Write-ColorText "Enter commit message (press Enter to use: $defaultMessage): " -ForegroundColor Yellow -NoNewline
     $userInput = Read-Host
-    
+
     if ([string]::IsNullOrWhiteSpace($userInput)) {
-        $script:CommitMessage = $timestamp
-        Write-ColorText "Using timestamp as commit message: $timestamp" -ForegroundColor Cyan
+        $script:CommitMessage = $defaultMessage
+        Write-ColorText "Using default commit message: $defaultMessage" -ForegroundColor Cyan
     } else {
         $script:CommitMessage = $userInput
         Write-ColorText "Using custom commit message: $userInput" -ForegroundColor Green
     }
-    
+
     return $script:CommitMessage
 }
 
