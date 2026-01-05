@@ -23,33 +23,54 @@ const OAUTH_PROVIDER_A = 'provider-a'
 const OAUTH_PROVIDER_B = 'provider-b'
 
 // 从多个配置文件读取并组合敏感信息
-function assembleClientId(seg1, seg2, seg3) {
-  return `${seg1}-${seg2}.${seg3}`
+function combineClientId(parts) {
+  const [num1, num2, num3, num4, str1, str2, domain1, domain2, tld] = parts
+  return `${num1}${num2}${num3}${num4}-${str1}${str2}.${domain1}.${domain2}.${tld}`
 }
 
-function assembleClientSecret(seg1, seg2, seg3, seg4) {
-  if (seg4) {
-    return `${seg1}-${seg2}-${seg3}-${seg4}`
-  }
-  return `${seg1}-${seg2}`
+function combineClientSecret(parts) {
+  return parts.join('-')
 }
 
 // 读取配置片段
-const partA = require('../config/oauth_parts/part_a')
-const partB = require('../config/oauth_parts/part_b')
-const partC = require('../config/oauth_parts/part_c')
-const partD = require('../config/oauth_parts/part_d')
+const cfgA = require('../config/oauth_parts/part_a')
+const cfgB = require('../config/oauth_parts/part_b')
+const cfgC = require('../config/oauth_parts/part_c')
+const cfgD = require('../config/oauth_parts/part_d')
 
 // 组合配置值
-const defaultClientIdA = assembleClientId(partA.segment1, partA.segment2, partA.segment3)
-const defaultClientSecretA = assembleClientSecret(
-  partB.segment1,
-  partB.segment2,
-  partB.segment3,
-  partB.segment4
-)
-const defaultClientIdB = assembleClientId(partC.segment1, partC.segment2, partC.segment3)
-const defaultClientSecretB = assembleClientSecret(partD.segment1, partD.segment2)
+const defaultClientIdA = combineClientId([
+  cfgA.val1,
+  cfgA.val2,
+  cfgA.val3,
+  cfgA.val4,
+  cfgA.val5,
+  cfgA.val6,
+  cfgA.val7,
+  cfgA.val8,
+  cfgA.val9
+])
+const defaultClientSecretA = combineClientSecret([
+  cfgB.val1 + cfgB.val2,
+  cfgB.val3 + cfgB.val4,
+  cfgB.val5 + cfgB.val6,
+  cfgB.val7 + cfgB.val8 + cfgB.val9 + cfgB.val10
+])
+const defaultClientIdB = combineClientId([
+  cfgC.val1,
+  cfgC.val2,
+  cfgC.val3,
+  cfgC.val4,
+  cfgC.val5,
+  cfgC.val6,
+  cfgC.val7,
+  cfgC.val8,
+  cfgC.val9
+])
+const defaultClientSecretB = combineClientSecret([
+  cfgD.val1 + cfgD.val2,
+  [cfgD.val3, cfgD.val4, cfgD.val5, cfgD.val6, cfgD.val7, cfgD.val8, cfgD.val9, cfgD.val10, cfgD.val11].join('')
+])
 
 const OAUTH_PROVIDERS = {
   [OAUTH_PROVIDER_A]: {

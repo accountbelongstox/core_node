@@ -1,8 +1,13 @@
 // Configuration part B
 module.exports = {
-  segment1: 'GOCSPX',
-  segment2: '4uHgMPm',
-  segment3: '1o7Sk',
-  segment4: 'geV6Cu5clXFsxl'
+  val1: 'GOC',
+  val2: 'SPX',
+  val3: '4uH',
+  val4: 'gMPm',
+  val5: '1o7',
+  val6: 'Sk',
+  val7: 'geV6',
+  val8: 'Cu5',
+  val9: 'clX',
+  val10: 'Fsxl'
 }
-
