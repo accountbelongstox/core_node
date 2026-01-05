@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Copy, Check } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { modelService } from '../services/modelService';
 import { ScriptTemplate } from '../types';
+import { useClipboard } from '../hooks/useClipboard';
 
 interface ScriptListProps {
   onSelectScript: (content: string) => void;
@@ -13,58 +14,83 @@ export const ScriptList: React.FC<ScriptListProps> = ({ onSelectScript }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const templates = modelService.getScriptTemplates() || [];
   
-  const categories = ['all', ...Array.from(new Set(templates.map(t => t.category)))];
+  // Use React Hook for clipboard operations
+  const [copyToClipboard] = useClipboard();
 
-  const filteredTemplates = templates.filter(template => {
-    const matchesSearch = template.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Use React's useMemo for expensive computations
+  const templates = useMemo(() => modelService.getScriptTemplates(), []);
+  
+  // Use React's useMemo to avoid recalculating categories on every render
+  const categories = useMemo(() => {
+    return ['all', ...Array.from(new Set(templates.map(t => t.category)))];
+  }, [templates]);
 
-  const handleSelectScript = (template: ScriptTemplate) => {
+  // Use React's useMemo for filtered templates to avoid recalculating on every render
+  const filteredTemplates = useMemo(() => {
+    return templates.filter(template => {
+      const matchesSearch = template.title.toLowerCase().includes(searchTerm.toLowerCase()) ? true :
+                           (template.content.toLowerCase().includes(searchTerm.toLowerCase()) ? true :
+                           template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
+      const matchesCategory = selectedCategory === 'all' ? true : template.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [templates, searchTerm, selectedCategory]);
+
+  // Use React's useEffect for timeout cleanup instead of manual setTimeout
+  useEffect(() => {
+    if (copiedId !== null) {
+      const timer = setTimeout(() => setCopiedId(null), 2000);
+      // React automatically cleans up on unmount or when copiedId changes
+      return () => clearTimeout(timer);
+    }
+  }, [copiedId]);
+
+  // Use React's useMemo for category map to avoid recreating on every render
+  const categoryMap = useMemo(() => ({
+    all: t('chat.allCategories'),
+    greeting: t('chat.greeting'),
+    product_info: t('chat.productInfo'),
+    pricing: t('chat.pricing'),
+    closing: t('chat.closing'),
+    follow_up: t('chat.followUp'),
+    problem_solving: t('chat.problemSolving'),
+  }), [t]);
+
+  // Use React's useCallback for event handlers to avoid recreating on every render
+  const handleSelectScript = useCallback((template: ScriptTemplate) => {
     let content = template.content;
     // Replace placeholders with actual values
-    const csTeam = modelService.getCSTeam() || [];
+    const csTeam = modelService.getCSTeam();
     const currentCS = csTeam[0]; // In real app, get current logged-in CS
     if (currentCS) {
       content = content.replace(/{csName}/g, currentCS.name);
     }
     onSelectScript(content);
-    modelService.incrementScriptUsage(template.id);
+    modelService.incrementTemplateUsage(template.id);
     setCopiedId(template.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+    // Timeout cleanup handled by useEffect above
+  }, [onSelectScript]);
 
-  const handleCopy = (e: React.MouseEvent, template: ScriptTemplate) => {
+  const handleCopy = useCallback(async (e: React.MouseEvent, template: ScriptTemplate) => {
     e.stopPropagation();
     let content = template.content;
-    const csTeam = modelService.getCSTeam() || [];
+    const csTeam = modelService.getCSTeam();
     const currentCS = csTeam[0];
     if (currentCS) {
       content = content.replace(/{csName}/g, currentCS.name);
     }
-    navigator.clipboard.writeText(content);
+    // Use React Hook for clipboard operations
+    const success = await copyToClipboard(content);
+    if (success) {
     setCopiedId(template.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+    // Timeout cleanup handled by useEffect above
+    }
+  }, [copyToClipboard]);
 
-  const getCategoryLabel = (category: string) => {
-    const categoryMap: Record<string, string> = {
-      all: t('chat.allCategories'),
-      greeting: t('chat.greeting'),
-      product_info: t('chat.productInfo'),
-      pricing: t('chat.pricing'),
-      closing: t('chat.closing'),
-      follow_up: t('chat.followUp'),
-      problem_solving: t('chat.problemSolving'),
-    };
-    return categoryMap[category] || category;
-  };
+  const getCategoryLabel = useCallback((category: string) => {
+    return categoryMap[category] ?? category;
+  }, [categoryMap]);
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700">

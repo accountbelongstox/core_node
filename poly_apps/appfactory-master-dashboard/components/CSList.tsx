@@ -4,6 +4,7 @@ import { modelService } from '../services/modelService';
 import { CustomerService } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { CSDetailModal } from './CSDetailModal';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 interface CSListProps {
   onAddCS: () => void;
@@ -57,7 +58,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
         </button>
       </div>
 
-      {/* 搜索 */}
+      {/* Search */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -71,7 +72,7 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
         </div>
       </div>
 
-      {/* 客服人员列表 */}
+      {/* CS list */}
       {filteredCS.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
           <p className="text-slate-500 dark:text-slate-400">{t('csManagement.noCSMembers')}</p>
@@ -85,9 +86,9 @@ export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
               onClick={() => setSelectedCS(cs)}
             >
               <div className="flex items-start gap-4 mb-4">
-                {cs.photo ? (
+                {(cs.photo || cs.avatar) ? (
                   <img
-                    src={cs.photo}
+                    src={getAvatarUrl(cs.photo || cs.avatar, 150, 'pravatar')}
                     alt={cs.name}
                     className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
                   />

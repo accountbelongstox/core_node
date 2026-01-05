@@ -3,6 +3,7 @@ import { Search, Filter, CheckCircle2, XCircle, Clock, Eye, MessageSquare, Dolla
 import { useApp } from '../contexts/AppContext';
 import { modelService } from '../services/modelService';
 import { PaymentVerificationRequest } from '../types';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 export const PaymentVerificationManagement: React.FC = () => {
   const { t, user } = useApp();
@@ -12,12 +13,12 @@ export const PaymentVerificationManagement: React.FC = () => {
   const [replyText, setReplyText] = useState('');
 
   const requests = useMemo(() => {
-    const allRequests = modelService.getPaymentVerificationRequests() || [];
+    const allRequests = modelService.getPaymentVerificationRequests();
     return allRequests.filter(request => {
-      const matchesSearch = request.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           request.appName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           request.username?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === 'all' || request.status === filterStatus;
+      const matchesSearch = request.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ? true :
+                           ((request.appName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ? true :
+                           (request.username?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false));
+      const matchesStatus = filterStatus === 'all' ? true : request.status === filterStatus;
       return matchesSearch && matchesStatus;
     }).sort((a, b) => {
       const timeA = new Date(a.createdAt).getTime();
@@ -50,7 +51,7 @@ export const PaymentVerificationManagement: React.FC = () => {
     
     modelService.updatePaymentVerificationRequest(request.id, {
       status: reason,
-      reply: replyText || defaultReply,
+      reply: replyText ?? defaultReply,
       repliedBy: user.id,
       repliedByName: user.name,
       repliedAt: new Date().toISOString(),
@@ -80,7 +81,7 @@ export const PaymentVerificationManagement: React.FC = () => {
       rejected: t('paymentVerification.rejected'),
       rejected_no_payment: t('paymentVerification.rejectedNoPayment'),
     };
-    return statusMap[status] || status;
+    return statusMap[status] ?? status;
   };
 
   const formatTime = (timestamp: string) => {
@@ -92,7 +93,7 @@ export const PaymentVerificationManagement: React.FC = () => {
     const total = requests.length;
     const pending = requests.filter(r => r.status === 'pending').length;
     const verified = requests.filter(r => r.status === 'verified').length;
-    const rejected = requests.filter(r => r.status === 'rejected' || r.status === 'rejected_no_payment').length;
+    const rejected = requests.filter(r => r.status === 'rejected' ? true : r.status === 'rejected_no_payment').length;
     return { total, pending, verified, rejected };
   }, [requests]);
 
@@ -179,7 +180,7 @@ export const PaymentVerificationManagement: React.FC = () => {
                     <div className="flex items-center gap-3">
                       {request.customerAvatar && (
                         <img
-                          src={request.customerAvatar}
+                          src={getAvatarUrl(request.customerAvatar, 150, 'pravatar')}
                           alt={request.customerName}
                           className="w-8 h-8 rounded-full"
                         />
@@ -205,7 +206,7 @@ export const PaymentVerificationManagement: React.FC = () => {
                     <span className="font-semibold text-slate-800 dark:text-white">¥{request.amount.toFixed(2)}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">{request.username || '-'}</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-400">{request.username ?? '-'}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -258,7 +259,7 @@ export const PaymentVerificationManagement: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('paymentVerification.app')}</p>
-                  <p className="font-medium text-slate-800 dark:text-white">{selectedRequest.appName || '-'}</p>
+                  <p className="font-medium text-slate-800 dark:text-white">{selectedRequest.appName ?? '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('paymentVerification.amount')}</p>
@@ -266,7 +267,7 @@ export const PaymentVerificationManagement: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('paymentVerification.username')}</p>
-                  <p className="font-medium text-slate-800 dark:text-white">{selectedRequest.username || '-'}</p>
+                  <p className="font-medium text-slate-800 dark:text-white">{selectedRequest.username ?? '-'}</p>
                 </div>
               </div>
 

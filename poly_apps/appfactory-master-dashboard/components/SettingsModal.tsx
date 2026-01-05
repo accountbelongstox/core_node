@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { X, Globe, Moon, Sun, Bell, RefreshCw, Server } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
-import { SUPPORTED_LANGUAGES } from '../services/i18nService';
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../services/i18nService';
 import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
 
 interface SettingsModalProps {
@@ -21,7 +21,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   if (!isOpen) return null;
 
   const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage as any);
+    setLanguage(newLanguage as SupportedLanguage);
     const newSettings = { ...localSettings, language: newLanguage };
     setLocalSettings(newSettings);
     updateSettings({ language: newLanguage });

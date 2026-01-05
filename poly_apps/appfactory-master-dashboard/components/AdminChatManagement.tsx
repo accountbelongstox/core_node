@@ -4,6 +4,8 @@ import { useApp } from '../contexts/AppContext';
 import { modelService } from '../services/modelService';
 import { ChatWindow } from './ChatWindow';
 import { ChatSession, ChatMessage } from '../types';
+import { getAvatarUrl } from '../utils/avatarUtils';
+import { useInterval } from '../hooks/useInterval';
 
 export const AdminChatManagement: React.FC = () => {
   const { t } = useApp();
@@ -14,8 +16,8 @@ export const AdminChatManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'realtime' | 'history'>('realtime');
 
   const sessions = useMemo(() => {
-    const allSessions = modelService.getChatSessions() || [];
-    const apps = modelService.getApps() || [];
+    const allSessions = modelService.getChatSessions();
+    const apps = modelService.getApps();
     
     // Enrich sessions with full app information
     const enrichedSessions = allSessions.map(session => {
@@ -29,32 +31,29 @@ export const AdminChatManagement: React.FC = () => {
     });
     
     return enrichedSessions.filter(session => {
-      const matchesSearch = session.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           session.csName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           session.lastMessage?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           session.appName?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
-      const matchesCS = filterCS === 'all' || session.csId === filterCS || (!session.csId && filterCS === 'unassigned');
+      const matchesSearch = session.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ? true :
+                           ((session.csName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ? true :
+                           ((session.lastMessage?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ? true :
+                           (session.appName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)));
+      const matchesStatus = filterStatus === 'all' ? true : session.status === filterStatus;
+      const matchesCS = filterCS === 'all' ? true : (session.csId === filterCS ? true : (!session.csId && filterCS === 'unassigned'));
       return matchesSearch && matchesStatus && matchesCS;
     }).sort((a, b) => {
-      const timeA = new Date(a.lastMessageTime || a.updatedAt).getTime();
-      const timeB = new Date(b.lastMessageTime || b.updatedAt).getTime();
+      const timeA = new Date(a.lastMessageTime ?? a.updatedAt).getTime();
+      const timeB = new Date(b.lastMessageTime ?? b.updatedAt).getTime();
       return timeB - timeA;
     });
   }, [searchTerm, filterStatus, filterCS]);
 
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam(), []);
 
-  useEffect(() => {
-    // Auto-refresh sessions every 3 seconds for real-time view
+  // Use React Hook instead of manual setInterval
+  useInterval(() => {
+    // Trigger re-render by updating a dummy state
     if (viewMode === 'realtime') {
-      const interval = setInterval(() => {
-        // Trigger re-render by updating a dummy state
-        setSearchTerm(prev => prev);
-      }, 3000);
-      return () => clearInterval(interval);
+      setSearchTerm(prev => prev);
     }
-  }, [viewMode]);
+  }, viewMode === 'realtime' ? 3000 : null);
 
   useEffect(() => {
     if (!selectedSessionId && sessions.length > 0) {
@@ -74,8 +73,8 @@ export const AdminChatManagement: React.FC = () => {
     if (!session) return;
 
     // Admin can send messages as the assigned CS or as admin
-    const senderId = session.csId || 'admin';
-    const senderName = session.csName || 'Admin';
+    const senderId = session.csId ?? 'admin';
+    const senderName = session.csName ?? 'Admin';
 
     const newMessage = {
       id: `msg_${Date.now()}`,
@@ -257,7 +256,7 @@ export const AdminChatManagement: React.FC = () => {
                         <div className="relative flex-shrink-0">
                           {session.customerAvatar ? (
                             <img
-                              src={session.customerAvatar}
+                              src={getAvatarUrl(session.customerAvatar, 150, 'pravatar')}
                               alt={session.customerName}
                               className={`w-12 h-12 rounded-full ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-800 ${
                                 isSelected ? 'ring-indigo-600' : 'ring-transparent'

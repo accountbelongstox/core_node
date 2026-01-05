@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Send, Paperclip, Smile, DollarSign } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { modelService } from '../services/modelService';
 import { ChatMessage } from '../types';
 import { PaymentVerificationRequest } from './PaymentVerificationRequest';
+import { useInterval } from '../hooks/useInterval';
+import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 interface ChatWindowProps {
   sessionId: string;
@@ -18,75 +21,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [showPaymentRequest, setShowPaymentRequest] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Use React Hook for auto-resizing textarea instead of manual DOM manipulation
+  const inputRef = useAutoResizeTextarea(message, 120);
 
   // Handle initial message from script template
   useEffect(() => {
     if (initialMessage) {
       setMessage(initialMessage);
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.style.height = 'auto';
-        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
-      }
+      // Use React ref for focus, height is handled by useAutoResizeTextarea hook
+      inputRef.current?.focus();
       if (onMessageFilled) {
         onMessageFilled();
       }
     }
-  }, [initialMessage, onMessageFilled]);
+  }, [initialMessage, onMessageFilled, inputRef]);
 
+  // Use React Hook with useMemo to optimize message filtering
+  const loadMessages = useCallback(() => {
+    const sessionMessages = modelService.getMessagesBySessionId(sessionId);
+    setMessages(sessionMessages);
+  }, [sessionId]);
+
+  // Load messages on mount and when sessionId changes
   useEffect(() => {
-    const loadMessages = () => {
-      const sessionMessages = modelService.getMessagesBySessionId(sessionId);
-      setMessages(sessionMessages);
-    };
-
     loadMessages();
-    // Auto-refresh messages every 2 seconds
-    const interval = setInterval(loadMessages, 2000);
-    return () => clearInterval(interval);
-  }, [sessionId]);
+  }, [loadMessages]);
 
-  // Force refresh session data when sessionId changes
-  useEffect(() => {
-    // Trigger re-render by accessing session data
-    const sessions = modelService.getChatSessions() || [];
-    const currentSession = sessions.find(s => s.id === sessionId);
-    if (currentSession) {
-      // Session data loaded
-    }
-  }, [sessionId]);
+  // Use React Hook instead of manual setInterval for auto-refresh
+  useInterval(() => {
+    loadMessages();
+  }, 2000); // Auto-refresh messages every 2 seconds
 
+  // Use React's useEffect for scrolling instead of manual function call
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleSend = () => {
+  // Use React's useCallback for event handlers
+  const handleSend = useCallback(() => {
     if (message.trim()) {
       onSendMessage(message.trim());
       setMessage('');
-      if (inputRef.current) {
-        inputRef.current.style.height = 'auto';
-      }
+      // Height auto-adjusts via useAutoResizeTextarea hook
     }
-  };
+  }, [message, onSendMessage]);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }, [handleSend]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
-    e.target.style.height = 'auto';
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-  };
+    // Height auto-adjusts via useAutoResizeTextarea hook
+  }, []);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -109,7 +100,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
   // Load session and app data
   useEffect(() => {
     const loadData = () => {
-      const sessions = modelService.getChatSessions() || [];
+      const sessions = modelService.getChatSessions() ?? [];
       const currentSession = sessions.find(s => s.id === sessionId);
       
       if (currentSession) {
@@ -118,7 +109,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
         
         // Try to get app info from apps list first
         if (currentSession.appId) {
-          const apps = modelService.getApps() || [];
+          const apps = modelService.getApps() ?? [];
           const app = apps.find(a => a.id === currentSession.appId);
           if (app) {
             setAppInfo(app);
@@ -141,18 +132,41 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
     };
 
     loadData();
-    // Refresh data periodically
-    const interval = setInterval(loadData, 1000);
-    return () => clearInterval(interval);
   }, [sessionId]);
+  
+  // Refresh data periodically using React Hook
+  useInterval(() => {
+    const sessions = modelService.getChatSessions() ?? [];
+    const currentSession = sessions.find(s => s.id === sessionId);
+    
+    if (currentSession) {
+      setSessionData(currentSession);
+      
+      if (currentSession.appId) {
+        const apps = modelService.getApps() ?? [];
+        const app = apps.find(a => a.id === currentSession.appId);
+        if (app) {
+          setAppInfo(app);
+        } else if (currentSession.appName) {
+          setAppInfo({ name: currentSession.appName, category: '' });
+        } else {
+          setAppInfo(null);
+        }
+      } else if (currentSession.appName) {
+        setAppInfo({ name: currentSession.appName, category: '' });
+      } else {
+        setAppInfo(null);
+      }
+    } else {
+      setSessionData(null);
+      setAppInfo(null);
+    }
+  }, 1000);
 
   const session = sessionData;
-  const customerName = session?.customerName || 'Customer';
-  
-  // Use appInfo name first, then session appName, then empty
-  // Make sure we always check session.appName as fallback
-  const displayAppName = appInfo?.name || (sessionData && sessionData.appName) || '';
-  const appCategory = appInfo?.category || '';
+  const customerName = session?.customerName ?? 'Customer';
+  const displayAppName = appInfo?.name ?? sessionData?.appName ?? '';
+  const appCategory = appInfo?.category ?? '';
   
 
   return (
@@ -163,7 +177,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
           <div className="flex items-center gap-3">
             {session?.customerAvatar && (
               <img 
-                src={session.customerAvatar} 
+                src={getAvatarUrl(session.customerAvatar, 150, 'pravatar')} 
                 alt={customerName}
                 className="w-10 h-10 rounded-full"
               />
@@ -266,7 +280,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ sessionId, onSendMessage
                 <div className={`flex gap-2 max-w-[70%] ${isCS ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isCS && (
                     <img
-                      src={session?.customerAvatar || 'https://i.pravatar.cc/150?u=customer'}
+                      src={getAvatarUrl(session?.customerAvatar, 150, 'pravatar')}
                       alt={msg.senderName}
                       className="w-8 h-8 rounded-full flex-shrink-0"
                     />

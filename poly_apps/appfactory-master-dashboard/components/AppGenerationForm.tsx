@@ -7,7 +7,7 @@ import { generateAppMarketingCopy } from '../services/geminiService';
 
 interface AppGenerationFormProps {
   onClose: () => void;
-  onGenerate: (data: any) => void;
+  onGenerate: (data: { name: string; category: AppCategory; description: string; targetAudience: string; features: string[]; assignedTechId?: string; requestedAt: string }) => void;
 }
 
 export const AppGenerationForm: React.FC<AppGenerationFormProps> = ({ onClose, onGenerate }) => {
@@ -71,7 +71,7 @@ export const AppGenerationForm: React.FC<AppGenerationFormProps> = ({ onClose, o
       description,
       targetAudience,
       features: features.filter(f => f.trim() !== ''),
-      assignedTechId: assignedTechId || undefined,
+      assignedTechId: assignedTechId ? assignedTechId : undefined,
       requestedAt: new Date().toISOString(),
     };
 

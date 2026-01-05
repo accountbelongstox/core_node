@@ -31,10 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
-# Source gvar_common.sh
-if [ -f "$PARENT_DIR_LEVEL_2/common/gvar_common.sh" ]; then
+# Source gvar_common.sh (trust-based coding)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-fi
 
 # Default mount base directory
 DEFAULT_MOUNT_BASE="/mnt"

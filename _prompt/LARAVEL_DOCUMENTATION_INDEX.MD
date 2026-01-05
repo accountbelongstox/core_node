@@ -17,7 +17,7 @@
 - **Content**: Detailed descriptions of API testing dashboard, app selector, API search, request header management, and other functions
 - **Access URL**: `http://192.168.50.2:9000/#`
 
-#### `LARAVEL-WEB-静态资源管理.md`
+#### `LARAVEL_WEB_STATIC_RESOURCE_MANAGEMENT.MD`
 - **Theme**: Static Resource Management Function
 - **Content**: Media Browser, file upload, resource browsing, sorting, and other functions
 - **Related**: API endpoints, Mock data, endpoint definition center
@@ -50,7 +50,7 @@
 
 ### 3. Application Development
 
-#### `Laravel后端QY设计.md`
+#### `LARAVEL_QY_BACKEND_DESIGN.MD`
 - **Theme**: QY APP Backend Design
 - **Content**: QY application backend development specifications and design
 
@@ -66,7 +66,7 @@
   - `laravelWebDashboard.md`
 
 - **Static Resource Management**: 
-  - `LARAVEL-WEB-静态资源管理.md`
+  - `LARAVEL_WEB_STATIC_RESOURCE_MANAGEMENT.MD`
 
 - **Server Management**: 
   - `cerbot_by_laravel.txt`
@@ -75,7 +75,7 @@
   - `LARAVEL远程任务系统调用.md`
 
 - **Application Development**: 
-  - `Laravel后端QY设计.md`
+  - `LARAVEL_QY_BACKEND_DESIGN.MD`
 
 ### Search by Technology Stack
 

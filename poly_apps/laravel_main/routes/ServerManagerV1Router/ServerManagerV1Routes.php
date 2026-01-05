@@ -14,7 +14,7 @@ Route::prefix('servermanager/v1')->group(function () {
 
     // API Information Route
     Route::get('info', [ServerManagerV1ApiInfoCtl::class, 'getApiInfo']);
-    
+
     // System Information Routes
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
@@ -22,8 +22,20 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
         Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
         Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+
+        // System Service Management Routes
+        Route::prefix('service')->group(function () {
+            Route::get('list', [ServerManagerV1UnifiedManagerCtl::class, 'listServices']);
+            Route::get('search', [ServerManagerV1UnifiedManagerCtl::class, 'searchServices']);
+            Route::get('status', [ServerManagerV1UnifiedManagerCtl::class, 'getServiceStatus']);
+            Route::get('start', [ServerManagerV1UnifiedManagerCtl::class, 'startService']);
+            Route::get('stop', [ServerManagerV1UnifiedManagerCtl::class, 'stopService']);
+            Route::get('restart', [ServerManagerV1UnifiedManagerCtl::class, 'restartService']);
+            Route::get('restart-by-keyword', [ServerManagerV1UnifiedManagerCtl::class, 'restartServicesByKeyword']);
+            Route::get('restart-by-appname', [ServerManagerV1UnifiedManagerCtl::class, 'restartServiceByAppName']);
+        });
     });
-    
+
     // File Management Routes
     Route::prefix('files')->group(function () {
         Route::get('browse', [ServerManagerV1FileManagerCtl::class, 'browse']);

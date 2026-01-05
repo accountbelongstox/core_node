@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useApp } from '../contexts/AppContext';
+import { apiService } from '../services/apiService';
 import { 
   User, 
   Mail, 
@@ -12,8 +13,7 @@ import {
   Lock, 
   Bell, 
   Smartphone,
-  ChevronRight,
-  UserRole
+  ChevronRight
 } from 'lucide-react';
 
 export const Profile: React.FC = () => {
@@ -34,7 +34,7 @@ export const Profile: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 shadow-sm flex flex-col items-center text-center">
             <div className="relative group mb-6">
               <img 
-                src={user?.avatar || `https://i.pravatar.cc/150?u=${user?.id}`} 
+                src={user ? apiService.getAvatarUrl(user.avatar ?? user.id, 150, 'pravatar') : apiService.getAvatarUrl('user', 150, 'pravatar')} 
                 className="w-32 h-32 rounded-full border-4 border-indigo-50 dark:border-indigo-900/30" 
                 alt="Profile"
               />
@@ -44,7 +44,7 @@ export const Profile: React.FC = () => {
             </div>
             <h3 className="text-xl font-bold text-slate-800 dark:text-white">{user?.name}</h3>
             <p className="text-sm text-indigo-600 font-bold uppercase tracking-wider mt-1">{user?.role}</p>
-            <p className="text-xs text-slate-400 mt-2">Member since {user?.createdAt || '2024'}</p>
+            <p className="text-xs text-slate-400 mt-2">Member since 2024</p>
           </div>
 
           {/* Quick Stats */}

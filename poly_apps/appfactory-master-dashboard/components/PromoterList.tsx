@@ -3,13 +3,14 @@ import { Search, Plus, User, DollarSign, MapPin, Phone, Calendar } from 'lucide-
 import { modelService } from '../services/modelService';
 import { Promoter } from '../types';
 import { useApp } from '../contexts/AppContext';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 interface PromoterListProps {
   onAddPromoter: () => void;
 }
 
 /**
- * 推广人员列表组件（管理端）
+ * Promoter list component (admin side)
  */
 export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => {
   const { t } = useApp();
@@ -45,7 +46,7 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
         </button>
       </div>
 
-      {/* 搜索 */}
+      {/* Search */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -59,7 +60,7 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
         </div>
       </div>
 
-      {/* 推广人员列表 */}
+      {/* Promoter list */}
       {filteredPromoters.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
           <p className="text-slate-500 dark:text-slate-400">{t('promoterManagement.noPromoters')}</p>
@@ -72,9 +73,9 @@ export const PromoterList: React.FC<PromoterListProps> = ({ onAddPromoter }) => 
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 hover:shadow-xl transition-all"
             >
               <div className="flex items-start gap-4 mb-4">
-                {promoter.photo ? (
+                {(promoter.photo || (promoter as any).avatar) ? (
                   <img
-                    src={promoter.photo}
+                    src={getAvatarUrl(promoter.photo || (promoter as any).avatar, 150, 'pravatar')}
                     alt={promoter.name}
                     className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
                   />

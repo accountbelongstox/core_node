@@ -1,31 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Globe, Check } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../services/i18nService';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 export const LanguageSelector: React.FC = () => {
   const { language, setLanguage, t } = useApp();
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Use React Hook for click outside detection instead of manual addEventListener
+  const dropdownRef = useClickOutside<HTMLDivElement>(() => setIsOpen(false));
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  const handleLanguageChange = (lang: SupportedLanguage) => {
+  // Use React's useCallback for event handlers
+  const handleLanguageChange = useCallback((lang: SupportedLanguage) => {
     setLanguage(lang);
     setIsOpen(false);
-  };
+  }, [setLanguage]);
 
   const currentLanguageName = SUPPORTED_LANGUAGES[language];
 

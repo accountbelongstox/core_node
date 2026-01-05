@@ -37,4 +37,4 @@ To switch to a different app:
 node scripts/switch-app.js [appname]
 ```
 
-Available apps: admin, codemart, dashboard, dev, example, ittools, pymatrix, main
+Available apps: admin, dashboard, dev, example, ittools, pymatrix, main

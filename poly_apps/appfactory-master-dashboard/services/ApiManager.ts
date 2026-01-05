@@ -134,6 +134,9 @@ class ApiManager {
 
       return isAvailable;
     } catch (error) {
+      // catch 代码必要性：必须保留
+      // 原因：健康检查请求可能失败（网络错误、超时、服务器不可达等）
+      // 需要捕获错误并标记端点不可用，避免应用崩溃
       const responseTime = Date.now() - startTime;
       this.endpointStatuses.set(endpoint.id, {
         endpoint,
@@ -147,18 +150,34 @@ class ApiManager {
 
   /**
    * Auto-detect best available endpoint
+   * Detection priority: 127.0.0.1 (localhost) → LAN server → Remote server
+   * Stops at first available endpoint
    */
   async autoDetectEndpoint(
     timeout: number = 1000,
     testPath: string = '/'
   ): Promise<ApiEndpoint | null> {
-    // Test in priority order
-    for (const endpoint of API_ENDPOINTS) {
+    // Ensure endpoints are sorted by priority (1 = highest, 3 = lowest)
+    const sortedEndpoints = [...API_ENDPOINTS].sort((a, b) => a.priority - b.priority);
+    
+    console.log('[ApiManager] Starting endpoint detection in priority order:');
+    sortedEndpoints.forEach(ep => {
+      console.log(`  Priority ${ep.priority}: ${ep.description} (${buildApiUrl(ep)})`);
+    });
+
+    // Test in priority order: 127.0.0.1 → LAN → Remote
+    for (const endpoint of sortedEndpoints) {
+      console.log(`[ApiManager] Testing endpoint: ${endpoint.description} (${buildApiUrl(endpoint)})`);
       const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
       if (isAvailable) {
+        console.log(`[ApiManager] ✓ Endpoint available: ${endpoint.description} (${buildApiUrl(endpoint)})`);
         return endpoint;
+      } else {
+        console.log(`[ApiManager] ✗ Endpoint unavailable: ${endpoint.description} (${buildApiUrl(endpoint)})`);
       }
     }
+    
+    console.warn('[ApiManager] No available endpoints found after testing all priorities');
     return null;
   }
 
@@ -210,7 +229,7 @@ class ApiManager {
   getAllEndpointStatuses(): EndpointStatus[] {
     return API_ENDPOINTS.map(ep => {
       const status = this.endpointStatuses.get(ep.id);
-      return status || {
+      return status ?? {
         endpoint: ep,
         isAvailable: false,
       };
@@ -249,25 +268,72 @@ class ApiManager {
 
   /**
    * Background periodic health check for endpoints
+   * Automatically switches to higher priority endpoint when available
+   * Priority order: 127.0.0.1 → LAN → Remote
    */
   startHealthCheck(interval: number = 60000): void {
     setInterval(async () => {
-      if (this.currentEndpoint) {
-        const isAvailable = await this.checkEndpoint(this.currentEndpoint);
-        if (!isAvailable) {
-          // Current endpoint unavailable, try to auto-detect new endpoint
-          const newEndpoint = await this.autoDetectEndpoint();
-          if (newEndpoint) {
-            this.currentEndpoint = newEndpoint;
-            this.useMockMode = false;
-            storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, newEndpoint.id);
-          } else {
-            // No endpoints available, enable mock mode
-            this.useMockMode = true;
-            this.currentEndpoint = null;
+      // Skip if user manually selected an endpoint (respect user choice)
+      const userSelectedId = storageService.get<string>(STORAGE_KEYS.API_USER_SELECTED);
+      if (userSelectedId) {
+        // Still check if user-selected endpoint is available
+        const userEndpoint = getEndpointById(userSelectedId);
+        if (userEndpoint) {
+          const isAvailable = await this.checkEndpoint(userEndpoint);
+          if (!isAvailable) {
+            console.warn(`[ApiManager] User-selected endpoint unavailable: ${userEndpoint.description}`);
           }
         }
+        return; // Don't auto-switch if user manually selected
       }
+
+      // Check all endpoints in priority order to find best available
+      const sortedEndpoints = [...API_ENDPOINTS].sort((a, b) => a.priority - b.priority);
+      let bestAvailableEndpoint: ApiEndpoint | null = null;
+
+      // Test endpoints in priority order: 127.0.0.1 → LAN → Remote
+      for (const endpoint of sortedEndpoints) {
+        const isAvailable = await this.checkEndpoint(endpoint, 1000, '/');
+        if (isAvailable) {
+          bestAvailableEndpoint = endpoint;
+          break; // Found highest priority available endpoint
+        }
+      }
+
+      if (!bestAvailableEndpoint) {
+        // No endpoints available, enable mock mode
+        if (!this.useMockMode) {
+          console.warn('[ApiManager] No endpoints available, enabling mock mode');
+          this.useMockMode = true;
+          this.currentEndpoint = null;
+        }
+        return;
+      }
+
+      // Check if we should switch to higher priority endpoint
+      const currentPriority = this.currentEndpoint?.priority ?? 999;
+      const bestPriority = bestAvailableEndpoint.priority;
+
+      if (bestPriority < currentPriority) {
+        // Found higher priority endpoint, switch to it
+        console.log(
+          `[ApiManager] Switching to higher priority endpoint: ` +
+          `${bestAvailableEndpoint.description} (Priority ${bestPriority}) ` +
+          `replacing ${this.currentEndpoint?.description} (Priority ${currentPriority})`
+        );
+        this.currentEndpoint = bestAvailableEndpoint;
+        this.useMockMode = false;
+        storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, bestAvailableEndpoint.id);
+      } else if (this.currentEndpoint?.id !== bestAvailableEndpoint.id) {
+        // Current endpoint unavailable but we found a replacement
+        console.log(
+          `[ApiManager] Current endpoint unavailable, switching to: ${bestAvailableEndpoint.description}`
+        );
+        this.currentEndpoint = bestAvailableEndpoint;
+        this.useMockMode = false;
+        storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, bestAvailableEndpoint.id);
+      }
+      // else: Current endpoint is still the best available, no change needed
     }, interval);
   }
 }

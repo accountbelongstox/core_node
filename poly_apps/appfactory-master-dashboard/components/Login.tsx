@@ -29,7 +29,8 @@ export const Login: React.FC = () => {
 
     try {
       // Validate email is provided
-      const loginEmail = email || getExampleAccount()?.email || '';
+      const exampleEmail = getExampleAccount()?.email ?? '';
+      const loginEmail = email ?? exampleEmail;
       if (!loginEmail) {
         setError(t('login.enterAccount'));
         setLoading(false);
@@ -37,7 +38,7 @@ export const Login: React.FC = () => {
       }
 
       // Use built-in password if password field is empty (quick login)
-      const loginPassword = password || BUILTIN_PASSWORD;
+      const loginPassword = password ?? BUILTIN_PASSWORD;
       
       const result = await authService.login({
         email: loginEmail,
@@ -100,15 +101,15 @@ export const Login: React.FC = () => {
           login(result.user, result.token);
         }, 800);
       } else {
-        const errorMessage = result.error || t('login.loginFailed');
+        const errorMessage = result.error ?? t('login.loginFailed');
         setError(errorMessage);
         toast.error(errorMessage, {
           duration: 3000,
           position: 'top-center',
         });
       }
-    } catch (err: any) {
-      const errorMessage = err.message || t('login.loginFailed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : t('login.loginFailed');
       setError(errorMessage);
       toast.error(errorMessage, {
         duration: 3000,
@@ -198,7 +199,7 @@ export const Login: React.FC = () => {
                   type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={getExampleAccount()?.email || t('login.accountPlaceholder')}
+                  placeholder={getExampleAccount()?.email ?? t('login.accountPlaceholder')}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
                 />
               </div>

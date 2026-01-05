@@ -1,10 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowLeft, TrendingUp, Users, DollarSign, Star, Calendar, Code, Edit2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppInstance, AppStatus } from '../types';
 import { modelService } from '../services/modelService';
 import { useApp } from '../contexts/AppContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { encryptedImageService } from '../services/encryptedImageService';
+import { usePasswordChange } from '../hooks/usePasswordChange';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 export const AppDetailPage: React.FC = () => {
   const { t } = useApp();
@@ -12,7 +15,7 @@ export const AppDetailPage: React.FC = () => {
   const { appId } = useParams<{ appId: string }>();
   
   const app = useMemo(() => {
-    const apps = modelService.getApps() || [];
+    const apps = modelService.getApps() ?? [];
     return apps.find(a => a.id === appId);
   }, [appId]);
 
@@ -24,9 +27,9 @@ export const AppDetailPage: React.FC = () => {
     );
   }
 
-  const csTeam = useMemo(() => modelService.getCSTeam() || [], []);
-  const techTeam = useMemo(() => modelService.getTechTeam() || [], []);
-  const dailyStats = useMemo(() => modelService.getDailyStats() || [], []);
+  const csTeam = useMemo(() => modelService.getCSTeam() ?? [], []);
+  const techTeam = useMemo(() => modelService.getTechTeam() ?? [], []);
+  const dailyStats = useMemo(() => modelService.getDailyStats() ?? [], []);
   const assignedCS = csTeam.filter(cs => app.assignedCSIds.includes(cs.id));
   const assignedTech = techTeam.find(tech => tech.id === app.assignedTechId);
 
@@ -46,8 +49,50 @@ export const AppDetailPage: React.FC = () => {
     }));
   }, [dailyStats, app.revenue]);
 
+  // Load encrypted images - reload when password changes
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [splashUrl, setSplashUrl] = useState<string | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
+  const [showIcon, setShowIcon] = useState(true);
+  const password = usePasswordChange(); // Monitor password changes
+
+  useEffect(() => {
+    const loadImages = async () => {
+      // Clear previous URLs to force reload
+      setIconUrl(null);
+      setSplashUrl(null);
+      setShowSplash(true);
+      setShowIcon(true);
+      
+      if (app.icon) {
+        const icon = await encryptedImageService.loadAppIcon(app.id, app.icon);
+        setIconUrl(icon);
+      }
+      if (app.splash) {
+        const splash = await encryptedImageService.loadAppSplash(app.id, app.splash);
+        setSplashUrl(splash);
+      }
+    };
+    loadImages();
+  }, [app.id, app.icon, app.splash, password]); // Reload when password changes
+
   return (
     <div className="space-y-6">
+      {/* App Icon and Splash Section */}
+      {splashUrl && showSplash && (
+        <div className="relative w-full h-64 rounded-xl overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600">
+          <img
+            src={splashUrl}
+            alt={`${app.name} splash`}
+            className="w-full h-full object-cover"
+            onError={() => {
+              // Use React state instead of direct style manipulation
+              setShowSplash(false);
+            }}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/apps')}
@@ -55,6 +100,19 @@ export const AppDetailPage: React.FC = () => {
         >
           <ArrowLeft size={20} className="text-slate-600 dark:text-slate-400" />
         </button>
+        {iconUrl && showIcon && (
+          <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 flex-shrink-0">
+            <img
+              src={iconUrl}
+              alt={`${app.name} icon`}
+              className="w-full h-full object-cover"
+              onError={() => {
+                // Use React state instead of direct style manipulation
+                setShowIcon(false);
+              }}
+            />
+          </div>
+        )}
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">{app.name}</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">{app.description}</p>
@@ -120,7 +178,7 @@ export const AppDetailPage: React.FC = () => {
           <div className="flex items-center gap-2 mt-4">
             <Star size={20} className="text-amber-600 fill-amber-600" />
             <div>
-              <p className="text-2xl font-bold text-slate-800 dark:text-white">{app.rating || 'N/A'}</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-white">{app.rating !== null && app.rating !== undefined ? app.rating : 'N/A'}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">User Rating</p>
             </div>
           </div>
@@ -172,7 +230,7 @@ export const AppDetailPage: React.FC = () => {
             {assignedCS.length > 0 ? (
               assignedCS.map(cs => (
                 <div key={cs.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-                  <img src={cs.avatar} alt={cs.name} className="w-10 h-10 rounded-full" />
+                  <img src={getAvatarUrl(cs.avatar, 150, 'pravatar')} alt={cs.name} className="w-10 h-10 rounded-full" />
                   <div className="flex-1">
                     <p className="font-medium text-slate-800 dark:text-white">{cs.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{t('appDetail.commission')}: {cs.commissionRate}%</p>

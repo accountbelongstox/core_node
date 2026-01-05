@@ -7,6 +7,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
@@ -793,20 +794,40 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         try {
             $serviceName = 'octane-poly-9000';
 
-            // Restart Octane service
-            $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 15);
+            // Clear Laravel caches before restart
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('cache:clear');
 
-            if (!$result['success']) {
-                return $this->errorResponse("Failed to restart Octane: {$serviceName}", 500, [
-                    'error' => $result['error'],
-                    'exit_code' => $result['exit_code']
-                ]);
-            }
+            // Register shutdown function to restart after response is sent
+            register_shutdown_function(function() use ($serviceName) {
+                // Give the response time to be sent
+                sleep(1);
 
+                // Restart Octane service
+                $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 15);
+
+                // Log the result
+                if (!$result['success']) {
+                    Log::error('[ServerManager] Failed to restart Octane service', [
+                        'service' => $serviceName,
+                        'error' => $result['error'] ?? 'Unknown error',
+                        'exit_code' => $result['exit_code'] ?? null
+                    ]);
+                } else {
+                    Log::info('[ServerManager] Octane service restarted successfully', [
+                        'service' => $serviceName,
+                        'output' => $result['output'] ?? ''
+                    ]);
+                }
+            });
+
+            // Return success response immediately
             return $this->successResponse([
                 'service_name' => $serviceName,
-                'output' => $result['output']
-            ], 'Octane server restarted successfully');
+                'message' => 'Server will restart in 1 second',
+                'caches_cleared' => ['config', 'route', 'cache']
+            ], 'Restart command scheduled successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'unified_restart_octane');
@@ -1093,6 +1114,607 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
 
         return $size;
+    }
+
+    /**
+     * List all systemd services
+     */
+    public function listServices(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_list_services');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $keyword = $request->input('keyword');
+            $state = $request->input('state');
+            $limit = $request->input('limit', 100);
+            $offset = $request->input('offset', 0);
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse('Failed to list services', 500, [
+                    'error' => $result['error'],
+                    'exit_code' => $result['exit_code']
+                ]);
+            }
+
+            $services = $this->parseSystemctlOutput($result['output']);
+
+            if ($keyword) {
+                $services = array_filter($services, function($service) use ($keyword) {
+                    return stripos($service['name'], $keyword) !== false ||
+                           stripos($service['description'], $keyword) !== false;
+                });
+                $services = array_values($services);
+            }
+
+            if ($state) {
+                $services = array_filter($services, function($service) use ($state) {
+                    return stripos($service['state'], $state) !== false ||
+                           stripos($service['sub_state'], $state) !== false;
+                });
+                $services = array_values($services);
+            }
+
+            $totalServices = count($services);
+            $services = array_slice($services, $offset, $limit);
+
+            return $this->successResponse([
+                'services' => $services,
+                'total' => $totalServices,
+                'limit' => $limit,
+                'offset' => $offset,
+                'filtered' => !empty($keyword) || !empty($state)
+            ], 'Services retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_list_services');
+        }
+    }
+
+    /**
+     * Search services by keyword
+     */
+    public function searchServices(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_search_services');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $keyword = $request->input('keyword');
+
+            if (empty($keyword)) {
+                return $this->errorResponse('Keyword parameter is required', 400);
+            }
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse('Failed to search services', 500, [
+                    'error' => $result['error'],
+                    'exit_code' => $result['exit_code']
+                ]);
+            }
+
+            $services = $this->parseSystemctlOutput($result['output']);
+
+            $matched = array_filter($services, function($service) use ($keyword) {
+                return stripos($service['name'], $keyword) !== false ||
+                       stripos($service['description'], $keyword) !== false;
+            });
+
+            $matched = array_values($matched);
+
+            return $this->successResponse([
+                'services' => $matched,
+                'keyword' => $keyword,
+                'total_matched' => count($matched)
+            ], 'Search completed successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_search_services');
+        }
+    }
+
+    /**
+     * Get service status
+     */
+    public function getServiceStatus(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_service_status');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $serviceName = $request->input('service_name');
+
+            if (empty($serviceName)) {
+                return $this->errorResponse('service_name parameter is required', 400);
+            }
+
+            $detailedStatus = $this->getDetailedServiceStatus($serviceName);
+
+            $statusResult = ServerManagerV1Utils::executeCommand('systemctl', ['status', $serviceName, '--no-pager'], 10);
+
+            return $this->successResponse([
+                'service_name' => $serviceName,
+                'exists' => $detailedStatus['exists'],
+                'running' => $detailedStatus['running'],
+                'active' => $detailedStatus['active'],
+                'enabled' => $detailedStatus['enabled'],
+                'state' => $detailedStatus['state'],
+                'status_output' => $statusResult['output'],
+                'status_code' => $statusResult['exit_code']
+            ], 'Service status retrieved successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_service_status');
+        }
+    }
+
+    /**
+     * Restart a single service
+     */
+    public function restartService(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_restart_service');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $serviceName = $request->input('service_name');
+            $async = $request->input('async', false);
+
+            if (empty($serviceName)) {
+                return $this->errorResponse('service_name parameter is required', 400);
+            }
+
+            if (!$this->isServiceNameValid($serviceName)) {
+                return $this->errorResponse('Invalid service name format', 400);
+            }
+
+            $beforeStatus = $this->getDetailedServiceStatus($serviceName);
+
+            if (!$beforeStatus['exists']) {
+                return $this->errorResponse('Service does not exist: ' . $serviceName, 404, [
+                    'service_name' => $serviceName,
+                    'exists' => false
+                ]);
+            }
+
+            if ($async) {
+                register_shutdown_function(function() use ($serviceName) {
+                    sleep(1);
+                    $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
+
+                    if (!$result['success']) {
+                        Log::error('[ServerManager] Failed to restart service', [
+                            'service' => $serviceName,
+                            'error' => $result['error'] ?? 'Unknown error'
+                        ]);
+                    } else {
+                        Log::info('[ServerManager] Service restarted successfully', [
+                            'service' => $serviceName
+                        ]);
+                    }
+                });
+
+                return $this->successResponse([
+                    'service_name' => $serviceName,
+                    'before_restart' => $beforeStatus,
+                    'message' => 'Service will restart in 1 second',
+                    'async' => true
+                ], 'Restart command scheduled successfully');
+            }
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse("Failed to restart service: {$serviceName}", 500, [
+                    'error' => $result['error'],
+                    'exit_code' => $result['exit_code'],
+                    'output' => $result['output'],
+                    'before_restart' => $beforeStatus
+                ]);
+            }
+
+            sleep(1);
+            $afterStatus = $this->getDetailedServiceStatus($serviceName);
+
+            return $this->successResponse([
+                'service_name' => $serviceName,
+                'before_restart' => $beforeStatus,
+                'after_restart' => $afterStatus,
+                'restarted' => true,
+                'output' => $result['output'],
+                'async' => false
+            ], 'Service restarted successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_restart_service');
+        }
+    }
+
+    /**
+     * Restart multiple services by keyword
+     */
+    public function restartServicesByKeyword(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_restart_services_by_keyword');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $keyword = $request->input('keyword');
+            $dryRun = $request->input('dry_run', false);
+            $async = $request->input('async', false);
+
+            if (empty($keyword)) {
+                return $this->errorResponse('keyword parameter is required', 400);
+            }
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse('Failed to list services', 500, [
+                    'error' => $result['error']
+                ]);
+            }
+
+            $services = $this->parseSystemctlOutput($result['output']);
+            $matched = array_filter($services, function($service) use ($keyword) {
+                return stripos($service['name'], $keyword) !== false ||
+                       stripos($service['description'], $keyword) !== false;
+            });
+
+            $matched = array_values($matched);
+
+            if (empty($matched)) {
+                return $this->successResponse([
+                    'keyword' => $keyword,
+                    'matched_services' => [],
+                    'total_matched' => 0,
+                    'restarted' => []
+                ], 'No services matched the keyword');
+            }
+
+            if ($dryRun) {
+                return $this->successResponse([
+                    'keyword' => $keyword,
+                    'matched_services' => $matched,
+                    'total_matched' => count($matched),
+                    'dry_run' => true,
+                    'message' => 'This is a dry run, no services were restarted'
+                ], 'Dry run completed');
+            }
+
+            $restarted = [];
+            $failed = [];
+
+            if ($async) {
+                register_shutdown_function(function() use ($matched) {
+                    sleep(1);
+                    foreach ($matched as $service) {
+                        $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $service['name']], 30);
+
+                        if (!$result['success']) {
+                            Log::error('[ServerManager] Failed to restart service in batch', [
+                                'service' => $service['name'],
+                                'error' => $result['error'] ?? 'Unknown error'
+                            ]);
+                        } else {
+                            Log::info('[ServerManager] Service restarted in batch', [
+                                'service' => $service['name']
+                            ]);
+                        }
+                    }
+                });
+
+                return $this->successResponse([
+                    'keyword' => $keyword,
+                    'matched_services' => $matched,
+                    'total_matched' => count($matched),
+                    'message' => 'All matched services will restart in 1 second',
+                    'async' => true
+                ], 'Batch restart scheduled successfully');
+            }
+
+            foreach ($matched as $service) {
+                $restartResult = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $service['name']], 30);
+
+                if ($restartResult['success']) {
+                    $restarted[] = [
+                        'service_name' => $service['name'],
+                        'status' => 'restarted'
+                    ];
+                } else {
+                    $failed[] = [
+                        'service_name' => $service['name'],
+                        'error' => $restartResult['error'],
+                        'exit_code' => $restartResult['exit_code']
+                    ];
+                }
+            }
+
+            return $this->successResponse([
+                'keyword' => $keyword,
+                'total_matched' => count($matched),
+                'restarted' => $restarted,
+                'failed' => $failed,
+                'success_count' => count($restarted),
+                'failed_count' => count($failed)
+            ], 'Batch restart completed');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_restart_services_by_keyword');
+        }
+    }
+
+    /**
+     * Start a service
+     */
+    public function startService(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_start_service');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $serviceName = $request->input('service_name');
+
+            if (empty($serviceName)) {
+                return $this->errorResponse('service_name parameter is required', 400);
+            }
+
+            if (!$this->isServiceNameValid($serviceName)) {
+                return $this->errorResponse('Invalid service name format', 400);
+            }
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['start', $serviceName], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse("Failed to start service: {$serviceName}", 500, [
+                    'error' => $result['error'],
+                    'exit_code' => $result['exit_code']
+                ]);
+            }
+
+            return $this->successResponse([
+                'service_name' => $serviceName,
+                'output' => $result['output']
+            ], 'Service started successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_start_service');
+        }
+    }
+
+    /**
+     * Stop a service
+     */
+    public function stopService(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_stop_service');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $serviceName = $request->input('service_name');
+
+            if (empty($serviceName)) {
+                return $this->errorResponse('service_name parameter is required', 400);
+            }
+
+            if (!$this->isServiceNameValid($serviceName)) {
+                return $this->errorResponse('Invalid service name format', 400);
+            }
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['stop', $serviceName], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse("Failed to stop service: {$serviceName}", 500, [
+                    'error' => $result['error'],
+                    'exit_code' => $result['exit_code']
+                ]);
+            }
+
+            return $this->successResponse([
+                'service_name' => $serviceName,
+                'output' => $result['output']
+            ], 'Service stopped successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_stop_service');
+        }
+    }
+
+    /**
+     * Parse systemctl list-units output
+     */
+    private function parseSystemctlOutput(string $output): array
+    {
+        $services = [];
+        $lines = explode("\n", trim($output));
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $line, 5);
+
+            if (count($parts) >= 4) {
+                $services[] = [
+                    'name' => $parts[0],
+                    'load' => $parts[1] ?? '',
+                    'state' => $parts[2] ?? '',
+                    'sub_state' => $parts[3] ?? '',
+                    'description' => $parts[4] ?? ''
+                ];
+            }
+        }
+
+        return $services;
+    }
+
+    /**
+     * Restart service by poly_apps application name
+     */
+    public function restartServiceByAppName(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'system_restart_service_by_appname');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $appName = $request->input('app_name');
+            $async = $request->input('async', false);
+
+            if (empty($appName)) {
+                return $this->errorResponse('app_name parameter is required', 400);
+            }
+
+            $appName = trim($appName, '/');
+            $appName = str_replace('poly_apps/', '', $appName);
+
+            $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
+
+            if (!$result['success']) {
+                return $this->errorResponse('Failed to list services', 500, [
+                    'error' => $result['error']
+                ]);
+            }
+
+            $services = $this->parseSystemctlOutput($result['output']);
+            $matched = array_filter($services, function($service) use ($appName) {
+                return stripos($service['name'], $appName) !== false ||
+                       stripos($service['description'], $appName) !== false;
+            });
+
+            $matched = array_values($matched);
+
+            if (empty($matched)) {
+                return $this->errorResponse('No service found for application: ' . $appName, 404, [
+                    'app_name' => $appName,
+                    'searched_patterns' => [$appName]
+                ]);
+            }
+
+            if (count($matched) > 1) {
+                return $this->successResponse([
+                    'app_name' => $appName,
+                    'matched_services' => $matched,
+                    'total_matched' => count($matched),
+                    'message' => 'Multiple services found. Please specify which one to restart or use restart-by-keyword endpoint.'
+                ], 'Multiple services matched');
+            }
+
+            $targetService = $matched[0];
+            $serviceName = $targetService['name'];
+
+            $beforeStatus = $this->getDetailedServiceStatus($serviceName);
+
+            if (!$beforeStatus['exists']) {
+                return $this->errorResponse('Service does not exist: ' . $serviceName, 404);
+            }
+
+            if ($async) {
+                register_shutdown_function(function() use ($serviceName, $appName) {
+                    sleep(1);
+                    $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
+
+                    if (!$result['success']) {
+                        Log::error('[ServerManager] Failed to restart service by appname', [
+                            'app_name' => $appName,
+                            'service' => $serviceName,
+                            'error' => $result['error'] ?? 'Unknown error'
+                        ]);
+                    } else {
+                        Log::info('[ServerManager] Service restarted by appname', [
+                            'app_name' => $appName,
+                            'service' => $serviceName
+                        ]);
+                    }
+                });
+
+                return $this->successResponse([
+                    'app_name' => $appName,
+                    'service_name' => $serviceName,
+                    'before_restart' => $beforeStatus,
+                    'message' => 'Service will restart in 1 second',
+                    'async' => true
+                ], 'Restart scheduled successfully');
+            }
+
+            $restartResult = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
+
+            if (!$restartResult['success']) {
+                return $this->errorResponse("Failed to restart service: {$serviceName}", 500, [
+                    'error' => $restartResult['error'],
+                    'exit_code' => $restartResult['exit_code'],
+                    'before_restart' => $beforeStatus
+                ]);
+            }
+
+            sleep(1);
+            $afterStatus = $this->getDetailedServiceStatus($serviceName);
+
+            return $this->successResponse([
+                'app_name' => $appName,
+                'service_name' => $serviceName,
+                'before_restart' => $beforeStatus,
+                'after_restart' => $afterStatus,
+                'restarted' => true,
+                'async' => false
+            ], 'Service restarted successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'system_restart_service_by_appname');
+        }
+    }
+
+    /**
+     * Get detailed service status including existence, running state, etc.
+     */
+    private function getDetailedServiceStatus(string $serviceName): array
+    {
+        $statusResult = ServerManagerV1Utils::executeCommand('systemctl', ['status', $serviceName, '--no-pager'], 10);
+        $isActiveResult = ServerManagerV1Utils::executeCommand('systemctl', ['is-active', $serviceName], 5);
+        $isEnabledResult = ServerManagerV1Utils::executeCommand('systemctl', ['is-enabled', $serviceName], 5);
+
+        $exists = $statusResult['exit_code'] !== 4;
+        $active = trim($isActiveResult['output']) === 'active';
+        $enabled = trim($isEnabledResult['output']) === 'enabled';
+        $state = trim($isActiveResult['output']);
+
+        return [
+            'exists' => $exists,
+            'running' => $active,
+            'active' => $active,
+            'enabled' => $enabled,
+            'state' => $state,
+            'exit_code' => $statusResult['exit_code']
+        ];
+    }
+
+    /**
+     * Validate service name format
+     */
+    private function isServiceNameValid(string $serviceName): bool
+    {
+        return preg_match('/^[a-zA-Z0-9_\-\.@]+\.service$|^[a-zA-Z0-9_\-\.@]+$/', $serviceName) === 1;
     }
 }
 

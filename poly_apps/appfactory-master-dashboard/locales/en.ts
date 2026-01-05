@@ -17,6 +17,9 @@ export const en = {
     export: 'Export',
     settings: 'Settings',
     logout: 'Logout',
+    noDataAvailable: 'No data available',
+    unknown: 'Unknown',
+    unknownError: 'Unknown error',
   },
   nav: {
     overview: 'Overview',
@@ -56,6 +59,8 @@ export const en = {
     pending: 'Pending',
     failed: 'Failed',
     idle: 'Idle',
+    splashImage: '{appName} splash screen',
+    iconImage: '{appName} icon',
   },
   cs: {
     title: 'Customer Success Team',

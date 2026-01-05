@@ -7,6 +7,8 @@ import { storageService, UserInfo, AppSettings, STORAGE_KEYS } from '../services
 import { i18nService, SupportedLanguage } from '../services/i18nService';
 import { themeService, Theme } from '../services/themeService';
 import { modelService } from '../services/modelService';
+import { apiService } from '../services/apiService';
+import { useEventListener } from '../hooks/useEventListener';
 import { 
   MOCK_PROMOTION_TRACKS, 
   MOCK_APP_RELEASES, 
@@ -70,7 +72,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // State
   const [language, setLanguageState] = useState<SupportedLanguage>(() => {
     const saved = storageService.getLanguage();
-    return (saved as SupportedLanguage) || 'zh';
+    return saved !== null && saved !== undefined ? (saved as SupportedLanguage) : 'zh';
   });
 
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -95,121 +97,45 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     // Initialize theme
     themeService.initializeTheme(theme);
 
-    // Initialize all modelService data from central data source (constants.ts)
-    // All data should be accessed through modelService, not directly from constants
-    if (!modelService.getApps() || modelService.getApps()?.length === 0) {
-      modelService.setApps(MOCK_APPS);
+    // Update document title based on current language
+    // Use translation system instead of hardcoded title
+    if (typeof document !== 'undefined') {
+      document.title = i18nService.t('app.name');
     }
-    // Always initialize with centralized MOCK_CS to ensure Chinese names are used
-    // This ensures we always use the latest data from constants.ts
-    const currentCSTeam = modelService.getCSTeam() || [];
-    if (currentCSTeam.length === 0 || currentCSTeam.length !== MOCK_CS.length) {
-      // Initialize or reset to centralized data
-      modelService.setCSTeam(MOCK_CS);
-    } else {
-      // Update names from centralized data to ensure Chinese names
-      const updatedCSTeam = currentCSTeam.map(cs => {
-        const mockCS = MOCK_CS.find(m => m.id === cs.id);
-        return mockCS ? { ...cs, name: mockCS.name } : cs;
-      });
-      modelService.setCSTeam(updatedCSTeam);
-    }
-    if (!modelService.getTechTeam() || modelService.getTechTeam()?.length === 0) {
-      modelService.setTechTeam(MOCK_TECH);
-    }
-    if (!modelService.getPromotionTracks() || modelService.getPromotionTracks()?.length === 0) {
-      modelService.setPromotionTracks(MOCK_PROMOTION_TRACKS);
-    }
-    if (!modelService.getAppReleases() || modelService.getAppReleases()?.length === 0) {
-      modelService.setAppReleases(MOCK_APP_RELEASES);
-    }
-    if (!modelService.getPromoters() || modelService.getPromoters()?.length === 0) {
-      modelService.setPromoters(MOCK_PROMOTERS);
-    }
-    if (!modelService.getPromotionRecords() || modelService.getPromotionRecords()?.length === 0) {
-      modelService.setPromotionRecords(MOCK_PROMOTION_RECORDS);
-    }
-    if (!modelService.getAppRequests() || modelService.getAppRequests()?.length === 0) {
-      modelService.setAppRequests(MOCK_APP_REQUESTS);
-    }
-    if (!modelService.getCSAppRevenue() || modelService.getCSAppRevenue()?.length === 0) {
-      modelService.setCSAppRevenue(MOCK_CS_APP_REVENUE);
-    }
-    if (!modelService.getDailyStats() || modelService.getDailyStats()?.length === 0) {
-      modelService.setDailyStats(MOCK_DAILY_STATS);
-    }
-    if (!modelService.getNotifications() || modelService.getNotifications()?.length === 0) {
-      modelService.setNotifications(MOCK_NOTIFICATIONS);
-    }
-    if (!modelService.getBugs() || modelService.getBugs()?.length === 0) {
-      modelService.setBugs(MOCK_BUGS);
-    }
-    if (!modelService.getBuilds() || modelService.getBuilds()?.length === 0) {
-      modelService.setBuilds(MOCK_BUILDS);
-    }
-    // Always refresh chat sessions from MOCK data to ensure appId and appName are present
-    // Force sync with MOCK data to ensure all sessions have appId and appName
-    const currentSessions = modelService.getChatSessions() || [];
-    const updatedSessions = MOCK_CHAT_SESSIONS.map(mockSession => {
-      const existingSession = currentSessions.find(s => s.id === mockSession.id);
-      if (existingSession) {
-        // Merge existing session data with mock data, prioritizing mock appId and appName
-        return {
-          ...existingSession,
-          appId: mockSession.appId || existingSession.appId,
-          appName: mockSession.appName || existingSession.appName,
-          // Preserve other fields from existing session
-          lastMessage: existingSession.lastMessage || mockSession.lastMessage,
-          lastMessageTime: existingSession.lastMessageTime || mockSession.lastMessageTime,
-          unreadCount: existingSession.unreadCount !== undefined ? existingSession.unreadCount : mockSession.unreadCount,
-          status: existingSession.status || mockSession.status,
-        };
-      }
-      // If session doesn't exist, use mock data directly
-      return mockSession;
-    });
-    // Always set sessions to ensure consistency
-    modelService.setChatSessions(updatedSessions);
-    if (!modelService.getChatMessages() || modelService.getChatMessages()?.length === 0) {
-      modelService.setChatMessages(MOCK_CHAT_MESSAGES);
-    }
-    if (!modelService.getScriptTemplates() || modelService.getScriptTemplates()?.length === 0) {
-      modelService.setScriptTemplates(MOCK_SCRIPT_TEMPLATES);
-    }
-    if (!modelService.getPaymentVerificationRequests() || modelService.getPaymentVerificationRequests()?.length === 0) {
-      modelService.setPaymentVerificationRequests(MOCK_PAYMENT_VERIFICATION_REQUESTS);
-    }
+
+    // Mock data is always read fresh from constants.ts via modelService
+    // No need to initialize - modelService.get*() methods always return fresh mock data
+    // Only user-generated data (revenue, statistics) can be cached
   }, [language, theme]);
 
   // Listen to storage changes for immediate updates
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.LANGUAGE && e.newValue) {
-        const newLang = JSON.parse(e.newValue) as SupportedLanguage;
-        if (newLang !== language) {
-          setLanguageState(newLang);
-          i18nService.setLanguage(newLang);
-          setRefreshKey(prev => prev + 1);
-        }
-      }
-      if (e.key === STORAGE_KEYS.THEME && e.newValue) {
-        const newTheme = JSON.parse(e.newValue) as Theme;
-        if (newTheme !== theme) {
-          setThemeState(newTheme);
-          themeService.setTheme(newTheme);
-          setRefreshKey(prev => prev + 1);
-        }
-      }
-      if (e.key === STORAGE_KEYS.SETTINGS && e.newValue) {
-        const newSettings = JSON.parse(e.newValue) as AppSettings;
-        setSettingsState(newSettings);
+  // Use React Hook for event listener instead of direct window.addEventListener access
+  const handleStorageChange = useCallback((e: StorageEvent) => {
+    if (e.key === STORAGE_KEYS.LANGUAGE && e.newValue) {
+      const newLang = JSON.parse(e.newValue) as SupportedLanguage;
+      if (newLang !== language) {
+        setLanguageState(newLang);
+        i18nService.setLanguage(newLang);
         setRefreshKey(prev => prev + 1);
       }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    }
+    if (e.key === STORAGE_KEYS.THEME && e.newValue) {
+      const newTheme = JSON.parse(e.newValue) as Theme;
+      if (newTheme !== theme) {
+        setThemeState(newTheme);
+        themeService.setTheme(newTheme);
+        setRefreshKey(prev => prev + 1);
+      }
+    }
+    if (e.key === STORAGE_KEYS.SETTINGS && e.newValue) {
+      const newSettings = JSON.parse(e.newValue) as AppSettings;
+      setSettingsState(newSettings);
+      setRefreshKey(prev => prev + 1);
+    }
   }, [language, theme]);
+
+  // Use React Hook for event listener instead of direct window.addEventListener access
+  useEventListener('storage', handleStorageChange);
 
   // Language handlers
   const setLanguage = useCallback((newLanguage: SupportedLanguage) => {
@@ -261,9 +187,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, []);
 
   const login = useCallback((userInfo: UserInfo, token: string) => {
+    // Clear all mock data cache before login to ensure fresh data
+    // This ensures that when logging in, we start with clean mock data from constants.ts
+    // Use centralized modelService.clearAllModels() to clear all cached mock data
+    modelService.clearAllModels();
+    
+    // Avatar URLs are generated dynamically at render time
     setUserState(userInfo);
     storageService.setUserInfo(userInfo);
     storageService.setAuthToken(token);
+    
+    // Trigger refresh to reload all data from constants.ts
+    setRefreshKey(prev => prev + 1);
   }, []);
 
   const logout = useCallback(() => {

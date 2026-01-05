@@ -22,7 +22,7 @@ const translations: Record<SupportedLanguage, TranslationKeys> = {
 };
 
 // 获取嵌套属性的辅助函数
-function getNestedProperty(obj: any, path: string): string {
+function getNestedProperty(obj: Record<string, unknown>, path: string): string {
   const keys = path.split('.');
   let result = obj;
 

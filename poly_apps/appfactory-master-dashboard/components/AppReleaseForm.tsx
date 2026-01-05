@@ -5,6 +5,9 @@ import { modelService } from '../services/modelService';
 import { AppStatus } from '../types';
 import { generateEncryptedString } from '../utils/crypto';
 import { generateId } from '../utils/idGenerator';
+import { useImageError } from '../hooks/useImageError';
+import { useOrigin } from '../contexts/OriginContext';
+import { useClipboard } from '../hooks/useClipboard';
 
 export const AppReleaseForm: React.FC = () => {
   const { user, t } = useApp();
@@ -16,9 +19,15 @@ export const AppReleaseForm: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [generatedEncryptedString, setGeneratedEncryptedString] = useState('');
+  // Use React Hook for image error handling instead of direct DOM manipulation
+  const [coverImageError, handleCoverImageError] = useImageError();
+  // Use React Context for origin instead of direct window.location access
+  const origin = useOrigin();
+  // Use React Hook for clipboard instead of direct navigator.clipboard access
+  const [copyToClipboard] = useClipboard();
 
   // Get available apps (status is Live or Pending)
-  const apps = useMemo(() => modelService.getApps() || [], []);
+  const apps = useMemo(() => modelService.getApps(), []);
   const availableApps = apps.filter(app => 
     app.status === AppStatus.LIVE || app.status === AppStatus.PENDING
   );
@@ -50,8 +59,8 @@ export const AppReleaseForm: React.FC = () => {
       id: generateId('release'),
       appId: selectedApp.id,
       appName: selectedApp.name,
-      releasedBy: user?.id || 'tech-universal',
-      releasedByName: user?.name || t('roles.tech'),
+      releasedBy: user?.id ?? 'tech-universal',
+      releasedByName: user?.name ?? t('roles.tech'),
       releasedAt: new Date().toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
@@ -63,9 +72,9 @@ export const AppReleaseForm: React.FC = () => {
       status: 'released' as const,
       downloadUrl,
       encryptedString,
-      secondaryUrl: secondaryUrl || undefined,
-      coverImage: coverImage || undefined,
-      description: description || undefined,
+      secondaryUrl: secondaryUrl ? secondaryUrl : undefined,
+      coverImage: coverImage ? coverImage : undefined,
+      description: description ? description : undefined,
     };
 
     // 保存到modelService
@@ -89,7 +98,7 @@ export const AppReleaseForm: React.FC = () => {
   };
 
   const accessUrl = generatedEncryptedString 
-    ? `${window.location.origin}/#/${generatedEncryptedString}`
+    ? `${origin}/#/${generatedEncryptedString}`
     : '';
 
   return (
@@ -116,8 +125,8 @@ export const AppReleaseForm: React.FC = () => {
                     {accessUrl}
                   </code>
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(accessUrl);
+                    onClick={async () => {
+                      await copyToClipboard(accessUrl);
                       alert(t('appRelease.linkCopied'));
                     }}
                     className="text-xs px-3 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
@@ -204,15 +213,13 @@ export const AppReleaseForm: React.FC = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {t('appRelease.coverImageHint')}
             </p>
-            {coverImage && (
+            {coverImage && !coverImageError && (
               <div className="mt-3">
                 <img
                   src={coverImage}
                   alt={t('appRelease.coverImage')}
                   className="w-full max-w-xs h-32 object-cover rounded-lg border border-slate-200 dark:border-slate-600"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
+                  onError={handleCoverImageError}
                 />
               </div>
             )}
@@ -269,7 +276,7 @@ export const AppReleaseForm: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.recentReleases')}</h3>
         <div className="space-y-3">
-          {(modelService.getAppReleases() || []).slice(0, 5).map(release => (
+          {modelService.getAppReleases().slice(0, 5).map(release => (
             <div key={release.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
               <div className="flex-1">
                 <p className="font-bold text-slate-800 dark:text-white">{release.appName}</p>
@@ -278,7 +285,7 @@ export const AppReleaseForm: React.FC = () => {
                 </p>
                 {release.encryptedString && (
                   <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
-                    {window.location.origin}/#/{release.encryptedString.substring(0, 16)}...
+                    {origin}/#/{release.encryptedString.substring(0, 16)}...
                   </p>
                 )}
               </div>
