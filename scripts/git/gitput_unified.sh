@@ -1367,8 +1367,21 @@ invoke_git_operations() {
     
     # Push changes to remote
     write_color_text "Pushing changes to remote..." "Cyan"
-    write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
-    git push --set-upstream origin "$current_branch"
+
+    # Ask if user wants to force push
+    write_color_text "Do you want to force push? [y/N]: " "Yellow"
+    read -r force_push_choice
+
+    if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
+        write_color_text "WARNING: Force pushing all changes..." "Red"
+        write_color_text "Executing: git push --force --set-upstream origin $current_branch" "DarkGray"
+        git push --force --set-upstream origin "$current_branch"
+    else
+        write_color_text "Normal push (no force)..." "Green"
+        write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
+        git push --set-upstream origin "$current_branch"
+    fi
+
     write_color_text "----------------------------------------------------------------" "DarkBlue"
 
     # Restore default remote after push (always restore to DEFAULT_REMOTE)
