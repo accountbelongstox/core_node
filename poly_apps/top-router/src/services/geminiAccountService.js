@@ -22,65 +22,16 @@ const antigravityClient = require('./antigravityClient')
 const OAUTH_PROVIDER_A = 'provider-a'
 const OAUTH_PROVIDER_B = 'provider-b'
 
-// 从多个配置文件读取并组合敏感信息
-function combineClientId(parts) {
-  const [num1, num2, num3, num4, str1, str2, domain1, domain2, tld] = parts
-  return `${num1}${num2}${num3}${num4}-${str1}${str2}.${domain1}.${domain2}.${tld}`
-}
-
-function combineClientSecret(parts) {
-  return parts.join('-')
-}
-
-// 读取配置片段
-const cfgA = require('../config/oauth_parts/part_a')
-const cfgB = require('../config/oauth_parts/part_b')
-const cfgC = require('../config/oauth_parts/part_c')
-const cfgD = require('../config/oauth_parts/part_d')
-
-// 组合配置值
-const defaultClientIdA = combineClientId([
-  cfgA.val1,
-  cfgA.val2,
-  cfgA.val3,
-  cfgA.val4,
-  cfgA.val5,
-  cfgA.val6,
-  cfgA.val7,
-  cfgA.val8,
-  cfgA.val9
-])
-const defaultClientSecretA = combineClientSecret([
-  cfgB.val1 + cfgB.val2,
-  cfgB.val3 + cfgB.val4,
-  cfgB.val5 + cfgB.val6,
-  cfgB.val7 + cfgB.val8 + cfgB.val9 + cfgB.val10
-])
-const defaultClientIdB = combineClientId([
-  cfgC.val1,
-  cfgC.val2,
-  cfgC.val3,
-  cfgC.val4,
-  cfgC.val5,
-  cfgC.val6,
-  cfgC.val7,
-  cfgC.val8,
-  cfgC.val9
-])
-const defaultClientSecretB = combineClientSecret([
-  cfgD.val1 + cfgD.val2,
-  [cfgD.val3, cfgD.val4, cfgD.val5, cfgD.val6, cfgD.val7, cfgD.val8, cfgD.val9, cfgD.val10, cfgD.val11].join('')
-])
-
+// OAuth 配置仅从环境变量读取，不再使用本地配置文件
 const OAUTH_PROVIDERS = {
   [OAUTH_PROVIDER_A]: {
-    clientId: process.env.GEMINI_OAUTH_CLIENT_ID || defaultClientIdA,
-    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || defaultClientSecretA,
+    clientId: process.env.GEMINI_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.GEMINI_OAUTH_CLIENT_SECRET || '',
     scopes: ['https://www.googleapis.com/auth/cloud-platform']
   },
   [OAUTH_PROVIDER_B]: {
-    clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || defaultClientIdB,
-    clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || defaultClientSecretB,
+    clientId: process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || '',
+    clientSecret: process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET || '',
     scopes: [
       'https://www.googleapis.com/auth/cloud-platform',
       'https://www.googleapis.com/auth/userinfo.email',
@@ -91,14 +42,14 @@ const OAUTH_PROVIDERS = {
   }
 }
 
-if (!process.env.GEMINI_OAUTH_CLIENT_SECRET) {
+if (!process.env.GEMINI_OAUTH_CLIENT_ID || !process.env.GEMINI_OAUTH_CLIENT_SECRET) {
   logger.warn(
-    '⚠️ GEMINI_OAUTH_CLIENT_SECRET 未设置，使用内置默认值（建议在生产环境通过环境变量覆盖）'
+    '⚠️ GEMINI_OAUTH_CLIENT_ID 或 GEMINI_OAUTH_CLIENT_SECRET 未设置，请通过环境变量配置'
   )
 }
-if (!process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET) {
+if (!process.env.ANTIGRAVITY_OAUTH_CLIENT_ID || !process.env.ANTIGRAVITY_OAUTH_CLIENT_SECRET) {
   logger.warn(
-    '⚠️ ANTIGRAVITY_OAUTH_CLIENT_SECRET 未设置，使用内置默认值（建议在生产环境通过环境变量覆盖）'
+    '⚠️ ANTIGRAVITY_OAUTH_CLIENT_ID 或 ANTIGRAVITY_OAUTH_CLIENT_SECRET 未设置，请通过环境变量配置'
   )
 }
 
