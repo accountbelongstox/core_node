@@ -1355,29 +1355,33 @@ invoke_git_operations() {
     write_color_text "Committing changes with message: $commit_message" "Cyan"
     write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
     git commit -m "$commit_message"
-    
-    # Now handle synchronization
-    local current_branch=$(get_current_branch)
-    if git branch -r | grep -q "origin/$current_branch"; then
-        # Always pull to prevent push conflicts
-        write_color_text "Pulling and merging remote changes after commit..." "Cyan"
-        write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
-        git pull origin "$current_branch" --no-edit
-    fi
-    
-    # Push changes to remote
-    write_color_text "Pushing changes to remote..." "Cyan"
 
-    # Ask if user wants to force push
+    # Get current branch for push operations
+    local current_branch=$(get_current_branch)
+
+    # Ask if user wants to force push BEFORE any pull operations
     write_color_text "Do you want to force push? [y/N]: " "Yellow"
     read -r force_push_choice
 
     if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
+        # Force push mode - skip pull completely
+        write_color_text "=== FORCE PUSH MODE ===" "Red"
+        write_color_text "Skipping pull (will overwrite remote changes)" "Red"
         write_color_text "WARNING: Force pushing all changes..." "Red"
         write_color_text "Executing: git push --force --set-upstream origin $current_branch" "DarkGray"
         git push --force --set-upstream origin "$current_branch"
     else
-        write_color_text "Normal push (no force)..." "Green"
+        # Normal push mode - pull first to prevent conflicts
+        write_color_text "=== NORMAL PUSH MODE ===" "Green"
+        if git branch -r | grep -q "origin/$current_branch"; then
+            # Pull to prevent push conflicts
+            write_color_text "Pulling and merging remote changes after commit..." "Cyan"
+            write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
+            git pull origin "$current_branch" --no-edit
+        fi
+
+        # Normal push
+        write_color_text "Pushing changes to remote..." "Cyan"
         write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
         git push --set-upstream origin "$current_branch"
     fi
