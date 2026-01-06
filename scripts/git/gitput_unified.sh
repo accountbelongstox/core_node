@@ -1511,6 +1511,39 @@ main() {
     # Reorder targets to execute DEFAULT_REMOTE first
     targets=($(get_execution_order "${targets[@]}"))
 
+    # Preview targets before pushing
+    write_color_text "" "White"
+    write_color_text "============================================================" "Cyan"
+    if [ "$PULL_MODE" = true ]; then
+        write_color_text "  PULL TARGETS PREVIEW" "Cyan"
+    else
+        write_color_text "  PUSH TARGETS PREVIEW" "Cyan"
+    fi
+    write_color_text "============================================================" "Cyan"
+    write_color_text "Total targets: ${#targets[@]}" "Green"
+
+    # Warning if only one target
+    if [ ${#targets[@]} -eq 1 ]; then
+        write_color_text "" "White"
+        write_color_text "⚠️  WARNING: Only pushing to ONE remote repository!" "Red"
+        write_color_text "    To push to all remotes, select 'all' in the menu" "Yellow"
+    fi
+
+    write_color_text "" "White"
+
+    local target_index=1
+    for target in "${targets[@]}"; do
+        if [ -n "${remote_configs[$target]}" ]; then
+            local target_url="${remote_configs[$target]}"
+            write_color_text "  [$target_index] $target" "Yellow"
+            write_color_text "      URL: $target_url" "DarkGray"
+        fi
+        ((target_index++))
+    done
+    write_color_text "" "White"
+    write_color_text "============================================================" "Cyan"
+    write_color_text "" "White"
+
     local all_success=true
 
     for target in "${targets[@]}"; do
