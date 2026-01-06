@@ -181,122 +181,24 @@ async function encryptFile(inputPath, password, outputDir = null) {
     }
 }
 
-// Batch decrypt multiple encrypted files
-async function batchDecryptFiles(password, outputDir, encryptedFiles) {
-    const results = {
-        success: [],
-        failed: []
-    };
-
-    for (const encryptedFile of encryptedFiles) {
-        try {
-            if (!fs.existsSync(encryptedFile)) {
-                results.failed.push({ file: encryptedFile, error: 'File not found' });
-                continue;
-            }
-
-            const encryptedFilePath = path.resolve(encryptedFile);
-            const originalFileName = path.basename(encryptedFile, '.js');
-            const outputPath = path.join(outputDir, originalFileName);
-
-            delete require.cache[require.resolve(encryptedFilePath)];
-            const decryptModule = require(encryptedFilePath);
-
-            if (!decryptModule || typeof decryptModule.decrypt !== 'function') {
-                results.failed.push({ file: encryptedFile, error: 'Invalid encrypted file format' });
-                continue;
-            }
-
-            try {
-                await decryptModule.decrypt(password, outputDir, { force: true });
-
-                if (fs.existsSync(outputPath)) {
-                    results.success.push(encryptedFile);
-                } else {
-                    results.failed.push({ file: encryptedFile, error: 'Output file not created' });
-                }
-            } catch (decryptErr) {
-                results.failed.push({ file: encryptedFile, error: decryptErr.message });
-            }
-        } catch (err) {
-            results.failed.push({ file: encryptedFile, error: err.message });
-        }
-    }
-
-    return results;
-}
-
 // Command line interface
 async function main() {
     const args = process.argv.slice(2);
     
-    if (args.length < 1) {
+    if (args.length < 2) {
         console.log(`
 File Disguise Utility
-Usage:
-  Encrypt: node disguise.js INPUT_FILE PASSWORD [OUTPUT_DIR]
-  Batch Decrypt: node disguise.js batch-decrypt PASSWORD OUTPUT_DIR FILE1.js [FILE2.js ...]
+Usage: node disguise.js INPUT_FILE PASSWORD [OUTPUT_DIR]
 
 Examples:
   Encrypt to same directory: node disguise.js secret.txt mypassword
   Encrypt to specific directory: node disguise.js secret.txt mypassword ./encrypted
-  Batch decrypt: node disguise.js batch-decrypt mypassword ./output file1.js file2.js file3.js
 `);
         process.exit(1);
     }
 
-    if (args[0] === 'batch-decrypt') {
-        if (args.length < 4) {
-            console.error('Error: batch-decrypt requires PASSWORD OUTPUT_DIR and at least one encrypted file');
-            console.error('Usage: node disguise.js batch-decrypt PASSWORD OUTPUT_DIR FILE1.js [FILE2.js ...]');
-            process.exit(1);
-        }
-
-        const password = args[1];
-        const outputDir = args[2];
-        const encryptedFiles = args.slice(3);
-
-        if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-        }
-
-        const results = await batchDecryptFiles(password, outputDir, encryptedFiles);
-
-        console.log(`\n[SECRET_DECRYPT_ALL] ========================================`);
-        console.log(`[SECRET_DECRYPT_ALL] Decryption Summary:`);
-        console.log(`[SECRET_DECRYPT_ALL]   Total files: ${encryptedFiles.length}`);
-        console.log(`[SECRET_DECRYPT_ALL]   Successful:  ${results.success.length}`);
-        console.log(`[SECRET_DECRYPT_ALL]   Failed:      ${results.failed.length}`);
-        console.log(`[SECRET_DECRYPT_ALL]   Output dir:  ${outputDir}`);
-        console.log(`[SECRET_DECRYPT_ALL] ========================================`);
-
-        if (results.success.length > 0) {
-            console.log(`\n[SECRET_DECRYPT_ALL] Successful files:`);
-            results.success.forEach(file => {
-                const keyName = path.basename(file, '.js');
-                console.log(`[SECRET_DECRYPT_ALL]    SUCCESS: ${keyName}`);
-            });
-        }
-
-        if (results.failed.length > 0) {
-            console.log(`\n[SECRET_DECRYPT_ALL] Failed files:`);
-            results.failed.forEach(item => {
-                const keyName = path.basename(item.file, '.js');
-                console.log(`[SECRET_DECRYPT_ALL]    FAILED: ${keyName}`);
-                console.log(`[SECRET_DECRYPT_ALL]   Error: ${item.error}`);
-            });
-        }
-
-        process.exit(results.failed.length > 0 ? 1 : 0);
-    } else {
-        if (args.length < 2) {
-            console.error('Error: Encrypt requires INPUT_FILE and PASSWORD');
-            process.exit(1);
-        }
-
-        const [inputPath, password, outputDir] = args;
-        await encryptFile(inputPath, password, outputDir);
-    }
+    const [inputPath, password, outputDir] = args;
+    await encryptFile(inputPath, password, outputDir);
 }
 
 main().catch(console.error);

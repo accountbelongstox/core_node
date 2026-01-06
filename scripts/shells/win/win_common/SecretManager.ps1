@@ -241,33 +241,49 @@ function Invoke-SecretDecryptAll {
         return $false
     }
 
-    Write-Host "[SECRET_DECRYPT_ALL] Starting batch decryption..." -ForegroundColor Cyan
+    $successCount = 0
+    $failCount = 0
 
-    $filePaths = @()
     foreach ($encryptedFile in $encryptedFiles) {
-        $filePaths += $encryptedFile.FullName
+        $fileName = $encryptedFile.Name
+        $keyName = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+
+        Write-Host "[SECRET_DECRYPT_ALL] Decrypting: $fileName -> $keyName" -ForegroundColor Cyan
+
+        try {
+            $result = & $Global:NODE_EXE_PATH $encryptedFile.FullName pwd $Password $OutputDir
+
+            if ($result) {
+                Write-Host "[SECRET_DECRYPT_ALL]    SUCCESS: $keyName" -ForegroundColor Green
+                $successCount++
+            } else {
+                Write-Host "[SECRET_DECRYPT_ALL]    FAILED: $keyName" -ForegroundColor Red
+                Write-Host "[SECRET_DECRYPT_ALL]   Error: $result" -ForegroundColor Red
+                $failCount++
+            }
+        } catch {
+            Write-Host "[SECRET_DECRYPT_ALL]    FAILED: $keyName" -ForegroundColor Red
+            Write-Host "[SECRET_DECRYPT_ALL]   Error: $($_.Exception.Message)" -ForegroundColor Red
+            $failCount++
+        }
     }
 
-    $allArgs = @('batch-decrypt', $Password, $OutputDir) + $filePaths
+    Write-Host ""
+    Write-Host "[SECRET_DECRYPT_ALL] ========================================" -ForegroundColor Cyan
+    Write-Host "[SECRET_DECRYPT_ALL] Decryption Summary:" -ForegroundColor Cyan
+    Write-Host "[SECRET_DECRYPT_ALL]   Total files: $($encryptedFiles.Count)" -ForegroundColor Cyan
+    Write-Host "[SECRET_DECRYPT_ALL]   Successful:  $successCount" -ForegroundColor Green
+    Write-Host "[SECRET_DECRYPT_ALL]   Failed:      $failCount" -ForegroundColor Red
+    Write-Host "[SECRET_DECRYPT_ALL]   Output dir:  $OutputDir" -ForegroundColor Cyan
+    Write-Host "[SECRET_DECRYPT_ALL] ========================================" -ForegroundColor Cyan
 
-    try {
-        $result = & $Global:NODE_EXE_PATH $disguiseJs $allArgs 2>&1
+    $Password = $null
 
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host $result
-            $Password = $null
-            return $true
-        } else {
-            Write-Host $result
-            $Password = $null
-            return $false
-        }
-    } catch {
-        Write-Host "[SECRET_DECRYPT_ALL] ERROR: Batch decryption failed" -ForegroundColor Red
-        Write-Host "[SECRET_DECRYPT_ALL]   Error: $($_.Exception.Message)" -ForegroundColor Red
-        $Password = $null
+    if ($failCount -gt 0) {
         return $false
     }
+
+    return $true
 }
 
 <#
