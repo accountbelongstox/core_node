@@ -868,9 +868,9 @@ handle_conflict_resolution() {
 invoke_safe_git_pull() {
     local target_url="$1"
 
-    # Check if this is any 192.x.x.x remote - skip in all environments
-    if [[ "$target_url" == *"192."* ]]; then
-        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+    # Check if host is reachable before proceeding
+    if ! check_host_reachable "$target_url"; then
+        write_color_text "Skipping $target_url (host not reachable)" "Yellow"
         return 0
     fi
 
@@ -978,15 +978,15 @@ invoke_safe_git_pull() {
 invoke_force_overwrite() {
     local target_url="$1"
 
-    # Check if this is any 192.x.x.x remote - skip in all environments
-    if [[ "$target_url" == *"192."* ]]; then
-        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+    # Check if host is reachable before proceeding
+    if ! check_host_reachable "$target_url"; then
+        write_color_text "Skipping $target_url (host not reachable)" "Yellow"
         return 0
     fi
 
-    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
+    write_color_text "══════════════════════════════════════════════════════════════" "Yellow"
     write_color_text "FORCE OVERWRITE - DISCARDING LOCAL CHANGES" "Red"
-    write_color_text "══════════════════════════════════════════════════════════════�? "Yellow"
+    write_color_text "══════════════════════════════════════════════════════════════" "Yellow"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
 
@@ -1005,7 +1005,7 @@ invoke_force_overwrite() {
     write_color_text "Step 1: Creating backup branch..." "Cyan"
     write_color_text "Executing: git branch $backup_branch" "DarkGray"
     if git branch "$backup_branch" 2>/dev/null; then
-        write_color_text "�?Backup branch created: $backup_branch" "Green"
+        write_color_text "✓ Backup branch created: $backup_branch" "Green"
     else
         write_color_text "Warning: Could not create backup branch (may already exist)" "Yellow"
     fi
@@ -1020,13 +1020,13 @@ invoke_force_overwrite() {
         local backup_commit_msg="Backup before force overwrite - $TIMESTAMP"
         write_color_text "Executing: git commit -m '$backup_commit_msg'" "DarkGray"
         if git commit -m "$backup_commit_msg" 2>/dev/null; then
-            write_color_text "�?Local changes committed to $ORIGINAL_BRANCH" "Green"
+            write_color_text "✓ Local changes committed to $ORIGINAL_BRANCH" "Green"
         fi
 
         # Update backup branch to include these changes
         write_color_text "Executing: git branch -f $backup_branch" "DarkGray"
         git branch -f "$backup_branch"
-        write_color_text "�?Backup branch updated with local changes" "Green"
+        write_color_text "✓ Backup branch updated with local changes" "Green"
     else
         write_color_text "No uncommitted changes found" "Green"
     fi
@@ -1119,10 +1119,10 @@ invoke_force_overwrite() {
     fi
 
     # Summary
-    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
-    write_color_text "�?FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
-    write_color_text "�?NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
-    write_color_text "══════════════════════════════════════════════════════════════�? "Green"
+    write_color_text "══════════════════════════════════════════════════════════════" "Green"
+    write_color_text "✓ FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
+    write_color_text "✓ NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
+    write_color_text "══════════════════════════════════════════════════════════════" "Green"
     write_color_text "" "White"
     write_color_text "Your local changes have been backed up to:" "Cyan"
     write_color_text "  Branch: $backup_branch" "White"
@@ -1139,13 +1139,41 @@ invoke_force_overwrite() {
     return 0
 }
 
+# Function to check if IP/host is reachable
+check_host_reachable() {
+    local url="$1"
+    local host=""
+
+    # Extract host from git URL
+    if [[ "$url" =~ @([^:]+): ]]; then
+        host="${BASH_REMATCH[1]}"
+    elif [[ "$url" =~ //([^/]+) ]]; then
+        host="${BASH_REMATCH[1]}"
+    else
+        # Can't parse host, assume reachable
+        return 0
+    fi
+
+    write_color_text "Checking connectivity to: $host" "DarkGray"
+
+    # Try ping with 2 second timeout
+    if ping -c 1 -W 2 "$host" >/dev/null 2>&1; then
+        write_color_text "✓ Host $host is reachable" "Green"
+        return 0
+    else
+        write_color_text "✗ Host $host is NOT reachable" "Red"
+        return 1
+    fi
+}
+
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
+    local force_push_mode="$2"  # "yes" or "no"
 
-    # Check if this is any 192.x.x.x remote - skip in all environments
-    if [[ "$target_url" == *"192."* ]]; then
-        write_color_text "Skipping local remote $target_url (192.x.x.x networks are skipped)" "Yellow"
+    # Check if host is reachable before proceeding
+    if ! check_host_reachable "$target_url"; then
+        write_color_text "Skipping $target_url (host not reachable)" "Yellow"
         return 0
     fi
 
@@ -1411,11 +1439,8 @@ invoke_git_operations() {
     # Get current branch for push operations
     local current_branch=$(get_current_branch)
 
-    # Ask if user wants to force push BEFORE any pull operations
-    write_color_text "Do you want to force push? [y/N]: " "Yellow"
-    read -r force_push_choice
-
-    if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
+    # Use the force push mode passed from main function
+    if [[ "$force_push_mode" == "yes" ]]; then
         # Force push mode - skip pull completely
         write_color_text "=== FORCE PUSH MODE ===" "Red"
         write_color_text "Skipping pull (will overwrite remote changes)" "Red"
@@ -1491,20 +1516,9 @@ main() {
         write_color_text "Server detected: Global variables indicate server environment" "DarkGray"
     fi
 
-    # Skip local remotes (192.x.x.x networks) in all environments
-    write_color_text "Filtering out local remotes (192.x.x.x networks)" "Yellow"
-    local filtered_targets=()
-    for target in "${targets[@]}"; do
-        if [ "$target" != "local" ]; then
-            filtered_targets+=("$target")
-        else
-            write_color_text "Skipping ${remote_configs[$target]} (local remote)" "Yellow"
-        fi
-    done
-    targets=("${filtered_targets[@]}")
-
+    # Don't filter targets here - check connectivity when actually pushing
     if [ ${#targets[@]} -eq 0 ]; then
-        write_color_text "No valid remotes to process after filtering" "Red"
+        write_color_text "No valid remotes to process" "Red"
         return 1
     fi
 
@@ -1544,6 +1558,20 @@ main() {
     write_color_text "============================================================" "Cyan"
     write_color_text "" "White"
 
+    # Ask once for force push decision (applies to all targets)
+    local force_push_mode="no"
+    if [ "$PULL_MODE" != true ]; then
+        write_color_text "Do you want to force push? [y/N]: " "Yellow"
+        read -r force_push_choice
+        if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
+            force_push_mode="yes"
+            write_color_text "✓ Force push enabled for ALL targets" "Red"
+        else
+            write_color_text "✓ Normal push mode (with pull) for ALL targets" "Green"
+        fi
+        write_color_text "" "White"
+    fi
+
     local all_success=true
 
     for target in "${targets[@]}"; do
@@ -1572,7 +1600,7 @@ main() {
                 break
             else
                 write_color_text "\n=== Pushing to $target ($target_url) ===" "Magenta"
-                invoke_git_operations "$target_url"
+                invoke_git_operations "$target_url" "$force_push_mode"
                 if [ $? -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
                 else
