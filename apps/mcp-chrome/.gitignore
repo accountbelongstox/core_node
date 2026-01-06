@@ -37,3 +37,9 @@ false/
 metadata-v1.3/
 registry.npmmirror.com/
 registry.npmjs.com/
+
+# Windows reserved device name: nul
+nul
+**/nul
+**/nul/
+**/nul/**
