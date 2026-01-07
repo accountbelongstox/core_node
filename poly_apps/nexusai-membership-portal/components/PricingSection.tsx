@@ -2,8 +2,54 @@
 import React from 'react';
 import { PLANS, Icons } from '../constants';
 import { Plan } from '../types';
+import { useAppContext } from '../App';
 
 const PricingCard: React.FC<{ plan: Plan }> = ({ plan }) => {
+  const { t } = useAppContext();
+  
+  // Get translated plan name and description
+  const getPlanName = () => {
+    if (plan.id === 'Free') return t.planFreeName;
+    if (plan.id === 'Pro') return t.planProName;
+    if (plan.id === 'Ultimate') return t.planUltimateName;
+    return plan.name;
+  };
+  
+  const getPlanDescription = () => {
+    if (plan.id === 'Free') return t.planFreeDescription;
+    if (plan.id === 'Pro') return t.planProDescription;
+    if (plan.id === 'Ultimate') return t.planUltimateDescription;
+    return plan.description;
+  };
+  
+  const getPlanPeriod = () => {
+    if (plan.id === 'Free') return t.planFreePeriod;
+    if (plan.id === 'Pro') return t.planProPeriod;
+    if (plan.id === 'Ultimate') return t.planUltimatePeriod;
+    return plan.period;
+  };
+  
+  // Feature translation mapping
+  const getFeatureName = (featureName: string) => {
+    const featureMap: Record<string, string> = {
+      '50,000 monthly tokens': t.feature50kTokens,
+      'Standard generation speed': t.featureStandardSpeed,
+      'Basic models (Gemini Flash)': t.featureBasicModels,
+      'Custom API access': t.featureCustomApi,
+      'Priority support': t.featurePrioritySupport,
+      '5,000,000 monthly tokens': t.feature5mTokens,
+      'Turbo generation speed': t.featureTurboSpeed,
+      'Advanced models (Claude/Gemini Pro)': t.featureAdvancedModels,
+      'Unlimited API endpoints': t.featureUnlimitedApi,
+      'Unlimited tokens': t.featureUnlimitedTokens,
+      'Dedicated compute nodes': t.featureDedicatedNodes,
+      'Ultra-low latency': t.featureUltraLowLatency,
+      'Full governance & SSO': t.featureGovernanceSso,
+      '24/7 Concierge support': t.featureConciergeSupport,
+    };
+    return featureMap[featureName] || featureName;
+  };
+  
   return (
     <div className={`relative flex flex-col p-10 rounded-[3rem] h-full transition-all duration-500 hover:-translate-y-4 ${
       plan.isPopular 
@@ -12,19 +58,19 @@ const PricingCard: React.FC<{ plan: Plan }> = ({ plan }) => {
     }`}>
       {plan.isPopular && (
         <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.3em] shadow-lg">
-          Optimal Route
+          {t.optimalRoute}
         </div>
       )}
       
       <div className="mb-10">
-        <h3 className="text-2xl font-black mb-3 italic tracking-tight">{plan.name}</h3>
-        <p className="dark:text-slate-500 text-slate-400 text-sm font-medium leading-relaxed">{plan.description}</p>
+        <h3 className="text-2xl font-black mb-3 italic tracking-tight">{getPlanName()}</h3>
+        <p className="dark:text-slate-500 text-slate-400 text-sm font-medium leading-relaxed">{getPlanDescription()}</p>
       </div>
 
       <div className="mb-12">
         <div className="flex items-baseline gap-2">
           <span className="text-5xl font-black tracking-tighter italic">{plan.price}</span>
-          <span className="dark:text-slate-500 text-slate-400 text-xs font-bold uppercase tracking-widest">{plan.period}</span>
+          <span className="dark:text-slate-500 text-slate-400 text-xs font-bold uppercase tracking-widest">{getPlanPeriod()}</span>
         </div>
       </div>
 
@@ -35,7 +81,7 @@ const PricingCard: React.FC<{ plan: Plan }> = ({ plan }) => {
               {feature.included ? <Icons.Check /> : <Icons.X />}
             </span>
             <span className={feature.included ? 'dark:text-slate-300 text-slate-700' : 'text-slate-500'}>
-              {feature.name}
+              {getFeatureName(feature.name)}
             </span>
           </li>
         ))}
@@ -46,7 +92,7 @@ const PricingCard: React.FC<{ plan: Plan }> = ({ plan }) => {
           ? 'bg-blue-600 text-white hover:bg-blue-700 glow-button shadow-xl shadow-blue-500/20' 
           : 'dark:bg-white/5 bg-slate-900/5 dark:text-white text-slate-900 hover:bg-slate-900/10 dark:hover:bg-white/10'
       }`}>
-        {plan.id === 'Free' ? 'Current Deployment' : 'Switch to ' + plan.name}
+        {plan.id === 'Free' ? t.currentDeployment : `${t.switchTo} ${getPlanName()}`}
       </button>
     </div>
   );

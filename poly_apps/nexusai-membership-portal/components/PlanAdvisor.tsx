@@ -1,15 +1,13 @@
-
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { getPlanRecommendation } from '../services/geminiService';
-import { translations } from '../i18n';
+import { useAppContext } from '../App';
 
 const PlanAdvisor: React.FC = () => {
   const [input, setInput] = useState('');
   const [response, setResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const lang = (document.documentElement.lang as 'en' | 'zh') || 'en';
-  const t = translations[lang];
+  const { t } = useAppContext();
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +41,7 @@ const PlanAdvisor: React.FC = () => {
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={lang === 'zh' ? '例如：我正在开发一个需要处理大量医疗影像的自动化工具...' : 'e.g. I need to process high-res medical imagery...'}
+          placeholder={t.advisorPlaceholder}
           className="w-full dark:bg-black/40 bg-slate-100/50 border dark:border-white/10 border-slate-200 rounded-[2rem] p-6 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all h-36 resize-none placeholder:text-slate-600 font-medium"
         />
         <button
@@ -59,7 +57,7 @@ const PlanAdvisor: React.FC = () => {
 
       {response && (
         <div className="mt-12 p-10 bg-blue-600/5 border border-blue-600/20 rounded-[2.5rem] animate-in zoom-in duration-500">
-          <div className="text-[10px] font-black text-blue-500 mb-4 uppercase tracking-[0.3em]">Strategy Insight</div>
+          <div className="text-[10px] font-black text-blue-500 mb-4 uppercase tracking-[0.3em]">{t.strategyInsight}</div>
           <p className="dark:text-slate-200 text-slate-700 text-sm leading-relaxed italic font-medium">"{response}"</p>
         </div>
       )}
@@ -68,3 +66,4 @@ const PlanAdvisor: React.FC = () => {
 };
 
 export default PlanAdvisor;
+
