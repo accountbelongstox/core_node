@@ -2,6 +2,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { apiManager } from './services/api';
+import './index.css';
+
+// Initialize API manager
+apiManager.initialize({ autoDetect: true, timeout: 1000 }).catch(console.error);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

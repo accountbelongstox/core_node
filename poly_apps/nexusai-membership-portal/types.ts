@@ -57,4 +57,8 @@ export interface SystemStatus {
 }
 
 export type Theme = 'light' | 'dark';
-export type Language = 'en' | 'zh';
+export type Language = 'en' | 'zh' | 'ja' | 'ko';
+
+// Re-export API and model types
+export * from './types/api';
+export * from './types/models';

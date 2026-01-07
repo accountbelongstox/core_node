@@ -2,27 +2,29 @@
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { UsageHistory } from '../types';
-
-const data: UsageHistory[] = [
-  { date: 'Mon', tokens: 12000, images: 45 },
-  { date: 'Tue', tokens: 45000, images: 82 },
-  { date: 'Wed', tokens: 32000, images: 31 },
-  { date: 'Thu', tokens: 88000, images: 124 },
-  { date: 'Fri', tokens: 95000, images: 156 },
-  { date: 'Sat', tokens: 54000, images: 67 },
-  { date: 'Sun', tokens: 41000, images: 54 },
-];
+import { useAppContext } from '../App';
 
 const UsageCharts: React.FC = () => {
   const isDark = document.documentElement.classList.contains('dark');
+  const { t } = useAppContext();
+  
+  const data: UsageHistory[] = [
+    { date: t.dayMon, tokens: 12000, images: 45 },
+    { date: t.dayTue, tokens: 45000, images: 82 },
+    { date: t.dayWed, tokens: 32000, images: 31 },
+    { date: t.dayThu, tokens: 88000, images: 124 },
+    { date: t.dayFri, tokens: 95000, images: 156 },
+    { date: t.daySat, tokens: 54000, images: 67 },
+    { date: t.daySun, tokens: 41000, images: 54 },
+  ];
 
   return (
     <div className="glass p-10 rounded-[3rem] border-white/5">
       <div className="flex justify-between items-center mb-10">
-        <h3 className="text-2xl font-black italic tracking-tight">Neural Pulse</h3>
+        <h3 className="text-2xl font-black italic tracking-tight">{t.neuralPulse}</h3>
         <select className="dark:bg-white/5 bg-slate-100 border dark:border-white/10 border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none">
-          <option>Weekly Telemetry</option>
-          <option>Monthly Telemetry</option>
+          <option>{t.weeklyTelemetry}</option>
+          <option>{t.monthlyTelemetry}</option>
         </select>
       </div>
       
