@@ -260,7 +260,7 @@ class ServerManagerV1DomainManager
             'type' => $config['type'] ?? 'laravel',
             'www_dir' => $wwwDir,
             'php_version' => $config['php_version'] ?? '8.4',
-            'php_mode' => $phpMode,
+            'php_mode' => 'swoole',  // Fixed to swoole mode only
             'swoole_port' => $swoolePort,
             'swoole_service_name' => $swooleServiceName,
             'swoole_host' => $config['swoole_host'] ?? '0.0.0.0',
@@ -874,9 +874,10 @@ class ServerManagerV1DomainManager
             }
         }
 
-        // Generate PHP configuration for Laravel/PHP sites
+        // Generate PHP configuration for Laravel/PHP sites (swoole mode only)
         $phpConfig = '';
-        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'swoole');
+        // Fixed to swoole mode only - no longer configurable
+        $phpMode = 'swoole';
 
         if ($config['type'] === 'proxy') {
             // Proxy mode: Reverse proxy to specified port
@@ -902,15 +903,14 @@ class ServerManagerV1DomainManager
         proxy_read_timeout 60s;
     }";
         } elseif (in_array($config['type'], ['laravel', 'poly', 'php'])) {
-            if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
-                // Swoole mode (Octane): Reverse proxy configuration
-                // Auto-calculate port based on app index instead of using cached value
-                $wwwDir = $config['www_dir'] ?? '';
-                $swoolePort = $wwwDir
-                    ? ServerManagerV1OctaneServiceManager::getPortFromPathHash($wwwDir)
-                    : ($config['swoole_port'] ?? 8000);
-                $phpConfig = "
-    # Swoole/Octane Reverse Proxy
+            // Always use Swoole mode (Octane): Reverse proxy configuration
+            // Auto-calculate port based on app index instead of using cached value
+            $wwwDir = $config['www_dir'] ?? '';
+            $swoolePort = $wwwDir
+                ? ServerManagerV1OctaneServiceManager::getPortFromPathHash($wwwDir)
+                : ($config['swoole_port'] ?? 8000);
+            $phpConfig = "
+    # Swoole/Octane Reverse Proxy (Fixed Mode)
     index index.php index.html index.htm;
 
     location / {
@@ -951,44 +951,6 @@ class ServerManagerV1DomainManager
     location ~ /(storage|bootstrap/cache) {
         deny all;
     }";
-            } else {
-                // FPM mode: Traditional FastCGI configuration
-                $phpVersion = $config['php_version'] ?? '8.4';
-                $phpConfig = "
-    # PHP-FPM Configuration
-    index index.php index.html index.htm;
-
-    location ~ \\.php\$ {
-        try_files \$uri =404;
-        fastcgi_pass unix:/var/run/php/php$phpVersion-fpm.sock;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-
-        # Security headers
-        fastcgi_param HTTP_PROXY \"\";
-        fastcgi_read_timeout 300;
-    }";
-
-                // Laravel specific configuration for FPM mode
-                if (in_array($config['type'], ['laravel', 'poly'])) {
-                    $phpConfig .= "
-
-    # Laravel specific configuration
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
-
-    # Deny access to sensitive files
-    location ~ /\\. {
-        deny all;
-    }
-
-    location ~ /(storage|bootstrap/cache) {
-        deny all;
-    }";
-                }
-            }
         }
 
         // Generate base HTTP configuration
@@ -2903,77 +2865,15 @@ server {
      */
     public static function switchPhpMode(string $domain, string $newMode, array $options = []): bool
     {
-        // Normalize mode: convert legacy 'octane' to 'swoole'
-        $newMode = ServerManagerV1PathConfig::normalizePhpMode($newMode);
-        $allowedModes = ['fpm', 'swoole'];
-
-        if (!in_array($newMode, $allowedModes)) {
-            Log::error('Invalid PHP mode', ['mode' => $newMode, 'allowed' => $allowedModes]);
-            return false;
-        }
-
-        $config = self::getDomain($domain);
-
-        if (!$config) {
-            Log::error('Domain not found for mode switch', ['domain' => $domain]);
-            return false;
-        }
-
-        if (!in_array($config['type'], ['laravel', 'poly', 'php'])) {
-            Log::error('PHP mode switch only available for PHP/Laravel sites', [
-                'domain' => $domain,
-                'type' => $config['type']
-            ]);
-            return false;
-        }
-
-        $oldMode = $config['php_mode'] ?? 'fpm';
-
-        if ($oldMode === $newMode) {
-            Log::info('Domain already using requested mode', ['domain' => $domain, 'mode' => $newMode]);
-            return true;
-        }
-
-        Log::info('Switching PHP mode', [
+        Log::info('PHP mode switching disabled - Swoole mode is fixed for all sites', [
             'domain' => $domain,
-            'old_mode' => $oldMode,
-            'new_mode' => $newMode
+            'requested_mode' => $newMode,
+            'current_mode' => 'swoole'
         ]);
 
-        // Update configuration
-        $domains = self::loadDomains();
-        $domains[$domain]['php_mode'] = $newMode;
-
-        if (ServerManagerV1PathConfig::isSwooleMode($newMode)) {
-            $domains[$domain]['swoole_port'] = $options['swoole_port'] ?? $config['swoole_port'] ?? self::getNextAvailableSwoolePort();
-            $domains[$domain]['swoole_workers'] = $options['swoole_workers'] ?? $config['swoole_workers'] ?? 4;
-        }
-
-        $domains[$domain]['updated_at'] = date('Y-m-d H:i:s');
-
-        if (!self::saveDomains($domains)) {
-            Log::error('Failed to save mode change to database');
-            return false;
-        }
-
-        // Regenerate nginx configuration
-        if (!self::generateNginxConfig($domain, $domains[$domain])) {
-            Log::error('Failed to regenerate nginx configuration after mode switch');
-            return false;
-        }
-
-        // Record history
-        self::recordHistory($domain, 'mode_switch', [
-            'old_mode' => $oldMode,
-            'new_mode' => $newMode,
-            'swoole_port' => $domains[$domain]['swoole_port'] ?? null
-        ]);
-
-        Log::info('PHP mode switched successfully', [
-            'domain' => $domain,
-            'mode' => $newMode,
-            'swoole_port' => $domains[$domain]['swoole_port'] ?? null
-        ]);
+        // Always return true since all sites are already in swoole mode
+        return true;
+    }
 
         return true;
     }
