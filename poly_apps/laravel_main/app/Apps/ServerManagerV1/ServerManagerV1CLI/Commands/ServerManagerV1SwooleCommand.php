@@ -194,11 +194,9 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
             return 1;
         }
 
-        $oldMode = $config['php_mode'] ?? 'fpm';
-
-        $this->info("Switching PHP mode for: $domain");
-        $this->line("  From: $oldMode");
-        $this->line("  To:   $newMode");
+        $this->info("PHP mode for: $domain");
+        $this->line("  Mode: swoole (fixed)");
+        $this->line("  Note: PHP mode switching is no longer available - swoole is used for all sites");
         $this->line("");
 
         $options = [];
