@@ -36,15 +36,15 @@ log_header() {
 }
 
 log_success() {
-    echo -e "${COLOR_SUCCESS}âœ?$1${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}ï¿½?$1${COLOR_RESET}"
 }
 
 log_warning() {
-    echo -e "${COLOR_WARNING}âš?$1${COLOR_RESET}"
+    echo -e "${COLOR_WARNING}ï¿½?$1${COLOR_RESET}"
 }
 
 log_error() {
-    echo -e "${COLOR_ERROR}âœ?$1${COLOR_RESET}"
+    echo -e "${COLOR_ERROR}ï¿½?$1${COLOR_RESET}"
 }
 
 log_info() {
@@ -203,7 +203,8 @@ main() {
                 local framework_type
                 local port
                 local debug_mode
-                local domain
+                local domains_string
+                local domain_count
 
                 app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                 app_name=$(read_global_var "APP_${app_index}_NAME")
@@ -212,10 +213,14 @@ main() {
                 framework_type=$(read_global_var "APP_${app_index}_FRAMEWORK")
                 port=$(read_global_var "APP_${app_index}_PORT")
                 debug_mode=$(read_global_var "APP_${app_index}_DEBUG")
-                domain=$(read_global_var "DOMAIN")
+                domains_string=$(read_global_var "DOMAINS")
+                domain_count=$(read_global_var "DOMAIN_COUNT")
+
+                # Convert space-separated domains to array
+                IFS=' ' read -ra domains_array <<< "$domains_string"
 
                 log_info "App: $app_name"
-                log_info "Domain: $domain"
+                log_info "Domains: $domains_string ($domain_count total)"
                 log_info "Port: $port"
                 echo ""
 
@@ -273,18 +278,38 @@ main() {
                         log_error "Laravel artisan not found in $laravel_main_path"
                         cd "$ROOT_DIR"
                     else
-                        # Call ServerManager website add command
-                        log_info "Adding nginx proxy configuration for $domain..."
-                        log_info "Command: php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
+                        # Call ServerManager website add command for each domain
+                        local success_count=0
+                        local total_domains=${#domains_array[@]}
 
-                        if php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto; then
-                            log_success "Nginx proxy configured successfully"
+                        log_info "Adding nginx proxy configurations for $total_domains domain(s)..."
+                        echo ""
+
+                        for domain in "${domains_array[@]}"; do
+                            log_info "Processing domain: $domain"
+                            log_info "Command: php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
+
+                            if php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto; then
+                                log_success "âœ“ Nginx proxy configured for: $domain"
+                                ((success_count++))
+                            else
+                                log_error "âœ— Failed to configure proxy for: $domain"
+                                log_info "Manual configuration command:"
+                                log_info "  cd $laravel_main_path"
+                                log_info "  php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
+                            fi
+                            echo ""
+                        done
+
+                        if [[ $success_count -eq $total_domains ]]; then
+                            log_success "All proxy configurations created successfully ($success_count/$total_domains)"
+                            proxy_configured=1
+                        elif [[ $success_count -gt 0 ]]; then
+                            log_warning "Partial success: $success_count/$total_domains proxy configurations created"
                             proxy_configured=1
                         else
-                            log_error "Failed to configure nginx proxy"
-                            log_info "Manual configuration command:"
-                            log_info "  cd $laravel_main_path"
-                            log_info "  php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
+                            log_error "All proxy configurations failed (0/$total_domains)"
+                            proxy_configured=0
                         fi
                         cd "$ROOT_DIR"
                     fi
@@ -357,13 +382,16 @@ main() {
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "âœ?All steps completed successfully"
+                    log_success "ï¿½?All steps completed successfully"
                     log_info "Service: $app_name"
-                    log_info "Domain: https://$domain (if SSL available)"
-                    log_info "Domain: http://$domain"
+                    log_info "Domains configured ($domain_count total):"
+                    for domain in "${domains_array[@]}"; do
+                        log_info "  - https://$domain (if SSL available)"
+                        log_info "  - http://$domain"
+                    done
                     log_info "Local: http://localhost:$port"
                 else
-                    log_warning "âš?Some steps failed - please check above for details"
+                    log_warning "ï¿½?Some steps failed - please check above for details"
                     log_info "You can retry failed steps manually"
                 fi
 
