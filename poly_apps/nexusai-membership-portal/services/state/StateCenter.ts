@@ -3,7 +3,7 @@
  * Centralized state management with caching and reactivity
  */
 
-import { cacheManager } from '../cache/CacheManager';
+import { cacheManager } from '../cacheService/CacheManager';
 import { SystemStatus } from '../../types';
 import { AVAILABILITY_DATA } from '../../constants';
 
