@@ -16,7 +16,7 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
                             {--workers= : Number of workers (default: 4)}
                             {--all : Apply to all Swoole services}';
 
-    protected $description = 'Manage Laravel Octane/Swoole services';
+    protected $description = 'Manage Laravel Octane/Swoole services (Swoole mode only)';
 
     public function handle(): int
     {
