@@ -70,22 +70,23 @@ const LoginPage = () => {
 
       {/* Main Content */}
       <div className="flex-1 relative flex items-center justify-end p-4 sm:p-12 md:p-24 overflow-x-visible">
-        {/* Dynamic Cinematic Content (Left Side) */}
+        <div className="w-full max-w-[1700px] mx-auto relative h-full">
+          {/* Dynamic Cinematic Content (Left Side) */}
         <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-x-visible">
-          <div className="absolute top-1/2 left-12 md:left-24 -translate-y-1/2 max-w-4xl w-auto hidden lg:block animate-in fade-in slide-in-from-left-10 duration-1000 overflow-x-visible">
-            <div className="space-y-12 overflow-x-visible">
-              <div className="overflow-x-visible">
-                <h2 className="text-7xl font-black leading-none tracking-tighter dark:text-white text-slate-900 mb-8 whitespace-nowrap overflow-x-visible">
-                  <span className="whitespace-nowrap">{t.loginEnter} </span>
-                  <span className="gradient-text italic inline-block whitespace-nowrap overflow-x-visible pr-20">{t.loginMultiModel}</span>
+          <div className="absolute top-[55%] left-12 md:left-24 -translate-y-1/2 max-w-4xl w-auto right-[650px] hidden lg:block animate-in fade-in slide-in-from-left-10 duration-1000">
+            <div className="space-y-12">
+              <div className="max-w-xl">
+                <h2 className="text-7xl font-black leading-none tracking-tighter dark:text-white text-slate-900 mb-8">
+                  <span>{t.loginEnter} </span>
+                  <span className="gradient-text italic">{t.loginMultiModel}</span>
                 </h2>
-                <p className="text-xl dark:text-slate-400 text-slate-600 font-medium max-w-lg leading-relaxed mb-10">
+                <p className="text-xl dark:text-slate-400 text-slate-600 font-medium max-w-xl leading-relaxed mb-10">
                   {t.loginDescription}
                 </p>
               </div>
               
               {/* Announcement Center */}
-              <div className="pointer-events-auto">
+              <div className="pointer-events-auto max-w-xl">
                 <AnnouncementCenter />
               </div>
               
@@ -169,6 +170,7 @@ const LoginPage = () => {
             
             <p className="text-center text-[9px] dark:text-slate-700 text-slate-400 mt-12 uppercase tracking-[0.5em] font-black">{t.demoAccount}</p>
           </div>
+        </div>
         </div>
       </div>
     </div>
