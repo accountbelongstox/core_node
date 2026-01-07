@@ -14,6 +14,7 @@ import json
 import hashlib
 import configparser
 import platform
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -635,20 +636,32 @@ class UnifiedAppManager:
                         app = self.apps[app_index]
                         command = self.command_gen.generate_command(app)
 
-                        # Get domain from user
+                        # Get domains from user (supports multiple domains)
                         print()
-                        domain = input(f"{menu.COLOR_WARNING}Enter domain (e.g., {app.name}.local): {menu.COLOR_RESET}").strip()
+                        domains_input = input(f"{menu.COLOR_WARNING}Enter domain(s) - Examples:\n  Single: myapp.local\n  Multiple: api.local,web.local admin.local\n  Mixed: app1.com; app2.net app3.org\nDomains: {menu.COLOR_RESET}").strip()
 
-                        if not domain:
+                        if not domains_input:
                             menu.show_error("Domain is required for proxy setup")
                             menu.wait_for_key()
                             continue
+
+                        # Parse multiple domains - support any combination of spaces, commas, semicolons
+                        domains = re.split(r'[,;\s]+', domains_input.strip())
+                        domains = [d.strip() for d in domains if d.strip()]
+
+                        if not domains:
+                            menu.show_error("No valid domains provided")
+                            menu.wait_for_key()
+                            continue
+
+                        menu.log_info(f"Domains: {', '.join(domains)} ({len(domains)} total)")
 
                         self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
                         self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
                         self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
                         self.file_vars.write_var(VariableKeys.ACTION, ActionValues.PROXY_CREATE)
-                        self.file_vars.write_var("DOMAIN", domain)
+                        self.file_vars.write_var("DOMAINS", " ".join(domains))
+                        self.file_vars.write_var("DOMAIN_COUNT", str(len(domains)))
                         self.file_vars.write_status(StatusValues.EXECUTE_READY)
 
                         menu.clear_screen()
@@ -735,17 +748,30 @@ class UnifiedAppManager:
                             command = self.command_gen.generate_command(app)
 
                             print()
-                            domain = input(f"{menu.COLOR_WARNING}Enter domain (e.g., {app.name}.local): {menu.COLOR_RESET}").strip()
+                            domains_input = input(f"{menu.COLOR_WARNING}Enter domain(s) - Examples:\n  Single: myapp.local\n  Multiple: api.local,web.local admin.local\n  Mixed: app1.com; app2.net app3.org\nDomains: {menu.COLOR_RESET}").strip()
 
-                            if not domain:
+                            if not domains_input:
                                 menu.show_error("Domain is required for proxy setup")
                                 menu.wait_for_key()
                                 continue
+
+                            # Parse multiple domains - support any combination of spaces, commas, semicolons
+                            domains = re.split(r'[,;\s]+', domains_input.strip())
+                            domains = [d.strip() for d in domains if d.strip()]
+
+                            if not domains:
+                                menu.show_error("No valid domains provided")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_info(f"Domains: {', '.join(domains)} ({len(domains)} total)")
 
                             self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
                             self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
                             self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
                             self.file_vars.write_var(VariableKeys.ACTION, ActionValues.PROXY_CREATE)
+                            self.file_vars.write_var("DOMAINS", " ".join(domains))
+                            self.file_vars.write_var("DOMAIN_COUNT", str(len(domains)))
                             self.file_vars.write_var("DOMAIN", domain)
                             self.file_vars.write_status(StatusValues.EXECUTE_READY)
 

@@ -876,9 +876,32 @@ class ServerManagerV1DomainManager
 
         // Generate PHP configuration for Laravel/PHP sites
         $phpConfig = '';
-        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
+        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'swoole');
 
-        if (in_array($config['type'], ['laravel', 'poly', 'php'])) {
+        if ($config['type'] === 'proxy') {
+            // Proxy mode: Reverse proxy to specified port
+            $proxyPort = $config['proxy_port'] ?? 8000;
+            $phpConfig = "
+    # Reverse Proxy Configuration
+    location / {
+        proxy_pass http://127.0.0.1:$proxyPort;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # WebSocket support
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass \$http_upgrade;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }";
+        } elseif (in_array($config['type'], ['laravel', 'poly', 'php'])) {
             if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
                 // Swoole mode (Octane): Reverse proxy configuration
                 // Auto-calculate port based on app index instead of using cached value
