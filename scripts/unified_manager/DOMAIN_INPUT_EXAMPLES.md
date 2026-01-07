@@ -55,10 +55,11 @@ api.local,,,   web.local;;;admin.local    dashboard.local
    └─DOMAINS            └─端口来自unified        ├─自动SSL检测
    └─DOMAIN_COUNT         管理器实际情况          └─反代到指定端口
 
-默认配置：
-- PHP模式: Swoole (默认)
+固定配置：
+- PHP模式: Swoole (固定 - 不可配置)
 - SSL: auto (自动检测证书)
 - 端口: 由unified_manager根据实际应用传递
+- 性能: Swoole提供最佳性能
 ```
 
 ## 用户界面提示
@@ -82,10 +83,19 @@ Domains:
 5. **传递给Shell**: 空格分隔的域名字符串
 6. **PHP处理**: 逐个域名创建proxy配置
 
+## 重要变更
+
+**⚠️ PHP模式固定为Swoole**
+- 移除了 `--php-mode` 参数
+- 所有Laravel/PHP网站强制使用Swoole模式
+- 不再支持FPM模式切换
+- 所有相关命令现在只支持Swoole
+
 ## 注意事项
 
 - 支持任意数量的分隔符组合
 - 自动去除多余空格
-- Swoole为默认模式，提供更好的性能
+- **Swoole为唯一模式**，提供最佳性能
 - 端口由unified_manager根据实际情况自动传递
 - SSL证书自动检测和配置
+- 所有Laravel/PHP网站均使用Octane+Swoole架构

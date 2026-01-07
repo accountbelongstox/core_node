@@ -28,7 +28,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
     /**
      * The console command description.
      */
-    protected $description = 'Manage nginx websites with SSL certificate integration';
+    protected $description = 'Manage nginx websites with SSL certificate integration (Swoole mode only)';
 
     /**
      * Execute the console command.
@@ -697,13 +697,15 @@ HTML;
         $this->line("  --type           - Website type: html|laravel|poly|proxy (default: laravel)");
         $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
         $this->line("                     html: Static files in $wwwRoot/domain");
-        $this->line("                     laravel: Laravel project in $wwwRoot/domain");
-        $this->line("                     poly: Bind to current Laravel main project");
+        $this->line("                     laravel: Laravel project in $wwwRoot/domain (swoole mode)");
+        $this->line("                     poly: Bind to current Laravel main project (swoole mode)");
         $this->line("                     proxy: Reverse proxy to specified port");
         $this->line("  --ssl            - SSL mode (auto|true|false, default: auto)");
         $this->line("  --php-version    - PHP version (default: 8.2)");
         $this->line("  --port           - Port for proxy type (default: 8000)");
         $this->line("  --all            - Apply to all websites (for refresh)");
+        $this->line("");
+        $this->line("Note: All Laravel/PHP sites use Swoole mode by default for optimal performance");
         $this->line("");
         $this->info("Examples:");
         $this->line("  php artisan servermanager:website add local.example.com --type=html");
