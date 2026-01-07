@@ -22,7 +22,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                             {--type= : Website type (default: laravel)}
                             {--ssl= : SSL mode (auto|true|false, default: auto)}
                             {--php-version= : PHP version (default: 8.2)}
-                            {--php-mode= : PHP mode (fpm|swoole, default: fpm)}
+                            {--port= : Port for proxy type (default: 8000)}
                             {--all : Apply action to all websites (for refresh)}';
 
     /**
@@ -71,8 +71,9 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
         $type = $this->option('type') ?: 'laravel';
         $sslMode = $this->option('ssl') ?: 'auto';
         $phpVersion = $this->option('php-version') ?: '8.5';
-        // Normalize php-mode: convert legacy 'octane' to 'swoole'
-        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($this->option('php-mode') ?: 'fpm');
+        $proxyPort = $this->option('port') ?: 8000;
+        // Fixed to swoole mode only - no longer configurable
+        $phpMode = 'swoole';
 
         // Check for domain conflict and show brief update message
         $conflict = ServerManagerV1DomainManager::checkDomainConflict($domain);
@@ -87,7 +88,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             }
         }
 
-        $this->info("Adding website: $domain (type=$type, php-mode=$phpMode, ssl=$sslMode)");
+        $this->info("Adding website: $domain (type=$type, mode=swoole-only, ssl=$sslMode)");
 
         // Process domain to handle www prefix with improved logic
         $baseDomain = $domain;
@@ -135,6 +136,9 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                 $this->error("Laravel public directory not found: $documentRoot");
                 return 1;
             }
+        } elseif ($type === 'proxy') {
+            // For proxy type, no directory creation needed - just reverse proxy to port
+            $this->info("Proxy mode: Reverse proxy to localhost:$proxyPort");
         } else {
             // For html and laravel types, create directories in mapped wwwroot
             if (!is_dir($domainDir)) {
@@ -175,7 +179,8 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
             'ssl_enabled' => $sslEnabled,
             'ssl_certificate_id' => $certificate ? $certificate['id'] : null,
             'php_version' => $phpVersion,
-            'php_mode' => $phpMode,  // Add php_mode parameter
+            'php_mode' => 'swoole',  // Fixed to swoole mode only
+            'proxy_port' => ($type === 'proxy') ? $proxyPort : null,  // Add proxy port for proxy type
             'status' => 'active',
             'all_domains' => $allDomains  // Pass all domains to generate single config
         ]);
@@ -192,8 +197,8 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                 $this->info("SSL certificate: " . $certificate['id'] . " at $certDir");
             }
 
-            // Auto-start Swoole service if php-mode is swoole
-            if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            // Auto-start Swoole service (swoole mode is always enabled)
+            if (true) {  // Always swoole mode
                 $serviceInfo = ServerManagerV1DomainManager::getSwooleServiceInfo($baseDomain);
 
                 if ($serviceInfo) {
@@ -428,12 +433,9 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
 
         $this->info("Removing website: $domain");
 
-        // Get Swoole service info BEFORE removing domain
+        // Get Swoole service info BEFORE removing domain (always swoole mode)
         $swooleInfo = null;
-        $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
-        if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
-            $swooleInfo = ServerManagerV1DomainManager::getSwooleServiceInfoByPath($config['www_dir']);
-        }
+        $swooleInfo = ServerManagerV1DomainManager::getSwooleServiceInfoByPath($config['www_dir']);
 
         $result = ServerManagerV1DomainManager::removeDomain($domain);
 
@@ -692,19 +694,22 @@ HTML;
         $this->line("  refresh --all    - Refresh all website configurations");
         $this->line("");
         $this->info("Options:");
-        $this->line("  --type           - Website type: html|laravel|poly (default: laravel)");
+        $this->line("  --type           - Website type: html|laravel|poly|proxy (default: laravel)");
         $wwwRoot = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getWwwRoot();
         $this->line("                     html: Static files in $wwwRoot/domain");
         $this->line("                     laravel: Laravel project in $wwwRoot/domain");
         $this->line("                     poly: Bind to current Laravel main project");
+        $this->line("                     proxy: Reverse proxy to specified port");
         $this->line("  --ssl            - SSL mode (auto|true|false, default: auto)");
         $this->line("  --php-version    - PHP version (default: 8.2)");
+        $this->line("  --port           - Port for proxy type (default: 8000)");
         $this->line("  --all            - Apply to all websites (for refresh)");
         $this->line("");
         $this->info("Examples:");
         $this->line("  php artisan servermanager:website add local.example.com --type=html");
         $this->line("  php artisan servermanager:website add api.example.com --type=poly");
         $this->line("  php artisan servermanager:website add example.com --type=laravel");
+        $this->line("  php artisan servermanager:website add app.example.com --type=proxy --port=3000");
         $this->line("  php artisan servermanager:website list");
         $this->line("  php artisan servermanager:website status example.com");
         $this->line("  php artisan servermanager:website refresh example.com");
