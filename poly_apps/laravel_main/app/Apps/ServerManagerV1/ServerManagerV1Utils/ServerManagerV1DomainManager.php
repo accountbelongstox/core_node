@@ -2875,9 +2875,6 @@ server {
         return true;
     }
 
-        return true;
-    }
-
     /**
      * Get next available Swoole port
      * SYNC: ServerManagerV1OctaneServiceManager::getNextAvailablePort()
