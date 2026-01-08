@@ -500,7 +500,8 @@ echo "Command: $BUILD_COMMAND"
 echo ""
 
 # Execute build start command (command includes full paths)
-exec $BUILD_COMMAND
+# Use bash -c to handle complex commands with cd, &&, pipes, etc.
+exec bash -c "$BUILD_COMMAND"
 EOF_WRAPPER
 
                     # Replace placeholders
