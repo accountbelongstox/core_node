@@ -27,6 +27,9 @@ from variable_keys import VariableKeys, StatusValues, ActionValues
 # Import menu manager
 from menu_manager import MenuManager, MenuConfig
 
+# Import build manager
+from build_manager import BuildManager
+
 
 @dataclass
 class AppInfo:
@@ -697,9 +700,11 @@ class UnifiedAppManager:
                         print("  Enter - Return to menu")
                         if menu_config.enable_systemd:
                             print("  C - Create systemd service")
+                            print("  B - Build & Create systemd service")
                             print("  D - Delete systemd service")
                         if menu_config.enable_domain_proxy:
                             print("  P - Create service with proxy")
+                            print("  BP - Build & Create service with proxy")
                         print()
 
                         user_choice = input(f"{menu.COLOR_HEADER}Choose action: {menu.COLOR_RESET}").strip().upper()
@@ -743,6 +748,55 @@ class UnifiedAppManager:
                             print()
                             break
 
+                        elif user_choice == 'B' and menu_config.enable_systemd:
+                            # Build & Create service
+                            menu.clear_screen()
+                            menu.log_header(f"Building and Creating Service for {app.name}")
+                            print()
+
+                            # Initialize build manager
+                            build_mgr = BuildManager(str(self.script_dir.parent))
+
+                            # Build the project
+                            success, message, build_output = build_mgr.build_project(
+                                app.path, app.name, app.framework
+                            )
+
+                            if not success:
+                                menu.show_error(f"Build failed: {message}")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_success(message)
+                            print()
+
+                            # Generate command for the built project
+                            if build_output:
+                                command = build_mgr.generate_build_start_command(
+                                    app.path, build_output, app.framework
+                                )
+                            else:
+                                command = self.command_gen.generate_command(app)
+
+                            if not command:
+                                menu.show_error("Failed to generate start command for built project")
+                                menu.wait_for_key()
+                                continue
+
+                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_SERVICE_CREATE)
+                            self.file_vars.write_var("BUILD_OUTPUT_PATH", build_output or "")
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Creating SystemD Service from Build")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Build output: {build_output}")
+                            print()
+                            break
+
                         elif user_choice == 'P' and menu_config.enable_domain_proxy:
                             # Create service with proxy
                             command = self.command_gen.generate_command(app)
@@ -772,13 +826,85 @@ class UnifiedAppManager:
                             self.file_vars.write_var(VariableKeys.ACTION, ActionValues.PROXY_CREATE)
                             self.file_vars.write_var("DOMAINS", " ".join(domains))
                             self.file_vars.write_var("DOMAIN_COUNT", str(len(domains)))
-                            self.file_vars.write_var("DOMAIN", domain)
+                            self.file_vars.write_var("DOMAIN", domains[0])
                             self.file_vars.write_status(StatusValues.EXECUTE_READY)
 
                             menu.clear_screen()
                             menu.log_header("Creating Service with Domain Proxy")
                             menu.log_info(f"App: {app.name}")
-                            menu.log_info(f"Domain: {domain}")
+                            menu.log_info(f"Domains: {', '.join(domains)}")
+                            print()
+                            break
+
+                        elif user_choice == 'BP' and menu_config.enable_domain_proxy:
+                            # Build & Create service with proxy
+                            menu.clear_screen()
+                            menu.log_header(f"Building and Creating Service with Proxy for {app.name}")
+                            print()
+
+                            # Initialize build manager
+                            build_mgr = BuildManager(str(self.script_dir.parent))
+
+                            # Build the project
+                            success, message, build_output = build_mgr.build_project(
+                                app.path, app.name, app.framework
+                            )
+
+                            if not success:
+                                menu.show_error(f"Build failed: {message}")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_success(message)
+                            print()
+
+                            # Ask for domain(s)
+                            domains_input = input(f"{menu.COLOR_WARNING}Enter domain(s) - Examples:\n  Single: myapp.local\n  Multiple: api.local,web.local admin.local\n  Mixed: app1.com; app2.net app3.org\nDomains: {menu.COLOR_RESET}").strip()
+
+                            if not domains_input:
+                                menu.show_error("Domain is required for proxy setup")
+                                menu.wait_for_key()
+                                continue
+
+                            # Parse multiple domains
+                            domains = re.split(r'[,;\s]+', domains_input.strip())
+                            domains = [d.strip() for d in domains if d.strip()]
+
+                            if not domains:
+                                menu.show_error("No valid domains provided")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_info(f"Domains: {', '.join(domains)} ({len(domains)} total)")
+
+                            # Generate command for the built project
+                            if build_output:
+                                command = build_mgr.generate_build_start_command(
+                                    app.path, build_output, app.framework
+                                )
+                            else:
+                                command = self.command_gen.generate_command(app)
+
+                            if not command:
+                                menu.show_error("Failed to generate start command for built project")
+                                menu.wait_for_key()
+                                continue
+
+                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
+                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_PROXY_CREATE)
+                            self.file_vars.write_var("DOMAINS", " ".join(domains))
+                            self.file_vars.write_var("DOMAIN_COUNT", str(len(domains)))
+                            self.file_vars.write_var("DOMAIN", domains[0])
+                            self.file_vars.write_var("BUILD_OUTPUT_PATH", build_output or "")
+                            self.file_vars.write_status(StatusValues.EXECUTE_READY)
+
+                            menu.clear_screen()
+                            menu.log_header("Creating Service with Proxy from Build")
+                            menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Build output: {build_output}")
+                            menu.log_info(f"Domains: {', '.join(domains)}")
                             print()
                             break
 
