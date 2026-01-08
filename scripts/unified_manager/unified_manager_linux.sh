@@ -78,6 +78,101 @@ log_info() {
     echo -e "${COLOR_INFO}$1${COLOR_RESET}"
 }
 
+# Print complete service information (unified for B, C, BP)
+print_service_info() {
+    local service_name="$1"
+    local app_name="$2"
+    local port="$3"
+    local domain_list="$4"  # Optional: space-separated domains for proxy
+
+    echo ""
+    log_header "Service Registration Complete"
+    echo ""
+
+    # Service file path
+    local service_file="/etc/systemd/system/${service_name}.service"
+
+    # Check if service is running
+    if systemctl is-active --quiet "$service_name"; then
+        log_success "✓ Service is running: $service_name"
+    else
+        log_error "✗ Service failed to start: $service_name"
+        log_info "Check logs: journalctl -u $service_name -f"
+        return 1
+    fi
+
+    echo ""
+    log_header "Service Management Commands"
+    echo ""
+    echo "  Start:    sudo systemctl start $service_name"
+    echo "  Stop:     sudo systemctl stop $service_name"
+    echo "  Restart:  sudo systemctl restart $service_name"
+    echo "  Status:   sudo systemctl status $service_name"
+    echo "  Logs:     sudo journalctl -u $service_name -f"
+    echo "  Disable:  sudo systemctl disable $service_name"
+
+    echo ""
+    log_header "Network Access URLs"
+    echo ""
+
+    # Source network utils if available
+    local network_utils="$ROOT_DIR/scripts/unified_manager/utils/network_utils.sh"
+    if [[ -f "$network_utils" ]]; then
+        source "$network_utils"
+
+        # Get all IP addresses
+        echo "  📍 Localhost:  http://localhost:$port"
+        echo "  📍 Loopback:   http://127.0.0.1:$port"
+
+        # Get all network interfaces
+        local all_ips=$(hostname -I 2>/dev/null)
+        if [[ -n "$all_ips" ]]; then
+            for ip in $all_ips; do
+                if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "  📍 Network:    http://$ip:$port"
+                fi
+            done
+        fi
+    else
+        echo "  📍 Local: http://localhost:$port"
+        echo "  📍 Local: http://127.0.0.1:$port"
+    fi
+
+    # If domains provided (for proxy services)
+    if [[ -n "$domain_list" ]]; then
+        echo ""
+        log_header "Domain Access (via Nginx Proxy)"
+        echo ""
+        for domain in $domain_list; do
+            echo "  🌐 https://$domain (if SSL available)"
+            echo "  🌐 http://$domain"
+        done
+    fi
+
+    echo ""
+    log_header "Service File Content"
+    echo ""
+    if [[ -f "$service_file" ]]; then
+        log_info "File: $service_file"
+        echo ""
+        cat "$service_file" | while IFS= read -r line; do
+            echo "  $line"
+        done
+    else
+        log_warning "Service file not found: $service_file"
+    fi
+
+    echo ""
+    log_header "Service Details"
+    echo ""
+    log_info "App Name: $app_name"
+    log_info "Service Name: $service_name"
+    log_info "Port: $port"
+    log_info "Status: $(systemctl is-active $service_name)"
+
+    echo ""
+}
+
 # Execute command with proper error handling
 execute_command() {
     local command="$1"
@@ -219,6 +314,29 @@ main() {
                     # Call unified service creation function
                     if create_unified_service "$app_name" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
                         log_success "Service created successfully"
+
+                        # Determine service name based on framework
+                        local service_name=""
+                        case "$framework_type" in
+                            "reactStart"|"vueStart")
+                                service_name="webapp-$app_name"
+                                ;;
+                            "nuxtStart")
+                                service_name="nuxt-$app_name"
+                                ;;
+                            "laravelStart")
+                                service_name="laravel-$app_name"
+                                ;;
+                            "flutterStart")
+                                service_name="flutter-$app_name"
+                                ;;
+                            *)
+                                service_name="app-$app_name"
+                                ;;
+                        esac
+
+                        # Use unified print function
+                        print_service_info "$service_name" "$app_name" "$port" ""
                     else
                         log_error "Failed to create service"
                     fi
@@ -280,14 +398,8 @@ main() {
 
                 sleep 2
 
-                if systemctl is-active --quiet "$build_service_name"; then
-                    log_success "Build service registered and started successfully"
-                    log_info "Service: $build_service_name"
-                    log_info "Access: http://localhost:$port"
-                else
-                    log_error "Build service failed to start"
-                    log_info "Check logs: journalctl -u $build_service_name -f"
-                fi
+                # Use unified print function
+                print_service_info "$build_service_name" "$app_name" "$port" ""
 
                 echo ""
                 log_warning "Press any key to continue..."
@@ -546,13 +658,10 @@ EOF_SERVICE
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
                     log_success "✓ All steps completed successfully"
-                    log_info "Build Service: $app_name$BUILD_SERVICE_SUFFIX"
-                    log_info "Domains configured ($domain_count total):"
-                    for domain in "${domains_array[@]}"; do
-                        log_info "  - https://$domain"
-                        log_info "  - http://$domain"
-                    done
-                    log_info "Local: http://localhost:$port"
+
+                    # Use unified print function
+                    local build_service_name="webapp-$app_name$BUILD_SERVICE_SUFFIX"
+                    print_service_info "$build_service_name" "$app_name" "$port" "$domains_string"
                 else
                     log_warning "⚠ Some steps failed - check above for details"
                 fi
@@ -764,16 +873,32 @@ EOF_SERVICE
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "�?All steps completed successfully"
-                    log_info "Service: $app_name"
-                    log_info "Domains configured ($domain_count total):"
-                    for domain in "${domains_array[@]}"; do
-                        log_info "  - https://$domain (if SSL available)"
-                        log_info "  - http://$domain"
-                    done
-                    log_info "Local: http://localhost:$port"
+                    log_success "✓ All steps completed successfully"
+
+                    # Determine service name based on framework
+                    local service_name=""
+                    case "$framework_type" in
+                        "reactStart"|"vueStart")
+                            service_name="webapp-$app_name"
+                            ;;
+                        "nuxtStart")
+                            service_name="nuxt-$app_name"
+                            ;;
+                        "laravelStart")
+                            service_name="laravel-$app_name"
+                            ;;
+                        "flutterStart")
+                            service_name="flutter-$app_name"
+                            ;;
+                        *)
+                            service_name="app-$app_name"
+                            ;;
+                    esac
+
+                    # Use unified print function
+                    print_service_info "$service_name" "$app_name" "$port" "$domains_string"
                 else
-                    log_warning "�?Some steps failed - please check above for details"
+                    log_warning "⚠ Some steps failed - please check above for details"
                     log_info "You can retry failed steps manually"
                 fi
 
