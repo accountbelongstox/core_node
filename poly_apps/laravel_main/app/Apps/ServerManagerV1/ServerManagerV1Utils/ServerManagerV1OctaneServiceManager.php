@@ -1263,9 +1263,8 @@ EOF;
         $domains = ServerManagerV1DomainManager::getAllDomains();
 
         foreach ($domains as $domain => $config) {
-            $phpMode = ServerManagerV1PathConfig::normalizePhpMode($config['php_mode'] ?? 'fpm');
-
-            if (ServerManagerV1PathConfig::isSwooleMode($phpMode)) {
+            // All Laravel/PHP sites use swoole mode only
+            if (in_array($config['type'] ?? 'laravel', ['laravel', 'poly', 'php'])) {
                 $wwwDir = $config['www_dir'] ?? '';
                 $port = $config['swoole_port'] ?? null;
 
