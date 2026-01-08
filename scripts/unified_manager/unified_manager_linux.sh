@@ -22,6 +22,15 @@ PYTHON_CORE="$SCRIPT_PATH/core/unified_core.py"
 # Source global variable management library
 source "$SCRIPT_PATH/utils/global_variables.sh"
 
+# Path constants
+UNIFIED_SERVICE_MANAGER="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
+LARAVEL_MAIN_PATH="$ROOT_DIR/poly_apps/laravel_main"
+
+# Service name patterns (for mutual exclusion checks)
+declare -a NORMAL_SERVICE_PATTERNS=("webapp" "nuxt" "laravel" "flutter" "app")
+declare -a BUILD_SERVICE_PATTERNS=("webapp" "nuxt" "laravel" "flutter" "app")
+BUILD_SERVICE_SUFFIX="-build"
+
 # Colors
 COLOR_HEADER="\033[36m"
 COLOR_SUCCESS="\033[32m"
@@ -29,6 +38,23 @@ COLOR_WARNING="\033[33m"
 COLOR_ERROR="\033[31m"
 COLOR_INFO="\033[90m"
 COLOR_RESET="\033[0m"
+
+# Handler variables (declared here, assigned in handlers)
+app_index=""
+app_name=""
+app_path=""
+app_type=""
+framework_type=""
+port=""
+debug_mode=""
+domains_string=""
+domain_count=""
+build_output_path=""
+service_created=0
+proxy_configured=0
+nginx_reloaded=0
+service_removed=0
+build_service_removed=0
 
 # Logging functions
 log_header() {
