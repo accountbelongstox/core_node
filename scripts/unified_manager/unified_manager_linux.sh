@@ -50,6 +50,7 @@ debug_mode=""
 domains_string=""
 domain_count=""
 build_output_path=""
+execute_command=""
 service_created=0
 proxy_configured=0
 nginx_reloaded=0
@@ -230,64 +231,62 @@ main() {
                 read -n 1
 
             elif [[ "$action" == "${ACTION_VALUES[BUILD_SERVICE_CREATE]}" ]]; then
-                # Build & Create systemd service
+                # Build & Create systemd service - Python generated files, Shell writes to system
                 echo ""
-                log_header "Creating SystemD Service from Build"
+                log_header "Registering Build Service with SystemD"
                 echo ""
 
-                # Get application information from global variables
+                # Get service information from global variables
                 app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                 app_name=$(read_global_var "APP_${app_index}_NAME")
-                app_path=$(read_global_var "APP_${app_index}_PATH")
-                app_type=$(read_global_var "APP_${app_index}_TYPE")
-                framework_type=$(read_global_var "APP_${app_index}_FRAMEWORK")
                 port=$(read_global_var "APP_${app_index}_PORT")
-                debug_mode=$(read_global_var "APP_${app_index}_DEBUG")
-                build_output_path=$(read_global_var "BUILD_OUTPUT_PATH")
+                build_service_name=$(read_global_var "BUILD_SERVICE_NAME")
+                services_to_remove=$(read_global_var "SERVICES_TO_REMOVE")
+                service_content=$(read_global_var "BUILD_SERVICE_CONTENT")
 
                 log_info "App: $app_name"
-                log_info "Type: $app_type"
-                log_info "Framework: $framework_type"
                 log_info "Port: $port"
-                log_info "Build Output: $build_output_path"
+                log_info "Build Service: $build_service_name"
                 echo ""
 
-                if [[ ! -f "$UNIFIED_SERVICE_MANAGER" ]]; then
-                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
-                else
-                    source "$UNIFIED_SERVICE_MANAGER"
-
-                    # Remove existing normal service (mutual exclusion)
-                    service_removed=0
-                    for pattern in "${NORMAL_SERVICE_PATTERNS[@]}"; do
-                        local normal_service="$pattern-$app_name"
-                        if systemctl list-unit-files "$normal_service.service" >/dev/null 2>&1; then
-                            log_warning "Found existing normal service: $normal_service"
-                            log_info "Removing normal service (build service replaces normal service)..."
-
-                            systemctl stop "$normal_service" 2>/dev/null || true
-                            systemctl disable "$normal_service" 2>/dev/null || true
-                            rm -f "/etc/systemd/system/$normal_service.service"
-                            systemctl daemon-reload
-
-                            log_success "Normal service removed: $normal_service"
-                            service_removed=1
-                            echo ""
+                # Remove existing normal services (mutual exclusion)
+                if [[ -n "$services_to_remove" ]]; then
+                    log_info "Removing conflicting normal services..."
+                    for service_to_remove in $services_to_remove; do
+                        if systemctl list-unit-files "$service_to_remove.service" >/dev/null 2>&1; then
+                            log_warning "Found existing service: $service_to_remove"
+                            systemctl stop "$service_to_remove" 2>/dev/null || true
+                            systemctl disable "$service_to_remove" 2>/dev/null || true
+                            rm -f "/etc/systemd/system/$service_to_remove.service"
+                            log_success "Removed: $service_to_remove"
                         fi
                     done
+                    systemctl daemon-reload
+                    echo ""
+                fi
 
-                    if [[ $service_removed -eq 0 ]]; then
-                        log_info "No existing normal service found"
-                        echo ""
-                    fi
+                # Write service file (Python generated the content)
+                log_info "Writing service file to /etc/systemd/system/..."
+                local service_file="/etc/systemd/system/${build_service_name}.service"
+                echo "$service_content" > "$service_file"
+                log_success "Service file written: $service_file"
+                echo ""
 
-                    # Create build service with -build suffix
-                    log_info "Creating build service for: $app_name"
-                    if create_unified_service "$app_name$BUILD_SERVICE_SUFFIX" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
-                        log_success "Build service created successfully"
-                    else
-                        log_error "Failed to create build service"
-                    fi
+                # Register and start service
+                log_info "Registering service with SystemD..."
+                systemctl daemon-reload
+                systemctl enable "$build_service_name"
+                systemctl start "$build_service_name"
+
+                sleep 2
+
+                if systemctl is-active --quiet "$build_service_name"; then
+                    log_success "Build service registered and started successfully"
+                    log_info "Service: $build_service_name"
+                    log_info "Access: http://localhost:$port"
+                else
+                    log_error "Build service failed to start"
+                    log_info "Check logs: journalctl -u $build_service_name -f"
                 fi
 
                 echo ""
@@ -311,6 +310,7 @@ main() {
                 domains_string=$(read_global_var "DOMAINS")
                 domain_count=$(read_global_var "DOMAIN_COUNT")
                 build_output_path=$(read_global_var "BUILD_OUTPUT_PATH")
+                execute_command=$(read_global_var "${VARIABLE_KEYS[EXECUTE_COMMAND]}")
 
                 # Convert space-separated domains to array
                 IFS=' ' read -ra domains_array <<< "$domains_string"
@@ -319,6 +319,7 @@ main() {
                 log_info "Domains: $domains_string ($domain_count total)"
                 log_info "Port: $port"
                 log_info "Build Output: $build_output_path"
+                log_info "Build Command: $execute_command"
                 echo ""
 
                 # Track success status
@@ -370,13 +371,75 @@ main() {
                         echo ""
                     fi
 
-                    # Create build service
-                    log_info "Creating build service: $app_name$BUILD_SERVICE_SUFFIX..."
-                    if create_unified_service "$app_name$BUILD_SERVICE_SUFFIX" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
-                        log_success "Build service created successfully"
+                    # Create wrapper script for build command
+                    local build_service_name="webapp-$app_name$BUILD_SERVICE_SUFFIX"
+                    local wrapper_script_dir="/var/_core_node/unified_manager/temp_scripts"
+                    local wrapper_script="$wrapper_script_dir/${build_service_name}.sh"
+
+                    mkdir -p "$wrapper_script_dir"
+
+                    log_info "Creating build service wrapper script..."
+                    cat > "$wrapper_script" << 'EOF_WRAPPER'
+#!/bin/bash
+set -e
+
+echo "Starting built application..."
+echo "Command: $BUILD_COMMAND"
+echo ""
+
+# Execute build start command (command includes full paths)
+exec $BUILD_COMMAND
+EOF_WRAPPER
+
+                    # Replace placeholders
+                    sed -i "s|\$BUILD_APP_PATH|$app_path|g" "$wrapper_script"
+                    sed -i "s|\$BUILD_COMMAND|$execute_command|g" "$wrapper_script"
+
+                    chmod +x "$wrapper_script"
+                    log_success "Wrapper script created"
+                    echo ""
+
+                    # Create systemd service directly
+                    log_info "Creating build service: $build_service_name"
+
+                    local service_file="/etc/systemd/system/${build_service_name}.service"
+                    local service_description="$app_name-build ($framework_type) - Auto-generated by Unified Manager"
+
+                    cat > "$service_file" << EOF_SERVICE
+[Unit]
+Description=$service_description
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$app_path
+ExecStart=$wrapper_script
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+CPUQuota=50%
+MemoryMax=1G
+MemoryHigh=0M
+
+[Install]
+WantedBy=multi-user.target
+EOF_SERVICE
+
+                    systemctl daemon-reload
+                    systemctl enable "$build_service_name"
+                    systemctl start "$build_service_name"
+
+                    sleep 2
+
+                    if systemctl is-active --quiet "$build_service_name"; then
+                        log_success "Build service created and started"
                         service_created=1
                     else
-                        log_error "Failed to create build service (continuing to next step)"
+                        log_error "Build service failed to start"
+                        log_info "Check logs: journalctl -u $build_service_name -f"
                     fi
                 fi
                 echo ""
