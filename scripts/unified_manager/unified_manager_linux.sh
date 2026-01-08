@@ -169,23 +169,13 @@ main() {
 
                 # Debug: Show ROOT_DIR
                 log_info "ROOT_DIR: $ROOT_DIR"
+                log_info "Looking for: $UNIFIED_SERVICE_MANAGER"
 
-                # Load unified service manager
-                local unified_service_manager="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
-                log_info "Looking for: $unified_service_manager"
-
-                if [[ -f "$unified_service_manager" ]]; then
+                if [[ -f "$UNIFIED_SERVICE_MANAGER" ]]; then
                     log_info "Found unified service manager, sourcing..."
-                    source "$unified_service_manager"
+                    source "$UNIFIED_SERVICE_MANAGER"
 
-                    local app_index
-                    local app_name
-                    local app_path
-                    local app_type
-                    local framework_type
-                    local port
-                    local debug_mode
-
+                    # Get app information from global variables
                     app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                     app_name=$(read_global_var "APP_${app_index}_NAME")
                     app_path=$(read_global_var "APP_${app_index}_PATH")
@@ -202,15 +192,13 @@ main() {
                     echo ""
 
                     # Remove existing build service (mutual exclusion)
-                    local build_service_names=("webapp-$app_name-build" "nuxt-$app_name-build" "laravel-$app_name-build" "flutter-$app_name-build" "app-$app_name-build")
-                    local build_service_removed=0
-
-                    for build_service in "${build_service_names[@]}"; do
+                    build_service_removed=0
+                    for pattern in "${BUILD_SERVICE_PATTERNS[@]}"; do
+                        local build_service="$pattern-$app_name$BUILD_SERVICE_SUFFIX"
                         if systemctl list-unit-files "$build_service.service" >/dev/null 2>&1; then
                             log_warning "Found existing build service: $build_service"
                             log_info "Removing build service (normal service replaces build service)..."
 
-                            # Stop and disable service
                             systemctl stop "$build_service" 2>/dev/null || true
                             systemctl disable "$build_service" 2>/dev/null || true
                             rm -f "/etc/systemd/system/$build_service.service"
@@ -234,7 +222,7 @@ main() {
                         log_error "Failed to create service"
                     fi
                 else
-                    log_error "Unified service manager not found: $unified_service_manager"
+                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
                 fi
 
                 echo ""
@@ -247,16 +235,7 @@ main() {
                 log_header "Creating SystemD Service from Build"
                 echo ""
 
-                # Get application information
-                local app_index
-                local app_name
-                local app_path
-                local app_type
-                local framework_type
-                local port
-                local debug_mode
-                local build_output_path
-
+                # Get application information from global variables
                 app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                 app_name=$(read_global_var "APP_${app_index}_NAME")
                 app_path=$(read_global_var "APP_${app_index}_PATH")
@@ -273,23 +252,19 @@ main() {
                 log_info "Build Output: $build_output_path"
                 echo ""
 
-                # Load unified service manager
-                local unified_service_manager="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
-                if [[ ! -f "$unified_service_manager" ]]; then
-                    log_error "Unified service manager not found: $unified_service_manager"
+                if [[ ! -f "$UNIFIED_SERVICE_MANAGER" ]]; then
+                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
                 else
-                    source "$unified_service_manager"
+                    source "$UNIFIED_SERVICE_MANAGER"
 
                     # Remove existing normal service (mutual exclusion)
-                    local normal_service_names=("webapp-$app_name" "nuxt-$app_name" "laravel-$app_name" "flutter-$app_name" "app-$app_name")
-                    local service_removed=0
-
-                    for normal_service in "${normal_service_names[@]}"; do
+                    service_removed=0
+                    for pattern in "${NORMAL_SERVICE_PATTERNS[@]}"; do
+                        local normal_service="$pattern-$app_name"
                         if systemctl list-unit-files "$normal_service.service" >/dev/null 2>&1; then
                             log_warning "Found existing normal service: $normal_service"
                             log_info "Removing normal service (build service replaces normal service)..."
 
-                            # Stop and disable service
                             systemctl stop "$normal_service" 2>/dev/null || true
                             systemctl disable "$normal_service" 2>/dev/null || true
                             rm -f "/etc/systemd/system/$normal_service.service"
@@ -308,7 +283,7 @@ main() {
 
                     # Create build service with -build suffix
                     log_info "Creating build service for: $app_name"
-                    if create_unified_service "$app_name-build" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
+                    if create_unified_service "$app_name$BUILD_SERVICE_SUFFIX" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
                         log_success "Build service created successfully"
                     else
                         log_error "Failed to create build service"
@@ -325,18 +300,7 @@ main() {
                 log_header "Creating Service with Proxy from Build"
                 echo ""
 
-                # Get application and domain information
-                local app_index
-                local app_name
-                local app_path
-                local app_type
-                local framework_type
-                local port
-                local debug_mode
-                local domains_string
-                local domain_count
-                local build_output_path
-
+                # Get application and domain information from global variables
                 app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                 app_name=$(read_global_var "APP_${app_index}_NAME")
                 app_path=$(read_global_var "APP_${app_index}_PATH")
@@ -358,9 +322,9 @@ main() {
                 echo ""
 
                 # Track success status
-                local service_created=0
-                local proxy_configured=0
-                local nginx_reloaded=0
+                service_created=0
+                proxy_configured=0
+                nginx_reloaded=0
 
                 # Step 1: Daemon reload
                 log_header "Step 1/4: Refreshing SystemD"
@@ -377,17 +341,15 @@ main() {
                 log_header "Step 2/4: Creating SystemD Build Service"
                 echo ""
 
-                local unified_service_manager="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
-                if [[ ! -f "$unified_service_manager" ]]; then
-                    log_error "Unified service manager not found: $unified_service_manager"
+                if [[ ! -f "$UNIFIED_SERVICE_MANAGER" ]]; then
+                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
                 else
-                    source "$unified_service_manager"
+                    source "$UNIFIED_SERVICE_MANAGER"
 
                     # Remove existing normal service (mutual exclusion)
-                    local normal_service_names=("webapp-$app_name" "nuxt-$app_name" "laravel-$app_name" "flutter-$app_name" "app-$app_name")
-                    local service_removed=0
-
-                    for normal_service in "${normal_service_names[@]}"; do
+                    service_removed=0
+                    for pattern in "${NORMAL_SERVICE_PATTERNS[@]}"; do
+                        local normal_service="$pattern-$app_name"
                         if systemctl list-unit-files "$normal_service.service" >/dev/null 2>&1; then
                             log_warning "Found existing normal service: $normal_service"
                             log_info "Removing normal service (build service replaces normal service)..."
@@ -409,8 +371,8 @@ main() {
                     fi
 
                     # Create build service
-                    log_info "Creating build service: $app_name-build..."
-                    if create_unified_service "$app_name-build" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
+                    log_info "Creating build service: $app_name$BUILD_SERVICE_SUFFIX..."
+                    if create_unified_service "$app_name$BUILD_SERVICE_SUFFIX" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
                         log_success "Build service created successfully"
                         service_created=1
                     else
@@ -423,12 +385,11 @@ main() {
                 log_header "Step 3/4: Configuring Nginx Reverse Proxy"
                 echo ""
 
-                local laravel_main_path="$ROOT_DIR/poly_apps/laravel_main"
-                if [[ ! -d "$laravel_main_path" ]]; then
-                    log_error "laravel_main not found at: $laravel_main_path"
+                if [[ ! -d "$LARAVEL_MAIN_PATH" ]]; then
+                    log_error "laravel_main not found at: $LARAVEL_MAIN_PATH"
                     log_warning "Skipping proxy configuration"
                 else
-                    cd "$laravel_main_path"
+                    cd "$LARAVEL_MAIN_PATH"
                     if [[ ! -f "artisan" ]]; then
                         log_error "Laravel artisan not found"
                         cd "$ROOT_DIR"
@@ -522,7 +483,7 @@ main() {
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
                     log_success "✓ All steps completed successfully"
-                    log_info "Build Service: $app_name-build"
+                    log_info "Build Service: $app_name$BUILD_SERVICE_SUFFIX"
                     log_info "Domains configured ($domain_count total):"
                     for domain in "${domains_array[@]}"; do
                         log_info "  - https://$domain"
@@ -543,17 +504,7 @@ main() {
                 log_header "Creating Service with Domain Proxy"
                 echo ""
 
-                # Step 0: Get application and domain information
-                local app_index
-                local app_name
-                local app_path
-                local app_type
-                local framework_type
-                local port
-                local debug_mode
-                local domains_string
-                local domain_count
-
+                # Get application and domain information from global variables
                 app_index=$(read_global_var "${VARIABLE_KEYS[SELECTED_APP_INDEX]}")
                 app_name=$(read_global_var "APP_${app_index}_NAME")
                 app_path=$(read_global_var "APP_${app_index}_PATH")
@@ -572,10 +523,10 @@ main() {
                 log_info "Port: $port"
                 echo ""
 
-                # Track success status for each step (for final report)
-                local service_created=0
-                local proxy_configured=0
-                local nginx_reloaded=0
+                # Track success status for each step
+                service_created=0
+                proxy_configured=0
+                nginx_reloaded=0
 
                 # Step 1: Daemon reload (prepare systemd)
                 log_header "Step 1/4: Refreshing SystemD"
@@ -592,23 +543,19 @@ main() {
                 log_header "Step 2/4: Creating SystemD Service"
                 echo ""
 
-                # Load unified service manager
-                local unified_service_manager="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
-                if [[ ! -f "$unified_service_manager" ]]; then
-                    log_error "Unified service manager not found: $unified_service_manager"
+                if [[ ! -f "$UNIFIED_SERVICE_MANAGER" ]]; then
+                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
                 else
-                    source "$unified_service_manager"
+                    source "$UNIFIED_SERVICE_MANAGER"
 
                     # Remove existing build service (mutual exclusion)
-                    local build_service_names=("webapp-$app_name-build" "nuxt-$app_name-build" "laravel-$app_name-build" "flutter-$app_name-build" "app-$app_name-build")
-                    local build_service_removed=0
-
-                    for build_service in "${build_service_names[@]}"; do
+                    build_service_removed=0
+                    for pattern in "${BUILD_SERVICE_PATTERNS[@]}"; do
+                        local build_service="$pattern-$app_name$BUILD_SERVICE_SUFFIX"
                         if systemctl list-unit-files "$build_service.service" >/dev/null 2>&1; then
                             log_warning "Found existing build service: $build_service"
                             log_info "Removing build service (normal service replaces build service)..."
 
-                            # Stop and disable service
                             systemctl stop "$build_service" 2>/dev/null || true
                             systemctl disable "$build_service" 2>/dev/null || true
                             rm -f "/etc/systemd/system/$build_service.service"
@@ -640,16 +587,14 @@ main() {
                 log_header "Step 3/4: Configuring Nginx Reverse Proxy"
                 echo ""
 
-                # Check if laravel_main exists
-                local laravel_main_path="$ROOT_DIR/poly_apps/laravel_main"
-                if [[ ! -d "$laravel_main_path" ]]; then
-                    log_error "laravel_main not found at: $laravel_main_path"
+                if [[ ! -d "$LARAVEL_MAIN_PATH" ]]; then
+                    log_error "laravel_main not found at: $LARAVEL_MAIN_PATH"
                     log_warning "Skipping proxy configuration (directory not found)"
                 else
                     # Check if php artisan is available
-                    cd "$laravel_main_path"
+                    cd "$LARAVEL_MAIN_PATH"
                     if [[ ! -f "artisan" ]]; then
-                        log_error "Laravel artisan not found in $laravel_main_path"
+                        log_error "Laravel artisan not found in $LARAVEL_MAIN_PATH"
                         cd "$ROOT_DIR"
                     else
                         # Call ServerManager website add command for each domain
@@ -669,7 +614,7 @@ main() {
                             else
                                 log_error "✗ Failed to configure proxy for: $domain"
                                 log_info "Manual configuration command:"
-                                log_info "  cd $laravel_main_path"
+                                log_info "  cd $LARAVEL_MAIN_PATH"
                                 log_info "  php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
                             fi
                             echo ""
