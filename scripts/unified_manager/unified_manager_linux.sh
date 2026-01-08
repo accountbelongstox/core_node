@@ -78,6 +78,101 @@ log_info() {
     echo -e "${COLOR_INFO}$1${COLOR_RESET}"
 }
 
+# Print complete service information (unified for B, C, BP)
+print_service_info() {
+    local service_name="$1"
+    local app_name="$2"
+    local port="$3"
+    local domain_list="$4"  # Optional: space-separated domains for proxy
+
+    echo ""
+    log_header "Service Registration Complete"
+    echo ""
+
+    # Service file path
+    local service_file="/etc/systemd/system/${service_name}.service"
+
+    # Check if service is running
+    if systemctl is-active --quiet "$service_name"; then
+        log_success "✓ Service is running: $service_name"
+    else
+        log_error "✗ Service failed to start: $service_name"
+        log_info "Check logs: journalctl -u $service_name -f"
+        return 1
+    fi
+
+    echo ""
+    log_header "Service Management Commands"
+    echo ""
+    echo "  Start:    sudo systemctl start $service_name"
+    echo "  Stop:     sudo systemctl stop $service_name"
+    echo "  Restart:  sudo systemctl restart $service_name"
+    echo "  Status:   sudo systemctl status $service_name"
+    echo "  Logs:     sudo journalctl -u $service_name -f"
+    echo "  Disable:  sudo systemctl disable $service_name"
+
+    echo ""
+    log_header "Network Access URLs"
+    echo ""
+
+    # Source network utils if available
+    local network_utils="$ROOT_DIR/scripts/unified_manager/utils/network_utils.sh"
+    if [[ -f "$network_utils" ]]; then
+        source "$network_utils"
+
+        # Get all IP addresses
+        echo "  📍 Localhost:  http://localhost:$port"
+        echo "  📍 Loopback:   http://127.0.0.1:$port"
+
+        # Get all network interfaces
+        local all_ips=$(hostname -I 2>/dev/null)
+        if [[ -n "$all_ips" ]]; then
+            for ip in $all_ips; do
+                if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "  📍 Network:    http://$ip:$port"
+                fi
+            done
+        fi
+    else
+        echo "  📍 Local: http://localhost:$port"
+        echo "  📍 Local: http://127.0.0.1:$port"
+    fi
+
+    # If domains provided (for proxy services)
+    if [[ -n "$domain_list" ]]; then
+        echo ""
+        log_header "Domain Access (via Nginx Proxy)"
+        echo ""
+        for domain in $domain_list; do
+            echo "  🌐 https://$domain (if SSL available)"
+            echo "  🌐 http://$domain"
+        done
+    fi
+
+    echo ""
+    log_header "Service File Content"
+    echo ""
+    if [[ -f "$service_file" ]]; then
+        log_info "File: $service_file"
+        echo ""
+        cat "$service_file" | while IFS= read -r line; do
+            echo "  $line"
+        done
+    else
+        log_warning "Service file not found: $service_file"
+    fi
+
+    echo ""
+    log_header "Service Details"
+    echo ""
+    log_info "App Name: $app_name"
+    log_info "Service Name: $service_name"
+    log_info "Port: $port"
+    log_info "Status: $(systemctl is-active $service_name)"
+
+    echo ""
+}
+
 # Execute command with proper error handling
 execute_command() {
     local command="$1"
@@ -219,6 +314,29 @@ main() {
                     # Call unified service creation function
                     if create_unified_service "$app_name" "$app_path" "$app_type" "$framework_type" "$port" "" "$debug_mode"; then
                         log_success "Service created successfully"
+
+                        # Determine service name based on framework
+                        local service_name=""
+                        case "$framework_type" in
+                            "reactStart"|"vueStart")
+                                service_name="webapp-$app_name"
+                                ;;
+                            "nuxtStart")
+                                service_name="nuxt-$app_name"
+                                ;;
+                            "laravelStart")
+                                service_name="laravel-$app_name"
+                                ;;
+                            "flutterStart")
+                                service_name="flutter-$app_name"
+                                ;;
+                            *)
+                                service_name="app-$app_name"
+                                ;;
+                        esac
+
+                        # Use unified print function
+                        print_service_info "$service_name" "$app_name" "$port" ""
                     else
                         log_error "Failed to create service"
                     fi
@@ -280,14 +398,8 @@ main() {
 
                 sleep 2
 
-                if systemctl is-active --quiet "$build_service_name"; then
-                    log_success "Build service registered and started successfully"
-                    log_info "Service: $build_service_name"
-                    log_info "Access: http://localhost:$port"
-                else
-                    log_error "Build service failed to start"
-                    log_info "Check logs: journalctl -u $build_service_name -f"
-                fi
+                # Use unified print function
+                print_service_info "$build_service_name" "$app_name" "$port" ""
 
                 echo ""
                 log_warning "Press any key to continue..."
@@ -338,109 +450,57 @@ main() {
                 fi
                 echo ""
 
-                # Step 2: Remove existing normal service and create build service
+                # Step 2: Create systemd service using Python-generated files
                 log_header "Step 2/4: Creating SystemD Build Service"
                 echo ""
 
-                if [[ ! -f "$UNIFIED_SERVICE_MANAGER" ]]; then
-                    log_error "Unified service manager not found: $UNIFIED_SERVICE_MANAGER"
-                else
-                    source "$UNIFIED_SERVICE_MANAGER"
+                # Get service information from Python
+                build_service_name=$(read_global_var "BUILD_SERVICE_NAME")
+                wrapper_script=$(read_global_var "BUILD_WRAPPER_PATH")
+                service_content=$(read_global_var "BUILD_SERVICE_CONTENT")
+                services_to_remove=$(read_global_var "SERVICES_TO_REMOVE")
 
-                    # Remove existing normal service (mutual exclusion)
-                    service_removed=0
-                    for pattern in "${NORMAL_SERVICE_PATTERNS[@]}"; do
-                        local normal_service="$pattern-$app_name"
-                        if systemctl list-unit-files "$normal_service.service" >/dev/null 2>&1; then
-                            log_warning "Found existing normal service: $normal_service"
-                            log_info "Removing normal service (build service replaces normal service)..."
+                log_info "Service: $build_service_name"
+                log_info "Wrapper: $wrapper_script"
+                echo ""
 
-                            systemctl stop "$normal_service" 2>/dev/null || true
-                            systemctl disable "$normal_service" 2>/dev/null || true
-                            rm -f "/etc/systemd/system/$normal_service.service"
-                            systemctl daemon-reload
-
-                            log_success "Normal service removed: $normal_service"
-                            service_removed=1
-                            echo ""
+                # Remove existing normal services (mutual exclusion)
+                if [[ -n "$services_to_remove" ]]; then
+                    log_info "Removing conflicting normal services..."
+                    for service_to_remove in $services_to_remove; do
+                        if systemctl list-unit-files "$service_to_remove.service" >/dev/null 2>&1; then
+                            log_warning "Found existing service: $service_to_remove"
+                            systemctl stop "$service_to_remove" 2>/dev/null || true
+                            systemctl disable "$service_to_remove" 2>/dev/null || true
+                            rm -f "/etc/systemd/system/$service_to_remove.service"
+                            log_success "Removed: $service_to_remove"
                         fi
                     done
-
-                    if [[ $service_removed -eq 0 ]]; then
-                        log_info "No existing normal service found"
-                        echo ""
-                    fi
-
-                    # Create wrapper script for build command
-                    local build_service_name="webapp-$app_name$BUILD_SERVICE_SUFFIX"
-                    local wrapper_script_dir="/var/_core_node/unified_manager/temp_scripts"
-                    local wrapper_script="$wrapper_script_dir/${build_service_name}.sh"
-
-                    mkdir -p "$wrapper_script_dir"
-
-                    log_info "Creating build service wrapper script..."
-                    cat > "$wrapper_script" << 'EOF_WRAPPER'
-#!/bin/bash
-set -e
-
-echo "Starting built application..."
-echo "Command: $BUILD_COMMAND"
-echo ""
-
-# Execute build start command (command includes full paths)
-exec $BUILD_COMMAND
-EOF_WRAPPER
-
-                    # Replace placeholders
-                    sed -i "s|\$BUILD_APP_PATH|$app_path|g" "$wrapper_script"
-                    sed -i "s|\$BUILD_COMMAND|$execute_command|g" "$wrapper_script"
-
-                    chmod +x "$wrapper_script"
-                    log_success "Wrapper script created"
-                    echo ""
-
-                    # Create systemd service directly
-                    log_info "Creating build service: $build_service_name"
-
-                    local service_file="/etc/systemd/system/${build_service_name}.service"
-                    local service_description="$app_name-build ($framework_type) - Auto-generated by Unified Manager"
-
-                    cat > "$service_file" << EOF_SERVICE
-[Unit]
-Description=$service_description
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$app_path
-ExecStart=$wrapper_script
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-CPUQuota=50%
-MemoryMax=1G
-MemoryHigh=0M
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-
                     systemctl daemon-reload
-                    systemctl enable "$build_service_name"
-                    systemctl start "$build_service_name"
+                    echo ""
+                fi
 
-                    sleep 2
+                # Write service file (Python generated the content)
+                log_info "Writing service file to /etc/systemd/system/..."
+                local service_file="/etc/systemd/system/${build_service_name}.service"
+                echo "$service_content" > "$service_file"
+                log_success "Service file written: $service_file"
+                echo ""
 
-                    if systemctl is-active --quiet "$build_service_name"; then
-                        log_success "Build service created and started"
-                        service_created=1
-                    else
-                        log_error "Build service failed to start"
-                        log_info "Check logs: journalctl -u $build_service_name -f"
-                    fi
+                # Register and start service
+                log_info "Registering service with SystemD..."
+                systemctl daemon-reload
+                systemctl enable "$build_service_name"
+                systemctl start "$build_service_name"
+
+                sleep 2
+
+                if systemctl is-active --quiet "$build_service_name"; then
+                    log_success "Build service created and started"
+                    service_created=1
+                else
+                    log_error "Build service failed to start"
+                    log_info "Check logs: journalctl -u $build_service_name -f"
                 fi
                 echo ""
 
@@ -546,13 +606,10 @@ EOF_SERVICE
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
                     log_success "✓ All steps completed successfully"
-                    log_info "Build Service: $app_name$BUILD_SERVICE_SUFFIX"
-                    log_info "Domains configured ($domain_count total):"
-                    for domain in "${domains_array[@]}"; do
-                        log_info "  - https://$domain"
-                        log_info "  - http://$domain"
-                    done
-                    log_info "Local: http://localhost:$port"
+
+                    # Use unified print function
+                    local build_service_name="webapp-$app_name$BUILD_SERVICE_SUFFIX"
+                    print_service_info "$build_service_name" "$app_name" "$port" "$domains_string"
                 else
                     log_warning "⚠ Some steps failed - check above for details"
                 fi
@@ -764,16 +821,32 @@ EOF_SERVICE
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "�?All steps completed successfully"
-                    log_info "Service: $app_name"
-                    log_info "Domains configured ($domain_count total):"
-                    for domain in "${domains_array[@]}"; do
-                        log_info "  - https://$domain (if SSL available)"
-                        log_info "  - http://$domain"
-                    done
-                    log_info "Local: http://localhost:$port"
+                    log_success "✓ All steps completed successfully"
+
+                    # Determine service name based on framework
+                    local service_name=""
+                    case "$framework_type" in
+                        "reactStart"|"vueStart")
+                            service_name="webapp-$app_name"
+                            ;;
+                        "nuxtStart")
+                            service_name="nuxt-$app_name"
+                            ;;
+                        "laravelStart")
+                            service_name="laravel-$app_name"
+                            ;;
+                        "flutterStart")
+                            service_name="flutter-$app_name"
+                            ;;
+                        *)
+                            service_name="app-$app_name"
+                            ;;
+                    esac
+
+                    # Use unified print function
+                    print_service_info "$service_name" "$app_name" "$port" "$domains_string"
                 else
-                    log_warning "�?Some steps failed - please check above for details"
+                    log_warning "⚠ Some steps failed - please check above for details"
                     log_info "You can retry failed steps manually"
                 fi
 

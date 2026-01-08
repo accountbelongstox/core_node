@@ -158,6 +158,42 @@ class BuildManager:
                     subprocess.run(["yarn", "install"], check=True)
                 print()
 
+            # Clean output directory before build to avoid ENOTEMPTY errors
+            # This is especially important for Vite projects that try to empty dist directory
+            # Vite's emptyDir() can fail with ENOTEMPTY if files are locked or permissions are wrong
+            output_dir = build_config.get("output_dir")
+            if output_dir:
+                output_path = app_path / output_dir
+                if output_path.exists():
+                    import shutil
+                    print(f"Cleaning output directory: {output_dir}")
+                    try:
+                        # First try Python's shutil.rmtree
+                        shutil.rmtree(output_path, ignore_errors=False)
+                        print(f"✓ Output directory cleaned: {output_dir}\n")
+                    except (OSError, PermissionError) as e:
+                        # If Python method fails, try system rm command as fallback
+                        print(f"Python cleanup failed, trying system command: {e}")
+                        try:
+                            result = subprocess.run(
+                                ["rm", "-rf", str(output_path)],
+                                check=False,
+                                capture_output=True,
+                                timeout=10
+                            )
+                            if result.returncode == 0:
+                                print(f"✓ Output directory cleaned using system command: {output_dir}\n")
+                            else:
+                                print(f"Warning: Could not fully clean {output_dir}")
+                                print(f"  Error: {result.stderr.decode('utf-8', errors='ignore')}")
+                                print("  Build will continue, Vite may handle cleanup...\n")
+                        except Exception as e2:
+                            print(f"Warning: All cleanup methods failed for {output_dir}: {e2}")
+                            print("  Build will continue, Vite may handle cleanup...\n")
+                    except Exception as e:
+                        print(f"Warning: Unexpected error cleaning {output_dir}: {e}")
+                        print("  Build will continue, Vite may handle cleanup...\n")
+
             # Run build command
             print(f"Running build: {build_command}")
             result = subprocess.run(
@@ -198,9 +234,10 @@ class BuildManager:
         finally:
             os.chdir(original_dir)
 
-    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Optional[str]:
+    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
         Generate the appropriate start command for the built project using official recommended methods
+        Returns: (working_directory, environment_vars, command)
         """
         app_path = Path(app_path)
         port_str = str(port) if port else "10000"  # Default port matches unified_config.ini base_port
@@ -222,18 +259,18 @@ class BuildManager:
             if build_config.get("needs_node", False):
                 # Check if command needs PORT environment variable
                 if build_config.get("port_env"):
-                    return f"cd {app_path} && PORT={port_str} {start_command}"
+                    return str(app_path), f"PORT={port_str}", start_command
                 else:
-                    return f"cd {app_path} && {start_command}"
+                    return str(app_path), None, start_command
             else:
                 # For non-Node projects (PHP, Flutter, etc)
-                return f"cd {app_path} && {start_command}"
+                return str(app_path), None, start_command
 
         # Fallback: For static projects without specific start command, use python http.server
         if build_config.get("is_static", False):
-            return f"python3 -m http.server {port_str} --directory {build_output_path} --bind 0.0.0.0"
+            return str(build_output_path), None, f"python3 -m http.server {port_str} --bind 0.0.0.0"
 
-        return None
+        return None, None, None
 
 
 __all__ = ['BuildManager']
