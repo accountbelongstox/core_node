@@ -428,6 +428,7 @@ export const ja: TranslationKeys = {
     current: '現在',
     currentLabel: '現在:',
     clearManualSelection: '手動選択をクリアし、自動検出を使用',
+    noAvailable: '利用可能なエンドポイントがありません',
   },
   appAccess: {
     loading: '読み込み中...',
