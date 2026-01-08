@@ -496,12 +496,15 @@ main() {
 set -e
 
 echo "Starting built application..."
+echo "Working directory: $(pwd)"
 echo "Command: $BUILD_COMMAND"
 echo ""
 
-# Execute build start command (command includes full paths)
-# Use bash -c to handle complex commands with cd, &&, pipes, etc.
-exec bash -c "$BUILD_COMMAND"
+# Change to working directory
+cd "$BUILD_APP_PATH"
+
+# Execute build start command
+$BUILD_COMMAND
 EOF_WRAPPER
 
                     # Replace placeholders

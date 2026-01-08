@@ -25,55 +25,64 @@ class ServiceFileGenerator:
         service_name: str,
         execute_command: str,
         working_directory: Optional[str] = None,
+        environment_vars: Optional[str] = None,
         is_build_service: bool = False
     ) -> str:
         """
         Generate wrapper script for systemd service
+        No compound commands - all commands are separate lines in the script
         Returns: path to wrapper script
         """
         self.ensure_wrapper_dir()
 
         wrapper_script_path = self.wrapper_script_dir / f"{service_name}.sh"
 
+        # Build script content line by line
+        lines = ["#!/bin/bash", "set -e", ""]
+
         if is_build_service:
-            # Build service wrapper - command already includes full paths
-            content = f"""#!/bin/bash
-set -e
-
-echo "Starting built application..."
-echo "Command: {execute_command}"
-echo ""
-
-# Execute build start command (command includes full paths)
-exec {execute_command}
-"""
-        else:
-            # Dev service wrapper - may need to cd to working directory
+            lines.append("echo \"Starting built application...\"")
             if working_directory:
-                content = f"""#!/bin/bash
-set -e
+                lines.append(f"echo \"Working directory: {working_directory}\"")
+            lines.append(f"echo \"Command: {execute_command}\"")
+            lines.append("echo \"\"")
+            lines.append("")
 
-cd "{working_directory}"
+            # Change to working directory if specified
+            if working_directory:
+                lines.append(f"cd \"{working_directory}\"")
+                lines.append("")
 
-echo "Starting development application..."
-echo "Working directory: $(pwd)"
-echo "Command: {execute_command}"
-echo ""
+            # Export environment variables if specified
+            if environment_vars:
+                lines.append(f"export {environment_vars}")
+                lines.append("")
 
-# Execute dev start command
-exec {execute_command}
-"""
-            else:
-                content = f"""#!/bin/bash
-set -e
+            # Execute command directly (no exec with compound commands)
+            lines.append(f"{execute_command}")
+        else:
+            # Dev service wrapper
+            lines.append("echo \"Starting development application...\"")
+            if working_directory:
+                lines.append(f"echo \"Working directory: {working_directory}\"")
+            lines.append(f"echo \"Command: {execute_command}\"")
+            lines.append("echo \"\"")
+            lines.append("")
 
-echo "Starting application..."
-echo "Command: {execute_command}"
-echo ""
+            # Change to working directory if specified
+            if working_directory:
+                lines.append(f"cd \"{working_directory}\"")
+                lines.append("")
 
-# Execute start command
-exec {execute_command}
-"""
+            # Export environment variables if specified
+            if environment_vars:
+                lines.append(f"export {environment_vars}")
+                lines.append("")
+
+            # Execute command directly
+            lines.append(f"exec {execute_command}")
+
+        content = "\n".join(lines) + "\n"
 
         # Write wrapper script
         wrapper_script_path.write_text(content, encoding='utf-8')
@@ -126,6 +135,8 @@ WantedBy=multi-user.target
         app_path: str,
         framework_type: str,
         execute_command: str,
+        working_directory: Optional[str] = None,
+        environment_vars: Optional[str] = None,
         service_suffix: str = "-build"
     ) -> Tuple[bool, str, str, str]:
         """
@@ -140,7 +151,8 @@ WantedBy=multi-user.target
             wrapper_script_path = self.generate_wrapper_script(
                 service_name=service_name,
                 execute_command=execute_command,
-                working_directory=None,  # Build command includes full paths
+                working_directory=working_directory,
+                environment_vars=environment_vars,
                 is_build_service=True
             )
 

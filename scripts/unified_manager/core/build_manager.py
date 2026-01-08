@@ -234,9 +234,10 @@ class BuildManager:
         finally:
             os.chdir(original_dir)
 
-    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Optional[str]:
+    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
         Generate the appropriate start command for the built project using official recommended methods
+        Returns: (working_directory, environment_vars, command)
         """
         app_path = Path(app_path)
         port_str = str(port) if port else "10000"  # Default port matches unified_config.ini base_port
@@ -258,18 +259,18 @@ class BuildManager:
             if build_config.get("needs_node", False):
                 # Check if command needs PORT environment variable
                 if build_config.get("port_env"):
-                    return f"cd {app_path} && PORT={port_str} {start_command}"
+                    return str(app_path), f"PORT={port_str}", start_command
                 else:
-                    return f"cd {app_path} && {start_command}"
+                    return str(app_path), None, start_command
             else:
                 # For non-Node projects (PHP, Flutter, etc)
-                return f"cd {app_path} && {start_command}"
+                return str(app_path), None, start_command
 
         # Fallback: For static projects without specific start command, use python http.server
         if build_config.get("is_static", False):
-            return f"python3 -m http.server {port_str} --directory {build_output_path} --bind 0.0.0.0"
+            return str(build_output_path), None, f"python3 -m http.server {port_str} --bind 0.0.0.0"
 
-        return None
+        return None, None, None
 
 
 __all__ = ['BuildManager']

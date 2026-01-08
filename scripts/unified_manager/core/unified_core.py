@@ -776,11 +776,11 @@ class UnifiedAppManager:
 
                             # Generate command for the built project
                             if build_output:
-                                command = build_mgr.generate_build_start_command(
+                                working_dir, env_vars, command = build_mgr.generate_build_start_command(
                                     app.path, build_output, app.framework, app.port
                                 )
                             else:
-                                command = self.command_gen.generate_command(app)
+                                working_dir, env_vars, command = None, None, self.command_gen.generate_command(app)
 
                             if not command:
                                 menu.show_error("Failed to generate start command for built project")
@@ -794,6 +794,8 @@ class UnifiedAppManager:
                                 app_path=app.path,
                                 framework_type=app.framework,
                                 execute_command=command,
+                                working_directory=working_dir,
+                                environment_vars=env_vars,
                                 service_suffix="-build"
                             )
 
@@ -914,11 +916,11 @@ class UnifiedAppManager:
 
                             # Generate command for the built project
                             if build_output:
-                                command = build_mgr.generate_build_start_command(
+                                working_dir, env_vars, command = build_mgr.generate_build_start_command(
                                     app.path, build_output, app.framework, app.port
                                 )
                             else:
-                                command = self.command_gen.generate_command(app)
+                                working_dir, env_vars, command = None, None, self.command_gen.generate_command(app)
 
                             if not command:
                                 menu.show_error("Failed to generate start command for built project")
@@ -932,6 +934,8 @@ class UnifiedAppManager:
                                 app_path=app.path,
                                 framework_type=app.framework,
                                 execute_command=command,
+                                working_directory=working_dir,
+                                environment_vars=env_vars,
                                 service_suffix="-build"
                             )
 
