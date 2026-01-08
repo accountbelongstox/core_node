@@ -438,6 +438,7 @@ export const zh: TranslationKeys = {
     current: '当前',
     currentLabel: '当前:',
     clearManualSelection: '清除手动选择，使用自动检测',
+    noAvailable: '无可访问',
   },
   appAccess: {
     loading: '加载中...',

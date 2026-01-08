@@ -17,6 +17,7 @@
  */
 import { API_ENDPOINTS, ApiEndpoint, buildApiUrl, getEndpointById } from '../config/api-endpoints';
 import { storageService, STORAGE_KEYS } from './storageService';
+import { i18nService } from './i18nService';
 
 interface ApiManagerOptions {
   autoDetect?: boolean;
@@ -43,7 +44,7 @@ class ApiManager {
   async initialize(options: ApiManagerOptions = {}): Promise<void> {
     const {
       autoDetect = true,
-      timeout = 1000,
+      timeout = 2000,
       testPath = '/',
     } = options;
 
@@ -93,7 +94,7 @@ class ApiManager {
     this.useMockMode = true;
     this.currentEndpoint = null;
     this.isInitialized = true;
-    console.warn('API Manager: No available endpoints, falling back to mock data');
+    console.log('无可访问');
   }
 
   /**
@@ -101,7 +102,7 @@ class ApiManager {
    */
   async checkEndpoint(
     endpoint: ApiEndpoint,
-    timeout: number = 1000,
+    timeout: number = 2000,
     testPath: string = '/'
   ): Promise<boolean> {
     const startTime = Date.now();
@@ -114,15 +115,16 @@ class ApiManager {
       const response = await fetch(url, {
         method: 'GET',
         signal: controller.signal,
-        mode: 'cors',
+        mode: 'no-cors',
         cache: 'no-cache',
       });
 
       clearTimeout(timeoutId);
       const responseTime = Date.now() - startTime;
 
-      // HTTP 2xx-4xx are considered available (accessible means healthy)
-      const isAvailable = response.status >= 200 && response.status < 500;
+      // With no-cors mode, we can't read response.status
+      // If fetch succeeds without throwing, consider it available
+      const isAvailable = true;
 
       // Update status
       this.endpointStatuses.set(endpoint.id, {
@@ -154,7 +156,7 @@ class ApiManager {
    * Stops at first available endpoint
    */
   async autoDetectEndpoint(
-    timeout: number = 1000,
+    timeout: number = 2000,
     testPath: string = '/'
   ): Promise<ApiEndpoint | null> {
     // Ensure endpoints are sorted by priority (1 = highest, 3 = lowest)
@@ -177,7 +179,7 @@ class ApiManager {
       }
     }
     
-    console.warn('[ApiManager] No available endpoints found after testing all priorities');
+    console.log('无可访问');
     return null;
   }
 
@@ -293,7 +295,7 @@ class ApiManager {
 
       // Test endpoints in priority order: 127.0.0.1 → LAN → Remote
       for (const endpoint of sortedEndpoints) {
-        const isAvailable = await this.checkEndpoint(endpoint, 1000, '/');
+        const isAvailable = await this.checkEndpoint(endpoint, 2000, '/');
         if (isAvailable) {
           bestAvailableEndpoint = endpoint;
           break; // Found highest priority available endpoint
@@ -303,7 +305,7 @@ class ApiManager {
       if (!bestAvailableEndpoint) {
         // No endpoints available, enable mock mode
         if (!this.useMockMode) {
-          console.warn('[ApiManager] No endpoints available, enabling mock mode');
+          console.log('无可访问');
           this.useMockMode = true;
           this.currentEndpoint = null;
         }

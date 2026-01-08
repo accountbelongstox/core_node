@@ -436,6 +436,7 @@ export const en = {
     current: 'Current',
     currentLabel: 'Current:',
     clearManualSelection: 'Clear manual selection, use auto detection',
+    noAvailable: 'No available endpoints',
   },
   appAccess: {
     loading: 'Loading...',
