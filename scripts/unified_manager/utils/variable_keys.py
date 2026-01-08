@@ -98,6 +98,8 @@ class ActionValues:
     LAUNCH = "launch"
     SERVICE_CREATE = "service_create"
     PROXY_CREATE = "proxy_create"
+    BUILD_SERVICE_CREATE = "build_service_create"
+    BUILD_PROXY_CREATE = "build_proxy_create"
     RESTART = "restart"
     STOP = "stop"
     KILL = "kill"
