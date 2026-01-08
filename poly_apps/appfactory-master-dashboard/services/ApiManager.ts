@@ -94,7 +94,7 @@ class ApiManager {
     this.useMockMode = true;
     this.currentEndpoint = null;
     this.isInitialized = true;
-    console.log('无可访问');
+    console.log(i18nService.t('apiEndpoint.noAvailable'));
   }
 
   /**
@@ -179,7 +179,7 @@ class ApiManager {
       }
     }
     
-    console.log('无可访问');
+    console.log(i18nService.t('apiEndpoint.noAvailable'));
     return null;
   }
 
@@ -305,7 +305,7 @@ class ApiManager {
       if (!bestAvailableEndpoint) {
         // No endpoints available, enable mock mode
         if (!this.useMockMode) {
-          console.log('无可访问');
+          console.log(i18nService.t('apiEndpoint.noAvailable'));
           this.useMockMode = true;
           this.currentEndpoint = null;
         }
