@@ -185,7 +185,7 @@ class BuildManager:
         finally:
             os.chdir(original_dir)
 
-    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None) -> Optional[str]:
+    def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Optional[str]:
         """
         Generate the appropriate start command for the built project
         """
@@ -197,8 +197,9 @@ class BuildManager:
             _, build_config = self.detect_project_type(app_path)
 
         if build_config.get("is_static", False):
-            # Static files - use a static file server
-            return f"python3 -m http.server 8000 --directory {build_output_path}"
+            # Static files - use a static file server with specified port
+            port_str = str(port) if port else "8000"
+            return f"python3 -m http.server {port_str} --directory {build_output_path}"
 
         start_command = build_config.get("start_command")
         if start_command:

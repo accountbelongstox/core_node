@@ -30,6 +30,9 @@ from menu_manager import MenuManager, MenuConfig
 # Import build manager
 from build_manager import BuildManager
 
+# Import service file generator
+from service_file_generator import ServiceFileGenerator
+
 
 @dataclass
 class AppInfo:
@@ -396,6 +399,7 @@ class UnifiedAppManager:
         self.scanner = AppScanner(self.config, self.detector)
         self.port_manager = PortManager(self.config)
         self.command_gen = CommandGenerator(self.config, self.system_info)
+        self.service_generator = ServiceFileGenerator()
 
         # Application data
         self.apps: List[AppInfo] = []
@@ -773,7 +777,7 @@ class UnifiedAppManager:
                             # Generate command for the built project
                             if build_output:
                                 command = build_mgr.generate_build_start_command(
-                                    app.path, build_output, app.framework
+                                    app.path, build_output, app.framework, app.port
                                 )
                             else:
                                 command = self.command_gen.generate_command(app)
@@ -783,17 +787,47 @@ class UnifiedAppManager:
                                 menu.wait_for_key()
                                 continue
 
-                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
-                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            # Use Python ServiceFileGenerator to create files
+                            menu.log_info("Generating service files...")
+                            success, service_name, wrapper_path, service_content = self.service_generator.create_build_service(
+                                app_name=app.name,
+                                app_path=app.path,
+                                framework_type=app.framework,
+                                execute_command=command,
+                                service_suffix="-build"
+                            )
+
+                            if not success:
+                                menu.show_error(f"Failed to generate service files: {service_content}")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_success("Service files generated")
+                            print()
+
+                            # Get list of services to remove (mutual exclusion)
+                            services_to_remove = self.service_generator.get_service_patterns_to_remove(
+                                app.name, is_build_service=True
+                            )
+
+                            # Write data for Shell layer
                             self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
-                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_SERVICE_CREATE)
+                            self.file_vars.write_var("BUILD_SERVICE_NAME", service_name)
+                            self.file_vars.write_var("BUILD_WRAPPER_PATH", wrapper_path)
+                            self.file_vars.write_var("BUILD_SERVICE_CONTENT", service_content)
+                            self.file_vars.write_var("SERVICES_TO_REMOVE", " ".join(services_to_remove))
                             self.file_vars.write_var("BUILD_OUTPUT_PATH", build_output or "")
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_SERVICE_CREATE)
                             self.file_vars.write_status(StatusValues.EXECUTE_READY)
 
                             menu.clear_screen()
-                            menu.log_header("Creating SystemD Service from Build")
+                            menu.log_header("Service Files Created - Ready for SystemD Registration")
                             menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Service: {service_name}")
                             menu.log_info(f"Build output: {build_output}")
+                            menu.log_info(f"Command: {command}")
+                            print()
+                            menu.log_success("Files ready, Shell layer will register with systemd")
                             print()
                             break
 
@@ -876,11 +910,12 @@ class UnifiedAppManager:
                                 continue
 
                             menu.log_info(f"Domains: {', '.join(domains)} ({len(domains)} total)")
+                            print()
 
                             # Generate command for the built project
                             if build_output:
                                 command = build_mgr.generate_build_start_command(
-                                    app.path, build_output, app.framework
+                                    app.path, build_output, app.framework, app.port
                                 )
                             else:
                                 command = self.command_gen.generate_command(app)
@@ -890,21 +925,52 @@ class UnifiedAppManager:
                                 menu.wait_for_key()
                                 continue
 
-                            self.file_vars.write_var(VariableKeys.EXECUTE_COMMAND, command)
-                            self.file_vars.write_var(VariableKeys.WORKING_DIRECTORY, app.path)
+                            # Use Python ServiceFileGenerator to create files
+                            menu.log_info("Generating service files...")
+                            success, service_name, wrapper_path, service_content = self.service_generator.create_build_service(
+                                app_name=app.name,
+                                app_path=app.path,
+                                framework_type=app.framework,
+                                execute_command=command,
+                                service_suffix="-build"
+                            )
+
+                            if not success:
+                                menu.show_error(f"Failed to generate service files: {service_content}")
+                                menu.wait_for_key()
+                                continue
+
+                            menu.log_success("Service files generated")
+                            print()
+
+                            # Get list of services to remove (mutual exclusion)
+                            services_to_remove = self.service_generator.get_service_patterns_to_remove(
+                                app.name, is_build_service=True
+                            )
+
+                            # Write data for Shell layer
                             self.file_vars.write_var(VariableKeys.SELECTED_APP_INDEX, app_index)
-                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_PROXY_CREATE)
+                            self.file_vars.write_var("BUILD_SERVICE_NAME", service_name)
+                            self.file_vars.write_var("BUILD_WRAPPER_PATH", wrapper_path)
+                            self.file_vars.write_var("BUILD_SERVICE_CONTENT", service_content)
+                            self.file_vars.write_var("SERVICES_TO_REMOVE", " ".join(services_to_remove))
                             self.file_vars.write_var("DOMAINS", " ".join(domains))
                             self.file_vars.write_var("DOMAIN_COUNT", str(len(domains)))
                             self.file_vars.write_var("DOMAIN", domains[0])
                             self.file_vars.write_var("BUILD_OUTPUT_PATH", build_output or "")
+                            self.file_vars.write_var(VariableKeys.ACTION, ActionValues.BUILD_PROXY_CREATE)
                             self.file_vars.write_status(StatusValues.EXECUTE_READY)
 
                             menu.clear_screen()
-                            menu.log_header("Creating Service with Proxy from Build")
+                            menu.log_header("Service Files Created - Ready for SystemD and Proxy Registration")
                             menu.log_info(f"App: {app.name}")
+                            menu.log_info(f"Service: {service_name}")
                             menu.log_info(f"Build output: {build_output}")
                             menu.log_info(f"Domains: {', '.join(domains)}")
+                            menu.log_info(f"Port: {app.port}")
+                            menu.log_info(f"Command: {command}")
+                            print()
+                            menu.log_success("Files ready, Shell layer will register with systemd and configure proxy")
                             print()
                             break
 
