@@ -46,7 +46,7 @@ class BuildManager:
                 if "vite" in dev_dependencies:
                     return "react-vite", {
                         "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
-                        "start_command": "pnpm preview" if (app_path / "pnpm-lock.yaml").exists() else "npm run preview",
+                        "start_command": "pnpm preview --port {port} --host 0.0.0.0" if (app_path / "pnpm-lock.yaml").exists() else "npm run preview -- --port {port} --host 0.0.0.0",
                         "output_dir": "dist",
                         "needs_node": True,
                         "is_static": True
@@ -54,34 +54,46 @@ class BuildManager:
                 else:
                     return "react-cra", {
                         "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
+                        "start_command": "npx serve -s build -l {port}",
                         "output_dir": "build",
-                        "needs_node": False,
+                        "needs_node": True,
                         "is_static": True
                     }
 
             # Check for Vue
             if "vue" in dependencies:
-                return "vue", {
-                    "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
-                    "output_dir": "dist",
-                    "needs_node": False,
-                    "is_static": True
-                }
+                if "vite" in dev_dependencies:
+                    return "vue-vite", {
+                        "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
+                        "start_command": "pnpm preview --port {port} --host 0.0.0.0" if (app_path / "pnpm-lock.yaml").exists() else "npm run preview -- --port {port} --host 0.0.0.0",
+                        "output_dir": "dist",
+                        "needs_node": True,
+                        "is_static": True
+                    }
+                else:
+                    return "vue", {
+                        "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
+                        "start_command": "npx serve -s dist -l {port}",
+                        "output_dir": "dist",
+                        "needs_node": True,
+                        "is_static": True
+                    }
 
         # Nuxt projects
         if (app_path / "nuxt.config.ts").exists() or (app_path / "nuxt.config.js").exists():
             return "nuxt", {
                 "build_command": "pnpm build" if (app_path / "pnpm-lock.yaml").exists() else "npm run build",
-                "start_command": "pnpm start" if (app_path / "pnpm-lock.yaml").exists() else "npm start",
+                "start_command": "node .output/server/index.mjs",
                 "output_dir": ".output",
-                "needs_node": True
+                "needs_node": True,
+                "port_env": "PORT"
             }
 
         # Laravel projects
         if (app_path / "artisan").exists() and (app_path / "composer.json").exists():
             return "laravel", {
                 "build_command": "composer install --no-dev --optimize-autoloader",
-                "start_command": "php artisan serve --host=0.0.0.0",
+                "start_command": "php artisan serve --host=0.0.0.0 --port={port}",
                 "output_dir": None,
                 "needs_node": False
             }
@@ -90,6 +102,7 @@ class BuildManager:
         if (app_path / "pubspec.yaml").exists():
             return "flutter", {
                 "build_command": "flutter build web",
+                "start_command": "python3 -m http.server {port} --directory {build_output_path} --bind 0.0.0.0",
                 "output_dir": "build/web",
                 "needs_node": False,
                 "is_static": True
@@ -187,25 +200,38 @@ class BuildManager:
 
     def generate_build_start_command(self, app_path: str, build_output_path: str, project_type: str = None, port: int = None) -> Optional[str]:
         """
-        Generate the appropriate start command for the built project
+        Generate the appropriate start command for the built project using official recommended methods
         """
         app_path = Path(app_path)
+        port_str = str(port) if port else "10000"  # Default port matches unified_config.ini base_port
 
         if not project_type:
             project_type, build_config = self.detect_project_type(app_path)
         else:
             _, build_config = self.detect_project_type(app_path)
 
-        if build_config.get("is_static", False):
-            # Static files - use a static file server with specified port
-            port_str = str(port) if port else "8000"
-            return f"python3 -m http.server {port_str} --directory {build_output_path}"
-
+        # Get start command from config
         start_command = build_config.get("start_command")
+
         if start_command:
-            # For Node.js projects, ensure we run from the original path
+            # Replace placeholders in start command
+            start_command = start_command.replace("{port}", port_str)
+            start_command = start_command.replace("{build_output_path}", build_output_path)
+
+            # For Node.js projects, run from app directory
             if build_config.get("needs_node", False):
+                # Check if command needs PORT environment variable
+                if build_config.get("port_env"):
+                    return f"cd {app_path} && PORT={port_str} {start_command}"
+                else:
+                    return f"cd {app_path} && {start_command}"
+            else:
+                # For non-Node projects (PHP, Flutter, etc)
                 return f"cd {app_path} && {start_command}"
+
+        # Fallback: For static projects without specific start command, use python http.server
+        if build_config.get("is_static", False):
+            return f"python3 -m http.server {port_str} --directory {build_output_path} --bind 0.0.0.0"
 
         return None
 
