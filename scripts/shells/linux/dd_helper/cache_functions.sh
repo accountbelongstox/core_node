@@ -286,3 +286,238 @@ cleanup_directory_processing_cache() {
         echo -e "\033[33m[DIR CACHE CLEANUP] Removed $cleaned_files expired directory processing cache entries\033[0m"
     fi
 }
+
+# =============================================================================
+# Enhanced Secret Cache Functions
+# =============================================================================
+
+# Store decryption timestamp for a file
+set_decryption_timestamp_cache() {
+    local filename="$1"
+    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/decryption_timestamps"
+    local current_time=$(date +%s)
+
+    if [ ! -d "$cache_dir" ]; then
+        $sudo mkdir -p "$cache_dir"
+    fi
+
+    local cache_file="$cache_dir/${filename}.decrypt_time"
+    echo "$current_time" | $sudo tee "$cache_file" >/dev/null 2>&1
+}
+
+# Check if raw file was modified after decryption time
+check_raw_file_modified_after_decryption() {
+    local filename="$1"
+    local raw_file="$2"
+    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/decryption_timestamps"
+    local cache_file="$cache_dir/${filename}.decrypt_time"
+
+    if [ ! -s "$cache_file" ]; then
+        return 0  # No decryption cache, consider as modified
+    fi
+
+    local decryption_time=$(cat "$cache_file" 2>/dev/null)
+    if [ -z "$decryption_time" ]; then
+        return 0  # Invalid cache, consider as modified
+    fi
+
+    local raw_file_mtime=$(stat -c %Y "$raw_file" 2>/dev/null)
+    if [ -z "$raw_file_mtime" ]; then
+        return 1  # Raw file not found
+    fi
+
+    # If raw file is newer than decryption time, it was modified after decryption
+    if [ "$raw_file_mtime" -gt "$decryption_time" ]; then
+        return 0  # Modified after decryption - need re-encryption
+    else
+        return 1  # Not modified after decryption - skip re-encryption
+    fi
+}
+
+# Store encrypted file content hash
+set_encrypted_content_hash_cache() {
+    local filename="$1"
+    local encrypted_file="$2"
+    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash"
+
+    if [ ! -d "$cache_dir" ]; then
+        $sudo mkdir -p "$cache_dir"
+    fi
+
+    local cache_file="$cache_dir/${filename}.enc_hash"
+
+    if [ -s "$encrypted_file" ]; then
+        local file_hash=$(sha256sum "$encrypted_file" 2>/dev/null | cut -d' ' -f1)
+        if [ -n "$file_hash" ]; then
+            echo "$file_hash" | $sudo tee "$cache_file" >/dev/null 2>&1
+        fi
+    fi
+}
+
+# Check if encrypted file content has changed
+check_encrypted_content_changed() {
+    local filename="$1"
+    local encrypted_file="$2"
+    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash"
+    local cache_file="$cache_dir/${filename}.enc_hash"
+
+    if [ ! -s "$cache_file" ]; then
+        return 0  # No hash cache, consider as changed
+    fi
+
+    if [ ! -s "$encrypted_file" ]; then
+        return 1  # Encrypted file not found
+    fi
+
+    local cached_hash=$(cat "$cache_file" 2>/dev/null)
+    local current_hash=$(sha256sum "$encrypted_file" 2>/dev/null | cut -d' ' -f1)
+
+    if [ -z "$cached_hash" ] || [ -z "$current_hash" ]; then
+        return 0  # Invalid hash, consider as changed
+    fi
+
+    if [ "$cached_hash" != "$current_hash" ]; then
+        return 0  # Content changed - need re-decryption
+    else
+        return 1  # Content unchanged
+    fi
+}
+
+# Get list of encrypted files that need re-decryption due to content changes
+get_encrypted_files_needing_redecryption() {
+    local encrypted_dir="$1"
+    local raw_dir="$2"
+    local -a changed_files=()
+
+    if [ ! -d "$encrypted_dir" ]; then
+        return 0
+    fi
+
+    while IFS= read -r -d '' enc_file; do
+        local base_name="$(basename "$enc_file")"
+        base_name="${base_name%.js}"
+        base_name="${base_name%.JS}"
+        local raw_file="$raw_dir/$base_name"
+
+        # Check if encrypted content changed
+        if check_encrypted_content_changed "$base_name" "$enc_file"; then
+            # Check if corresponding raw file exists
+            if [ -s "$raw_file" ]; then
+                changed_files+=("$base_name")
+            fi
+        fi
+    done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
+
+    if [ ${#changed_files[@]} -gt 0 ]; then
+        echo ""
+        echo -e "\033[36m========================================"
+        echo -e "Encrypted Files Content Changed"
+        echo -e "========================================\033[0m"
+        echo -e "\033[37mFound ${#changed_files[@]} encrypted file(s) with content changes:\033[0m"
+        echo ""
+
+        for file_name in "${changed_files[@]}"; do
+            echo -e "\033[33m  - $file_name (encrypted content updated)\033[0m"
+        done
+        echo ""
+
+        read -r -p "These encrypted files have been updated. Re-decrypt them? (yes/no): " redecrypt_choice
+
+        if [[ "$redecrypt_choice" =~ ^[Yy](es)?$ ]]; then
+            # Remove outdated raw files
+            for file_name in "${changed_files[@]}"; do
+                local raw_file="$raw_dir/$file_name"
+                if [ -f "$raw_file" ]; then
+                    rm -f "$raw_file" 2>/dev/null
+                    echo -e "\033[36m[CACHE INVALIDATED] Removed outdated decrypted file: $file_name\033[0m"
+                fi
+            done
+            echo ""
+            return 0  # Need re-decryption
+        else
+            echo -e "\033[33m[WARNING] Keeping existing decrypted files (may be outdated)\033[0m"
+            echo ""
+
+            # Ask if user wants to update cache to stop future notifications
+            read -r -p "Update cache to stop future notifications for these files? [Y/n]: " update_cache_choice
+
+            if [[ ! "$update_cache_choice" =~ ^[Nn]$ ]]; then
+                echo -e "\033[36m[CACHE UPDATE] Updating encrypted content hash cache...\033[0m"
+
+                # Update cache for each changed file to match current encrypted content
+                for file_name in "${changed_files[@]}"; do
+                    local enc_file="$encrypted_dir/$file_name.js"
+                    if [ ! -s "$enc_file" ]; then
+                        # Try alternative extensions
+                        enc_file="$encrypted_dir/$file_name.JS"
+                    fi
+
+                    if [ -s "$enc_file" ]; then
+                        set_encrypted_content_hash_cache "$file_name" "$enc_file"
+                        echo -e "\033[32m[CACHE UPDATED] $file_name - will not prompt again\033[0m"
+                    fi
+                done
+
+                echo -e "\033[32m[CACHE UPDATE] Cache updated. These files will not trigger re-decryption prompts until content changes again.\033[0m"
+            else
+                echo -e "\033[33m[CACHE UNCHANGED] Will continue to prompt for these files on next startup\033[0m"
+            fi
+
+            echo ""
+        fi
+    fi
+
+    return 1  # No re-decryption needed
+}
+
+# Cleanup expired secret cache entries
+cleanup_secret_cache() {
+    local cache_base_dir="$GLOBAL_VAR_DIR/secret_cache"
+    local cache_expiry_seconds=604800  # 7 days
+    local current_time=$(date +%s)
+    local cleaned_files=0
+
+    if [ ! -d "$cache_base_dir" ]; then
+        return 0
+    fi
+
+    # Cleanup decryption timestamps cache
+    local decrypt_cache_dir="$cache_base_dir/decryption_timestamps"
+    if [ -d "$decrypt_cache_dir" ]; then
+        for cache_file in "$decrypt_cache_dir"/*.decrypt_time; do
+            if [ -s "$cache_file" ]; then
+                local file_mtime=$(stat -c %Y "$cache_file" 2>/dev/null)
+                if [ -z "$file_mtime" ]; then
+                    file_mtime="0"
+                fi
+                local file_age=$((current_time - file_mtime))
+                if [ "$file_age" -gt "$cache_expiry_seconds" ]; then
+                    $sudo rm -f "$cache_file" 2>/dev/null
+                    ((cleaned_files++))
+                fi
+            fi
+        done
+    fi
+
+    # Cleanup encrypted content hash cache
+    local hash_cache_dir="$cache_base_dir/encrypted_content_hash"
+    if [ -d "$hash_cache_dir" ]; then
+        for cache_file in "$hash_cache_dir"/*.enc_hash; do
+            if [ -s "$cache_file" ]; then
+                local file_mtime=$(stat -c %Y "$cache_file" 2>/dev/null)
+                if [ -z "$file_mtime" ]; then
+                    file_mtime="0"
+                fi
+                local file_age=$((current_time - file_mtime))
+                if [ "$file_age" -gt "$cache_expiry_seconds" ]; then
+                    $sudo rm -f "$cache_file" 2>/dev/null
+                    ((cleaned_files++))
+                fi
+            fi
+        done
+    fi
+
+    if [ "$cleaned_files" -gt 0 ]; then
+        echo -e "\033[33m[SECRET CACHE CLEANUP] Removed $cleaned_files expired secret cache entries\033[0m"
+    fi
+}
