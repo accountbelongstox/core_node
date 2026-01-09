@@ -160,21 +160,21 @@ initialize_secrets() {
         return 1
     fi
 
-    # Read dns_dnspod_emails
-    if [ -f "$secret_dir/dns_dnspod_emails" ]; then
-        DNSPOD_EMAIL=$(cat "$secret_dir/dns_dnspod_emails" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
+    # Read DNSPOD_EMAILS
+    if [ -f "$secret_dir/DNSPOD_EMAILS" ]; then
+        DNSPOD_EMAIL=$(cat "$secret_dir/DNSPOD_EMAILS" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
         if [ -z "$DNSPOD_EMAIL" ]; then
-            echo "[$SCRIPT_INDEX] ERROR: dns_dnspod_emails file is empty" >&2
+            echo "[$SCRIPT_INDEX] ERROR: DNSPOD_EMAILS file is empty" >&2
             echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets" >&2
             return 1
         fi
-        echo "[$SCRIPT_INDEX] [OK] Loaded dns_dnspod_emails" >&2
-        echo "[$SCRIPT_INDEX] [DEBUG] dns_dnspod_emails content: $DNSPOD_EMAIL" >&2
+        echo "[$SCRIPT_INDEX] [OK] Loaded DNSPOD_EMAILS" >&2
+        echo "[$SCRIPT_INDEX] [DEBUG] DNSPOD_EMAILS content: $DNSPOD_EMAIL" >&2
     else
         echo "[$SCRIPT_INDEX] =================================="
-        echo "[$SCRIPT_INDEX] ERROR: dns_dnspod_emails not found"
+        echo "[$SCRIPT_INDEX] ERROR: DNSPOD_EMAILS not found"
         echo "[$SCRIPT_INDEX] =================================="
-        echo "[$SCRIPT_INDEX] File: $secret_dir/dns_dnspod_emails"
+        echo "[$SCRIPT_INDEX] File: $secret_dir/DNSPOD_EMAILS"
         echo "[$SCRIPT_INDEX]"
         echo "[$SCRIPT_INDEX] Please run 'dd.sh' to decrypt secrets first:"
         echo "[$SCRIPT_INDEX]   cd $CORE_NODE_DIR"
