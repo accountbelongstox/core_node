@@ -1,11 +1,11 @@
 /**
  * Type definitions for Encrypted Assets System
  * 
- * 注意：现在所有类型都从 TypeScript 模块导出，不再依赖全局类型
- * 这些类型定义主要用于向后兼容和文档说明
+ * Note: All types are now exported from TypeScript modules, no longer dependent on global types
+ * These type definitions are mainly for backward compatibility and documentation
  */
 
-// 重新导出类型，确保一致性
+// Re-export types to ensure consistency
 export type { EncryptedAsset } from '../services/dynamicDecryptionManager';
 export type { EncryptedAppAssetsManager } from '../services/encryptedAppAssets';
 

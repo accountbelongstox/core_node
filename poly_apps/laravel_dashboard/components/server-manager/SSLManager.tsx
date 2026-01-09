@@ -406,7 +406,7 @@ export function SSLManager() {
               <strong>Important:</strong> DNS provider API credentials must be configured on the server first.
             </p>
             <p className="text-xs text-yellow-800 mt-1">
-              Configure via GlobalSecretReader: DNS_DNSPOD_EMAILS and DNS_DNSPOD_API_TOKENS
+              Configure via GlobalSecretReader: dns_dnspod_emails and DNS_DNSPOD_API_TOKENS
             </p>
           </div>
 

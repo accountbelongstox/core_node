@@ -5,6 +5,7 @@ import { CustomerService, UserRole } from '../types';
 import { useApp } from '../contexts/AppContext';
 import { generateNickname } from '../utils/nicknameGenerator';
 import { generateId } from '../utils/idGenerator';
+import { CSLevel } from '../constants/modelConstants';
 
 interface AddCSFormProps {
   onClose: () => void;
@@ -12,7 +13,7 @@ interface AddCSFormProps {
 }
 
 /**
- * 添加客服表单组件
+ * Add Customer Service Form Component
  */
 export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
   const { user, t } = useApp();
@@ -21,7 +22,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
     email: '',
     contact: '',
     joinDate: new Date().toISOString().split('T')[0],
-    level: '初级',
+    level: CSLevel.JUNIOR,
     commissionRate: 10,
     commissionPercentage: 10,
     status: 'Offline',
@@ -33,7 +34,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 如果没有填写昵称，自动生成
+    // If nickname is not filled, auto-generate
     const nickname = formData.nickname?.trim() ?? generateNickname();
 
     const newCS: CustomerService = {
@@ -43,7 +44,7 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
       role: UserRole.CS,
       contact: formData.contact!,
       joinDate: formData.joinDate!,
-      level: formData.level ?? '初级',
+      level: formData.level ?? CSLevel.JUNIOR,
       nickname,
       photo: formData.photo,
       status: formData.status ?? 'Offline',
@@ -167,9 +168,9 @@ export const AddCSForm: React.FC<AddCSFormProps> = ({ onClose, onSuccess }) => {
               required
               className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
             >
-              <option value="初级">{t('csManagement.levelJunior')}</option>
-              <option value="中级">{t('csManagement.levelIntermediate')}</option>
-              <option value="高级">{t('csManagement.levelSenior')}</option>
+              <option value={CSLevel.JUNIOR}>{t('csManagement.levelJunior')}</option>
+              <option value={CSLevel.INTERMEDIATE}>{t('csManagement.levelIntermediate')}</option>
+              <option value={CSLevel.SENIOR}>{t('csManagement.levelSenior')}</option>
             </select>
           </div>
 

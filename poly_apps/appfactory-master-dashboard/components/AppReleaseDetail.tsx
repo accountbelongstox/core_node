@@ -10,8 +10,8 @@ import { encryptedImageService } from '../services/encryptedImageService';
 import { usePasswordChange } from '../hooks/usePasswordChange';
 
 /**
- * APP发布详情页面
- * 显示推广二维码、URL、第二个访问URL、APP封面等
+ * APP Release Detail Page
+ * Displays promotion QR code, URL, second access URL, APP cover, etc.
  */
 export const AppReleaseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -124,9 +124,9 @@ export const AppReleaseDetail: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 左侧：APP封面和基本信息 */}
+        {/* Left: APP Cover and Basic Information */}
         <div className="space-y-6">
-          {/* APP封面 - 优先显示splash，然后是coverImage，最后是icon */}
+          {/* APP Cover - Priority: splash, then coverImage, finally icon */}
           {splashUrl && showSplash ? (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
               <div className="relative h-64 bg-gradient-to-r from-indigo-500 to-purple-600">
@@ -178,7 +178,7 @@ export const AppReleaseDetail: React.FC = () => {
             </div>
           )}
           
-          {/* APP图标和名称 */}
+          {/* APP Icon and Name */}
           {iconUrl && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-4">
@@ -207,7 +207,7 @@ export const AppReleaseDetail: React.FC = () => {
             </div>
           )}
 
-          {/* APP描述 */}
+          {/* APP Description */}
           {appRelease.description && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.appDescription')}</h3>
@@ -215,7 +215,7 @@ export const AppReleaseDetail: React.FC = () => {
             </div>
           )}
 
-          {/* 下载链接 */}
+          {/* Download Link */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.downloadLink')}</h3>
             <div className="flex items-center gap-2">
@@ -240,9 +240,9 @@ export const AppReleaseDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* 右侧：推广二维码和URL信息 */}
+        {/* Right: Promotion QR Code and URL Information */}
         <div className="space-y-6">
-          {/* 推广二维码 */}
+          {/* Promotion QR Code */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4">
               <QrCode size={20} className="text-indigo-600 dark:text-indigo-400" />

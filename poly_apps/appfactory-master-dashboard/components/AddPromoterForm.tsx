@@ -11,7 +11,7 @@ interface AddPromoterFormProps {
 }
 
 /**
- * 添加推广人表单组件
+ * Add Promoter Form Component
  */
 export const AddPromoterForm: React.FC<AddPromoterFormProps> = ({ onClose, onSuccess }) => {
   const { user, t } = useApp();

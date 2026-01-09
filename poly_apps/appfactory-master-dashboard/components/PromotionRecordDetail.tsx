@@ -7,8 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { getAppNameById, getAppById } from '../utils/dataHelpers';
 
 /**
- * 推广记录详情组件
- * 显示推广记录的详细信息，包括轨迹列表、视频记录、定位记录等
+ * Promotion Record Detail Component
+ * Displays detailed information of promotion record, including track list, video records, location records, etc.
  */
 export const PromotionRecordDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -73,9 +73,9 @@ export const PromotionRecordDetail: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左侧：基本信息 */}
+        {/* Left: Basic Information */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 基本信息卡片 */}
+          {/* Basic Information Card */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('promotionRecord.basicInfo')}</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -126,7 +126,7 @@ export const PromotionRecordDetail: React.FC = () => {
             )}
           </div>
 
-          {/* 推广轨迹细节列表 */}
+          {/* Promotion Track Details List */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('promotionRecord.trackDetails')}</h3>
             <div className="space-y-3">
@@ -170,9 +170,9 @@ export const PromotionRecordDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* 右侧：视频记录和定位记录 */}
+        {/* Right: Video Records and Location Records */}
         <div className="space-y-6">
-          {/* 视频记录 */}
+          {/* Video Records */}
           {recordData.videoRecords && recordData.videoRecords.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -199,7 +199,7 @@ export const PromotionRecordDetail: React.FC = () => {
             </div>
           )}
 
-          {/* 定位记录 */}
+          {/* Location Records */}
           {recordData.locationRecords && recordData.locationRecords.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -222,7 +222,7 @@ export const PromotionRecordDetail: React.FC = () => {
             </div>
           )}
 
-          {/* 统计信息 */}
+          {/* Statistics */}
           <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
             <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3">{t('promotionRecord.statistics')}</h4>
             <div className="space-y-2 text-xs">
