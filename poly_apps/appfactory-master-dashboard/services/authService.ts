@@ -1,11 +1,12 @@
 /**
- * 认证服务 - 内置管理账号系统
+ * Authentication Service - Built-in Admin Account System
  * Uses multi-API system to get avatar URLs from laravel_main backend
  */
 import { UserRole } from '../types';
 import { UserInfo } from './storageService';
 import { apiManager } from './ApiManager';
 import { API_ENDPOINTS, buildApiUrl } from '../config/api-endpoints';
+import { i18nService } from './i18nService';
 
 /**
  * Get avatar URL using multi-API system
@@ -38,7 +39,7 @@ const getAvatarUrl = (seed: string, size: number = 150, provider: string = 'prav
   return `http://localhost:9000/api/public/avatar/${encodeURIComponent(seed)}?size=${size}&provider=${provider}`;
 };
 
-// 内置管理账号
+// Built-in admin accounts
 // Type for builtin account (without 'as const' to allow dynamic account creation)
 type BuiltinAccount = {
   id: string;
@@ -52,7 +53,7 @@ type BuiltinAccount = {
 export const BUILTIN_ACCOUNTS: Record<string, BuiltinAccount> = {
   admin: {
     id: 'admin-001',
-    name: '系统管理员',
+    name: 'System Administrator',
     email: 'admin@multichat.com',
     password: 'admin123',
     role: UserRole.ADMIN,
@@ -60,7 +61,7 @@ export const BUILTIN_ACCOUNTS: Record<string, BuiltinAccount> = {
   },
   cs1: {
     id: 'cs-001',
-    name: '客服代表1',
+    name: 'Customer Service Representative 1',
     email: 'cs1@multichat.com',
     password: 'cs123',
     role: UserRole.CS,
@@ -68,7 +69,7 @@ export const BUILTIN_ACCOUNTS: Record<string, BuiltinAccount> = {
   },
   cs2: {
     id: 'cs-002',
-    name: '客服代表2',
+    name: 'Customer Service Representative 2',
     email: 'cs2@multichat.com',
     password: 'cs123',
     role: UserRole.CS,
@@ -76,7 +77,7 @@ export const BUILTIN_ACCOUNTS: Record<string, BuiltinAccount> = {
   },
   tech1: {
     id: 'tech-001',
-    name: '技术工程师1',
+    name: 'Technical Engineer 1',
     email: 'tech1@multichat.com',
     password: 'tech123',
     role: UserRole.TECH,
@@ -84,19 +85,19 @@ export const BUILTIN_ACCOUNTS: Record<string, BuiltinAccount> = {
   },
   tech2: {
     id: 'tech-002',
-    name: '技术工程师2',
+    name: 'Technical Engineer 2',
     email: 'tech2@multichat.com',
     password: 'tech123',
     role: UserRole.TECH,
     avatar: getAvatarUrl('tech2', 150, 'pravatar'),
   },
-  // 通用账号：用户名123，密码123，可以登录所有角色
+  // Universal account: username 123, password 123, can login with all roles
   universal: {
     id: 'universal-001',
-    name: '通用用户',
+    name: 'Universal User',
     email: '123',
     password: '123',
-    role: UserRole.ADMIN, // 默认角色，但可以通过role参数切换
+    role: UserRole.ADMIN, // Default role, but can be switched via role parameter
     avatar: getAvatarUrl('universal', 150, 'pravatar'),
   },
 };
@@ -115,7 +116,7 @@ export interface LoginResult {
 }
 
 /**
- * 认证服务类
+ * Authentication Service Class
  */
 class AuthService {
   /**
@@ -140,11 +141,11 @@ class AuthService {
     // If it's a universal account (123/123 or 123 with built-in password), create corresponding user info based on selected role
     if (account === undefined && email === '123' && (actualPassword === '123' ? true : actualPassword === this.BUILTIN_PASSWORD)) {
       if (role) {
-        // 根据选择的角色创建对应的用户信息，使用与BUILTIN_ACCOUNTS相同的名称
+        // Create corresponding user info based on selected role, using same names as BUILTIN_ACCOUNTS
         const roleAccounts = {
           [UserRole.ADMIN]: {
             id: 'admin-universal',
-            name: '系统管理员', // 与BUILTIN_ACCOUNTS.admin.name一致
+            name: 'System Administrator', // Consistent with BUILTIN_ACCOUNTS.admin.name
             email: '123',
             password: '123',
             role: UserRole.ADMIN,
@@ -152,7 +153,7 @@ class AuthService {
           },
           [UserRole.CS]: {
             id: 'cs-universal',
-            name: '客服代表', // 与BUILTIN_ACCOUNTS.cs1.name风格一致
+            name: 'Customer Service Representative', // Consistent with BUILTIN_ACCOUNTS.cs1.name style
             email: '123',
             password: '123',
             role: UserRole.CS,
@@ -160,7 +161,7 @@ class AuthService {
           },
           [UserRole.TECH]: {
             id: 'tech-universal',
-            name: '技术工程师', // 与BUILTIN_ACCOUNTS.tech1.name风格一致
+            name: 'Technical Engineer', // Consistent with BUILTIN_ACCOUNTS.tech1.name style
             email: '123',
             password: '123',
             role: UserRole.TECH,
@@ -169,10 +170,10 @@ class AuthService {
         };
         account = roleAccounts[role];
       } else {
-        // 如果没有指定角色，默认使用管理员角色
+        // If no role specified, default to admin role
         account = {
           id: 'admin-universal',
-          name: '系统管理员', // 与BUILTIN_ACCOUNTS.admin.name一致
+          name: 'System Administrator', // Consistent with BUILTIN_ACCOUNTS.admin.name
           email: '123',
           password: '123',
           role: UserRole.ADMIN,
@@ -184,27 +185,27 @@ class AuthService {
     if (!account) {
       return {
         success: false,
-        error: '邮箱或密码错误',
+        error: i18nService.t('login.invalidCredentials'),
       };
     }
 
     // If role is specified, use the specified role (for universal accounts)
     if (role !== null && role !== undefined && email === '123' && (actualPassword === '123' ? true : actualPassword === this.BUILTIN_PASSWORD)) {
       const roleAccounts = {
-        [UserRole.ADMIN]: { ...account, id: 'admin-universal', name: '系统管理员', role: UserRole.ADMIN },
-        [UserRole.CS]: { ...account, id: 'cs-universal', name: '客服代表', role: UserRole.CS },
-        [UserRole.TECH]: { ...account, id: 'tech-universal', name: '技术工程师', role: UserRole.TECH },
+        [UserRole.ADMIN]: { ...account, id: 'admin-universal', name: 'System Administrator', role: UserRole.ADMIN },
+        [UserRole.CS]: { ...account, id: 'cs-universal', name: 'Customer Service Representative', role: UserRole.CS },
+        [UserRole.TECH]: { ...account, id: 'tech-universal', name: 'Technical Engineer', role: UserRole.TECH },
       };
       account = roleAccounts[role];
     } else if (role && account.role !== role) {
-      // 对于非通用账号，验证角色是否匹配
+      // For non-universal accounts, verify role matches
       return {
         success: false,
-        error: '该账号不属于所选角色',
+        error: i18nService.t('login.roleMismatch'),
       };
     }
 
-    // 生成 token（实际应用中应该由后端生成）
+    // Generate token (in real application, this should be generated by backend)
     const token = `token_${account.id}_${Date.now()}`;
 
     // Don't cache avatar URL - generate dynamically when needed
@@ -228,28 +229,28 @@ class AuthService {
   }
 
   /**
-   * 验证 token
+   * Verify token
    */
   async verifyToken(token: string): Promise<boolean> {
-    // 简单验证，实际应用中应该调用后端API
+    // Simple verification, in real application should call backend API
     return token.startsWith('token_');
   }
 
   /**
-   * 获取所有内置账号（用于显示）
+   * Get all built-in accounts (for display)
    */
   getBuiltinAccounts() {
     return Object.values(BUILTIN_ACCOUNTS);
   }
 
   /**
-   * 根据角色获取账号
+   * Get accounts by role
    */
   getAccountsByRole(role: UserRole) {
     return Object.values(BUILTIN_ACCOUNTS).filter((acc) => acc.role === role);
   }
 }
 
-// 导出单例
+// Export singleton
 export const authService = new AuthService();
 

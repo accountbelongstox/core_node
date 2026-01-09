@@ -140,6 +140,8 @@ export const zh: TranslationKeys = {
     account: '账号',
     accountPlaceholder: '请输入账号（如：123）',
     quickLoginHint: '快速登录提示',
+    invalidCredentials: '邮箱或密码错误',
+    roleMismatch: '该账号不属于所选角色',
   },
   appDetail: {
     notFound: '应用未找到',

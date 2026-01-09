@@ -1,0 +1,213 @@
+# 批量加密系统使用指南
+
+## 系统特性
+
+### 双模式共存
+- **个别加密** (already_encrypted/) - 原有系统，每个密钥一个 .js 文件
+- **批量加密** (already_batch_encrypted/) - 新系统，所有密钥在一个 .js 文件中
+
+### 性能对比
+- 个别模式：48 个文件 → 48 次 Node.js 进程启动 (~2-3秒)
+- 批量模式：48 个文件 → 1 次 Node.js 进程启动 (~0.1秒)
+- **速度提升：20-30倍**
+
+## 完整逻辑流程
+
+### 解密触发条件 (dd.sh 启动时)
+
+1. **检查是否需要解密**
+   - 遍历 already_encrypted/ 中的所有 .js 文件
+   - 对每个加密文件，检查 .secret_ignore/ 中是否存在对应的解密文件
+   - 如果批量包存在，比较批量包中的文件数量和 .secret_ignore/ 中的文件数量
+   
+2. **只在缺少文件时触发解密**
+   - 只要 .secret_ignore/ 中文件存在，就不会重新解密
+   - 不对比时间戳
+   - 即使 encrypted 文件更新了，也不会自动重新解密
+
+3. **模式选择**
+   - 如果两种模式都存在且都有缺失文件 → 提示用户选择
+   - 如果只有批量包且有缺失 → 自动使用批量模式
+   - 如果只有个别文件且有缺失 → 自动使用个别模式
+
+## 批量加密操作
+
+### 1. 创建新的批量加密包
+```bash
+cd /www/programing/core_node/scripts/encryption_tools
+
+# 从原始文件创建批量包
+node bundle_encrypt.js 密码 输出文件.js 文件1 文件2 文件3...
+
+# 示例
+node bundle_encrypt.js mypassword \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/key1.txt \
+    /path/to/key2.txt
+```
+
+### 2. 添加新密钥到批量包
+```bash
+# 添加新文件
+node bundle_add_file.js 批量包.js 新文件 密码
+
+# 示例
+node bundle_add_file.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/new_key.txt \
+    mypassword
+```
+
+### 3. 替换现有密钥
+```bash
+# 使用 --replace 标志替换
+node bundle_add_file.js 批量包.js 更新文件 密码 --replace
+
+# 示例
+node bundle_add_file.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/updated_key.txt \
+    mypassword \
+    --replace
+```
+
+### 4. 删除密钥
+```bash
+# 按文件名删除
+node bundle_remove_file.js 批量包.js 文件名
+
+# 示例
+node bundle_remove_file.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    API_KEY_1
+```
+
+### 5. 查看批量包内容
+```bash
+# 列出所有文件
+node bundle_list_files.js 批量包.js
+
+# 示例
+node bundle_list_files.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js
+```
+
+### 6. 手动解密批量包
+```bash
+# 解密所有文件
+node 批量包.js pwd 密码 输出目录
+
+# 示例
+node ../../.secret_keys/already_batch_encrypted/secrets.js \
+    pwd mypassword \
+    ../../.secret_keys/.secret_ignore
+```
+
+## 目录结构
+
+```
+.secret_keys/
+├── already_encrypted/         # 个别加密文件 (原有系统)
+│   ├── API_KEY_1.js
+│   ├── API_KEY_2.js
+│   └── ...
+├── already_batch_encrypted/   # 批量加密文件 (新系统)
+│   └── secrets.js             # 包含所有密钥的批量包
+└── .secret_ignore/            # 解密后的原始文件 (gitignored)
+    ├── API_KEY_1
+    ├── API_KEY_2
+    └── ...
+```
+
+## 工作流程示例
+
+### 场景1：首次创建批量包
+```bash
+cd /www/programing/core_node/scripts/encryption_tools
+
+# 1. 创建批量包（从原始文件）
+node bundle_encrypt.js mypass123 \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/key1.txt \
+    /path/to/key2.txt
+
+# 2. 查看内容
+node bundle_list_files.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js
+
+# 3. 下次运行 dd.sh 时会自动检测并使用批量模式
+```
+
+### 场景2：添加新密钥
+```bash
+cd /www/programing/core_node/scripts/encryption_tools
+
+# 1. 添加新密钥到批量包
+node bundle_add_file.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/new_key.txt \
+    mypass123
+
+# 2. 删除 .secret_ignore/ 中的旧文件以触发重新解密
+rm -f ../../.secret_keys/.secret_ignore/*
+
+# 3. 运行 dd.sh 会自动解密包括新密钥在内的所有文件
+bash ../../shells/linux/dd.sh
+```
+
+### 场景3：更新现有密钥
+```bash
+cd /www/programing/core_node/scripts/encryption_tools
+
+# 1. 替换密钥
+node bundle_add_file.js \
+    ../../.secret_keys/already_batch_encrypted/secrets.js \
+    /path/to/updated_key.txt \
+    mypass123 \
+    --replace
+
+# 2. 删除对应的解密文件
+rm -f ../../.secret_keys/.secret_ignore/updated_key
+
+# 3. 运行 dd.sh 会重新解密该文件
+bash ../../shells/linux/dd.sh
+```
+
+## 安全特性
+
+- AES-256-GCM 加密
+- PBKDF2 密钥派生 (1,000,000 次迭代)
+- HMAC-SHA512 完整性验证
+- 每个文件独立的 salt, IV, pepper
+- 错误密码时返回虚假数据（反取证）
+
+## 常见问题
+
+### Q: 如何强制重新解密所有文件？
+```bash
+# 删除 .secret_ignore 目录
+rm -rf /www/programing/core_node/.secret_keys/.secret_ignore/*
+
+# 运行 dd.sh 会提示解密
+bash /www/programing/core_node/scripts/shells/linux/dd.sh
+```
+
+### Q: 批量包损坏了怎么办？
+保持个别加密文件作为备份，可以随时切换回个别模式。
+
+### Q: 可以同时使用两种模式吗？
+可以。系统会在需要解密时提示选择使用哪种模式。
+
+## 文件清单
+
+```
+encryption_tools/
+├── bundle_encrypt.js         # 创建批量加密包
+├── bundle_add_file.js        # 添加/替换文件
+├── bundle_remove_file.js     # 删除文件
+├── bundle_list_files.js      # 列出文件
+├── migrate_to_bundle.js      # [不需要] 迁移工具
+├── bundle.template.js        # 批量包模板
+├── README.txt                # 技术文档
+└── USAGE_GUIDE.txt           # 本使用指南
+```

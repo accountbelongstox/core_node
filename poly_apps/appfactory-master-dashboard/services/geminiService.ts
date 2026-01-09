@@ -9,11 +9,11 @@ interface MarketingCopy {
 }
 
 /**
- * 生成应用营销文案
+ * Generate application marketing copy
  * 
- * catch 代码必要性：必须保留
- * 原因：外部 API 调用可能失败（网络错误、API 限制、服务不可用等）
- * 需要捕获错误并返回 null，避免应用崩溃
+ * Error handling is necessary and must be kept
+ * Reason: External API calls may fail (network errors, API limits, service unavailable, etc.)
+ * Need to catch errors and return null to prevent application crash
  */
 export const generateAppMarketingCopy = async (appName: string, description: string): Promise<MarketingCopy | null> => {
   try {

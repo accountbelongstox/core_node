@@ -43,13 +43,13 @@ interface DecryptedImage {
 }
 
 /**
- * 加密图片服务 - TypeScript 适配器
+ * Encrypted Image Service - TypeScript Adapter
  *
- * 功能：
- * - 提供 TypeScript 类型安全的接口
- * - 适配现有组件的 API 调用
- * - 自动兼容旧格式路径 (.en.png → .en.js)
- * - 所有实际功能由 EncryptedAppAssetsManager 实现
+ * Features:
+ * - Provides TypeScript type-safe interface
+ * - Adapts existing component API calls
+ * - Automatically compatible with old format paths (.en.png → .en.js)
+ * - All actual functionality implemented by EncryptedAppAssetsManager
  */
 class EncryptedImageService {
   private assetsManager: EncryptedAppAssetsManager;

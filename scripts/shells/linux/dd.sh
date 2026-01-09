@@ -58,6 +58,8 @@ export CORE_NODE_ROOT_DIR="$PROJECT_ROOT"
 
 # Source and run secret key check
 source "$SECRET_FUNCTIONS"
+
+# Check and handle secrets (decrypt missing files, re-encrypt updated files)
 ensure_secret_keys_ready
 
 echo ""
