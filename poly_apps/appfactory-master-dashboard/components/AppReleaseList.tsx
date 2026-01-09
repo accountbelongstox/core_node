@@ -9,8 +9,8 @@ import { encryptedImageService } from '../services/encryptedImageService';
 import { usePasswordChange } from '../hooks/usePasswordChange';
 
 /**
- * APP发布列表页面
- * 在技术端和管理端显示所有发布的APP
+ * APP Release List Page
+ * Displays all released APPs in both Technical and Admin dashboards
  */
 export const AppReleaseList: React.FC = () => {
   const { t } = useApp();
@@ -41,7 +41,7 @@ export const AppReleaseList: React.FC = () => {
         </div>
       </div>
 
-      {/* 搜索和筛选 */}
+      {/* Search and Filter */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -70,7 +70,7 @@ export const AppReleaseList: React.FC = () => {
         </div>
       </div>
 
-      {/* APP列表 */}
+      {/* APP List */}
       {filteredReleases.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
           <p className="text-slate-500 dark:text-slate-400">{t('appReleaseList.noReleases')}</p>

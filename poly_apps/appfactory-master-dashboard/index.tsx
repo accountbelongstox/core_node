@@ -15,7 +15,7 @@ import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
 
-// 初始化API管理器
+// Initialize API Manager
 // Note: Health check is now handled by ApiHealthCheckProvider using React Hook useInterval
 // No need to manually call startHealthCheck() - React Context handles it automatically
 apiManager.initialize({

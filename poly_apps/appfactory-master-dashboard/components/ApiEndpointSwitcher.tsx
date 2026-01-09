@@ -5,8 +5,8 @@ import { API_ENDPOINTS, ApiEndpoint } from '../config/api-endpoints';
 import { useApp } from '../contexts/AppContext';
 
 /**
- * API端点切换器组件
- * 显示当前端点状态，提供手动切换功能
+ * API Endpoint Switcher Component
+ * Displays current endpoint status and provides manual switching functionality
  */
 export const ApiEndpointSwitcher: React.FC = () => {
   const { t } = useApp();
@@ -16,11 +16,11 @@ export const ApiEndpointSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // 获取当前端点
+    // Get current endpoint
     const endpoint = apiManager.getCurrentEndpoint();
     setCurrentEndpoint(endpoint);
 
-    // 获取所有端点状态
+    // Get all endpoint statuses
     const statuses = apiManager.getAllEndpointStatuses();
     const statusMap = new Map();
     statuses.forEach(status => {
@@ -47,7 +47,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
     const endpoint = apiManager.getCurrentEndpoint();
     setCurrentEndpoint(endpoint);
     
-    // 重新检查所有端点状态
+    // Re-check all endpoint statuses
     for (const ep of API_ENDPOINTS) {
       await apiManager.checkEndpoint(ep);
     }

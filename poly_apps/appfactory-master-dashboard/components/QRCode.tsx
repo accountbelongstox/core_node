@@ -7,8 +7,8 @@ interface QRCodeProps {
 }
 
 /**
- * QR码组件
- * 使用在线API生成QR码（如果npm安装失败）
+ * QR Code Component
+ * Uses online API to generate QR code (if npm installation fails)
  */
 export const QRCode: React.FC<QRCodeProps> = ({ value, size = 200, level = 'M' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -16,7 +16,7 @@ export const QRCode: React.FC<QRCodeProps> = ({ value, size = 200, level = 'M' }
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // 使用在线QR码API生成
+    // Use online QR code API to generate
     const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&ecc=${level}`;
     
     const img = new Image();
@@ -33,7 +33,7 @@ export const QRCode: React.FC<QRCodeProps> = ({ value, size = 200, level = 'M' }
       ctx.drawImage(img, 0, 0, size, size);
     };
     img.onerror = () => {
-      // 如果API失败，绘制一个占位符
+      // If API fails, draw a placeholder
       const canvas = canvasRef.current;
       if (!canvas) return;
       

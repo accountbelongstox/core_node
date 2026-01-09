@@ -11,7 +11,7 @@ interface CSListProps {
 }
 
 /**
- * 客服人员列表组件（管理端）
+ * Customer Service List Component (Admin Side)
  */
 export const CSList: React.FC<CSListProps> = ({ onAddCS }) => {
   const { t } = useApp();

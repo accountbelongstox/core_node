@@ -1,6 +1,7 @@
 /**
- * 生成小字开头的昵称
- * 如：小雨、小云、小月、小星、小阳、小风、小晴、小露、小霜、小雪等
+ * Generate nickname starting with "小" (xiao)
+ * Examples: 小雨 (Little Rain), 小云 (Little Cloud), 小月 (Little Moon), etc.
+ * Note: This generator creates Chinese-style nicknames, data is intentionally in Chinese
  */
 const NICKNAME_SUFFIXES = [
   '雨', '云', '月', '星', '阳', '风', '晴', '露', '霜', '雪',
@@ -11,7 +12,7 @@ const NICKNAME_SUFFIXES = [
 ];
 
 /**
- * 生成随机的小字开头昵称
+ * Generate random nickname starting with "小"
  */
 export const generateNickname = (): string => {
   const suffix = NICKNAME_SUFFIXES[Math.floor(Math.random() * NICKNAME_SUFFIXES.length)];

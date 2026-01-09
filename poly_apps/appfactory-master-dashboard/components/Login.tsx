@@ -16,7 +16,7 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 根据选择的角色，自动填充示例账号
+  // Auto-fill example account based on selected role
   const getExampleAccount = () => {
     const accounts = Object.values(BUILTIN_ACCOUNTS).filter(acc => acc.role === activeRole);
     return accounts[0];
@@ -255,7 +255,7 @@ export const Login: React.FC = () => {
               {loading ? t('common.loading') : t('login.signIn')}
             </button>
 
-            {/* 快速登录提示 */}
+            {/* Quick Login Hint */}
             <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
               <p className="font-medium">{t('login.quickLogin')}:</p>
               <div className="flex flex-wrap gap-2">

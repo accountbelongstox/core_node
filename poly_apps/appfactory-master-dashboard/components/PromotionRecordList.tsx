@@ -7,8 +7,8 @@ import { useApp } from '../contexts/AppContext';
 import { getAppNameById } from '../utils/dataHelpers';
 
 /**
- * 推广记录列表组件
- * 显示所有推广记录，点击查看详情
+ * Promotion Record List Component
+ * Displays all promotion records, click to view details
  */
 export const PromotionRecordList: React.FC = () => {
   const { t } = useApp();
@@ -40,7 +40,7 @@ export const PromotionRecordList: React.FC = () => {
         </div>
       </div>
 
-      {/* 搜索和筛选 */}
+      {/* Search and Filter */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -68,7 +68,7 @@ export const PromotionRecordList: React.FC = () => {
         </div>
       </div>
 
-      {/* 推广记录列表 */}
+      {/* Promotion Records List */}
       {filteredRecords.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-12 text-center">
           <p className="text-slate-500 dark:text-slate-400">{t('promotionRecord.noRecords')}</p>

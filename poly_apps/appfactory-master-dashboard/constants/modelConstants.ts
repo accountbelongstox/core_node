@@ -4,10 +4,11 @@
  */
 
 // CS Level Definitions
+// Note: Enum values are internal keys, use getCSLevelLabel() for display
 export enum CSLevel {
-  JUNIOR = '初级',
-  INTERMEDIATE = '中级',
-  SENIOR = '高级',
+  JUNIOR = 'junior',
+  INTERMEDIATE = 'intermediate',
+  SENIOR = 'senior',
 }
 
 // Commission Rate by CS Level (percentage)
@@ -25,6 +26,19 @@ export const DEFAULT_COMMISSION_RATE = 10;
  */
 export const getCommissionRateByLevel = (level: string): number => {
   return COMMISSION_RATE_BY_LEVEL[level as CSLevel] || DEFAULT_COMMISSION_RATE;
+};
+
+/**
+ * Get i18n translation key for CS level
+ * Use with i18nService.t() to get translated label
+ */
+export const getCSLevelTranslationKey = (level: CSLevel | string): string => {
+  const levelMap: Record<string, string> = {
+    [CSLevel.JUNIOR]: 'cs.levelJunior',
+    [CSLevel.INTERMEDIATE]: 'cs.levelIntermediate',
+    [CSLevel.SENIOR]: 'cs.levelSenior',
+  };
+  return levelMap[level] || 'cs.levelJunior';
 };
 
 // Promoter Unit Price (can be configured per promoter, but default is constant)

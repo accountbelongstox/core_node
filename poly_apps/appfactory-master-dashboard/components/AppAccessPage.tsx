@@ -10,13 +10,13 @@ import { useOrigin } from '../contexts/OriginContext';
 import { useClipboard } from '../hooks/useClipboard';
 
 /**
- * APP访问页面
- * 通过加密字符串访问：/#/${encryptedString}
+ * APP Access Page
+ * Access via encrypted string: /#/${encryptedString}
  */
 export const AppAccessPage: React.FC = () => {
   const { t } = useApp();
   const location = useLocation();
-  // 从路径中提取加密字符串（去掉开头的 /）
+  // Extract encrypted string from path (remove leading /)
   const encryptedString = location.pathname.startsWith('/') 
     ? location.pathname.substring(1) 
     : location.pathname;
@@ -25,13 +25,13 @@ export const AppAccessPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 过滤掉 undefined 字符串
+    // Filter out undefined strings
     if (!encryptedString || encryptedString === '' || encryptedString === 'undefined') {
       setLoading(false);
       return;
     }
 
-    // 从modelService中查找对应的APP发布记录
+    // Find corresponding APP release record from modelService
     const releases = modelService.getAppReleases() || [];
     const release = releases.find(r => r.encryptedString === encryptedString);
 
@@ -83,7 +83,7 @@ export const AppAccessPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
-          {/* APP封面和基本信息 */}
+          {/* APP Cover and Basic Information */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl overflow-hidden mb-8">
             {appRelease.coverImage && (
               <div className="h-64 bg-gradient-to-r from-indigo-500 to-purple-600 relative overflow-hidden">
@@ -133,7 +133,7 @@ export const AppAccessPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 推广二维码 */}
+          {/* Promotion QR Code */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8">
             <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 text-center">
               {t('appAccess.promotionQRCode')}

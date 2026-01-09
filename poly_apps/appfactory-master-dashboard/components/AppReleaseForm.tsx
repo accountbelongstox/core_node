@@ -42,7 +42,7 @@ export const AppReleaseForm: React.FC = () => {
 
     setIsSubmitting(true);
     
-    // 模拟API调用延迟
+    // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (!selectedApp) {
@@ -50,11 +50,11 @@ export const AppReleaseForm: React.FC = () => {
       return;
     }
 
-    // 生成加密字符串
+    // Generate encrypted string
     const encryptedString = generateEncryptedString(selectedApp.id);
     setGeneratedEncryptedString(encryptedString);
 
-    // 创建发布记录
+    // Create release record
     const release = {
       id: generateId('release'),
       appId: selectedApp.id,
@@ -77,20 +77,20 @@ export const AppReleaseForm: React.FC = () => {
       description: description ? description : undefined,
     };
 
-    // 保存到modelService
+    // Save to modelService
     modelService.addAppRelease(release);
 
     setIsSubmitting(false);
     setShowSuccess(true);
     
-    // 清空表单
+    // Clear form
     setSelectedAppId('');
     setDownloadUrl('');
     setSecondaryUrl('');
     setCoverImage('');
     setDescription('');
 
-    // 5秒后隐藏成功提示
+    // Hide success message after 5 seconds
     setTimeout(() => {
       setShowSuccess(false);
       setGeneratedEncryptedString('');
@@ -272,7 +272,7 @@ export const AppReleaseForm: React.FC = () => {
         </div>
       </div>
 
-      {/* 最近发布的APP */}
+      {/* Recently Released APPs */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('appRelease.recentReleases')}</h3>
         <div className="space-y-3">
