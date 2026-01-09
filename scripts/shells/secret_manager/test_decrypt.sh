@@ -16,7 +16,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-ENCRYPTED_FILE="$CORE_NODE_DIR/.secret_keys/already_encrypted/DNS_DNSPOD_EMAILS.JS"
+ENCRYPTED_FILE="$CORE_NODE_DIR/.secret_keys/already_encrypted/dns_dnspod_emails.js"
 TEST_PASSWORD="${1:-}"
 
 echo "==================================="
@@ -82,7 +82,7 @@ echo "$OUTPUT"
 echo ""
 
 # Check output file
-EXPECTED_FILE="$TEMP_DIR/DNS_DNSPOD_EMAILS"
+EXPECTED_FILE="$TEMP_DIR/dns_dnspod_emails"
 if [ -f "$EXPECTED_FILE" ]; then
     echo "[OK] Decrypted file created: $EXPECTED_FILE"
     echo "File size: $(stat -c%s "$EXPECTED_FILE" 2>/dev/null || stat -f%z "$EXPECTED_FILE" 2>/dev/null) bytes"
