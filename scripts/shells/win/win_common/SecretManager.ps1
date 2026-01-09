@@ -255,6 +255,26 @@ function Invoke-SecretDecryptAll {
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host $result
+
+            # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
+            if (Get-Command Set-DecryptionTimestampCache -ErrorAction SilentlyContinue) {
+                if (Test-Path $OutputDir) {
+                    $decryptedFiles = Get-ChildItem -Path $OutputDir -File -ErrorAction SilentlyContinue
+                    foreach ($decryptedFile in $decryptedFiles) {
+                        $baseName = $decryptedFile.Name
+                        Set-DecryptionTimestampCache -FileName $baseName
+                    }
+                }
+
+                # Cache encrypted file hashes
+                foreach ($encryptedFile in $encryptedFiles) {
+                    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
+                    if (Get-Command Set-EncryptedContentHashCache -ErrorAction SilentlyContinue) {
+                        Set-EncryptedContentHashCache -FileName $baseName -EncryptedFile $encryptedFile.FullName
+                    }
+                }
+            }
+
             $Password = $null
             return $true
         } else {
@@ -904,6 +924,69 @@ function Clear-AndRedecryptSecrets {
     Read-Host "Press Enter to continue"
 
     return $result
+}
+
+<#
+.SYNOPSIS
+    Check which files need re-encryption using enhanced cache logic
+
+.PARAMETER RawDir
+    Directory containing decrypted files
+
+.PARAMETER EncryptedDir
+    Directory containing encrypted files
+
+.RETURNS
+    Array of file names that need re-encryption
+
+.EXAMPLE
+    $filesToReEncrypt = Get-FilesNeedingReEncryption -RawDir "C:\raw" -EncryptedDir "C:\encrypted"
+#>
+function Get-FilesNeedingReEncryption {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RawDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$EncryptedDir
+    )
+
+    $filesNeedReEncrypt = @()
+
+    if (-not (Test-Path $RawDir) -or -not (Test-Path $EncryptedDir)) {
+        return $filesNeedReEncrypt
+    }
+
+    $rawFiles = Get-ChildItem -Path $RawDir -File -ErrorAction SilentlyContinue
+
+    foreach ($rawFile in $rawFiles) {
+        $baseName = $rawFile.Name
+        $encFile = Join-Path $EncryptedDir "$baseName.js"
+
+        if (-not (Test-Path $encFile)) {
+            # No encrypted file exists - need to encrypt
+            $filesNeedReEncrypt += $baseName
+        } else {
+            # Check if raw file was modified after decryption using cache
+            if (Get-Command Test-RawFileModifiedAfterDecryption -ErrorAction SilentlyContinue) {
+                if (Test-RawFileModifiedAfterDecryption -FileName $baseName -RawFile $rawFile.FullName) {
+                    # Raw file was modified after decryption - need re-encryption
+                    $filesNeedReEncrypt += $baseName
+                    Write-Host "[CACHE CHECK] $baseName modified after decryption - needs re-encryption" -ForegroundColor Yellow
+                } else {
+                    # Raw file was not modified after decryption - skip re-encryption
+                    Write-Host "[CACHE SKIP] $baseName unchanged since decryption - skipping re-encryption" -ForegroundColor Green
+                }
+            } else {
+                # Fallback to file timestamp comparison if cache functions not available
+                if ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
+                    $filesNeedReEncrypt += $baseName
+                }
+            }
+        }
+    }
+
+    return $filesNeedReEncrypt
 }
 
 Write-Host "[SECRET_MANAGER] Library loaded successfully" -ForegroundColor Green
