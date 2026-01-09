@@ -151,8 +151,10 @@ ensure_secret_keys_ready() {
     fi
 
     if [ ${#pending_files[@]} -eq 0 ] && [ "$bundle_needs_decrypt" = false ]; then
-        return 0
-    fi
+        # No files need decryption, skip to encryption check
+        true
+    else
+        # Files need decryption, proceed with decryption phase
 
     if [ "$has_batch_bundle" = true ] && [ ${#pending_files[@]} -gt 0 ]; then
         echo ""
@@ -331,6 +333,7 @@ ensure_secret_keys_ready() {
 
     echo ""
     read -p "Press Enter to continue..."
+    fi  # End of decryption phase
 
     # =========================================================================
     # Step 2: Check for files that need re-encryption (timestamp comparison)
