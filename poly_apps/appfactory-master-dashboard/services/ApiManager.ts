@@ -40,6 +40,8 @@ class ApiManager {
 
   /**
    * Initialize API Manager
+   * Priority: User selected > Auto-detected > Auto-detect all endpoints
+   * If any endpoint is unavailable, immediately skip to next
    */
   async initialize(options: ApiManagerOptions = {}): Promise<void> {
     const {
@@ -49,6 +51,7 @@ class ApiManager {
     } = options;
 
     // 1. Check user manually selected endpoint (highest priority)
+    // If unavailable, skip immediately to auto-detection
     const userSelectedId = storageService.get<string>(STORAGE_KEYS.API_USER_SELECTED);
     if (userSelectedId) {
       const endpoint = getEndpointById(userSelectedId);
@@ -59,26 +62,15 @@ class ApiManager {
           this.useMockMode = false;
           this.isInitialized = true;
           return;
+        } else {
+          // User-selected endpoint unavailable, skip to auto-detection
+          console.log(`[ApiManager] User-selected endpoint unavailable, skipping to auto-detection`);
         }
       }
     }
 
-    // 2. Check auto-detected result
-    const autoDetectedId = storageService.get<string>(STORAGE_KEYS.API_AUTO_DETECTED);
-    if (autoDetectedId && autoDetectedId !== userSelectedId) {
-      const endpoint = getEndpointById(autoDetectedId);
-      if (endpoint) {
-        const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
-        if (isAvailable) {
-          this.currentEndpoint = endpoint;
-          this.useMockMode = false;
-          this.isInitialized = true;
-          return;
-        }
-      }
-    }
-
-    // 3. Execute auto-detection
+    // 2. Execute auto-detection (tests all endpoints in priority order)
+    // This will find the first available endpoint, skipping unavailable ones
     if (autoDetect) {
       const detectedEndpoint = await this.autoDetectEndpoint(timeout, testPath);
       if (detectedEndpoint) {
@@ -90,7 +82,7 @@ class ApiManager {
       }
     }
 
-    // 4. If all endpoints are unavailable, enable mock mode
+    // 3. If all endpoints are unavailable, enable mock mode
     this.useMockMode = true;
     this.currentEndpoint = null;
     this.isInitialized = true;
@@ -99,6 +91,9 @@ class ApiManager {
 
   /**
    * Check endpoint connectivity
+   * Tests endpoint availability through actual network request
+   * Returns true if endpoint is available, false otherwise
+   * All endpoints are tested regardless of environment - test results determine availability
    */
   async checkEndpoint(
     endpoint: ApiEndpoint,
@@ -112,19 +107,22 @@ class ApiManager {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      const response = await fetch(url, {
+      // Use 'cors' mode to properly detect availability
+      // This will catch CORS errors (e.g., accessing private IP from public IP) and mark endpoint as unavailable
+      const fetchOptions: RequestInit = {
         method: 'GET',
         signal: controller.signal,
-        mode: 'no-cors',
         cache: 'no-cache',
-      });
+        mode: 'cors', // Always use cors to detect CORS errors and availability
+      };
+
+      const response = await fetch(url, fetchOptions);
 
       clearTimeout(timeoutId);
       const responseTime = Date.now() - startTime;
 
-      // With no-cors mode, we can't read response.status
-      // If fetch succeeds without throwing, consider it available
-      const isAvailable = true;
+      // Check if response is ok (status 200-299)
+      const isAvailable = response.ok;
 
       // Update status
       this.endpointStatuses.set(endpoint.id, {
@@ -136,9 +134,10 @@ class ApiManager {
 
       return isAvailable;
     } catch (error) {
-      // catch 代码必要性：必须保留
-      // 原因：健康检查请求可能失败（网络错误、超时、服务器不可达等）
-      // 需要捕获错误并标记端点不可用，避免应用崩溃
+      // Error handling is necessary and must be kept
+      // Reason: Health check requests may fail (network errors, timeouts, CORS errors, server unreachable, etc.)
+      // Need to catch errors and mark endpoint as unavailable to prevent application crash
+      // If it's a CORS error (e.g., accessing private IP from public IP), it will also be caught and marked as unavailable
       const responseTime = Date.now() - startTime;
       this.endpointStatuses.set(endpoint.id, {
         endpoint,
@@ -152,8 +151,12 @@ class ApiManager {
 
   /**
    * Auto-detect best available endpoint
-   * Detection priority: 127.0.0.1 (localhost) → LAN server → Remote server
-   * Stops at first available endpoint
+   * Tests endpoints in priority order (1 = highest priority)
+   * Immediately skips unavailable endpoints and continues to next
+   * Returns first available endpoint, or null if all unavailable
+   * 
+   * Priority only determines test order - all endpoints are tested through actual network requests
+   * If an endpoint fails (network error, CORS error, timeout, etc.), it's marked unavailable and we continue to next
    */
   async autoDetectEndpoint(
     timeout: number = 2000,
@@ -162,23 +165,31 @@ class ApiManager {
     // Ensure endpoints are sorted by priority (1 = highest, 3 = lowest)
     const sortedEndpoints = [...API_ENDPOINTS].sort((a, b) => a.priority - b.priority);
     
-    console.log('[ApiManager] Starting endpoint detection in priority order:');
+    console.log(`[ApiManager] Starting endpoint detection in priority order:`);
     sortedEndpoints.forEach(ep => {
       console.log(`  Priority ${ep.priority}: ${ep.description} (${buildApiUrl(ep)})`);
     });
 
-    // Test in priority order: 127.0.0.1 → LAN → Remote
+    // Test endpoints in priority order, immediately skip unavailable ones
+    // Priority only determines test order, not retry behavior
+    // All endpoints are tested through actual network requests
     for (const endpoint of sortedEndpoints) {
       console.log(`[ApiManager] Testing endpoint: ${endpoint.description} (${buildApiUrl(endpoint)})`);
       const isAvailable = await this.checkEndpoint(endpoint, timeout, testPath);
+      
       if (isAvailable) {
+        // Found first available endpoint, return immediately
         console.log(`[ApiManager] ✓ Endpoint available: ${endpoint.description} (${buildApiUrl(endpoint)})`);
         return endpoint;
       } else {
-        console.log(`[ApiManager] ✗ Endpoint unavailable: ${endpoint.description} (${buildApiUrl(endpoint)})`);
+        // Endpoint unavailable (network error, CORS error, timeout, etc.), immediately skip to next (no retry)
+        console.log(`[ApiManager] ✗ Endpoint unavailable, skipping to next: ${endpoint.description} (${buildApiUrl(endpoint)})`);
+        // Continue to next endpoint in priority order
       }
     }
     
+    // All endpoints tested and unavailable
+    console.log(`[ApiManager] ✗ All endpoints unavailable after testing in priority order`);
     console.log(i18nService.t('apiEndpoint.noAvailable'));
     return null;
   }
@@ -270,8 +281,9 @@ class ApiManager {
 
   /**
    * Background periodic health check for endpoints
-   * Automatically switches to higher priority endpoint when available
-   * Priority order: 127.0.0.1 → LAN → Remote
+   * Tests endpoints in priority order, immediately skips unavailable ones
+   * Automatically switches to highest priority available endpoint
+   * Priority only determines test order, not retry behavior
    */
   startHealthCheck(interval: number = 60000): void {
     setInterval(async () => {
@@ -281,30 +293,35 @@ class ApiManager {
         // Still check if user-selected endpoint is available
         const userEndpoint = getEndpointById(userSelectedId);
         if (userEndpoint) {
-          const isAvailable = await this.checkEndpoint(userEndpoint);
+          const isAvailable = await this.checkEndpoint(userEndpoint, 2000, '/');
           if (!isAvailable) {
             console.warn(`[ApiManager] User-selected endpoint unavailable: ${userEndpoint.description}`);
+            // Don't auto-switch if user manually selected, but log warning
           }
         }
         return; // Don't auto-switch if user manually selected
       }
 
-      // Check all endpoints in priority order to find best available
+      // Test all endpoints in priority order to find best available
+      // Immediately skip unavailable endpoints, no retry
       const sortedEndpoints = [...API_ENDPOINTS].sort((a, b) => a.priority - b.priority);
       let bestAvailableEndpoint: ApiEndpoint | null = null;
 
-      // Test endpoints in priority order: 127.0.0.1 → LAN → Remote
+      // Test endpoints in priority order, skip unavailable ones immediately
       for (const endpoint of sortedEndpoints) {
         const isAvailable = await this.checkEndpoint(endpoint, 2000, '/');
         if (isAvailable) {
+          // Found first available endpoint (highest priority)
           bestAvailableEndpoint = endpoint;
-          break; // Found highest priority available endpoint
+          break; // Stop testing, use this endpoint
         }
+        // If unavailable, continue to next endpoint (no retry)
       }
 
       if (!bestAvailableEndpoint) {
-        // No endpoints available, enable mock mode
+        // All endpoints tested and unavailable, enable mock mode
         if (!this.useMockMode) {
+          console.log(`[ApiManager] All endpoints unavailable, enabling mock mode`);
           console.log(i18nService.t('apiEndpoint.noAvailable'));
           this.useMockMode = true;
           this.currentEndpoint = null;
@@ -312,25 +329,29 @@ class ApiManager {
         return;
       }
 
-      // Check if we should switch to higher priority endpoint
-      const currentPriority = this.currentEndpoint?.priority ?? 999;
-      const bestPriority = bestAvailableEndpoint.priority;
+      // Check if we should switch to the best available endpoint
+      const currentEndpointId = this.currentEndpoint?.id;
+      const bestEndpointId = bestAvailableEndpoint.id;
 
-      if (bestPriority < currentPriority) {
-        // Found higher priority endpoint, switch to it
-        console.log(
-          `[ApiManager] Switching to higher priority endpoint: ` +
-          `${bestAvailableEndpoint.description} (Priority ${bestPriority}) ` +
-          `replacing ${this.currentEndpoint?.description} (Priority ${currentPriority})`
-        );
-        this.currentEndpoint = bestAvailableEndpoint;
-        this.useMockMode = false;
-        storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, bestAvailableEndpoint.id);
-      } else if (this.currentEndpoint?.id !== bestAvailableEndpoint.id) {
-        // Current endpoint unavailable but we found a replacement
-        console.log(
-          `[ApiManager] Current endpoint unavailable, switching to: ${bestAvailableEndpoint.description}`
-        );
+      if (currentEndpointId !== bestEndpointId) {
+        // Switch to best available endpoint
+        const currentPriority = this.currentEndpoint?.priority ?? 999;
+        const bestPriority = bestAvailableEndpoint.priority;
+
+        if (bestPriority < currentPriority) {
+          // Found higher priority endpoint
+          console.log(
+            `[ApiManager] Switching to higher priority endpoint: ` +
+            `${bestAvailableEndpoint.description} (Priority ${bestPriority}) ` +
+            `replacing ${this.currentEndpoint?.description} (Priority ${currentPriority})`
+          );
+        } else {
+          // Current endpoint unavailable, switching to available replacement
+          console.log(
+            `[ApiManager] Current endpoint unavailable, switching to: ${bestAvailableEndpoint.description} (Priority ${bestPriority})`
+          );
+        }
+
         this.currentEndpoint = bestAvailableEndpoint;
         this.useMockMode = false;
         storageService.set(STORAGE_KEYS.API_AUTO_DETECTED, bestAvailableEndpoint.id);

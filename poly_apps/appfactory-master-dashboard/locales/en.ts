@@ -138,6 +138,8 @@ export const en = {
     account: 'Account',
     accountPlaceholder: 'Please enter account (e.g.: 123)',
     quickLoginHint: 'Quick Login Hint',
+    invalidCredentials: 'Invalid email or password',
+    roleMismatch: 'This account does not belong to the selected role',
   },
   appDetail: {
     notFound: 'APP not found',

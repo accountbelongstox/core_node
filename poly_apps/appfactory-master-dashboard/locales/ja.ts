@@ -135,6 +135,8 @@ export const ja: TranslationKeys = {
     account: 'アカウント',
     accountPlaceholder: 'アカウントを入力してください（例：123）',
     quickLoginHint: 'クイックログインヒント',
+    invalidCredentials: 'メールアドレスまたはパスワードが正しくありません',
+    roleMismatch: 'このアカウントは選択された役割に属していません',
   },
   csDashboard: {
     myRevenue: 'マイ収益',

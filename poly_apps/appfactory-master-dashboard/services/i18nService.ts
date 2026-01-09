@@ -1,11 +1,12 @@
 /**
- * i18n多语言服务
+ * i18n Internationalization Service
+ * Provides multi-language support for the application
  */
 import { en, TranslationKeys } from '../locales/en';
 import { zh } from '../locales/zh';
 import { ja } from '../locales/ja';
 
-// 支持的语言列表
+// Supported languages list
 export const SUPPORTED_LANGUAGES = {
   en: 'English',
   zh: '中文',
@@ -14,14 +15,14 @@ export const SUPPORTED_LANGUAGES = {
 
 export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 
-// 语言资源映射
+// Language resource mapping
 const translations: Record<SupportedLanguage, TranslationKeys> = {
   en,
   zh,
   ja,
 };
 
-// 获取嵌套属性的辅助函数
+// Helper function to get nested property
 function getNestedProperty(obj: Record<string, unknown>, path: string): string {
   const keys = path.split('.');
   let result = obj;
@@ -30,7 +31,7 @@ function getNestedProperty(obj: Record<string, unknown>, path: string): string {
     if (result && typeof result === 'object' && key in result) {
       result = result[key];
     } else {
-      return path; // 如果找不到，返回原始路径
+      return path; // If not found, return original path
     }
   }
 
@@ -38,21 +39,22 @@ function getNestedProperty(obj: Record<string, unknown>, path: string): string {
 }
 
 /**
- * i18n服务类
+ * i18n Service Class
+ * Manages language switching and translation
  */
 class I18nService {
   private currentLanguage: SupportedLanguage = 'zh';
   private listeners: Set<() => void> = new Set();
 
   /**
-   * 获取当前语言
+   * Get current language
    */
   getCurrentLanguage(): SupportedLanguage {
     return this.currentLanguage;
   }
 
   /**
-   * 设置当前语言
+   * Set current language
    */
   setLanguage(language: SupportedLanguage): void {
     if (this.currentLanguage !== language) {
@@ -62,14 +64,14 @@ class I18nService {
   }
 
   /**
-   * 翻译文本
-   * @param key - 翻译键，支持点号分隔的嵌套路径，如 'dashboard.title'
-   * @param params - 可选的参数对象，用于替换占位符
+   * Translate text
+   * @param key - Translation key, supports dot-separated nested paths, e.g. 'dashboard.title'
+   * @param params - Optional parameters object for placeholder replacement
    */
   t(key: string, params?: Record<string, string | number>): string {
     const translation = getNestedProperty(translations[this.currentLanguage], key);
 
-    // 如果有参数，替换占位符
+    // If params exist, replace placeholders
     if (params) {
       return Object.entries(params).reduce((text, [paramKey, paramValue]) => {
         return text.replace(new RegExp(`{${paramKey}}`, 'g'), String(paramValue));
@@ -80,33 +82,33 @@ class I18nService {
   }
 
   /**
-   * 添加语言变化监听器
+   * Add language change listener
    */
   addListener(listener: () => void): void {
     this.listeners.add(listener);
   }
 
   /**
-   * 移除语言变化监听器
+   * Remove language change listener
    */
   removeListener(listener: () => void): void {
     this.listeners.delete(listener);
   }
 
   /**
-   * 通知所有监听器
+   * Notify all listeners
    */
   private notifyListeners(): void {
     this.listeners.forEach(listener => listener());
   }
 
   /**
-   * 获取所有支持的语言
+   * Get all supported languages
    */
   getSupportedLanguages(): typeof SUPPORTED_LANGUAGES {
     return SUPPORTED_LANGUAGES;
   }
 }
 
-// 导出单例
+// Export singleton
 export const i18nService = new I18nService();
