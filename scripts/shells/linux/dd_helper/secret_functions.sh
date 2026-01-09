@@ -93,10 +93,23 @@ ensure_secret_keys_ready() {
         return 0
     fi
 
+    # Clean up expired secret cache entries
+    cleanup_secret_cache
+
     if [ ! -d "$raw_dir" ]; then
         if ! mkdir -p "$raw_dir" 2>/dev/null; then
             echo -e "\033[31m[SECRETS] Failed to create decrypted secrets directory: $raw_dir\033[0m"
             return 1
+        fi
+    fi
+
+    # Check for encrypted files with content changes (before checking missing files)
+    if [ -d "$encrypted_dir" ]; then
+        if get_encrypted_files_needing_redecryption "$encrypted_dir" "$raw_dir"; then
+            # Some encrypted files were updated and user chose to re-decrypt
+            # The function already removed outdated raw files
+            echo -e "\033[36m[CACHE UPDATE] Starting re-decryption after content changes...\033[0m"
+            # Continue with normal decryption flow to decrypt the removed files
         fi
     fi
 
@@ -278,6 +291,23 @@ ensure_secret_keys_ready() {
         if [ $? -eq 0 ]; then
             echo ""
             echo -e "\033[32m[BATCH MODE] All secrets decrypted successfully!\033[0m"
+
+            # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
+            if [ -d "$raw_dir" ]; then
+                while IFS= read -r -d '' raw_file; do
+                    local base_name_for_cache="$(basename "$raw_file")"
+                    set_decryption_timestamp_cache "$base_name_for_cache"
+                done < <(find "$raw_dir" -type f -print0 2>/dev/null)
+            fi
+
+            # Cache bundle file hash
+            if [ -s "$bundle_file" ]; then
+                local bundle_base_name="$(basename "$bundle_file")"
+                bundle_base_name="${bundle_base_name%.js}"
+                bundle_base_name="${bundle_base_name%.JS}"
+                set_encrypted_content_hash_cache "$bundle_base_name" "$bundle_file"
+            fi
+
             echo ""
             read -p "Press Enter to continue..."
             return 0
@@ -306,6 +336,12 @@ ensure_secret_keys_ready() {
         if [ $? -eq 0 ]; then
             ((success_count++))
             echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
+            # Set decryption timestamp cache and encrypted content hash cache
+            local base_name_for_cache="$(basename "$enc_file")"
+            base_name_for_cache="${base_name_for_cache%.js}"
+            base_name_for_cache="${base_name_for_cache%.JS}"
+            set_decryption_timestamp_cache "$base_name_for_cache"
+            set_encrypted_content_hash_cache "$base_name_for_cache" "$enc_file"
         else
             echo -e "\033[31m[SECRETS]   FAILED\033[0m"
         fi
@@ -344,16 +380,25 @@ ensure_secret_keys_ready() {
         mkdir -p "$encrypted_dir" 2>/dev/null || true
     fi
 
-    # Check which files need re-encryption
+    # Check which files need re-encryption (using enhanced cache logic)
     files_need_reencrypt=()
     while IFS= read -r -d '' raw_file; do
         base_name="$(basename "$raw_file")"
         enc_file="$encrypted_dir/$base_name.js"
 
         if [ ! -f "$enc_file" ]; then
+            # No encrypted file exists - need to encrypt
             files_need_reencrypt+=("$base_name")
-        elif [ "$raw_file" -nt "$enc_file" ]; then
-            files_need_reencrypt+=("$base_name")
+        else
+            # Check if raw file was modified after decryption using cache
+            if check_raw_file_modified_after_decryption "$base_name" "$raw_file"; then
+                # Raw file was modified after decryption - need re-encryption
+                files_need_reencrypt+=("$base_name")
+                echo -e "\033[33m[CACHE CHECK] $base_name modified after decryption - needs re-encryption\033[0m"
+            else
+                # Raw file was not modified after decryption - skip re-encryption
+                echo -e "\033[32m[CACHE SKIP] $base_name unchanged since decryption - skipping re-encryption\033[0m"
+            fi
         fi
     done < <(find "$raw_dir" -type f -print0 2>/dev/null)
 
