@@ -25,6 +25,7 @@
 # Variable declarations
 $scriptDir = $PSScriptRoot
 $secretManagerPath = Join-Path $scriptDir "SecretManager.ps1"
+$secretCachePath = Join-Path $scriptDir "SecretCache.ps1"
 $secretKeysDir = ""
 $encryptedDir = ""
 $rawDir = ""
@@ -37,8 +38,9 @@ $encryptedFiles = $null
 $rawFilePath = ""
 $keyName = ""
 
-# Import SecretManager.ps1
+# Import SecretManager.ps1 and SecretCache.ps1
 . $secretManagerPath
+. $secretCachePath
 
 # Determine paths (scripts\shells\win\win_common -> core_node = 4 levels up)
 if ($Global:CORE_NODE_DIR) {
@@ -59,10 +61,21 @@ if (-not (Test-Path $encryptedDir)) {
     return
 }
 
+# Clean up expired secret cache entries
+Clear-ExpiredSecretCache
+
 $encryptedFiles = Get-ChildItem -Path $encryptedDir -Filter "*.js" -File -ErrorAction SilentlyContinue
 
 if ($encryptedFiles.Count -eq 0) {
     return
+}
+
+# Check for encrypted files with content changes (before checking missing files)
+if (Get-EncryptedFilesNeedingRedecryption -EncryptedDir $encryptedDir -RawDir $rawDir) {
+    # Some encrypted files were updated and user chose to re-decrypt
+    # The function already removed outdated raw files
+    Write-Host "[CACHE UPDATE] Starting re-decryption after content changes..." -ForegroundColor Cyan
+    # Continue with normal decryption flow to decrypt the removed files
 }
 
 # Ensure raw directory exists
