@@ -1,9 +1,5 @@
-<label class="shared-header-label">{headerName}:</label>
-<input type="text" id="header-{appName}-{headerName}" 
-       class="form-control shared-header-input" 
-       placeholder="{description}" 
-       value="{currentValue}"
-       data-app-name="{appName}"
-       data-header-name="{headerName}">
-<small class="shared-header-hint">{description}</small>
-
+<div class="shared-header-item">
+    <label class="shared-header-label block text-sm font-semibold text-gray-700 mb-1">{headerName}:</label>
+    <input type="text" class="form-control shared-header-input w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white text-gray-900" data-app-name="{appName}" data-header-name="{headerName}" value="{headerValue}">
+    <small class="shared-header-hint block mt-1 text-xs text-gray-500">{headerDescription}</small>
+</div>

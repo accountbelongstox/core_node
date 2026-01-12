@@ -4,125 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Development Tools</title>
-    
-    <link rel="stylesheet" href="/debug-assets/css/debug-interface.css">
-    <link rel="stylesheet" href="/debug-assets/css/dev-tools-section.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-clipboard.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-text.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-crypto.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-formatters.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-converters.css">
-    <link rel="stylesheet" href="/debug-assets/css/ittools-generators.css">
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
 </head>
-<body>
-    <div class="content-body">
-        <div class="ittools-container">
-            <div class="ittools-top-menu">
-                <button class="ittools-top-menu-item active" data-top-menu-id="tools">
-                    🛠️ Tools
-                </button>
-                <button class="ittools-top-menu-item" data-top-menu-id="favorites">
-                    ⭐ Favorites
-                </button>
-                <button class="ittools-top-menu-item" data-top-menu-id="recent">
-                    🕐 Recent
-                </button>
+<body class="min-h-screen bg-gray-50">
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden m-4">
+        <div class="bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4">
+            <h2 class="text-2xl font-bold text-white">Development Tools</h2>
+        </div>
+        <div class="p-0">
+            <div class="ittools-container flex flex-col h-[calc(100vh-200px)]">
+                <div class="ittools-top-menu flex items-center gap-2 p-4 bg-gray-800 border-b border-gray-700">
+                    <button class="ittools-top-menu-item px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium" data-top-menu-id="tools">🛠️ Tools</button>
+                    <button class="ittools-top-menu-item px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors" data-top-menu-id="favorites">⭐ Favorites</button>
+                    <button class="ittools-top-menu-item px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors" data-top-menu-id="recent">🕐 Recent</button>
 
-                <div class="ittools-search-wrapper">
-                    <input type="text" id="ittools-search-input" class="ittools-search-input" placeholder="Search tools...">
-                    <button class="ittools-search-clear" data-action="clear-search">×</button>
+                    <div class="ittools-search-wrapper flex-1 ml-4 relative">
+                        <input type="text" id="ittools-search-input" class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50" placeholder="Search tools...">
+                        <button class="ittools-search-clear absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors" data-action="clear-search">×</button>
+                    </div>
                 </div>
-            </div>
 
-            <div class="ittools-top-dropdown-container" id="ittools-top-dropdown-menu"></div>
+                <div class="ittools-top-dropdown-container hidden" id="ittools-top-dropdown-menu"></div>
 
-            <div class="ittools-body">
-                <div class="ittools-left-menu" id="ittools-dynamic-menu"></div>
+                <div class="ittools-body flex flex-1 overflow-hidden">
+                    <div class="ittools-left-menu w-64 border-r border-gray-300 bg-gray-50 overflow-auto" id="ittools-dynamic-menu"></div>
 
-                <div class="ittools-content-wrapper">
-                    <button class="ittools-menu-collapse-btn" id="ittools-menu-collapse-btn" data-action="toggle-menu">▶</button>
-                    
-                    <div class="ittools-main-content" id="ittools-main-content">
-                        <div class="ittools-card">
-                            <div class="ittools-card-header">Welcome to Development Tools</div>
-                            <div class="ittools-card-body">
-                                <p>Select a tool from the left menu to get started.</p>
-                                <p class="ittools-category-intro">Available categories:</p>
-                                <ul class="ittools-category-list">
-                                    <li>📝 Text Tools - Encoding, decoding, and text manipulation</li>
-                                    <li>🔐 Crypto Tools - Hashing, UUID generation, tokens</li>
-                                    <li>✨ Formatters - JSON, XML, SQL formatting</li>
-                                    <li>🔄 Converters - Timestamps, colors, units</li>
-                                    <li>🎲 Generators - Passwords, lorem ipsum, QR codes</li>
-                                </ul>
+                    <div class="ittools-content-wrapper flex-1 overflow-auto relative">
+                        <button class="ittools-menu-collapse-btn fixed top-20 left-64 z-10 bg-gray-700 text-white px-2 py-1 rounded-r-lg hover:bg-gray-600 transition-colors" id="ittools-menu-collapse-btn" data-action="toggle-menu">▶</button>
+                        
+                        <div class="ittools-main-content p-6" id="ittools-main-content">
+                            <div class="ittools-card bg-white rounded-lg shadow p-6">
+                                <div class="ittools-card-header text-xl font-bold text-gray-800 mb-4">Welcome to Development Tools</div>
+                                <div class="ittools-card-body text-gray-600">
+                                    <p class="mb-4">Select a tool from the left menu to get started.</p>
+                                    <p class="ittools-category-intro font-semibold text-gray-700 mb-2">Available categories:</p>
+                                    <ul class="list-disc list-inside space-y-1 text-sm">
+                                        <li>Text Tools</li>
+                                        <li>Converters</li>
+                                        <li>Formatters</li>
+                                        <li>Generators</li>
+                                        <li>Crypto Tools</li>
+                                        <li>And more...</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="ittools-right-panel" id="ittools-right-panel">
-                        <h3 class="ittools-panel-title">Tool Information</h3>
-                        <p class="ittools-panel-description">
-                            This panel will show additional information about the selected tool.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="ittools-history-container" id="ittools-history-bar"></div>
-
-            <div class="ittools-bottom-menu">
-                <div class="ittools-bottom-menu-left">
-                    <button class="ittools-bottom-btn" data-action="toggle-right-panel">
-                        📋 Info Panel
-                    </button>
-                    <div id="dict-stats-container" class="dict-stats-container">
-                        <span id="dict-stats-loading">Loading dictionary stats...</span>
-                    </div>
-                </div>
-                <div class="ittools-bottom-menu-right">
-                    <span class="ittools-bottom-status">Ready</span>
                 </div>
             </div>
         </div>
     </div>
-
-    <script src="/debug-assets/js/api-client.js"></script>
-    <script src="/debug-assets/js/ittools-core.js"></script>
-    <script src="/debug-assets/js/ittools-menu-config.js"></script>
-    <script src="/debug-assets/js/ittools-menu-universal.js"></script>
-    <script src="/debug-assets/js/ittools-tools.js"></script>
-    <script src="/debug-assets/js/ittools-advanced-tools.js"></script>
-    <script src="/debug-assets/js/ittools-client-tools.js"></script>
-    <script src="/debug-assets/js/ittools-tts-helper.js"></script>
-    <script src="/debug-assets/js/ittools-impl-clipboard.js"></script>
-    <script src="/debug-assets/js/ittools-impl-converters.js"></script>
-    <script src="/debug-assets/js/ittools-impl-crypto.js"></script>
-    <script src="/debug-assets/js/ittools-impl-dev.js"></script>
-    <script src="/debug-assets/js/ittools-impl-formatters.js"></script>
-    <script src="/debug-assets/js/ittools-impl-generators.js"></script>
-    <script src="/debug-assets/js/ittools-impl-generators-2.js"></script>
-    <script src="/debug-assets/js/ittools-impl-images.js"></script>
-    <script src="/debug-assets/js/ittools-impl-text.js"></script>
-    <script src="/debug-assets/js/ittools-impl-translation.js"></script>
-    <script src="/debug-assets/js/ittools-impl-web.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch1a.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch1b.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch2.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch3a.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch3b.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch4.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch5.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch6a.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch6b.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch7a.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch7b.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch8.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch9.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch10.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch11.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch12.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch13.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch14.js"></script>
-    <script src="/debug-assets/js/ittools-impl-batch15.js"></script>
 </body>
 </html>

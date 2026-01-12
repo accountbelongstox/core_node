@@ -1,99 +1,60 @@
-    <!-- NAMESPACE: Static Resources Section -->
-    <div id="static-resources-section" class="content-section">
-        <div class="card">
-            <div class="card-header">
-                <h2>Static Resources - Media Browser</h2>
-                <p id="static-resources-path-display"
-                    style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
-            </div>
-            <div class="card-body" style="padding: 0;">
-                <div id="static-resources-content">
-                    <div class="static-resources-container">
-                        <!-- Mobile toggle button (Moved inside container) -->
-                        <button id="mobile-file-list-toggle" class="mobile-file-list-toggle"
-                            onclick="StaticResourceBrowser.toggleFileList()">📁</button>
-                        <!-- File List Overlay (mobile) -->
-                        <div id="file-list-overlay" class="file-list-overlay"
-                            onclick="StaticResourceBrowser.toggleFileList()"></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Resources</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+</head>
+<body class="min-h-screen bg-gray-50">
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden m-4">
+        <div class="bg-gradient-to-r from-pink-600 to-rose-600 px-6 py-4">
+            <h2 class="text-2xl font-bold text-white">Static Resources - Media Browser</h2>
+            <p id="static-resources-path-display" class="mt-2 text-sm text-pink-100 font-mono"></p>
+        </div>
+        <div class="p-0">
+            <div id="static-resources-content">
+                <div class="flex flex-col h-[calc(100vh-200px)]">
+                    <button id="mobile-file-list-toggle" class="md:hidden fixed top-4 left-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg" onclick="StaticResourceBrowser.toggleFileList()">📁</button>
+                    <div id="file-list-overlay" class="md:hidden fixed inset-0 bg-black/50 z-40 hidden" onclick="StaticResourceBrowser.toggleFileList()"></div>
 
-                        <!-- File List (Left Panel - slides from left on mobile) -->
-                        <div id="static-file-list-panel" class="static-file-list-panel">
-                            <div class="static-file-list-header">
-                                <div class="static-file-list-header-title">
-                                    <span>🎬 Files</span>
-                                    <span class="static-file-list-header-toggle"
-                                        onclick="StaticResourceBrowser.toggleFileList()">◀</span>
-                                </div>
-                                <div class="static-file-list-header-actions">
-                                    <button onclick="StaticResourceBrowser.showCreateDirDialog()"
-                                        title="New Folder">📁+</button>
-                                    <button onclick="StaticResourceBrowser.refreshList()" title="Refresh">🔄</button>
-                                    <button onclick="StaticResourceBrowser.showUploadDialog()"
-                                        title="Upload">📤</button>
-                                </div>
+                    <div id="static-file-list-panel" class="w-64 border-r border-gray-300 bg-gray-50 flex flex-col -translate-x-full md:translate-x-0 transition-transform duration-300 fixed md:relative z-40 h-full">
+                        <div class="px-3 py-2.5 border-b border-gray-300 bg-gray-800">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-gray-200 font-medium">🎬 Files</span>
+                                <span class="md:hidden text-gray-300 cursor-pointer" onclick="StaticResourceBrowser.toggleFileList()">◀</span>
                             </div>
-                            <div id="static-file-list" class="static-file-list">
-                                <div class="static-loading">Loading...</div>
+                            <div class="flex gap-2">
+                                <button onclick="StaticResourceBrowser.showCreateDirDialog()" class="bg-transparent border-none text-gray-300 cursor-pointer hover:text-white transition-colors" title="New Folder">📁+</button>
+                                <button onclick="StaticResourceBrowser.refreshList()" class="bg-transparent border-none text-gray-300 cursor-pointer hover:text-white transition-colors" title="Refresh">🔄</button>
+                                <button onclick="StaticResourceBrowser.showUploadDialog()" class="bg-transparent border-none text-gray-300 cursor-pointer hover:text-white transition-colors" title="Upload">📤</button>
                             </div>
                         </div>
+                        <div id="static-file-list" class="flex-1 overflow-auto">
+                            <div class="p-5 text-center text-gray-500">Loading...</div>
+                        </div>
+                    </div>
 
-                        <!-- Preview Panel (Right Panel) -->
-                        <div class="static-preview-panel">
-                            <!-- Video Settings Bar -->
-                            <div id="video-settings-bar" class="video-settings-bar floating" style="display: none;">
-                                <div class="video-settings-item">
-                                    <input type="checkbox" id="video-auto-play-next" checked>
+                    <div class="static-preview-panel flex-1 flex flex-col overflow-hidden">
+                        <div id="video-settings-bar" class="hidden fixed top-4 right-4 z-30 bg-gray-800/90 backdrop-blur-sm rounded-lg p-3 shadow-xl">
+                            <div class="flex items-center gap-4 text-sm text-gray-200">
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" id="video-auto-play-next" checked class="rounded">
                                     <label for="video-auto-play-next">Auto-play</label>
                                 </div>
-                                <div class="video-settings-item">
+                                <div class="flex items-center gap-2">
                                     <label>Skip:</label>
-                                    <input type="number" id="video-skip-intro" min="0" max="300" value="0">
-                                    <span>s</span>
-                                </div>
-                                <button class="playlist-toggle-btn" onclick="StaticResourceBrowser.togglePlaylist()">
-                                    <span>📋</span>
-                                    <span id="playlist-count-badge">0</span>
-                                </button>
-                            </div>
-
-                            <div class="static-preview-header">
-                                <div class="static-preview-header-info">
-                                    <span id="preview-file-name" class="static-preview-file-name">No file
-                                        selected</span>
-                                    <span id="preview-file-info" class="static-preview-file-meta"></span>
-                                </div>
-                                <div class="static-preview-controls" id="preview-controls"></div>
-                            </div>
-                            <div id="preview-container" class="static-preview-container">
-                                <!-- Floating nav buttons for video -->
-                                <div id="video-nav-left" class="video-nav-floating left">
-                                    <button class="video-nav-btn large" id="video-prev-btn-float"
-                                        onclick="StaticResourceBrowser.playPrevVideo()" disabled>⏮</button>
-                                </div>
-                                <div id="video-nav-right" class="video-nav-floating right">
-                                    <button class="video-nav-btn large" id="video-next-btn-float"
-                                        onclick="StaticResourceBrowser.playNextVideo()" disabled>⏭</button>
-                                </div>
-                                <div class="static-preview-empty">
-                                    <div class="static-preview-empty-icon">📂</div>
-                                    <p class="static-preview-empty-text">Select a file to preview</p>
-                                    <p class="static-preview-empty-hint">Supports images, videos, audio, and
-                                        text files</p>
+                                    <input type="number" id="video-skip-intro" min="0" max="300" value="0" class="w-16 px-2 py-1 bg-gray-700 text-gray-200 rounded border border-gray-600">
                                 </div>
                             </div>
-
-                            <!-- Video Playlist (collapsible) -->
-                            <div id="video-playlist-panel" class="video-playlist-panel">
-                                <div class="video-playlist-header" onclick="StaticResourceBrowser.togglePlaylist()">
-                                    <span>📋 Playlist <span id="video-playlist-count"></span></span>
-                                    <span class="video-playlist-toggle">▲</span>
-                                </div>
-                                <div id="video-playlist"></div>
-                            </div>
+                        </div>
+                        <div id="static-preview-content" class="flex-1 overflow-auto bg-gray-900 p-4">
+                            <div class="text-center text-gray-400 py-20">Select a file to preview</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
+</body>
+</html>

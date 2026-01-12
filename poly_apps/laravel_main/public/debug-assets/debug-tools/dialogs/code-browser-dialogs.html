@@ -1,100 +1,56 @@
     <!-- Context Menu for File Tree -->
-    <div id="file-context-menu"
-        style="display: none; position: fixed; background: #252526; border: 1px solid #454545; box-shadow: 0 2px 8px rgba(0,0,0,0.5); z-index: 10000; min-width: 180px; border-radius: 4px; padding: 4px 0;">
-        <div onclick="CodeBrowser.copyRelativePath()"
-            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-copy-path">
+    <div id="file-context-menu" class="hidden fixed bg-gray-800 border border-gray-600 shadow-lg z-[10000] min-w-[180px] rounded py-1">
+        <div onclick="CodeBrowser.copyRelativePath()" class="px-4 py-2 cursor-pointer text-gray-300 text-sm hover:bg-blue-900" id="menu-copy-path">
             📋 Copy Relative Path
         </div>
-        <div onclick="CodeBrowser.copyAbsolutePath()"
-            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-copy-abspath">
+        <div onclick="CodeBrowser.copyAbsolutePath()" class="px-4 py-2 cursor-pointer text-gray-300 text-sm hover:bg-blue-900" id="menu-copy-abspath">
             📋 Copy Absolute Path
         </div>
-        <div onclick="CodeBrowser.renameItem()"
-            style="padding: 8px 16px; cursor: pointer; color: #cccccc; font-size: 13px; border-top: 1px solid #454545;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-rename">
+        <div onclick="CodeBrowser.renameItem()" class="px-4 py-2 cursor-pointer text-gray-300 text-sm border-t border-gray-600 hover:bg-blue-900" id="menu-rename">
             ✏️ Rename
         </div>
-        <div onclick="CodeBrowser.autoRenameToEnglish()"
-            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-auto-rename">
+        <div onclick="CodeBrowser.autoRenameToEnglish()" class="px-4 py-2 cursor-pointer text-cyan-400 text-sm hover:bg-blue-900" id="menu-auto-rename">
             🔤 Auto Rename to English
         </div>
-        <div onclick="CodeBrowser.translateChineseLines()"
-            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-translate">
+        <div onclick="CodeBrowser.translateChineseLines()" class="px-4 py-2 cursor-pointer text-cyan-400 text-sm border-t border-gray-600 hover:bg-blue-900" id="menu-translate">
             🌐 Translate Chinese Lines
         </div>
-        <div onclick="CodeBrowser.deleteFile()"
-            style="padding: 8px 16px; cursor: pointer; color: #f48771; font-size: 13px; border-top: 1px solid #454545;"
-            onmouseover="this.style.background='#5a1d1d'" onmouseout="this.style.background='transparent'"
-            id="menu-delete">
+        <div onclick="CodeBrowser.deleteFile()" class="px-4 py-2 cursor-pointer text-red-400 text-sm border-t border-gray-600 hover:bg-red-900" id="menu-delete">
             🗑️ Delete
         </div>
-        <div onclick="CodeBrowser.restoreFile()"
-            style="padding: 8px 16px; cursor: pointer; color: #4ec9b0; font-size: 13px; border-top: 1px solid #454545; display: none;"
-            onmouseover="this.style.background='#094771'" onmouseout="this.style.background='transparent'"
-            id="menu-restore">
+        <div onclick="CodeBrowser.restoreFile()" class="px-4 py-2 cursor-pointer text-cyan-400 text-sm border-t border-gray-600 hidden hover:bg-blue-900" id="menu-restore">
             ♻️ Restore
         </div>
     </div>
 
     <!-- Confirm Dialog -->
-    <div id="confirm-dialog"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
-        <div
-            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
-            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
-                <h3 id="confirm-title" style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Confirm
-                </h3>
+    <div id="confirm-dialog" class="hidden fixed inset-0 bg-black/60 z-[20000] flex items-center justify-center">
+        <div class="bg-gray-800 border border-gray-600 rounded-md min-w-[400px] max-w-[500px] shadow-2xl">
+            <div class="px-6 py-5 border-b border-gray-600">
+                <h3 id="confirm-title" class="m-0 text-gray-300 text-base font-medium">Confirm</h3>
             </div>
-            <div style="padding: 24px;">
-                <p id="confirm-message" style="margin: 0; color: #d4d4d4; font-size: 14px; line-height: 1.6;"></p>
+            <div class="p-6">
+                <p id="confirm-message" class="m-0 text-gray-300 text-sm leading-relaxed"></p>
             </div>
-            <div
-                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
-                <button onclick="CodeBrowser.closeConfirmDialog()"
-                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
-                    onmouseover="this.style.background='#505050'"
-                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
-                <button id="confirm-ok-btn" onclick="CodeBrowser.confirmDialogOk()"
-                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
-                    onmouseover="this.style.background='#1177bb'"
-                    onmouseout="this.style.background='#0e639c'">OK</button>
+            <div class="px-6 py-4 border-t border-gray-600 flex justify-end gap-3">
+                <button onclick="CodeBrowser.closeConfirmDialog()" class="px-5 py-2 bg-gray-700 text-gray-300 border border-gray-600 rounded cursor-pointer text-sm hover:bg-gray-600">Cancel</button>
+                <button id="confirm-ok-btn" onclick="CodeBrowser.confirmDialogOk()" class="px-5 py-2 bg-blue-700 text-white border-none rounded cursor-pointer text-sm font-medium hover:bg-blue-600">OK</button>
             </div>
         </div>
     </div>
 
     <!-- Rename Dialog -->
-    <div id="rename-dialog"
-        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20000; align-items: center; justify-content: center;">
-        <div
-            style="background: #252526; border: 1px solid #454545; border-radius: 6px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 16px rgba(0,0,0,0.8);">
-            <div style="padding: 20px 24px; border-bottom: 1px solid #454545;">
-                <h3 style="margin: 0; color: #cccccc; font-size: 16px; font-weight: 500;">Rename</h3>
+    <div id="rename-dialog" class="hidden fixed inset-0 bg-black/60 z-[20000] flex items-center justify-center">
+        <div class="bg-gray-800 border border-gray-600 rounded-md min-w-[400px] max-w-[500px] shadow-2xl">
+            <div class="px-6 py-5 border-b border-gray-600">
+                <h3 class="m-0 text-gray-300 text-base font-medium">Rename</h3>
             </div>
-            <div style="padding: 24px;">
-                <input id="rename-input" type="text"
-                    style="width: 100%; padding: 10px; background: #3c3c3c; color: #d4d4d4; border: 1px solid #454545; border-radius: 4px; font-size: 14px; font-family: 'Consolas', monospace;"
-                    placeholder="Enter new name...">
+            <div class="p-6">
+                <input id="rename-input" type="text" class="w-full p-2.5 bg-gray-700 text-gray-300 border border-gray-600 rounded text-sm font-mono" placeholder="Enter new name...">
             </div>
-            <div
-                style="padding: 16px 24px; border-top: 1px solid #454545; display: flex; justify-content: flex-end; gap: 12px;">
-                <button onclick="CodeBrowser.closeRenameDialog()"
-                    style="padding: 8px 20px; background: #3c3c3c; color: #cccccc; border: 1px solid #454545; border-radius: 4px; cursor: pointer; font-size: 13px;"
-                    onmouseover="this.style.background='#505050'"
-                    onmouseout="this.style.background='#3c3c3c'">Cancel</button>
-                <button onclick="CodeBrowser.executeRename()"
-                    style="padding: 8px 20px; background: #0e639c; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;"
-                    onmouseover="this.style.background='#1177bb'"
-                    onmouseout="this.style.background='#0e639c'">Rename</button>
+            <div class="px-6 py-4 border-t border-gray-600 flex justify-end gap-3">
+                <button onclick="CodeBrowser.closeRenameDialog()" class="px-5 py-2 bg-gray-700 text-gray-300 border border-gray-600 rounded cursor-pointer text-sm hover:bg-gray-600">Cancel</button>
+                <button onclick="CodeBrowser.executeRename()" class="px-5 py-2 bg-blue-700 text-white border-none rounded cursor-pointer text-sm font-medium hover:bg-blue-600">Rename</button>
             </div>
         </div>
     </div>
-

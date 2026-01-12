@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="">
     <title>Laravel API Debug Interface</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
     <link rel="stylesheet" href="/debug-assets/css/debug-interface.css">
 </head>
 <body>
@@ -78,6 +79,13 @@
                         <span class="menu-tooltip">Octane Timer Tasks</span>
                     </a>
                 </li>
+                <li class="menu-item">
+                    <a href="#" data-section="sso">
+                        <span class="menu-icon">🔐</span>
+                        <span class="menu-text">SSO Authentication</span>
+                        <span class="menu-tooltip">Single Sign-On Authentication</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -93,6 +101,36 @@
         </div>
     </div>
 
+    <script>
+        (function() {
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', '/csrf-token', false);
+                xhr.send(null);
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+                    let metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag) {
+                        metaTag.setAttribute('content', data.csrf_token);
+                    } else {
+                        metaTag = document.createElement('meta');
+                        metaTag.name = 'csrf-token';
+                        metaTag.setAttribute('content', data.csrf_token);
+                        document.head.appendChild(metaTag);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load CSRF token:', error);
+                let metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (!metaTag) {
+                    metaTag = document.createElement('meta');
+                    metaTag.name = 'csrf-token';
+                    metaTag.setAttribute('content', '');
+                    document.head.appendChild(metaTag);
+                }
+            }
+        })();
+    </script>
     <script src="/debug-assets/js/api-client.js"></script>
     <script src="/debug-assets/js/debug-interface.js"></script>
 </body>

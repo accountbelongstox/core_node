@@ -12,7 +12,18 @@ class ApiClient {
 
     getCsrfToken() {
         const meta = document.querySelector('meta[name="csrf-token"]');
-        return meta.getAttribute('content');
+        if (!meta) {
+            return '';
+        }
+        const token = meta.getAttribute('content') || '';
+        if (!token) {
+            this.initCsrfToken();
+            const updatedMeta = document.querySelector('meta[name="csrf-token"]');
+            if (updatedMeta) {
+                return updatedMeta.getAttribute('content') || '';
+            }
+        }
+        return token;
     }
 
     getAuthToken() {
@@ -27,11 +38,16 @@ class ApiClient {
         }
 
         headers['Accept'] = 'application/json';
-        headers['X-CSRF-TOKEN'] = this.getCsrfToken();
+        const csrfToken = this.getCsrfToken();
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
 
         if (includeAuth) {
             const authToken = this.getAuthToken();
-            headers['Authorization'] = `Bearer ${authToken}`;
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
         }
 
         return Object.assign(headers, customHeaders);
@@ -39,7 +55,17 @@ class ApiClient {
 
     async request(url, options = {}) {
         const response = await fetch(url, options);
-        return response;
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                errorData = { message: errorText || 'Request failed', status: response.status };
+            }
+            throw new Error(errorData.message || 'Request failed');
+        }
+        return response.json();
     }
 
     async get(url, options = {}) {
@@ -158,12 +184,22 @@ class ApiClient {
     }
 
     async initCsrfToken() {
-        const response = await fetch('/csrf-token');
-        const data = await response.json();
-        const metaTag = document.createElement('meta');
-        metaTag.name = 'csrf-token';
-        metaTag.setAttribute('content', data.csrf_token);
-        document.head.appendChild(metaTag);
+        try {
+            const response = await fetch('/csrf-token');
+            const data = await response.json();
+            let metaTag = document.querySelector('meta[name="csrf-token"]');
+            if (metaTag) {
+                metaTag.setAttribute('content', data.csrf_token);
+            } else {
+                metaTag = document.createElement('meta');
+                metaTag.name = 'csrf-token';
+                metaTag.setAttribute('content', data.csrf_token);
+                document.head.appendChild(metaTag);
+            }
+            this.csrfToken = data.csrf_token;
+        } catch (error) {
+            console.error('Failed to initialize CSRF token:', error);
+        }
     }
 }
 

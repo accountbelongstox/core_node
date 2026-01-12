@@ -1,87 +1,66 @@
-    <!-- NAMESPACE: Code Browser Section -->
-    <div id="code-browser-section" class="content-section">
-        <div class="card">
-            <div class="card-header">
-                <h2>Code Browser - Core Node Directory</h2>
-                <p id="code-browser-path-display"
-                    style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-family: monospace;"></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Browser</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+</head>
+<body class="min-h-screen bg-gray-50">
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden m-4">
+        <div class="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+            <h2 class="text-2xl font-bold text-white">Code Browser - Core Node Directory</h2>
+            <p id="code-browser-path-display" class="mt-2 text-sm text-purple-100 font-mono"></p>
+        </div>
+        <div class="p-0">
+            <div id="code-browser-auth-check" class="hidden p-6 text-center">
+                <p class="text-red-600 text-lg font-semibold mb-5">🔒 Authentication Required</p>
+                <p class="text-gray-600 mb-5">Please login to access the code browser</p>
+                <button onclick="AuthHelper.showAuthModal()" class="px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer text-sm font-semibold hover:bg-blue-700 transition-colors">Login Now</button>
             </div>
-            <div class="card-body" style="padding: 0;">
-                <div id="code-browser-auth-check" style="padding: 25px; text-align: center; display: none;">
-                    <p style="color: #dc3545; font-size: 18px; margin-bottom: 20px;">🔒 Authentication
-                        Required</p>
-                    <p style="color: #666; margin-bottom: 20px;">Please login to access the code browser</p>
-                    <button onclick="AuthHelper.showAuthModal()"
-                        style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">Login
-                        Now</button>
-                </div>
-                <div id="code-browser-content" style="display: none;">
-                    <!-- Upper Panel: File Browser & Editor -->
-                    <div class="code-browser-container">
-                        <!-- File Tree (Left Panel) -->
-                        <div id="file-tree-panel" class="file-tree-panel">
-                            <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
-                                <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <span style="font-weight: 500; font-size: 13px;">📁 core_node</span>
-                                    <button onclick="CodeBrowser.refreshTree()"
-                                        style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;"
-                                        title="Refresh">🔄</button>
+            <div id="code-browser-content" class="hidden">
+                <div class="flex flex-col h-[calc(100vh-200px)]">
+                    <div class="flex flex-1 border-b border-gray-300">
+                        <div id="file-tree-panel" class="w-64 border-r border-gray-300 bg-gray-50 flex flex-col">
+                            <div class="px-3 py-2.5 border-b border-gray-300 bg-gray-800">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium text-sm text-gray-200">📁 core_node</span>
+                                    <button onclick="CodeBrowser.refreshTree()" class="bg-transparent border-none text-gray-300 cursor-pointer text-base px-1.5 py-0.5 hover:text-white transition-colors" title="Refresh">🔄</button>
                                 </div>
                             </div>
-                            <div id="file-tree" style="padding: 5px; font-size: 13px;">
-                                <div style="padding: 20px; text-align: center; color: #888;">Loading...
-                                </div>
+                            <div id="file-tree" class="flex-1 overflow-auto p-1.5 text-sm">
+                                <div class="p-5 text-center text-gray-500">Loading...</div>
                             </div>
                         </div>
 
-                        <!-- Code Editor (Right Panel) -->
-                        <div class="code-editor-panel">
-                            <div
-                                style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="code-editor-panel flex-1 flex flex-col bg-gray-900">
+                            <div class="px-3 py-2.5 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
                                 <div>
-                                    <span id="current-file-path"
-                                        style="font-size: 13px; color: #cccccc; font-family: monospace;">No
-                                        file selected</span>
-                                    <span id="file-status"
-                                        style="margin-left: 15px; font-size: 12px; color: #888;"></span>
+                                    <span id="current-file-path" class="text-sm text-gray-300 font-mono">No file selected</span>
+                                    <span id="file-status" class="ml-4 text-xs text-gray-500"></span>
                                 </div>
                                 <div>
-                                    <button id="save-file-btn" onclick="CodeBrowser.saveFile()"
-                                        style="background: #0e639c; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; margin-right: 5px; display: none;">💾
-                                        Save</button>
-                                    <button onclick="CodeBrowser.closeFile()"
-                                        style="background: #dc3545; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px;"
-                                        id="close-file-btn" disabled>✕ Close</button>
+                                    <button id="save-file-btn" onclick="CodeBrowser.saveFile()" class="hidden bg-blue-600 text-white border-none px-3.5 py-1.5 rounded cursor-pointer text-sm mr-1.5 hover:bg-blue-700 transition-colors">💾 Save</button>
+                                    <button onclick="CodeBrowser.closeFile()" id="close-file-btn" disabled class="bg-red-600 text-white border-none px-3.5 py-1.5 rounded cursor-pointer text-sm hover:bg-red-700 transition-colors">✕ Close</button>
                                 </div>
                             </div>
-                            <div id="code-editor-container" style="flex: 1; overflow: hidden;">
-                                <textarea id="code-editor"
-                                    style="width: 100%; height: 100%; padding: 15px; background: #1e1e1e; color: #d4d4d4; border: none; outline: none; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.6; resize: none; tab-size: 4;"
-                                    placeholder="Select a file to edit..." readonly></textarea>
+                            <div id="code-editor-container" class="flex-1 overflow-hidden">
+                                <textarea id="code-editor" class="w-full h-full p-4 bg-gray-900 text-gray-300 border-none outline-none font-mono text-sm leading-relaxed resize-none [tab-size:4]" placeholder="Select a file to edit..." readonly></textarea>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Lower Panel: Tasks/Prompts & Mapping Manager -->
-                    <div class="prompts-container">
-                        <!-- Tasks/Prompts List (Left Panel) -->
-                        <div id="prompts-tasks-panel" class="prompts-panel">
-                            <div style="padding: 10px; border-bottom: 1px solid #333; background: #2d2d30;">
-                                <div
-                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                    <span style="font-weight: 500; font-size: 13px;">📝 Tasks/Prompts</span>
+                    <div class="prompts-container flex border-t border-gray-300 h-64">
+                        <div id="prompts-tasks-panel" class="prompts-panel w-64 border-r border-gray-300 bg-gray-50 flex flex-col">
+                            <div class="px-3 py-2.5 border-b border-gray-300 bg-gray-800">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-medium text-sm text-gray-200">📝 Tasks/Prompts</span>
                                     <div>
-                                        <button onclick="PromptsTasksManager.showNewTaskDialog()"
-                                            style="background: transparent; border: none; color: #28a745; cursor: pointer; font-size: 14px; padding: 2px 6px;"
-                                            title="New Task">+</button>
-                                        <button onclick="PromptsTasksManager.refresh()"
-                                            style="background: transparent; border: none; color: #cccccc; cursor: pointer; font-size: 16px; padding: 2px 6px;"
-                                            title="Refresh">🔄</button>
+                                        <button onclick="PromptsTasksManager.showNewTaskDialog()" class="bg-transparent border-none text-green-400 cursor-pointer text-sm px-1.5 py-0.5 hover:text-green-300 transition-colors" title="New Task">+</button>
+                                        <button onclick="PromptsTasksManager.refresh()" class="bg-transparent border-none text-gray-300 cursor-pointer text-base px-1.5 py-0.5 hover:text-white transition-colors" title="Refresh">🔄</button>
                                     </div>
                                 </div>
-                                <!-- Category Selector -->
-                                <select id="prompt-category-selector"
-                                    style="width: 100%; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 5px; font-size: 12px; border-radius: 3px;">
+                                <select id="prompt-category-selector" class="w-full bg-gray-900 text-gray-300 border border-gray-700 px-1.5 py-1 text-xs rounded">
                                     <option value="global">Global</option>
                                     <option value="mcp-dev">MCP Development</option>
                                     <option value="ncore-dev">NCORE Development</option>
@@ -90,17 +69,16 @@
                                     <option value="nuxt-dev">NUXT Development</option>
                                 </select>
                             </div>
-                            <div id="prompts-tasks-list" style="padding: 5px; font-size: 13px;">
-                                <div style="padding: 20px; text-align: center; color: #888;">Select a
-                                    category</div>
+                            <div id="prompts-tasks-list" class="flex-1 overflow-auto p-1.5 text-sm">
+                                <div class="p-5 text-center text-gray-500">Select a category</div>
                             </div>
                         </div>
 
-                        <!-- Prompt Mapping Manager (Right Panel) -->
-                        <div id="prompt-mapping-panel-embedded" class="mapping-panel"></div>
+                        <div id="prompt-mapping-panel-embedded" class="mapping-panel flex-1"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
+</body>
+</html>

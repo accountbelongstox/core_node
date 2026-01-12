@@ -31,12 +31,31 @@ function initializeNavigation() {
         });
     });
 
+    // Load default section immediately
     const savedSection = localStorage.getItem('active_section');
-    if (savedSection) {
-        showSection(savedSection);
-    } else {
-        showSection('api-testing');
+    const defaultSection = savedSection || 'api-testing';
+    
+    // Set iframe src immediately to ensure it displays
+    const iframe = document.getElementById('section-iframe');
+    const sectionFileMap = {
+        'api-testing': '/debug-assets/debug-tools/sections/api-testing-section.html',
+        'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
+        'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
+        'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
+        'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
+        'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
+        'learning': '/debug-assets/debug-tools/sections/learning-section.html',
+        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html',
+        'sso': '/sso'
+    };
+    
+    if (iframe && sectionFileMap[defaultSection]) {
+        iframe.src = sectionFileMap[defaultSection];
+        iframe.style.display = 'block';
     }
+    
+    // Then show the section properly
+    showSection(defaultSection);
 }
 
 function toggleSidebar() {
@@ -118,7 +137,8 @@ function showSection(sectionType) {
         'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
         'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
         'learning': '/debug-assets/debug-tools/sections/learning-section.html',
-        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html'
+        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html',
+        'sso': '/sso'
     };
 
     const sectionTitles = {
@@ -129,7 +149,8 @@ function showSection(sectionType) {
         'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
         'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
         'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
-        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' }
+        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' },
+        'sso': { title: 'SSO Authentication', desc: 'Single Sign-On authentication with WorkOS AuthKit' }
     };
 
     const iframe = document.getElementById('section-iframe');
