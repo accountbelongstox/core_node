@@ -27,12 +27,35 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:3000,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        env('FRONTEND_URL') ? ','.parse_url(env('FRONTEND_URL'), PHP_URL_HOST) : ''
-    ))),
+    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', (function() {
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $baseHost = explode(':', $host)[0];
+
+        $domains = [
+            'localhost', 'localhost:3000', 'localhost:8000',
+            '127.0.0.1', '127.0.0.1:3000', '127.0.0.1:8000', '::1',
+        ];
+
+        if ($baseHost && $baseHost !== 'localhost' && $baseHost !== '127.0.0.1') {
+            $domains = array_merge($domains, [
+                $baseHost,
+                $baseHost . ':3000',
+                $baseHost . ':8000',
+                $baseHost . ':8080',
+                $baseHost . ':9000',
+            ]);
+        }
+
+        if (Sanctum::currentApplicationUrlWithPort()) {
+            $domains[] = Sanctum::currentApplicationUrlWithPort();
+        }
+
+        if (env('FRONTEND_URL')) {
+            $domains[] = parse_url(env('FRONTEND_URL'), PHP_URL_HOST);
+        }
+
+        return implode(',', array_unique(array_filter($domains)));
+    })())),
 
     /*
     |--------------------------------------------------------------------------

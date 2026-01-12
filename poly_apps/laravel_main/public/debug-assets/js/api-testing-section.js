@@ -1,7 +1,7 @@
 /**
- * API Testing Section
- * FILE: api-testing-section.js
- * PURPOSE: API Testing functionality for iframe-based section
+ * API Testing Section - Fully Refactored
+ * NO HTML generation in JS - all HTML in templates
+ * JS only handles API calls and JSON data processing
  */
 
 let apiData = {};
@@ -11,555 +11,356 @@ let cachedHeaders = {};
 let currentAppAPIs = [];
 let searchTimeout;
 
+const TEMPLATE_URLS = {
+    API_ITEM: '/debug-assets/debug-tools/templates/api-item.html',
+    FEATURE_DOCS: '/debug-assets/debug-tools/templates/feature-docs.html',
+    SHARED_HEADERS_SECTION: '/debug-assets/debug-tools/templates/shared-headers-section.html',
+    SHARED_HEADER_ITEM: '/debug-assets/debug-tools/templates/shared-header-item.html',
+    EMPTY_STATE: '/debug-assets/debug-tools/templates/empty-state.html',
+    LOADING_STATE: '/debug-assets/debug-tools/templates/loading-state.html',
+    ERROR_MESSAGE: '/debug-assets/debug-tools/templates/error-message.html',
+    SUCCESS_MESSAGE: '/debug-assets/debug-tools/templates/success-message.html',
+    RESPONSE_DISPLAY: '/debug-assets/debug-tools/templates/response-display.html',
+    APP_OPTION: '/debug-assets/debug-tools/templates/app-option.html',
+    FEATURE_PARAMS_LIST: '/debug-assets/debug-tools/templates/feature-params-list.html',
+    FEATURE_RESPONSE_LIST: '/debug-assets/debug-tools/templates/feature-response-list.html',
+    STATUS_TOAST: '/debug-assets/debug-tools/templates/status-toast.html'
+};
+
 document.addEventListener('DOMContentLoaded', async function() {
     await loadInitialData();
     setupEventListeners();
 });
 
 async function loadInitialData() {
-    const data = await apiClientInstance.json(ApiClient.PointUrlKey.API_INFO, 'GET');
-    apiData = data.api_reference;
-    publicInfo = data.public_info;
+    try {
+        let data;
+        try {
+            data = await apiClientInstance.json(ApiClient.PointUrlKey.API_INFO, 'GET');
+        } catch (apiError) {
+            console.error('API call failed:', apiError);
+            data = { api_reference: {}, public_info: {} };
+        }
+        apiData = data.api_reference || {};
+        publicInfo = data.public_info || {};
 
-    const appSelect = document.getElementById("app-select");
-    Object.keys(apiData).forEach(appName => {
-        const appInfo = apiData[appName];
-        const option = document.createElement("option");
-        option.value = appName;
-        option.textContent = appName;
-        appSelect.appendChild(option);
-    });
+        const appSelect = document.getElementById("app-select");
+        if (!appSelect) return;
 
-    const cachedApp = localStorage.getItem('selected_app');
-    const firstApp = Object.keys(apiData)[0];
-    const selectedApp = cachedApp ? cachedApp : firstApp;
-    appSelect.value = selectedApp;
-    localStorage.setItem('selected_app', selectedApp);
-    loadAppAPIs();
+        if (apiData && typeof apiData === 'object' && Object.keys(apiData).length > 0) {
+            const optionTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.APP_OPTION);
+            Object.keys(apiData).forEach(appName => {
+                const option = TemplateUtils.renderToElement(optionTemplate, { appName: appName });
+                appSelect.appendChild(option);
+            });
+
+            const cachedApp = localStorage.getItem('selected_app');
+            const firstApp = Object.keys(apiData)[0];
+            const selectedApp = cachedApp || firstApp;
+            if (selectedApp) {
+                appSelect.value = selectedApp;
+                localStorage.setItem('selected_app', selectedApp);
+                await loadAppAPIs();
+            }
+        } else {
+            const emptyTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.EMPTY_STATE);
+            const emptyEl = TemplateUtils.renderToElement(emptyTemplate, { 
+                message: 'No applications available' 
+            });
+            appSelect.parentElement.appendChild(emptyEl);
+        }
+    } catch (error) {
+        console.error('Failed to load initial data:', error);
+        const appSelect = document.getElementById("app-select");
+        if (appSelect) {
+            const errorTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.ERROR_MESSAGE);
+            const errorEl = TemplateUtils.renderToElement(errorTemplate, { 
+                message: 'Failed to load applications' 
+            });
+            appSelect.parentElement.appendChild(errorEl);
+        }
+    }
 }
 
 function setupEventListeners() {
     const appSelect = document.getElementById("app-select");
-    appSelect.addEventListener('change', loadAppAPIs);
+    if (appSelect) {
+        appSelect.addEventListener('change', loadAppAPIs);
+    }
 
     const apiSearch = document.getElementById("api-search");
-    apiSearch.addEventListener('input', (e) => searchAndJumpToAPI(e.target.value));
+    if (apiSearch) {
+        apiSearch.addEventListener('input', (e) => searchAndJumpToAPI(e.target.value));
+    }
 
-    const tabs = document.querySelectorAll('.tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-            const sectionType = this.dataset.tab;
-            window.parent.showSection(sectionType);
-            setActiveTab(this);
-        });
-    });
+    document.addEventListener('click', handleDelegatedClick);
+    document.addEventListener('change', handleDelegatedChange);
 }
 
-function setActiveTab(activeTab) {
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    activeTab.classList.add('active');
+function handleDelegatedClick(e) {
+    const action = e.target.dataset.action;
+    if (!action) {
+        if (e.target.classList.contains('api-header')) {
+            const index = parseInt(e.target.dataset.index);
+            const appName = e.target.dataset.appName;
+            const endpoint = e.target.dataset.endpoint;
+            toggleAPIDetails(index, appName, endpoint);
+        }
+        return;
+    }
+
+    const index = e.target.dataset.index ? parseInt(e.target.dataset.index) : null;
+    const appName = e.target.dataset.appName;
+    const endpoint = e.target.dataset.endpoint;
+    const method = e.target.dataset.method;
+
+    switch (action) {
+        case 'test-api':
+            testAPI(index, method, appName, endpoint);
+            break;
+        case 'save-params':
+            saveParams(index, appName, endpoint, method);
+            break;
+        case 'load-params':
+            loadParamsWithReset(index, appName, endpoint);
+            break;
+        case 'copy-headers':
+            copyHeaders(index, appName);
+            break;
+        case 'save-headers-server':
+            saveAllAppHeaders(appName);
+            break;
+        case 'reset-headers-server':
+            resetAppHeaders(appName);
+            break;
+        case 'copy-headers-json':
+            copyAppHeaders(appName);
+            break;
+    }
+}
+
+function handleDelegatedChange(e) {
+    if (e.target.classList.contains('shared-header-input')) {
+        const appName = e.target.dataset.appName;
+        const headerName = e.target.dataset.headerName;
+        saveAppHeader(appName, headerName, e.target.value);
+    }
 }
 
 async function loadAppAPIs() {
     const appSelectEl = document.getElementById("app-select");
+    if (!appSelectEl) return;
+
     const selectedApp = appSelectEl.value;
     const apiListDiv = document.getElementById("api-list");
     const searchContainer = document.getElementById("api-search-container");
 
-    while (apiListDiv.firstChild) {
-        apiListDiv.removeChild(apiListDiv.firstChild);
-    }
-    searchContainer.classList.add('hidden');
+    if (!apiListDiv || !searchContainer) return;
+
+    DomUtils.clear(apiListDiv);
+    DomUtils.addClass(searchContainer, 'hidden');
     currentAppAPIs = [];
 
-    if (!selectedApp) {
-        const emptyMsg = document.createElement('p');
-        emptyMsg.className = 'api-list-empty';
-        emptyMsg.textContent = 'Select an application to view and test its available APIs';
-        apiListDiv.appendChild(emptyMsg);
+    if (!selectedApp || !apiData || !apiData[selectedApp]) {
+        const emptyTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.EMPTY_STATE);
+        const emptyEl = TemplateUtils.renderToElement(emptyTemplate, { 
+            message: 'Select an application to view and test its available APIs' 
+        });
+        apiListDiv.appendChild(emptyEl);
         return;
     }
 
     localStorage.setItem('selected_app', selectedApp);
-
     const appAPIs = apiData[selectedApp];
-    const fragment = document.createDocumentFragment();
+    DomUtils.removeClass(searchContainer, 'hidden');
 
-    searchContainer.classList.remove('hidden');
-
-    populateSharedHeaders(selectedApp, appAPIs.supported_headers);
+    if (appAPIs.supported_headers && typeof appAPIs.supported_headers === 'object') {
+        await populateSharedHeaders(selectedApp, appAPIs.supported_headers);
+    }
 
     currentAppAPIs = [];
     const apiSearchEl = document.getElementById("api-search");
-    apiSearchEl.value = "";
+    if (apiSearchEl) apiSearchEl.value = "";
 
-    const endpoints = appAPIs.endpoints;
+    const endpoints = appAPIs.endpoints || [];
+    if (endpoints.length === 0) {
+        const emptyTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.EMPTY_STATE);
+        const emptyEl = TemplateUtils.renderToElement(emptyTemplate, { 
+            message: 'No endpoints found for this application' 
+        });
+        apiListDiv.appendChild(emptyEl);
+        return;
+    }
+
     for (const [index, api] of endpoints.entries()) {
         currentAppAPIs.push({ ...api, apiIndex: index + 1 });
         const apiItem = await createAPIItem(api, index, selectedApp);
-        fragment.appendChild(apiItem);
+        if (apiItem) {
+            apiListDiv.appendChild(apiItem);
+        }
     }
-
-    apiListDiv.appendChild(fragment);
-    attachAPIItemListeners();
-}
-
-function createCardElement() {
-    const card = document.createElement('div');
-    card.className = 'card';
-    return card;
 }
 
 async function createAPIItem(api, index, appName) {
-    const apiPath = api.path;
-    const feature = api.feature;
-
-    const featureParts = feature.split('|');
+    const featureParts = api.feature.split('|');
     const authAndMethod = featureParts[0];
-    const description = featureParts[1];
-    const controller = featureParts[2];
+    const description = featureParts[1] || '';
+    const controller = featureParts[2] || '';
 
-    const method = extractMethodFromFeature(authAndMethod);
-    const endpoint = extractEndpointFromPath(apiPath);
-    const fullUrl = apiPath;
+    const method = ApiUtils.extractMethod(authAndMethod);
+    const endpoint = ApiUtils.extractEndpoint(api.path);
+    const fullUrl = api.path;
+    const cachedAppHeaders = loadAppHeadersFromCache(appName);
+    const presetJson = ApiUtils.generatePresetJson(api.feature, method, appName, cachedAppHeaders);
 
-    const featureDocs = await createFeatureDocs(feature, authAndMethod, method, description, controller);
-    const presetJson = generatePresetJson(feature, method, appName);
+    const template = await TemplateUtils.loadTemplate(TEMPLATE_URLS.API_ITEM);
+    const apiItem = TemplateUtils.renderToElement(template, {
+        index: index,
+        number: index + 1,
+        method: method,
+        endpoint: endpoint,
+        description: description,
+        appName: appName,
+        fullUrl: fullUrl,
+        presetJson: presetJson,
+        headersInfo: ''
+    });
 
-    const apiItem = document.createElement('div');
-    apiItem.className = 'api-item';
-    apiItem.id = `api-item-${index}`;
-
-    const apiNumber = document.createElement('div');
-    apiNumber.className = 'api-number';
-    apiNumber.textContent = '#' + (index + 1);
-
-    const apiHeader = document.createElement('div');
-    apiHeader.className = 'api-header';
-    apiHeader.dataset.index = index;
-    apiHeader.dataset.appName = appName;
-    apiHeader.dataset.endpoint = endpoint;
-
-    const headerContent = document.createElement('div');
-    const methodSpan = document.createElement('span');
-    methodSpan.className = 'api-method method-' + method.toLowerCase();
-    methodSpan.textContent = method;
-
-    const endpointStrong = document.createElement('strong');
-    endpointStrong.className = 'api-endpoint';
-    endpointStrong.textContent = endpoint;
-
-    const descSpan = document.createElement('span');
-    descSpan.textContent = ' ' + description;
-
-    headerContent.appendChild(methodSpan);
-    headerContent.appendChild(endpointStrong);
-    headerContent.appendChild(descSpan);
-
-    const toggle = document.createElement('span');
-    toggle.id = 'toggle-' + index;
-    toggle.textContent = '▼';
-
-    apiHeader.appendChild(headerContent);
-    apiHeader.appendChild(toggle);
-
-    const detailsDiv = document.createElement('div');
-    detailsDiv.id = 'details-' + index;
-    detailsDiv.className = 'api-details hidden';
-
-    const featureDocsContainer = document.createElement('div');
-    featureDocsContainer.className = 'feature-docs-container';
-    const tempDiv = document.createElement('div');
-    tempDiv.insertAdjacentHTML('afterbegin', featureDocs);
-    const featureDocsElement = tempDiv.firstElementChild;
-    if (featureDocsElement) {
-        featureDocsContainer.appendChild(featureDocsElement);
+    const featureDocsContainer = apiItem.querySelector('.feature-docs-container');
+    if (featureDocsContainer) {
+        const featureDocs = await createFeatureDocs(api.feature, authAndMethod, method, description, controller);
+        if (featureDocs) {
+            featureDocsContainer.appendChild(featureDocs);
+        }
     }
-
-    const urlFormGroup = document.createElement('div');
-    urlFormGroup.className = 'form-group';
-    const urlLabel = document.createElement('label');
-    urlLabel.className = 'form-label';
-    urlLabel.textContent = 'API Endpoint URL:';
-    const urlInput = document.createElement('input');
-    urlInput.type = 'text';
-    urlInput.id = 'url-' + index;
-    urlInput.className = 'form-control';
-    urlInput.value = fullUrl;
-    urlFormGroup.appendChild(urlLabel);
-    urlFormGroup.appendChild(urlInput);
-
-    const paramsFormGroup = document.createElement('div');
-    paramsFormGroup.className = 'form-group';
-    const paramsLabel = document.createElement('label');
-    paramsLabel.className = 'form-label';
-    paramsLabel.textContent = 'Request Parameters (JSON):';
-    const paramsTextarea = document.createElement('textarea');
-    paramsTextarea.id = 'params-' + index;
-    paramsTextarea.className = 'form-control';
-    paramsTextarea.placeholder = 'Enter JSON parameters';
-    paramsTextarea.rows = 6;
-    paramsTextarea.value = presetJson;
-    paramsFormGroup.appendChild(paramsLabel);
-    paramsFormGroup.appendChild(paramsTextarea);
-
-    const btnGroup = document.createElement('div');
-    btnGroup.className = 'btn-group';
-
-    const testBtn = document.createElement('button');
-    testBtn.className = 'btn btn-primary';
-    testBtn.dataset.action = 'test-api';
-    testBtn.dataset.index = index;
-    testBtn.dataset.method = method;
-    testBtn.dataset.appName = appName;
-    testBtn.dataset.endpoint = endpoint;
-    testBtn.textContent = 'Send Request';
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-secondary';
-    saveBtn.dataset.action = 'save-params';
-    saveBtn.dataset.index = index;
-    saveBtn.dataset.appName = appName;
-    saveBtn.dataset.endpoint = endpoint;
-    saveBtn.dataset.method = method;
-    saveBtn.textContent = 'Save Params';
-
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'btn btn-secondary';
-    loadBtn.dataset.action = 'load-params';
-    loadBtn.dataset.index = index;
-    loadBtn.dataset.appName = appName;
-    loadBtn.dataset.endpoint = endpoint;
-    loadBtn.textContent = 'Load Params';
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-success';
-    copyBtn.dataset.action = 'copy-headers';
-    copyBtn.dataset.index = index;
-    copyBtn.dataset.appName = appName;
-    copyBtn.textContent = 'Copy Headers';
-
-    btnGroup.appendChild(testBtn);
-    btnGroup.appendChild(saveBtn);
-    btnGroup.appendChild(loadBtn);
-    btnGroup.appendChild(copyBtn);
-
-    const responseArea = document.createElement('div');
-    responseArea.id = 'response-' + index;
-    responseArea.className = 'response-area';
-
-    detailsDiv.appendChild(featureDocsContainer);
-    detailsDiv.appendChild(urlFormGroup);
-    detailsDiv.appendChild(paramsFormGroup);
-    detailsDiv.appendChild(btnGroup);
-    detailsDiv.appendChild(responseArea);
-
-    apiItem.appendChild(apiNumber);
-    apiItem.appendChild(apiHeader);
-    apiItem.appendChild(detailsDiv);
 
     return apiItem;
 }
 
 async function createFeatureDocs(feature, authAndMethod, method, description, controller) {
-    const parsedFeature = parseFeatureString(feature);
+    const parsedFeature = ApiUtils.parseFeatureString(feature);
     const authRequired = authAndMethod.includes('auth_required') ? 'Required' : 'Not Required';
-    
-    const featureDocs = document.createElement('div');
-    featureDocs.className = 'feature-docs';
 
-    const title = document.createElement('h5');
-    title.className = 'feature-docs-title';
-    title.textContent = 'API Details:';
-    featureDocs.appendChild(title);
+    const template = await TemplateUtils.loadTemplate(TEMPLATE_URLS.FEATURE_DOCS);
+    const featureDocs = TemplateUtils.renderToElement(template, {});
 
-    const content = document.createElement('div');
-    content.className = 'feature-docs-content';
+    const authSpan = featureDocs.querySelector('.auth-required');
+    if (authSpan) {
+        authSpan.textContent = authRequired;
+        authSpan.className = `px-2 py-1 rounded text-xs font-medium ${authRequired === 'Required' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
+    }
 
-    const authStrong = document.createElement('strong');
-    authStrong.textContent = 'Authentication: ';
-    const authSpan = document.createElement('span');
-    authSpan.className = 'auth-required';
-    authSpan.textContent = authRequired;
-    content.appendChild(authStrong);
-    content.appendChild(authSpan);
-    content.appendChild(document.createElement('br'));
+    const methodSpan = featureDocs.querySelector('.method-value');
+    if (methodSpan) {
+        methodSpan.textContent = method;
+        methodSpan.className = `px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800`;
+    }
 
-    const methodStrong = document.createElement('strong');
-    methodStrong.textContent = 'Method: ';
-    const methodSpan = document.createElement('span');
-    methodSpan.className = 'method-value';
-    methodSpan.textContent = method;
-    content.appendChild(methodStrong);
-    content.appendChild(methodSpan);
-    content.appendChild(document.createElement('br'));
+    const descContainer = featureDocs.querySelector('.description-container');
+    if (descContainer && description) {
+        const descTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-description.html');
+        const descEl = TemplateUtils.renderToElement(descTemplate, { description: TemplateUtils.escapeHtml(description) });
+        descContainer.appendChild(descEl);
+    }
 
-    const descContainer = document.createElement('div');
-    descContainer.className = 'description-container';
-    const descStrong = document.createElement('strong');
-    descStrong.textContent = 'Description: ';
-    const descText = document.createTextNode(description);
-    descContainer.appendChild(descStrong);
-    descContainer.appendChild(descText);
-    descContainer.appendChild(document.createElement('br'));
-    content.appendChild(descContainer);
+    const ctrlContainer = featureDocs.querySelector('.controller-container');
+    if (ctrlContainer && controller) {
+        const ctrlTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-controller.html');
+        const ctrlEl = TemplateUtils.renderToElement(ctrlTemplate, { controller: TemplateUtils.escapeHtml(controller) });
+        ctrlContainer.appendChild(ctrlEl);
+    }
 
-    const controllerContainer = document.createElement('div');
-    controllerContainer.className = 'controller-container';
-    const ctrlStrong = document.createElement('strong');
-    ctrlStrong.textContent = 'Controller: ';
-    const ctrlText = document.createTextNode(controller);
-    controllerContainer.appendChild(ctrlStrong);
-    controllerContainer.appendChild(ctrlText);
-    controllerContainer.appendChild(document.createElement('br'));
-    content.appendChild(controllerContainer);
+    const tagsContainer = featureDocs.querySelector('.tags-container');
+    if (tagsContainer && parsedFeature.tags.length > 0) {
+        const tagsTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-tags.html');
+        const tagsEl = TemplateUtils.renderToElement(tagsTemplate, { tags: parsedFeature.tags.join(', ') });
+        tagsContainer.appendChild(tagsEl);
+    }
 
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'tags-container';
-    const tagsStrong = document.createElement('strong');
-    tagsStrong.textContent = 'Tags: ';
-    const tagsText = document.createTextNode(parsedFeature.tags.join(', '));
-    tagsContainer.appendChild(tagsStrong);
-    tagsContainer.appendChild(tagsText);
-    tagsContainer.appendChild(document.createElement('br'));
-    content.appendChild(tagsContainer);
+    const paramsContainer = featureDocs.querySelector('.parameters-container');
+    if (paramsContainer && Object.keys(parsedFeature.params).length > 0) {
+        const paramsTitleTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-params-title.html');
+        const paramsTitleEl = TemplateUtils.renderToElement(paramsTitleTemplate, {});
+        paramsContainer.appendChild(paramsTitleEl);
+        
+        const paramsListTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-params-list.html');
+        const paramsListContainerTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/parameters-list-container.html');
+        
+        let paramsItemsHtml = '';
+        Object.values(parsedFeature.params).forEach(param => {
+            const required = param.requirement === 'required' ? '* ' : '  ';
+            paramsItemsHtml += TemplateUtils.renderTemplate(paramsListTemplate, {
+                required: required,
+                name: TemplateUtils.escapeHtml(param.name),
+                type: TemplateUtils.escapeHtml(param.type),
+                requirement: TemplateUtils.escapeHtml(param.requirement),
+                example: TemplateUtils.escapeHtml(param.example)
+            });
+        });
+        
+        const paramsList = TemplateUtils.renderToElement(paramsListContainerTemplate, { items: paramsItemsHtml });
+        paramsContainer.appendChild(paramsList);
+    }
 
-    featureDocs.appendChild(content);
+    const responseContainer = featureDocs.querySelector('.response-container');
+    if (responseContainer && Object.keys(parsedFeature.response).length > 0) {
+        const responseTitleTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/feature-response-title.html');
+        const responseTitleEl = TemplateUtils.renderToElement(responseTitleTemplate, {});
+        responseContainer.appendChild(responseTitleEl);
+        
+        const responseListTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.FEATURE_RESPONSE_LIST);
+        const responseListContainerTemplate = await TemplateUtils.loadTemplate('/debug-assets/debug-tools/templates/response-list-container.html');
+        
+        let responseItemsHtml = '';
+        Object.values(parsedFeature.response).forEach(resp => {
+            responseItemsHtml += TemplateUtils.renderTemplate(responseListTemplate, {
+                name: TemplateUtils.escapeHtml(resp.name),
+                type: TemplateUtils.escapeHtml(resp.type),
+                example: TemplateUtils.escapeHtml(resp.example)
+            });
+        });
+        
+        const responseList = TemplateUtils.renderToElement(responseListContainerTemplate, { items: responseItemsHtml });
+        responseContainer.appendChild(responseList);
+    }
 
-    const parametersContainer = document.createElement('div');
-    parametersContainer.className = 'parameters-container';
-    const paramsTitle = document.createElement('strong');
-    paramsTitle.textContent = 'Parameters:';
-    parametersContainer.appendChild(paramsTitle);
-    parametersContainer.appendChild(document.createElement('br'));
-    const paramsDiv = document.createElement('div');
-    paramsDiv.className = 'parameters-list';
-    Object.values(parsedFeature.params).forEach(param => {
-        const paramDiv = document.createElement('div');
-        paramDiv.className = 'parameter-item';
-        const required = param.requirement === 'required' ? '* ' : '  ';
-        const code = document.createElement('code');
-        code.textContent = param.name;
-        paramDiv.appendChild(document.createTextNode(required));
-        paramDiv.appendChild(code);
-        paramDiv.appendChild(document.createTextNode(` (${param.type}) - ${param.requirement}`));
-        paramDiv.appendChild(document.createTextNode(` - Example: "${param.example}"`));
-        paramDiv.appendChild(document.createElement('br'));
-        paramsDiv.appendChild(paramDiv);
-    });
-    parametersContainer.appendChild(paramsDiv);
-    featureDocs.appendChild(parametersContainer);
-
-    const responseContainer = document.createElement('div');
-    responseContainer.className = 'response-container';
-    const responseTitle = document.createElement('strong');
-    responseTitle.textContent = 'Response:';
-    responseContainer.appendChild(responseTitle);
-    responseContainer.appendChild(document.createElement('br'));
-    const responseDiv = document.createElement('div');
-    responseDiv.className = 'response-list';
-    Object.values(parsedFeature.response).forEach(resp => {
-        const respDiv = document.createElement('div');
-        respDiv.className = 'response-item';
-        respDiv.appendChild(document.createTextNode('- '));
-        const code = document.createElement('code');
-        code.textContent = resp.name;
-        respDiv.appendChild(code);
-        respDiv.appendChild(document.createTextNode(` (${resp.type})`));
-        respDiv.appendChild(document.createTextNode(` - ${resp.example}`));
-        respDiv.appendChild(document.createElement('br'));
-        responseDiv.appendChild(respDiv);
-    });
-    responseContainer.appendChild(responseDiv);
-    featureDocs.appendChild(responseContainer);
-
-    return featureDocs.outerHTML;
+    return featureDocs;
 }
 
-function attachAPIItemListeners() {
-    document.querySelectorAll('.api-header').forEach(header => {
-        header.addEventListener('click', function() {
-            const index = parseInt(this.dataset.index);
-            const appName = this.dataset.appName;
-            const endpoint = this.dataset.endpoint;
-            toggleAPIDetails(index, appName, endpoint);
-        });
-    });
-
-    document.querySelectorAll('[data-action="test-api"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const index = parseInt(this.dataset.index);
-            const method = this.dataset.method;
-            const appName = this.dataset.appName;
-            const endpoint = this.dataset.endpoint;
-            testAPI(index, method, appName, endpoint);
-        });
-    });
-
-    document.querySelectorAll('[data-action="save-params"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const index = parseInt(this.dataset.index);
-            const appName = this.dataset.appName;
-            const endpoint = this.dataset.endpoint;
-            const method = this.dataset.method;
-            saveParams(index, appName, endpoint, method);
-        });
-    });
-
-    document.querySelectorAll('[data-action="load-params"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const index = parseInt(this.dataset.index);
-            const appName = this.dataset.appName;
-            const endpoint = this.dataset.endpoint;
-            loadParamsWithReset(index, appName, endpoint);
-        });
-    });
-
-    document.querySelectorAll('[data-action="copy-headers"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const index = parseInt(this.dataset.index);
-            const appName = this.dataset.appName;
-            copyHeaders(index, appName);
-        });
-    });
-
-    document.querySelectorAll('[data-action="save-headers-server"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const appName = this.dataset.appName;
-            saveAllAppHeaders(appName);
-        });
-    });
-
-    document.querySelectorAll('[data-action="reset-headers-server"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const appName = this.dataset.appName;
-            resetAppHeaders(appName);
-        });
-    });
-
-    document.querySelectorAll('[data-action="copy-headers-json"]').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const appName = this.dataset.appName;
-            copyAppHeaders(appName);
-        });
-    });
-
-    document.querySelectorAll('.shared-header-input').forEach(input => {
-        input.addEventListener('change', function() {
-            const appName = this.dataset.appName;
-            const headerName = this.dataset.headerName;
-            saveAppHeader(appName, headerName, this.value);
-        });
-    });
-}
-
-function populateSharedHeaders(appName, supportedHeaders) {
+async function populateSharedHeaders(appName, supportedHeaders) {
     const apiListDiv = document.getElementById('api-list');
+    if (!apiListDiv) return;
+
     const existingSharedHeaders = apiListDiv.querySelector('.shared-headers-card');
     if (existingSharedHeaders) {
-        apiListDiv.removeChild(existingSharedHeaders);
+        existingSharedHeaders.remove();
     }
-    
+
     const cachedAppHeaders = loadAppHeadersFromCache(appName);
-    
-    const card = document.createElement('div');
-    card.className = 'card shared-headers-card';
-    
-    const cardHeader = document.createElement('div');
-    cardHeader.className = 'card-header shared-headers-header';
-    
-    const title = document.createElement('h3');
-    title.className = 'shared-headers-title';
-    title.textContent = appName + ' - Shared Headers';
-    
-    const description = document.createElement('p');
-    description.className = 'shared-headers-description';
-    description.textContent = 'Edit these values to use across all ' + appName + ' APIs. Changes are automatically cached.';
-    
-    cardHeader.appendChild(title);
-    cardHeader.appendChild(description);
-    
-    const cardBody = document.createElement('div');
-    cardBody.className = 'card-body';
-    
-    const formGroup = document.createElement('div');
-    formGroup.className = 'form-group';
-    
-    const headersGrid = document.createElement('div');
-    headersGrid.id = 'shared-headers-' + appName;
-    headersGrid.className = 'shared-headers-grid';
-    
+    const template = await TemplateUtils.loadTemplate(TEMPLATE_URLS.SHARED_HEADERS_SECTION);
+    const section = TemplateUtils.renderToElement(template, { appName: appName });
+
+    const headersGrid = section.querySelector(`#shared-headers-${appName}`);
+    if (!headersGrid) return;
+
+    const headerItemTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.SHARED_HEADER_ITEM);
+
+    if (!supportedHeaders || typeof supportedHeaders !== 'object') {
+        return;
+    }
+
     for (const [headerName, headerDescription] of Object.entries(supportedHeaders)) {
-        const currentValue = cachedAppHeaders[headerName];
-        const displayValue = currentValue ? currentValue : '';
-        
-        const headerItem = document.createElement('div');
-        headerItem.className = 'shared-header-item';
-        
-        const label = document.createElement('label');
-        label.className = 'shared-header-label';
-        label.textContent = headerName + ':';
-        
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control shared-header-input';
-        input.dataset.appName = appName;
-        input.dataset.headerName = headerName;
-        input.value = displayValue;
-        
-        const hint = document.createElement('small');
-        hint.className = 'shared-header-hint';
-        hint.textContent = headerDescription;
-        
-        headerItem.appendChild(label);
-        headerItem.appendChild(input);
-        headerItem.appendChild(hint);
-        
+        const currentValue = cachedAppHeaders[headerName] || '';
+        const headerItem = TemplateUtils.renderToElement(headerItemTemplate, {
+            headerName: headerName,
+            appName: appName,
+            headerValue: currentValue,
+            headerDescription: headerDescription
+        });
         headersGrid.appendChild(headerItem);
     }
-    
-    formGroup.appendChild(headersGrid);
-    
-    const actions = document.createElement('div');
-    actions.className = 'shared-headers-actions';
-    
-    const btnGroup = document.createElement('div');
-    btnGroup.className = 'btn-group';
-    
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'btn btn-success';
-    saveBtn.dataset.action = 'save-headers-server';
-    saveBtn.dataset.appName = appName;
-    saveBtn.textContent = 'Save All Headers';
-    
-    const resetBtn = document.createElement('button');
-    resetBtn.className = 'btn btn-secondary';
-    resetBtn.dataset.action = 'reset-headers-server';
-    resetBtn.dataset.appName = appName;
-    resetBtn.textContent = 'Reset to Defaults';
-    
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'btn btn-primary';
-    copyBtn.dataset.action = 'copy-headers-json';
-    copyBtn.dataset.appName = appName;
-    copyBtn.textContent = 'Copy Headers JSON';
-    
-    btnGroup.appendChild(saveBtn);
-    btnGroup.appendChild(resetBtn);
-    btnGroup.appendChild(copyBtn);
-    actions.appendChild(btnGroup);
-    
-    cardBody.appendChild(formGroup);
-    cardBody.appendChild(actions);
-    
-    card.appendChild(cardHeader);
-    card.appendChild(cardBody);
-    
-    apiListDiv.insertBefore(card, apiListDiv.firstChild);
-    
-    attachSharedHeadersListeners(appName);
+
+    apiListDiv.insertBefore(section, apiListDiv.firstChild);
 }
 
 function loadAppHeadersFromCache(appName) {
@@ -575,34 +376,42 @@ function saveAppHeader(appName, headerName, value) {
     localStorage.setItem(cacheKey, JSON.stringify(headers));
     cachedHeaders[appName] = headers;
     const saveData = { app_name: appName, headers: headers };
-    apiClientInstance.json(ApiClient.PointUrlKey.API_HEADERS_CACHE_SAVE, 'POST', saveData);
-    showStatus('Header "' + headerName + '" saved for ' + appName, 'success');
+    apiClientInstance.post(ApiClient.PointUrlKey.API_HEADERS_CACHE_SAVE, saveData).catch(err => {
+        console.error('Failed to save header:', err);
+    });
+    showStatus(`Header "${headerName}" saved for ${appName}`, 'success');
 }
 
 function saveAllAppHeaders(appName) {
     const headers = {};
-    const supportedHeaders = apiData[appName].supported_headers;
+    const supportedHeaders = apiData[appName]?.supported_headers || {};
     Object.keys(supportedHeaders).forEach(headerName => {
         const input = document.querySelector(`.shared-header-input[data-app-name="${appName}"][data-header-name="${headerName}"]`);
-        headers[headerName] = input.value;
+        if (input) headers[headerName] = input.value;
     });
     const cacheKey = 'app_headers_' + appName;
     localStorage.setItem(cacheKey, JSON.stringify(headers));
     cachedHeaders[appName] = headers;
     const saveData = { app_name: appName, headers: headers };
-    apiClientInstance.json(ApiClient.PointUrlKey.API_HEADERS_CACHE_SAVE, 'POST', saveData);
-    showStatus('All headers saved for ' + appName, 'success');
+    apiClientInstance.post(ApiClient.PointUrlKey.API_HEADERS_CACHE_SAVE, saveData).catch(err => {
+        console.error('Failed to save headers:', err);
+    });
+    showStatus(`All headers saved for ${appName}`, 'success');
 }
 
 function resetAppHeaders(appName) {
-    confirm('Are you sure you want to reset all headers for ' + appName + ' to default values? This will clear all cached values.');
+    if (!confirm(`Are you sure you want to reset all headers for ${appName} to default values? This will clear all cached values.`)) {
+        return;
+    }
     const cacheKey = 'app_headers_' + appName;
     localStorage.removeItem(cacheKey);
     delete cachedHeaders[appName];
     const resetData = { app_name: appName };
-    apiClientInstance.json(ApiClient.PointUrlKey.API_HEADERS_CACHE_RESET, 'POST', resetData);
+    apiClientInstance.post(ApiClient.PointUrlKey.API_HEADERS_CACHE_RESET, resetData).catch(err => {
+        console.error('Failed to reset headers:', err);
+    });
     loadAppAPIs();
-    showStatus('Headers reset for ' + appName, 'success');
+    showStatus(`Headers reset for ${appName}`, 'success');
 }
 
 function copyAppHeaders(appName) {
@@ -613,142 +422,21 @@ function copyAppHeaders(appName) {
     });
 }
 
-function parseFeatureString(feature) {
-    const parts = feature.split('|');
-    const authAndMethod = parts[0];
-    const description = parts[1];
-    const controller = parts[2];
-    const result = {
-        authAndMethod: authAndMethod,
-        description: description,
-        controller: controller,
-        params: {},
-        headers: {},
-        response: {},
-        tags: []
-    };
-
-    for (let i = 3; i < parts.length; i++) {
-        const section = parts[i];
-        if (section.startsWith('params:')) {
-            result.params = parseParameterSection(section.substring(7));
-        } else if (section.startsWith('headers:')) {
-            result.headers = parseParameterSection(section.substring(8));
-        } else if (section.startsWith('response:')) {
-            result.response = parseParameterSection(section.substring(9));
-        } else if (section.startsWith('tags:')) {
-            result.tags = section.substring(5).split(',').map(tag => tag.trim());
-        }
-    }
-
-    return result;
-}
-
-function parseParameterSection(section) {
-    const params = {};
-
-    const paramList = [];
-    let current = '';
-    let depth = 0;
-
-    for (let i = 0; i < section.length; i++) {
-        const char = section[i];
-        if (char === '(') depth++;
-        else if (char === ')') depth--;
-        else if (char === ',' && depth === 0) {
-            paramList.push(current.trim());
-            current = '';
-            continue;
-        }
-        current += char;
-    }
-    paramList.push(current.trim());
-
-    paramList.forEach(param => {
-        const parsed = parseParameterDefinition(param.trim());
-        params[parsed.name] = parsed;
-    });
-
-    return params;
-}
-
-function parseParameterDefinition(paramDef) {
-    const match = paramDef.match(/^([^(]+)\(([^)]+)\)$/);
-    return {
-        name: match[1].trim(),
-        type: match[2].split(',')[0].trim(),
-        requirement: match[2].split(',')[1].trim(),
-        example: match[2].split(',')[2].trim()
-    };
-}
-
-function generateParamsFromFeature(feature, method, appName = null) {
-    const parsed = parseFeatureString(feature);
-    const jsonParams = {};
-    const cachedAppHeaders = loadAppHeadersFromCache(appName);
-
-    Object.values(parsed.params).forEach(param => {
-        const value = param.example;
-        const finalValue = linkParameterToSharedHeader(param.name, value, cachedAppHeaders);
-        jsonParams[param.name] = finalValue;
-    });
-
-    return Object.keys(jsonParams).length > 0 ? JSON.stringify(jsonParams, null, 2) : '';
-}
-
-function linkParameterToSharedHeader(paramName, paramValue, cachedHeaders) {
-    const paramValueStr = String(paramValue);
-    const paramHeaderMap = {
-        'token': 'Authorization',
-        'auth_token': 'Authorization',
-        'user_token': 'Authorization',
-        'access_token': 'Authorization',
-        'bearer_token': 'Authorization',
-        'client_token': 'X-Client-Token',
-        'api_key': 'X-API-Key',
-        'username': 'X-Auth-Username',
-        'password': 'X-Auth-Password'
-    };
-
-    const headerName = paramHeaderMap[paramName.toLowerCase()];
-    const headerValue = cachedHeaders[headerName];
-    return headerValue ? headerValue : paramValue;
-}
-
-function generatePresetJson(feature, method, appName = null) {
-    return generateParamsFromFeature(feature, method, appName);
-}
-
-function extractMethodFromFeature(feature) {
-    const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
-    const upperFeature = feature.toUpperCase();
-    if (upperFeature.includes('ANY')) {
-        return "POST";
-    }
-    for (let method of methods) {
-        if (upperFeature.includes(method)) {
-            return method;
-        }
-    }
-    return "GET";
-}
-
-function extractEndpointFromPath(path) {
-    const url = new URL(path);
-    return url.pathname;
-}
-
 function toggleAPIDetails(index, appName, endpoint) {
     const details = document.getElementById("details-" + index);
     const toggle = document.getElementById("toggle-" + index);
 
-    details.classList.toggle('hidden');
-    toggle.textContent = details.classList.contains('hidden') ? "▼" : "▲";
-    loadParams(index, appName, endpoint);
+    if (details && toggle) {
+        DomUtils.toggleClass(details, 'hidden');
+        toggle.textContent = details.classList.contains('hidden') ? "▼" : "▲";
+        loadParams(index, appName, endpoint);
+    }
 }
 
 function saveParams(index, appName, endpoint, method) {
-    const params = document.getElementById("params-" + index).value;
+    const params = document.getElementById("params-" + index)?.value;
+    if (!params) return;
+
     saveToBrowserCache(appName, endpoint, params);
     const saveData = {
         app_name: appName,
@@ -756,11 +444,16 @@ function saveParams(index, appName, endpoint, method) {
         method: method,
         params: params
     };
-    apiClientInstance.json(ApiClient.PointUrlKey.API_PARAMS_CACHE_SAVE, 'POST', saveData);
+    apiClientInstance.post(ApiClient.PointUrlKey.API_PARAMS_CACHE_SAVE, saveData).catch(err => {
+        console.error('Failed to save params:', err);
+    });
+    showStatus('Parameters saved', 'success');
 }
 
 function loadParams(index, appName, endpoint) {
     const paramsTextarea = document.getElementById("params-" + index);
+    if (!paramsTextarea) return;
+
     const browserCached = loadFromBrowserCache(appName, endpoint);
     if (browserCached) {
         paramsTextarea.value = browserCached;
@@ -771,38 +464,51 @@ function loadParams(index, appName, endpoint) {
         app_name: appName,
         api_endpoint: endpoint
     });
-    apiClientInstance.json(url, 'GET').then(result => {
-        paramsTextarea.value = result.data.params;
-        saveToBrowserCache(appName, endpoint, result.data.params);
+    apiClientInstance.get(url).then(async response => {
+        const result = await response.json();
+        if (result.data && result.data.params) {
+            paramsTextarea.value = result.data.params;
+            saveToBrowserCache(appName, endpoint, result.data.params);
+        }
+    }).catch(err => {
+        console.error('Failed to load params:', err);
     });
 }
 
 function loadParamsWithReset(index, appName, endpoint) {
-    confirm('This will reset parameters to parsed defaults and may override your current changes. Continue?');
+    if (!confirm('This will reset parameters to parsed defaults and may override your current changes. Continue?')) {
+        return;
+    }
+
     const paramsTextarea = document.getElementById("params-" + index);
+    if (!paramsTextarea) return;
+
     const apiInfo = apiData[appName];
+    if (!apiInfo || !apiInfo.endpoints) return;
+
     const api = apiInfo.endpoints.find(ep => ep.path.includes(endpoint));
-    const method = extractMethodFromFeature(api.feature);
-    const parsedParams = generateParamsFromFeature(api.feature, method, appName);
+    if (!api) return;
+
+    const method = ApiUtils.extractMethod(api.feature);
+    const cachedAppHeaders = loadAppHeadersFromCache(appName);
+    const parsedParams = ApiUtils.generatePresetJson(api.feature, method, appName, cachedAppHeaders);
     paramsTextarea.value = parsedParams;
     showStatus('Parameters reset to parsed defaults', 'success');
 }
 
 async function testAPI(index, method, appName, endpoint) {
-    const url = document.getElementById("url-" + index).value;
-    const params = document.getElementById("params-" + index).value;
+    const url = document.getElementById("url-" + index)?.value;
+    const params = document.getElementById("params-" + index)?.value;
     const responseDiv = document.getElementById("response-" + index);
 
-    responseDiv.classList.remove('hidden');
+    if (!url || !responseDiv) return;
+
+    DomUtils.removeClass(responseDiv, 'hidden');
     
-    while (responseDiv.firstChild) {
-        responseDiv.removeChild(responseDiv.firstChild);
-    }
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'loading';
-    const loadingText = document.createTextNode('Sending request...');
-    responseDiv.appendChild(loadingDiv);
-    responseDiv.appendChild(loadingText);
+    const loadingTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.LOADING_STATE);
+    const loadingEl = TemplateUtils.renderToElement(loadingTemplate, { message: 'Sending request...' });
+    DomUtils.clear(responseDiv);
+    responseDiv.appendChild(loadingEl);
 
     let requestOptions = {
         method: method,
@@ -813,38 +519,42 @@ async function testAPI(index, method, appName, endpoint) {
     };
 
     if (params) {
-        JSON.parse(params);
-        requestOptions.body = params;
+        try {
+            JSON.parse(params);
+            requestOptions.body = params;
+        } catch (e) {
+            const errorTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.ERROR_MESSAGE);
+            const errorEl = TemplateUtils.renderToElement(errorTemplate, { 
+                message: `Invalid JSON in parameters: ${e.message}` 
+            });
+            DomUtils.clear(responseDiv);
+            responseDiv.appendChild(errorEl);
+            return;
+        }
     }
-
-    const response = await fetch(url, requestOptions);
-    const text = await response.text();
-    const result = {
-        status: response.status,
-        statusText: response.statusText,
-        body: text,
-        headers: Object.fromEntries(response.headers.entries()),
-        ok: response.ok
-    };
-
-    let responseText = "Status: " + (result.ok ? "OK" : "ERROR") + " " + result.status + " " + result.statusText + "\n\n";
-    responseText += "Headers:\n" + JSON.stringify(result.headers, null, 2) + "\n\n";
-    responseText += "Response:\n";
 
     try {
-        const jsonBody = JSON.parse(result.body);
-        responseText += JSON.stringify(jsonBody, null, 2);
-    } catch (e) {
-        responseText += result.body;
-    }
+        const response = await fetch(url, requestOptions);
+        const text = await response.text();
+        const responseText = ApiUtils.formatResponse(response, text);
+        
+        const responseTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.RESPONSE_DISPLAY);
+        const responseEl = TemplateUtils.renderToElement(responseTemplate, { 
+            content: TemplateUtils.escapeHtml(responseText) 
+        });
+        DomUtils.clear(responseDiv);
+        responseDiv.appendChild(responseEl);
 
-    while (responseDiv.firstChild) {
-        responseDiv.removeChild(responseDiv.firstChild);
-    }
-    responseDiv.textContent = responseText;
-
-    if (result.ok && params) {
-        saveToBrowserCache(appName, endpoint, params);
+        if (response.ok && params) {
+            saveToBrowserCache(appName, endpoint, params);
+        }
+    } catch (error) {
+        const errorTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.ERROR_MESSAGE);
+        const errorEl = TemplateUtils.renderToElement(errorTemplate, { 
+            message: `Request failed: ${error.message}` 
+        });
+        DomUtils.clear(responseDiv);
+        responseDiv.appendChild(errorEl);
     }
 }
 
@@ -856,6 +566,8 @@ function searchAndJumpToAPI(searchTerm) {
 
     searchTimeout = setTimeout(() => {
         const term = searchTerm.trim().toLowerCase();
+        if (!term) return;
+
         let bestMatch = null;
         let bestScore = 0;
 
@@ -867,7 +579,9 @@ function searchAndJumpToAPI(searchTerm) {
             }
         });
 
-        jumpToAPI(bestMatch.index);
+        if (bestMatch) {
+            jumpToAPI(bestMatch.index);
+        }
     }, 300);
 }
 
@@ -876,46 +590,20 @@ function calculateMatchScore(api, term, index) {
     const apiNumber = (index + 1).toString();
     const path = api.path.toLowerCase();
     const feature = api.feature.toLowerCase();
-    const method = extractMethodFromFeature(api.feature).toLowerCase();
+    const method = ApiUtils.extractMethod(api.feature).toLowerCase();
     const featureParts = feature.split('|');
-    const description = featureParts[1].toLowerCase();
-    const endpoint = extractEndpointFromPath(path).toLowerCase();
+    const description = featureParts[1]?.toLowerCase() || '';
+    const endpoint = ApiUtils.extractEndpoint(path).toLowerCase();
 
-    if (term === apiNumber) {
-        return 1000;
-    }
-
-    if (apiNumber.startsWith(term)) {
-        score += 500;
-    }
-
-    if (endpoint === term) {
-        score += 800;
-    }
-
-    if (endpoint.startsWith(term)) {
-        score += 400;
-    }
-
-    if (endpoint.includes(term)) {
-        score += 200;
-    }
-
-    if (path.includes(term)) {
-        score += 150;
-    }
-
-    if (method === term) {
-        score += 300;
-    }
-
-    if (description.includes(term)) {
-        score += 100;
-    }
-
-    if (feature.includes(term)) {
-        score += 50;
-    }
+    if (term === apiNumber) return 1000;
+    if (apiNumber.startsWith(term)) score += 500;
+    if (endpoint === term) score += 800;
+    if (endpoint.startsWith(term)) score += 400;
+    if (endpoint.includes(term)) score += 200;
+    if (path.includes(term)) score += 150;
+    if (method === term) score += 300;
+    if (description.includes(term)) score += 100;
+    if (feature.includes(term)) score += 50;
 
     score += calculateFuzzyScore(endpoint, term) * 10;
     score += calculateFuzzyScore(description, term) * 5;
@@ -942,6 +630,8 @@ function calculateFuzzyScore(text, term) {
 
 function jumpToAPI(apiIndex) {
     const apiItem = document.getElementById('api-item-' + apiIndex);
+    if (!apiItem) return;
+
     apiItem.classList.add('search-highlighted');
     apiItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -949,20 +639,23 @@ function jumpToAPI(apiIndex) {
     const toggle = document.getElementById('toggle-' + apiIndex);
 
     setTimeout(() => {
-        details.classList.remove('hidden');
-        toggle.textContent = '▲';
-        const selectedApp = document.getElementById("app-select").value;
-        const api = currentAppAPIs[apiIndex];
-        const endpoint = extractEndpointFromPath(api.path);
-        loadParams(apiIndex, selectedApp, endpoint);
+        if (details) DomUtils.removeClass(details, 'hidden');
+        if (toggle) toggle.textContent = '▲';
+        const selectedApp = document.getElementById("app-select")?.value;
+        if (selectedApp) {
+            const api = currentAppAPIs[apiIndex];
+            const endpoint = ApiUtils.extractEndpoint(api.path);
+            loadParams(apiIndex, selectedApp, endpoint);
+        }
     }, 500);
 
-    showStatus('Jumped to API #' + (apiIndex + 1), 'success');
+    showStatus(`Jumped to API #${apiIndex + 1}`, 'success');
 }
 
 function copyHeaders(index, appName) {
-    const headers = JSON.stringify(apiData[appName].supportedHeaders, null, 2);
-    navigator.clipboard.writeText(headers).then(() => {
+    const headers = apiData[appName]?.supported_headers || {};
+    const headersJson = JSON.stringify(headers, null, 2);
+    navigator.clipboard.writeText(headersJson).then(() => {
         showStatus('Headers copied to clipboard!', 'success');
     });
 }
@@ -984,10 +677,17 @@ function loadFromBrowserCache(appName, endpoint) {
     return cachedItem ? cachedItem.params : null;
 }
 
-function showStatus(message, type) {
-    const statusEl = document.createElement('div');
-    statusEl.className = 'status-' + type;
-    statusEl.textContent = message;
+async function showStatus(message, type) {
+    const typeClass = type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white';
+    const template = await TemplateUtils.loadTemplate(TEMPLATE_URLS.STATUS_TOAST);
+    const statusEl = TemplateUtils.renderToElement(template, { 
+        message: message,
+        typeClass: typeClass
+    });
     document.body.appendChild(statusEl);
-    setTimeout(() => statusEl.remove(), 3000);
+    setTimeout(() => {
+        if (statusEl.parentNode) {
+            statusEl.parentNode.removeChild(statusEl);
+        }
+    }, 3000);
 }

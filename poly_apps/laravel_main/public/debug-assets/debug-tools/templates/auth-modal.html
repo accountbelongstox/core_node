@@ -1,4 +1,4 @@
-<div id="auth-modal" class="auth-modal" style="display: none;">
+<div id="auth-modal" class="auth-modal hidden">
     <div class="auth-modal-overlay" onclick="AuthHelper.closeAuthModal()"></div>
     <div class="auth-modal-content">
         <button class="auth-modal-close" onclick="AuthHelper.closeAuthModal()">×</button>
@@ -19,12 +19,12 @@
                     <label>Password:</label>
                     <input type="password" id="login-password" required class="auth-input" placeholder="Your password">
                 </div>
-                <div id="login-error" class="auth-error" style="display: none;"></div>
+                <div id="login-error" class="auth-error hidden"></div>
                 <button type="submit" class="auth-btn auth-btn-primary">Login</button>
             </form>
         </div>
         
-        <div id="auth-register-panel" class="auth-panel" style="display: none;">
+        <div id="auth-register-panel" class="auth-panel hidden">
             <h3>Register New Account</h3>
             <form id="register-form" onsubmit="AuthHelper.handleRegister(event)">
                 <div class="auth-form-group">
@@ -46,9 +46,9 @@
                 <div class="auth-form-group">
                     <label>Invitation Code:</label>
                     <input type="text" id="register-invitation" required class="auth-input" placeholder="Enter invitation code">
-                    <small id="invitation-hint" style="color: #666; font-size: 12px;">Loading...</small>
+                    <small id="invitation-hint" class="text-gray-500 text-xs">Loading...</small>
                 </div>
-                <div id="register-error" class="auth-error" style="display: none;"></div>
+                <div id="register-error" class="auth-error hidden"></div>
                 <button type="submit" class="auth-btn auth-btn-primary">Register</button>
             </form>
         </div>

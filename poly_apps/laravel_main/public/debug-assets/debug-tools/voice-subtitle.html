@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/debug-assets/debug-tools/assets/main.css">
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
 </head>
 <body>
     <div class="app-container">
@@ -106,11 +106,11 @@
                                 </select>
                             </div>
                             
-                            <div class="select-wrapper" id="groupSelectWrapper" style="display: none;">
+                            <div class="select-wrapper hidden" id="groupSelectWrapper">
                                 <select id="playGroupSelect" class="glass-select"></select>
                             </div>
                             
-                            <div class="select-wrapper" id="languageSelectWrapper" style="display: none;">
+                            <div class="select-wrapper hidden" id="languageSelectWrapper">
                                 <select id="playLanguageSelect" class="glass-select"></select>
                             </div>
 
@@ -134,7 +134,7 @@
                         </div>
                     </div>
                     
-                    <audio id="audioPlayer" style="display: none;"></audio>
+                    <audio id="audioPlayer" class="hidden"></audio>
                 </div>
             </section>
 
@@ -174,7 +174,7 @@
                                 <textarea id="inputContent" placeholder="Enter text or URL..." class="glass-input"></textarea>
                             </div>
 
-                            <div class="input-group" id="fileGroup" style="display: none;">
+                            <div class="input-group hidden" id="fileGroup">
                                 <label>Upload File</label>
                                 <div class="file-upload-wrapper">
                                     <input type="file" id="inputFile" class="file-input">

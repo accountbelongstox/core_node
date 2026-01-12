@@ -35,7 +35,7 @@
         </div>
     </div>
 
-    <div id="mcp-ss-upload-modal" class="mcp-modal" style="display: none;">
+    <div id="mcp-ss-upload-modal" class="mcp-modal hidden">
         <div class="mcp-modal-content">
             <div class="mcp-modal-header">
                 <h3>Upload Screenshot</h3>
@@ -44,24 +44,24 @@
             <div class="mcp-modal-body">
                 <div class="mcp-form-group">
                     <label>Upload Mode</label>
-                    <div id="mcp-ss-upload-mode" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <div id="mcp-ss-upload-mode" class="flex gap-3 flex-wrap mt-1.5">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="mcp-ss-mode" value="single" checked>
                             <span>Single screenshot</span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="mcp-ss-mode" value="multi">
                             <span>Merge multiple screenshots</span>
                         </label>
                     </div>
-                    <small id="mcp-ss-mode-hint" style="display:block;margin-top:6px;color:#888;">Upload a single image without merging.</small>
+                    <small id="mcp-ss-mode-hint" class="block mt-1.5 text-gray-500">Upload a single image without merging.</small>
                 </div>
                 <div class="mcp-form-group">
                     <label>Image Files *</label>
                     <input type="file" id="mcp-ss-file-input" accept="image/*" required>
-                    <small id="mcp-ss-upload-help" style="display:block; margin-top:6px; color:#888;">Select one image to upload.</small>
-                    <div id="mcp-ss-file-preview" style="margin-top: 10px;"></div>
-                    <div id="mcp-ss-upload-items" style="margin-top: 12px; display: none;"></div>
+                    <small id="mcp-ss-upload-help" class="block mt-1.5 text-gray-500">Select one image to upload.</small>
+                    <div id="mcp-ss-file-preview" class="mt-2.5"></div>
+                    <div id="mcp-ss-upload-items" class="mt-3 hidden"></div>
                 </div>
                 <div class="mcp-form-group">
                     <label>ID (Optional, auto-generated if empty)</label>
@@ -83,7 +83,7 @@
         </div>
     </div>
 
-    <div id="mcp-ss-batch-modal" class="mcp-modal" style="display: none;">
+    <div id="mcp-ss-batch-modal" class="mcp-modal hidden">
         <div class="mcp-modal-content mcp-modal-lg">
             <div class="mcp-modal-header">
                 <h3>📸 Batch Upload & Merge Screenshots</h3>
@@ -93,7 +93,7 @@
                 <div class="mcp-form-group">
                     <label>Select Multiple Images *</label>
                     <input type="file" id="mcp-ss-batch-file-input" accept="image/*" multiple required>
-                    <small style="color: #888;">Select multiple images. Each image can have its own description as title.</small>
+                    <small class="text-gray-500">Select multiple images. Each image can have its own description as title.</small>
                 </div>
 
                 <div class="mcp-form-group">
@@ -106,12 +106,12 @@
                     <input type="text" id="mcp-ss-batch-id-input" placeholder="Auto-generated if empty">
                 </div>
 
-                <div id="mcp-ss-batch-preview-container" style="display: none;">
+                <div id="mcp-ss-batch-preview-container" class="hidden">
                     <label>Image Descriptions (shown as titles above each image)</label>
                     <div id="mcp-ss-batch-items" class="mcp-batch-items"></div>
                 </div>
 
-                <div class="mcp-form-group" style="margin-top: 15px;">
+                <div class="mcp-form-group mt-4">
                     <label>
                         <input type="checkbox" id="mcp-ss-batch-merge-checkbox" checked>
                         Merge all images into one (with descriptions as section titles)

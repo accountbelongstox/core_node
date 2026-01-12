@@ -60,7 +60,7 @@ const AuthHelper = {
         setTimeout(() => {
             const hintEl = document.getElementById('invitation-hint');
             if (this.maskedInvitationCode) {
-                hintEl.textContent = `固定邀请码: ${this.maskedInvitationCode}`;
+                hintEl.textContent = `Fixed Invitation Code: ${this.maskedInvitationCode}`;
             }
         }, 100);
     },
