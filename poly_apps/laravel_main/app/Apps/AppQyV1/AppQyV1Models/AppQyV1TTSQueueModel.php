@@ -3,11 +3,60 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1TTSQueueModel extends Model
 {
-    protected $connection = 'appqyv1';
-    protected $table = 'appqyv1_tts_queue';
+    protected $appKey = AppKeys::APPQYV1;
+    protected $table;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_queue');
+    }
+
+    /**
+     * Override getConnectionName to ensure connection is set for static methods
+     * This is critical for static methods like getStats(), addToQueue(), etc.
+     */
+    public function getConnectionName()
+    {
+        if (!$this->connection) {
+            $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        }
+        return $this->connection;
+    }
+
+    /**
+     * Override getTable to ensure table name is set for static methods
+     * This is critical for static methods like getStats(), addToQueue(), etc.
+     */
+    public function getTable()
+    {
+        if (!$this->table) {
+            $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_queue');
+        }
+        return $this->table;
+    }
+
+    /**
+     * Override newModelQuery to ensure connection and table are set for static queries
+     * This is called when Model::where() is used in static context
+     */
+    public function newModelQuery()
+    {
+        // Ensure connection and table are set before creating query
+        if (!$this->connection) {
+            $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        }
+        if (!$this->table) {
+            $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_queue');
+        }
+        return parent::newModelQuery();
+    }
 
     protected $fillable = [
         'task_type',

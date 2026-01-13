@@ -28,8 +28,8 @@ class UserModelClass {
   /**
    * Initialize user from storage
    */
-  init(): void {
-    this.currentUser = StorageCenter.auth.getUser();
+  async init(): Promise<void> {
+    this.currentUser = await StorageCenter.auth.getUser();
   }
 
   /**
@@ -42,20 +42,21 @@ class UserModelClass {
   /**
    * Set current user
    */
-  setCurrentUser(user: UserProfile | null): void {
+  async setCurrentUser(user: UserProfile | null): Promise<void> {
     this.currentUser = user;
     if (user) {
-      StorageCenter.auth.setUser(user);
+      await StorageCenter.auth.setUser(user);
     } else {
-      StorageCenter.auth.removeUser();
+      await StorageCenter.auth.removeUser();
     }
   }
 
   /**
    * Check if user is logged in
    */
-  isLoggedIn(): boolean {
-    return this.currentUser !== null && StorageCenter.auth.hasToken();
+  async isLoggedIn(): Promise<boolean> {
+    const hasToken = await StorageCenter.auth.hasToken();
+    return this.currentUser !== null && hasToken;
   }
 
   /**
@@ -65,7 +66,7 @@ class UserModelClass {
     const response = await ApiCenter.user.getProfile();
 
     if (response.success && response.data) {
-      this.setCurrentUser(response.data as UserProfile);
+      await this.setCurrentUser(response.data as UserProfile);
     }
 
     return response as ApiResponse<UserProfile>;
@@ -78,7 +79,7 @@ class UserModelClass {
     const response = await ApiCenter.user.updateProfile(data);
 
     if (response.success && response.data) {
-      this.setCurrentUser({ ...this.currentUser!, ...response.data });
+      await this.setCurrentUser({ ...this.currentUser!, ...response.data });
     }
 
     return response as ApiResponse<UserProfile>;
@@ -95,7 +96,7 @@ class UserModelClass {
         ...this.currentUser!,
         avatar: response.data.avatar_url,
       };
-      StorageCenter.auth.setUser(this.currentUser);
+      await StorageCenter.auth.setUser(this.currentUser);
     }
 
     return response;
@@ -160,9 +161,9 @@ class UserModelClass {
   /**
    * Clear user data (logout)
    */
-  clear(): void {
+  async clear(): Promise<void> {
     this.currentUser = null;
-    StorageCenter.auth.clearAuth();
+    await StorageCenter.auth.clearAuth();
   }
 
   /**

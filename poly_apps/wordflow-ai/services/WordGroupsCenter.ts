@@ -22,17 +22,23 @@ class WordGroupsCenterClass {
    * Initialize - load from cache
    */
   async initialize(): Promise<void> {
-    const cached = StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
+    const cached = await StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
     if (cached) {
       console.log('[WordGroupsCenter] Loaded from cache:', cached.length, 'groups');
       this.groups = cached;
       this.notifyListeners();
     }
 
-    // Fetch fresh data in background
-    this.fetchAll(true).catch(err => {
-      console.error('[WordGroupsCenter] Background fetch failed:', err);
-    });
+    // Only fetch fresh data if user is authenticated
+    const token = await StorageCenter.auth.getToken();
+    if (token) {
+      // Fetch fresh data in background
+      this.fetchAll(true).catch(err => {
+        console.error('[WordGroupsCenter] Background fetch failed:', err);
+      });
+    } else {
+      console.log('[WordGroupsCenter] User not authenticated, skipping API fetch');
+    }
   }
 
   /**
@@ -40,6 +46,20 @@ class WordGroupsCenterClass {
    * @param forceRefresh - Skip cache and force API call
    */
   async fetchAll(forceRefresh: boolean = false): Promise<WordGroup[]> {
+    // Check authentication first - this API requires login
+    const token = await StorageCenter.auth.getToken();
+    if (!token) {
+      console.log('[WordGroupsCenter] No authentication token, skipping API call');
+      // Return cached data if available, otherwise empty array
+      const cached = await StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
+      if (cached) {
+        this.groups = cached;
+        this.notifyListeners();
+        return cached;
+      }
+      return this.groups;
+    }
+
     // Prevent concurrent fetches
     if (this.loading) {
       console.log('[WordGroupsCenter] Fetch already in progress, returning cached data');
@@ -55,7 +75,7 @@ class WordGroupsCenterClass {
 
     // Check cache first (unless forced refresh)
     if (!forceRefresh) {
-      const cached = StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
+      const cached = await StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
       if (cached && cached.length > 0) {
         console.log('[WordGroupsCenter] Returning cached groups:', cached.length);
         this.groups = cached;
@@ -170,7 +190,7 @@ class WordGroupsCenterClass {
    */
   async refresh(): Promise<WordGroup[]> {
     console.log('[WordGroupsCenter] Forcing refresh...');
-    StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+    await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
     this.lastFetchTime = 0; // Reset cooldown
     return this.fetchAll(true);
   }
@@ -187,7 +207,7 @@ class WordGroupsCenterClass {
     // await ApiCenter.wordGroups.create(group);
 
     // Invalidate cache
-    this.invalidateCache();
+    await this.invalidateCache();
 
     return true;
   }
@@ -195,14 +215,14 @@ class WordGroupsCenterClass {
   /**
    * Update word group progress
    */
-  updateProgress(groupId: string, progress: number): void {
+  async updateProgress(groupId: string, progress: number): Promise<void> {
     const index = this.groups.findIndex(g => g.id === groupId);
     if (index !== -1) {
       this.groups[index] = { ...this.groups[index], progress };
       this.notifyListeners();
 
       // Update cache
-      StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, this.groups, 5 * 60 * 1000);
+      await StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, this.groups, 5 * 60 * 1000);
     }
   }
 
@@ -223,17 +243,17 @@ class WordGroupsCenterClass {
   /**
    * Invalidate cache
    */
-  invalidateCache(): void {
-    StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+  async invalidateCache(): Promise<void> {
+    await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
     this.lastFetchTime = 0;
   }
 
   /**
    * Clear all data
    */
-  clear(): void {
+  async clear(): Promise<void> {
     this.groups = [];
-    this.invalidateCache();
+    await this.invalidateCache();
     this.notifyListeners();
   }
 

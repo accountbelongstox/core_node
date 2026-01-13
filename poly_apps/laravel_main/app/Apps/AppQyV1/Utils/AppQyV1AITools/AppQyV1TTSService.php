@@ -26,51 +26,23 @@ class AppQyV1TTSService
     private $dataDir;
     private $audioDir;
     
-    const VOICES = [
-        'af' => 'af-ZA-AdriNeural', 'am' => 'am-ET-MekdesNeural',
-        'ar' => 'ar-EG-SalmaNeural', 'as' => 'as-IN-YashicaNeural',
-        'az' => 'az-AZ-BanuNeural', 'bg' => 'bg-BG-KalinaNeural',
-        'bn' => 'bn-IN-TanishaaNeural', 'bs' => 'bs-BA-VesnaNeural',
-        'ca' => 'ca-ES-AlbaNeural', 'cs' => 'cs-CZ-VlastaNeural',
-        'cy' => 'cy-GB-NiaNeural', 'da' => 'da-DK-ChristelNeural',
-        'de' => 'de-DE-KatjaNeural', 'el' => 'el-GR-AthinaNeural',
-        'en' => 'en-US-JennyNeural', 'es' => 'es-ES-ElviraNeural',
-        'et' => 'et-EE-AnuNeural', 'eu' => 'eu-ES-AinhoaNeural',
-        'fa' => 'fa-IR-DilaraNeural', 'fi' => 'fi-FI-NooraNeural',
-        'fil' => 'fil-PH-BlessicaNeural', 'fr' => 'fr-FR-DeniseNeural',
-        'ga' => 'ga-IE-OrlaNeural', 'gl' => 'gl-ES-SabelaNeural',
-        'gu' => 'gu-IN-DhwaniNeural', 'he' => 'he-IL-HilaNeural',
-        'hi' => 'hi-IN-SwaraNeural', 'hr' => 'hr-HR-GabrijelaNeural',
-        'hu' => 'hu-HU-NoemiNeural', 'hy' => 'hy-AM-AnahitNeural',
-        'id' => 'id-ID-GadisNeural', 'is' => 'is-IS-GudrunNeural',
-        'it' => 'it-IT-ElsaNeural', 'ja' => 'ja-JP-NanamiNeural',
-        'jv' => 'jv-ID-SitiNeural', 'ka' => 'ka-GE-EkaNeural',
-        'kk' => 'kk-KZ-AigulNeural', 'km' => 'km-KH-SreymomNeural',
-        'kn' => 'kn-IN-SapnaNeural', 'ko' => 'ko-KR-SunHiNeural',
-        'lo' => 'lo-LA-KeomanyNeural', 'lt' => 'lt-LT-OnaNeural',
-        'lv' => 'lv-LV-EveritaNeural', 'mk' => 'mk-MK-MarijaNeural',
-        'ml' => 'ml-IN-SobhanaNeural', 'mn' => 'mn-MN-YesuiNeural',
-        'mr' => 'mr-IN-AarohiNeural', 'ms' => 'ms-MY-YasminNeural',
-        'mt' => 'mt-MT-GraceNeural', 'my' => 'my-MM-NilarNeural',
-        'nb' => 'nb-NO-IselinNeural', 'ne' => 'ne-NP-HemkalaNeural',
-        'nl' => 'nl-NL-ColetteNeural', 'or' => 'or-IN-SubhasiniNeural',
-        'pa' => 'pa-IN-VaaniNeural', 'pl' => 'pl-PL-ZofiaNeural',
-        'ps' => 'ps-AF-LatifaNeural', 'pt' => 'pt-BR-FranciscaNeural',
-        'ro' => 'ro-RO-AlinaNeural', 'ru' => 'ru-RU-SvetlanaNeural',
-        'si' => 'si-LK-ThiliniNeural', 'sk' => 'sk-SK-ViktoriaNeural',
-        'sl' => 'sl-SI-PetraNeural', 'so' => 'so-SO-UbaxNeural',
-        'sq' => 'sq-AL-AnilaNeural', 'sr' => 'sr-RS-SophieNeural',
-        'su' => 'su-ID-TutiNeural', 'sv' => 'sv-SE-HilleviNeural',
-        'sw' => 'sw-TZ-RehemaNeural', 'ta' => 'ta-IN-PallaviNeural',
-        'te' => 'te-IN-ShrutiNeural', 'th' => 'th-TH-PremwadeeNeural',
-        'tr' => 'tr-TR-EmelNeural', 'uk' => 'uk-UA-PolinaNeural',
-        'ur' => 'ur-PK-UzmaNeural', 'uz' => 'uz-UZ-MadinaNeural',
-        'vi' => 'vi-VN-HoaiMyNeural', 'wuu' => 'wuu-CN-XiaotongNeural',
-        'yue' => 'yue-CN-XiaoMinNeural', 'zh' => 'zh-CN-XiaoxiaoNeural',
-        'zu' => 'zu-ZA-ThandoNeural',
-    ];
+    /**
+     * @deprecated Use \App\Services\EdgeTTS\EdgeTTSService::getVoices() instead
+     * Single source of truth: AppQyV1LanguageConfigService::getTTSVoices()
+     */
+    public static function getVOICES(): array
+    {
+        return \App\Services\EdgeTTS\EdgeTTSService::getVoices();
+    }
     
-    const TEXT_TYPES = ['sentence', 'word', 'letter'];
+    /**
+     * @deprecated Use \App\Services\EdgeTTS\EdgeTTSService::getTextTypes() instead
+     * Single source of truth: AppQyV1LanguageConfigService::getTTSTextTypes()
+     */
+    public static function getTEXT_TYPES(): array
+    {
+        return \App\Services\EdgeTTS\EdgeTTSService::getTextTypes();
+    }
     
     public function __construct()
     {
@@ -114,14 +86,16 @@ class AppQyV1TTSService
         string $textType = 'sentence',
         array $options = []
     ): array {
-        if (!isset(self::VOICES[$langCode])) {
+        $voices = self::getVOICES();
+        if (!isset($voices[$langCode])) {
             return [
                 'success' => false,
                 'error' => 'Unsupported language: ' . $langCode,
             ];
         }
         
-        if (!in_array($textType, self::TEXT_TYPES)) {
+        $textTypes = self::getTEXT_TYPES();
+        if (!in_array($textType, $textTypes)) {
             $textType = 'sentence';
         }
         
@@ -160,7 +134,8 @@ class AppQyV1TTSService
             ];
         }
         
-        $voice = self::VOICES[$langCode];
+        $voices = self::getVOICES();
+        $voice = $voices[$langCode];
         $volume = $options['volume'] ?? '+0%';
         $pitch = $options['pitch'] ?? '+0Hz';
         
@@ -334,7 +309,7 @@ class AppQyV1TTSService
     
     public function getAvailableVoices(): array
     {
-        return self::VOICES;
+        return self::getVOICES();
     }
     
     public function getAudioPath(string $relativePath): ?string

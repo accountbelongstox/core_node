@@ -11,7 +11,16 @@ use Illuminate\Support\Str;
 
 class AppQyV1CoverImageService
 {
-    private const STORAGE_SUBDIR = 'app_qy_v1_covers';
+    private static function getStorageSubdir(): string
+    {
+        static $subdir = null;
+        if ($subdir === null) {
+            $appKey = \App\Constants\AppKeys::APPQYV1;
+            $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
+            $subdir = $prefix . '_covers';
+        }
+        return $subdir;
+    }
 
     private const DEFAULT_WIDTH = 400;
     private const DEFAULT_HEIGHT = 300;
@@ -95,7 +104,7 @@ class AppQyV1CoverImageService
         try {
             $config = self::CATEGORY_CONFIGS[$category] ?? self::CATEGORY_CONFIGS['custom'];
 
-            $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_SUBDIR;
+            $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::getStorageSubdir();
             FileSystemManager::ensureDirectoryExists($storageDir);
 
             $uuid = (string) Str::uuid();
@@ -292,7 +301,7 @@ class AppQyV1CoverImageService
     public static function deleteCover(string $uuid): bool
     {
         try {
-            $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_SUBDIR;
+            $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::getStorageSubdir();
             $deleted = 0;
 
             $patterns = [

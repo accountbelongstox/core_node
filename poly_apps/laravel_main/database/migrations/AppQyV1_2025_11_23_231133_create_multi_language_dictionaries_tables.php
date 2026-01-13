@@ -3,6 +3,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -19,11 +21,14 @@ return new class extends Migration
 
     public function up()
     {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        
         foreach ($this->languages as $langCode) {
-            $tableName = "app_qy_v1_{$langCode}_dictionaries";
+            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
 
-            if (!Schema::connection('appqyv1')->hasTable($tableName)) {
-                Schema::connection('appqyv1')->create($tableName, function (Blueprint $table) use ($langCode) {
+            if (!Schema::connection($connection)->hasTable($tableName)) {
+                Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($langCode) {
                 $table->id();
                 
                 $table->text('content')->nullable(false);
@@ -66,9 +71,12 @@ return new class extends Migration
 
     public function down()
     {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        
         foreach ($this->languages as $langCode) {
-            $tableName = "app_qy_v1_{$langCode}_dictionaries";
-            Schema::connection('appqyv1')->dropIfExists($tableName);
+            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
+            Schema::connection($connection)->dropIfExists($tableName);
         }
     }
 };

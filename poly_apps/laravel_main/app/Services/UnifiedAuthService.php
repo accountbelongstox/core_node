@@ -71,8 +71,12 @@ class UnifiedAuthService
                     ]);
                 }
                 
-                $subAppUserId = DB::connection($subAppConnection)->table('users')->insertGetId($subAppUserData);
-                $result['sub_app_user'] = DB::connection($subAppConnection)->table('users')->find($subAppUserId);
+                // Use model connection for query builder (Laravel best practice)
+                $userModel = new User();
+                $userModel->setConnection($subAppConnection);
+                $dbConnection = $userModel->getConnection();
+                $subAppUserId = $dbConnection->table('users')->insertGetId($subAppUserData);
+                $result['sub_app_user'] = $dbConnection->table('users')->find($subAppUserId);
             }
             
             DB::commit();
@@ -125,7 +129,12 @@ class UnifiedAuthService
             ];
             
             if ($subAppConnection) {
-                $subAppUser = DB::connection($subAppConnection)
+                // Use model connection for query builder (Laravel best practice)
+                $userModel = new User();
+                $userModel->setConnection($subAppConnection);
+                $dbConnection = $userModel->getConnection();
+                
+                $subAppUser = $dbConnection
                     ->table('users')
                     ->where('main_user_id', $mainUser->id)
                     ->first();
@@ -141,8 +150,8 @@ class UnifiedAuthService
                         'updated_at' => now(),
                     ];
                     
-                    $subAppUserId = DB::connection($subAppConnection)->table('users')->insertGetId($subAppUserData);
-                    $subAppUser = DB::connection($subAppConnection)->table('users')->find($subAppUserId);
+                    $subAppUserId = $dbConnection->table('users')->insertGetId($subAppUserData);
+                    $subAppUser = $dbConnection->table('users')->find($subAppUserId);
                 }
                 
                 $result['sub_app_user'] = $subAppUser;
@@ -203,7 +212,12 @@ class UnifiedAuthService
     public static function updateSubAppUserData(int $mainUserId, string $subAppConnection, array $data): array
     {
         try {
-            $subAppUser = DB::connection($subAppConnection)
+            // Use model connection for query builder (Laravel best practice)
+            $userModel = new User();
+            $userModel->setConnection($subAppConnection);
+            $dbConnection = $userModel->getConnection();
+            
+            $subAppUser = $dbConnection
                 ->table('users')
                 ->where('main_user_id', $mainUserId)
                 ->first();
@@ -220,7 +234,7 @@ class UnifiedAuthService
 
             $data['updated_at'] = now();
 
-            DB::connection($subAppConnection)
+            $dbConnection
                 ->table('users')
                 ->where('main_user_id', $mainUserId)
                 ->update($data);
@@ -279,7 +293,12 @@ class UnifiedAuthService
                 if (!empty($subAppUpdateData)) {
                     $subAppUpdateData['updated_at'] = now();
 
-                    $subAppUser = DB::connection($subAppConnection)
+                    // Use model connection for query builder (Laravel best practice)
+                    $userModel = new User();
+                    $userModel->setConnection($subAppConnection);
+                    $dbConnection = $userModel->getConnection();
+
+                    $subAppUser = $dbConnection
                         ->table('users')
                         ->where('main_user_id', $userId)
                         ->first();
@@ -292,9 +311,9 @@ class UnifiedAuthService
                         ];
                         $subAppUserData = array_merge($subAppUserData, $subAppUpdateData);
 
-                        DB::connection($subAppConnection)->table('users')->insert($subAppUserData);
+                        $dbConnection->table('users')->insert($subAppUserData);
                     } else {
-                        DB::connection($subAppConnection)
+                        $dbConnection
                             ->table('users')
                             ->where('main_user_id', $userId)
                             ->update($subAppUpdateData);

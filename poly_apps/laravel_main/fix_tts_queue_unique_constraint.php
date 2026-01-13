@@ -16,11 +16,14 @@ $app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 echo "=== TTS Queue Unique Constraint Fix ===\n\n";
 
-$connection = 'appqyv1';
-$tableName = 'appqyv1_tts_queue';
+$appKey = AppKeys::APPQYV1;
+$connection = AppTablePrefixServiceProvider::getConnection($appKey);
+$tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'tts_queue');
 
 try {
     // Check if table exists

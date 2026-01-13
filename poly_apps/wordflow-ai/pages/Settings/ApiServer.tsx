@@ -24,7 +24,7 @@ const ApiServerSettings = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar">
-        <div className="max-w-lg mx-auto w-full space-y-6">
+        <div className="w-full sm:max-w-lg sm:mx-auto space-y-6">
           {/* Info Card */}
           <div className="holo-card p-5 rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-800/40">
             {/* [i18n] Replaced hardcoded "Backend API Configuration" with t() */}

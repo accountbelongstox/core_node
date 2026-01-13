@@ -3,13 +3,20 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
     public function up()
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_vocabulary_items')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_vocabulary_items', function (Blueprint $table) {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_items');
+        $collectionsTableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_collections');
+        
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($collectionsTableName) {
                 $table->id();
                 $table->unsignedBigInteger('collection_id')->nullable(false);
                 $table->string('lang_code', 10)->nullable(false)->index();
@@ -21,7 +28,7 @@ return new class extends Migration
 
                 $table->foreign('collection_id')
                     ->references('id')
-                    ->on('app_qy_v1_vocabulary_collections')
+                    ->on($collectionsTableName)
                     ->onDelete('cascade');
 
                 $table->index(['collection_id', 'word_index'], 'idx_collection_index');
@@ -32,6 +39,9 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_vocabulary_items');
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_items');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

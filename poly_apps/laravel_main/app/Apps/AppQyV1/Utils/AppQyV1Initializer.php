@@ -3,7 +3,10 @@
 namespace App\Apps\AppQyV1\Utils;
 
 use App\Contracts\AppInitializerInterface;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -33,7 +36,9 @@ class AppQyV1Initializer implements AppInitializerInterface
             mkdir($dbDir, 0755, true);
         }
         
-        $this->statusFile = $dbDir . '/app_qy_v1_init_status.json';
+        $appKey = AppKeys::APPQYV1;
+        $tablePrefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        $this->statusFile = $dbDir . '/' . $tablePrefix . '_init_status.json';
     }
     
     public function getAppName(): string
@@ -131,7 +136,8 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            DB::connection('appqyv1')->getPdo();
+            $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+            (new AppQyV1MultiLangDictionaryModel)->getConnection()->getPdo();
             return [
                 'status' => 'success',
                 'message' => 'Database connection successful',
@@ -185,56 +191,33 @@ class AppQyV1Initializer implements AppInitializerInterface
         }
     }
     
+    /**
+     * Check migration status
+     * Migrations are handled by sys:init command's runSafeMigrations()
+     * This method only checks if tables exist
+     */
     private function runMigrations(): array
     {
         try {
-            $migrationPath = 'database/migrations/AppQyV1_2025_11_23_231133_create_multi_language_dictionaries_tables.php';
-            
-            if (!file_exists(base_path($migrationPath))) {
-                return [
-                    'status' => 'error',
-                    'message' => 'Migration file not found: ' . $migrationPath,
-                ];
-            }
-            
             $existingTables = $this->countExistingTables();
             
             if ($existingTables > 0) {
                 return [
                     'status' => 'success',
-                    'message' => "Migration skipped - {$existingTables} tables already exist",
-                    'note' => 'Tables were created in a previous run',
+                    'message' => "Tables exist - {$existingTables} dictionary tables found",
+                    'note' => 'Migrations are handled by sys:init command',
                 ];
             }
             
-            Artisan::call('migrate', [
-                '--database' => 'AppQyV1',
-                '--path' => $migrationPath,
-                '--force' => true,
-            ]);
-            
-            $output = Artisan::output();
-            
             return [
-                'status' => 'success',
-                'message' => 'Migrations executed successfully',
-                'output' => trim($output),
+                'status' => 'info',
+                'message' => 'No dictionary tables found',
+                'note' => 'Run php artisan sys:init to create tables via migrations',
             ];
         } catch (\Exception $e) {
-            $errorMsg = $e->getMessage();
-            
-            if (strpos($errorMsg, 'already exists') !== false) {
-                $existingTables = $this->countExistingTables();
-                return [
-                    'status' => 'success',
-                    'message' => "Migration completed with warnings - {$existingTables} tables exist",
-                    'note' => 'Some tables already existed',
-                ];
-            }
-            
             return [
                 'status' => 'error',
-                'message' => 'Migration failed: ' . $errorMsg,
+                'message' => 'Failed to check tables: ' . $e->getMessage(),
             ];
         }
     }
@@ -247,7 +230,8 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
-                if (Schema::connection('appqyv1')->hasTable($tableName)) {
+                $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+                if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $count++;
                 }
             }
@@ -261,7 +245,8 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
-            $connection = DB::connection('appqyv1');
+            $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+            $connection = (new AppQyV1MultiLangDictionaryModel)->getConnection();
             $languages = AppQyV1TableMaps::getSupportedLanguages();
             
             $missingTables = [];
@@ -270,7 +255,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
                 
-                if (Schema::connection('appqyv1')->hasTable($tableName)) {
+                if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $existingTables[] = $tableName;
                 } else {
                     $missingTables[] = $tableName;
@@ -447,10 +432,17 @@ class AppQyV1Initializer implements AppInitializerInterface
     
     private function getDatabaseTables(): array
     {
-        $connection = DB::connection('appqyv1');
+        $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+        $connection = (new AppQyV1MultiLangDictionaryModel)->getConnection();
+        $schema = Schema::connection($connectionName);
         $tables = [];
         
-        $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        try {
+            $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        } catch (\Exception $e) {
+            Log::error("[AppQyV1Init] Failed to get table list: " . $e->getMessage());
+            return $tables;
+        }
         
         foreach ($tableNames as $tableObj) {
             $tableName = $tableObj->name;
@@ -460,10 +452,14 @@ class AppQyV1Initializer implements AppInitializerInterface
             }
             
             try {
-                $columns = $connection->select("PRAGMA table_info({$tableName})");
+                // Use Schema Builder to get column count
+                $columns = $schema->getColumnListing($tableName);
                 $columnCount = count($columns);
                 
-                $rowCount = $connection->selectOne("SELECT COUNT(*) as count FROM {$tableName}")->count;
+                // Use Query Builder for row count
+                $model = new AppQyV1MultiLangDictionaryModel();
+                $dbConnection = $model->getConnection();
+                $rowCount = $dbConnection->table($tableName)->count();
                 
                 $tables[] = [
                     'name' => $tableName,

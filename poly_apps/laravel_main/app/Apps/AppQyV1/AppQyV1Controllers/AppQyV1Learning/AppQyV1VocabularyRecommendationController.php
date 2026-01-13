@@ -5,7 +5,8 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Facades\DB;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyRecommendationController extends BaseController
@@ -110,8 +111,8 @@ class AppQyV1VocabularyRecommendationController extends BaseController
         }
 
         if ($userId) {
-            $selectedIds = DB::table('user_vocabulary_collections')
-                ->where('user_id', $userId)
+            $selectedIds = AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
+                ->where('is_active', true)
                 ->pluck('collection_id')
                 ->toArray();
 
@@ -145,23 +146,14 @@ class AppQyV1VocabularyRecommendationController extends BaseController
         $action = $request->input('action', 'select');
 
         if ($action === 'select') {
-            DB::table('user_vocabulary_collections')->updateOrInsert(
-                ['user_id' => $userId, 'collection_id' => $collectionId],
-                [
-                    'selected_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
+            AppQyV1UserSelectedLibraryModel::selectLibrary($userId, $collectionId, $request->input('lang_code', 'en'));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Vocabulary collection selected successfully',
             ]);
         } else {
-            DB::table('user_vocabulary_collections')
-                ->where('user_id', $userId)
-                ->where('collection_id', $collectionId)
-                ->delete();
+            AppQyV1UserSelectedLibraryModel::deselectLibrary($userId, $collectionId);
 
             return response()->json([
                 'success' => true,
@@ -174,11 +166,9 @@ class AppQyV1VocabularyRecommendationController extends BaseController
     {
         $userId = $request->user()->id;
 
-        $selected = DB::connection('appqyv1')
-            ->table('app_qy_v1_user_vocabulary_selections')
-            ->where('user_id', $userId)
+        $selected = AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
             ->where('is_active', true)
-            ->pluck('library_id')
+            ->pluck('collection_id')
             ->toArray();
 
         if (empty($selected)) {
@@ -189,14 +179,12 @@ class AppQyV1VocabularyRecommendationController extends BaseController
             ]);
         }
 
-        $libraries = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_libraries')
-            ->whereIn('id', $selected)
+        $libraries = AppQyV1VocabularyCollectionModel::whereIn('id', $selected)
             ->select([
                 'id',
-                'name',
+                'collection_name as name',
                 'description',
-                'language',
+                'lang_code as language',
                 'total_words as word_count',
                 'difficulty_level as difficulty',
                 'category',

@@ -3,11 +3,14 @@
 namespace App\Apps\AwyV0\Utils;
 
 use App\Contracts\AppInitializerInterface;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AwyV0\AwyV0DBTablesBrige\AwyV0TableMaps;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Eloquent\Model;
 
 class AwyV0Initializer implements AppInitializerInterface
 {
@@ -33,7 +36,9 @@ class AwyV0Initializer implements AppInitializerInterface
             mkdir($dbDir, 0755, true);
         }
 
-        $this->statusFile = $dbDir . '/awy_v0_init_status.json';
+        $appKey = AppKeys::AWYV0;
+        $tablePrefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        $this->statusFile = $dbDir . '/' . $tablePrefix . '_init_status.json';
     }
 
     public function getAppName(): string
@@ -131,7 +136,8 @@ class AwyV0Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            DB::connection('awyv0')->getPdo();
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+            DB::connection($connectionName)->getPdo();
             return [
                 'status' => 'success',
                 'message' => 'Database connection successful',
@@ -207,13 +213,9 @@ class AwyV0Initializer implements AppInitializerInterface
                 ];
             }
 
-            Artisan::call('migrate', [
-                '--database' => 'awyv0',
-                '--path' => $migrationPath,
-                '--force' => true,
-            ]);
-
-            $output = Artisan::output();
+            // Migrations are handled by sys:init command
+            // This method only checks if tables exist
+            $output = 'Migrations are handled by sys:init command';
 
             return [
                 'status' => 'success',
@@ -261,7 +263,7 @@ class AwyV0Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
-            $connection = DB::connection('awyv0');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
             $tableKeys = AwyV0TableMaps::getAvailableTableKeys();
 
             $missingTables = [];
@@ -270,7 +272,7 @@ class AwyV0Initializer implements AppInitializerInterface
             foreach ($tableKeys as $tableKey) {
                 $tableName = AwyV0TableMaps::getTableName($tableKey);
 
-                if (Schema::connection('awyv0')->hasTable($tableName)) {
+                if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $existingTables[] = $tableName;
                 } else {
                     $missingTables[] = $tableName;
@@ -304,7 +306,7 @@ class AwyV0Initializer implements AppInitializerInterface
     private function createIndexes(): array
     {
         try {
-            $connection = DB::connection('awyv0');
+            $schema = Schema::connection('awyv0');
 
             $indexes = [
                 'awy_v0_users' => [
@@ -328,15 +330,32 @@ class AwyV0Initializer implements AppInitializerInterface
 
             $createdIndexes = 0;
             foreach ($indexes as $table => $tableIndexes) {
-                if (!Schema::connection('awyv0')->hasTable($table)) {
+                if (!$schema->hasTable($table)) {
                     continue;
                 }
 
                 foreach ($tableIndexes as $indexName => $column) {
                     try {
-                        $connection->statement("CREATE INDEX IF NOT EXISTS {$indexName} ON {$table}({$column})");
-                        $createdIndexes++;
+                        // Check if index already exists by trying to get column indexes
+                        $hasIndex = false;
+                        try {
+                            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+                            $indexesList = DB::connection($connectionName)
+                                ->select("SELECT name FROM sqlite_master WHERE type='index' AND name='{$indexName}'");
+                            $hasIndex = !empty($indexesList);
+                        } catch (\Exception $e) {
+                            // If we can't check, try to create it
+                        }
+
+                        if (!$hasIndex) {
+                            $schema->table($table, function ($table) use ($column, $indexName) {
+                                $table->index($column, $indexName);
+                            });
+                            $createdIndexes++;
+                        }
                     } catch (\Exception $e) {
+                        // Index might already exist or column doesn't exist
+                        Log::debug("[AwyV0Init] Index creation skipped for {$indexName}: " . $e->getMessage());
                     }
                 }
             }
@@ -474,10 +493,18 @@ class AwyV0Initializer implements AppInitializerInterface
 
     private function getDatabaseTables(): array
     {
-        $connection = DB::connection('awyv0');
+        $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+        $schema = Schema::connection($connectionName);
+        $connection = DB::connection($connectionName);
         $tables = [];
 
-        $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        // Use Schema Builder to get table list when possible
+        try {
+            $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+        } catch (\Exception $e) {
+            Log::error("[AwyV0Init] Failed to get table list: " . $e->getMessage());
+            return $tables;
+        }
 
         foreach ($tableNames as $tableObj) {
             $tableName = $tableObj->name;
@@ -487,10 +514,13 @@ class AwyV0Initializer implements AppInitializerInterface
             }
 
             try {
-                $columns = $connection->select("PRAGMA table_info({$tableName})");
+                // Use Schema Builder to get column count
+                $columns = $schema->getColumnListing($tableName);
                 $columnCount = count($columns);
 
-                $rowCount = $connection->selectOne("SELECT COUNT(*) as count FROM {$tableName}")->count;
+                // Use Query Builder for row count (Laravel best practice)
+                $dbConnection = $this->getDbConnection();
+                $rowCount = $dbConnection->table($tableName)->count();
 
                 $tables[] = [
                     'name' => $tableName,
@@ -517,5 +547,19 @@ class AwyV0Initializer implements AppInitializerInterface
         }
 
         return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    /**
+     * Get database connection using model (Laravel best practice)
+     * Creates a temporary model instance to get the connection
+     */
+    private function getDbConnection()
+    {
+        $model = new class extends Model {
+            // Temporary model for getting connection
+        };
+        $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+        $model->setConnection($connectionName);
+        return $model->getConnection();
     }
 }

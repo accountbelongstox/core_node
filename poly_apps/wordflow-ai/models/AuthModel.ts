@@ -41,7 +41,7 @@ class AuthModelClass {
         console.log('[AuthModel] Login successful, user:', response.data.user);
 
         // Set user in UserModel
-        UserModel.setCurrentUser(response.data.user);
+        await UserModel.setCurrentUser(response.data.user);
 
         const result = {
           success: true,
@@ -78,7 +78,7 @@ class AuthModelClass {
 
       if (response.success && response.data) {
         // Set user in UserModel
-        UserModel.setCurrentUser(response.data.user);
+        await UserModel.setCurrentUser(response.data.user);
 
         return {
           success: true,
@@ -145,18 +145,18 @@ class AuthModelClass {
       const response = await ApiCenter.auth.logout();
 
       // Clear user data regardless of API response
-      UserModel.clear();
-      StorageCenter.auth.clearAuth();
-      StorageCenter.cache.invalidateAll();
+      await UserModel.clear();
+      await StorageCenter.auth.clearAuth();
+      await StorageCenter.cache.invalidateAll();
 
       return response;
     } catch (error: any) {
       console.error('[AuthModel] Logout error:', error);
 
       // Still clear local data
-      UserModel.clear();
-      StorageCenter.auth.clearAuth();
-      StorageCenter.cache.invalidateAll();
+      await UserModel.clear();
+      await StorageCenter.auth.clearAuth();
+      await StorageCenter.cache.invalidateAll();
 
       return {
         success: false,
@@ -171,15 +171,15 @@ class AuthModelClass {
   /**
    * Check if user is authenticated
    */
-  isAuthenticated(): boolean {
-    return UserModel.isLoggedIn();
+  async isAuthenticated(): Promise<boolean> {
+    return await UserModel.isLoggedIn();
   }
 
   /**
    * Get auth token
    */
-  getToken(): string | null {
-    return StorageCenter.auth.getToken();
+  async getToken(): Promise<string | null> {
+    return await StorageCenter.auth.getToken();
   }
 
   /**
@@ -189,7 +189,7 @@ class AuthModelClass {
     const response = await ApiCenter.auth.refreshToken();
 
     if (response.success && response.data) {
-      StorageCenter.auth.setToken(response.data.token);
+      await StorageCenter.auth.setToken(response.data.token);
     }
 
     return response;
@@ -199,7 +199,7 @@ class AuthModelClass {
    * Validate current session
    */
   async validateSession(): Promise<boolean> {
-    if (!this.isAuthenticated()) {
+    if (!(await this.isAuthenticated())) {
       return false;
     }
 
@@ -207,16 +207,16 @@ class AuthModelClass {
       const response = await ApiCenter.auth.getProfile();
 
       if (response.success && response.data) {
-        UserModel.setCurrentUser(response.data);
+        await UserModel.setCurrentUser(response.data);
         return true;
       }
 
       // Session invalid, clear auth
-      this.clearAuth();
+      await this.clearAuth();
       return false;
     } catch (error) {
       console.error('[AuthModel] Session validation error:', error);
-      this.clearAuth();
+      await this.clearAuth();
       return false;
     }
   }
@@ -224,17 +224,17 @@ class AuthModelClass {
   /**
    * Clear authentication data
    */
-  clearAuth(): void {
-    UserModel.clear();
-    StorageCenter.auth.clearAuth();
-    StorageCenter.cache.invalidateAll();
+  async clearAuth(): Promise<void> {
+    await UserModel.clear();
+    await StorageCenter.auth.clearAuth();
+    await StorageCenter.cache.invalidateAll();
   }
 
   /**
    * Auto-login check on app start
    */
   async initializeAuth(): Promise<boolean> {
-    const token = this.getToken();
+    const token = await this.getToken();
 
     if (!token) {
       return false;
@@ -248,7 +248,7 @@ class AuthModelClass {
     }
 
     // Token invalid, clear auth
-    this.clearAuth();
+    await this.clearAuth();
     return false;
   }
 }

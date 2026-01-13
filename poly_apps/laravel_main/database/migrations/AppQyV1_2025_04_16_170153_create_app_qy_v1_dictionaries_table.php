@@ -15,6 +15,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -23,8 +25,12 @@ return new class extends Migration
      */
     public function up()
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_dictionaries')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_dictionaries', function (Blueprint $table) {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
+        
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            Schema::connection($connection)->create($tableName, function (Blueprint $table) {
             $table->id();  // Same as auto-incrementing primary key
             
             $table->text('content')->nullable(false);
@@ -63,6 +69,9 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_dictionaries');
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

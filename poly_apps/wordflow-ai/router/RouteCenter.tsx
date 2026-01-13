@@ -33,6 +33,7 @@ import DisplaySettings from '../pages/Settings/Display';
 import NotificationSettings from '../pages/Settings/Notifications';
 import DataSyncPage from '../pages/Settings/DataSync';
 import AboutPage from '../pages/Settings/About';
+import SystemStatisticsPage from '../pages/Settings/SystemStatistics';
 import ApiServerSettings from '../pages/Settings/ApiServer';
 
 // Pages - Library
@@ -312,6 +313,13 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
     path: '/settings_about',
     element: <AboutPage />,
     name: 'About',
+    category: 'settings',
+    isProtected: true,
+  },
+  {
+    path: '/settings_statistics',
+    element: <SystemStatisticsPage />,
+    name: 'System Statistics',
     category: 'settings',
     isProtected: true,
   },

@@ -43,16 +43,29 @@ class LearningStatsCenterClass {
       this.notifyListeners();
     }
 
-    // Fetch fresh data in background
-    this.refresh().catch(err => {
-      console.error('[LearningStatsCenter] Background refresh failed:', err);
-    });
+    // Only fetch fresh data if user is authenticated
+    const token = StorageCenter.auth.getToken();
+    if (token) {
+      // Fetch fresh data in background
+      this.refresh().catch(err => {
+        console.error('[LearningStatsCenter] Background refresh failed:', err);
+      });
+    } else {
+      console.log('[LearningStatsCenter] User not authenticated, skipping API refresh');
+    }
   }
 
   /**
    * Refresh all learning stats from API
    */
   async refresh(): Promise<void> {
+    // Check authentication first - this API requires login
+    const token = await StorageCenter.auth.getToken();
+    if (!token) {
+      console.log('[LearningStatsCenter] No authentication token, skipping API refresh');
+      return;
+    }
+
     if (this.loading) {
       console.log('[LearningStatsCenter] Refresh already in progress');
       return;

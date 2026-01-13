@@ -251,6 +251,10 @@ class AppQyV1DatabaseBridge
 
     /**
      * Build a query builder for a specific table
+     * 
+     * @deprecated This method encourages direct DB::table() usage without explicit connection.
+     * Use Eloquent models instead. If you must use query builder, use Model::query() or
+     * Model::getConnection()->table() to ensure proper connection handling.
      */
     public static function table(string $tableKey)
     {

@@ -25,12 +25,7 @@ class AppQyV1PersonalDictionariesModel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * The database connection name for the model.
-     *
-     * @var string
-     */
-    protected $connection = 'appqyv1';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
@@ -45,7 +40,8 @@ class AppQyV1PersonalDictionariesModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->table = AppQyV1TableMaps::getTableName('app_qy_v1_PERSONAL_DICTIONARIES');
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppQyV1TableMaps::getTableName('PERSONAL_DICTIONARIES');
     }
 
     protected $fillable = [

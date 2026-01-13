@@ -30,7 +30,18 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var string
      */
-    protected $connection = 'appqyv1';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+    
+    public function getConnectionName()
+    {
+        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     /**
      * The table associated with the model.
@@ -45,7 +56,7 @@ class AppQyV1WordGroupModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->table = AppQyV1TableMaps::getTableName('app_qy_v1_WORD_GROUPS');
+        $this->table = AppQyV1TableMaps::getTableName('WORD_GROUPS');
     }
 
     /**
@@ -111,7 +122,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyItemModel::class,
-            'app_qy_v1_group_words',
+            \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words'),
             'group_id',
             'word_id',
             'id',
@@ -128,7 +139,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyLibraryModel::class,
-            'app_qy_v1_group_libraries',
+            \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
             'group_id',
             'library_id',
             'id',
@@ -208,10 +219,7 @@ class AppQyV1WordGroupModel extends Model
     {
         $category = AppQyV1CoverImageService::inferCategory($this->gname);
 
-        $wordCount = DB::connection('appqyv1')
-            ->table('app_qy_v1_group_words')
-            ->where('group_id', $this->id)
-            ->count();
+        $wordCount = $this->groupWords()->count();
 
         $result = AppQyV1CoverImageService::generateGroupCover(
             $this->gname,

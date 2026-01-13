@@ -7,10 +7,10 @@ use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ReviewerApplicationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1CodeReviewModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskSubmissionModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1ReviewerCtl extends Controller
 {
@@ -138,10 +138,12 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->forbidden('Only active reviewers can access review tasks');
         }
 
-        $pendingReviews = DB::connection('codemartv1')
+        $model = new CodeMartV1TaskSubmissionModel();
+        $dbConnection = $model->getConnection();
+        $pendingReviews = $dbConnection
             ->table('codemart_v1_code_submissions')
-            ->whereNotExists(function ($query) use ($user) {
-                $query->select(DB::raw(1))
+            ->whereNotExists(function ($query) use ($user, $dbConnection) {
+                $query->select(\DB::raw(1))
                     ->from('codemart_v1_code_reviews')
                     ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
                     ->where('codemart_v1_code_reviews.reviewer_id', $user->id);

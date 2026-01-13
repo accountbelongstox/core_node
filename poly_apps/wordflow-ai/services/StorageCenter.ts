@@ -1,8 +1,11 @@
 /**
- * Storage Center - Unified Local Storage Management
- * Centralized storage operations with type safety and error handling
+ * Storage Center - Unified Storage Management
+ * Centralized storage operations with Capacitor Preferences (native) and localStorage (web) compatibility
+ * Supports both native and web platforms with automatic fallback
  */
 
+import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 import { UserDataCenter } from './UserDataCenter';
 
 export enum StorageKey {
@@ -54,91 +57,189 @@ export enum StorageKey {
   // Recommended Libraries
   RECOMMENDED_LIBRARIES_CACHE = 'recommended_libraries_cache',
   SELECTED_LIBRARIES = 'selected_libraries',
+
+  // Saved Credentials (for auto-fill on login)
+  SAVED_USERNAME = 'saved_username',
+  SAVED_PASSWORD = 'saved_password',
 }
 
 class StorageCenterClass {
   /**
-   * Set item in localStorage with JSON serialization
+   * Check if running on native platform
    */
-  set<T>(key: StorageKey, value: T): boolean {
+  private isNative(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
+  /**
+   * Set item with JSON serialization
+   * Uses Capacitor Preferences on native, localStorage on web
+   */
+  async set<T>(key: StorageKey, value: T): Promise<boolean> {
     try {
       const serialized = JSON.stringify(value);
-      localStorage.setItem(key, serialized);
+      
+      if (this.isNative()) {
+        await Preferences.set({ key, value: serialized });
+      } else {
+        localStorage.setItem(key, serialized);
+      }
       return true;
     } catch (error) {
       console.error(`[StorageCenter] Failed to set ${key}:`, error);
-      return false;
+      // Fallback to localStorage if Preferences fails
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (fallbackError) {
+        console.error(`[StorageCenter] Fallback also failed for ${key}:`, fallbackError);
+        return false;
+      }
     }
   }
 
   /**
-   * Get item from localStorage with JSON deserialization
+   * Get item with JSON deserialization
+   * Uses Capacitor Preferences on native, localStorage on web
    */
-  get<T>(key: StorageKey, defaultValue?: T): T | null {
+  async get<T>(key: StorageKey, defaultValue?: T): Promise<T | null> {
     try {
-      const item = localStorage.getItem(key);
+      let item: string | null = null;
+      
+      if (this.isNative()) {
+        const result = await Preferences.get({ key });
+        item = result.value;
+      } else {
+        item = localStorage.getItem(key);
+      }
+      
       if (item === null) {
         return defaultValue !== undefined ? defaultValue : null;
       }
       return JSON.parse(item) as T;
     } catch (error) {
       console.error(`[StorageCenter] Failed to get ${key}:`, error);
-      return defaultValue !== undefined ? defaultValue : null;
+      // Fallback to localStorage if Preferences fails
+      try {
+        const item = localStorage.getItem(key);
+        if (item === null) {
+          return defaultValue !== undefined ? defaultValue : null;
+        }
+        return JSON.parse(item) as T;
+      } catch (fallbackError) {
+        console.error(`[StorageCenter] Fallback also failed for ${key}:`, fallbackError);
+        return defaultValue !== undefined ? defaultValue : null;
+      }
     }
   }
 
   /**
-   * Remove item from localStorage
+   * Remove item
+   * Uses Capacitor Preferences on native, localStorage on web
    */
-  remove(key: StorageKey): boolean {
+  async remove(key: StorageKey): Promise<boolean> {
     try {
-      localStorage.removeItem(key);
+      if (this.isNative()) {
+        await Preferences.remove({ key });
+      } else {
+        localStorage.removeItem(key);
+      }
       return true;
     } catch (error) {
       console.error(`[StorageCenter] Failed to remove ${key}:`, error);
-      return false;
+      // Fallback to localStorage if Preferences fails
+      try {
+        localStorage.removeItem(key);
+        return true;
+      } catch (fallbackError) {
+        console.error(`[StorageCenter] Fallback also failed for ${key}:`, fallbackError);
+        return false;
+      }
     }
   }
 
   /**
    * Clear all storage
    */
-  clear(): boolean {
+  async clear(): Promise<boolean> {
     try {
-      localStorage.clear();
+      if (this.isNative()) {
+        await Preferences.clear();
+      } else {
+        localStorage.clear();
+      }
       return true;
     } catch (error) {
       console.error('[StorageCenter] Failed to clear storage:', error);
-      return false;
+      // Fallback to localStorage if Preferences fails
+      try {
+        localStorage.clear();
+        return true;
+      } catch (fallbackError) {
+        console.error('[StorageCenter] Fallback also failed:', fallbackError);
+        return false;
+      }
     }
   }
 
   /**
    * Check if key exists
    */
-  has(key: StorageKey): boolean {
-    return localStorage.getItem(key) !== null;
+  async has(key: StorageKey): Promise<boolean> {
+    try {
+      if (this.isNative()) {
+        const result = await Preferences.get({ key });
+        return result.value !== null;
+      } else {
+        return localStorage.getItem(key) !== null;
+      }
+    } catch (error) {
+      // Fallback to localStorage
+      return localStorage.getItem(key) !== null;
+    }
+  }
+
+  /**
+   * Get all keys
+   */
+  async keys(): Promise<string[]> {
+    try {
+      if (this.isNative()) {
+        const result = await Preferences.keys();
+        return result.keys;
+      } else {
+        return Object.keys(localStorage);
+      }
+    } catch (error) {
+      console.error('[StorageCenter] Failed to get keys:', error);
+      // Fallback to localStorage
+      return Object.keys(localStorage);
+    }
   }
 
   /**
    * Get multiple keys at once
    */
-  getMultiple<T>(keys: StorageKey[]): Record<string, T | null> {
+  async getMultiple<T>(keys: StorageKey[]): Promise<Record<string, T | null>> {
     const result: Record<string, T | null> = {};
-    keys.forEach(key => {
-      result[key] = this.get<T>(key);
-    });
+    await Promise.all(
+      keys.map(async (key) => {
+        result[key] = await this.get<T>(key);
+      })
+    );
     return result;
   }
 
   /**
    * Set multiple keys at once
    */
-  setMultiple(items: Partial<Record<StorageKey, any>>): boolean {
+  async setMultiple(items: Partial<Record<StorageKey, any>>): Promise<boolean> {
     try {
-      Object.entries(items).forEach(([key, value]) => {
-        this.set(key as StorageKey, value);
-      });
+      await Promise.all(
+        Object.entries(items).map(([key, value]) =>
+          this.set(key as StorageKey, value)
+        )
+      );
       return true;
     } catch (error) {
       console.error('[StorageCenter] Failed to set multiple items:', error);
@@ -150,20 +251,20 @@ class StorageCenterClass {
    * Auth-specific helpers
    */
   auth = {
-    setToken: (token: string) => this.set(StorageKey.AUTH_TOKEN, token),
-    getToken: () => this.get<string>(StorageKey.AUTH_TOKEN),
-    removeToken: () => this.remove(StorageKey.AUTH_TOKEN),
-    hasToken: () => this.has(StorageKey.AUTH_TOKEN),
+    setToken: async (token: string) => await this.set(StorageKey.AUTH_TOKEN, token),
+    getToken: async () => await this.get<string>(StorageKey.AUTH_TOKEN),
+    removeToken: async () => await this.remove(StorageKey.AUTH_TOKEN),
+    hasToken: async () => await this.has(StorageKey.AUTH_TOKEN),
 
-    setUser: (user: any) => {
+    setUser: async (user: any) => {
       // Process user data before storing to ensure avatar_url is correct
       const processedUser = UserDataCenter.processUserData(user);
       console.log('[StorageCenter] Storing user with processed avatar_url:', processedUser.avatar_url);
-      return this.set(StorageKey.USER_DATA, processedUser);
+      return await this.set(StorageKey.USER_DATA, processedUser);
     },
 
-    getUser: () => {
-      const user = this.get<any>(StorageKey.USER_DATA);
+    getUser: async () => {
+      const user = await this.get<any>(StorageKey.USER_DATA);
       if (!user) return null;
 
       // Re-process user data when loading from storage
@@ -174,64 +275,89 @@ class StorageCenterClass {
       return processedUser;
     },
 
-    removeUser: () => this.remove(StorageKey.USER_DATA),
+    removeUser: async () => await this.remove(StorageKey.USER_DATA),
 
-    clearAuth: () => {
-      this.remove(StorageKey.AUTH_TOKEN);
-      this.remove(StorageKey.USER_DATA);
-    }
+    clearAuth: async () => {
+      await this.remove(StorageKey.AUTH_TOKEN);
+      await this.remove(StorageKey.USER_DATA);
+    },
+
+    // Saved credentials for auto-fill
+    saveCredentials: async (username: string, password: string) => {
+      await Promise.all([
+        this.set(StorageKey.SAVED_USERNAME, username),
+        this.set(StorageKey.SAVED_PASSWORD, password),
+      ]);
+      console.log('[StorageCenter] Credentials saved');
+    },
+
+    getCredentials: async () => {
+      const [username, password] = await Promise.all([
+        this.get<string>(StorageKey.SAVED_USERNAME),
+        this.get<string>(StorageKey.SAVED_PASSWORD),
+      ]);
+      return { username: username || '', password: password || '' };
+    },
+
+    clearCredentials: async () => {
+      await Promise.all([
+        this.remove(StorageKey.SAVED_USERNAME),
+        this.remove(StorageKey.SAVED_PASSWORD),
+      ]);
+      console.log('[StorageCenter] Credentials cleared');
+    },
   };
 
   /**
    * Settings-specific helpers
    */
   settings = {
-    get: () => this.get<any>(StorageKey.APP_SETTINGS),
-    set: (settings: any) => this.set(StorageKey.APP_SETTINGS, settings),
+    get: async () => await this.get<any>(StorageKey.APP_SETTINGS),
+    set: async (settings: any) => await this.set(StorageKey.APP_SETTINGS, settings),
 
-    getPlaylist: () => this.get<any>(StorageKey.PLAYLIST_SETTINGS),
-    setPlaylist: (settings: any) => this.set(StorageKey.PLAYLIST_SETTINGS, settings),
+    getPlaylist: async () => await this.get<any>(StorageKey.PLAYLIST_SETTINGS),
+    setPlaylist: async (settings: any) => await this.set(StorageKey.PLAYLIST_SETTINGS, settings),
 
-    getActiveGroupId: () => this.get<string>(StorageKey.ACTIVE_GROUP_ID, 'g1'),
-    setActiveGroupId: (id: string) => this.set(StorageKey.ACTIVE_GROUP_ID, id),
+    getActiveGroupId: async () => await this.get<string>(StorageKey.ACTIVE_GROUP_ID, 'g1'),
+    setActiveGroupId: async (id: string) => await this.set(StorageKey.ACTIVE_GROUP_ID, id),
   };
 
   /**
    * Language-specific helpers
    */
   language = {
-    getAppLanguage: () => this.get<string>(StorageKey.APP_LANGUAGE, 'en'),
-    setAppLanguage: (lang: string) => this.set(StorageKey.APP_LANGUAGE, lang),
+    getAppLanguage: async () => await this.get<string>(StorageKey.APP_LANGUAGE, 'en'),
+    setAppLanguage: async (lang: string) => await this.set(StorageKey.APP_LANGUAGE, lang),
 
-    getLearningLanguage: () => this.get<string>(StorageKey.LEARNING_LANGUAGE, 'en'),
-    setLearningLanguage: (lang: string) => this.set(StorageKey.LEARNING_LANGUAGE, lang),
+    getLearningLanguage: async () => await this.get<string>(StorageKey.LEARNING_LANGUAGE, 'en'),
+    setLearningLanguage: async (lang: string) => await this.set(StorageKey.LEARNING_LANGUAGE, lang),
 
-    getNativeLanguage: () => this.get<string>(StorageKey.NATIVE_LANGUAGE, 'zh'),
-    setNativeLanguage: (lang: string) => this.set(StorageKey.NATIVE_LANGUAGE, lang),
+    getNativeLanguage: async () => await this.get<string>(StorageKey.NATIVE_LANGUAGE, 'zh'),
+    setNativeLanguage: async (lang: string) => await this.set(StorageKey.NATIVE_LANGUAGE, lang),
   };
 
   /**
    * Cache-specific helpers with expiration
    */
   cache = {
-    set: <T>(key: StorageKey, value: T, ttlMs?: number) => {
+    set: async <T>(key: StorageKey, value: T, ttlMs?: number) => {
       const cacheData = {
         value,
         timestamp: Date.now(),
         ttl: ttlMs
       };
-      return this.set(key, cacheData);
+      return await this.set(key, cacheData);
     },
 
-    get: <T>(key: StorageKey): T | null => {
-      const cacheData = this.get<any>(key);
+    get: async <T>(key: StorageKey): Promise<T | null> => {
+      const cacheData = await this.get<any>(key);
       if (!cacheData) return null;
 
       // Check expiration
       if (cacheData.ttl) {
         const now = Date.now();
         if (now - cacheData.timestamp > cacheData.ttl) {
-          this.remove(key);
+          await this.remove(key);
           return null;
         }
       }
@@ -239,13 +365,15 @@ class StorageCenterClass {
       return cacheData.value as T;
     },
 
-    invalidate: (key: StorageKey) => this.remove(key),
+    invalidate: async (key: StorageKey) => await this.remove(key),
 
-    invalidateAll: () => {
-      this.remove(StorageKey.WORD_GROUPS_CACHE);
-      this.remove(StorageKey.DICTIONARY_CACHE);
-      this.remove(StorageKey.SUPPORTED_LANGUAGES_CACHE);
-      this.remove(StorageKey.USER_PROFILE_CACHE);
+    invalidateAll: async () => {
+      await Promise.all([
+        this.remove(StorageKey.WORD_GROUPS_CACHE),
+        this.remove(StorageKey.DICTIONARY_CACHE),
+        this.remove(StorageKey.SUPPORTED_LANGUAGES_CACHE),
+        this.remove(StorageKey.USER_PROFILE_CACHE),
+      ]);
     }
   };
 }

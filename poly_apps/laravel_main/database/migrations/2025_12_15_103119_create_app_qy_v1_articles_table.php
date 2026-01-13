@@ -3,6 +3,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -11,7 +13,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('appqyv1')->create('app_qy_v1_articles', function (Blueprint $table) {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'articles');
+        
+        Schema::connection($connection)->create($tableName, function (Blueprint $table) {
             $table->id();
             $table->string('article_id', 64)->unique()->comment('Unique article identifier');
             $table->string('title')->nullable()->comment('Article title');
@@ -44,6 +50,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_articles');
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'articles');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

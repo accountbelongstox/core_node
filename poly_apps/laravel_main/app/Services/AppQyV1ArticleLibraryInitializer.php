@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Article Library Tables Initializer
@@ -14,50 +14,24 @@ use Illuminate\Support\Facades\DB;
  */
 class AppQyV1ArticleLibraryInitializer
 {
+    /**
+     * Check if article library tables exist
+     * Tables are created automatically by 'php artisan sys:init' command
+     * This method only checks table existence, does not create tables
+     */
     public static function ensureTablesExist(): array
     {
         $results = [];
-        $connection = 'appqyv1';
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
         $schema = Schema::connection($connection);
 
         $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
 
         foreach ($supportedLanguages as $langCode) {
-            $tableName = "app_qy_v1_{$langCode}_article_library";
-
-            if (!$schema->hasTable($tableName)) {
-                $schema->create($tableName, function (Blueprint $table) {
-                    $table->id();
-                    $table->text('content');
-                    $table->string('md5', 32)->unique();
-                    $table->string('title')->nullable();
-                    $table->string('source', 255)->default('unknown');
-                    $table->string('owner', 100)->default('system');
-                    $table->boolean('has_audio')->default(false);
-                    $table->json('audio_files')->nullable();
-                    $table->string('tts_provider', 50)->nullable();
-                    $table->json('metadata')->nullable();
-                    $table->timestamp('added_at')->nullable();
-                    $table->timestamps();
-
-                    $table->index('md5');
-                    $table->index('has_audio');
-                    $table->index('owner');
-                    $table->index('added_at');
-                });
-
-                $results[$tableName] = 'created';
-            } else {
-                if (!$schema->hasColumn($tableName, 'has_audio')) {
-                    $schema->table($tableName, function (Blueprint $table) {
-                        $table->boolean('has_audio')->default(false)->after('owner');
-                        $table->index('has_audio');
-                    });
-                    $results[$tableName] = 'migrated';
-                } else {
-                    $results[$tableName] = 'exists';
-                }
-            }
+            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_article_library");
+            $exists = $schema->hasTable($tableName);
+            $results[$tableName] = $exists ? 'exists' : 'missing';
         }
 
         return $results;
@@ -66,7 +40,8 @@ class AppQyV1ArticleLibraryInitializer
     public static function getTableStats(): array
     {
         try {
-            $connection = 'appqyv1';
+            $appKey = AppKeys::APPQYV1;
+            $connection = AppTablePrefixServiceProvider::getConnection($appKey);
             $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
 
             $byLanguage = [];
@@ -75,20 +50,15 @@ class AppQyV1ArticleLibraryInitializer
             $totalWithoutAudio = 0;
 
             foreach ($supportedLanguages as $langCode) {
-                $tableName = "app_qy_v1_{$langCode}_article_library";
+                $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_article_library");
 
                 if (!Schema::connection($connection)->hasTable($tableName)) {
                     continue;
                 }
 
-                $total = DB::connection($connection)
-                    ->table($tableName)
-                    ->count();
-
-                $withAudio = DB::connection($connection)
-                    ->table($tableName)
-                    ->where('has_audio', true)
-                    ->count();
+                $articleModel = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::forLanguage($langCode);
+                $total = $articleModel->count();
+                $withAudio = $articleModel->where('has_audio', true)->count();
 
                 $withoutAudio = $total - $withAudio;
 
@@ -117,32 +87,26 @@ class AppQyV1ArticleLibraryInitializer
     public static function getLanguageSummary(string $langCode): array
     {
         try {
-            $connection = 'appqyv1';
-            $tableName = "app_qy_v1_{$langCode}_article_library";
+            $appKey = AppKeys::APPQYV1;
+            $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_article_library");
 
             if (!Schema::connection($connection)->hasTable($tableName)) {
                 return ['error' => 'Table not found'];
             }
 
-            $total = DB::connection($connection)
-                ->table($tableName)
-                ->count();
+            $articleModel = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::forLanguage($langCode);
+            $total = $articleModel->count();
+            $withAudio = $articleModel->where('has_audio', true)->count();
 
-            $withAudio = DB::connection($connection)
-                ->table($tableName)
-                ->where('has_audio', true)
-                ->count();
-
-            $byOwner = DB::connection($connection)
-                ->table($tableName)
-                ->select('owner', DB::raw('COUNT(*) as count'))
+            $byOwner = $articleModel->select('owner')
+                ->selectRaw('COUNT(*) as count')
                 ->groupBy('owner')
                 ->pluck('count', 'owner')
                 ->toArray();
 
-            $bySource = DB::connection($connection)
-                ->table($tableName)
-                ->select('source', DB::raw('COUNT(*) as count'))
+            $bySource = $articleModel->select('source')
+                ->selectRaw('COUNT(*) as count')
                 ->groupBy('source')
                 ->limit(10)
                 ->pluck('count', 'source')

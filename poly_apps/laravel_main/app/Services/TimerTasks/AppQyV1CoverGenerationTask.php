@@ -8,6 +8,8 @@ use App\Services\GeminiClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * AppQyV1 Cover Generation Timer Task
@@ -138,7 +140,10 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     private function processCover(AppQyV1VocabularyCoverModel $cover): array
     {
         try {
-            return DB::connection('appqyv1')->transaction(function () use ($cover) {
+            $appKey = AppKeys::APPQYV1;
+            // Use model connection for transaction (Laravel best practice)
+            $model = new AppQyV1VocabularyCoverModel();
+            return $model->getConnection()->transaction(function () use ($cover) {
                 $lockedCover = AppQyV1VocabularyCoverModel::query()
                     ->where('id', $cover->id)
                     ->whereIn('status', ['pending', 'retry'])

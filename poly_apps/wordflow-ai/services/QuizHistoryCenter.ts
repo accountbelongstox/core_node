@@ -40,10 +40,10 @@ class QuizHistoryCenterClass {
   /**
    * Initialize - load from storage
    */
-  initialize(): void {
-    const stored = StorageCenter.get<QuizRecord[]>(StorageKey.QUIZ_HISTORY, []);
+  async initialize(): Promise<void> {
+    const stored = await StorageCenter.get<QuizRecord[]>(StorageKey.QUIZ_HISTORY, []);
     // Convert date strings back to Date objects
-    this.history = stored.map(record => ({
+    this.history = (stored || []).map(record => ({
       ...record,
       date: new Date(record.date),
     }));
@@ -53,7 +53,7 @@ class QuizHistoryCenterClass {
   /**
    * Add a new quiz record
    */
-  addRecord(record: Omit<QuizRecord, 'id' | 'averageTimePerQuestion'>): void {
+  async addRecord(record: Omit<QuizRecord, 'id' | 'averageTimePerQuestion'>): Promise<void> {
     const newRecord: QuizRecord = {
       ...record,
       id: this.generateId(),
@@ -68,7 +68,7 @@ class QuizHistoryCenterClass {
       this.history = this.history.slice(0, this.MAX_RECORDS);
     }
 
-    this.save();
+    await this.save();
     this.notifyListeners();
 
     // Emit event
@@ -191,11 +191,11 @@ class QuizHistoryCenterClass {
   /**
    * Delete a quiz record
    */
-  deleteRecord(id: string): boolean {
+  async deleteRecord(id: string): Promise<boolean> {
     const index = this.history.findIndex(r => r.id === id);
     if (index !== -1) {
       this.history.splice(index, 1);
-      this.save();
+      await this.save();
       this.notifyListeners();
       console.log('[QuizHistoryCenter] Deleted quiz record:', id);
       return true;
@@ -206,9 +206,9 @@ class QuizHistoryCenterClass {
   /**
    * Clear all history
    */
-  clearHistory(): void {
+  async clearHistory(): Promise<void> {
     this.history = [];
-    this.save();
+    await this.save();
     this.notifyListeners();
     console.log('[QuizHistoryCenter] Cleared all quiz history');
   }
@@ -216,7 +216,7 @@ class QuizHistoryCenterClass {
   /**
    * Clear history older than N days
    */
-  clearOldHistory(days: number): void {
+  async clearOldHistory(days: number): Promise<void> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
@@ -224,7 +224,7 @@ class QuizHistoryCenterClass {
     this.history = this.history.filter(r => r.date >= cutoffDate);
 
     if (beforeCount !== this.history.length) {
-      this.save();
+      await this.save();
       this.notifyListeners();
       console.log('[QuizHistoryCenter] Cleared', beforeCount - this.history.length, 'old records');
     }
@@ -312,8 +312,8 @@ class QuizHistoryCenterClass {
   /**
    * Private: Save to storage
    */
-  private save(): void {
-    StorageCenter.set(StorageKey.QUIZ_HISTORY, this.history);
+  private async save(): Promise<void> {
+    await StorageCenter.set(StorageKey.QUIZ_HISTORY, this.history);
   }
 
   /**

@@ -209,7 +209,9 @@ const DashboardPage = () => {
       <Header />
 
       {/* Scrollable Content Container */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pt-24 pb-32 animate-slide-up">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pt-24 pb-32 animate-slide-up">
+        {/* Mobile-only Container - 100% width, no max-width restrictions */}
+        <div className="w-full px-5">
         {/* Welcome Section */}
         <div className="mb-6">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
@@ -809,6 +811,7 @@ const DashboardPage = () => {
                     </Button>
                 </div>
             )}
+        </div>
         </div>
       </div>
 

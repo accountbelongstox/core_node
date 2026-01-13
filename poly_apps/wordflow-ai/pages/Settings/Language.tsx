@@ -6,6 +6,7 @@ import { IconMappingService } from '../../services/IconMappingService';
 import { LanguagesCenter } from '../../services/LanguagesCenter';
 import { StudyGroupsCenter } from '../../services/StudyGroupsCenter';
 import { ApiCenter } from '../../services/ApiCenter';
+import { ToastService } from '../../services/ToastService';
 
 interface ToggleSettingProps {
   label: string;
@@ -54,6 +55,18 @@ const LanguageSettings = () => {
       } else {
         console.warn('[LanguageSettings] No languages available');
         setError(t('settings.noLanguagesAvailable'));
+        
+        // Show toast with action button to login
+        if (!user) {
+          ToastService.showWithAction(
+            t('settings.noLanguagesAvailable'),
+            t('common.confirm'),
+            () => {
+              navigate('login');
+            },
+            'long'
+          );
+        }
       }
       setLoading(false);
     });
@@ -66,9 +79,17 @@ const LanguageSettings = () => {
     });
 
     return unsubscribe;
-  }, [t]);
+  }, [t, user, navigate]);
 
   const toggleLearningLang = async (code: string) => {
+    // Check if user is logged in - learning languages require authentication
+    if (!user) {
+      if (window.confirm(t('settings.loginRequired') || 'Please login to manage your learning languages. Go to login page?')) {
+        navigate('login');
+      }
+      return;
+    }
+
     const oldLangs = [...(settings.language.learningLanguages || [])];
     let newLangs = [...oldLangs];
     const isAdding = !newLangs.includes(code);
@@ -190,47 +211,71 @@ const LanguageSettings = () => {
       </div>
 
       <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
-        {/* Learning Languages Section */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('settings.languagesToLearn')} ({settings.language.learningLanguages?.length || 0})
-          </h2>
+        {/* Learning Languages Section - Only show if user is logged in */}
+        {user ? (
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              {t('settings.languagesToLearn')} ({settings.language.learningLanguages?.length || 0})
+            </h2>
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4">
-            <div className="grid grid-cols-3 gap-3">
-              {langs.map(lang => {
-                const isActive = settings.language.learningLanguages?.includes(lang.code);
-                return (
-                  <button
-                    key={lang.code}
-                    onClick={() => toggleLearningLang(lang.code)}
-                    className={`relative p-4 rounded-xl border-2 transition-all ${
-                      isActive
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
-                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-105'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-3xl">{getLanguageIcon(lang)}</span>
-                      <span className={`font-bold text-xs text-center leading-tight ${
-                        isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                      }`}>
-                        {lang.native_name || lang.name}
-                      </span>
-                      {isActive && (
-                        <div className="absolute top-1 right-1 w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
+            <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4">
+              <div className="grid grid-cols-3 gap-3">
+                {langs.map(lang => {
+                  const isActive = settings.language.learningLanguages?.includes(lang.code);
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => toggleLearningLang(lang.code)}
+                      className={`relative p-4 rounded-xl border-2 transition-all ${
+                        isActive
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-105'
+                          : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 hover:scale-105'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-3xl">{getLanguageIcon(lang)}</span>
+                        <span className={`font-bold text-xs text-center leading-tight ${
+                          isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                        }`}>
+                          {lang.native_name || lang.name}
+                        </span>
+                        {isActive && (
+                          <div className="absolute top-1 right-1 w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              {t('settings.languagesToLearn')}
+            </h2>
+
+            <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 text-center">
+              <div className="text-4xl mb-3">🔒</div>
+              <p className="font-semibold text-slate-900 dark:text-white mb-2">
+                {t('settings.loginRequired') || 'Login Required'}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                {t('settings.loginToManageLanguages') || 'Please login to manage your learning languages'}
+              </p>
+              <button
+                onClick={() => navigate('login')}
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
+                {t('auth.login') || 'Login'}
+              </button>
+            </Card>
+          </div>
+        )}
 
         {/* Audio Settings Section */}
         <div className="space-y-3">

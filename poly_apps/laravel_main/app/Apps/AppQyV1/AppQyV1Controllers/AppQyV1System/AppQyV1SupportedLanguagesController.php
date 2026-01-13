@@ -159,10 +159,9 @@ class AppQyV1SupportedLanguagesController extends Controller
             return $result;
         });
 
-        return $this->success([
-            'languages' => $languages,
-            'total' => count($languages),
-        ], 'Supported languages retrieved successfully');
+        // Return array directly - unified format for frontend data centers
+        // Frontend expects: {success: true, data: SupportedLanguage[]}
+        return $this->success($languages, 'Supported languages retrieved successfully');
     }
 
     /**

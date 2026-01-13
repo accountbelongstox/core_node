@@ -142,7 +142,7 @@ Start your language learning journey today and experience these amazing benefits
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl lg:max-w-6xl px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Input Panel */}
           <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">

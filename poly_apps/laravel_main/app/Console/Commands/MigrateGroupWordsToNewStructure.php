@@ -3,10 +3,13 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class MigrateGroupWordsToNewStructure extends Command
 {
@@ -61,16 +64,22 @@ class MigrateGroupWordsToNewStructure extends Command
 
                 $wordContent = trim($wordContent);
 
-                $vocabularyWord = DB::connection('appqyv1')
-                    ->table('app_qy_v1_vocabulary_words')
+                $appKey = AppKeys::APPQYV1;
+                // Use model connection for query builder (Laravel best practice)
+                $wordModel = new AppQyV1VocabularyWordModel();
+                $dbConnection = $wordModel->getConnection();
+                $vocabularyWordsTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_words');
+
+                $vocabularyWord = $dbConnection
+                    ->table($vocabularyWordsTable)
                     ->where('word', $wordContent)
                     ->where('library_id', $defaultLibrary->id)
                     ->first();
 
                 if (!$vocabularyWord) {
                     if (!$isDryRun) {
-                        $wordId = DB::connection('appqyv1')
-                            ->table('app_qy_v1_vocabulary_words')
+                        $wordId = $dbConnection
+                            ->table($vocabularyWordsTable)
                             ->insertGetId([
                                 'library_id' => $defaultLibrary->id,
                                 'word_index' => 0,
@@ -159,16 +168,22 @@ class MigrateGroupWordsToNewStructure extends Command
     {
         $libraryName = "Migrated Words - {$group->gname}";
 
-        $library = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_libraries')
+        $appKey = AppKeys::APPQYV1;
+        // Use model connection for query builder (Laravel best practice)
+        $libraryModel = new AppQyV1VocabularyLibraryModel();
+        $dbConnection = $libraryModel->getConnection();
+        $vocabularyLibrariesTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries');
+
+        $library = $dbConnection
+            ->table($vocabularyLibrariesTable)
             ->where('name', $libraryName)
             ->where('owner_user_id', $group->uid)
             ->first();
 
         if (!$library) {
             if (!$isDryRun) {
-                $libraryId = DB::connection('appqyv1')
-                    ->table('app_qy_v1_vocabulary_libraries')
+                $libraryId = $dbConnection
+                    ->table($vocabularyLibrariesTable)
                     ->insertGetId([
                         'name' => $libraryName,
                         'description' => 'Automatically created during migration from old group structure',

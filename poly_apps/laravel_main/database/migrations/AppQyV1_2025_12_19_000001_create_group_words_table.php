@@ -3,13 +3,25 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+
     public function up(): void
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_group_words')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_group_words', function (Blueprint $table) {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words');
+        if (!Schema::connection($this->connection)->hasTable($tableName)) {
+            Schema::connection($this->connection)->create($tableName, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('group_id')->comment('Group ID from word_groups table');
                 $table->unsignedBigInteger('word_id')->comment('Word ID from vocabulary_words table');
@@ -27,6 +39,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_group_words');
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words');
+        Schema::connection($this->connection)->dropIfExists($tableName);
     }
 };

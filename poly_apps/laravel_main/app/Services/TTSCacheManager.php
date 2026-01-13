@@ -3,22 +3,41 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 
 class TTSCacheManager
 {
     private $cacheDir;
-    private $cacheDatabasePath;
-    private $dbConnection;
+    private $connection;
+    private $appKey;
 
     public function __construct()
     {
         $this->cacheDir = PathMapper::getLaravelCacheDir() . '/tts';
-        $this->cacheDatabasePath = $this->cacheDir . '/tts_cache.sqlite';
-
         PathMapper::ensureDirectory($this->cacheDir);
 
-        $this->initializeDatabase();
+        // Use model connection instead of DB::connection() for Laravel best practices
+        // Table should be created by sys:init command via UserSyncService::ensureTTSCacheTablesExist()
+        $this->appKey = AppKeys::APPQYV1;
+        $connectionName = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        // Use model to get connection (Laravel best practice)
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel();
+        $this->connection = $model->getConnection();
+        
+        // Verify table exists (should be created by sys:init)
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
+        if (!Schema::connection($connectionName)->hasTable($tableName)) {
+            Log::warning('[TTSCacheManager] TTS cache table does not exist. Run php artisan sys:init to create it.');
+        }
+    }
+
+    private function getTableName(): string
+    {
+        return AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
     }
 
     private function generateAudioUrl(string $filePath): string
@@ -27,92 +46,41 @@ class TTSCacheManager
         return route('mcp.v1.voice-subtitle.audio', ['filename' => $fileName], false);
     }
 
-    private function initializeDatabase(): void
-    {
-        try {
-            $this->dbConnection = new \PDO('sqlite:' . $this->cacheDatabasePath);
-            $this->dbConnection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-            $this->dbConnection->exec("
-                CREATE TABLE IF NOT EXISTS tts_cache (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    text_hash VARCHAR(32) NOT NULL,
-                    text TEXT NOT NULL,
-                    language VARCHAR(10) NOT NULL,
-                    voice VARCHAR(100) NOT NULL,
-                    file_path TEXT NOT NULL,
-                    file_size INTEGER,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    access_count INTEGER DEFAULT 1,
-                    UNIQUE(text_hash, language, voice)
-                )
-            ");
-
-            $this->dbConnection->exec("
-                CREATE INDEX IF NOT EXISTS idx_text_hash ON tts_cache(text_hash)
-            ");
-
-            $this->dbConnection->exec("
-                CREATE INDEX IF NOT EXISTS idx_language ON tts_cache(language)
-            ");
-
-            $this->dbConnection->exec("
-                CREATE INDEX IF NOT EXISTS idx_last_accessed ON tts_cache(last_accessed_at)
-            ");
-
-        } catch (\PDOException $e) {
-            Log::error('[TTSCacheManager] Failed to initialize database', [
-                'error' => $e->getMessage(),
-                'path' => $this->cacheDatabasePath,
-            ]);
-            throw $e;
-        }
-    }
-
     public function getCached(string $text, string $language, string $voice): ?array
     {
         $textHash = md5($text);
+        $tableName = $this->getTableName();
 
         try {
-            $stmt = $this->dbConnection->prepare("
-                SELECT * FROM tts_cache
-                WHERE text_hash = :text_hash
-                AND language = :language
-                AND voice = :voice
-                LIMIT 1
-            ");
+            $result = $this->connection
+                ->table($tableName)
+                ->where('text_hash', $textHash)
+                ->where('language', $language)
+                ->where('voice', $voice)
+                ->first();
 
-            $stmt->execute([
-                ':text_hash' => $textHash,
-                ':language' => $language,
-                ':voice' => $voice,
-            ]);
-
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-            if ($result && file_exists($result['file_path'])) {
-                $this->updateAccessStats($result['id']);
+            if ($result && file_exists($result->audio_path)) {
+                $this->updateAccessStats($result->id);
 
                 return [
-                    'id' => $result['id'],
-                    'text' => $result['text'],
-                    'file_path' => $result['file_path'],
-                    'audio_url' => $this->generateAudioUrl($result['file_path']),
-                    'file_size' => $result['file_size'],
-                    'language' => $result['language'],
-                    'voice' => $result['voice'],
+                    'id' => $result->id,
+                    'text' => $result->text,
+                    'file_path' => $result->audio_path,
+                    'audio_url' => $this->generateAudioUrl($result->audio_path),
+                    'file_size' => $result->audio_size,
+                    'language' => $result->language,
+                    'voice' => $result->voice ?? $voice,
                     'cached' => true,
                 ];
             }
 
-            if ($result && !file_exists($result['file_path'])) {
-                $this->deleteCache($result['id']);
+            if ($result && !file_exists($result->audio_path)) {
+                $this->deleteCache($result->id);
             }
 
             return null;
 
-        } catch (\PDOException $e) {
+        } catch (\Exception $e) {
             Log::error('[TTSCacheManager] Error fetching cache', [
                 'error' => $e->getMessage(),
             ]);
@@ -129,26 +97,47 @@ class TTSCacheManager
         $textHash = md5($text);
         $fileName = $textHash . '_' . $language . '_' . str_replace(['/', ' '], '_', $voice) . '.mp3';
         $filePath = $this->cacheDir . '/' . $fileName;
+        $tableName = $this->getTableName();
 
         try {
             file_put_contents($filePath, $audioData);
             $fileSize = filesize($filePath);
 
-            $stmt = $this->dbConnection->prepare("
-                INSERT OR REPLACE INTO tts_cache
-                (text_hash, text, language, voice, file_path, file_size, created_at, last_accessed_at, access_count)
-                VALUES
-                (:text_hash, :text, :language, :voice, :file_path, :file_size, datetime('now'), datetime('now'), 1)
-            ");
+            // Check if record exists by text_hash (which is unique)
+            $existing = $this->connection
+                ->table($tableName)
+                ->where('text_hash', $textHash)
+                ->where('language', $language)
+                ->first();
 
-            $stmt->execute([
-                ':text_hash' => $textHash,
-                ':text' => $text,
-                ':language' => $language,
-                ':voice' => $voice,
-                ':file_path' => $filePath,
-                ':file_size' => $fileSize,
-            ]);
+            if ($existing) {
+                $this->connection
+                    ->table($tableName)
+                    ->where('id', $existing->id)
+                    ->update([
+                        'text' => $text,
+                        'voice' => $voice,
+                        'audio_path' => $filePath,
+                        'audio_size' => $fileSize,
+                        'last_accessed' => now(),
+                        'access_count' => DB::raw('access_count + 1'),
+                    ]);
+            } else {
+                $this->connection
+                    ->table($tableName)
+                    ->insert([
+                        'text_hash' => $textHash,
+                        'text' => $text,
+                        'language' => $language,
+                        'type' => 'word',
+                        'voice' => $voice,
+                        'audio_path' => $filePath,
+                        'audio_size' => $fileSize,
+                        'created_at' => now(),
+                        'last_accessed' => now(),
+                        'access_count' => 1,
+                    ]);
+            }
 
             return [
                 'file_path' => $filePath,
@@ -168,16 +157,17 @@ class TTSCacheManager
     private function updateAccessStats(int $cacheId): void
     {
         try {
-            $stmt = $this->dbConnection->prepare("
-                UPDATE tts_cache
-                SET last_accessed_at = datetime('now'),
-                    access_count = access_count + 1
-                WHERE id = :id
-            ");
+            $tableName = $this->getTableName();
+            
+            $this->connection
+                ->table($tableName)
+                ->where('id', $cacheId)
+                ->update([
+                    'last_accessed' => now(),
+                    'access_count' => DB::raw('access_count + 1'),
+                ]);
 
-            $stmt->execute([':id' => $cacheId]);
-
-        } catch (\PDOException $e) {
+        } catch (\Exception $e) {
             Log::warning('[TTSCacheManager] Failed to update access stats', [
                 'error' => $e->getMessage(),
             ]);
@@ -187,22 +177,23 @@ class TTSCacheManager
     private function deleteCache(int $cacheId): void
     {
         try {
-            $stmt = $this->dbConnection->prepare("
-                SELECT file_path FROM tts_cache WHERE id = :id
-            ");
-            $stmt->execute([':id' => $cacheId]);
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $tableName = $this->getTableName();
+            
+            $result = $this->connection
+                ->table($tableName)
+                ->where('id', $cacheId)
+                ->first();
 
-            if ($result && file_exists($result['file_path'])) {
-                @unlink($result['file_path']);
+            if ($result && isset($result->audio_path) && file_exists($result->audio_path)) {
+                @unlink($result->audio_path);
             }
 
-            $stmt = $this->dbConnection->prepare("
-                DELETE FROM tts_cache WHERE id = :id
-            ");
-            $stmt->execute([':id' => $cacheId]);
+            $this->connection
+                ->table($tableName)
+                ->where('id', $cacheId)
+                ->delete();
 
-        } catch (\PDOException $e) {
+        } catch (\Exception $e) {
             Log::error('[TTSCacheManager] Error deleting cache', [
                 'error' => $e->getMessage(),
             ]);
@@ -212,26 +203,26 @@ class TTSCacheManager
     public function cleanupOldCache(int $daysOld = 30): int
     {
         try {
-            $stmt = $this->dbConnection->prepare("
-                SELECT id, file_path FROM tts_cache
-                WHERE last_accessed_at < datetime('now', '-' || :days || ' days')
-            ");
-            $stmt->execute([':days' => $daysOld]);
-            $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $tableName = $this->getTableName();
+            $cutoffDate = now()->subDays($daysOld);
+            
+            $results = $this->connection
+                ->table($tableName)
+                ->where('last_accessed', '<', $cutoffDate)
+                ->get(['id', 'audio_path']);
 
             $deletedCount = 0;
             foreach ($results as $row) {
-                if (file_exists($row['file_path'])) {
-                    @unlink($row['file_path']);
+                if (isset($row->audio_path) && file_exists($row->audio_path)) {
+                    @unlink($row->audio_path);
                 }
                 $deletedCount++;
             }
 
-            $stmt = $this->dbConnection->prepare("
-                DELETE FROM tts_cache
-                WHERE last_accessed_at < datetime('now', '-' || :days || ' days')
-            ");
-            $stmt->execute([':days' => $daysOld]);
+            $this->connection
+                ->table($tableName)
+                ->where('last_accessed', '<', $cutoffDate)
+                ->delete();
 
             Log::info('[TTSCacheManager] Cleaned up old cache', [
                 'deleted_count' => $deletedCount,
@@ -240,7 +231,7 @@ class TTSCacheManager
 
             return $deletedCount;
 
-        } catch (\PDOException $e) {
+        } catch (\Exception $e) {
             Log::error('[TTSCacheManager] Error cleaning up cache', [
                 'error' => $e->getMessage(),
             ]);
@@ -251,27 +242,26 @@ class TTSCacheManager
     public function getCacheStats(): array
     {
         try {
-            $stmt = $this->dbConnection->query("
-                SELECT
-                    COUNT(*) as total_count,
-                    SUM(file_size) as total_size,
-                    SUM(access_count) as total_accesses,
-                    COUNT(DISTINCT language) as language_count
-                FROM tts_cache
-            ");
-
-            $stats = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $tableName = $this->getTableName();
+            
+            $stats = $this->connection
+                ->table($tableName)
+                ->selectRaw('COUNT(*) as total_count')
+                ->selectRaw('SUM(audio_size) as total_size')
+                ->selectRaw('SUM(access_count) as total_accesses')
+                ->selectRaw('COUNT(DISTINCT language) as language_count')
+                ->first();
 
             return [
-                'total_cached_items' => (int)$stats['total_count'],
-                'total_cache_size_bytes' => (int)$stats['total_size'],
-                'total_cache_size_mb' => round((int)$stats['total_size'] / 1024 / 1024, 2),
-                'total_accesses' => (int)$stats['total_accesses'],
-                'language_count' => (int)$stats['language_count'],
+                'total_cached_items' => (int)($stats->total_count ?? 0),
+                'total_cache_size_bytes' => (int)($stats->total_size ?? 0),
+                'total_cache_size_mb' => round((int)($stats->total_size ?? 0) / 1024 / 1024, 2),
+                'total_accesses' => (int)($stats->total_accesses ?? 0),
+                'language_count' => (int)($stats->language_count ?? 0),
                 'cache_directory' => $this->cacheDir,
             ];
 
-        } catch (\PDOException $e) {
+        } catch (\Exception $e) {
             Log::error('[TTSCacheManager] Error getting cache stats', [
                 'error' => $e->getMessage(),
             ]);
@@ -331,8 +321,4 @@ class TTSCacheManager
         return $results;
     }
 
-    public function __destruct()
-    {
-        $this->dbConnection = null;
-    }
 }

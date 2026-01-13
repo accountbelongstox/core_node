@@ -3,13 +3,16 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Http\Controllers\Controller;
 use App\Providers\PathMapper;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
 {
@@ -129,30 +132,22 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $perPage = max(1, min((int) $request->query('per_page', 1000), 2000));
         $offset = ($page - 1) * $perPage;
 
-        $connection = 'appqyv1';
-        $wordsTable = 'app_qy_v1_vocabulary_words';
-
-        $total = \DB::connection($connection)
-            ->table($wordsTable)
-            ->where('library_id', $libraryId)
-            ->count();
+        $total = AppQyV1VocabularyItemModel::where('collection_id', $libraryId)->count();
 
         $languageCode = $this->getLanguageCode($library->language);
-        $dictionaryTable = "app_qy_v1_{$languageCode}_dictionaries";
+        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
+        $connectionName = $dictModel->getConnectionName();
+        $hasDictionaryTable = Schema::connection($connectionName)->hasTable($dictModel->getTable());
 
-        $hasDictionaryTable = \DB::connection($connection)
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [$dictionaryTable]);
+        $query = AppQyV1VocabularyItemModel::where('collection_id', $libraryId);
 
-        $query = \DB::connection($connection)
-            ->table($wordsTable . ' as w');
-
-        if (!empty($hasDictionaryTable)) {
-            $query->leftJoin($dictionaryTable . ' as d', 'w.word', '=', 'd.content');
+        if ($hasDictionaryTable) {
+            $vocabularyItemsTable = AppQyV1TableMaps::getTableName('VOCABULARY_ITEMS');
+            $query->leftJoin($dictModel->getTable() . ' as d', "{$vocabularyItemsTable}.word_content", '=', 'd.content');
         }
 
         $words = $query
-            ->where('w.library_id', $libraryId)
-            ->orderBy('w.word_index')
+            ->orderBy('word_index')
             ->skip($offset)
             ->take($perPage)
             ->get(
