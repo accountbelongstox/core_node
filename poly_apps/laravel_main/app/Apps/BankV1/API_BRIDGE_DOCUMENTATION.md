@@ -8,6 +8,21 @@ This document describes the API endpoints that the Flutter Bank App requires fro
 
 ✅ **Fully Implemented** - All endpoints are implemented and tested.
 
+### Database Migration Required
+
+⚠️ **Important**: Before using the extended data fields, run the migration to add new columns:
+
+```bash
+php artisan migrate
+```
+
+This will add the following columns to `bankv1_user_data_submissions` table:
+- `complete_user_profile` (JSON, nullable)
+- `global_app_data` (JSON, nullable)
+- `app_state` (JSON, nullable)
+
+Migration file: `BankV1_2026_01_26_000001_add_extended_fields_to_user_data_submissions.php`
+
 ### Completed Features:
 
 #### Public Endpoints (No Authentication Required):
