@@ -33,6 +33,7 @@ Route::get('/health', function (): JsonResponse {
         ->header('X-Runtime', 'go' . round($responseTime) . 'ms');
 });
 
+
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 require_once __DIR__ . '/api/public_api.php';

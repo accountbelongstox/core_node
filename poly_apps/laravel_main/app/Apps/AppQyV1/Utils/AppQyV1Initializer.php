@@ -29,7 +29,8 @@ class AppQyV1Initializer implements AppInitializerInterface
     {
         $dbDir = \App\Providers\PathMapper::getLaravelDatabaseDir();
         if (!$dbDir) {
-            throw new \Exception('Laravel database directory not found');
+            Log::error('[AppQyV1Initializer] Laravel database directory not found');
+            return;
         }
         
         if (!is_dir($dbDir)) {

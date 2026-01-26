@@ -1445,7 +1445,7 @@ class ApiCenterClass {
       }, false);
     },
 
-    getSystemStatisticsQueues: async (): Promise<ApiResponse<{
+    getSystemStatisticsQueues: async (forceRefresh: boolean = false): Promise<ApiResponse<{
       tts: {
         pending: number;
         processing: number;
@@ -1457,17 +1457,24 @@ class ApiCenterClass {
         total_words: number;
         complete_words: number;
         completion_rate: number;
+        total_sentences?: number;
+        complete_sentences?: number;
+        sentence_completion_rate?: number;
         missing_breakdown: {
           translation: number;
           phonetic: number;
           audio: number;
           images: number;
+          sentence_translation?: number;
+          sentence_audio?: number;
         };
         missing_percentages: {
           translation: number;
           phonetic: number;
           audio: number;
           images: number;
+          sentence_translation?: number;
+          sentence_audio?: number;
         };
       };
       audio_storage: {
@@ -1482,6 +1489,9 @@ class ApiCenterClass {
         errors?: string[];
       };
     }>> => {
+      const url = forceRefresh 
+        ? '/system/statistics/queues?force_refresh=1'
+        : '/system/statistics/queues';
       return this.request<{
         tts: {
           pending: number;
@@ -1494,17 +1504,24 @@ class ApiCenterClass {
           total_words: number;
           complete_words: number;
           completion_rate: number;
+          total_sentences?: number;
+          complete_sentences?: number;
+          sentence_completion_rate?: number;
           missing_breakdown: {
             translation: number;
             phonetic: number;
             audio: number;
             images: number;
+            sentence_translation?: number;
+            sentence_audio?: number;
           };
           missing_percentages: {
             translation: number;
             phonetic: number;
             audio: number;
             images: number;
+            sentence_translation?: number;
+            sentence_audio?: number;
           };
         };
         audio_storage: {
@@ -1514,7 +1531,7 @@ class ApiCenterClass {
           total_files: number;
           formatted_size: string;
         };
-      }>('/system/statistics/queues', {
+      }>(url, {
         method: 'GET',
       }, false);
     },

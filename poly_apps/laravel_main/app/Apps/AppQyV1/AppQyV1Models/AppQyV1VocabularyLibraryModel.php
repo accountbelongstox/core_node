@@ -4,23 +4,25 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1VocabularyLibraryModel extends Model
 {
     use HasFactory;
 
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_libraries');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_libraries');
     }
     
     public function getConnectionName()
     {
-        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     protected $fillable = [
@@ -75,7 +77,7 @@ class AppQyV1VocabularyLibraryModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1WordGroupModel::class,
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
+            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
             'library_id',
             'group_id',
             'id',

@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Constants\AppKeys;
 
 class AppQyV1AddLibraryToGroupRequest extends FormRequest
 {
@@ -14,7 +15,7 @@ class AppQyV1AddLibraryToGroupRequest extends FormRequest
 
     public function rules(): array
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $appKey = AppKeys::APPQYV1;
         $connection = AppTablePrefixServiceProvider::getConnection($appKey);
         $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries');
         

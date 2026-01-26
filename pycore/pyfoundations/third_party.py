@@ -330,31 +330,67 @@ def install_and_reimport_azure():
 def install_and_reimport_edge_tts():
     """
     Install Edge TTS package and reimport it.
-    
+
     Direct hard import, no string variables, no DEPENDENCY_MAP lookup.
-    
+
+    IMPORTANT: edge-tts 7.2.2+ has NoAudioReceived bug.
+    Compatible versions: 7.2.1, 7.2.0, 7.1.0, 7.0.0
+    Required version: 7.2.1
+    Reference: https://github.com/rany2/edge-tts/issues/443
+
     Returns:
         The imported module if successful, None otherwise.
     """
+    REQUIRED_VERSION = "7.2.1"
+    COMPATIBLE_VERSIONS = ["7.2.1", "7.2.0", "7.1.0", "7.0.0"]
+
     # Try direct hard import first
     try:
         import edge_tts
-        return edge_tts
+        current_version = edge_tts.__version__
+
+        # Check if current version is compatible
+        if current_version in COMPATIBLE_VERSIONS:
+            ColorPrint.green(f"[SUCCESS] Edge TTS {current_version} is compatible")
+            return edge_tts
+        else:
+            ColorPrint.yellow(f"[WARNING] Edge TTS {current_version} is incompatible (has NoAudioReceived bug)")
+            ColorPrint.yellow(f"[WARNING] Downgrading to {REQUIRED_VERSION}...")
+
+            # Force reinstall with correct version
+            pip_cmd = build_pip_install_command(f"edge-tts=={REQUIRED_VERSION}")
+            pip_cmd.append("--force-reinstall")
+            run_pip_install_with_realtime_output(pip_cmd, f"edge-tts=={REQUIRED_VERSION}")
+
+            # Clear import cache and reimport
+            importlib.invalidate_caches()
+            # Remove from sys.modules to force reimport
+            if 'edge_tts' in sys.modules:
+                del sys.modules['edge_tts']
+
+            import edge_tts
+            new_version = edge_tts.__version__
+            ColorPrint.green(f"[SUCCESS] Edge TTS downgraded from {current_version} to {new_version}")
+            return edge_tts
+
     except ImportError:
-        pass
-    
-    # If import failed, install package directly
-    ColorPrint.blue("[INFO] Installing Edge TTS package...")
-    pip_cmd = build_pip_install_command("edge-tts")
-    
+        ColorPrint.blue("[INFO] Edge TTS not installed")
+    except AttributeError:
+        ColorPrint.yellow("[WARNING] Edge TTS installed but version cannot be detected")
+
+    # Install required version
+    ColorPrint.blue(f"[INFO] Installing Edge TTS {REQUIRED_VERSION}...")
+    pip_cmd = build_pip_install_command(f"edge-tts=={REQUIRED_VERSION}")
+
     # Run installation with real-time output
-    run_pip_install_with_realtime_output(pip_cmd, "edge-tts")
-    
+    run_pip_install_with_realtime_output(pip_cmd, f"edge-tts=={REQUIRED_VERSION}")
+
     # Verify installation by trying to import (not by return code)
     importlib.invalidate_caches()
     try:
         import edge_tts
-        ColorPrint.green("[SUCCESS] Successfully installed and imported Edge TTS")
+        installed_version = getattr(edge_tts, '__version__', 'unknown')
+        ColorPrint.green(f"[SUCCESS] Successfully installed Edge TTS {installed_version}")
         return edge_tts
     except ImportError as e:
         ColorPrint.yellow("[WARNING] Package installation completed but import still failed")

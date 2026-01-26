@@ -6,18 +6,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1UserLearningProgressModel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     protected $table;
 
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
         $this->table = AppQyV1TableMaps::getTableName('USER_LEARNING_PROGRESS');
     }
 

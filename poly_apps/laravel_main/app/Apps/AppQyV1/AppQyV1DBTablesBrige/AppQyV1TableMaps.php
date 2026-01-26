@@ -13,6 +13,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1DBTablesBrige;
 
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+
 class AppQyV1TableMaps
 {
     /**
@@ -28,8 +31,8 @@ class AppQyV1TableMaps
     {
         static $prefix = null;
         if ($prefix === null) {
-            $appKey = \App\Constants\AppKeys::APPQYV1;
-            $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
+            $appKey = AppKeys::APPQYV1;
+            $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
         }
         return $prefix;
     }

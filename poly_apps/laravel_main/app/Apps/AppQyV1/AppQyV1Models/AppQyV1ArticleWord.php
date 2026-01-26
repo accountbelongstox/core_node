@@ -15,24 +15,26 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 
 class AppQyV1ArticleWord extends Model
 {
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'article_words');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'article_words');
     }
     
     public function getConnectionName()
     {
-        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     protected $fillable = [

@@ -15,17 +15,19 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1Article extends Model
 {
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     protected $table;
     
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
     }
 
     protected $fillable = [

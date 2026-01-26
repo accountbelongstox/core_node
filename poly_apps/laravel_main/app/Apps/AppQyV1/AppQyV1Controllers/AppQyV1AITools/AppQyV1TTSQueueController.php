@@ -346,11 +346,6 @@ class AppQyV1TTSQueueController extends Controller
      */
     public function batchAddTasks(\App\Apps\AppQyV1\AppQyV1Requests\AppQyV1BatchAddTTSTasksRequest $request): JsonResponse
     {
-        $user = \App\Helpers\AuthHelper::requireAuth($request);
-        if (!$user) {
-            return $this->unauthorized('Authentication required');
-        }
-
         $tasks = $request->input('tasks');
         $defaultPosition = $request->input('default_position', 'end');
 
@@ -399,11 +394,6 @@ class AppQyV1TTSQueueController extends Controller
      */
     public function batchGetTasks(\App\Apps\AppQyV1\AppQyV1Requests\AppQyV1BatchGetTTSTasksRequest $request): JsonResponse
     {
-        $user = \App\Helpers\AuthHelper::requireAuth($request);
-        if (!$user) {
-            return $this->unauthorized('Authentication required');
-        }
-
         $taskIds = $request->input('task_ids');
 
         $result = $this->queueService->batchGetTasks($taskIds);

@@ -10,6 +10,7 @@ use App\Traits\ApiResponse;
 use App\Services\AvatarService;
 use App\Services\UnifiedAuthService;
 use App\Providers\PathMapper;
+use App\Constants\AppKeys;
 use Illuminate\Support\Facades\DB;
 
 class AppQyV1ProfileController extends BaseController
@@ -169,7 +170,7 @@ class AppQyV1ProfileController extends BaseController
      */
     private function saveAvatarFromBase64(string $base64Data, int $userId, ?string $filename = null): ?string
     {
-        return AvatarService::saveBase64Avatar($base64Data, $userId, \App\Constants\AppKeys::APPQYV1, $filename);
+        return AvatarService::saveBase64Avatar($base64Data, $userId, AppKeys::APPQYV1, $filename);
     }
 
     /**

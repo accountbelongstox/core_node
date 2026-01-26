@@ -639,20 +639,20 @@ class AppQyV1UnifiedTTSQueueService
             'retry_count' => $task->retry_count,
         ];
 
-        // 如果已完成，返回完整的音频信息
+        // If completed, return complete audio information
         if ($task->status === self::STATUS_COMPLETED) {
-            // 文章类型 - 返回句子映射
+            // Article type - return sentence mapping
             if ($task->task_type === self::TYPE_ARTICLE && !empty($task->audio_files)) {
                 $formatted['audio_files'] = $task->audio_files;
                 $formatted['sentence_mapping'] = $this->extractSentenceMapping($task);
             }
-            // 单词/句子类型 - 返回音频路径
+            // Word/sentence type - return audio path
             elseif ($task->audio_path) {
                 $formatted['audio_path'] = $task->audio_path;
                 // audio_path already contains language/type/speed/filename, so just prepend the base path
                 $formatted['audio_url'] = "/api/app_qy_v1/ai_tools/tts/audio/{$task->audio_path}";
             }
-            // 尝试从词典穿透获取 (单词类型)
+            // Try to get from dictionary fallback (word type)
             elseif ($task->task_type === self::TYPE_WORD) {
                 $existingAudio = $this->checkAudioExists($task->content_text, $task->language, $task->task_type);
                 if ($existingAudio && isset($existingAudio['audio_path'])) {
@@ -662,11 +662,11 @@ class AppQyV1UnifiedTTSQueueService
                 }
             }
         }
-        // 如果pending或processing，尝试文件穿透
+        // If pending or processing, try file fallback
         elseif (in_array($task->status, [self::STATUS_PENDING, self::STATUS_PROCESSING])) {
             $existingAudio = $this->checkAudioExists($task->content_text, $task->language, $task->task_type);
             if ($existingAudio && $existingAudio['exists']) {
-                // 文件已存在，返回音频信息
+                // File exists, return audio information
                 if (isset($existingAudio['audio_path'])) {
                     $formatted['audio_path'] = $existingAudio['audio_path'];
                     $formatted['audio_url'] = $existingAudio['audio_url'];
@@ -1047,6 +1047,67 @@ class AppQyV1UnifiedTTSQueueService
                 $result = $this->processTask($item);
 
                 if ($result['success']) {
+                    // Double-check: Verify audio file exists and is not zero-byte
+                    $audioPath = $result['audio_path'] ?? null;
+                    $audioFiles = $result['audio_files'] ?? null;
+                    
+                    if ($audioPath) {
+                        $fullPath = $this->ttsService->getAudioPath($audioPath);
+                        if (!$fullPath || !file_exists($fullPath)) {
+                            $errorMsg = 'Audio file not found after generation';
+                            Log::error('[UnifiedTTSQueue] Audio file not found after generation', [
+                                'task_id' => $item->id,
+                                'audio_path' => $audioPath,
+                            ]);
+                            // Mark as failed instead of throwing exception
+                            $item->status = self::STATUS_FAILED;
+                            $item->error_message = $errorMsg;
+                            $item->save();
+                            $this->handleProcessingError($errorMsg);
+                            continue;
+                        }
+                        
+                        $fileSize = filesize($fullPath);
+                        if ($fileSize === 0) {
+                            @unlink($fullPath);
+                            $errorMsg = 'Generated audio file is 0 bytes';
+                            Log::error('[UnifiedTTSQueue] Zero-byte audio file detected and deleted', [
+                                'task_id' => $item->id,
+                                'audio_path' => $audioPath,
+                            ]);
+                            // Mark as failed instead of throwing exception
+                            $item->status = self::STATUS_FAILED;
+                            $item->error_message = $errorMsg;
+                            $item->save();
+                            $this->handleProcessingError($errorMsg);
+                            continue;
+                        }
+                    } elseif ($audioFiles && is_array($audioFiles)) {
+                        // For article tasks, verify all audio files
+                        foreach ($audioFiles as $audioFile) {
+                            if (isset($audioFile['path'])) {
+                                $fullPath = $this->ttsService->getAudioPath($audioFile['path']);
+                                if ($fullPath && file_exists($fullPath)) {
+                                    $fileSize = filesize($fullPath);
+                                    if ($fileSize === 0) {
+                                        @unlink($fullPath);
+                                        $errorMsg = 'One or more audio files in article are 0 bytes';
+                                        Log::error('[UnifiedTTSQueue] Zero-byte audio file detected in article task', [
+                                            'task_id' => $item->id,
+                                            'audio_path' => $audioFile['path'],
+                                        ]);
+                                        // Mark as failed instead of throwing exception
+                                        $item->status = self::STATUS_FAILED;
+                                        $item->error_message = $errorMsg;
+                                        $item->save();
+                                        $this->handleProcessingError($errorMsg);
+                                        continue 2; // Continue outer loop
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
                     $item->status = self::STATUS_COMPLETED;
                     $item->completed_at = now();
                     $item->error_message = null; // Clear error on success

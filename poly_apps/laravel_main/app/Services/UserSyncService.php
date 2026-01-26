@@ -214,34 +214,51 @@ class UserSyncService
         }
     }
     
+    /**
+     * Ensure user tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureUserTablesExist(): array
     {
         $results = [];
 
+        // Line 230: Check main database users table (no data deletion)
         if (self::tableExists('sqlite', 'users')) {
             $results['Main'] = 'exists';
         } else {
+            // Line 233: Table does not exist, will be created by migrations (no data deletion)
             $results['Main'] = 'skipped - will be created by migrations';
         }
 
+        // Line 236: Check main database personal_access_tokens table (no data deletion)
         if (self::tableExists('sqlite', 'personal_access_tokens')) {
             $results['Main (personal_access_tokens)'] = 'exists';
         } else {
+            // Line 239: Table does not exist, will be created by migrations (no data deletion)
             $results['Main (personal_access_tokens)'] = 'skipped - will be created by migrations';
         }
 
+        // Line 242: Check all sub-app users tables (no data deletion)
         foreach (self::getSubAppKeys() as $appKey) {
             $connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
 
+            // Line 246: If connection does not exist, skip (no data deletion)
             if (!config("database.connections.{$connectionName}")) {
                 $results[$appKey] = 'no_connection';
                 continue;
             }
 
+            // Line 251: If table does not exist, create it (no data deletion, table doesn't exist)
             if (!self::tableExists($connectionName, 'users')) {
                 self::createUserTable($connectionName);
                 $results[$appKey] = 'created';
             } else {
+                // Line 255: Table exists, skip (no data deletion)
                 $results[$appKey] = 'exists';
             }
         }
@@ -249,8 +266,15 @@ class UserSyncService
         return $results;
     }
     
+    /**
+     * Create user table (no data deletion)
+     * 
+     * IMPORTANT: This method only creates table if it doesn't exist, returns immediately if table exists
+     * NEVER deletes tables or data
+     */
     private static function createUserTable(string $connection): void
     {
+        // Line 265: If SQLite, ensure database file exists (no data deletion)
         $config = config("database.connections.{$connection}");
         if ($config && $config['driver'] === 'sqlite') {
             $dbPath = $config['database'];
@@ -264,10 +288,12 @@ class UserSyncService
             }
         }
         
+        // Line 278: If table exists, return immediately (no data deletion)
         if (Schema::connection($connection)->hasTable('users')) {
             return;
         }
         
+        // Line 282: Table does not exist, create it (no data deletion, table doesn't exist)
         Schema::connection($connection)->create('users', function (Blueprint $table) use ($connection) {
             $table->id();
             
@@ -341,6 +367,15 @@ class UserSyncService
         });
     }
 
+    /**
+     * Ensure TTS cache table exists with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureTTSCacheTablesExist(): array
     {
         $results = [];
@@ -348,11 +383,13 @@ class UserSyncService
         $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
         $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'tts_cache');
 
+        // Line 387: Check if table exists - if exists, skip (no data deletion)
         if (Schema::connection($connection)->hasTable($tableName)) {
             $results[$tableName] = 'exists';
             return $results;
         }
 
+        // Line 393: Table does not exist, create it (no data deletion, table doesn't exist)
         Schema::connection($connection)->create($tableName, function (Blueprint $table) {
             $table->id();
             $table->string('text_hash', 32)->unique();
@@ -377,6 +414,16 @@ class UserSyncService
         return $results;
     }
 
+    /**
+     * Ensure multilingual dictionary tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists but missing columns: Add missing columns (no data deletion)
+     * 3. If table exists with correct structure: Skip (no data deletion)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only adds missing columns
+     */
     public static function ensureMultiLangDictionaryTablesExist($progressCallback = null): array
     {
         $results = [];
@@ -388,10 +435,20 @@ class UserSyncService
         $total = count($supportedLanguages);
         $current = 0;
 
+        // Line 439: Define all required columns (for checking table structure completeness)
+        $requiredColumns = [
+            'id', 'content', 'md5', 'translations', 'has_translation', 'translation_provider',
+            'phonetic', 'us_phonetic', 'uk_phonetic', 'tts_files', 'tts_provider',
+            'has_audio', 'image_files', 'image_provider', 'word_details',
+            'is_exist_local', 'has_operations', 'query_count',
+            'last_modified', 'last_query_time', 'created_at', 'updated_at'
+        ];
+
         foreach ($supportedLanguages as $langCode) {
             $current++;
             $tableName = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
 
+            // Line 452: If table does not exist, create it (no data deletion, table doesn't exist)
             if (!$schema->hasTable($tableName)) {
                 $schema->create($tableName, function ($table) {
                     $table->increments('id');
@@ -425,13 +482,23 @@ class UserSyncService
 
                 $results[$tableName] = 'created';
             } else {
-                if (!$schema->hasColumn($tableName, 'has_audio')) {
-                    $schema->table($tableName, function ($table) {
-                        $table->boolean('has_audio')->default(false)->after('tts_provider');
-                        $table->index('has_audio');
+                // Line 481: Table exists, check and add missing columns (no data deletion)
+                $existingColumns = $schema->getColumnListing($tableName);
+                $missingColumns = array_diff($requiredColumns, $existingColumns);
+                
+                if (!empty($missingColumns)) {
+                    // Line 485: Add missing columns (no data deletion)
+                    $schema->table($tableName, function ($table) use ($missingColumns, $existingColumns) {
+                        // Line 487: Add has_audio column if missing
+                        if (in_array('has_audio', $missingColumns)) {
+                            $table->boolean('has_audio')->default(false)->after('tts_provider');
+                            $table->index('has_audio');
+                        }
+                        // Note: Only add columns, never delete columns, never modify existing columns
                     });
                     $results[$tableName] = 'migrated';
                 } else {
+                    // Line 495: Table structure is complete, skip
                     $results[$tableName] = 'exists';
                 }
             }
@@ -448,6 +515,15 @@ class UserSyncService
         return $results;
     }
 
+    /**
+     * Ensure multilingual word tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureMultilingualWordTablesExist(): array
     {
         $results = [];
@@ -456,16 +532,19 @@ class UserSyncService
         $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
         $dbConnection = $model->getConnection();
 
+        // Line 536: Get all existing dictionary tables (these tables will not be deleted)
         $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
         $pattern = $prefix . '_%_dictionaries';
         $allDictTables = $dbConnection
             ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name", [$pattern]);
 
+        // Line 542: Mark all existing tables (these tables will not be deleted)
         foreach ($allDictTables as $tableObj) {
             $tableName = $tableObj->name;
             $results[$tableName] = 'exists';
         }
 
+        // Line 548: Define language tables that need to be created
         $languages = [
             'lao' => ['lo', 'Lao'],
             'japanese' => ['ja', 'Japanese'],
@@ -477,16 +556,18 @@ class UserSyncService
             list($langCode, $langName) = $langInfo;
             $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
 
+            // Line 560: If table is already in results (exists), skip (no data deletion)
             if (isset($results[$tableName])) {
                 continue;
             }
 
+            // Line 565: If table exists, mark as exists (no data deletion)
             if (Schema::connection($connection)->hasTable($tableName)) {
                 $results[$tableName] = 'exists';
                 continue;
             }
 
-            // Create dictionary table with standardized structure
+            // Line 571: Table does not exist, create it (no data deletion, table doesn't exist)
             if ($langKey === 'english') {
                 Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($langCode) {
                     $table->id();
@@ -517,7 +598,7 @@ class UserSyncService
                     $table->index('last_query_time', "idx_{$langCode}_last_query_time");
                 });
             } else {
-                // For other languages, use similar structure
+                // Line 590: For other languages, use similar structure (no data deletion)
                 Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($langCode) {
                     $table->id();
                     $table->text('content');

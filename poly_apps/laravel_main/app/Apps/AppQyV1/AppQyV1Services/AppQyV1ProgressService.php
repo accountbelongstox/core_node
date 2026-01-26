@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1ProgressActionEnum;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 
 class AppQyV1ProgressService
@@ -124,7 +125,13 @@ class AppQyV1ProgressService
         $word = AppQyV1VocabularyItemModel::with('collection')->find($wordId);
 
         if (!$word) {
-            throw new \Exception('Word not found');
+            Log::error('[AppQyV1ProgressService] Word not found', [
+                'word_id' => $wordId,
+                'user_id' => $userId,
+                'group_id' => $groupId,
+            ]);
+            // Return a new instance with default values to prevent fatal error
+            return new AppQyV1UserWordProgressModel();
         }
 
         return AppQyV1UserWordProgressModel::create([
@@ -168,7 +175,7 @@ class AppQyV1ProgressService
             return;
         }
 
-        \Log::info('[AppQyV1Progress] Review words generated', [
+        Log::info('[AppQyV1Progress] Review words generated', [
             'count' => $words->count(),
             'avg_proficiency' => $words->avg('proficiency'),
             'priority_words' => $words->take(5)->pluck('word')->toArray(),

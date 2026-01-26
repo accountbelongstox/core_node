@@ -35,14 +35,14 @@ class AppQyV1ExternalStorageManager
         $audioDirectoryPath = null;
         $imagesDirectoryPath = null;
 
-        // External directory structure using global configuration
-        $this->externalDataPath = Config::get('AppQyV1.paths.external_data_root');
+        // External directory structure using PathMapper (unified path management)
+        $this->externalDataPath = \App\Providers\PathMapper::getAppQyV1ExternalDataRoot();
         $legacyDatabasePath = Config::get('AppQyV1.paths.legacy_database');
-        $this->databasesPath = $legacyDatabasePath ? dirname($legacyDatabasePath) : storage_path('app/external_data/databases');
-        $audioDirectoryPath = Config::get('AppQyV1.paths.audio_directory');
-        $this->audioPath = $audioDirectoryPath ? dirname($audioDirectoryPath) : storage_path('app/external_data/audio');
+        $this->databasesPath = $legacyDatabasePath ? dirname($legacyDatabasePath) : $this->externalDataPath . '/databases';
+        $audioDirectoryPath = \App\Providers\PathMapper::getAppQyV1AudioDir();
+        $this->audioPath = $audioDirectoryPath ? dirname($audioDirectoryPath) : $this->externalDataPath . '/audio';
         $imagesDirectoryPath = Config::get('AppQyV1.paths.images_directory');
-        $this->imagesPath = $imagesDirectoryPath ? dirname($imagesDirectoryPath) : storage_path('app/external_data/images');
+        $this->imagesPath = $imagesDirectoryPath ? dirname($imagesDirectoryPath) : $this->externalDataPath . '/images';
         $this->cachePath = Config::get('AppQyV1.paths.cache_directory');
         $this->markersPath = Config::get('AppQyV1.paths.markers_directory');
     }
@@ -122,35 +122,39 @@ class AppQyV1ExternalStorageManager
     /**
      * Get word sounds directory
      * Reference: DevOps config/index.js DICT_SOUND_DIR
+     * Uses PathMapper for unified path management
      */
     public function getWordSoundsPath(): string
     {
-        return Config::get('AppQyV1.paths.audio_directory');
+        return \App\Providers\PathMapper::getAppQyV1AudioDir();
     }
 
     /**
      * Get word subtitles directory
+     * Uses PathMapper for unified path management
      */
     public function getWordSubtitlesPath(): string
     {
-        return Config::get('AppQyV1.paths.audio_subtitles');
+        return \App\Providers\PathMapper::getAppQyV1ExternalDataRoot('audio/word_subtitles');
     }
 
     /**
      * Get sentence sounds directory
      * Reference: DevOps config/index.js SENTENCES_SOUND_DIR
+     * Uses PathMapper for unified path management
      */
     public function getSentenceSoundsPath(): string
     {
-        return Config::get('AppQyV1.paths.sentence_sounds');
+        return \App\Providers\PathMapper::getAppQyV1SentenceSoundsDir();
     }
 
     /**
      * Get sentence subtitles directory
+     * Uses PathMapper for unified path management
      */
     public function getSentenceSubtitlesPath(): string
     {
-        return Config::get('AppQyV1.paths.sentence_subtitles');
+        return \App\Providers\PathMapper::getAppQyV1ExternalDataRoot('audio/sentence_subtitles');
     }
 
     /**

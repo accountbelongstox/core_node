@@ -61,7 +61,7 @@ class AppQyV1LangDictionaryModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
 
         if (isset($attributes['lang_code'])) {
             $this->setLanguage($attributes['lang_code']);

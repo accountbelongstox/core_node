@@ -6,6 +6,8 @@ use App\Apps\McpV1\McpV1Utils\McpV1PlaceholderUtil;
 use App\Utils\ImageProcessUtil;
 use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -15,8 +17,8 @@ class AppQyV1CoverImageService
     {
         static $subdir = null;
         if ($subdir === null) {
-            $appKey = \App\Constants\AppKeys::APPQYV1;
-            $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
+            $appKey = AppKeys::APPQYV1;
+            $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
             $subdir = $prefix . '_covers';
         }
         return $subdir;

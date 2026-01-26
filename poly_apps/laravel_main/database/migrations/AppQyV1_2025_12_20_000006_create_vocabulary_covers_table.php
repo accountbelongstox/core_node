@@ -13,7 +13,7 @@ return new class extends Migration
         $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers');
 
         if (!Schema::connection($connectionName)->hasTable($tableName)) {
-            Schema::connection($connectionName)->create($tableName, function (Blueprint $table) {
+            Schema::connection($connectionName)->create($tableName, function (Blueprint $table) use ($appKey) {
                 $table->increments('id');
                 $table->unsignedInteger('library_id')->unique();
                 $table->string('cover_filename', 255);

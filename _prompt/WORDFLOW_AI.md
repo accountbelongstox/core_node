@@ -37,3 +37,12 @@ capacitor 查看官方文档,调用MCP,1:加入解决页面顶部在编译后没
 虑其他地方. 
 
 php artisan sys:init全量处理所有问题,并具有ming等性,如果表存在则跳过,不存在创建,存在但字段不一样则修正(但不能删除其中的数据),全部使用laravel的能力.
+
+# 测试单词
+php artisan appqyv1:test-tts "hello" --lang=en --type=word
+
+# 测试句子
+php artisan appqyv1:test-tts "Hello world" --lang=en --type=sentence
+
+# 中文测试
+php artisan appqyv1:test-tts "你好" --lang=zh --type=word
