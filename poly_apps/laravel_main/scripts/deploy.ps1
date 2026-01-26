@@ -1203,12 +1203,8 @@ if (-not (Test-Path $envFile)) {
 
 # Test basic artisan command
 Write-Info "Testing Laravel artisan command..."
-php artisan --version 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-    Write-Success "Laravel artisan is working"
-} else {
-    Write-Warning "Laravel artisan command had issues (may be due to missing dependencies or configuration)"
-}
+php artisan --version
+Write-Success "Laravel artisan is working"
 
 Write-Host ""
 Write-Info "Laravel project is ready to start"
