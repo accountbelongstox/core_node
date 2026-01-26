@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -65,6 +66,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

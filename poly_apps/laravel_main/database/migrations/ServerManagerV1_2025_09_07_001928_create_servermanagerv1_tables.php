@@ -3,10 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'servermanagerv1';
+    protected $connection;
+    protected $appKey;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::SERVERMANAGERV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function up(): void
     {
@@ -20,7 +29,7 @@ return new class extends Migration
 
     private function createNginxSitesTable(): void
     {
-        $tableName = 'servermanagerv1_nginx_sites';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'nginx_sites');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -54,7 +63,7 @@ return new class extends Migration
 
     private function createExecutionLogsTable(): void
     {
-        $tableName = 'servermanagerv1_execution_logs';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'execution_logs');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -95,7 +104,7 @@ return new class extends Migration
 
     private function createCertificatesTable(): void
     {
-        $tableName = 'servermanagerv1_certificates';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'certificates');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -133,7 +142,7 @@ return new class extends Migration
 
     private function createSystemSnapshotsTable(): void
     {
-        $tableName = 'servermanagerv1_system_snapshots';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'system_snapshots');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -172,7 +181,7 @@ return new class extends Migration
 
     private function createFileAccessLogsTable(): void
     {
-        $tableName = 'servermanagerv1_file_access_logs';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'file_access_logs');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -207,7 +216,7 @@ return new class extends Migration
 
     private function createPredefinedScriptsTable(): void
     {
-        $tableName = 'servermanagerv1_predefined_scripts';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'predefined_scripts');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -243,11 +252,18 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_predefined_scripts');
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_file_access_logs');
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_system_snapshots');
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_certificates');
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_execution_logs');
-        Schema::connection($this->connection)->dropIfExists('servermanagerv1_nginx_sites');
+        $tables = [
+            'predefined_scripts',
+            'file_access_logs',
+            'system_snapshots',
+            'certificates',
+            'execution_logs',
+            'nginx_sites',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

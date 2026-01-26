@@ -1,11 +1,21 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'vipclubv1';
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::VIPCLUBV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
     
     public function up(): void
     {
@@ -15,7 +25,7 @@ return new class extends Migration
     
     private function createSupportMessagesTable(): void
     {
-        $tableName = 'vipclubv1_support_messages';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'support_messages');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -42,12 +52,21 @@ return new class extends Migration
             ],
         ];
         
-        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
     
     private function createSupportConfigTable(): void
     {
-        $tableName = 'vipclubv1_support_config';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'support_config');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -61,12 +80,24 @@ return new class extends Migration
             ],
         ];
         
-        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('vipclubv1_support_messages');
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('vipclubv1_support_config');
+        $supportMessagesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'support_messages');
+        $supportConfigTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'support_config');
+        
+        Schema::connection($this->connection)->dropIfExists($supportMessagesTableName);
+        Schema::connection($this->connection)->dropIfExists($supportConfigTableName);
     }
 };

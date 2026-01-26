@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -18,22 +19,15 @@ return new class extends Migration
 
     public function up(): void
     {
-        // Table 1: bankv1_device_submissions
         $this->createDeviceSubmissionsTable();
-        
-        // Table 2: bankv1_registration_submissions
         $this->createRegistrationSubmissionsTable();
-        
-        // Table 3: bankv1_user_data_submissions
         $this->createUserDataSubmissionsTable();
-        
-        // Table 4: bankv1_bank_card_submissions
         $this->createBankCardSubmissionsTable();
     }
     
     private function createDeviceSubmissionsTable(): void
     {
-        $tableName = 'bankv1_device_submissions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -58,7 +52,8 @@ return new class extends Migration
     
     private function createRegistrationSubmissionsTable(): void
     {
-        $tableName = 'bankv1_registration_submissions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'registration_submissions');
+        $deviceSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -77,7 +72,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'device_id',
-                    'references' => 'bankv1_device_submissions',
+                    'references' => $deviceSubmissionsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -89,7 +84,8 @@ return new class extends Migration
     
     private function createUserDataSubmissionsTable(): void
     {
-        $tableName = 'bankv1_user_data_submissions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_data_submissions');
+        $deviceSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -116,7 +112,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'device_id',
-                    'references' => 'bankv1_device_submissions',
+                    'references' => $deviceSubmissionsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -128,7 +124,8 @@ return new class extends Migration
     
     private function createBankCardSubmissionsTable(): void
     {
-        $tableName = 'bankv1_bank_card_submissions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'bank_card_submissions');
+        $userDataSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_data_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -147,7 +144,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'user_data_submission_id',
-                    'references' => 'bankv1_user_data_submissions',
+                    'references' => $userDataSubmissionsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -159,9 +156,16 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('bankv1_bank_card_submissions');
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('bankv1_user_data_submissions');
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('bankv1_registration_submissions');
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('bankv1_device_submissions');
+        $tables = [
+            'bank_card_submissions',
+            'user_data_submissions',
+            'registration_submissions',
+            'device_submissions',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

@@ -1,12 +1,23 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'vipclubv1';
-    protected $tableName = 'vipclubv1_articles';
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::VIPCLUBV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
+    }
 
     public function up(): void
     {
@@ -49,6 +60,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

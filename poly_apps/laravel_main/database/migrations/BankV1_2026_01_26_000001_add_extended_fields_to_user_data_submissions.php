@@ -16,7 +16,7 @@ return new class extends Migration
     {
         $this->appKey = AppKeys::BANKV1;
         $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->tableName = 'bankv1_user_data_submissions';
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_data_submissions');
     }
 
     public function up(): void

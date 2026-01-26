@@ -1,15 +1,27 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'vipclubv1';
-    protected $tableName = 'vipclubv1_bookings';
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::VIPCLUBV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'bookings');
+    }
 
     public function up(): void
     {
+        $facilitiesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'facilities');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -43,7 +55,7 @@ return new class extends Migration
                 ],
                 [
                     'column' => 'facility_id',
-                    'references' => 'vipclubv1_facilities',
+                    'references' => $facilitiesTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -64,6 +76,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

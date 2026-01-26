@@ -1,21 +1,31 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'codemartv1';
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::CODEMARTV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
     
     public function up(): void
     {
         $this->createReviewerApplicationsTable();
-        $this->createCodeReviewsTable();
+        $this->createReviewerCodeReviewsTable();
     }
     
     private function createReviewerApplicationsTable(): void
     {
-        $tableName = 'codemart_v1_reviewer_applications';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'reviewer_applications');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -34,12 +44,22 @@ return new class extends Migration
             ],
         ];
         
-        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
     
-    private function createCodeReviewsTable(): void
+    private function createReviewerCodeReviewsTable(): void
     {
-        $tableName = 'codemart_v1_code_reviews';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'reviewer_code_reviews');
+        $taskSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'task_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -57,14 +77,40 @@ return new class extends Migration
                 ['columns' => ['reviewer_id']],
                 ['columns' => ['submission_id', 'reviewer_id'], 'unique' => true],
             ],
+            'foreignKeys' => [
+                [
+                    'column' => 'submission_id',
+                    'references' => $taskSubmissionsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'reviewer_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
         ];
         
-        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('codemart_v1_code_reviews');
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('codemart_v1_reviewer_applications');
+        $reviewerCodeReviewsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'reviewer_code_reviews');
+        $reviewerApplicationsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'reviewer_applications');
+        
+        Schema::connection($this->connection)->dropIfExists($reviewerCodeReviewsTableName);
+        Schema::connection($this->connection)->dropIfExists($reviewerApplicationsTableName);
     }
 };

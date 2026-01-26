@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -54,7 +55,7 @@ return new class extends Migration
     
     private function createAwyV0UsersTable(): void
     {
-        $tableName = 'awy_v0_users';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -359,8 +360,8 @@ return new class extends Migration
         ];
         
         foreach ($tables as $tableSuffix) {
-            $tableName = $tableSuffix === 'users' ? 'awy_v0_users' : AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
-            \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($tableName);
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
         }
     }
 };
