@@ -12,7 +12,7 @@
 
 import 'dart:convert';
 import '../models/setting_item.dart';
-import '../../storage/storage_manager.dart';
+import '../../storage_tools/storage_manager.dart';
 
 /// Settings Storage Manager
 /// Handles persistent storage of settings using the common storage system

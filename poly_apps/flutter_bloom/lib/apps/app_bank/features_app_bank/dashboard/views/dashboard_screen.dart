@@ -11,11 +11,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/widgets/bank_scaffold.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label_group.dart';
-import '../../../providers_app_bank/bank_user_provider.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
 import '../../../resources_app_bank/gradients_app_bank.dart';
 import '../../../config_app_bank/theme_config_app_bank.dart';
@@ -25,6 +24,10 @@ import '../components/pension_section.dart';
 import '../components/housing_section.dart';
 import '../components/discount_zone_section.dart';
 import '../components/custom_service_section.dart';
+import '../components/dashboard_activity_banner.dart';
+import '../components/dashboard_account_section.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
+import '../../../widgets_app_bank/bank_rotating_search_hint.dart';
 // Fix: Import network_framework.dart for UnifiedAuthManager
 import '../../../../../common/network/network_framework.dart';
 
@@ -93,10 +96,9 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
             children: [
               _buildTopHeaderWithBackground(context),
               _buildFunctionsSection(context),
-              _buildAnnouncementBanner(context),
-              _buildActivityBanner(context),
+              const DashboardActivityBanner(),
               _buildWealthSection(context),
-              _buildAccountSection(context),
+              const DashboardAccountSection(),
               _buildPensionSection(context),
               _buildHousingSection(context),
               _buildDiscountZoneSection(context),
@@ -141,20 +143,12 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        '个人养老金来啦',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
+                    child: BankRotatingSearchHint(
+                      pageType: BankPageType.dashboard,
+                      textColor: Colors.grey,
+                      fontSize: 14,
+                      backgroundColor: Colors.white.withOpacity(0.9),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -183,7 +177,7 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF4757),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                           ),
                           child: const Text(
                             '11',
@@ -233,7 +227,7 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
                   height: 48,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                   ),
                   child: const Center(
                     child: Text('🎓', style: TextStyle(fontSize: 19)),
@@ -281,7 +275,7 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         backgroundGradient: BankGradients.bankFunctionSectionGradient,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(BankConstants.quickAccessIconBorderRadius),
         border: Border.all(color: Colors.white, width: 1.0),
         boxShadow: [
           BoxShadow(
@@ -305,6 +299,7 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
 
   Widget _buildFunctionsSection(BuildContext context) {
     final functionItems = [
+      // First page items
       IconLabelData(
         imagePath: BankImages.bankIconDeposit,
         label: '存款产品',
@@ -355,6 +350,57 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
         label: '贵金属',
         onTap: () => _handleFunctionTap('贵金属'),
       ),
+      // Second page items
+      IconLabelData(
+        imagePath: BankImages.bankIconSocialSecurity,
+        label: '社保',
+        onTap: () => _handleFunctionTap('社保'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconPointsMall,
+        label: '龙积分商城',
+        onTap: () => _handleFunctionTap('龙积分商城'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconRightsCenter,
+        label: '权益中心',
+        onTap: () => _handleFunctionTap('权益中心'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconMonthlyBill,
+        label: '月度账单',
+        onTap: () => _handleFunctionTap('月度账单'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconOtherBankTransfer,
+        label: '他行转入',
+        onTap: () => _handleFunctionTap('他行转入'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconHousingFund,
+        label: '住房公积金',
+        onTap: () => _handleFunctionTap('住房公积金'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconCashOutTransfer,
+        label: '现金转出',
+        onTap: () => _handleFunctionTap('现金转出'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconPersonalCredit,
+        label: '个人信用',
+        onTap: () => _handleFunctionTap('个人信用'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconInsuranceSecond,
+        label: '保险',
+        onTap: () => _handleFunctionTap('保险'),
+      ),
+      IconLabelData(
+        imagePath: BankImages.bankIconMoreSecond,
+        label: '更多',
+        onTap: () => _handleFunctionTap('更多'),
+      ),
     ];
 
     return CustomImageIconLabelGroup(
@@ -379,173 +425,11 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
     );
   }
 
-  Widget _buildAnnouncementBanner(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFF6B35),
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Text('📢', style: TextStyle(fontSize: 16)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              '关于调整部分业务服务时间的公告',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          const Icon(
-            Icons.arrow_forward_ios,
-            size: 16,
-            color: Colors.grey,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityBanner(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 120, // Set a fixed height for the banner
-      decoration: BoxDecoration(
-        image: const DecorationImage(
-          image: AssetImage(BankImages.bankActivityBanner),
-          fit: BoxFit.cover, // Fill the entire container
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-    );
-  }
 
   Widget _buildWealthSection(BuildContext context) {
     return const WealthSelectionSection();
   }
 
-  Widget _buildAccountSection(BuildContext context) {
-    return Consumer<BankUserProvider>(
-      builder: (context, provider, child) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '我的账户',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '储蓄卡余额',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        GestureDetector(
-                          onTap: () {
-                            _handleAccountAction(provider);
-                          },
-                          child: Row(
-                            children: [
-                              Text(
-                                provider.dashboardDisplayBalance,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                provider.isDashboardBalanceVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                size: 20,
-                                color: Colors.grey[600],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      _handleAccountAction(provider);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF74B9FF),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Text(
-                        '查看详情',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildPensionSection(BuildContext context) {
     return const PensionSection();
@@ -563,44 +447,13 @@ class _BankDashboardScreenState extends State<BankDashboardScreen> {
     return const CustomServiceSection();
   }
 
-  /// Handle account action (toggle balance visibility or navigate to details)
-  void _handleAccountAction(BankUserProvider provider) {
-    // Toggle balance visibility
-    provider.toggleDashboardBalanceVisibility();
-
-    // You can add navigation to account details page here if needed
-    // For example:
-    // Navigator.push(context, MaterialPageRoute(builder: (context) => AccountDetailScreen()));
-  }
 
   /// Handle function item tap with loading dialog and navigation
   void _handleFunctionTap(String label) {
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(label),
-          content: const Text('请稍候正在为你打开'),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
-            ),
-          ],
-        );
-      },
+    BankLoadingDialog.show(
+      context,
+      title: label,
     );
-
-    // Simulate loading time and then navigate to profile
-    Future.delayed(const Duration(seconds: 2), () {
-      Navigator.of(context).pop(); // Close loading dialog
-      // Navigate to profile page (index 4 in bottom navigation)
-      // This will be handled by the bottom navigation
-      // You can also use Navigator.push if you want to push a new page
-    });
   }
+
 }

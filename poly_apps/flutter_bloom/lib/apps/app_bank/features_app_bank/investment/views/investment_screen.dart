@@ -13,501 +13,484 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/widgets/bank_scaffold.dart';
-// Fix: Use providers_app_bank/bank_user_provider.dart (returns BankUserModel?)
+import '../../../config_app_bank/constants.dart';
 import '../../../providers_app_bank/bank_user_provider.dart';
-import '../../../config_app_bank/theme_config_app_bank.dart';
+import '../../../widgets_app_bank/bank_section_card.dart';
+import '../../../widgets_app_bank/bank_gradient_card.dart';
+import '../../../widgets_app_bank/bank_action_button.dart';
+import '../../../widgets_app_bank/bank_text_with_subtitle.dart';
+import '../../../widgets_app_bank/bank_wealth_function_grid.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
+import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../components/investment_top_header.dart';
+import '../components/wealth_selection_section.dart';
+import '../components/wealth_hot_section.dart';
+import '../components/product_card.dart';
 
-class BankInvestmentScreen extends StatelessWidget {
+class BankInvestmentScreen extends StatefulWidget {
   const BankInvestmentScreen({super.key});
+
+  @override
+  State<BankInvestmentScreen> createState() => _BankInvestmentScreenState();
+}
+
+class _BankInvestmentScreenState extends State<BankInvestmentScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  final List<List<ProductCardData>> _tabProducts = [
+    [
+      ProductCardData('日日享', '按日申赎', '2.61', '成立以来年化'),
+      ProductCardData('周周享', '短期闲钱', '1.98', '成立以来年化'),
+      ProductCardData('月月享', '稳健投资', '2.32', '成立以来年化'),
+      ProductCardData('年年享', '长线优选', '3.36', '成立以来年化'),
+    ],
+    [
+      ProductCardData('日日享', '按日申赎', '2.61', '成立以来年化'),
+      ProductCardData('周周享', '短期闲钱', '1.98', '成立以来年化'),
+      ProductCardData('月月享', '稳健投资', '2.32', '成立以来年化'),
+      ProductCardData('年年享', '长线优选', '3.36', '成立以来年化'),
+    ],
+    [
+      ProductCardData('日日享', '按日申赎', '2.61', '成立以来年化'),
+      ProductCardData('周周享', '短期闲钱', '1.98', '成立以来年化'),
+      ProductCardData('月月享', '稳健投资', '2.32', '成立以来年化'),
+      ProductCardData('年年享', '长线优选', '3.36', '成立以来年化'),
+    ],
+    [
+      ProductCardData('日日享', '按日申赎', '2.61', '成立以来年化'),
+      ProductCardData('周周享', '短期闲钱', '1.98', '成立以来年化'),
+      ProductCardData('月月享', '稳健投资', '2.32', '成立以来年化'),
+      ProductCardData('年年享', '长线优选', '3.36', '成立以来年化'),
+    ],
+    [
+      ProductCardData('日日享', '按日申赎', '2.61', '成立以来年化'),
+      ProductCardData('周周享', '短期闲钱', '1.98', '成立以来年化'),
+      ProductCardData('月月享', '稳健投资', '2.32', '成立以来年化'),
+      ProductCardData('年年享', '长线优选', '3.36', '成立以来年化'),
+    ],
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return BankScaffold(
       currentBottomNavIndex: 2,
-      backgroundColor: BankColorProvider.scaffoldBackground,
-      body: Column(
-        children: [
-          _buildTopHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildMainBanner(context),
-                  _buildServicesGrid(context),
-                  _buildPaymentSection(context),
-                  _buildLocalLifeSection(context),
-                  const SizedBox(height: 100),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-
-  Widget _buildTopHeader(BuildContext context) {
-    return Consumer<BankUserProvider>(
-      builder: (context, provider, child) {
-        final user = provider.user;
-        return Container(
-          padding: const EdgeInsets.all(12),
-          color: Colors.white,
-          child: Row(
-            children: [
-              Row(
-                children: [
-                  const Text('📍', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
-                  Text(
-                    user?.location ?? '北京',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                '查看您的理财收益',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Row(
-            children: [
-              _buildHeaderIcon('🎧', '客服'),
-              const SizedBox(width: 16),
-              _buildHeaderIcon('📋', '订单'),
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFBEFD9),
+              Color(0xFFFBFCFE),
             ],
           ),
-        ],
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const InvestmentTopHeader(),
+              _buildMainBanner(context),
+              _buildServicesGrid(context),
+              WealthSelectionSection(
+                tabController: _tabController,
+                tabProducts: _tabProducts,
+              ),
+              const WealthHotSection(),
+              _buildLocalLifeSection(context),
+            ],
+          ),
+        ),
       ),
-    );
-      },
-    );
-  }
-
-  Widget _buildHeaderIcon(String emoji, String label) {
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F0F0),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Center(
-            child: Text(emoji, style: const TextStyle(fontSize: 16)),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-      ],
     );
   }
 
   Widget _buildMainBanner(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      height: 160,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFECD2), Color(0xFFFCB69F)],
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(BankConstants.quickAccessIconBorderRadius),
         ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 20,
-            top: 20,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('🌟', style: TextStyle(fontSize: 20)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      '理财小助手',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFFD4691A),
+        child: ClipRRect(
+          borderRadius:
+              BorderRadius.circular(BankConstants.quickAccessIconBorderRadius),
+          child: Stack(
+            children: [
+              // Background image - 100% width, proportional height, overflow hidden
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SizedBox(
+                    width: double.infinity,
+                    child: Image.asset(
+                      BankImages.wealthMyAssetsBgInvestment,
+                      width: double.infinity,
+                      fit: BoxFit.fitWidth,
+                      alignment: Alignment.topCenter,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xFFFAFBFD),
+                          height: 200,
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+              // Content - button or assets info
+              Consumer<BankUserProvider>(
+                builder: (context, provider, child) {
+                  final user = provider.user;
+                  final isLoggedIn =
+                      user != null || provider.globalData?.fullName != null;
+
+                  if (isLoggedIn) {
+                    // Show assets information when logged in
+                    final totalAssets = provider.totalAssets;
+                    final holdingsTotal = provider.holdingsTotal;
+                    final isVisible = provider.isInvestmentBalanceVisible;
+                    
+                    return Positioned.fill(
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  '我的资产',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    provider
+                                        .toggleInvestmentBalanceVisibility();
+                                  },
+                                  child: Icon(
+                                    isVisible
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    size: 18,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        '总资产',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      GestureDetector(
+                                        onTap: () {
+                                          provider.toggleInvestmentBalanceVisibility();
+                                        },
+                                        child: Text(
+                                          isVisible
+                                              ? provider.investmentDisplayBalance
+                                              : '¥****',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                            fontFamily: 'monospace',
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 40,
+                                  color: Colors.black26,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Text(
+                                        '持仓总额',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        provider.formatHoldingsTotal(useProfileVisibility: false),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                          fontFamily: 'monospace',
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Show login button when not logged in
+                  return Positioned.fill(
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            BankLoadingDialog.show(context, title: '登录查看我的资产');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF8B4513),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                          ),
+                          child: const Text(
+                            '登录查看我的资产',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '智能投资享收益',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFFE67E22),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  '年化收益率高达8%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF8B4513),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: 20,
-            top: 20,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
+                  );
+                },
               ),
-              child: Center(
-                child: Image.asset(
-                  'assets/apps/app_bank/images/wealth_person.png',
-                  width: 80,
-                  height: 80,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Text('👩‍💼', style: TextStyle(fontSize: 48));
-                  },
-                ),
-              ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildServicesGrid(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-      color: Colors.white,
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildServiceItem('assets/apps/app_bank/images/service_phone.png', '基金理财', const Color(0xFFE3F2FD), '📱'),
-              _buildServiceItem('assets/apps/app_bank/images/service_electric.png', '定期存款', const Color(0xFFFFF3E0), '⚡'),
-              _buildServiceItem('assets/apps/app_bank/images/service_medical.png', '保险产品', const Color(0xFFF3E5F5), '🏥'),
-              _buildServiceItem('assets/apps/app_bank/images/service_life.png', '黄金投资', const Color(0xFFE8F5E8), '🏠'),
-              _buildServiceItem('assets/apps/app_bank/images/service_movie.png', '股票交易', const Color(0xFFFCE4EC), '🎬'),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildServiceItem('assets/apps/app_bank/images/service_food.png', '债券投资', const Color(0xFFFFF8E1), '🍽️'),
-              _buildServiceItem('assets/apps/app_bank/images/service_points.png', '积分理财', const Color(0xFFE1F5FE), '🏪'),
-              _buildServiceItem('assets/apps/app_bank/images/service_party.png', '外汇交易', const Color(0xFFFFEBEE), '🎉'),
-              _buildServiceItem('assets/apps/app_bank/images/service_gas.png', '期货投资', const Color(0xFFF1F8E9), '🔥'),
-              _buildServiceItem('assets/apps/app_bank/images/service_water.png', '信托产品', const Color(0xFFE0F2F1), '💧'),
-            ],
-          ),
+    final wealthIcons = [
+      WealthIconConfig(
+        label: '存款产品',
+        imagePath: BankImages.wealthDeposit,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '理财产品',
+        imagePath: BankImages.wealthProduct,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '基金投资',
+        imagePath: BankImages.wealthFund,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '保险',
+        imagePath: BankImages.wealthInsurance,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '财富体检',
+        imagePath: BankImages.wealthCheckup,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '龙钱宝1号',
+        imagePath: BankImages.wealthLongqianbao1,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '龙钱宝2号',
+        imagePath: BankImages.wealthLongqianbao2,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '速盈',
+        imagePath: BankImages.wealthSuying,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '贵金属',
+        imagePath: BankImages.wealthPreciousMetal,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+      WealthIconConfig(
+        label: '更多',
+        imagePath: BankImages.wealthMore,
+        iconWidth: 32,
+        iconHeight: 32,
+      ),
+    ];
+
+    return BankWealthFunctionGrid(
+      title: '财富功能',
+      moreText: '更多',
+      onMoreTap: () {
+        BankLoadingDialog.show(context, title: '更多');
+      },
+      icons: wealthIcons,
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFFFAFBFD),
+          Color(0xFFFAFBFD),
         ],
       ),
-    );
-  }
-
-  Widget _buildServiceItem(String imagePath, String title, Color backgroundColor, String fallbackEmoji) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Image.asset(
-              imagePath,
-              width: 24,
-              height: 24,
-              errorBuilder: (context, error, stackTrace) {
-                return Text(fallbackEmoji, style: const TextStyle(fontSize: 24));
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.black87,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentSection(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '理财产品',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const Text(
-                '更多',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildPaymentItem('assets/apps/app_bank/images/payment_gas.png', '货币基金', '🔥'),
-              _buildPaymentItem('assets/apps/app_bank/images/payment_heating.png', '混合基金', '📡'),
-              _buildPaymentItem('assets/apps/app_bank/images/payment_landline.png', '股票基金', '📞'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentItem(String imagePath, String title, String fallbackEmoji) {
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8F9FA),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Image.asset(
-              imagePath,
-              width: 20,
-              height: 20,
-              errorBuilder: (context, error, stackTrace) {
-                return Text(fallbackEmoji, style: const TextStyle(fontSize: 20));
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF9A56), Color(0xFFFF6B35)],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Text(
-            '立即购买',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
+      itemsPerRow: 5,
     );
   }
 
   Widget _buildLocalLifeSection(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+    return BankSectionCard(
+      title: '财富管理',
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color(0xFFFBFCFE),
+          Color(0xFFFBFCFE),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '财富管理',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: BankGradientCard(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF74B9FF), Color(0xFF0984E3)],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildLifeCard(
-                  'assets/apps/app_bank/images/life_wealth.png',
-                  '财富号',
-                  '月月有好礼',
-                  '💰',
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BankTextWithSubtitle(
+                      title: '财富号',
+                      subtitle: '月月有好礼',
+                      titleFontSize: 14,
+                      subtitleFontSize: 12,
+                      titleFontWeight: FontWeight.w500,
+                      titleColor: Colors.white,
+                      subtitleColor: Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(height: 8),
+                    BankActionButton(
+                      text: '去了解',
+                      backgroundColor: Colors.white,
+                      textColor: const Color(0xFF0984E3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      borderRadius: BankConstants.buttonBorderRadiusMedium,
+                      onTap: () {
+                        BankLoadingDialog.show(context, title: '财富号');
+                      },
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildLifeCard(
-                  'assets/apps/app_bank/images/life_lottery.png',
-                  '周周抽好礼',
-                  '一分钱抽100元立减金',
-                  '🎁',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLifeCard(String imagePath, String title, String description, String fallbackEmoji) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            spreadRadius: 0,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 100,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF74B9FF), Color(0xFF0984E3)],
-              ),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
               ),
             ),
-            child: Center(
-              child: Image.asset(
-                imagePath,
-                width: 32,
-                height: 32,
-                color: Colors.white,
-                errorBuilder: (context, error, stackTrace) {
-                  return Text(fallbackEmoji, style: const TextStyle(fontSize: 32, color: Colors.white));
-                },
+            const SizedBox(width: 12),
+            Expanded(
+              child: BankGradientCard(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF74B9FF), Color(0xFF0984E3)],
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    BankTextWithSubtitle(
+                      title: '周周抽好礼',
+                      subtitle: '一分钱抽100元立减金',
+                      titleFontSize: 14,
+                      subtitleFontSize: 12,
+                      titleFontWeight: FontWeight.w500,
+                      titleColor: Colors.white,
+                      subtitleColor: Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(height: 8),
+                    BankActionButton(
+                      text: '去了解',
+                      backgroundColor: Colors.white,
+                      textColor: const Color(0xFF0984E3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      borderRadius: BankConstants.buttonBorderRadiusMedium,
+                      onTap: () {
+                        BankLoadingDialog.show(context, title: '周周抽好礼');
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -11,7 +11,16 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
+import '../models/investment_holding.dart';
+import '../models/investment_product.dart';
+import '../components/quick_action_button.dart';
+import '../components/holdings_tab.dart';
+import '../components/discover_tab.dart';
+import '../components/performance_tab.dart';
+import '../components/detail_card.dart';
+import '../dialogs/investment_dialogs.dart';
 
 /// Enhanced Investment Screen
 /// Modern investment dashboard with portfolio overview, market trends, and product recommendations
@@ -19,11 +28,12 @@ class BankInvestmentScreenEnhanced extends StatefulWidget {
   const BankInvestmentScreenEnhanced({super.key});
 
   @override
-  State<BankInvestmentScreenEnhanced> createState() => _BankInvestmentScreenEnhancedState();
+  State<BankInvestmentScreenEnhanced> createState() =>
+      _BankInvestmentScreenEnhancedState();
 }
 
-class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhanced>
-    with TickerProviderStateMixin {
+class _BankInvestmentScreenEnhancedState
+    extends State<BankInvestmentScreenEnhanced> with TickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
 
@@ -86,7 +96,8 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
       riskLevel: 'High',
       expectedReturn: '12-15%',
       minInvestment: 1000,
-      description: 'Invest in the future of artificial intelligence and machine learning companies.',
+      description:
+          'Invest in the future of artificial intelligence and machine learning companies.',
       rating: 4.5,
     ),
     InvestmentProduct(
@@ -158,7 +169,8 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
                             children: [
                               IconButton(
                                 onPressed: () => Navigator.of(context).pop(),
-                                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                                icon: const Icon(Icons.arrow_back,
+                                    color: Colors.white),
                               ),
                               const Expanded(
                                 child: Text(
@@ -173,7 +185,8 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
                               ),
                               IconButton(
                                 onPressed: () {},
-                                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                                icon: const Icon(Icons.notifications_outlined,
+                                    color: Colors.white),
                               ),
                             ],
                           ),
@@ -205,15 +218,21 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      _todaysChange >= 0 ? Icons.trending_up : Icons.trending_down,
-                                      color: _todaysChange >= 0 ? Colors.green : Colors.red,
+                                      _todaysChange >= 0
+                                          ? Icons.trending_up
+                                          : Icons.trending_down,
+                                      color: _todaysChange >= 0
+                                          ? Colors.green
+                                          : Colors.red,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${_todaysChange >= 0 ? '+' : ''}\$${_todaysChange.toStringAsFixed(2)} (${_todaysChangePercent.toStringAsFixed(2)}%)',
                                       style: TextStyle(
-                                        color: _todaysChange >= 0 ? Colors.green : Colors.red,
+                                        color: _todaysChange >= 0
+                                            ? Colors.green
+                                            : Colors.red,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -238,22 +257,27 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              _buildQuickActionButton(
+                              QuickActionButton(
                                 icon: Icons.add_circle_outline,
                                 label: 'Invest',
-                                onTap: () => _showInvestDialog(),
+                                onTap: () =>
+                                    InvestmentDialogs.showInvestDialog(context),
                               ),
-                              _buildQuickActionButton(
+                              QuickActionButton(
                                 icon: Icons.remove_circle_outline,
                                 label: 'Withdraw',
-                                onTap: () => _showWithdrawDialog(),
+                                onTap: () =>
+                                    InvestmentDialogs.showWithdrawDialog(
+                                        context),
                               ),
-                              _buildQuickActionButton(
+                              QuickActionButton(
                                 icon: Icons.pie_chart_outline,
                                 label: 'Rebalance',
-                                onTap: () => _showRebalanceDialog(),
+                                onTap: () =>
+                                    InvestmentDialogs.showRebalanceDialog(
+                                        context),
                               ),
-                              _buildQuickActionButton(
+                              QuickActionButton(
                                 icon: Icons.analytics_outlined,
                                 label: 'Reports',
                                 onTap: () {},
@@ -292,9 +316,16 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildHoldingsTab(),
-                  _buildDiscoverTab(),
-                  _buildPerformanceTab(),
+                  HoldingsTab(
+                    holdings: _holdings,
+                    totalPortfolioValue: _totalPortfolioValue,
+                    onHoldingTap: _showHoldingDetails,
+                  ),
+                  DiscoverTab(
+                    recommendedProducts: _recommendedProducts,
+                    onProductTap: _showInvestmentDetails,
+                  ),
+                  const PerformanceTab(),
                 ],
               ),
             ),
@@ -304,482 +335,13 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
     );
   }
 
-  Widget _buildQuickActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHoldingsTab() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _holdings.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _buildPortfolioSummaryCard();
-        }
-
-        final holding = _holdings[index - 1];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: holding.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _getInvestmentIcon(holding.symbol),
-                  color: holding.color,
-                  size: 28,
-                ),
-              ),
-              title: Text(
-                holding.name,
-                style: ThemeTextStyles.bodyLarge.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text(
-                    holding.symbol,
-                    style: ThemeTextStyles.bodySmall.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        holding.change >= 0 ? Icons.trending_up : Icons.trending_down,
-                        size: 16,
-                        color: holding.change >= 0 ? Colors.green : Colors.red,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${holding.change >= 0 ? '+' : ''}\$${holding.change.toStringAsFixed(2)} (${holding.changePercent.toStringAsFixed(2)}%)',
-                        style: TextStyle(
-                          color: holding.change >= 0 ? Colors.green : Colors.red,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '\$${holding.currentValue.toStringAsFixed(2)}',
-                    style: ThemeTextStyles.bodyLarge.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Invested: \$${holding.investedAmount.toStringAsFixed(0)}',
-                    style: ThemeTextStyles.bodySmall.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-              onTap: () => _showHoldingDetails(holding),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPortfolioSummaryCard() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Portfolio Distribution',
-                style: ThemeTextStyles.headingMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 200,
-                child: Row(
-                  children: [
-                    // Pie Chart Placeholder
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey[100],
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Portfolio\nChart',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    // Legend
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: _holdings.take(5).map((holding) {
-                          final percentage = (holding.currentValue / _totalPortfolioValue * 100);
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: holding.color,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    holding.symbol,
-                                    style: ThemeTextStyles.bodySmall,
-                                  ),
-                                ),
-                                Text(
-                                  '${percentage.toStringAsFixed(1)}%',
-                                  style: ThemeTextStyles.bodySmall.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDiscoverTab() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _recommendedProducts.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            child: Text(
-              'Recommended for You',
-              style: ThemeTextStyles.headingLarge.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          );
-        }
-
-        final product = _recommendedProducts[index - 1];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          style: ThemeTextStyles.headingSmall.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getRiskLevelColor(product.riskLevel).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          product.riskLevel,
-                          style: TextStyle(
-                            color: _getRiskLevelColor(product.riskLevel),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    product.category,
-                    style: ThemeTextStyles.bodySmall.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    product.description,
-                    style: ThemeTextStyles.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Expected Return',
-                            style: ThemeTextStyles.bodySmall.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          Text(
-                            product.expectedReturn,
-                            style: ThemeTextStyles.bodyLarge.copyWith(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Min Investment',
-                            style: ThemeTextStyles.bodySmall.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          Text(
-                            '\$${product.minInvestment}',
-                            style: ThemeTextStyles.bodyLarge.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.star,
-                            color: Colors.amber,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            product.rating.toString(),
-                            style: ThemeTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _showInvestmentDetails(product),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4A90E2),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Learn More'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPerformanceTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Performance Overview',
-            style: ThemeTextStyles.headingLarge.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  _buildPerformanceMetric('1 Day', '+1.35%', Colors.green),
-                  const Divider(),
-                  _buildPerformanceMetric('1 Week', '+3.42%', Colors.green),
-                  const Divider(),
-                  _buildPerformanceMetric('1 Month', '+8.75%', Colors.green),
-                  const Divider(),
-                  _buildPerformanceMetric('3 Months', '+15.20%', Colors.green),
-                  const Divider(),
-                  _buildPerformanceMetric('1 Year', '+28.45%', Colors.green),
-                  const Divider(),
-                  _buildPerformanceMetric('All Time', '+42.33%', Colors.green),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerformanceMetric(String period, String performance, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            period,
-            style: ThemeTextStyles.bodyMedium,
-          ),
-          Text(
-            performance,
-            style: ThemeTextStyles.bodyMedium.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getInvestmentIcon(String symbol) {
-    switch (symbol) {
-      case 'TGF':
-        return Icons.computer;
-      case 'SPY':
-        return Icons.trending_up;
-      case 'BIF':
-        return Icons.account_balance;
-      case 'EM':
-        return Icons.public;
-      case 'GOLD':
-        return Icons.star;
-      default:
-        return Icons.pie_chart;
-    }
-  }
-
-  Color _getRiskLevelColor(String riskLevel) {
-    switch (riskLevel.toLowerCase()) {
-      case 'low':
-        return Colors.green;
-      case 'medium':
-        return Colors.orange;
-      case 'high':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   void _showHoldingDetails(InvestmentHolding holding) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(
+            top: Radius.circular(BankConstants.borderRadius)),
       ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
@@ -807,18 +369,19 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
               Row(
                 children: [
                   Expanded(
-                    child: _buildDetailCard(
-                      'Current Value',
-                      '\$${holding.currentValue.toStringAsFixed(2)}',
-                      Colors.blue,
+                    child: DetailCard(
+                      title: 'Current Value',
+                      value: '\$${holding.currentValue.toStringAsFixed(2)}',
+                      color: Colors.blue,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildDetailCard(
-                      'Total Return',
-                      '${holding.change >= 0 ? '+' : ''}\$${holding.change.toStringAsFixed(2)}',
-                      holding.change >= 0 ? Colors.green : Colors.red,
+                    child: DetailCard(
+                      title: 'Total Return',
+                      value:
+                          '${holding.change >= 0 ? '+' : ''}\$${holding.change.toStringAsFixed(2)}',
+                      color: holding.change >= 0 ? Colors.green : Colors.red,
                     ),
                   ),
                 ],
@@ -844,35 +407,6 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDetailCard(String title, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: ThemeTextStyles.bodySmall.copyWith(
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: ThemeTextStyles.headingSmall.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -905,7 +439,7 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _showInvestDialog();
+              InvestmentDialogs.showInvestDialog(context);
             },
             child: const Text('Invest Now'),
           ),
@@ -913,121 +447,4 @@ class _BankInvestmentScreenEnhancedState extends State<BankInvestmentScreenEnhan
       ),
     );
   }
-
-  void _showInvestDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Invest'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Investment Amount',
-                prefixText: '\$',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Investment order placed successfully!')),
-              );
-            },
-            child: const Text('Invest'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showWithdrawDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Withdraw'),
-        content: const Text('Select investment to withdraw from:'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRebalanceDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rebalance Portfolio'),
-        content: const Text('This will automatically rebalance your portfolio according to your risk profile.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Rebalance'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class InvestmentHolding {
-  final String name;
-  final String symbol;
-  final double currentValue;
-  final double investedAmount;
-  final double change;
-  final double changePercent;
-  final Color color;
-
-  InvestmentHolding({
-    required this.name,
-    required this.symbol,
-    required this.currentValue,
-    required this.investedAmount,
-    required this.change,
-    required this.changePercent,
-    required this.color,
-  });
-}
-
-class InvestmentProduct {
-  final String name;
-  final String category;
-  final String riskLevel;
-  final String expectedReturn;
-  final int minInvestment;
-  final String description;
-  final double rating;
-
-  InvestmentProduct({
-    required this.name,
-    required this.category,
-    required this.riskLevel,
-    required this.expectedReturn,
-    required this.minInvestment,
-    required this.description,
-    required this.rating,
-  });
 }

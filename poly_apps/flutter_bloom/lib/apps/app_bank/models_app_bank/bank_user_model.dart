@@ -378,8 +378,16 @@ class BankUserModel extends BaseUserModel {
     );
   }
 
-  /// Get masked name (first character replaced with *)
+  /// Get masked name (phone last 4 digits with * prefix)
   String get maskedName {
+    if (phone != null && phone!.isNotEmpty) {
+      if (phone!.length >= 4) {
+        final last4 = phone!.substring(phone!.length - 4);
+        return '*$last4';
+      } else {
+        return '*${phone!}';
+      }
+    }
     final displayName = name ?? fullName ?? 'User';
     if (displayName.isEmpty) return '';
     if (displayName.length == 1) return '*';

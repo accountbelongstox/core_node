@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import '../../../config_app_bank/constants.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 
 /// Bank Splash Screen
 /// Initial loading screen with bank logo and branding
@@ -115,7 +115,8 @@ class _BankSplashScreenState extends State<BankSplashScreen>
                         height: 120,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius:
+                              BorderRadius.circular(BankConstants.borderRadius),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.2),

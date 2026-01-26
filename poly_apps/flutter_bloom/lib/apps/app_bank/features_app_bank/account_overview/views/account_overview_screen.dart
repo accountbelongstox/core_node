@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/theme/base/theme_colors.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
@@ -72,7 +73,7 @@ class BankAccountOverviewScreen extends StatelessWidget {
             // Total Balance Summary
             Card(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(BankConstants.borderRadius),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(ThemeDimensions.paddingLarge),
@@ -136,7 +137,7 @@ class BankAccountOverviewScreen extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: ThemeDimensions.spacingMedium),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.all(ThemeDimensions.paddingMedium),

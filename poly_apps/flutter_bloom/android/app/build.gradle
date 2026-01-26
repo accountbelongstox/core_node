@@ -29,16 +29,15 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
-apply plugin: 'com.android.application'
-apply plugin: 'com.google.gms.google-services'
-
 android {
     ndkVersion "27.0.12077973"
     namespace "com.ddsj.qyapp"
-    compileSdkVersion 36
+    compileSdk 36
     
     // Bypass NDK license validation for build
-    android.buildFeatures.buildConfig = true
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         coreLibraryDesugaringEnabled true
@@ -49,9 +48,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    
-    compileSdk 36
-    namespace "com.ddsj.qyapp"
     
     kotlin {
         jvmToolchain(17)

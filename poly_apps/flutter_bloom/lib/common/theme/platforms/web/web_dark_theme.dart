@@ -178,7 +178,8 @@ ThemeData getWebDarkTheme() {
         }
         return const Color(0xFF23233A);
       }),
-    ), tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF8AFF00)),
+    ),
+    tabBarTheme: TabBarThemeData(indicatorColor: const Color(0xFF8AFF00)),
   );
   if (!kIsWeb) {
     themeData = langCode == 'zh'

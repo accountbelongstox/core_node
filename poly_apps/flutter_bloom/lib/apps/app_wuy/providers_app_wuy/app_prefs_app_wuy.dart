@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../common/storage/app_prefs_base.dart';
+import '../../../common/storage_tools/app_prefs_base.dart';
 
 /// App-specific SharedPreferences implementation for Wuy App
 /// 

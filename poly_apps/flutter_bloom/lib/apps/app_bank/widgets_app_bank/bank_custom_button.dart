@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_bank/theme_config_app_bank.dart';
+import '../config_app_bank/constants.dart';
 import '../localization_app_bank/localization_keys_app_bank.dart';
 
 /// Bank Custom Button - Extends common CustomButton with banking-specific styling
@@ -42,6 +43,7 @@ class BankCustomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final buttonConfig = _getButtonConfig(type);
     final sizeConfig = _getSizeConfig(size);
+    final borderRadius = _getBorderRadius(size);
 
     return Stack(
       children: [
@@ -55,7 +57,7 @@ class BankCustomButton extends StatelessWidget {
           height: sizeConfig.height,
           width: sizeConfig.width,
           fontSize: sizeConfig.fontSize,
-          radius: BankThemeConfig.buttonRadius,
+          radius: borderRadius,
           icon: isLoading ? null : icon,
           isLoading: isLoading,
           margin: EdgeInsets.zero,
@@ -65,7 +67,7 @@ class BankCustomButton extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: buttonConfig.backgroundColor.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(BankThemeConfig.buttonRadius),
+                borderRadius: BorderRadius.circular(borderRadius),
               ),
               child: Center(
                 child: SizedBox(
@@ -147,6 +149,17 @@ class BankCustomButton extends StatelessWidget {
         );
     }
   }
+
+  double _getBorderRadius(BankButtonSize size) {
+    switch (size) {
+      case BankButtonSize.small:
+        return BankConstants.buttonBorderRadiusSmall;
+      case BankButtonSize.medium:
+        return BankConstants.buttonBorderRadiusMedium;
+      case BankButtonSize.large:
+        return BankConstants.buttonBorderRadiusLarge;
+    }
+  }
 }
 
 /// Banking-specific button types
@@ -220,7 +233,7 @@ class BankQuickActionButton extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: buttonColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(BankThemeConfig.buttonRadius),
+          borderRadius: BorderRadius.circular(BankConstants.buttonBorderRadiusMedium),
           border: Border.all(
             color: buttonColor.withOpacity(0.2),
             width: 1,

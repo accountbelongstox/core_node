@@ -17,7 +17,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 // FIXED: Removed unused 'package:flutter/services.dart' import
 import 'package:crypto/crypto.dart';
-import '../../storage/unified_storage.dart';
+import '../../storage_tools/unified_storage.dart';
 
 class DeviceSecurityManager {
   static DeviceSecurityManager? _instance;

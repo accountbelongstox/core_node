@@ -10,8 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:qyflutter/common/storage/app_storage_base.dart';
-import 'package:qyflutter/common/storage/unified_storage.dart';
+import 'package:qyflutter/common/storage_tools/app_storage_base.dart';
+import 'package:qyflutter/common/storage_tools/unified_storage.dart';
 
 /// QY app specific storage implementation
 /// Extends the base storage with app-specific keys and methods

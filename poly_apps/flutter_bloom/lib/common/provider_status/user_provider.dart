@@ -15,7 +15,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../cache_manager/cache_manager.dart';
-import '../storage/storage_manager.dart';
+import '../storage_tools/storage_manager.dart';
 // Fix: Import AuthType from network_types.dart as single source of truth
 import '../network/core/network_types.dart' show AuthType;
 

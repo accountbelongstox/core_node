@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/common/network/core/network_types.dart' show AuthType;
-import 'package:qyflutter/common/storage/storage_manager.dart';
+import 'package:qyflutter/common/storage_tools/storage_manager.dart';
 import 'package:qyflutter/apps/app_vipclub/models_app_vipclub/user_model_app_vipclub.dart';
 
 class VipClubUserProvider extends BaseUserProvider {

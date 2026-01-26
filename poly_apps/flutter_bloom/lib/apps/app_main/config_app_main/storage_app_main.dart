@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-import 'package:qyflutter/common/storage/app_storage_base.dart';
+import 'package:qyflutter/common/storage_tools/app_storage_base.dart';
 
 /// Main App Storage Implementation
 /// Extends AppStorageBaseImpl to provide app-specific storage functionality

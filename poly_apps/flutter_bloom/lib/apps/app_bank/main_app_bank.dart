@@ -18,6 +18,7 @@ import 'router_app_bank/router_app_bank.dart';
 import 'settings_app_bank/settings_app_bank.dart';
 import 'localization_app_bank/en_app_bank.dart';
 import 'localization_app_bank/zh_app_bank.dart';
+import 'helpers/bank_app_initializer.dart';
 
 
 
@@ -30,6 +31,9 @@ import 'localization_app_bank/zh_app_bank.dart';
 Future<void> main() async {
   // Initialize BankUserProvider before running the app
   await bankUserProvider.initialize();
+  
+  // Initialize Bank App (including license registration manager)
+  await BankAppInitializer.instance.initialize();
 
   await runCommonApp(
     appName: BankAppConfig.appName,

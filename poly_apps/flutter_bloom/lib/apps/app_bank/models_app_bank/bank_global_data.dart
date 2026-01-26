@@ -6,12 +6,30 @@ class BankGlobalData {
   final Map<String, dynamic> settings;
   final Map<String, dynamic> metadata;
 
+  // Global state data
+  final String? location;
+  final String? city;
+  final double? balance;
+  final String? username;
+  final String? fullName;
+  final int? points;
+  final int? coupons;
+  final String? creditCardLevel;
+
   const BankGlobalData({
     required this.lastActiveTime,
     this.sessionCount = 0,
     this.appVersion = '1.0.0',
     this.settings = const {},
     this.metadata = const {},
+    this.location,
+    this.city,
+    this.balance,
+    this.username,
+    this.fullName,
+    this.points,
+    this.coupons,
+    this.creditCardLevel,
   });
 
   factory BankGlobalData.defaultData() {
@@ -29,6 +47,14 @@ class BankGlobalData {
         'first_launch': DateTime.now().toIso8601String(),
         'device_info': {},
       },
+      location: '北京',
+      city: '北京',
+      balance: 0.0,
+      username: null,
+      fullName: null,
+      points: 0,
+      coupons: 0,
+      creditCardLevel: null,
     );
   }
 
@@ -38,6 +64,14 @@ class BankGlobalData {
     String? appVersion,
     Map<String, dynamic>? settings,
     Map<String, dynamic>? metadata,
+    String? location,
+    String? city,
+    double? balance,
+    String? username,
+    String? fullName,
+    int? points,
+    int? coupons,
+    String? creditCardLevel,
   }) {
     return BankGlobalData(
       lastActiveTime: lastActiveTime ?? this.lastActiveTime,
@@ -45,6 +79,14 @@ class BankGlobalData {
       appVersion: appVersion ?? this.appVersion,
       settings: settings ?? this.settings,
       metadata: metadata ?? this.metadata,
+      location: location ?? this.location,
+      city: city ?? this.city,
+      balance: balance ?? this.balance,
+      username: username ?? this.username,
+      fullName: fullName ?? this.fullName,
+      points: points ?? this.points,
+      coupons: coupons ?? this.coupons,
+      creditCardLevel: creditCardLevel ?? this.creditCardLevel,
     );
   }
 
@@ -55,6 +97,14 @@ class BankGlobalData {
       'app_version': appVersion,
       'settings': settings,
       'metadata': metadata,
+      'location': location,
+      'city': city,
+      'balance': balance,
+      'username': username,
+      'full_name': fullName,
+      'points': points,
+      'coupons': coupons,
+      'credit_card_level': creditCardLevel,
     };
   }
 
@@ -65,6 +115,14 @@ class BankGlobalData {
       appVersion: map['app_version'] ?? '1.0.0',
       settings: Map<String, dynamic>.from(map['settings'] ?? {}),
       metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
+      location: map['location'] as String?,
+      city: map['city'] as String?,
+      balance: map['balance'] != null ? (map['balance'] as num).toDouble() : null,
+      username: map['username'] as String?,
+      fullName: map['full_name'] as String?,
+      points: map['points'] as int?,
+      coupons: map['coupons'] as int?,
+      creditCardLevel: map['credit_card_level'] as String?,
     );
   }
 

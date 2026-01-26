@@ -12,7 +12,7 @@
 
 import 'dart:developer';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qyflutter/common/storage/storage_migration_tool.dart';
+import 'package:qyflutter/common/storage_tools/storage_migration_tool.dart';
 import 'storage_app_example.dart';
 
 /// Example app specific storage initialization and migration
