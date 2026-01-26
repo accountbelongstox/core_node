@@ -835,10 +835,13 @@ class InitializeApps extends Command
             //   - Migrations never drop tables (unless explicitly in down() method)
             //   - Migrations never delete data (only add columns)
             //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $this->line("  <fg=yellow>Command: php artisan migrate --force</>");
             $exitCode = $this->call('migrate', [
                 '--force' => true, // Line 799: Bypass confirmation only, safe to use (does NOT delete data)
             ]);
-
+            
             // Line 802-806: Check migration exit code and display result
             // Exit code 0 means success, non-zero means some migrations had issues
             // Note: Even if some migrations fail, data is still safe (no deletions occurred)
@@ -875,11 +878,15 @@ class InitializeApps extends Command
             //   - Migrations never drop tables (unless explicitly in down() method)
             //   - Migrations never delete data (only add columns)
             //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $appqyv1Connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+            $this->line("  <fg=yellow>Command: php artisan migrate --database={$appqyv1Connection} --force</>");
             $appqyv1ExitCode = $this->call('migrate', [
-                '--database' => AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1), // Line 813: KEY center for connection resolution
+                '--database' => $appqyv1Connection, // Line 813: KEY center for connection resolution
                 '--force' => true, // Line 814: Bypass confirmation only, safe to use (does NOT delete data)
             ]);
-
+            
             // Line 817-821: Check migration exit code and display result
             // Exit code 0 means success, non-zero means some migrations had issues
             // Note: Even if some migrations fail, data is still safe (no deletions occurred)
@@ -916,11 +923,15 @@ class InitializeApps extends Command
             //   - Migrations never drop tables (unless explicitly in down() method)
             //   - Migrations never delete data (only add columns)
             //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $bankv1Connection = AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1);
+            $this->line("  <fg=yellow>Command: php artisan migrate --database={$bankv1Connection} --force</>");
             $bankv1ExitCode = $this->call('migrate', [
-                '--database' => AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1),
+                '--database' => $bankv1Connection,
                 '--force' => true,
             ]);
-
+            
             // Check migration exit code and display result
             // Exit code 0 means success, non-zero means some migrations had issues
             // Note: Even if some migrations fail, data is still safe (no deletions occurred)
@@ -993,7 +1004,9 @@ class InitializeApps extends Command
 
         $this->line("  <fg=cyan>Checking Node.js and pnpm...</>");
 
+        $this->line("  <fg=yellow>Command: command -v node</>");
         exec('command -v node 2>&1', $nodeOutput, $nodeCode);
+        $this->line("  <fg=yellow>Command: command -v pnpm</>");
         exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
 
         if ($nodeCode !== 0) {
@@ -1008,7 +1021,9 @@ class InitializeApps extends Command
             return;
         }
 
+        $this->line("  <fg=yellow>Command: node --version</>");
         exec('node --version 2>&1', $nodeVersion);
+        $this->line("  <fg=yellow>Command: pnpm --version</>");
         exec('pnpm --version 2>&1', $pnpmVersion);
         $this->line("  ✓ Node.js: " . trim($nodeVersion[0] ?? 'unknown'));
         $this->line("  ✓ pnpm: " . trim($pnpmVersion[0] ?? 'unknown'));
@@ -1020,9 +1035,11 @@ class InitializeApps extends Command
 
         if (is_dir($chokidarPath)) {
             $this->line("  ⟳ chokidar exists, verifying installation...");
+            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
             exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
         } else {
             $this->line("  ⬇ Installing chokidar...");
+            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
             exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
         }
 
@@ -1037,10 +1054,12 @@ class InitializeApps extends Command
         }
 
         if (is_dir($chokidarPath)) {
+            $this->line("  <fg=yellow>Command: pnpm list chokidar | grep chokidar | head -1</>");
             exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
             $version = trim($versionOutput[0] ?? 'unknown');
             $this->line("  ✅ chokidar installed: {$version}");
 
+            $this->line("  <fg=yellow>Command: node -e \"require('chokidar'); console.log('OK')\"</>");
             exec('node -e "require(\'chokidar\'); console.log(\'OK\')" 2>&1', $testOutput, $testCode);
             if ($testCode === 0 && isset($testOutput[0]) && trim($testOutput[0]) === 'OK') {
                 $this->line("  ✅ chokidar test passed - hot-reload ready");
