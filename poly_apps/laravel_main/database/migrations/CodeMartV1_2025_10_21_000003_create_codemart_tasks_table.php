@@ -3,10 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'codemartv1';
+    protected $connection;
+    protected $appKey;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::CODEMARTV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function up(): void
     {
@@ -18,7 +27,8 @@ return new class extends Migration
 
     private function createTasksTable(): void
     {
-        $tableName = 'codemart_v1_tasks';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tasks');
+        $milestonesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'milestones');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -43,7 +53,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'milestone_id',
-                    'references' => 'codemart_v1_milestones',
+                    'references' => $milestonesTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -70,7 +80,8 @@ return new class extends Migration
 
     private function createTaskSubmissionsTable(): void
     {
-        $tableName = 'codemart_v1_task_submissions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'task_submissions');
+        $tasksTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tasks');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -89,7 +100,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'task_id',
-                    'references' => 'codemart_v1_tasks',
+                    'references' => $tasksTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -116,7 +127,8 @@ return new class extends Migration
 
     private function createTaskCommentsTable(): void
     {
-        $tableName = 'codemart_v1_task_comments';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'task_comments');
+        $tasksTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tasks');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -134,7 +146,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'task_id',
-                    'references' => 'codemart_v1_tasks',
+                    'references' => $tasksTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -161,7 +173,8 @@ return new class extends Migration
 
     private function createCodeReviewsTable(): void
     {
-        $tableName = 'codemart_v1_code_reviews';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'code_reviews');
+        $taskSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'task_submissions');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -181,7 +194,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'task_submission_id',
-                    'references' => 'codemart_v1_task_submissions',
+                    'references' => $taskSubmissionsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -208,9 +221,16 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_code_reviews');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_task_comments');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_task_submissions');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_tasks');
+        $tables = [
+            'code_reviews',
+            'task_comments',
+            'task_submissions',
+            'tasks',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

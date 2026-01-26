@@ -1,15 +1,27 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'codemartv1';
-    protected $tableName = 'codemart_v1_ai_analyses';
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::CODEMARTV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_analyses');
+    }
 
     public function up(): void
     {
+        $projectsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'projects');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -34,6 +46,14 @@ return new class extends Migration
                 ['columns' => ['project_id']],
                 ['columns' => ['status']],
             ],
+            'foreignKeys' => [
+                [
+                    'column' => 'project_id',
+                    'references' => $projectsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
         ];
         
         SafeMigrationHelper::alignTableStructureFromArray(
@@ -50,6 +70,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

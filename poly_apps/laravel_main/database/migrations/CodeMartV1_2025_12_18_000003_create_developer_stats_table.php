@@ -1,12 +1,23 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'codemartv1';
-    protected $tableName = 'codemart_v1_developer_stats';
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::CODEMARTV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'developer_stats');
+    }
 
     public function up(): void
     {
@@ -41,6 +52,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

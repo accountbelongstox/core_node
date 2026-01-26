@@ -3,10 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'codemartv1';
+    protected $connection;
+    protected $appKey;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::CODEMARTV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function up(): void
     {
@@ -20,7 +29,7 @@ return new class extends Migration
 
     private function createWalletsTable(): void
     {
-        $tableName = 'codemart_v1_wallets';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'wallets');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -59,7 +68,8 @@ return new class extends Migration
 
     private function createWalletTransactionsTable(): void
     {
-        $tableName = 'codemart_v1_wallet_transactions';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'wallet_transactions');
+        $walletsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'wallets');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -81,7 +91,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'wallet_id',
-                    'references' => 'codemart_v1_wallets',
+                    'references' => $walletsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -102,7 +112,9 @@ return new class extends Migration
 
     private function createPaymentsTable(): void
     {
-        $tableName = 'codemart_v1_payments';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'payments');
+        $projectsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'projects');
+        $milestonesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'milestones');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -142,13 +154,13 @@ return new class extends Migration
                 ],
                 [
                     'column' => 'project_id',
-                    'references' => 'codemart_v1_projects',
+                    'references' => $projectsTableName,
                     'on' => 'id',
                     'onDelete' => 'set null',
                 ],
                 [
                     'column' => 'milestone_id',
-                    'references' => 'codemart_v1_milestones',
+                    'references' => $milestonesTableName,
                     'on' => 'id',
                     'onDelete' => 'set null',
                 ],
@@ -169,7 +181,8 @@ return new class extends Migration
 
     private function createEscrowsTable(): void
     {
-        $tableName = 'codemart_v1_escrows';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'escrows');
+        $projectsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'projects');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -193,7 +206,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'project_id',
-                    'references' => 'codemart_v1_projects',
+                    'references' => $projectsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -226,7 +239,8 @@ return new class extends Migration
 
     private function createInvoicesTable(): void
     {
-        $tableName = 'codemart_v1_invoices';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'invoices');
+        $paymentsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'payments');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -253,7 +267,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'payment_id',
-                    'references' => 'codemart_v1_payments',
+                    'references' => $paymentsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -280,7 +294,8 @@ return new class extends Migration
 
     private function createRefundsTable(): void
     {
-        $tableName = 'codemart_v1_refunds';
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'refunds');
+        $paymentsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'payments');
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
@@ -301,7 +316,7 @@ return new class extends Migration
             'foreignKeys' => [
                 [
                     'column' => 'payment_id',
-                    'references' => 'codemart_v1_payments',
+                    'references' => $paymentsTableName,
                     'on' => 'id',
                     'onDelete' => 'cascade',
                 ],
@@ -322,11 +337,18 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_refunds');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_invoices');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_escrows');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_payments');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_wallet_transactions');
-        Schema::connection($this->connection)->dropIfExists('codemart_v1_wallets');
+        $tables = [
+            'refunds',
+            'invoices',
+            'escrows',
+            'payments',
+            'wallet_transactions',
+            'wallets',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };
