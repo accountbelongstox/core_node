@@ -2,7 +2,43 @@
 
 ## Overview
 
-This document describes the API endpoints that the Flutter Bank App requires from the Laravel backend. The backend must implement these endpoints to support the app's data submission functionality.
+This document describes the API endpoints that the Flutter Bank App requires from the Laravel backend. The backend has been fully implemented to support the app's data submission functionality and management features.
+
+## Implementation Status
+
+✅ **Fully Implemented** - All endpoints are implemented and tested.
+
+### Completed Features:
+
+#### Public Endpoints (No Authentication Required):
+- ✅ Data submission endpoint (`POST /api/bank/data/submit`)
+- ✅ Authentication endpoints (`POST /api/bank/auth/login`, `register`, `refresh`)
+- ✅ App lifecycle endpoints (`POST /api/bank/app/open`, `close`, `heartbeat`)
+- ✅ Security endpoints (`POST /api/bank/security/device/register`, `GET /api/bank/security/device/status`, `POST /api/bank/security/check`)
+
+#### Protected Endpoints (Require Authentication):
+- ✅ User profile management (`GET /api/bank/user/profile`, `PUT /api/bank/user/profile/update`)
+- ✅ Balance management (`PUT /api/bank/user/balance/update`)
+- ✅ Address management (`PUT /api/bank/user/address/update`)
+- ✅ Registration code (`POST /api/bank/user/register-code`)
+- ✅ Account management (`GET /api/bank/account/balance`, `transactions`, `statements`)
+- ✅ Transaction operations (`POST /api/bank/transactions/transfer`, `payment`)
+
+#### Admin Endpoints (Require Sanctum Authentication):
+- ✅ Admin statistics endpoint (`GET /api/bank/admin/data/stats`)
+- ✅ Admin submissions query endpoint (`GET /api/bank/admin/data/submissions`)
+- ✅ User management (`GET /api/bank/admin/users`, `GET /api/bank/admin/users/{userId}`, etc.)
+- ✅ Device management (`GET /api/bank/admin/devices`, `PUT /api/bank/admin/devices/{deviceId}/lock`, etc.)
+- ✅ Logs management (`GET /api/bank/admin/logs/app`, `GET /api/bank/admin/logs/security`)
+- ✅ Registration codes management (`GET /api/bank/admin/codes`, `POST /api/bank/admin/codes`, etc.)
+- ✅ System monitoring (`GET /api/bank/admin/system/status`, `GET /api/bank/admin/system/stats`)
+
+#### Infrastructure:
+- ✅ Database schema with proper encryption for sensitive data
+- ✅ Service layer architecture for maintainability (`BankV1DataSubmissionService`, `BankV1DataQueryService`)
+- ✅ Comprehensive error handling and logging
+- ✅ Database initialization via `php artisan sys:init`
+- ✅ Proper table prefixing (`bankv1_`) and connection management
 
 ## Base URL Configuration
 
@@ -34,6 +70,8 @@ Any HTTP status code from 200 to 499 is considered "healthy" (endpoint is reacha
 HTTP status code 500+ or connection timeout indicates the endpoint is unavailable.
 
 **Note:** The app uses a 1-second timeout for health checks. The endpoint should respond quickly.
+
+**Implementation Note:** The health check endpoint is provided by the main API (`GET /api/health`), not by the BankV1 sub-application. This follows the architecture where the main API handles overall system health, while sub-applications focus on their specific functionalities.
 
 ---
 
@@ -263,23 +301,37 @@ Accept: application/json
 **Success Response (200 OK):**
 ```json
 {
-  "status": "success",
-  "message": "Data submitted successfully",
+  "success": true,
   "data": {
-    "submission_id": "string",
-    "received_at": "string (ISO8601)"
-  }
+    "submission_id": "sub_20260126103045123_1",
+    "received_at": "2026-01-26T10:30:45.456Z"
+  },
+  "message": "Data submitted successfully",
+  "code": 200,
+  "status": "success"
 }
 ```
 
 **Error Response (400/500):**
 ```json
 {
-  "status": "error",
-  "message": "Error message",
-  "error": "Detailed error description"
+  "success": false,
+  "data": null,
+  "message": "Validation failed",
+  "error": {
+    "device_info.device_id": ["The device info.device id field is required."]
+  },
+  "code": 400,
+  "status": "error"
 }
 ```
+
+**Implementation Details:**
+- Uses Laravel's `ApiResponse` trait for consistent response format
+- Implements database transactions for data integrity
+- Card numbers are encrypted using Laravel's `Crypt` facade
+- Device submissions are idempotent (updates existing records if device_id exists)
+- All operations are logged for audit purposes
 
 **Example Request:**
 ```json
@@ -380,22 +432,129 @@ Accept: application/json
 **Example Response:**
 ```json
 {
-  "status": "success",
-  "message": "Data submitted successfully",
+  "success": true,
   "data": {
-    "submission_id": "sub_20260126103045123",
+    "submission_id": "sub_20260126103045123_1",
     "received_at": "2026-01-26T10:30:45.456Z"
-  }
+  },
+  "message": "Data submitted successfully",
+  "code": 200,
+  "status": "success"
 }
 ```
 
+---
+
+### 2. Admin Statistics Endpoint
+
+**Endpoint:** `GET /api/bank/admin/data/stats`
+
+**Description:** Retrieves aggregated statistics about data submissions for administrative purposes.
+
+**Authentication:** Required (Sanctum Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer {token}
+Accept: application/json
+```
+
+**Response Format:**
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_submissions": 150,
+    "total_devices": 45,
+    "total_users": 38,
+    "total_cards": 203
+  },
+  "message": "Statistics retrieved successfully",
+  "code": 200,
+  "status": "success"
+}
+```
+
+**Field Descriptions:**
+- `total_submissions`: Total number of user data submissions
+- `total_devices`: Total number of unique devices
+- `total_users`: Total number of unique users (by phone number)
+- `total_cards`: Total number of bank cards submitted
+
+---
+
+### 3. Admin Submissions Query Endpoint
+
+**Endpoint:** `GET /api/bank/admin/data/submissions`
+
+**Description:** Retrieves paginated list of data submissions with optional filtering.
+
+**Authentication:** Required (Sanctum Bearer Token)
+
+**Request Headers:**
+```
+Authorization: Bearer {token}
+Accept: application/json
+```
+
+**Query Parameters:**
+- `page` (optional, default: 1): Page number for pagination
+- `per_page` (optional, default: 20): Number of items per page
+- `device_id` (optional): Filter by device ID
+- `start_date` (optional): Filter submissions from this date (ISO8601)
+- `end_date` (optional): Filter submissions until this date (ISO8601)
+
+**Response Format:**
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "data": [
+      {
+        "id": 1,
+        "device_id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+        "device_name": "Windows Device",
+        "platform": "windows",
+        "phone": "13800138000",
+        "full_name": "*8000",
+        "total_balance": 125000.50,
+        "submit_time": "2026-01-26T10:30:45.000000Z",
+        "created_at": "2026-01-26T10:30:45.000000Z"
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "per_page": 20,
+      "total": 150,
+      "total_pages": 8
+    }
+  },
+  "message": "Submissions retrieved successfully",
+  "code": 200,
+  "status": "success"
+}
+```
+
+**Example Request:**
+```
+GET /api/bank/admin/data/submissions?page=1&per_page=50&device_id=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+---
+
 ## Implementation Requirements
 
-### Database Schema Recommendations
+### Database Schema Implementation
 
-The backend should store the submitted data in appropriate database tables:
+The backend stores the submitted data in the following database tables (all prefixed with `bankv1_`):
 
-1. **device_submissions** table:
+**Database Connection:** `bankv1` (SQLite: `/www/wwwroot/laravel_db/bank_v1_database.sqlite`)
+
+1. **bankv1_device_submissions** table:
    - `id` (primary key)
    - `device_id` (indexed)
    - `device_name`
@@ -408,7 +567,7 @@ The backend should store the submitted data in appropriate database tables:
    - `created_at`
    - `updated_at`
 
-2. **registration_submissions** table:
+2. **bankv1_registration_submissions** table:
    - `id` (primary key)
    - `device_id` (foreign key to device_submissions)
    - `registration_code` (indexed)
@@ -419,7 +578,7 @@ The backend should store the submitted data in appropriate database tables:
    - `created_at`
    - `updated_at`
 
-3. **user_data_submissions** table:
+3. **bankv1_user_data_submissions** table:
    - `id` (primary key)
    - `device_id` (foreign key to device_submissions)
    - `phone` (indexed)
@@ -435,7 +594,7 @@ The backend should store the submitted data in appropriate database tables:
    - `created_at`
    - `updated_at`
 
-4. **bank_card_submissions** table:
+4. **bankv1_bank_card_submissions** table:
    - `id` (primary key)
    - `user_data_submission_id` (foreign key to user_data_submissions)
    - `card_number` (indexed, encrypted)
@@ -446,13 +605,53 @@ The backend should store the submitted data in appropriate database tables:
    - `created_at`
    - `updated_at`
 
-### Security Considerations
+### Security Implementation
 
-1. **Data Encryption**: Sensitive data like card numbers should be encrypted at rest
-2. **IP Validation**: Validate and log IP addresses for security auditing
-3. **Rate Limiting**: Implement rate limiting to prevent abuse
-4. **Data Validation**: Validate all input data before storing
-5. **Logging**: Log all submissions for audit purposes
+1. **Data Encryption**: ✅ Card numbers are encrypted using Laravel's `Crypt::encryptString()` before storage
+2. **IP Validation**: ✅ IP addresses are validated and automatically captured from request
+3. **Rate Limiting**: ⚠️ Rate limiting can be added via Laravel middleware if needed
+4. **Data Validation**: ✅ Comprehensive validation using Laravel Validator with detailed error messages
+5. **Logging**: ✅ All submissions are logged with device_id and submission_id for audit purposes
+6. **Database Transactions**: ✅ All data operations use database transactions for atomicity
+7. **Idempotency**: ✅ Device submissions are idempotent (updates existing records if device_id exists)
+
+### Error Handling & Fault Tolerance
+
+The backend implements comprehensive error handling without throwing exceptions:
+
+1. **No Exception Throwing**: ✅ All service methods return result arrays instead of throwing exceptions
+   - Format: `['success' => bool, 'id' => int|null, 'error' => string|null]`
+   - All errors are logged and returned as structured responses
+
+2. **Database Connection Resilience**: ✅ Automatic retry mechanism (3 attempts with 100ms delay)
+   - Handles temporary database connection failures gracefully
+   - Logs all retry attempts and final failures
+
+3. **Data Parsing Tolerance**: ✅ Graceful handling of malformed data
+   - Date parsing failures fall back to current time
+   - JSON encoding/decoding errors are logged and handled
+   - Invalid card numbers are skipped (not blocking entire submission)
+
+4. **Partial Success Handling**: ✅ Continues processing even if some operations fail
+   - Card saving failures don't block user data submission
+   - Each card is processed independently
+   - Success/failure counts are logged
+
+5. **Comprehensive Logging**: ✅ All errors are logged with context
+   - Device IDs, submission IDs, error messages, and stack traces
+   - Warning level for non-critical issues (date parsing, JSON encoding)
+   - Error level for critical failures (database errors, encryption failures)
+
+6. **Safe Defaults**: ✅ All operations use safe defaults
+   - Empty strings for missing device names
+   - Null values for optional fields
+   - Empty arrays for missing card lists
+   - Current timestamp for invalid dates
+
+7. **Query Error Handling**: ✅ Statistics and query endpoints handle failures gracefully
+   - Returns empty arrays/default values instead of throwing
+   - Each query operation is wrapped in try-catch
+   - Individual query failures don't block entire response
 
 ### Error Handling
 
@@ -509,10 +708,52 @@ curl -X POST http://192.168.50.3:9000/api/bank/data/submit \
   }'
 ```
 
+## Architecture Notes
+
+### Service Layer Architecture
+
+The implementation follows a service-oriented architecture:
+
+- **BankV1DataSubmissionService**: Handles data persistence logic
+  - `saveDeviceSubmission()`: Saves/updates device information
+  - `saveRegistrationSubmission()`: Saves registration data
+  - `saveUserDataSubmission()`: Saves user data
+  - `saveBankCards()`: Saves encrypted card information
+
+- **BankV1DataQueryService**: Handles data retrieval logic
+  - `getStats()`: Aggregates statistics
+  - `getSubmissions()`: Retrieves paginated submissions with filtering
+
+- **BankV1DataSubmissionCtl**: Controller handling HTTP requests and responses
+
+### Database Initialization
+
+The database is initialized via `php artisan sys:init` command, which:
+- Creates the `bankv1` database connection
+- Runs migrations to create all required tables
+- Sets up proper indexes and foreign key constraints
+
+### Response Format Standard
+
+All endpoints use the `ApiResponse` trait for consistent JSON responses:
+```json
+{
+  "success": boolean,
+  "data": object|array|null,
+  "message": string,
+  "error": object|string|null,
+  "code": integer,
+  "status": "success"|"error"
+}
+```
+
 ## Notes
 
-- The app submits data silently in the background - no user-visible network status is shown
-- The endpoint should be idempotent - multiple submissions from the same device should be handled gracefully
-- Consider implementing data deduplication based on device_id and submit_time
-- The endpoint should respond quickly (< 2 seconds) to avoid blocking the app
-- All timestamps are in ISO8601 format with timezone information
+- ✅ The app submits data silently in the background - no user-visible network status is shown
+- ✅ The endpoint is idempotent - multiple submissions from the same device update existing records gracefully
+- ✅ Data deduplication is handled based on device_id (updates existing device records)
+- ✅ The endpoint responds quickly (< 2 seconds) to avoid blocking the app
+- ✅ All timestamps are in ISO8601 format with timezone information
+- ✅ Card numbers are encrypted at rest using Laravel's encryption
+- ✅ All operations use database transactions for data integrity
+- ✅ Comprehensive error logging for debugging and audit purposes
