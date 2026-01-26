@@ -70,6 +70,9 @@ class BankV1DataSubmissionCtl extends Controller
                 'user_data.cards.*.currency' => 'required|string|max:3',
                 'user_data.cards.*.opened_at' => 'nullable|date',
                 'user_data.additional_data' => 'nullable|array',
+                'user_data.complete_user_profile' => 'nullable|array',
+                'user_data.global_app_data' => 'nullable|array',
+                'user_data.app_state' => 'nullable|array',
                 'submit_time' => 'required|date',
             ]);
 
