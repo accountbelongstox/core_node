@@ -1,0 +1,36 @@
+AI Image Generation Prompt for Account Overview Wealth Panorama Background:
+
+Style: Modern banking app background, professional financial theme
+Colors: 
+- Primary: #4A90E2 (Bright blue)
+- Secondary: #357ABD (Deep blue)
+- Accent: #74B9FF (Light blue)
+- Background: #F6FBFF (Light blue-white)
+
+Design Elements:
+- Gradient background from top-left (#4A90E2) to bottom-right (#357ABD)
+- Subtle geometric patterns or abstract financial symbols
+- Soft light effects and depth
+- Clean, minimalist design suitable for mobile app
+- No text or text overlays
+- Professional banking aesthetic
+
+Text Overlay Specifications (for reference, not in image):
+- Title: "账户总览" (Account Overview)
+  Color: White (#FFFFFF)
+  Font Size: 18px
+  Font Weight: Bold (600)
+  
+- Subtitle: "财富全景银行卡" (Wealth Panorama Bank Cards)
+  Color: White (#FFFFFF)
+  Font Size: 14-16px
+  Font Weight: Medium (500)
+
+Image Specifications:
+- Aspect Ratio: 16:9 or 9:16 (portrait for mobile)
+- Resolution: 1080x1920px or higher
+- Format: PNG with transparency support
+- Style: Flat design with subtle gradients
+- Mood: Professional, trustworthy, modern
+
+Usage: Background image for account overview page header section

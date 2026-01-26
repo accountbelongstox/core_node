@@ -127,8 +127,8 @@ class ZhAppBank {
 
     // Debug Features
     BankLocalizationKeys.bankDebugExclusiveCustomer: '专属客户',
-    BankLocalizationKeys.bankDebugMyExclusiveCustomer: '我的专属客户',
-    BankLocalizationKeys.bankDebugExclusiveServiceDesc: '专属服务与特权',
+    BankLocalizationKeys.bankDebugMyExclusiveCustomer: '生成注册码',
+    BankLocalizationKeys.bankDebugExclusiveServiceDesc: '为其他机器生成注册码',
     BankLocalizationKeys.bankDebugVipService: 'VIP专属服务',
     BankLocalizationKeys.bankDebugVipDescription: '享受高端权益和个性化服务',
     BankLocalizationKeys.bankDebugVipBenefits: 'VIP权益',

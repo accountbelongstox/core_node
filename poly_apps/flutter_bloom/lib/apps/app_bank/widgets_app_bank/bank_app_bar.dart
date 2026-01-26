@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:flutter/services.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
@@ -192,8 +193,8 @@ class BankCardAppBar extends StatelessWidget implements PreferredSizeWidget {
       decoration: const BoxDecoration(
         gradient: BankThemeConfig.cardGradient,
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
+          bottomLeft: Radius.circular(BankConstants.borderRadius),
+          bottomRight: Radius.circular(BankConstants.borderRadius),
         ),
       ),
       child: SafeArea(
@@ -305,7 +306,7 @@ class BankSearchAppBar extends StatelessWidget implements PreferredSizeWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(BankConstants.searchInputBorderRadius),
                   ),
                   child: TextField(
                     controller: searchController,

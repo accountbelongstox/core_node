@@ -8,7 +8,12 @@ import '../providers_app_bank/bank_user_provider.dart';
 import '../services_app_bank/bank_network_service.dart';
 import '../managers_app_bank/app_lifecycle_manager.dart';
 import '../managers_app_bank/user_manager.dart';
+import '../managers_app_bank/license_registration_manager.dart';
 import '../../../common/network/integration/network_user_integration.dart';
+import '../../../common/network/core/api_endpoint_manager.dart';
+import '../config_app_bank/api_endpoints_app_bank.dart';
+import '../config_app_bank/endpoint_storage_app_bank.dart';
+import '../config_app_bank/prefs_app_bank.dart';
 
 class BankAppInitializer {
   static BankAppInitializer? _instance;
@@ -24,6 +29,18 @@ class BankAppInitializer {
 
     try {
       debugPrint('🏦 Initializing Bank Application...');
+
+      // 0. Initialize API endpoint manager
+      debugPrint('🔗 Initializing API endpoint manager...');
+      ApiEndpointsAppBank.configure();
+      final endpointManager = ApiEndpointManager();
+      final prefs = PrefsAppBank();
+      if (!prefs.isInitialized) {
+        await prefs.initSharedPreferences();
+      }
+      endpointManager.setStorage(EndpointStorageAppBank(prefs));
+      await endpointManager.initialize(autoDetect: true, timeout: const Duration(seconds: 1));
+      debugPrint('✅ API endpoint manager initialized: ${endpointManager.getCurrentBaseUrl()}');
 
       // 1. Initialize user provider
       debugPrint('📱 Initializing user provider...');
@@ -41,6 +58,19 @@ class BankAppInitializer {
       // 4. Initialize user manager
       debugPrint('👤 Initializing user manager...');
       await UserManager().initialize();
+
+      // 5. Initialize license registration manager
+      debugPrint('🔐 Initializing license registration manager...');
+      await LicenseRegistrationManager().initialize(
+        onLicenseExpired: () {
+          debugPrint('⚠️ License expired - redirecting to authentication');
+        },
+      );
+      
+      final licenseValid = await LicenseRegistrationManager().checkLicenseValidity();
+      if (!licenseValid) {
+        debugPrint('⚠️ License check failed - user needs to register');
+      }
 
       _isInitialized = true;
       debugPrint('✅ Bank Application initialized successfully!');

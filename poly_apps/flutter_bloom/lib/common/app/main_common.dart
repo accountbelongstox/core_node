@@ -18,7 +18,7 @@ import 'package:qyflutter/common/utils/utils.dart';
 import 'package:qyflutter/common/controller/settings_controller.dart';
 import 'package:qyflutter/common/settings/models/setting_item.dart';
 import 'package:qyflutter/common/settings/storage/settings_storage_manager.dart';
-import 'package:qyflutter/common/storage/storage_manager.dart';
+import 'package:qyflutter/common/storage_tools/storage_manager.dart';
 
 import 'package:qyflutter/common/theme/compatibility/theme_compatibility.dart';
 import 'package:qyflutter/common/theme/compatibility/gradient_compatibility.dart';
@@ -35,9 +35,9 @@ import 'package:url_strategy/url_strategy.dart';
 import 'package:qyflutter/common/localization/map_locales.dart';
 import 'package:qyflutter/common/provider_status/user_provider.dart';
 import 'package:qyflutter/common/provider_status/screen_size_provider.dart';
-import 'package:qyflutter/common/storage/unified_storage.dart';
-import 'package:qyflutter/common/storage/storage_migration_tool.dart';
-import 'package:qyflutter/common/storage/app_prefs_base.dart';
+import 'package:qyflutter/common/storage_tools/unified_storage.dart';
+import 'package:qyflutter/common/storage_tools/storage_migration_tool.dart';
+import 'package:qyflutter/common/storage_tools/app_prefs_base.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -327,7 +327,9 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
     // Notify global language change notifier
     LanguageChangeNotifier().forceNotify();
     // Rebuild MaterialApp to update locale
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -339,8 +341,12 @@ class _FlutterBloomMainAppState extends State<FlutterBloomMainApp> {
     context.watch<LanguageChangeNotifier>();
     final appName = "app_name".tr(context);
 
+    // Update screen size after build completes, but only once per frame
+    // Moved here to avoid duplicate callbacks during hot reload
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      screenSizeProvider.updateScreenSize(context);
+      if (mounted) {
+        screenSizeProvider.updateScreenSize(context);
+      }
     });
 
     final ThemeData resolvedLightTheme = _mergeThemeExtensions(

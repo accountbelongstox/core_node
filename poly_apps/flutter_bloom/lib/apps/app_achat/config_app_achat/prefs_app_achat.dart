@@ -15,7 +15,7 @@
 // Each app should have its own prefs to avoid conflicts
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qyflutter/common/storage/app_prefs_base.dart';
+import 'package:qyflutter/common/storage_tools/app_prefs_base.dart';
 import 'constants.dart';
 
 /// AChat app specific SharedPreferences wrapper

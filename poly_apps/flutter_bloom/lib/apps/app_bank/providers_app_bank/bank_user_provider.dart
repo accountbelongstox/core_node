@@ -1,28 +1,30 @@
 import 'package:flutter/foundation.dart';
 import '../../../common/provider_status/user_provider.dart';
-import '../../../common/storage/storage_manager.dart';
+import '../../../common/storage_tools/storage_manager.dart';
+import '../../../common/storage/unified_storage.dart';
 import '../../../common/cache_manager/cache_manager.dart';
 // Fix: Import AuthType explicitly from network_types.dart
 import '../../../common/network/core/network_types.dart' show AuthType;
 import '../models_app_bank/bank_user_model.dart';
 import '../models_app_bank/bank_global_data.dart';
+import '../models_app_bank/bank_card_model.dart';
+import '../config_app_bank/prefs_app_bank.dart';
+import '../config_app_bank/bank_storage_keys.dart';
 
 /// Bank User Provider extending the base user provider
 /// Manages bank user data with persistent storage, caching, and authentication metadata
 class BankUserProvider extends BaseUserProvider {
-  static const String _boxName = 'bank_user_data';
-  static const String _userKey = 'user_profile';
-  static const String _globalDataKey = 'global_data';
-  static const String _debugModeKey = 'debug_mode';
-  static const String _authMetadataKey = 'auth_metadata';
 
   BankUserModel? _user;
   BankGlobalData? _globalData;
   bool _isDebugMode = false;
   bool _isDashboardBalanceVisible = false;
   bool _isProfileBalanceVisible = false;
+  bool _isInvestmentBalanceVisible = false;
   bool _isInitialized = false;
   AuthMetadata _authMetadata = const AuthMetadata();
+  List<BankCardModel> _bankCards = [];
+  double _holdingsTotal = 0.0;
 
   final StorageManager _storage = StorageManager.instance;
   final CacheManager _cache = CacheManager.instance;
@@ -43,6 +45,9 @@ class BankUserProvider extends BaseUserProvider {
   /// Check if profile balance is visible
   bool get isProfileBalanceVisible => _isProfileBalanceVisible;
 
+  /// Check if investment balance is visible
+  bool get isInvestmentBalanceVisible => _isInvestmentBalanceVisible;
+
   /// Check if provider is initialized
   bool get isInitialized => _isInitialized;
 
@@ -56,7 +61,8 @@ class BankUserProvider extends BaseUserProvider {
   String? get userToken => _user?.userToken;
 
   @override
-  String? get tokenType => _authMetadata.authType == AuthType.jwt ? 'Bearer' : null;
+  String? get tokenType =>
+      _authMetadata.authType == AuthType.jwt ? 'Bearer' : null;
 
   @override
   AuthMetadata get authMetadata => _authMetadata;
@@ -64,23 +70,61 @@ class BankUserProvider extends BaseUserProvider {
   @override
   bool get needsAuthRefresh => _authMetadata.needsRefresh;
 
+  /// Get bank cards list
+  List<BankCardModel> get bankCards => _bankCards;
+
+  /// Get total assets (sum of all card balances)
+  double get totalAssets {
+    return _bankCards.fold(0.0, (sum, card) => sum + card.balance);
+  }
+
+  /// Get current balance (活期)
+  double get currentBalance {
+    return _bankCards
+        .where((card) => card.cardType == '储蓄卡' || card.cardType == '活期' || card.cardType == 'current')
+        .fold(0.0, (sum, card) => sum + card.balance);
+  }
+
+  /// Get holdings total (持仓总额)
+  double get holdingsTotal {
+    return _holdingsTotal;
+  }
+
   /// Initialize the provider
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
+      // Initialize UnifiedStorage
+      await UnifiedStorage.init(appName: 'bank_app');
+
       // Initialize storage
       await _storage.init(appName: 'bank_app');
-      await _storage.openBox(_boxName);
+      await _storage.openBox(BankStorageKeys.boxName);
 
       // Load data
       await _loadUserData();
       await _loadGlobalData();
       await _loadDebugMode();
       await _loadAuthMetadata();
+      await _loadBalanceVisibilityStates();
+      await _loadBankCards();
+      await _loadHoldingsTotal();
+
+      // Load global state from UnifiedStorage
+      await _loadGlobalStateFromUnifiedStorage();
+      
+      // Load login status from UnifiedStorage
+      await _loadLoginStatusFromUnifiedStorage();
+
+      // Sync phone number from PrefsAppBank if not in user/globalData
+      await _syncPhoneFromPrefs();
 
       // Update session data
       await _updateSessionData();
+
+      // Sync user data to UnifiedStorage
+      await _syncToUnifiedStorage();
 
       _isInitialized = true;
       notifyListeners();
@@ -95,7 +139,7 @@ class BankUserProvider extends BaseUserProvider {
   /// Load user data from storage
   Future<void> _loadUserData() async {
     try {
-      final userData = await _storage.getValue<String>(_boxName, _userKey);
+      final userData = await _storage.getValue<String>(BankStorageKeys.boxName, BankStorageKeys.userKey);
       if (userData != null) {
         _user = BankUserModel.fromJsonString(userData);
       } else {
@@ -112,7 +156,8 @@ class BankUserProvider extends BaseUserProvider {
   /// Load global data from storage
   Future<void> _loadGlobalData() async {
     try {
-      final globalDataString = await _storage.getValue<String>(_boxName, _globalDataKey);
+      final globalDataString =
+          await _storage.getValue<String>(BankStorageKeys.boxName, BankStorageKeys.globalDataKey);
       if (globalDataString != null) {
         _globalData = BankGlobalData.fromJsonString(globalDataString);
       } else {
@@ -129,7 +174,8 @@ class BankUserProvider extends BaseUserProvider {
   /// Load debug mode setting
   Future<void> _loadDebugMode() async {
     try {
-      _isDebugMode = await _storage.getValue<bool>(_boxName, _debugModeKey) ?? false;
+      _isDebugMode =
+          await _storage.getValue<bool>(BankStorageKeys.boxName, BankStorageKeys.debugModeKey) ?? false;
     } catch (e) {
       debugPrint('Error loading debug mode: $e');
       _isDebugMode = false;
@@ -139,13 +185,178 @@ class BankUserProvider extends BaseUserProvider {
   /// Load authentication metadata
   Future<void> _loadAuthMetadata() async {
     try {
-      final authData = await _storage.getValue<Map<String, dynamic>>(_boxName, _authMetadataKey);
+      final authData = await _storage.getValue<Map<String, dynamic>>(
+          BankStorageKeys.boxName, BankStorageKeys.authMetadataKey);
       if (authData != null) {
         _authMetadata = AuthMetadata.fromMap(authData);
       }
     } catch (e) {
       debugPrint('Error loading auth metadata: $e');
       _authMetadata = const AuthMetadata();
+    }
+  }
+
+  /// Load balance visibility states from storage
+  Future<void> _loadBalanceVisibilityStates() async {
+    try {
+      _isDashboardBalanceVisible = await _storage.getValue<bool>(
+              BankStorageKeys.boxName, BankStorageKeys.dashboardBalanceVisibleKey) ??
+          false;
+      _isProfileBalanceVisible =
+          await _storage.getValue<bool>(BankStorageKeys.boxName, BankStorageKeys.profileBalanceVisibleKey) ??
+              false;
+      _isInvestmentBalanceVisible = await _storage.getValue<bool>(
+              BankStorageKeys.boxName, BankStorageKeys.investmentBalanceVisibleKey) ??
+          false;
+    } catch (e) {
+      debugPrint('Error loading balance visibility states: $e');
+    }
+  }
+
+  /// Load bank cards from storage
+  Future<void> _loadBankCards() async {
+    try {
+      final cardsData =
+          await _storage.getValue<String>(BankStorageKeys.boxName, BankStorageKeys.bankCardsKey);
+      if (cardsData != null && cardsData.isNotEmpty) {
+        try {
+          final List<BankCardModel> cardsList = [];
+          final cardStrings = cardsData.split('|||');
+          for (var cardStr in cardStrings) {
+            if (cardStr.trim().isEmpty) continue;
+            final Map<String, dynamic> cardMap = {};
+            final parts = cardStr.split('||');
+            for (var part in parts) {
+              final kv = part.split('::');
+              if (kv.length == 2) {
+                final key = kv[0].trim();
+                var value = kv[1].trim();
+                if (key == 'balance') {
+                  cardMap[key] = double.tryParse(value) ?? 0.0;
+                } else if (key == 'opened_at' && value != 'null') {
+                  try {
+                    cardMap[key] = value;
+                  } catch (e) {
+                    cardMap[key] = null;
+                  }
+                } else {
+                  cardMap[key] = value == 'null' ? null : value;
+                }
+              }
+            }
+            if (cardMap.containsKey('card_number') &&
+                cardMap.containsKey('card_type') &&
+                cardMap.containsKey('balance')) {
+              cardsList.add(BankCardModel.fromMap(cardMap));
+            }
+          }
+          if (cardsList.isNotEmpty) {
+            _bankCards = cardsList;
+          } else {
+            _bankCards = _getDefaultBankCards();
+            await _saveBankCards();
+          }
+        } catch (e) {
+          debugPrint('Error parsing bank cards: $e');
+          _bankCards = _getDefaultBankCards();
+          await _saveBankCards();
+        }
+      } else {
+        _bankCards = _getDefaultBankCards();
+        await _saveBankCards();
+      }
+    } catch (e) {
+      debugPrint('Error loading bank cards: $e');
+      _bankCards = _getDefaultBankCards();
+      await _saveBankCards();
+    }
+  }
+
+  /// Load holdings total from storage
+  Future<void> _loadHoldingsTotal() async {
+    try {
+      final holdingsTotal = await UnifiedStorage.get<double>(BankStorageKeys.holdingsTotalKey);
+      if (holdingsTotal != null && holdingsTotal > 0) {
+        _holdingsTotal = holdingsTotal;
+      }
+    } catch (e) {
+      debugPrint('Error loading holdings total: $e');
+      _holdingsTotal = 0.0;
+    }
+  }
+
+  /// Save holdings total to storage
+  Future<void> _saveHoldingsTotal() async {
+    try {
+      await UnifiedStorage.set(BankStorageKeys.holdingsTotalKey, _holdingsTotal);
+    } catch (e) {
+      debugPrint('Error saving holdings total: $e');
+    }
+  }
+
+  /// Update holdings total
+  Future<void> updateHoldingsTotal(double holdingsTotal) async {
+    _holdingsTotal = holdingsTotal;
+    await _saveHoldingsTotal();
+    notifyListeners();
+  }
+
+  /// Save bank cards to storage
+  Future<void> _saveBankCards() async {
+    try {
+      final cardsJson = _bankCards.map((card) {
+        final map = card.toMap();
+        return map.entries.map((e) {
+          final value = e.value?.toString() ?? 'null';
+          return '${e.key}::$value';
+        }).join('||');
+      }).join('|||');
+      await _storage.putValue(BankStorageKeys.boxName, BankStorageKeys.bankCardsKey, cardsJson);
+    } catch (e) {
+      debugPrint('Error saving bank cards: $e');
+    }
+  }
+
+  /// Get default bank cards
+  List<BankCardModel> _getDefaultBankCards() {
+    return [
+      const BankCardModel(
+        cardNumber: '6228480010123456789',
+        cardType: '储蓄卡',
+        balance: 151.38,
+        currency: 'CNY',
+      ),
+      const BankCardModel(
+        cardNumber: '6228480010987654321',
+        cardType: '储蓄卡',
+        balance: 0.0,
+        currency: 'CNY',
+      ),
+    ];
+  }
+
+  /// Add a new bank card
+  Future<void> addBankCard(BankCardModel card) async {
+    _bankCards.add(card);
+    await _saveBankCards();
+    notifyListeners();
+  }
+
+  /// Update a bank card
+  Future<void> updateBankCard(int index, BankCardModel card) async {
+    if (index >= 0 && index < _bankCards.length) {
+      _bankCards[index] = card;
+      await _saveBankCards();
+      notifyListeners();
+    }
+  }
+
+  /// Remove a bank card
+  Future<void> removeBankCard(int index) async {
+    if (index >= 0 && index < _bankCards.length) {
+      _bankCards.removeAt(index);
+      await _saveBankCards();
+      notifyListeners();
     }
   }
 
@@ -166,6 +377,7 @@ class BankUserProvider extends BaseUserProvider {
   Future<void> _createDefaultData() async {
     _user = BankUserModel.defaultUser();
     _globalData = BankGlobalData.defaultData();
+    _bankCards = _getDefaultBankCards();
     _isDebugMode = false;
     _authMetadata = const AuthMetadata();
 
@@ -179,8 +391,9 @@ class BankUserProvider extends BaseUserProvider {
   Future<void> _saveUserData() async {
     if (_user == null) return;
     try {
-      await _storage.putValue(_boxName, _userKey, _user!.toJsonString());
-      await _cache.put('bank_user', 'user_data', _user!, ttl: const Duration(hours: 24));
+      await _storage.putValue(BankStorageKeys.boxName, BankStorageKeys.userKey, _user!.toJsonString());
+      await _cache.put('bank_user', 'user_data', _user!,
+          ttl: const Duration(hours: 24));
     } catch (e) {
       debugPrint('Error saving user data: $e');
     }
@@ -190,7 +403,8 @@ class BankUserProvider extends BaseUserProvider {
   Future<void> _saveGlobalData() async {
     if (_globalData == null) return;
     try {
-      await _storage.putValue(_boxName, _globalDataKey, _globalData!.toJsonString());
+      await _storage.putValue(
+          BankStorageKeys.boxName, BankStorageKeys.globalDataKey, _globalData!.toJsonString());
     } catch (e) {
       debugPrint('Error saving global data: $e');
     }
@@ -199,7 +413,7 @@ class BankUserProvider extends BaseUserProvider {
   /// Save debug mode setting
   Future<void> _saveDebugMode() async {
     try {
-      await _storage.putValue(_boxName, _debugModeKey, _isDebugMode);
+      await _storage.putValue(BankStorageKeys.boxName, BankStorageKeys.debugModeKey, _isDebugMode);
     } catch (e) {
       debugPrint('Error saving debug mode: $e');
     }
@@ -208,9 +422,24 @@ class BankUserProvider extends BaseUserProvider {
   /// Save authentication metadata
   Future<void> _saveAuthMetadata() async {
     try {
-      await _storage.putValue(_boxName, _authMetadataKey, _authMetadata.toMap());
+      await _storage.putValue(
+          BankStorageKeys.boxName, BankStorageKeys.authMetadataKey, _authMetadata.toMap());
     } catch (e) {
       debugPrint('Error saving auth metadata: $e');
+    }
+  }
+
+  /// Save balance visibility states to storage
+  Future<void> _saveBalanceVisibilityStates() async {
+    try {
+      await _storage.putValue(
+          BankStorageKeys.boxName, BankStorageKeys.dashboardBalanceVisibleKey, _isDashboardBalanceVisible);
+      await _storage.putValue(
+          BankStorageKeys.boxName, BankStorageKeys.profileBalanceVisibleKey, _isProfileBalanceVisible);
+      await _storage.putValue(
+          BankStorageKeys.boxName, BankStorageKeys.investmentBalanceVisibleKey, _isInvestmentBalanceVisible);
+    } catch (e) {
+      debugPrint('Error saving balance visibility states: $e');
     }
   }
 
@@ -251,7 +480,203 @@ class BankUserProvider extends BaseUserProvider {
     );
 
     await _saveUserData();
+
+    // Update global data
+    if (_globalData != null) {
+      _globalData = _globalData!.copyWith(
+        location: location ?? _user!.location,
+        city: city ?? _user!.city,
+        balance: balance ?? _user!.balance,
+        username: _user!.username,
+        fullName: fullName ?? _user!.fullName,
+        points: points ?? _user!.points,
+        coupons: coupons ?? _user!.coupons,
+        creditCardLevel: creditCardLevel ?? _user!.creditCardLevel,
+      );
+      await _saveGlobalData();
+    }
+
+    // Sync to UnifiedStorage
+    await _syncToUnifiedStorage();
+
     notifyListeners();
+  }
+
+  /// Update global state data
+  Future<void> updateGlobalState({
+    String? location,
+    String? city,
+    double? balance,
+    String? username,
+    String? fullName,
+    int? points,
+    int? coupons,
+    String? creditCardLevel,
+  }) async {
+    if (_globalData == null) {
+      _globalData = BankGlobalData.defaultData();
+    }
+
+    _globalData = _globalData!.copyWith(
+      location: location,
+      city: city,
+      balance: balance,
+      username: username,
+      fullName: fullName,
+      points: points,
+      coupons: coupons,
+      creditCardLevel: creditCardLevel,
+    );
+
+    await _saveGlobalData();
+    await _syncToUnifiedStorage();
+    notifyListeners();
+  }
+
+  /// Load global state from UnifiedStorage
+  Future<void> _loadGlobalStateFromUnifiedStorage() async {
+    try {
+      final location = await UnifiedStorage.get<String>(BankStorageKeys.locationKey);
+      final city = await UnifiedStorage.get<String>(BankStorageKeys.cityKey);
+      final balance = await UnifiedStorage.get<double>(BankStorageKeys.balanceKey);
+      final username = await UnifiedStorage.get<String>(BankStorageKeys.usernameKey);
+      final fullName = await UnifiedStorage.get<String>(BankStorageKeys.fullNameKey);
+      final points = await UnifiedStorage.get<int>(BankStorageKeys.pointsKey);
+      final coupons = await UnifiedStorage.get<int>(BankStorageKeys.couponsKey);
+      final creditCardLevel =
+          await UnifiedStorage.get<String>(BankStorageKeys.creditCardLevelKey);
+
+      if (location != null ||
+          city != null ||
+          balance != null ||
+          username != null ||
+          fullName != null ||
+          points != null ||
+          coupons != null ||
+          creditCardLevel != null) {
+        if (_globalData == null) {
+          _globalData = BankGlobalData.defaultData();
+        }
+
+        _globalData = _globalData!.copyWith(
+          location: location,
+          city: city,
+          balance: balance,
+          username: username,
+          fullName: fullName,
+          points: points,
+          coupons: coupons,
+          creditCardLevel: creditCardLevel,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading global state from UnifiedStorage: $e');
+    }
+  }
+
+  /// Load login status from UnifiedStorage
+  Future<void> _loadLoginStatusFromUnifiedStorage() async {
+    try {
+      final isLoggedIn = await UnifiedStorage.get<bool>(BankStorageKeys.isLoggedInKey);
+      if (isLoggedIn == true) {
+        _authMetadata = _authMetadata.copyWith(
+          isAuthenticated: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error loading login status from UnifiedStorage: $e');
+    }
+  }
+
+  /// Sync phone number from PrefsAppBank to user/globalData if not exists
+  Future<void> _syncPhoneFromPrefs() async {
+    try {
+      final currentPhone = _user?.phone ?? _globalData?.username;
+      if (currentPhone == null || currentPhone.isEmpty) {
+        final prefs = PrefsAppBank();
+        if (!prefs.isInitialized) {
+          await prefs.initSharedPreferences();
+        }
+        final phoneFromPrefs = prefs.getString('phone_number');
+        if (phoneFromPrefs != null && phoneFromPrefs.isNotEmpty) {
+          final maskedName = phoneFromPrefs.length >= 4 
+              ? '*${phoneFromPrefs.substring(phoneFromPrefs.length - 4)}' 
+              : '*$phoneFromPrefs';
+          
+          if (_user != null) {
+            _user = _user!.copyWith(phone: phoneFromPrefs, fullName: maskedName);
+            await _saveUserData();
+          }
+          if (_globalData != null) {
+            _globalData = _globalData!.copyWith(username: phoneFromPrefs, fullName: maskedName);
+            await _saveGlobalData();
+          } else {
+            _globalData = BankGlobalData.defaultData().copyWith(username: phoneFromPrefs, fullName: maskedName);
+            await _saveGlobalData();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing phone from PrefsAppBank: $e');
+    }
+  }
+
+  /// Sync global state to UnifiedStorage
+  Future<void> _syncToUnifiedStorage() async {
+    try {
+      if (_globalData != null) {
+        if (_globalData!.location != null) {
+          await UnifiedStorage.set(BankStorageKeys.locationKey, _globalData!.location!);
+        }
+        if (_globalData!.city != null) {
+          await UnifiedStorage.set(BankStorageKeys.cityKey, _globalData!.city!);
+        }
+        if (_globalData!.balance != null) {
+          await UnifiedStorage.set(BankStorageKeys.balanceKey, _globalData!.balance!);
+        }
+        if (_globalData!.username != null) {
+          await UnifiedStorage.set(BankStorageKeys.usernameKey, _globalData!.username!);
+        }
+        if (_globalData!.fullName != null) {
+          await UnifiedStorage.set(BankStorageKeys.fullNameKey, _globalData!.fullName!);
+        }
+        if (_globalData!.points != null) {
+          await UnifiedStorage.set(BankStorageKeys.pointsKey, _globalData!.points!);
+        }
+        if (_globalData!.coupons != null) {
+          await UnifiedStorage.set(BankStorageKeys.couponsKey, _globalData!.coupons!);
+        }
+        if (_globalData!.creditCardLevel != null) {
+          await UnifiedStorage.set(
+              BankStorageKeys.creditCardLevelKey, _globalData!.creditCardLevel!);
+        }
+      }
+
+      // Also sync from user model if available
+      if (_user != null) {
+        if (_user!.location != null) {
+          await UnifiedStorage.set(BankStorageKeys.locationKey, _user!.location!);
+        }
+        if (_user!.city != null) {
+          await UnifiedStorage.set(BankStorageKeys.cityKey, _user!.city!);
+        }
+        await UnifiedStorage.set(BankStorageKeys.balanceKey, _user!.balance);
+        if (_user!.username != null) {
+          await UnifiedStorage.set(BankStorageKeys.usernameKey, _user!.username!);
+        }
+        if (_user!.fullName != null) {
+          await UnifiedStorage.set(BankStorageKeys.fullNameKey, _user!.fullName!);
+        }
+        await UnifiedStorage.set(BankStorageKeys.pointsKey, _user!.points);
+        await UnifiedStorage.set(BankStorageKeys.couponsKey, _user!.coupons);
+        if (_user!.creditCardLevel != null) {
+          await UnifiedStorage.set(
+              BankStorageKeys.creditCardLevelKey, _user!.creditCardLevel!);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing to UnifiedStorage: $e');
+    }
   }
 
   /// Set debug mode
@@ -264,24 +689,42 @@ class BankUserProvider extends BaseUserProvider {
   /// Toggle dashboard balance visibility
   void toggleDashboardBalanceVisibility() {
     _isDashboardBalanceVisible = !_isDashboardBalanceVisible;
+    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
   /// Toggle profile balance visibility
   void toggleProfileBalanceVisibility() {
     _isProfileBalanceVisible = !_isProfileBalanceVisible;
+    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
   /// Set dashboard balance visibility
   void setDashboardBalanceVisibility(bool visible) {
     _isDashboardBalanceVisible = visible;
+    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
   /// Set profile balance visibility
   void setProfileBalanceVisibility(bool visible) {
     _isProfileBalanceVisible = visible;
+    _saveBalanceVisibilityStates();
+    notifyListeners();
+  }
+
+  /// Toggle investment balance visibility
+  void toggleInvestmentBalanceVisibility() {
+    _isInvestmentBalanceVisible = !_isInvestmentBalanceVisible;
+    _saveBalanceVisibilityStates();
+    notifyListeners();
+  }
+
+  /// Set investment balance visibility
+  void setInvestmentBalanceVisibility(bool visible) {
+    _isInvestmentBalanceVisible = visible;
+    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
@@ -289,6 +732,89 @@ class BankUserProvider extends BaseUserProvider {
   Future<void> resetToDefault() async {
     await _createDefaultData();
     notifyListeners();
+  }
+
+  /// Clear all user storage data (but preserve registration info)
+  /// CRITICAL: Registration information is NEVER cleared by this method
+  /// Registration info can only be cleared by unregister() or re-registration
+  Future<void> clearUserStorageData() async {
+    try {
+      // Clear in-memory state
+      _user = null;
+      _globalData = null;
+      _authMetadata = const AuthMetadata();
+      _bankCards = [];
+      _holdingsTotal = 0.0;
+      _isDebugMode = false;
+      _isDashboardBalanceVisible = false;
+      _isProfileBalanceVisible = false;
+      _isInvestmentBalanceVisible = false;
+
+      // Clear StorageManager data (bank_user_data box)
+      try {
+        final allKeys = await _storage.getKeys(BankStorageKeys.boxName);
+        for (final key in allKeys) {
+          await _storage.deleteKey(BankStorageKeys.boxName, key);
+        }
+      } catch (e) {
+        debugPrint('Error clearing StorageManager data: $e');
+      }
+
+      // Clear UnifiedStorage data (including dataInitializedKey to allow re-initialization)
+      try {
+        // Clear dataInitializedKey so that re-login will trigger re-initialization
+        await UnifiedStorage.remove(BankStorageKeys.dataInitializedKey);
+
+        // Clear specific UnifiedStorage keys
+        final keysToRemove = [
+          BankStorageKeys.locationKey,
+          BankStorageKeys.cityKey,
+          BankStorageKeys.balanceKey,
+          BankStorageKeys.usernameKey,
+          BankStorageKeys.fullNameKey,
+          BankStorageKeys.pointsKey,
+          BankStorageKeys.couponsKey,
+          BankStorageKeys.creditCardLevelKey,
+          BankStorageKeys.isLoggedInKey,
+          BankStorageKeys.loginTimeKey,
+          BankStorageKeys.holdingsTotalKey,
+        ];
+
+        for (final key in keysToRemove) {
+          await UnifiedStorage.remove(key);
+        }
+
+        // Clear specific app storage boxes
+        await UnifiedStorage.clearBox('bank_app_user');
+        UnifiedStorage.clearCache();
+      } catch (e) {
+        debugPrint('Error clearing UnifiedStorage data: $e');
+      }
+
+      // Clear PrefsAppBank data (but preserve registration info)
+      try {
+        final prefs = PrefsAppBank();
+        if (prefs.isInitialized) {
+          // CRITICAL: Only remove phone_number, preserve all registration keys
+          // Registration keys are protected in PrefsAppBank.clearAll() method
+          await prefs.remove('phone_number');
+        }
+      } catch (e) {
+        debugPrint('Error clearing PrefsAppBank phone number: $e');
+      }
+
+      // Clear cache
+      try {
+        await _cache.clear('bank_user');
+      } catch (e) {
+        debugPrint('Error clearing cache: $e');
+      }
+
+      debugPrint('User storage data cleared (registration info preserved, dataInitializedKey cleared for re-initialization)');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error clearing user storage data: $e');
+    }
   }
 
   /// Update last active time
@@ -314,10 +840,16 @@ class BankUserProvider extends BaseUserProvider {
 
   @override
   void clearUser() {
+    // Only clear in-memory state, keep storage data intact
+    // This allows user data to persist for next login
+    // CRITICAL: Registration information is stored in PrefsAppBank and should NEVER be cleared on logout
+    // Registration info is machine-bound and persists across logout/login cycles
     _user = null;
     _globalData = null;
-    _isDebugMode = false;
     _authMetadata = const AuthMetadata();
+    // Note: _isDebugMode and balance visibility states are kept in storage
+    // They will be reloaded on next initialization
+    // Registration info in PrefsAppBank is also preserved
     notifyListeners();
   }
 
@@ -383,7 +915,7 @@ class BankUserProvider extends BaseUserProvider {
   @override
   bool hasPermission(String permission) {
     if (_user == null) return false;
-    
+
     // Bank-specific permission logic
     switch (permission) {
       case 'transfer':
@@ -423,11 +955,16 @@ class BankUserProvider extends BaseUserProvider {
     }
   }
 
+  /// Format amount without thousand separators
+  static String _formatAmount(double amount) {
+    return amount.toStringAsFixed(2);
+  }
+
   /// Get dashboard display balance (hidden or visible)
   String get dashboardDisplayBalance {
-    if (_user == null) return '¥ 0.00';
+    final totalAssetsValue = totalAssets;
     if (_isDashboardBalanceVisible) {
-      return _user!.formattedBalance;
+      return '¥${_formatAmount(totalAssetsValue)}';
     } else {
       return '¥ ****';
     }
@@ -435,9 +972,29 @@ class BankUserProvider extends BaseUserProvider {
 
   /// Get profile display balance (for assets section)
   String get profileDisplayBalance {
-    if (_user == null) return '¥ 0.00';
+    final totalAssetsValue = totalAssets;
     if (_isProfileBalanceVisible) {
-      return _user!.exactFormattedBalance;
+      return '¥${_formatAmount(totalAssetsValue)}';
+    } else {
+      return '¥ ****';
+    }
+  }
+
+  /// Get investment display balance (for wealth assets section)
+  String get investmentDisplayBalance {
+    final totalAssetsValue = totalAssets;
+    if (_isInvestmentBalanceVisible) {
+      return '¥${_formatAmount(totalAssetsValue)}';
+    } else {
+      return '¥ ****';
+    }
+  }
+
+  /// Format holdings total with thousand separators
+  String formatHoldingsTotal({bool useProfileVisibility = true}) {
+    final isVisible = useProfileVisibility ? _isProfileBalanceVisible : _isInvestmentBalanceVisible;
+    if (isVisible) {
+      return '¥${_formatAmount(_holdingsTotal)}';
     } else {
       return '¥ ****';
     }

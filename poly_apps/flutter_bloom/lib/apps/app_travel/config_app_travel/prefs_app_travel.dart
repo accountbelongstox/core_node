@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qyflutter/common/storage/app_prefs_base.dart';
+import 'package:qyflutter/common/storage_tools/app_prefs_base.dart';
 import 'constants_app_travel.dart';
 
 class PrefsAppTravel extends AppPrefsBase {

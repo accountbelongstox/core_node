@@ -19,6 +19,7 @@ import 'network_types.dart';
 import '../models/api_config.dart';
 import '../utils/network_utils.dart';
 import '../interceptors/auth_interceptor.dart';
+import 'api_endpoint_manager.dart';
 
 /// Unified Network Client - Production-ready HTTP client
 /// 
@@ -150,12 +151,23 @@ class UnifiedNetworkClient implements NetworkClient {
   }
 
   Uri _buildUri(String endpoint, Map<String, dynamic>? parameters) {
-    final baseUrl = config.baseUrl.endsWith('/') 
-        ? config.baseUrl.substring(0, config.baseUrl.length - 1)
-        : config.baseUrl;
+    String effectiveBaseUrl;
+    
+    final endpointManager = ApiEndpointManager();
+    final dynamicBaseUrl = endpointManager.getCurrentBaseUrl();
+    
+    if (dynamicBaseUrl != null) {
+      effectiveBaseUrl = dynamicBaseUrl;
+    } else {
+      effectiveBaseUrl = config.baseUrl;
+    }
+    
+    effectiveBaseUrl = effectiveBaseUrl.endsWith('/') 
+        ? effectiveBaseUrl.substring(0, effectiveBaseUrl.length - 1)
+        : effectiveBaseUrl;
     
     final path = endpoint.startsWith('/') ? endpoint : '/$endpoint';
-    final fullUrl = '$baseUrl$path';
+    final fullUrl = '$effectiveBaseUrl$path';
     
     if (parameters != null && parameters.isNotEmpty) {
       return Uri.parse(fullUrl).replace(queryParameters: 

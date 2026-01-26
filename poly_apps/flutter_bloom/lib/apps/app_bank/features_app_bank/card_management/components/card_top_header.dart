@@ -11,8 +11,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../widgets_app_bank/bank_rotating_search_hint.dart';
 
 /// Card Top Header Component
 ///
@@ -25,110 +27,121 @@ class CardTopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 11.2),
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage(BankImages.bankCardBannerBg),
-          fit: BoxFit.cover,
-          alignment: Alignment(
-              -1.0, 0), // Move image 100% to the left (fully left aligned)
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    final topPadding = MediaQuery.of(context).padding.top;
+    final contentHeight = 60.0; // Approximate height of content row
+    final totalHeight = topPadding + 80 + contentHeight + 11.2;
+
+    return SizedBox(
+      height: totalHeight,
+      child: Stack(
         children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
-              child: Row(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        size: 20,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(width: 4),
-                      const Text(
-                        '北京',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
+          // Background image with extended padding - moved down and extended
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              padding: EdgeInsets.fromLTRB(16, topPadding + 80, 16, 11.2),
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(BankImages.bankCardBannerBg),
+                  fit: BoxFit.cover, // Fill the entire area, may crop if needed
+                  alignment: Alignment.center, // Center the image
+                ),
+              ),
+            ),
+          ),
+          // Content area - positioned at top, not moved
+          Positioned(
+            left: 16,
+            right: 16,
+            top: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Location indicator
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          size: 20,
+                          color: Colors.red,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search,
-                              size: 18, color: Colors.grey),
-                          const SizedBox(width: 8),
-                          const Text(
-                            '手机号收款超省心',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '北京',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
                           ),
-                          const Spacer(),
-                          const Icon(Icons.mic, size: 18, color: Colors.grey),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    // Search bar
+                    Expanded(
+                      child: BankRotatingSearchHint(
+                        pageType: BankPageType.cardManagement,
+                        textColor: Colors.grey,
+                        fontSize: 14,
+                        backgroundColor: Colors.white.withOpacity(0.9),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
+                        suffixIcon: const Icon(Icons.mic, size: 18, color: Colors.grey),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Row(
-                    children: [
-                      CustomImageIconLabel(
-                        imagePath: BankImages.bankCustomerService,
-                        label: '客服',
-                        imageSize: 28.8,
-                        labelSize: 14.4,
-                        labelColor: Colors.white,
-                        showBackground: false,
-                        showBorder: false,
-                      ),
-                      const SizedBox(width: 12),
-                      CustomImageIconLabel(
-                        imagePath: BankImages.bankMessage,
-                        label: '消息',
-                        imageSize: 28.8,
-                        labelSize: 14.4,
-                        labelColor: Colors.white,
-                        showBackground: false,
-                        showBorder: false,
-                        badge: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF4757),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            '11',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
+                    const SizedBox(width: 8),
+                    // Customer service and message icons
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CustomImageIconLabel(
+                          imagePath: BankImages.bankCustomerService,
+                          label: '客服',
+                          imageSize: 28.8,
+                          labelSize: 14.4,
+                          labelColor: Colors.white,
+                          showBackground: false,
+                          showBorder: false,
+                        ),
+                        const SizedBox(width: 12),
+                        CustomImageIconLabel(
+                          imagePath: BankImages.bankMessage,
+                          label: '消息',
+                          imageSize: 28.8,
+                          labelSize: 14.4,
+                          labelColor: Colors.white,
+                          showBackground: false,
+                          showBorder: false,
+                          badge: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF4757),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              '11',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

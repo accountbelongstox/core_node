@@ -80,8 +80,9 @@ class BankThemeConfig {
   );
 
   // Border Radius (Consistent with UI design)
-  static const double cardRadius = 16.0;
-  static const double buttonRadius = 12.0;
+  static const double cardRadius = 4.0;
+  @Deprecated('Use BankConstants.buttonBorderRadiusMedium instead')
+  static const double buttonRadius = 24.0;
   static const double smallRadius = 8.0;
 
   // Spacing (Inherits from ThemeDimensions but with banking-specific adjustments)

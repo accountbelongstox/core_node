@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../config_app_bank/theme_config_app_bank.dart';
@@ -303,9 +304,9 @@ class BankCreditCard extends StatelessWidget {
     return BankBaseCard(
       margin: const EdgeInsets.all(ThemeDimensions.paddingMedium),
       elevation: 12,
-      borderRadius: 20,
+      borderRadius: BankConstants.borderRadius,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(BankConstants.borderRadius),
         gradient: gradient ?? BankThemeConfig.cardGradient,
       ),
       padding: const EdgeInsets.all(24),
@@ -416,7 +417,7 @@ class BankCreditCard extends StatelessWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: BankThemeConfig.whiteText.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(BankConstants.borderRadius),
               ),
               child: const Icon(
                 Icons.copy,
@@ -522,7 +523,7 @@ class BankTransactionCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                 ),
                 child: Text(
                   status!,

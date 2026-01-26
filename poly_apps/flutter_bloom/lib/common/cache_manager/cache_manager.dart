@@ -15,7 +15,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
-import '../storage/storage_manager.dart';
+import '../storage_tools/storage_manager.dart';
 import '../network/core/network_types.dart';
 
 /// Enhanced cache entry with network response integration

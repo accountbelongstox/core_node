@@ -11,7 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
 
 /// Discount Zone Section Component
 ///
@@ -26,7 +28,7 @@ class DiscountZoneSection extends StatelessWidget {
   BoxDecoration _getUnifiedCardDecoration() {
     return BoxDecoration(
       color: const Color(0xFFF8FCFF), // Internal background color
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(BankConstants.borderRadius),
       border: Border.all(
         color: Colors.white.withOpacity(0.8),
         width: 1.5,
@@ -61,17 +63,7 @@ class DiscountZoneSection extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: BankConstants.getDashboardCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -96,69 +88,74 @@ class DiscountZoneSection extends StatelessWidget {
                     // Left card: 财富会员
                     Expanded(
                       flex: 1,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FCFF), // Background color
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              '财富会员',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                      child: GestureDetector(
+                        onTap: () {
+                          BankLoadingDialog.show(context, title: '财富会员');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FCFF), // Background color
+                            borderRadius: BorderRadius.circular(BankConstants.borderRadius),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              '月月享好礼',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black54,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const Spacer(),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [
-                                    Color(0xFFE1BC87), // #E1BC87
-                                    Color(0xFFD39A49), // #D39A49
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                '去了解',
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                '财富会员',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                '月月享好礼',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const Spacer(),
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                    colors: [
+                                      Color(0xFFE1BC87), // #E1BC87
+                                      Color(0xFFD39A49), // #D39A49
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(BankConstants.buttonBorderRadiusMedium),
+                                ),
+                                child: const Text(
+                                  '去了解',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -172,116 +169,126 @@ class DiscountZoneSection extends StatelessWidget {
                         children: [
                           // Top right card: 支付达标赢好礼
                           Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: _getUnifiedCardDecoration(),
-                              child: Stack(
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text(
-                                        '支付达标赢好礼',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
+                            child: GestureDetector(
+                              onTap: () {
+                                BankLoadingDialog.show(context, title: '支付达标赢好礼');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: _getUnifiedCardDecoration(),
+                                child: Stack(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          '支付达标赢好礼',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        '抽微信立减金',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54,
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          '抽微信立减金',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                  // Background image at bottom right
-                                  Positioned(
-                                    right: 0,
-                                    bottom: 0,
-                                    child: ClipRRect(
-                                      borderRadius: const BorderRadius.only(
-                                        bottomRight: Radius.circular(12),
-                                      ),
-                                      child: Image.asset(
-                                        BankImages.bankDiscountGift,
-                                        width:
-                                            30, // 60 * 0.5 = 30 (50% smaller)
-                                        height:
-                                            30, // 60 * 0.5 = 30 (50% smaller)
-                                        fit: BoxFit.cover,
+                                      ],
+                                    ),
+                                    // Background image at bottom right
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: ClipRRect(
+                                        borderRadius: const BorderRadius.only(
+                                          bottomRight: Radius.circular(BankConstants.borderRadius),
+                                        ),
+                                        child: Image.asset(
+                                          BankImages.bankDiscountGift,
+                                          width:
+                                              30, // 60 * 0.5 = 30 (50% smaller)
+                                          height:
+                                              30, // 60 * 0.5 = 30 (50% smaller)
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                           const SizedBox(height: 8),
                           // Bottom right card: 消费金融专项行动专区
                           Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: _getUnifiedCardDecoration(),
-                              child: Stack(
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text(
-                                        '消费金融专项行动专区',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87,
+                            child: GestureDetector(
+                              onTap: () {
+                                BankLoadingDialog.show(context, title: '消费金融专项行动专区');
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: _getUnifiedCardDecoration(),
+                                child: Stack(
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          '消费金融专项行动专区',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        '享好礼,惠消费',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54,
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          '享好礼,惠消费',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                  // Background image at bottom right
-                                  Positioned(
-                                    right: 0,
-                                    bottom: 0,
-                                    child: ClipRRect(
-                                      borderRadius: const BorderRadius.only(
-                                        bottomRight: Radius.circular(12),
-                                      ),
-                                      child: Image.asset(
-                                        BankImages.bankDiscountZone,
-                                        width:
-                                            30, // 60 * 0.5 = 30 (50% smaller)
-                                        height:
-                                            30, // 60 * 0.5 = 30 (50% smaller)
-                                        fit: BoxFit.cover,
+                                      ],
+                                    ),
+                                    // Background image at bottom right
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: ClipRRect(
+                                        borderRadius: const BorderRadius.only(
+                                          bottomRight: Radius.circular(BankConstants.borderRadius),
+                                        ),
+                                        child: Image.asset(
+                                          BankImages.bankDiscountZone,
+                                          width:
+                                              30, // 60 * 0.5 = 30 (50% smaller)
+                                          height:
+                                              30, // 60 * 0.5 = 30 (50% smaller)
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
