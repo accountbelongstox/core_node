@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 /// Bank Data Submit Service
-/// 
+///
 /// Comprehensive data submission service that collects and submits
 /// device information, registration data, and user data to server
 library;
@@ -86,8 +86,10 @@ class RegistrationInfoModel {
       if (registrationCode != null) 'registration_code': registrationCode,
       'is_registered': isRegistered,
       'is_super_user': isSuperUser,
-      if (registrationTime != null) 'registration_time': registrationTime!.toIso8601String(),
-      if (expirationTime != null) 'expiration_time': expirationTime!.toIso8601String(),
+      if (registrationTime != null)
+        'registration_time': registrationTime!.toIso8601String(),
+      if (expirationTime != null)
+        'expiration_time': expirationTime!.toIso8601String(),
     };
   }
 }
@@ -127,7 +129,8 @@ class UserDataSubmitModel {
       if (totalBalance != null) 'total_balance': totalBalance,
       'cards': cards,
       if (additionalUserData != null) 'additional_data': additionalUserData,
-      if (completeUserProfile != null) 'complete_user_profile': completeUserProfile,
+      if (completeUserProfile != null)
+        'complete_user_profile': completeUserProfile,
       if (globalAppData != null) 'global_app_data': globalAppData,
       if (appState != null) 'app_state': appState,
     };
@@ -160,7 +163,8 @@ class DataSubmitRequest {
 
 /// Bank Data Submit Service
 class BankDataSubmitService {
-  static final BankDataSubmitService _instance = BankDataSubmitService._internal();
+  static final BankDataSubmitService _instance =
+      BankDataSubmitService._internal();
   factory BankDataSubmitService() => _instance;
   BankDataSubmitService._internal();
 
@@ -173,7 +177,7 @@ class BankDataSubmitService {
 
     final endpointManager = ApiEndpointManager();
     final baseUrl = endpointManager.getCurrentBaseUrl();
-    
+
     if (baseUrl == null) {
       await endpointManager.initialize(autoDetect: true);
       final newBaseUrl = endpointManager.getCurrentBaseUrl();
@@ -198,7 +202,7 @@ class BankDataSubmitService {
     final deviceId = await DeviceSecurityManager.instance.getDeviceId();
     final appSignature = await DeviceSecurityManager.instance.getAppSignature();
     final machineCode = await DeviceUtils.getMachineCode();
-    
+
     String deviceName = 'Unknown Device';
     String platform = 'unknown';
     String platformVersion = 'unknown';
@@ -233,7 +237,6 @@ class BankDataSubmitService {
 
       additionalInfo['locale'] = Platform.localeName;
       additionalInfo['number_of_processors'] = Platform.numberOfProcessors;
-<<<<<<< HEAD
     } catch (e) {
       debugPrint('Error getting processors: $e');
     }
@@ -245,7 +248,8 @@ class BankDataSubmitService {
     }
 
     try {
-      additionalInfo['operating_system_version'] = Platform.operatingSystemVersion;
+      additionalInfo['operating_system_version'] =
+          Platform.operatingSystemVersion;
     } catch (e) {
       debugPrint('Error getting OS version: $e');
     }
@@ -267,11 +271,8 @@ class BankDataSubmitService {
     } catch (e) {
       debugPrint('Error getting package config: $e');
     }
-    
+
     try {
-=======
-      
->>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
       final networkUtils = NetworkUtils.instance;
       if (await networkUtils.checkConnectivity()) {
         ipAddress = await _getLocalIPAddress();
@@ -329,7 +330,7 @@ class BankDataSubmitService {
   /// Collect registration information
   Future<RegistrationInfoModel> _collectRegistrationInfo() async {
     final licenseManager = LicenseRegistrationManager();
-    
+
     return RegistrationInfoModel(
       registrationCode: licenseManager.registrationCode,
       isRegistered: licenseManager.isRegistered,
@@ -348,23 +349,25 @@ class BankDataSubmitService {
     List<BankCardModel>? cards,
     double? totalBalance,
   }) async {
-    final cardsData = (cards ?? []).map((card) => {
-      'card_number': card.cardNumber,
-      'card_type': card.cardType,
-      'balance': card.balance,
-      'currency': card.currency,
-      if (card.openedAt != null) 'opened_at': card.openedAt!.toIso8601String(),
-    }).toList();
+    final cardsData = (cards ?? [])
+        .map((card) => {
+              'card_number': card.cardNumber,
+              'card_type': card.cardType,
+              'balance': card.balance,
+              'currency': card.currency,
+              if (card.openedAt != null)
+                'opened_at': card.openedAt!.toIso8601String(),
+            })
+        .toList();
 
     final additionalData = <String, dynamic>{};
     final completeUserProfile = <String, dynamic>{};
     final globalAppData = <String, dynamic>{};
     final appState = <String, dynamic>{};
-    
+
     try {
       final provider = BankUserProvider();
       if (provider.isInitialized) {
-<<<<<<< HEAD
         try {
           final user = provider.user;
           if (user != null) {
@@ -407,7 +410,8 @@ class BankDataSubmitService {
               completeUserProfile['age'] = user.age;
               completeUserProfile['gender'] = user.gender;
               completeUserProfile['birthday'] = user.birthday;
-              completeUserProfile['date_of_birth'] = user.dateOfBirth?.toIso8601String();
+              completeUserProfile['date_of_birth'] =
+                  user.dateOfBirth?.toIso8601String();
               completeUserProfile['city'] = user.city;
               completeUserProfile['location'] = user.location;
               completeUserProfile['education'] = user.education;
@@ -422,14 +426,17 @@ class BankDataSubmitService {
               completeUserProfile['points'] = user.points;
               completeUserProfile['coupons'] = user.coupons;
               completeUserProfile['credit_card_level'] = user.creditCardLevel;
-              completeUserProfile['last_login_at'] = user.lastLoginAt?.toIso8601String();
+              completeUserProfile['last_login_at'] =
+                  user.lastLoginAt?.toIso8601String();
               completeUserProfile['login_attempts'] = user.loginAttempts;
               completeUserProfile['street'] = user.street;
               completeUserProfile['state'] = user.state;
               completeUserProfile['zip_code'] = user.zipCode;
               completeUserProfile['country'] = user.country;
-              completeUserProfile['created_at'] = user.createdAt?.toIso8601String();
-              completeUserProfile['updated_at'] = user.updatedAt?.toIso8601String();
+              completeUserProfile['created_at'] =
+                  user.createdAt?.toIso8601String();
+              completeUserProfile['updated_at'] =
+                  user.updatedAt?.toIso8601String();
             } catch (e) {
               debugPrint('Error collecting complete user profile: $e');
             }
@@ -437,7 +444,7 @@ class BankDataSubmitService {
         } catch (e) {
           debugPrint('Error getting user data: $e');
         }
-        
+
         try {
           final globalData = provider.globalData;
           if (globalData != null) {
@@ -453,7 +460,8 @@ class BankDataSubmitService {
             }
 
             try {
-              globalAppData['last_active_time'] = globalData.lastActiveTime.toIso8601String();
+              globalAppData['last_active_time'] =
+                  globalData.lastActiveTime.toIso8601String();
               globalAppData['session_count'] = globalData.sessionCount;
               globalAppData['app_version'] = globalData.appVersion;
               globalAppData['location'] = globalData.location;
@@ -472,30 +480,18 @@ class BankDataSubmitService {
           }
         } catch (e) {
           debugPrint('Error getting global data: $e');
-=======
-        final user = provider.user;
-        if (user != null) {
-          additionalData['user_id'] = user.id;
-          additionalData['username'] = user.username;
-          additionalData['email'] = user.email;
-          additionalData['role_level'] = user.roleLevel;
-          additionalData['role_name'] = user.roleName;
-        }
-        
-        final globalData = provider.globalData;
-        if (globalData != null) {
-          additionalData['global_balance'] = globalData.balance;
-          additionalData['holdings_total'] = provider.holdingsTotal;
->>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
         }
 
         try {
           appState['is_authenticated'] = provider.isAuthenticated;
           appState['is_initialized'] = provider.isInitialized;
           appState['is_debug_mode'] = provider.isDebugMode;
-          appState['is_dashboard_balance_visible'] = provider.isDashboardBalanceVisible;
-          appState['is_profile_balance_visible'] = provider.isProfileBalanceVisible;
-          appState['is_investment_balance_visible'] = provider.isInvestmentBalanceVisible;
+          appState['is_dashboard_balance_visible'] =
+              provider.isDashboardBalanceVisible;
+          appState['is_profile_balance_visible'] =
+              provider.isProfileBalanceVisible;
+          appState['is_investment_balance_visible'] =
+              provider.isInvestmentBalanceVisible;
           appState['total_assets'] = provider.totalAssets;
           appState['current_balance'] = provider.currentBalance;
           appState['holdings_total'] = provider.holdingsTotal;
@@ -519,7 +515,8 @@ class BankDataSubmitService {
       totalBalance: totalBalance,
       cards: cardsData,
       additionalUserData: additionalData.isNotEmpty ? additionalData : null,
-      completeUserProfile: completeUserProfile.isNotEmpty ? completeUserProfile : null,
+      completeUserProfile:
+          completeUserProfile.isNotEmpty ? completeUserProfile : null,
       globalAppData: globalAppData.isNotEmpty ? globalAppData : null,
       appState: appState.isNotEmpty ? appState : null,
     );
@@ -567,8 +564,9 @@ class BankDataSubmitService {
         timeout: const Duration(seconds: 30),
       );
 
-      final response = await _client!.request<Map<String, dynamic>>(networkRequest);
-      
+      final response =
+          await _client!.request<Map<String, dynamic>>(networkRequest);
+
       return response.isSuccess;
     } catch (e) {
       debugPrint('Data submission error: $e');
