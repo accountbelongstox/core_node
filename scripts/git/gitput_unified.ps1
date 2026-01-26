@@ -36,6 +36,7 @@ $preCommitScript = Join-Path $scriptPath "pre_commit_encrypt.ps1"
 $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
+$script:ForcePushChoice = $null
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
@@ -920,11 +921,16 @@ function Invoke-GitOperations {
         Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
 
-        # Ask if user wants to force push BEFORE any pull operations
-        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
-        $forcePushChoice = Read-Host
+        # Use force push choice from main execution (already asked before starting operations)
+        if ($null -eq $script:ForcePushChoice) {
+            # Fallback: if somehow not set, default to normal push
+            $script:ForcePushChoice = "N"
+            Write-ColorText "Using default: Normal push mode" -ForegroundColor DarkGray
+        } else {
+            Write-ColorText "Using force push choice: $($script:ForcePushChoice)" -ForegroundColor DarkGray
+        }
 
-        if ($forcePushChoice -match '^[Yy]$') {
+        if ($script:ForcePushChoice -match '^[Yy]$') {
             # Force push mode - skip pull completely
             Write-ColorText "=== FORCE PUSH MODE ===" -ForegroundColor Red
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
@@ -993,6 +999,51 @@ try {
     
     # Reorder targets to execute DEFAULT_REMOTE first
     $targets = Get-ExecutionOrder -Targets $targets
+    
+    # Preview targets before pushing
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    if ($Pull) {
+        Write-ColorText "  PULL TARGETS PREVIEW" -ForegroundColor Cyan
+    } else {
+        Write-ColorText "  PUSH TARGETS PREVIEW" -ForegroundColor Cyan
+    }
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "Total targets: $($targets.Count)" -ForegroundColor Green
+    
+    # Warning if only one target
+    if ($targets.Count -eq 1) {
+        Write-ColorText "" -ForegroundColor White
+        Write-ColorText "⚠️  WARNING: Only pushing to ONE remote repository!" -ForegroundColor Red
+        Write-ColorText "    To push to all remotes, select 'all' in the menu" -ForegroundColor Yellow
+    }
+    
+    Write-ColorText "" -ForegroundColor White
+    
+    $targetIndex = 1
+    foreach ($target in $targets) {
+        if ($remoteConfigs.ContainsKey($target)) {
+            $targetUrl = $remoteConfigs[$target]
+            Write-ColorText "  [$targetIndex] $target" -ForegroundColor Yellow
+            Write-ColorText "      URL: $targetUrl" -ForegroundColor DarkGray
+        }
+        $targetIndex++
+    }
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "" -ForegroundColor White
+    
+    # Ask once for force push decision (applies to all targets) - before starting operations
+    if (-not $Pull) {
+        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $script:ForcePushChoice = Read-Host
+        if ($script:ForcePushChoice -match '^[Yy]$') {
+            Write-ColorText "✓ Force push enabled for ALL targets" -ForegroundColor Red
+        } else {
+            Write-ColorText "✓ Normal push mode (with pull) for ALL targets" -ForegroundColor Green
+        }
+        Write-ColorText "" -ForegroundColor White
+    }
     
     $allSuccess = $true
     
