@@ -4,12 +4,13 @@ namespace App\Apps\AppQyV1\AppQyV1Requests\Group;
 
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1BaseRequest;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Constants\AppKeys;
 
 class AppQyV1AddLibraryToGroupRequest extends AppQyV1BaseRequest
 {
     public function rules(): array
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $appKey = AppKeys::APPQYV1;
         $connection = AppTablePrefixServiceProvider::getConnection($appKey);
         $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries');
         

@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1VocabularyService
 {
@@ -21,13 +23,13 @@ class AppQyV1VocabularyService
         $connectionName = (new AppQyV1VocabularyLibraryModel)->getConnectionName();
         $schema = Schema::connection($connectionName);
 
-        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $appKey = AppKeys::APPQYV1;
         $tables = [
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'),
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_words'),
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages'),
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'user_vocabulary_selections'),
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_words'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'user_vocabulary_selections'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers'),
         ];
 
         foreach ($tables as $tableName) {
@@ -47,8 +49,8 @@ class AppQyV1VocabularyService
             'libraries' => []
         ];
         
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
         $vocabDir = base_path('init_data/AppQyV1/VoiceStaticServer/vocabulary');
         
         if (!is_dir($vocabDir)) {

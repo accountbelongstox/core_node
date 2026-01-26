@@ -81,7 +81,8 @@ class AppQyV1PreValidationController extends Controller
      */
     private function checkAudioDirectory(): array
     {
-        $audioPath = Config::get('AppQyV1.paths.audio_directory', $this->storageManager->getWordSoundsPath());
+        // Use PathMapper for unified path management
+        $audioPath = \App\Providers\PathMapper::getAppQyV1AudioDir();
 
         if (!File::exists($audioPath)) {
             return [

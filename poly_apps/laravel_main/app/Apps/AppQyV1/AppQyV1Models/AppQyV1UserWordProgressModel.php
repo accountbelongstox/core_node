@@ -7,21 +7,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1LanguageEnum;
 use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1ProficiencyLevelEnum;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1UserWordProgressModel extends Model
 {
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_word_progress');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_word_progress');
     }
     
     public function getConnectionName()
     {
-        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     protected $fillable = [

@@ -20,12 +20,14 @@ use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1PersonalDictionariesModel extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
@@ -40,7 +42,7 @@ class AppQyV1PersonalDictionariesModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
         $this->table = AppQyV1TableMaps::getTableName('PERSONAL_DICTIONARIES');
     }
 

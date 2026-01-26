@@ -48,7 +48,8 @@ class AppQyV1TTSService
     {
         $laravelDataDir = PathMapper::getLaravelDataDir();
         if (!$laravelDataDir) {
-            throw new \Exception('Laravel data directory not found');
+            Log::error('[AppQyV1TTSService] Laravel data directory not found');
+            return;
         }
         
         $this->dataDir = $laravelDataDir . '/tts_data';
@@ -72,11 +73,17 @@ class AppQyV1TTSService
     {
         // IDEMPOTENCY: Use FileSystemManager for dynamic user ownership
         if (!\App\Utils\FileSystemManager::ensureDirectoryExists($path, 0775)) {
-            throw new \Exception('Failed to create directory: ' . $path);
+            Log::error('[AppQyV1TTSService] Failed to create directory', [
+                'path' => $path,
+            ]);
+            return;
         }
 
         if (!is_writable($path)) {
-            throw new \Exception('Directory is not writable: ' . $path);
+            Log::error('[AppQyV1TTSService] Directory is not writable', [
+                'path' => $path,
+            ]);
+            return;
         }
     }
     

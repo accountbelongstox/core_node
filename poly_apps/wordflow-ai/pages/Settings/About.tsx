@@ -1,7 +1,6 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons } from '../../components/UI';
-import { ApiCenter } from '../../services/ApiCenter';
 
 interface InfoItemProps {
   label: string;

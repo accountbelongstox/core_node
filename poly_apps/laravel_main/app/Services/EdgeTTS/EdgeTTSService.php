@@ -76,15 +76,6 @@ class EdgeTTSService
     }
 
     /**
-     * @deprecated Use getVoices() instead. Kept for backward compatibility.
-     * Returns cached voices from AppQyV1LanguageConfigService
-     */
-    public static function getVOICES(): array
-    {
-        return self::getVoices();
-    }
-
-    /**
      * @deprecated Use getTextTypes() instead. Kept for backward compatibility.
      * Returns cached text types from AppQyV1LanguageConfigService
      */
@@ -106,6 +97,11 @@ class EdgeTTSService
 
         $this->initializeDirectories();
         $this->cacheManager = new TTSCacheManager($jsonDbDir);
+
+        // Automatic cleanup: 5% chance to clean zero-byte files on initialization
+        if (rand(1, 100) <= 5) {
+            $this->cleanZeroByteFilesBackground();
+        }
     }
 
     private function initializeDirectories(): void
@@ -195,16 +191,27 @@ class EdgeTTSService
         if ($cached && isset($cached['audio_path'])) {
             $fullPath = $this->audioDir . '/' . $cached['audio_path'];
             if (file_exists($fullPath)) {
-                return [
-                    'success' => true,
-                    'cached' => true,
-                    'audio_path' => $cached['audio_path'],
-                    'audio_url' => '/tts/audio/' . $cached['audio_path'],
-                    'text' => $text,
-                    'language' => $langCode,
-                    'type' => $textType,
-                    'speed' => $rate,
-                ];
+                // Verify cached file is not zero-byte
+                $fileSize = filesize($fullPath);
+                if ($fileSize === 0) {
+                    // Remove zero-byte file from cache and filesystem
+                    @unlink($fullPath);
+                    Log::warning('[EdgeTTS] Removed zero-byte cached file', [
+                        'path' => $cached['audio_path'],
+                    ]);
+                    // Continue to generate new file
+                } else {
+                    return [
+                        'success' => true,
+                        'cached' => true,
+                        'audio_path' => $cached['audio_path'],
+                        'audio_url' => '/tts/audio/' . $cached['audio_path'],
+                        'text' => $text,
+                        'language' => $langCode,
+                        'type' => $textType,
+                        'speed' => $rate,
+                    ];
+                }
             }
         }
 
@@ -214,17 +221,28 @@ class EdgeTTSService
         $fullPath = $this->audioDir . '/' . $relativePath;
 
         if (file_exists($fullPath)) {
-            $this->cacheManager->set($langCode, $textType, $cacheKey, $relativePath);
-            return [
-                'success' => true,
-                'cached' => true,
-                'audio_path' => $relativePath,
-                'audio_url' => '/tts/audio/' . $relativePath,
-                'text' => $text,
-                'language' => $langCode,
-                'type' => $textType,
-                'speed' => $rate,
-            ];
+            // Verify existing file is not zero-byte
+            $fileSize = filesize($fullPath);
+            if ($fileSize === 0) {
+                // Remove zero-byte file
+                @unlink($fullPath);
+                Log::warning('[EdgeTTS] Removed zero-byte existing file', [
+                    'path' => $relativePath,
+                ]);
+                // Continue to generate new file
+            } else {
+                $this->cacheManager->set($langCode, $textType, $cacheKey, $relativePath);
+                return [
+                    'success' => true,
+                    'cached' => true,
+                    'audio_path' => $relativePath,
+                    'audio_url' => '/tts/audio/' . $relativePath,
+                    'text' => $text,
+                    'language' => $langCode,
+                    'type' => $textType,
+                    'speed' => $rate,
+                ];
+            }
         }
 
         $voices = self::getVoices();
@@ -323,11 +341,54 @@ class EdgeTTSService
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($outputPath)) {
+                // Verify file size - MP3 files should be at least 100 bytes
+                // A valid MP3 file header alone is typically 10-32 bytes, but we use 100 bytes as minimum
+                $fileSize = filesize($outputPath);
+                $minFileSize = 100; // Minimum valid MP3 file size in bytes
+                
+                if ($fileSize === 0) {
+                    // Delete zero-byte file
+                    @unlink($outputPath);
+                    $error = 'Generated audio file is 0 bytes (empty file). This may indicate a network issue, timeout, or edge-tts service problem.';
+                    Log::error('[EdgeTTS] Zero-byte file detected and deleted', [
+                        'output_path' => $outputPath,
+                        'text_length' => strlen($text),
+                        'voice' => $voice,
+                    ]);
+                    return [
+                        'success' => false,
+                        'error' => $error,
+                    ];
+                }
+                
+                if ($fileSize < $minFileSize) {
+                    // File is suspiciously small, but not zero - log warning but keep file
+                    // Some very short audio clips might be valid but small
+                    Log::warning('[EdgeTTS] Generated audio file is very small', [
+                        'output_path' => $outputPath,
+                        'file_size' => $fileSize,
+                        'min_expected' => $minFileSize,
+                        'text_length' => strlen($text),
+                    ]);
+                }
+                
                 return ['success' => true];
             } else {
                 $error = implode("\n", $output);
                 Log::error('[EdgeTTS] Command failed: ' . $command);
                 Log::error('[EdgeTTS] Output: ' . $error);
+                
+                // Clean up: if file was created but command failed, delete it
+                if (file_exists($outputPath)) {
+                    $fileSize = filesize($outputPath);
+                    if ($fileSize === 0) {
+                        @unlink($outputPath);
+                        Log::info('[EdgeTTS] Deleted zero-byte file after command failure', [
+                            'output_path' => $outputPath,
+                        ]);
+                    }
+                }
+                
                 return [
                     'success' => false,
                     'error' => 'edge-tts execution failed: ' . $error,
@@ -468,5 +529,59 @@ class EdgeTTSService
     {
         $fullPath = $this->audioDir . '/' . $relativePath;
         return file_exists($fullPath) ? $fullPath : null;
+    }
+
+    /**
+     * Clean zero-byte audio files in background (non-blocking)
+     * Called randomly during service initialization to maintain clean storage
+     * Limits: Max 100 files per call to avoid performance impact
+     */
+    private function cleanZeroByteFilesBackground(): void
+    {
+        try {
+            $maxFilesToClean = 100;
+            $cleaned = 0;
+
+            // Use RecursiveIteratorIterator for efficient directory traversal
+            if (!is_dir($this->audioDir)) {
+                return;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->audioDir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $file) {
+                // Stop after cleaning max files
+                if ($cleaned >= $maxFilesToClean) {
+                    break;
+                }
+
+                // Only process .mp3 files
+                if (!$file->isFile() || $file->getExtension() !== 'mp3') {
+                    continue;
+                }
+
+                // Check if file is zero bytes
+                if ($file->getSize() === 0) {
+                    $filePath = $file->getRealPath();
+                    if (@unlink($filePath)) {
+                        $cleaned++;
+                    }
+                }
+            }
+
+            if ($cleaned > 0) {
+                Log::info('[EdgeTTS] Background cleanup removed zero-byte files', [
+                    'files_cleaned' => $cleaned,
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Silent fail - don't break TTS service if cleanup fails
+            Log::warning('[EdgeTTS] Background cleanup failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

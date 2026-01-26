@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons } from '../../components/UI';
 import { ApiCenter } from '../../services/ApiCenter';
+import { ApiTestingCenter } from '../../components/ApiTestingCenter';
 
 const SystemStatisticsPage = () => {
   const { navigate, t } = useContext(AppContext);
@@ -13,6 +14,7 @@ const SystemStatisticsPage = () => {
   const [loadingQueues, setLoadingQueues] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
   const [showQueues, setShowQueues] = useState(false);
+  const [showApiTesting, setShowApiTesting] = useState(false);
 
   useEffect(() => {
     loadSummary();
@@ -53,14 +55,16 @@ const SystemStatisticsPage = () => {
   };
 
   const loadQueues = async () => {
-    if (queues !== null) {
-      setShowQueues(!showQueues);
+    // If already showing, just toggle visibility
+    if (showQueues) {
+      setShowQueues(false);
       return;
     }
 
+    // Always reload data when expanding
     setLoadingQueues(true);
     try {
-      const response = await ApiCenter.system.getSystemStatisticsQueues();
+      const response = await ApiCenter.system.getSystemStatisticsQueues(true);
       if (response.success && response.data) {
         setQueues(response.data);
         setShowQueues(true);
@@ -203,6 +207,27 @@ const SystemStatisticsPage = () => {
           </Card>
         )}
 
+        {/* API Testing Center - Click to Open Modal */}
+        <Card 
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+          onClick={() => setShowApiTesting(true)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-900 dark:text-white block">API Testing Center</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Click to open API endpoint testing and monitoring</span>
+              </div>
+            </div>
+            <Icons.ChevronRight />
+          </div>
+        </Card>
+
         {/* Queues Section - Load on Demand */}
         <Card 
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-all"
@@ -328,46 +353,118 @@ const SystemStatisticsPage = () => {
                   </svg>
                   <h5 className="font-semibold text-slate-900 dark:text-white">Translation Status</h5>
                 </div>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Total Words</div>
-                      <div className="text-lg font-bold text-slate-900 dark:text-white">{formatNumber(queues.translation.total_words)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Complete Words</div>
-                      <div className="text-lg font-bold text-green-600 dark:text-green-400">{formatNumber(queues.translation.complete_words)}</div>
-                    </div>
-                  </div>
+                <div className="space-y-4">
+                  {/* Words Statistics */}
                   <div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Completion Rate</div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-slate-200 dark:bg-slate-600 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full transition-all"
-                          style={{ width: `${queues.translation.completion_rate}%` }}
-                        ></div>
+                    <h6 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Words</h6>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">Total Words</div>
+                        <div className="text-lg font-bold text-slate-900 dark:text-white">{formatNumber(queues.translation.total_words || 0)}</div>
                       </div>
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white">{queues.translation.completion_rate}%</span>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">Complete Words</div>
+                        <div className="text-lg font-bold text-green-600 dark:text-green-400">{formatNumber(queues.translation.complete_words || 0)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Word Completion Rate</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                          <div 
+                            className="bg-green-600 h-2 rounded-full transition-all"
+                            style={{ width: `${Math.min(queues.translation.completion_rate || 0, 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-white">{queues.translation.completion_rate || 0}%</span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Sentences Statistics */}
+                  {queues.translation.total_sentences !== undefined && (
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-600">
+                      <h6 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Sentences</h6>
+                      <div className="grid grid-cols-2 gap-3 mb-2">
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Total Sentences</div>
+                          <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatNumber(queues.translation.total_sentences)}</div>
+                        </div>
+                        {queues.translation.complete_sentences !== undefined && (
+                          <div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">Complete Sentences</div>
+                            <div className="text-lg font-bold text-green-600 dark:text-green-400">{formatNumber(queues.translation.complete_sentences)}</div>
+                          </div>
+                        )}
+                      </div>
+                      {queues.translation.sentence_completion_rate !== undefined && (
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Sentence Completion Rate</div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                              <div 
+                                className="bg-purple-600 h-2 rounded-full transition-all"
+                                style={{ width: `${Math.min(queues.translation.sentence_completion_rate, 100)}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white">{queues.translation.sentence_completion_rate}%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Missing Breakdown */}
                   {queues.translation.missing_breakdown && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-200 dark:border-slate-600">
-                      <div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">Missing Translation</div>
-                        <div className="text-sm font-semibold text-orange-600 dark:text-orange-400">{formatNumber(queues.translation.missing_breakdown.translation)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">Missing Phonetic</div>
-                        <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">{formatNumber(queues.translation.missing_breakdown.phonetic)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">Missing Audio</div>
-                        <div className="text-sm font-semibold text-pink-600 dark:text-pink-400">{formatNumber(queues.translation.missing_breakdown.audio)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">Missing Images</div>
-                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">{formatNumber(queues.translation.missing_breakdown.images)}</div>
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-600">
+                      <h6 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Missing Data Breakdown</h6>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Missing Translation (Words)</div>
+                          <div className="text-sm font-semibold text-orange-600 dark:text-orange-400">{formatNumber(queues.translation.missing_breakdown.translation || 0)}</div>
+                          {queues.translation.missing_percentages?.translation !== undefined && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.translation}%</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Missing Phonetic</div>
+                          <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">{formatNumber(queues.translation.missing_breakdown.phonetic || 0)}</div>
+                          {queues.translation.missing_percentages?.phonetic !== undefined && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.phonetic}%</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Missing Audio (Words)</div>
+                          <div className="text-sm font-semibold text-pink-600 dark:text-pink-400">{formatNumber(queues.translation.missing_breakdown.audio || 0)}</div>
+                          {queues.translation.missing_percentages?.audio !== undefined && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.audio}%</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Missing Images</div>
+                          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">{formatNumber(queues.translation.missing_breakdown.images || 0)}</div>
+                          {queues.translation.missing_percentages?.images !== undefined && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.images}%</div>
+                          )}
+                        </div>
+                        {queues.translation.missing_breakdown.sentence_translation !== undefined && (
+                          <div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">Missing Translation (Sentences)</div>
+                            <div className="text-sm font-semibold text-orange-600 dark:text-orange-400">{formatNumber(queues.translation.missing_breakdown.sentence_translation)}</div>
+                            {queues.translation.missing_percentages?.sentence_translation !== undefined && (
+                              <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.sentence_translation}%</div>
+                            )}
+                          </div>
+                        )}
+                        {queues.translation.missing_breakdown.sentence_audio !== undefined && (
+                          <div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">Missing Audio (Sentences)</div>
+                            <div className="text-sm font-semibold text-pink-600 dark:text-pink-400">{formatNumber(queues.translation.missing_breakdown.sentence_audio)}</div>
+                            {queues.translation.missing_percentages?.sentence_audio !== undefined && (
+                              <div className="text-xs text-slate-400 dark:text-slate-500">{queues.translation.missing_percentages.sentence_audio}%</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -377,6 +474,11 @@ const SystemStatisticsPage = () => {
           </div>
         )}
       </div>
+
+      {/* API Testing Center Modal */}
+      {showApiTesting && (
+        <ApiTestingCenter onClose={() => setShowApiTesting(false)} />
+      )}
     </div>
   );
 };

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 
 class AppQyV1WordGroupModel extends Model
@@ -30,19 +32,8 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var string
      */
-    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $appKey = AppKeys::APPQYV1;
     
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
-    
-    public function getConnectionName()
-    {
-        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
-
     /**
      * The table associated with the model.
      *
@@ -51,12 +42,18 @@ class AppQyV1WordGroupModel extends Model
     protected $table;
 
     /**
-     * Constructor to set table name from database bridge
+     * Constructor to set connection and table name
      */
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
         $this->table = AppQyV1TableMaps::getTableName('WORD_GROUPS');
+    }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     /**
@@ -122,7 +119,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyItemModel::class,
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words'),
+            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words'),
             'group_id',
             'word_id',
             'id',
@@ -139,7 +136,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyLibraryModel::class,
-            \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
+            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
             'group_id',
             'library_id',
             'id',

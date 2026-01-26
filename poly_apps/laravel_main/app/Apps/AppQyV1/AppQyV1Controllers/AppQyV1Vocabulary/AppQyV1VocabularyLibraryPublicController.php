@@ -3,15 +3,17 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Http\Controllers\Controller;
 use App\Providers\PathMapper;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
@@ -132,22 +134,24 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $perPage = max(1, min((int) $request->query('per_page', 1000), 2000));
         $offset = ($page - 1) * $perPage;
 
-        $total = AppQyV1VocabularyItemModel::where('collection_id', $libraryId)->count();
+        $vocabularyWordsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, 'vocabulary_words');
+        $vocabularyConnectionName = AppQyV1VocabularyWordModel::query()->getConnection()->getName();
+        $total = DB::connection($vocabularyConnectionName)->table($vocabularyWordsTable)->where('library_id', $libraryId)->count();
 
         $languageCode = $this->getLanguageCode($library->language);
         $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $connectionName = $dictModel->getConnectionName();
-        $hasDictionaryTable = Schema::connection($connectionName)->hasTable($dictModel->getTable());
+        $dictConnectionName = $dictModel->getConnectionName();
+        $hasDictionaryTable = Schema::connection($dictConnectionName)->hasTable($dictModel->getTable());
 
-        $query = AppQyV1VocabularyItemModel::where('collection_id', $libraryId);
+        $query = DB::connection($vocabularyConnectionName)->table($vocabularyWordsTable . ' as w')
+            ->where('w.library_id', $libraryId);
 
         if ($hasDictionaryTable) {
-            $vocabularyItemsTable = AppQyV1TableMaps::getTableName('VOCABULARY_ITEMS');
-            $query->leftJoin($dictModel->getTable() . ' as d', "{$vocabularyItemsTable}.word_content", '=', 'd.content');
+            $query->leftJoin($dictModel->getTable() . ' as d', 'w.word', '=', 'd.content');
         }
 
         $words = $query
-            ->orderBy('word_index')
+            ->orderBy('w.word_index')
             ->skip($offset)
             ->take($perPage)
             ->get(
@@ -163,10 +167,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                     : [
                         'w.word_index',
                         'w.word',
-                        \DB::raw('NULL as translations'),
-                        \DB::raw('NULL as us_phonetic'),
-                        \DB::raw('NULL as uk_phonetic'),
-                        \DB::raw('NULL as word_details'),
+                        DB::raw('NULL as translations'),
+                        DB::raw('NULL as us_phonetic'),
+                        DB::raw('NULL as uk_phonetic'),
+                        DB::raw('NULL as word_details'),
                     ]
             )
             ->map(function ($item) use ($languageCode) {

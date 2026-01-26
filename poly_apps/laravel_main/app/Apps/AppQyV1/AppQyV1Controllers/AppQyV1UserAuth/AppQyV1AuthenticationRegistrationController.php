@@ -18,6 +18,7 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use App\Http\Common\CommonUserGen;
 use App\Models\InviteCode;
 use App\Models\User;
@@ -44,7 +45,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
      */
     public function apiStore(Request $request): Response | JsonResponse
     {
-        \Log::info('[AppQyV1Registration] Registration request received', [
+        Log::info('[AppQyV1Registration] Registration request received', [
             'username' => $request->username,
             'has_email' => $request->has('email'),
             'has_invite_code' => $request->has('invite_code') || $request->has('registration_code'),
@@ -58,7 +59,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         ]);
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {
-            \Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
+            Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
             return $this->error('Username already exists', 400);
         }
 
@@ -103,7 +104,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             $invite = InviteCode::where('code', $inviteCode)->first();
 
             if (!$invite) {
-                \Log::warning('[AppQyV1Registration] Invalid invite code', [
+                Log::warning('[AppQyV1Registration] Invalid invite code', [
                     'code' => $inviteCode,
                     'username' => $request->username
                 ]);
@@ -111,7 +112,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             }
 
             if (!$invite->canBeUsed()) {
-                \Log::warning('[AppQyV1Registration] Invite code cannot be used', [
+                Log::warning('[AppQyV1Registration] Invite code cannot be used', [
                     'code' => $inviteCode,
                     'username' => $request->username,
                     'is_active' => $invite->is_active,
@@ -125,7 +126,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             $roleLevel = $invite->getRoleLevel();
             $roleName = $invite->getRoleName();
 
-            \Log::info('[AppQyV1Registration] Using invite code', [
+            Log::info('[AppQyV1Registration] Using invite code', [
                 'code' => $inviteCode,
                 'type' => $invite->type,
                 'username' => $request->username,
@@ -153,7 +154,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         if (!$unifiedResult['success']) {
             $errorMessage = $unifiedResult['error'];
 
-            \Log::error('[AppQyV1Registration] Registration failed', [
+            Log::error('[AppQyV1Registration] Registration failed', [
                 'username' => $request->username,
                 'email' => $email,
                 'error' => $errorMessage,
@@ -177,7 +178,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         if ($inviteCode && isset($invite)) {
             $invite->use($user);
 
-            \Log::info('[AppQyV1Registration] Invite code used successfully', [
+            Log::info('[AppQyV1Registration] Invite code used successfully', [
                 'code' => $inviteCode,
                 'user_id' => $user->id,
                 'username' => $user->username,
@@ -236,7 +237,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             $responseData['user']->study_days = $stats['study_days'] ?? 0;
         }
 
-        \Log::info('[AppQyV1Registration] Registration successful', [
+        Log::info('[AppQyV1Registration] Registration successful', [
             'user_id' => $user->id,
             'username' => $user->username,
             'role_level' => $roleLevel,

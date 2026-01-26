@@ -409,19 +409,14 @@ class PathMapper
 
     /**
      * Get all AppQyV1 audio directories
-     * Returns array of all audio-related directories
+     * Returns only the actual dictionary audio directories (word sounds and sentence sounds)
+     * These directories contain language namespaces underneath
      */
     public static function getAppQyV1AllAudioDirs(): array
     {
         return [
-            self::getTTSAudioDir(),
-            self::getAppQyV1AudioDir(),
-            self::getAppQyV1SentenceSoundsDir(),
-            self::getAppQyV1ExternalDataRoot('audio'),
-            self::getAppQyV1ExternalDataRoot('audio/word_sounds'),
-            self::getAppQyV1ExternalDataRoot('audio/sentence_sounds'),
-            self::getAppQyV1ExternalDataRoot('audio/word_subtitles'),
-            self::getAppQyV1ExternalDataRoot('audio/sentence_subtitles'),
+            self::getAppQyV1AudioDir(),           // Word sounds directory (contains language namespaces)
+            self::getAppQyV1SentenceSoundsDir(),  // Sentence sounds directory (contains language namespaces)
         ];
     }
 
