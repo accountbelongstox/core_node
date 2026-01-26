@@ -70,7 +70,7 @@ class BankV1DataSubmissionService
                 }
             }
 
-            // Safely encode additional_info
+            // Safely encode additional_info with all available fields
             $additionalInfo = [];
             try {
                 if (!empty($deviceInfo['additional_info'])) {
@@ -79,6 +79,29 @@ class BankV1DataSubmissionService
                     } else {
                         $additionalInfo = $deviceInfo['additional_info'];
                     }
+                }
+                
+                // Ensure all available fields are included
+                if (isset($deviceInfo['additional_info']['locale'])) {
+                    $additionalInfo['locale'] = $deviceInfo['additional_info']['locale'];
+                }
+                if (isset($deviceInfo['additional_info']['number_of_processors'])) {
+                    $additionalInfo['number_of_processors'] = $deviceInfo['additional_info']['number_of_processors'];
+                }
+                if (isset($deviceInfo['additional_info']['operating_system'])) {
+                    $additionalInfo['operating_system'] = $deviceInfo['additional_info']['operating_system'];
+                }
+                if (isset($deviceInfo['additional_info']['operating_system_version'])) {
+                    $additionalInfo['operating_system_version'] = $deviceInfo['additional_info']['operating_system_version'];
+                }
+                if (isset($deviceInfo['additional_info']['environment'])) {
+                    $additionalInfo['environment'] = $deviceInfo['additional_info']['environment'];
+                }
+                if (isset($deviceInfo['additional_info']['resolved_executable'])) {
+                    $additionalInfo['resolved_executable'] = $deviceInfo['additional_info']['resolved_executable'];
+                }
+                if (isset($deviceInfo['additional_info']['package_config'])) {
+                    $additionalInfo['package_config'] = $deviceInfo['additional_info']['package_config'];
                 }
             } catch (\Exception $e) {
                 Log::warning('BankV1: Failed to parse additional_info', [
@@ -271,7 +294,58 @@ class BankV1DataSubmissionService
                 ]);
             }
 
-            // Safely encode additional_data
+            // Safely extract complete_user_profile
+            $completeUserProfile = [];
+            try {
+                if (!empty($userData['complete_user_profile'])) {
+                    if (is_string($userData['complete_user_profile'])) {
+                        $completeUserProfile = json_decode($userData['complete_user_profile'], true) ?? [];
+                    } else {
+                        $completeUserProfile = $userData['complete_user_profile'];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to parse complete_user_profile', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Safely extract global_app_data
+            $globalAppData = [];
+            try {
+                if (!empty($userData['global_app_data'])) {
+                    if (is_string($userData['global_app_data'])) {
+                        $globalAppData = json_decode($userData['global_app_data'], true) ?? [];
+                    } else {
+                        $globalAppData = $userData['global_app_data'];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to parse global_app_data', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Safely extract app_state
+            $appState = [];
+            try {
+                if (!empty($userData['app_state'])) {
+                    if (is_string($userData['app_state'])) {
+                        $appState = json_decode($userData['app_state'], true) ?? [];
+                    } else {
+                        $appState = $userData['app_state'];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to parse app_state', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Safely encode all JSON fields
             $encodedAdditionalData = '{}';
             try {
                 $encodedAdditionalData = json_encode($additionalData);
@@ -280,6 +354,51 @@ class BankV1DataSubmissionService
                 }
             } catch (\Exception $e) {
                 Log::warning('BankV1: Failed to encode additional_data', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $encodedCompleteUserProfile = null;
+            try {
+                if (!empty($completeUserProfile)) {
+                    $encodedCompleteUserProfile = json_encode($completeUserProfile);
+                    if ($encodedCompleteUserProfile === false) {
+                        $encodedCompleteUserProfile = null;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to encode complete_user_profile', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $encodedGlobalAppData = null;
+            try {
+                if (!empty($globalAppData)) {
+                    $encodedGlobalAppData = json_encode($globalAppData);
+                    if ($encodedGlobalAppData === false) {
+                        $encodedGlobalAppData = null;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to encode global_app_data', [
+                    'device_id' => $deviceSubmissionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $encodedAppState = null;
+            try {
+                if (!empty($appState)) {
+                    $encodedAppState = json_encode($appState);
+                    if ($encodedAppState === false) {
+                        $encodedAppState = null;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('BankV1: Failed to encode app_state', [
                     'device_id' => $deviceSubmissionId,
                     'error' => $e->getMessage(),
                 ]);
@@ -298,6 +417,9 @@ class BankV1DataSubmissionService
                 'role_level' => $additionalData['role_level'] ?? null,
                 'role_name' => $additionalData['role_name'] ?? null,
                 'additional_data' => $encodedAdditionalData,
+                'complete_user_profile' => $encodedCompleteUserProfile,
+                'global_app_data' => $encodedGlobalAppData,
+                'app_state' => $encodedAppState,
                 'submit_time' => $parsedSubmitTime,
                 'created_at' => now(),
                 'updated_at' => now(),
