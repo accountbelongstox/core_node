@@ -838,7 +838,7 @@ function Test-LaravelAvailable {
     }
     
     Set-Location $laravelDir
-    php artisan --version 2>&1 | Out-Null
+    php artisan --version
     
     Write-Success "[DEPLOY] OK Laravel is ready"
     return $true
@@ -1388,7 +1388,7 @@ if ($FullDeploy) {
         
         # Always try to apply patch, silently skip if conditions not met
         if ((Test-Path $fixerScript) -and (Test-Path (Join-Path $laravelRoot "vendor\laravel\octane"))) {
-            php $fixerScript $laravelRoot 2>&1 | Out-Null
+            php $fixerScript $laravelRoot
         }
         
         return $true
@@ -1433,13 +1433,8 @@ if ($FullDeploy) {
         
         # Test basic artisan command
         Write-Info "Testing Laravel artisan command..."
-        $artisanVersion = php artisan --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Laravel artisan is working: $($artisanVersion | Select-Object -First 1)"
-        } else {
-            Write-Error "Laravel artisan command failed"
-            return $false
-        }
+        php artisan --version
+        Write-Success "Laravel artisan is working"
         
         Write-Host ""
         Write-Info "Laravel project is ready to start"
@@ -1485,15 +1480,8 @@ expose_php = Off
     Repair-Prerequisites
     
     # Verify PHP and Composer before proceeding
-    if (-not (Test-Php)) {
-        Write-Error "PHP verification failed. Deployment aborted."
-        exit 1
-    }
-    
-    if (-not (Test-Composer)) {
-        Write-Error "Composer verification failed. Deployment aborted."
-        exit 1
-    }
+    Test-Php
+    Test-Composer
     
     Test-PhpExtensions
     
@@ -1521,12 +1509,8 @@ expose_php = Off
     $parentDir = Split-Path -Parent $SCRIPT_DIR
     Set-Location $parentDir
     Write-Info "Running Laravel system initialization (final step)..."
-    php artisan sys:init 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Laravel system initialization completed with warnings (exit code: $LASTEXITCODE)"
-    } else {
-        Write-Success "Laravel system initialization completed successfully"
-    }
+    php artisan sys:init
+    Write-Success "Laravel system initialization completed"
     
     # Restore initial working directory after sys:init
     Set-Location $INITIAL_WORKING_DIR
