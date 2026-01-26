@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Constants\AppKeys;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -27,11 +28,14 @@ class AvatarService
      *
      * @param string $seed Seed for deterministic generation (username, email, etc.)
      * @param int $userId User ID for filename
-     * @param string $appName App name for subdirectory (e.g., 'appqyv1')
+     * @param string $appKey App key for subdirectory (e.g., AppKeys::APPQYV1)
      * @return string|null Relative path to avatar file
      */
-    public static function generateAndSave(string $seed, int $userId, string $appName = 'appqyv1'): ?string
+    public static function generateAndSave(string $seed, int $userId, string $appKey = null): ?string
     {
+        if ($appKey === null) {
+            $appKey = \App\Constants\AppKeys::APPQYV1;
+        }
         $style = self::AVATAR_STYLES[array_rand(self::AVATAR_STYLES)];
         $url = self::DICEBEAR_API_BASE . "/{$style}/png?seed=" . urlencode($seed) . "&size=256&backgroundColor=b6e3f4,c0aede,d1d4f9";
 
@@ -62,7 +66,7 @@ class AvatarService
             $filename = 'avatar_' . $userId . '_' . time() . '.png';
 
             $avatarsDir = PathMapper::getLaravelAvatarsDir();
-            $appDir = $avatarsDir . '/' . $appName;
+            $appDir = $avatarsDir . '/' . $appKey;
 
             if (!file_exists($appDir)) {
                 mkdir($appDir, 0755, true);
@@ -78,7 +82,7 @@ class AvatarService
                 return null;
             }
 
-            $path = 'avatars/' . $appName . '/' . $filename;
+            $path = 'avatars/' . $appKey . '/' . $filename;
 
             Log::info('[AvatarService] Avatar generated and saved', [
                 'relative_path' => $path,
@@ -105,7 +109,7 @@ class AvatarService
      * @param string|null $filename Optional custom filename
      * @return string|null Relative path to avatar file
      */
-    public static function saveBase64Avatar(string $base64Data, int $userId, string $appName = 'appqyv1', ?string $filename = null): ?string
+    public static function saveBase64Avatar(string $base64Data, int $userId, string $appName = null, ?string $filename = null): ?string
     {
         $extension = 'png';
         $cleanBase64 = null;
@@ -134,8 +138,12 @@ class AvatarService
             $finalFilename = 'avatar_' . $userId . '_' . time() . '.' . $extension;
         }
 
+        if ($appKey === null) {
+            $appKey = AppKeys::APPQYV1;
+        }
+        
         $avatarsDir = PathMapper::getLaravelAvatarsDir();
-        $appDir = $avatarsDir . '/' . $appName;
+        $appDir = $avatarsDir . '/' . $appKey;
 
         if (!file_exists($appDir)) {
             mkdir($appDir, 0755, true);
@@ -151,7 +159,7 @@ class AvatarService
             return null;
         }
 
-        $relativePath = 'avatars/' . $appName . '/' . $finalFilename;
+        $relativePath = 'avatars/' . $appKey . '/' . $finalFilename;
 
         Log::info('[AvatarService] Base64 avatar saved', [
             'relative_path' => $relativePath,

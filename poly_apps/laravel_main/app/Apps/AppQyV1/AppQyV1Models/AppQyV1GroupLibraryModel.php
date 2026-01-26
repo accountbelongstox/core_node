@@ -7,8 +7,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AppQyV1GroupLibraryModel extends Model
 {
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_group_libraries';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries');
+    }
+    
+    public function getConnectionName()
+    {
+        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     protected $fillable = [
         'group_id',

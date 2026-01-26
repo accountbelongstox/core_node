@@ -151,7 +151,7 @@ export default function TranslationTools() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 pb-20">
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl lg:max-w-6xl px-4 py-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -169,7 +169,7 @@ export default function TranslationTools() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl lg:max-w-6xl px-4 py-6">
         {/* Translation Mode Selection */}
         <div className="mb-6 bg-white rounded-xl shadow-lg p-4">
           <p className="text-sm font-medium text-gray-700 mb-3">Translation Mode:</p>

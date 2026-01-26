@@ -4,9 +4,9 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1TaskMarketplaceCtl extends Controller
 {
@@ -23,7 +23,9 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $minBudget = $request->input('min_budget', 0);
         $maxBudget = $request->input('max_budget', 999999);
 
-        $query = DB::connection('codemartv1')
+        $model = new CodeMartV1TaskModel();
+        $dbConnection = $model->getConnection();
+        $query = $dbConnection
             ->table('codemart_v1_tasks')
             ->where('status', 'open')
             ->whereNull('assigned_to')
@@ -60,7 +62,9 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = DB::connection('codemartv1')
+        $model = new CodeMartV1TaskModel();
+        $dbConnection = $model->getConnection();
+        $task = $dbConnection
             ->table('codemart_v1_tasks')
             ->where('id', $taskId)
             ->where('status', 'open')
@@ -71,7 +75,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
             return $this->notFound('Task not found or already assigned');
         }
 
-        DB::connection('codemartv1')
+        $dbConnection
             ->table('codemart_v1_tasks')
             ->where('id', $taskId)
             ->update([
@@ -92,7 +96,9 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $tasks = DB::connection('codemartv1')
+        $model = new CodeMartV1TaskModel();
+        $dbConnection = $model->getConnection();
+        $tasks = $dbConnection
             ->table('codemart_v1_tasks')
             ->where('assigned_to', $user->id)
             ->whereIn('status', ['in_progress', 'review', 'completed'])

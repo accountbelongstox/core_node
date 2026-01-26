@@ -7,6 +7,7 @@ use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -116,7 +117,9 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can access this endpoint');
         }
 
-        $projects = DB::connection('codemartv1')
+        $model = new CodeMartV1ProjectModel();
+        $dbConnection = $model->getConnection();
+        $projects = $dbConnection
             ->table('codemart_v1_projects')
             ->where('architect_id', $user->id)
             ->orWhere('status', 'awaiting_architect')
@@ -143,7 +146,9 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can accept projects');
         }
 
-        $project = DB::connection('codemartv1')
+        $model = new CodeMartV1ProjectModel();
+        $dbConnection = $model->getConnection();
+        $project = $dbConnection
             ->table('codemart_v1_projects')
             ->where('id', $projectId)
             ->where('status', 'awaiting_architect')
@@ -154,7 +159,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->notFound('Project not found or already assigned');
         }
 
-        DB::connection('codemartv1')
+        $dbConnection
             ->table('codemart_v1_projects')
             ->where('id', $projectId)
             ->update([

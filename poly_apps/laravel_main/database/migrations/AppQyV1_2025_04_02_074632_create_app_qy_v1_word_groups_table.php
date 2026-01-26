@@ -15,6 +15,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -23,8 +25,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_word_groups')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_word_groups', function (Blueprint $table) {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
+        
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            Schema::connection($connection)->create($tableName, function (Blueprint $table) {
                 $table->id();
                 $table->string('gid')->unique()->comment('Group ID');
                 $table->string('username')->nullable()->comment('Username');
@@ -48,6 +54,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_word_groups');
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

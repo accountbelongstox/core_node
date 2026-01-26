@@ -5,20 +5,27 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1CreateArticleTables extends Command
 {
     protected $signature = 'appqyv1:create-article-tables';
-    protected $description = 'Create AppQyV1 article tables';
+    protected $description = 'Create AppQyV1 article tables (deprecated: use php artisan sys:init instead)';
 
     public function handle()
     {
-        $connection = 'AppQyV1';
+        $this->warn('⚠️  This command is deprecated. Use "php artisan sys:init" to initialize all tables.');
+        $this->newLine();
+        
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $articlesTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'articles');
 
-        if (!Schema::connection($connection)->hasTable('app_qy_v1_articles')) {
-            $this->info('Creating app_qy_v1_articles table...');
+        if (!Schema::connection($connection)->hasTable($articlesTable)) {
+            $this->info("Creating {$articlesTable} table...");
 
-            Schema::connection($connection)->create('app_qy_v1_articles', function (Blueprint $table) {
+            Schema::connection($connection)->create($articlesTable, function (Blueprint $table) {
                 $table->id();
                 $table->string('article_id', 64)->unique()->comment('Unique article identifier');
                 $table->string('title')->nullable()->comment('Article title');
@@ -45,15 +52,16 @@ class AppQyV1CreateArticleTables extends Command
                 $table->index('task_id');
             });
 
-            $this->info('app_qy_v1_articles table created successfully.');
+            $this->info("{$articlesTable} table created successfully.");
         } else {
-            $this->info('app_qy_v1_articles table already exists.');
+            $this->info("{$articlesTable} table already exists.");
         }
 
-        if (!Schema::connection($connection)->hasTable('app_qy_v1_article_words')) {
-            $this->info('Creating app_qy_v1_article_words table...');
+        $articleWordsTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'article_words');
+        if (!Schema::connection($connection)->hasTable($articleWordsTable)) {
+            $this->info("Creating {$articleWordsTable} table...");
 
-            Schema::connection($connection)->create('app_qy_v1_article_words', function (Blueprint $table) {
+            Schema::connection($connection)->create($articleWordsTable, function (Blueprint $table) {
                 $table->id();
                 $table->string('article_id', 64)->comment('Article ID reference');
                 $table->string('word_md5', 32)->comment('Word MD5 from dictionary');
@@ -69,9 +77,9 @@ class AppQyV1CreateArticleTables extends Command
                 $table->unique(['article_id', 'word_md5']);
             });
 
-            $this->info('app_qy_v1_article_words table created successfully.');
+            $this->info("{$articleWordsTable} table created successfully.");
         } else {
-            $this->info('app_qy_v1_article_words table already exists.');
+            $this->info("{$articleWordsTable} table already exists.");
         }
 
         $this->info('All article tables created successfully!');

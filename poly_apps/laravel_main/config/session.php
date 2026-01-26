@@ -170,24 +170,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN') ?: (function() {
-        $host = $_SERVER['HTTP_HOST'] ?? null;
-        if (!$host) return null;
-
-        $hostWithoutPort = explode(':', $host)[0];
-
-        if (filter_var($hostWithoutPort, FILTER_VALIDATE_IP)) {
-            return null;
-        }
-
-        $parts = explode('.', $hostWithoutPort);
-        if (count($parts) >= 2) {
-            $rootDomain = '.' . implode('.', array_slice($parts, -2));
-            return $rootDomain;
-        }
-
-        return null;
-    })(),
+    'domain' => env('SESSION_DOMAIN'),
 
     /*
     |--------------------------------------------------------------------------

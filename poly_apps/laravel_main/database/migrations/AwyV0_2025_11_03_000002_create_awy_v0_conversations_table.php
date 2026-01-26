@@ -15,6 +15,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -23,8 +25,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::connection('awyv0')->hasTable('awy_v0_conversations')) {
-            Schema::connection('awyv0')->create('awy_v0_conversations', function (Blueprint $table) {
+        $appKey = AppKeys::AWYV0;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'conversations');
+        
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            Schema::connection($connection)->create($tableName, function (Blueprint $table) {
             $table->id();
             $table->string('conversation_id', 100)->unique();
             $table->string('type')->default('direct'); // direct, group
@@ -44,6 +50,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('awyv0')->dropIfExists('awy_v0_conversations');
+        $appKey = AppKeys::AWYV0;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'conversations');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

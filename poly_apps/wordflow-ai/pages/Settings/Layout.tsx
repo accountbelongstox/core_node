@@ -21,7 +21,7 @@ export const SettingsLayout = ({ title, children }: any) => {
       </div>
       
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pt-32 pb-32 space-y-4 max-w-lg mx-auto w-full">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 pt-32 pb-32 space-y-4 w-full sm:max-w-lg sm:mx-auto">
         {children}
       </div>
     </div>

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupWordController
@@ -56,96 +57,96 @@ class AppQyV1WordGroupWordController
             ]);
         }
 
-        DB::connection('appqyv1')->beginTransaction();
+        return DB::transaction(function () use ($group, $wordIds, $user, $gid) {
+            $existingWordIds = AppQyV1GroupWordModel::where('group_id', $group->id)
+                ->whereIn('word_id', $wordIds)
+                ->pluck('word_id')
+                ->toArray();
 
-        $existingWordIds = AppQyV1GroupWordModel::where('group_id', $group->id)
-            ->whereIn('word_id', $wordIds)
-            ->pluck('word_id')
-            ->toArray();
+            $wordsToAdd = array_diff($wordIds, $existingWordIds);
+            $skippedCount = count($existingWordIds);
 
-        $wordsToAdd = array_diff($wordIds, $existingWordIds);
-        $skippedCount = count($existingWordIds);
-
-        if (empty($wordsToAdd)) {
-            DB::connection('appqyv1')->commit();
-            return $this->success([
-                'gid' => $group->gid,
-                'words_added' => 0,
-                'words_skipped' => $skippedCount,
-                'total_requested' => count($wordIds),
-            ], 'No new words to add');
-        }
-
-        $words = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_words as vw')
-            ->leftJoin('app_qy_v1_vocabulary_libraries as vl', 'vw.library_id', '=', 'vl.id')
-            ->whereIn('vw.id', $wordsToAdd)
-            ->select(['vw.id', 'vw.word', 'vl.language'])
-            ->get()
-            ->keyBy('id');
-
-        $existingProgressWordIds = AppQyV1UserWordProgressModel::forUser($user->id)
-            ->forGroup($group->id)
-            ->whereIn('word_id', $wordsToAdd)
-            ->pluck('word_id')
-            ->toArray();
-
-        $now = now();
-        $groupWordsData = [];
-        $progressData = [];
-
-        foreach ($wordsToAdd as $wId) {
-            $word = $words->get($wId);
-            if (!$word) {
-                $skippedCount++;
-                continue;
+            if (empty($wordsToAdd)) {
+                return $this->success([
+                    'gid' => $group->gid,
+                    'words_added' => 0,
+                    'words_skipped' => $skippedCount,
+                    'total_requested' => count($wordIds),
+                ], 'No new words to add');
             }
 
-            $groupWordsData[] = [
-                'group_id' => $group->id,
-                'word_id' => $wId,
-                'language_code' => $word->language,
-                'added_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
+            $words = AppQyV1VocabularyItemModel::with('collection')
+                ->whereIn('id', $wordsToAdd)
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    return [$item->id => (object)[
+                        'id' => $item->id,
+                        'word' => $item->word_content,
+                        'language' => $item->collection->lang_code ?? null,
+                    ]];
+                });
 
-            if (!in_array($wId, $existingProgressWordIds)) {
-                $progressData[] = [
-                    'user_id' => $user->id,
-                    'word_id' => $wId,
+            $existingProgressWordIds = AppQyV1UserWordProgressModel::forUser($user->id)
+                ->forGroup($group->id)
+                ->whereIn('word_id', $wordsToAdd)
+                ->pluck('word_id')
+                ->toArray();
+
+            $now = now();
+            $groupWordsData = [];
+            $progressData = [];
+
+            foreach ($wordsToAdd as $wId) {
+                $word = $words->get($wId);
+                if (!$word) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $groupWordsData[] = [
                     'group_id' => $group->id,
+                    'word_id' => $wId,
                     'language_code' => $word->language,
-                    'weight' => strlen($word->word),
-                    'proficiency' => 0,
-                    'read_count' => 0,
-                    'review_count' => 0,
+                    'added_at' => $now,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
+
+                if (!in_array($wId, $existingProgressWordIds)) {
+                    $progressData[] = [
+                        'user_id' => $user->id,
+                        'word_id' => $wId,
+                        'group_id' => $group->id,
+                        'language_code' => $word->language,
+                        'weight' => strlen($word->word),
+                        'proficiency' => 0,
+                        'read_count' => 0,
+                        'review_count' => 0,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
             }
-        }
 
-        $addedCount = 0;
-        if (!empty($groupWordsData)) {
-            DB::connection('appqyv1')->table('app_qy_v1_group_words')->insert($groupWordsData);
-            $addedCount = count($groupWordsData);
-        }
-
-        if (!empty($progressData)) {
-            foreach (array_chunk($progressData, 500) as $chunk) {
-                DB::connection('appqyv1')->table('app_qy_v1_user_word_progress')->insert($chunk);
+            $addedCount = 0;
+            if (!empty($groupWordsData)) {
+                AppQyV1GroupWordModel::insert($groupWordsData);
+                $addedCount = count($groupWordsData);
             }
-        }
 
-        DB::connection('appqyv1')->commit();
+            if (!empty($progressData)) {
+                foreach (array_chunk($progressData, 500) as $chunk) {
+                    AppQyV1UserWordProgressModel::insert($chunk);
+                }
+            }
 
-        return $this->success([
-            'gid' => $group->gid,
-            'words_added' => $addedCount,
-            'words_skipped' => $skippedCount,
-            'total_requested' => count($wordIds),
-        ], 'Words added to group successfully');
+            return $this->success([
+                'gid' => $group->gid,
+                'words_added' => $addedCount,
+                'words_skipped' => $skippedCount,
+                'total_requested' => count($wordIds),
+            ], 'Words added to group successfully');
+        });
     }
 
     public function removeWordFromGroup(Request $request): JsonResponse

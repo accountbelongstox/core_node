@@ -9,8 +9,15 @@ class AppQyV1VocabularyCoverModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_vocabulary_covers';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $table;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_covers');
+    }
 
     protected $fillable = [
         'library_id',

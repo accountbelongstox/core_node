@@ -15,6 +15,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -23,8 +25,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::connection('awyv0')->hasTable('awy_v0_conversation_participants')) {
-            Schema::connection('awyv0')->create('awy_v0_conversation_participants', function (Blueprint $table) {
+        $appKey = AppKeys::AWYV0;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'conversation_participants');
+        $conversationsTableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'conversations');
+        
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($conversationsTableName) {
             $table->id();
             $table->unsignedBigInteger('conversation_id')->index();
             $table->unsignedBigInteger('user_id')->index();
@@ -33,7 +40,7 @@ return new class extends Migration
             $table->timestamp('last_read_at')->nullable();
             $table->boolean('is_active')->default(true);
 
-            $table->foreign('conversation_id')->references('id')->on('awy_v0_conversations')->onDelete('cascade');
+            $table->foreign('conversation_id')->references('id')->on($conversationsTableName)->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->unique(['conversation_id', 'user_id'], 'awy_v0_conversation_participants_unique');
             $table->index(['user_id', 'is_active'], 'awy_v0_conversation_participants_user_active');
@@ -47,6 +54,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('awyv0')->dropIfExists('awy_v0_conversation_participants');
+        $appKey = AppKeys::AWYV0;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'conversation_participants');
+        Schema::connection($connection)->dropIfExists($tableName);
     }
 };

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use App\Models\InviteCode;
 
 class InviteCodeInitializer
 {
@@ -60,12 +61,17 @@ class InviteCodeInitializer
                 $results['invite_code_usage'] = 'exists';
             }
 
-            $existingCodes = DB::connection($connection)->table('invite_codes')->count();
+            // Use model connection for query builder (Laravel best practice)
+            $inviteCodeModel = new InviteCode();
+            $inviteCodeModel->setConnection($connection);
+            $dbConnection = $inviteCodeModel->getConnection();
+            
+            $existingCodes = $dbConnection->table('invite_codes')->count();
             if ($existingCodes === 0) {
                 $adminCode = 'ADMIN_' . strtoupper(Str::random(20));
                 $superCode = 'SUPER_' . strtoupper(Str::random(20));
 
-                DB::connection($connection)->table('invite_codes')->insert([
+                $dbConnection->table('invite_codes')->insert([
                     [
                         'code' => $adminCode,
                         'type' => 'admin',
@@ -102,7 +108,7 @@ class InviteCodeInitializer
                 ]);
             } else {
                 $results['default_codes'] = 'exists';
-                $codes = DB::connection($connection)->table('invite_codes')
+                $codes = $dbConnection->table('invite_codes')
                     ->select('code', 'type')
                     ->whereIn('type', ['admin', 'super_admin'])
                     ->get();
@@ -129,12 +135,17 @@ class InviteCodeInitializer
         $connection = config('database.default');
 
         try {
+            // Use model connection for query builder (Laravel best practice)
+            $inviteCodeModel = new InviteCode();
+            $inviteCodeModel->setConnection($connection);
+            $dbConnection = $inviteCodeModel->getConnection();
+            
             $stats = [
                 'invite_codes' => [
-                    'total' => DB::connection($connection)->table('invite_codes')->count(),
-                    'active' => DB::connection($connection)->table('invite_codes')->where('is_active', true)->count(),
-                    'inactive' => DB::connection($connection)->table('invite_codes')->where('is_active', false)->count(),
-                    'by_type' => DB::connection($connection)->table('invite_codes')
+                    'total' => $dbConnection->table('invite_codes')->count(),
+                    'active' => $dbConnection->table('invite_codes')->where('is_active', true)->count(),
+                    'inactive' => $dbConnection->table('invite_codes')->where('is_active', false)->count(),
+                    'by_type' => $dbConnection->table('invite_codes')
                         ->select('type', DB::raw('count(*) as count'))
                         ->groupBy('type')
                         ->get()
@@ -142,7 +153,7 @@ class InviteCodeInitializer
                         ->toArray()
                 ],
                 'invite_code_usage' => [
-                    'total' => DB::connection($connection)->table('invite_code_usage')->count(),
+                    'total' => $dbConnection->table('invite_code_usage')->count(),
                 ]
             ];
 

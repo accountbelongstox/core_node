@@ -7,26 +7,30 @@ $kernel->bootstrap();
 echo "=== Setting Up Test Data ===" . PHP_EOL;
 echo PHP_EOL;
 
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+
 echo "[1] Checking database connections..." . PHP_EOL;
-$connections = ['AppQyV1', 'appqyv1'];
+$appKey = AppKeys::APPQYV1;
+$connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
 $activeConnection = null;
 
-foreach ($connections as $connName) {
-    try {
-        $conn = DB::connection($connName);
-        $tables = $conn->select("SELECT name FROM sqlite_master WHERE type='table'");
-        echo "  Connection '{$connName}': " . count($tables) . " tables" . PHP_EOL;
+try {
+    $conn = DB::connection($connectionName);
+    $tables = $conn->select("SELECT name FROM sqlite_master WHERE type='table'");
+    echo "  Connection '{$connectionName}': " . count($tables) . " tables" . PHP_EOL;
 
-        foreach ($tables as $table) {
-            if (strpos($table->name, '_en_dictionar') !== false) {
-                $activeConnection = $connName;
-                echo "    Found English dictionary table: " . $table->name . PHP_EOL;
-                break 2;
-            }
+    $enDictTable = AppQyV1TableMaps::getDictionaryTableName('en');
+    foreach ($tables as $table) {
+        if ($table->name === $enDictTable) {
+            $activeConnection = $connectionName;
+            echo "    Found English dictionary table: " . $table->name . PHP_EOL;
+            break;
         }
-    } catch (\Exception $e) {
-        echo "  Connection '{$connName}': Error - " . $e->getMessage() . PHP_EOL;
     }
+} catch (\Exception $e) {
+    echo "  Connection '{$connectionName}': Error - " . $e->getMessage() . PHP_EOL;
 }
 
 if (!$activeConnection) {
@@ -34,7 +38,7 @@ if (!$activeConnection) {
     echo "ERROR: No English dictionary table found!" . PHP_EOL;
     echo "Running migration..." . PHP_EOL;
 
-    exec("php artisan migrate --database=appqyv1 2>&1", $output, $returnCode);
+    exec("php artisan migrate --database={$connectionName} 2>&1", $output, $returnCode);
     echo implode(PHP_EOL, $output) . PHP_EOL;
 
     if ($returnCode !== 0) {
@@ -42,7 +46,7 @@ if (!$activeConnection) {
         exit(1);
     }
 
-    $activeConnection = 'appqyv1';
+    $activeConnection = $connectionName;
 }
 
 echo PHP_EOL;

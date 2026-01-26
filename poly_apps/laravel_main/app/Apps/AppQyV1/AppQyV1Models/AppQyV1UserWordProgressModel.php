@@ -10,8 +10,19 @@ use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1ProficiencyLevelEnum;
 
 class AppQyV1UserWordProgressModel extends Model
 {
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_user_word_progress';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_word_progress');
+    }
+    
+    public function getConnectionName()
+    {
+        return \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     protected $fillable = [
         'user_id',

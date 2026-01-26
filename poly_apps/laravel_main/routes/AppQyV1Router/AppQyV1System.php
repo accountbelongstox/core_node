@@ -32,6 +32,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::post('/process-vocabulary', [AppQyV1SystemInitializationController::class, 'processVocabularyOnly']);
         Route::get('/vocabulary-status', [AppQyV1SystemInitializationController::class, 'getVocabularyStatus']);
         Route::get('/dictionary-statistics', [AppQyV1SystemInitializationController::class, 'getDictionaryStatistics']);
+        Route::get('/statistics', [AppQyV1SystemInitializationController::class, 'getSystemStatistics']);
+        Route::get('/statistics/summary', [AppQyV1SystemInitializationController::class, 'getSystemStatisticsSummary']);
+        Route::get('/statistics/languages', [AppQyV1SystemInitializationController::class, 'getSystemStatisticsLanguages']);
+        Route::get('/statistics/queues', [AppQyV1SystemInitializationController::class, 'getSystemStatisticsQueues']);
         Route::get('/supported-languages', [AppQyV1SupportedLanguagesController::class, 'getSupportedLanguages']);
         Route::get('/supported-languages/{code}', [AppQyV1SupportedLanguagesController::class, 'getLanguageByCode']);
     });

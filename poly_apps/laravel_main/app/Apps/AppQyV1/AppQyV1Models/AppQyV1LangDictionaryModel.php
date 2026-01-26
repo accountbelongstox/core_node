@@ -3,17 +3,20 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 
 /**
  * Multi-Language Dictionary Model
  *
- * Operates on language-specific dictionary tables: app_qy_v1_{lang}_dictionaries
+ * Operates on language-specific dictionary tables: {prefix}_{lang}_dictionaries
  * Used for TTS caching, translations, and word metadata
+ * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
  */
 class AppQyV1LangDictionaryModel extends Model
 {
-    protected $connection = 'appqyv1';
+    protected $appKey = AppKeys::APPQYV1;
     protected $table;
     protected $langCode;
 
@@ -58,16 +61,22 @@ class AppQyV1LangDictionaryModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
 
         if (isset($attributes['lang_code'])) {
             $this->setLanguage($attributes['lang_code']);
         }
     }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function setLanguage(string $langCode): self
     {
         $this->langCode = strtolower($langCode);
-        $this->table = "app_qy_v1_{$this->langCode}_dictionaries";
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$this->langCode}_dictionaries");
         return $this;
     }
 
@@ -117,10 +126,7 @@ class AppQyV1LangDictionaryModel extends Model
 
     public static function updateWord(string $langCode, string $md5, array $data): void
     {
-        $table = "app_qy_v1_{$langCode}_dictionaries";
-
-        DB::connection('appqyv1')
-            ->table($table)
+        self::forLanguage($langCode)
             ->where('md5', $md5)
             ->update(array_merge($data, ['updated_at' => now()]));
     }
@@ -174,9 +180,7 @@ class AppQyV1LangDictionaryModel extends Model
             ->where('has_audio', false);
 
         if ($skipQueued) {
-            $queuedHashes = DB::connection('appqyv1')
-                ->table('appqyv1_tts_queue')
-                ->where('task_type', 'word')
+            $queuedHashes = AppQyV1TTSQueueModel::where('task_type', 'word')
                 ->where('language', $langCode)
                 ->whereIn('status', ['pending', 'processing'])
                 ->pluck('content_hash')

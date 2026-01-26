@@ -10,13 +10,14 @@ class AppQyV1VocabularyItemModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'appqyv1';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
     protected $table;
 
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->table = AppQyV1TableMaps::getTableName('app_qy_v1_VOCABULARY_ITEMS');
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppQyV1TableMaps::getTableName('VOCABULARY_ITEMS');
     }
 
     protected $fillable = [

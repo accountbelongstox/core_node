@@ -365,7 +365,8 @@ class AppQyV1DictionaryService
 
         foreach ($wordTables as $langCode => $tableName) {
             try {
-                $count = \DB::connection('appqyv1')->table($tableName)->count();
+                $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
+                $count = $model->count();
 
                 if ($count > 0) {
                     $availableLanguages[] = $langCode;

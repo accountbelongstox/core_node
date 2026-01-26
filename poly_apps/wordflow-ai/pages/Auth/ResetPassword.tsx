@@ -2,6 +2,14 @@ import React, { useState, useContext, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppContext } from '../../contexts/AppContext';
 import { ApiCenter } from '../../services/ApiCenter';
+import {
+  AuthLayout,
+  AuthCard,
+  AuthInput,
+  AuthError,
+  AuthSuccess,
+  AuthBackButton,
+} from '../../components/Auth';
 
 const ResetPassword = () => {
   const { t, navigate } = useContext(AppContext);
@@ -74,95 +82,55 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-5">
-      <div className="w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/login')}
-          className="mb-4 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+    <AuthLayout showHeader={false}>
+      <div className="w-full sm:max-w-sm sm:mx-auto">
+        <AuthBackButton to="/login" />
+
+        <AuthCard
+          title="Reset Password"
+          subtitle="Enter your new password below"
         >
-          <span>←</span>
-          <span>{t('common.back')}</span>
-        </button>
-
-        {/* Card */}
-        <div className="glass-panel bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
-              Reset Password
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
-              Enter your new password below
-            </p>
-          </div>
-
           {success ? (
-            /* Success Message */
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">✓</span>
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                Password Reset Successful!
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                Redirecting to login page...
-              </p>
-            </div>
+            <AuthSuccess
+              title="Password Reset Successful!"
+              message="Redirecting to login page..."
+            />
           ) : (
-            /* Form */
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
-                  {error}
-                </div>
-              )}
+              <AuthError message={error} className="p-4" />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('auth.email')}
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@example.com"
-                  disabled={loading}
-                  className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
-                  autoComplete="email"
-                />
-              </div>
+              <AuthInput
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                disabled={loading}
+                autoComplete="email"
+                label={t('auth.email')}
+                required
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  disabled={loading}
-                  className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
-                  autoComplete="new-password"
-                />
-              </div>
+              <AuthInput
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter new password"
+                disabled={loading}
+                autoComplete="new-password"
+                label="New Password"
+                required
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('auth.confirmPassword')}
-                </label>
-                <input
-                  type="password"
-                  value={passwordConfirmation}
-                  onChange={(e) => setPasswordConfirmation(e.target.value)}
-                  placeholder="Confirm new password"
-                  disabled={loading}
-                  className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
-                  autoComplete="new-password"
-                />
-              </div>
+              <AuthInput
+                type="password"
+                value={passwordConfirmation}
+                onChange={(e) => setPasswordConfirmation(e.target.value)}
+                placeholder="Confirm new password"
+                disabled={loading}
+                autoComplete="new-password"
+                label={t('auth.confirmPassword')}
+                required
+              />
 
               <button
                 type="submit"
@@ -183,9 +151,9 @@ const ResetPassword = () => {
               </div>
             </form>
           )}
-        </div>
+        </AuthCard>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

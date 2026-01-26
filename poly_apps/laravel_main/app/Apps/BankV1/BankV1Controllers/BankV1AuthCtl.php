@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Model;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use App\Apps\BankV1\BankV1Gvar\BankV1Config;
@@ -17,6 +18,8 @@ use App\Apps\BankV1\BankV1Utils\BankV1SecurityUtils;
 use App\Apps\BankV1\BankV1Utils\BankV1LoggingUtils;
 use App\Services\UnifiedAuthService;
 use App\Models\User;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class BankV1AuthCtl extends Controller
 {
@@ -132,7 +135,9 @@ class BankV1AuthCtl extends Controller
 
             if ($subAppUser) {
                 $usersTable = $this->tableMaps->getTableName('bank_users');
-                DB::connection('bankv1')->table($usersTable)
+                // Use model connection for query builder (Laravel best practice)
+                $dbConnection = $this->getDbConnection();
+                $dbConnection->table($usersTable)
                     ->where('main_user_id', $user->id)
                     ->update([
                         $this->tableMaps->getFieldName('bank_users', 'login_attempts') => 0,
@@ -266,8 +271,9 @@ class BankV1AuthCtl extends Controller
                 // Create default account
                 $accountsTable = $this->tableMaps->getTableName('bank_accounts');
                 $accountNumber = $this->generateAccountNumber();
-                
-                DB::connection('bankv1')->table($accountsTable)->insert([
+                // Use model connection for query builder (Laravel best practice)
+                $dbConnection = $this->getDbConnection();
+                $dbConnection->table($accountsTable)->insert([
                     $this->tableMaps->getFieldName('bank_accounts', 'user_id') => $subAppUser->id,
                     $this->tableMaps->getFieldName('bank_accounts', 'account_number') => $accountNumber,
                     $this->tableMaps->getFieldName('bank_accounts', 'account_type') => 'checking',
@@ -492,5 +498,19 @@ class BankV1AuthCtl extends Controller
         }
 
         return response()->json($response, $statusCode);
+    }
+
+    /**
+     * Get database connection using model (Laravel best practice)
+     * Creates a temporary model instance to get the connection
+     */
+    private function getDbConnection()
+    {
+        $model = new class extends Model {
+            // Temporary model for getting connection
+        };
+        $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1);
+        $model->setConnection($connectionName);
+        return $model->getConnection();
     }
 }

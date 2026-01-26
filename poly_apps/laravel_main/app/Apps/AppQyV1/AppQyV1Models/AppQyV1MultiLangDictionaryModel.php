@@ -5,11 +5,14 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 /**
  * Multi-language Word Dictionary Model
- * Uses sys:init table structure (app_qy_v1_words_*)
+ * Uses sys:init table structure ({prefix}_words_*)
+ * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
  *
  * Table structure:
  * - English: word, word_id, us_phonetic, uk_phonetic, translation(JSON), sample_images
@@ -20,7 +23,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'appqyv1';
+    protected $appKey = AppKeys::APPQYV1;
     protected $table;
     protected $langCode;
 
@@ -48,10 +51,16 @@ class AppQyV1MultiLangDictionaryModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
 
         if (isset($attributes['lang_code'])) {
             $this->setLanguage($attributes['lang_code']);
         }
+    }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     public function setLanguage(string $langCode): self

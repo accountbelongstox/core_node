@@ -5,6 +5,7 @@ import { LearningStatsCenter } from './LearningStatsCenter';
 import { LanguagesCenter } from './LanguagesCenter';
 import { QuizHistoryCenter } from './QuizHistoryCenter';
 import { ReadingProgressCenter } from './ReadingProgressCenter';
+import { StorageCenter } from './StorageCenter';
 
 class GlobalInitializerClass {
   private isInitialized = false;
@@ -23,16 +24,33 @@ class GlobalInitializerClass {
     // Initialize all data centers
     console.log('[GlobalInitializer] Initializing data centers...');
 
-    // Initialize synchronously (from storage)
-    QuizHistoryCenter.initialize();
-    ReadingProgressCenter.initialize();
+    // Initialize asynchronously (from storage - no auth required)
+    const syncInitPromises = [
+      QuizHistoryCenter.initialize(),
+      ReadingProgressCenter.initialize(),
+    ];
+    await Promise.all(syncInitPromises);
 
-    // Initialize asynchronously (may fetch from API)
-    await Promise.all([
-      WordGroupsCenter.initialize(),
-      LearningStatsCenter.initialize(),
-      LanguagesCenter.initialize(),
-    ]);
+    // Check if user is authenticated
+    const isAuthenticated = await StorageCenter.auth.hasToken();
+
+    // Initialize asynchronously
+    const initPromises: Promise<void>[] = [
+      LanguagesCenter.initialize(), // Public API, no auth required
+    ];
+
+    // Only initialize auth-required centers if user is logged in
+    if (isAuthenticated) {
+      console.log('[GlobalInitializer] User authenticated, initializing auth-required centers...');
+      initPromises.push(
+        WordGroupsCenter.initialize(), // Requires auth - query_all_groups
+        LearningStatsCenter.initialize(), // Requires auth - user stats
+      );
+    } else {
+      console.log('[GlobalInitializer] User not authenticated, skipping auth-required centers');
+    }
+
+    await Promise.all(initPromises);
 
     this.isInitialized = true;
     console.log('[GlobalInitializer] Initialization complete');

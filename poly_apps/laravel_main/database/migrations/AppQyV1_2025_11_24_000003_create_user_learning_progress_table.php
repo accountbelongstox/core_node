@@ -3,13 +3,25 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+
     public function up()
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_user_learning_progress')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_user_learning_progress', function (Blueprint $table) {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_learning_progress');
+        if (!Schema::connection($this->connection)->hasTable($tableName)) {
+            Schema::connection($this->connection)->create($tableName, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id')->nullable(false);
                 $table->string('lang_code', 10)->nullable(false);
@@ -37,6 +49,7 @@ return new class extends Migration
 
     public function down()
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_user_learning_progress');
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_learning_progress');
+        Schema::connection($this->connection)->dropIfExists($tableName);
     }
 };

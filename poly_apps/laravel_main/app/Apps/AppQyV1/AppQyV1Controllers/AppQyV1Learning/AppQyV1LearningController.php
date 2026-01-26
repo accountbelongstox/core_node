@@ -167,8 +167,7 @@ class AppQyV1LearningController extends Controller
             ], 403);
         }
 
-            DB::connection('appqyv1')->beginTransaction();
-
+        $message = DB::transaction(function () use ($action, $user, $collectionId, $langCode) {
             if ($action === 'select') {
                 AppQyV1UserSelectedLibraryModel::selectLibrary($user->id, $collectionId, $langCode);
 
@@ -183,13 +182,12 @@ class AppQyV1LearningController extends Controller
                     );
                 }
 
-                $message = 'Library selected and words added to your learning progress';
+                return 'Library selected and words added to your learning progress';
             } else {
                 AppQyV1UserSelectedLibraryModel::deselectLibrary($user->id, $collectionId);
-                $message = 'Library deselected';
+                return 'Library deselected';
             }
-
-            DB::connection('appqyv1')->commit();
+        });
 
             return response()->json([
                 'success' => true,

@@ -1,12 +1,18 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Button } from '../../components/UI';
 import { AuthModel } from '../../models';
 import { LanguageCenter } from '../../i18n/LanguageCenter';
 import { StateManager, GlobalState } from '../../services/StateManager';
+import { StorageCenter } from '../../services/StorageCenter';
+import {
+  AuthLayout,
+  AuthInput,
+  AuthError,
+} from '../../components/Auth';
 
 const LoginPage = () => {
-  const { login } = useContext(AppContext);
+  const { login, navigate } = useContext(AppContext);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +24,25 @@ const LoginPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const t = (key: string) => LanguageCenter.t(key);
+
+  // Load saved credentials from StorageCenter
+  useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        const credentials = await StorageCenter.auth.getCredentials();
+        if (credentials.username) {
+          setUsername(credentials.username);
+        }
+        if (credentials.password) {
+          setPassword(credentials.password);
+        }
+      } catch (error) {
+        console.log('[Login] Failed to load saved credentials:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, []);
 
   const handleLogin = async () => {
     if (loading) {
@@ -54,6 +79,15 @@ const LoginPage = () => {
           console.log('[Login] Login successful, calling AppContext.login()');
           StateManager.set(GlobalState.USER, result.user);
           StateManager.set(GlobalState.IS_LOGGED_IN, true);
+          
+          // Save credentials to StorageCenter (works on both web and native)
+          try {
+            await StorageCenter.auth.saveCredentials(username, password);
+            console.log('[Login] Credentials saved to StorageCenter');
+          } catch (error) {
+            console.error('[Login] Failed to save credentials:', error);
+          }
+          
           login(result.user);
           console.log('[Login] AppContext.login() called');
         } else {
@@ -74,6 +108,15 @@ const LoginPage = () => {
         if (result.success && result.user) {
           StateManager.set(GlobalState.USER, result.user);
           StateManager.set(GlobalState.IS_LOGGED_IN, true);
+          
+          // Save credentials to StorageCenter (works on both web and native)
+          try {
+            await StorageCenter.auth.saveCredentials(username, password);
+            console.log('[Login] Credentials saved to StorageCenter');
+          } catch (error) {
+            console.error('[Login] Failed to save credentials:', error);
+          }
+          
           login(result.user);
         } else {
           const errorCode = result.error?.code || '';
@@ -117,85 +160,66 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 animate-fade-in">
-      <div className="w-24 h-24 bg-gradient-to-tr from-blue-400 to-purple-500 rounded-3xl shadow-2xl mb-8 flex items-center justify-center text-4xl text-white font-bold transform rotate-6 animate-blob">
-        W
-      </div>
-      <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">WordFlow AI</h1>
-      <p className="text-slate-500 dark:text-slate-300 mb-10 text-center">
-        {t('home.welcome')}
-      </p>
+    <AuthLayout
+      title="WordFlow AI"
+      subtitle={t('home.welcome')}
+    >
+      <div className="w-full sm:max-w-sm sm:mx-auto space-y-4">
+        <AuthError message={error} />
 
-      <div className="w-full max-w-sm space-y-4">
-        {error && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
-            {error}
-          </div>
-        )}
-
-        <input
+        <AuthInput
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder={t('auth.username')}
           disabled={loading}
-          className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
           autoComplete="username"
         />
 
         {mode === 'register' && (
           <>
-            {/* [i18n] Removed hardcoded fallback - auth.email translation exists */}
-            <input
+            <AuthInput
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t('auth.email')}
               disabled={loading}
-              className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
               autoComplete="email"
             />
-            {/* [i18n] Removed hardcoded fallback - auth.nickname now exists */}
-            <input
+            <AuthInput
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder={t('auth.nickname')}
               disabled={loading}
-              className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
             />
-            {/* [i18n] Removed hardcoded fallback - auth.inviteCode now exists */}
-            <input
+            <AuthInput
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
               placeholder={t('auth.inviteCode')}
               disabled={loading}
-              className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
             />
-            {/* [i18n] Removed hardcoded fallback - auth.confirmPassword translation exists */}
-            <input
+            <AuthInput
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={t('auth.confirmPassword')}
               disabled={loading}
-              className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
               autoComplete="new-password"
             />
           </>
         )}
 
-        <input
+        <AuthInput
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder={t('auth.password')}
           disabled={loading}
-          className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
           autoComplete="current-password"
         />
 
@@ -230,7 +254,7 @@ const LoginPage = () => {
       <div className="mt-8 text-xs text-slate-400">
         {t('common.info')}: Laravel API v1 (Real Backend)
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

@@ -12,15 +12,20 @@ return new class extends Migration
      */
     public function up(): void
     {
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
+        $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
+        
         // Get all dictionary table names
-        $tables = DB::connection('appqyv1')
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries'");
+        $pattern = $prefix . '_%_dictionaries';
+        $tables = DB::connection($connection)
+            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [$pattern]);
 
         foreach ($tables as $table) {
             $tableName = $table->name;
 
             // Check if column already exists
-            $columns = DB::connection('appqyv1')->select("PRAGMA table_info({$tableName})");
+            $columns = DB::connection($connection)->select("PRAGMA table_info({$tableName})");
             $hasColumn = false;
 
             foreach ($columns as $column) {
@@ -32,7 +37,7 @@ return new class extends Migration
 
             if (!$hasColumn) {
                 // Add has_audio column
-                DB::connection('appqyv1')->statement(
+                DB::connection($connection)->statement(
                     "ALTER TABLE {$tableName} ADD COLUMN has_audio INTEGER DEFAULT 0"
                 );
 
@@ -47,7 +52,7 @@ return new class extends Migration
 
                 // Update has_audio based on existing tts_files if column exists
                 if ($hasTtsFilesColumn) {
-                    DB::connection('appqyv1')->statement(
+                    DB::connection($connection)->statement(
                         "UPDATE {$tableName} SET has_audio = 1 WHERE tts_files IS NOT NULL AND tts_files != '' AND tts_files != '[]'"
                     );
                 }
@@ -62,9 +67,13 @@ return new class extends Migration
      */
     public function down(): void
     {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tablePrefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        
         // Get all dictionary table names
-        $tables = DB::connection('appqyv1')
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries'");
+        $tables = DB::connection($connection)
+            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$tablePrefix}_%_dictionaries'");
 
         foreach ($tables as $table) {
             $tableName = $table->name;

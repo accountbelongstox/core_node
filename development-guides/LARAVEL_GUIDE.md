@@ -67,11 +67,12 @@ This codebase is designed to support multiple applications simultaneously. Each 
 - **Default Shared Database**: The default database connection is reserved for shared data (such as user accounts). Configure the default connection in `config/database.php`, using `PathMapper::getDefaultDatabasePath()`.
 - **Sub-App Independent Databases**: Each sub-app configures an independent database connection in `config/database.php`, with naming format `{appNameWithVersion}`. Database paths use `PathMapper::getLaravelDatabaseDir() . '/{appNameWithVersion}.sqlite'` (SQLite) or independent MySQL/PostgreSQL connections. Each sub-app must implement at least one account database for backing up user data.
 - **Account Data Synchronization**: When users register/login, account data **must** be written to both the default database (shared) and the corresponding sub-app database (backup) simultaneously. Use database transactions to ensure data consistency.
-- **Model Organization**: `app/Models` changed to `app/Apps/{appNameWithVersion}/{appNameWithVersion}Models/`, named `{appNameWithVersion}{CustomName}Model.php`. Each sub-app's Model uses `protected $connection = '{appNameWithVersion}';` to specify an independent database connection.
+- **Model Organization**: `app/Models` changed to `app/Apps/{appNameWithVersion}/{appNameWithVersion}Models/`, named `{appNameWithVersion}{CustomName}Model.php`. Each sub-app's Model uses `protected $appKey = \App\Constants\AppKeys::{APPKEY};` and sets connection in constructor via `AppTablePrefixServiceProvider::getConnection($this->appKey)`. **Prohibited** from hardcoding connection strings.
 - **Migration File Handling**: 
-    - **App-Specific Migration Files**: Naming format is `{appNameWithVersion}_xxxx_xx_xx_xxxxxx_*.php`, **must** place `{appNameWithVersion}` in the first position of the filename. In migrations, use `Schema::connection('{appNameWithVersion}')->create()` to specify the connection. Run migrations: `php artisan migrate --database={appNameWithVersion}`.
+    - **App-Specific Migration Files**: Naming format is `{appNameWithVersion}_xxxx_xx_xx_xxxxxx_*.php`, **must** place `{appNameWithVersion}` in the first position of the filename. In migrations, use `$appKey = \App\Constants\AppKeys::{APPKEY}; $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey); Schema::connection($connection)->create()`. **All migrations are automatically executed by `php artisan sys:init` via `runSafeMigrations()`. Prohibited** from calling `Artisan::call('migrate')` in code or services.
     - **Global Shared Table Migration Files**: Naming format is `global_xxxx_xx_xx_xxxxxx_*.php`, **must** place `global_` in the first position of the filename. Global shared table migrations use the default connection (no need to specify connection), shared by all applications.
 - **Table Name Bridging**: Establish table name maps in `app/Apps/{appNameWithVersion}/{appNameWithVersion}TablesMaps/`, reference `app/Providers/GlobalTablesMaps.php` to get common table names. All database operations directly reference TablesMaps classes, prohibited from secondary encapsulation.
+- **Unified Table Name and Connection Center**: All app keys, table prefixes, and database connections are centrally defined in `config/app_registry.php`. Use `App\Constants\AppKeys` constants instead of hardcoded strings. Access via `App\Providers\AppTablePrefixServiceProvider::getConnection($appKey)`, `buildTableName($appKey, $suffix)`, or magic methods like `getAppQyV1TableName('vocabulary_libraries', 'v1')`. **Prohibited** from using hardcoded connection strings like `'appqyv1'` in code, migrations, or services.
 
 ## 6. Public and Static File Rules
 
@@ -140,8 +141,7 @@ MCP applications follow these differentiated rules:
 - **Prohibited Behaviors**:
     - **Prohibited** from writing or modifying any code under the `app/Console` directory.
     - **Prohibited** from creating or distributing any Laravel events (`app/Events`).
-    - **Prohibited** from writing any functionality related to Laravel Web frontend, including **Blade templates, Vite configuration, CSS/JS resource files**, etc. However, existing vite/babel/web and other frontend configurations and web files cannot be deleted, because Laravel needs these basics to correctly start in headless mode.
-    - **Prohibited** from adding new helper functions to `app/Helpers`, unless the function is absolutely necessary and globally common.
+     - **Prohibited** from adding new helper functions to `app/Helpers`, unless the function is absolutely necessary and globally common.
     - **Prohibited** from deleting files without authorization.
 
 ## API Response Standards (MANDATORY for ALL Controllers)

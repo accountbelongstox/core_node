@@ -3,17 +3,20 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 
 /**
  * Multi-Language Article Library Model
  *
- * Operates on language-specific article library tables: app_qy_v1_{lang}_article_library
+ * Operates on language-specific article library tables: {prefix}_{lang}_article_library
  * Used for article TTS generation, storage, and management
+ * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
  */
 class AppQyV1ArticleLibraryModel extends Model
 {
-    protected $connection = 'appqyv1';
+    protected $appKey = AppKeys::APPQYV1;
     protected $table;
     protected $langCode;
 
@@ -42,16 +45,22 @@ class AppQyV1ArticleLibraryModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
 
         if (isset($attributes['lang_code'])) {
             $this->setLanguage($attributes['lang_code']);
         }
     }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function setLanguage(string $langCode): self
     {
         $this->langCode = strtolower($langCode);
-        $this->table = "app_qy_v1_{$this->langCode}_article_library";
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$this->langCode}_article_library");
         return $this;
     }
 
@@ -121,9 +130,7 @@ class AppQyV1ArticleLibraryModel extends Model
             ->where('has_audio', false);
 
         if ($skipQueued) {
-            $queuedHashes = DB::connection('appqyv1')
-                ->table('appqyv1_tts_queue')
-                ->where('task_type', 'article')
+            $queuedHashes = AppQyV1TTSQueueModel::where('task_type', 'article')
                 ->where('language', $langCode)
                 ->whereIn('status', ['pending', 'processing'])
                 ->pluck('content_hash')
@@ -141,10 +148,7 @@ class AppQyV1ArticleLibraryModel extends Model
 
     public static function updateHasAudio(string $langCode, string $md5, bool $hasAudio): void
     {
-        $table = "app_qy_v1_{$langCode}_article_library";
-
-        DB::connection('appqyv1')
-            ->table($table)
+        self::forLanguage($langCode)
             ->where('md5', $md5)
             ->update([
                 'has_audio' => $hasAudio,

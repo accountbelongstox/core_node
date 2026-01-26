@@ -3,10 +3,19 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    protected $connection = 'awyv0';
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::AWYV0;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     public function up(): void
     {
@@ -35,8 +44,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_verification_codes')) {
-            Schema::connection($this->connection)->create('awy_v0_verification_codes', function (Blueprint $table) {
+        $verificationCodesTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'verification_codes');
+        if (!Schema::connection($this->connection)->hasTable($verificationCodesTable)) {
+            Schema::connection($this->connection)->create($verificationCodesTable, function (Blueprint $table) {
                 $table->id();
                 $table->string('phone', 20);
                 $table->string('code', 10);
@@ -49,8 +59,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_friend_requests')) {
-            Schema::connection($this->connection)->create('awy_v0_friend_requests', function (Blueprint $table) {
+        $friendRequestsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friend_requests');
+        if (!Schema::connection($this->connection)->hasTable($friendRequestsTable)) {
+            Schema::connection($this->connection)->create($friendRequestsTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('from_user_id');
                 $table->unsignedBigInteger('to_user_id');
@@ -66,8 +77,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_friends')) {
-            Schema::connection($this->connection)->create('awy_v0_friends', function (Blueprint $table) {
+        $friendsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friends');
+        if (!Schema::connection($this->connection)->hasTable($friendsTable)) {
+            Schema::connection($this->connection)->create($friendsTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->unsignedBigInteger('friend_id');
@@ -84,8 +96,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_devices')) {
-            Schema::connection($this->connection)->create('awy_v0_devices', function (Blueprint $table) {
+        $devicesTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'devices');
+        if (!Schema::connection($this->connection)->hasTable($devicesTable)) {
+            Schema::connection($this->connection)->create($devicesTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->string('device_name');
@@ -104,8 +117,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_locations')) {
-            Schema::connection($this->connection)->create('awy_v0_locations', function (Blueprint $table) {
+        $locationsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'locations');
+        if (!Schema::connection($this->connection)->hasTable($locationsTable)) {
+            Schema::connection($this->connection)->create($locationsTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->decimal('lat', 10, 7);
@@ -122,8 +136,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_location_history')) {
-            Schema::connection($this->connection)->create('awy_v0_location_history', function (Blueprint $table) {
+        $locationHistoryTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'location_history');
+        if (!Schema::connection($this->connection)->hasTable($locationHistoryTable)) {
+            Schema::connection($this->connection)->create($locationHistoryTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->string('location_name')->nullable();
@@ -140,8 +155,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_health_data')) {
-            Schema::connection($this->connection)->create('awy_v0_health_data', function (Blueprint $table) {
+        $healthDataTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'health_data');
+        if (!Schema::connection($this->connection)->hasTable($healthDataTable)) {
+            Schema::connection($this->connection)->create($healthDataTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->integer('steps')->default(0);
@@ -156,8 +172,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_chats')) {
-            Schema::connection($this->connection)->create('awy_v0_chats', function (Blueprint $table) {
+        $chatsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'chats');
+        if (!Schema::connection($this->connection)->hasTable($chatsTable)) {
+            Schema::connection($this->connection)->create($chatsTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('sender_id');
                 $table->unsignedBigInteger('receiver_id');
@@ -174,8 +191,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_products')) {
-            Schema::connection($this->connection)->create('awy_v0_products', function (Blueprint $table) {
+        $productsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'products');
+        if (!Schema::connection($this->connection)->hasTable($productsTable)) {
+            Schema::connection($this->connection)->create($productsTable, function (Blueprint $table) {
                 $table->id();
                 $table->string('name');
                 $table->string('name_en')->nullable();
@@ -198,8 +216,9 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_ai_chat_history')) {
-            Schema::connection($this->connection)->create('awy_v0_ai_chat_history', function (Blueprint $table) {
+        $aiChatHistoryTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_chat_history');
+        if (!Schema::connection($this->connection)->hasTable($aiChatHistoryTable)) {
+            Schema::connection($this->connection)->create($aiChatHistoryTable, function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('user_id');
                 $table->enum('role', ['user', 'assistant'])->default('user');
@@ -215,16 +234,23 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection($this->connection)->dropIfExists('awy_v0_ai_chat_history');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_products');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_chats');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_health_data');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_location_history');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_locations');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_devices');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_friends');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_friend_requests');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_verification_codes');
-        Schema::connection($this->connection)->dropIfExists('awy_v0_users');
+        $tables = [
+            'ai_chat_history',
+            'products',
+            'chats',
+            'health_data',
+            'location_history',
+            'locations',
+            'devices',
+            'friends',
+            'friend_requests',
+            'verification_codes',
+            'users',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

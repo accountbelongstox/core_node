@@ -21,6 +21,19 @@ class AppQyV1TableMaps
      * All database operations should reference these mappings instead of hardcoded table/field names
      */
     
+    /**
+     * Get table prefix from key center
+     */
+    private static function getTablePrefix(): string
+    {
+        static $prefix = null;
+        if ($prefix === null) {
+            $appKey = \App\Constants\AppKeys::APPQYV1;
+            $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
+        }
+        return $prefix;
+    }
+    
     private static function getSupportedLanguageCodes(): array
     {
         static $langCodes = null;
@@ -55,7 +68,7 @@ class AppQyV1TableMaps
     ];
     
     public const app_qy_v1_DICTIONARIES = [
-        'tablename' => 'app_qy_v1_dictionaries',
+        'tablename' => 'dictionaries',
         'fields' => [
             'id' => 'id',
             'content' => 'content',
@@ -83,7 +96,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_PERSONAL_DICTIONARIES = [
-        'tablename' => 'app_qy_v1_personal_dictionaries',
+        'tablename' => 'personal_dictionaries',
         'fields' => [
             'id' => 'id',
             'uid' => 'uid',
@@ -95,7 +108,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_WORD_GROUPS = [
-        'tablename' => 'app_qy_v1_word_groups',
+        'tablename' => 'word_groups',
         'fields' => [
             'id' => 'id',
             'gid' => 'gid',
@@ -112,7 +125,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_VOCABULARY_COLLECTIONS = [
-        'tablename' => 'app_qy_v1_vocabulary_collections',
+        'tablename' => 'vocabulary_collections',
         'fields' => [
             'id' => 'id',
             'collection_name' => 'collection_name',
@@ -130,7 +143,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_VOCABULARY_ITEMS = [
-        'tablename' => 'app_qy_v1_vocabulary_items',
+        'tablename' => 'vocabulary_items',
         'fields' => [
             'id' => 'id',
             'collection_id' => 'collection_id',
@@ -145,7 +158,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_USER_LEARNING_PROGRESS = [
-        'tablename' => 'app_qy_v1_user_learning_progress',
+        'tablename' => 'user_learning_progress',
         'fields' => [
             'id' => 'id',
             'user_id' => 'user_id',
@@ -167,7 +180,7 @@ class AppQyV1TableMaps
     ];
 
     public const app_qy_v1_USER_SELECTED_LIBRARIES = [
-        'tablename' => 'app_qy_v1_user_selected_libraries',
+        'tablename' => 'user_selected_libraries',
         'fields' => [
             'id' => 'id',
             'user_id' => 'user_id',
@@ -187,24 +200,34 @@ class AppQyV1TableMaps
 
     /**
      * Get table name by key
+     * Automatically adds prefix from key center if not present
      */
     public static function getTableName(string $tableKey): string
     {
-        if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
+        $prefix = self::getTablePrefix();
+        $fullKey = $tableKey;
+        $prefixLower = strtolower($prefix);
+        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
+            $fullKey = $prefix . '_' . $tableKey;
+        }
+
+        if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
             if (in_array($langCode, self::getSupportedLanguageCodes())) {
-                return "app_qy_v1_{$langCode}_dictionaries";
+                return "{$prefix}_{$langCode}_dictionaries";
             }
         }
 
-        if (defined("self::{$tableKey}")) {
-            return constant("self::{$tableKey}")['tablename'];
+        if (defined("self::{$fullKey}")) {
+            $tableSuffix = constant("self::{$fullKey}")['tablename'];
+            return "{$prefix}_{$tableSuffix}";
         }
         return '';
     }
     
     public static function getWordTableName(string $langCode): string
     {
+        $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
 
         $languageMapping = [
@@ -221,7 +244,7 @@ class AppQyV1TableMaps
         ];
 
         $mappedName = $languageMapping[$langCode] ?? $langCode;
-        return "app_qy_v1_words_{$mappedName}";
+        return "{$prefix}_words_{$mappedName}";
     }
 
     /**
@@ -231,31 +254,40 @@ class AppQyV1TableMaps
      */
     public static function getAllWordTables(): array
     {
+        $prefix = self::getTablePrefix();
         return [
-            'en' => 'app_qy_v1_words_english',
-            'ja' => 'app_qy_v1_words_japanese',
-            'vi' => 'app_qy_v1_words_vietnamese',
-            'lo' => 'app_qy_v1_words_lao',
+            'en' => "{$prefix}_words_english",
+            'ja' => "{$prefix}_words_japanese",
+            'vi' => "{$prefix}_words_vietnamese",
+            'lo' => "{$prefix}_words_lao",
         ];
     }
 
     public static function getDictionaryTableName(string $langCode): string
     {
+        $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
-        return "app_qy_v1_tts_cache_{$langCode}";
+        return "{$prefix}_tts_cache_{$langCode}";
     }
 
     public static function getFieldName(string $tableKey, string $fieldKey): string
     {
-        if (preg_match('/^app_qy_v1_([a-z]{2,3})_DICTIONARIES$/i', $tableKey, $matches)) {
+        $prefix = self::getTablePrefix();
+        $fullKey = $tableKey;
+        $prefixLower = strtolower($prefix);
+        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
+            $fullKey = $prefix . '_' . $tableKey;
+        }
+
+        if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
             if (in_array($langCode, self::getSupportedLanguageCodes())) {
                 return self::DICTIONARY_FIELDS[$fieldKey] ?? $fieldKey;
             }
         }
 
-        if (defined("self::{$tableKey}")) {
-            $tableMap = constant("self::{$tableKey}");
+        if (defined("self::{$fullKey}")) {
+            $tableMap = constant("self::{$fullKey}");
             return $tableMap['fields'][$fieldKey] ?? $fieldKey;
         }
         return $fieldKey;
@@ -268,26 +300,34 @@ class AppQyV1TableMaps
 
     public static function getTableFields(string $tableKey): array
     {
-        if (defined("self::{$tableKey}")) {
-            return constant("self::{$tableKey}")['fields'];
+        $prefix = self::getTablePrefix();
+        $fullKey = $tableKey;
+        $prefixLower = strtolower($prefix);
+        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
+            $fullKey = $prefix . '_' . $tableKey;
+        }
+
+        if (defined("self::{$fullKey}")) {
+            return constant("self::{$fullKey}")['fields'];
         }
         return [];
     }
 
     public static function getAvailableTableKeys(): array
     {
+        $prefix = self::getTablePrefix();
         $keys = [
-            'app_qy_v1_DICTIONARIES',
-            'app_qy_v1_PERSONAL_DICTIONARIES',
-            'app_qy_v1_WORD_GROUPS',
-            'app_qy_v1_VOCABULARY_COLLECTIONS',
-            'app_qy_v1_VOCABULARY_ITEMS',
-            'app_qy_v1_USER_LEARNING_PROGRESS',
-            'app_qy_v1_USER_SELECTED_LIBRARIES'
+            "{$prefix}_DICTIONARIES",
+            "{$prefix}_PERSONAL_DICTIONARIES",
+            "{$prefix}_WORD_GROUPS",
+            "{$prefix}_VOCABULARY_COLLECTIONS",
+            "{$prefix}_VOCABULARY_ITEMS",
+            "{$prefix}_USER_LEARNING_PROGRESS",
+            "{$prefix}_USER_SELECTED_LIBRARIES"
         ];
 
         foreach (self::getSupportedLanguageCodes() as $langCode) {
-            $keys[] = "app_qy_v1_{$langCode}_TTS_CACHE";
+            $keys[] = "{$prefix}_{$langCode}_TTS_CACHE";
         }
 
         return $keys;

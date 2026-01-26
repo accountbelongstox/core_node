@@ -174,7 +174,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getDictionariesTableName(): string
     {
-        return self::getTableName('app_qy_v1_dictionaries') ?? 'app_qy_v1_dictionaries';
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        return \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
     }
 
     /**
@@ -184,7 +185,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getPersonalDictionariesTableName(): string
     {
-        return self::getTableName('app_qy_v1_personal_dictionaries') ?? 'app_qy_v1_personal_dictionaries';
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        return \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'personal_dictionaries');
     }
 
     /**
@@ -194,7 +196,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getWordGroupsTableName(): string
     {
-        return self::getTableName('app_qy_v1_word_groups') ?? 'app_qy_v1_word_groups';
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        return \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
     }
 
     /**

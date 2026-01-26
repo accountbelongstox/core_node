@@ -4,24 +4,32 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 class MigrateWordsToDictionaries extends Command
 {
     protected $signature = 'dict:migrate {--dry-run : Show what would be migrated without actually migrating}';
 
-    protected $description = 'Migrate app_qy_v1_words_* tables to app_qy_v1_*_dictionaries tables';
+    protected $description = 'Migrate words_* tables to *_dictionaries tables';
 
-    private $tableMappings = [
-        'app_qy_v1_words_english' => 'app_qy_v1_en_dictionaries',
-        'app_qy_v1_words_japanese' => 'app_qy_v1_ja_dictionaries',
-        'app_qy_v1_words_lao' => 'app_qy_v1_lo_dictionaries',
-        'app_qy_v1_words_vietnamese' => 'app_qy_v1_vi_dictionaries',
-    ];
+    private $tableMappings = [];
 
     public function handle()
     {
         $dryRun = $this->option('dry-run');
-        $connection = 'appqyv1';
+        $appKey = AppKeys::APPQYV1;
+        $model = new AppQyV1LangDictionaryModel();
+        $connection = $model->getConnection();
+        
+        $this->tableMappings = [
+            AppQyV1TableMaps::getWordTableName('english') => AppQyV1TableMaps::getDictionaryTableName('en'),
+            AppQyV1TableMaps::getWordTableName('japanese') => AppQyV1TableMaps::getDictionaryTableName('ja'),
+            AppQyV1TableMaps::getWordTableName('lao') => AppQyV1TableMaps::getDictionaryTableName('lo'),
+            AppQyV1TableMaps::getWordTableName('vietnamese') => AppQyV1TableMaps::getDictionaryTableName('vi'),
+        ];
 
         if ($dryRun) {
             $this->warn('DRY RUN MODE - No data will be migrated');
@@ -33,11 +41,11 @@ class MigrateWordsToDictionaries extends Command
 
         $totalProcessed = 0;
 
-        foreach ($this->tableMappings as $oldTable => $newTable) {
+        foreach ($tableMappings as $oldTable => $newTable) {
             $this->line("<fg=cyan;options=bold>Migrating {$oldTable} → {$newTable}</>");
 
             try {
-                $count = DB::connection($connection)->table($oldTable)->count();
+                $count = $connection->table($oldTable)->count();
                 $this->line("  📊 Source records: <fg=yellow>{$count}</>");
 
                 if ($count === 0) {
@@ -46,7 +54,7 @@ class MigrateWordsToDictionaries extends Command
                     continue;
                 }
 
-                $existingCount = DB::connection($connection)->table($newTable)->count();
+                $existingCount = $connection->table($newTable)->count();
                 if ($existingCount > 0) {
                     $this->warn("  ⚠️  Target table already has {$existingCount} records");
                     if (!$this->confirm("  Do you want to continue and merge data?", false)) {
@@ -83,12 +91,12 @@ class MigrateWordsToDictionaries extends Command
         return 0;
     }
 
-    private function migrateTable(string $oldTable, string $newTable, string $connection): int
+    private function migrateTable(string $oldTable, string $newTable, $connection): int
     {
         $batchSize = 1000;
         $processed = 0;
 
-        DB::connection($connection)->table($oldTable)
+        $connection->table($oldTable)
             ->orderBy('id')
             ->chunk($batchSize, function ($records) use ($newTable, $connection, &$processed) {
                 $insertData = [];
@@ -96,7 +104,7 @@ class MigrateWordsToDictionaries extends Command
                 foreach ($records as $record) {
                     $md5 = md5($record->word);
 
-                    $existing = DB::connection($connection)
+                    $existing = $connection
                         ->table($newTable)
                         ->where('content', $record->word)
                         ->where('md5', $md5)
@@ -120,7 +128,7 @@ class MigrateWordsToDictionaries extends Command
                 }
 
                 if (!empty($insertData)) {
-                    DB::connection($connection)->table($newTable)->insert($insertData);
+                    $connection->table($newTable)->insert($insertData);
                     $processed += count($insertData);
                     $this->line("    Processed: {$processed}");
                 }

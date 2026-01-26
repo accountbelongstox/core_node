@@ -337,6 +337,94 @@ class PathMapper
         return $basePath;
     }
 
+    /**
+     * Get TTS data directory (used by EdgeTTSService)
+     * Returns: getLaravelDataDir() . '/tts_data'
+     */
+    public static function getTTSDataDir(?string $subPath = ""): string
+    {
+        $basePath = self::getLaravelDataDir() . '/tts_data';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get TTS audio directory (used by EdgeTTSService)
+     * Returns: getTTSDataDir() . '/audio'
+     */
+    public static function getTTSAudioDir(?string $subPath = ""): string
+    {
+        $basePath = self::getTTSDataDir() . '/audio';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 external data root directory
+     * Based on config('AppQyV1.paths.external_data_root')
+     */
+    public static function getAppQyV1ExternalDataRoot(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.external_data_root', storage_path('app/external_data'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 audio directory (word sounds)
+     * Based on config('AppQyV1.paths.audio_directory')
+     */
+    public static function getAppQyV1AudioDir(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.audio_directory', storage_path('app/external_data/audio/word_sounds'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 sentence sounds directory
+     * Based on config('AppQyV1.paths.sentence_sounds')
+     */
+    public static function getAppQyV1SentenceSoundsDir(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.sentence_sounds', storage_path('app/external_data/audio/sentence_sounds'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get all AppQyV1 audio directories
+     * Returns array of all audio-related directories
+     */
+    public static function getAppQyV1AllAudioDirs(): array
+    {
+        return [
+            self::getTTSAudioDir(),
+            self::getAppQyV1AudioDir(),
+            self::getAppQyV1SentenceSoundsDir(),
+            self::getAppQyV1ExternalDataRoot('audio'),
+            self::getAppQyV1ExternalDataRoot('audio/word_sounds'),
+            self::getAppQyV1ExternalDataRoot('audio/sentence_sounds'),
+            self::getAppQyV1ExternalDataRoot('audio/word_subtitles'),
+            self::getAppQyV1ExternalDataRoot('audio/sentence_subtitles'),
+        ];
+    }
+
     public static function getLaravelStaticDir(?string $subPath = ""): string
     {
         $basePath = self::getLaravelDatabaseDir() . '/static';

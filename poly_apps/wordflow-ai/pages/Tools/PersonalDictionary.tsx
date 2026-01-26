@@ -188,7 +188,7 @@ export default function PersonalDictionary() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl px-4 py-6">
         {/* Search Bar */}
         <div className="mb-6 flex gap-2">
           <input

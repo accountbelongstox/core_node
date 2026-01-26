@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
@@ -97,14 +99,14 @@ class InitializeApps extends Command
 
                 try {
                     if (config("database.connections.{$connection}")) {
-                        $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+                        $tables = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
 
                         if (!empty($tables)) {
                             foreach ($tables as $table) {
                                 $tableName = $table->name;
-                                $count = \DB::connection($connection)->table($tableName)->count();
-                                $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
-                                $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
+                                $count = $connection->table($tableName)->count();
+                                $structure = \App\Services\UserSyncService::getTableStructure($connectionName, $tableName);
+                                $indexes = \App\Services\UserSyncService::getTableIndexes($connectionName, $tableName);
 
                                 $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
                                 $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
@@ -164,11 +166,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating unified TTS queue table (word/sentence/article)...');
+        $this->info('Checking unified TTS queue table (word/sentence/article)...');
         $ttsQueueResults = \App\Services\AppQyV1TTSQueueInitializer::ensureTablesExist();
         foreach ($ttsQueueResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : ($status === 'migrated' ? '🔄' : '❌'));
-            $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'exists') {
+                $this->line("  ✅ {$table}: exists");
+            } elseif (strpos($status, 'incomplete') === 0) {
+                $this->warn("  ⚠️  {$table}: {$status}");
+                $this->line("     <fg=yellow>Migration will add missing columns on next run</>");
+            } else {
+                $this->warn("  ⚠️  {$table}: {$status}");
+                $this->line("     <fg=yellow>Migration will create this table on next run</>");
+            }
         }
 
         $ttsQueueStats = \App\Services\AppQyV1TTSQueueInitializer::getTableStats();
@@ -178,21 +187,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating article library tables (all languages)...');
+        $this->info('Checking article library tables (all languages)...');
         $articleLibResults = \App\Services\AppQyV1ArticleLibraryInitializer::ensureTablesExist();
-        $articleCreated = count(array_filter($articleLibResults, fn($s) => $s === 'created'));
-        $articleMigrated = count(array_filter($articleLibResults, fn($s) => $s === 'migrated'));
         $articleExists = count(array_filter($articleLibResults, fn($s) => $s === 'exists'));
+        $articleMissing = count(array_filter($articleLibResults, fn($s) => $s === 'missing'));
         $articleTotal = count($articleLibResults);
 
-        if ($articleCreated > 0) {
-            $this->line("  ✅ Created: {$articleCreated} tables");
-        }
-        if ($articleMigrated > 0) {
-            $this->line("  🔄 Migrated: {$articleMigrated} tables");
-        }
         if ($articleExists > 0) {
-            $this->line("  ✓ Exists: {$articleExists} tables");
+            $this->line("  ✅ Exists: {$articleExists} tables");
+        }
+        if ($articleMissing > 0) {
+            $this->line("  ⚠️  Missing: {$articleMissing} tables");
+            $this->line("     <fg=yellow>Run 'php artisan sys:init' to create missing tables</>");
         }
         $this->line("  <fg=cyan>Total: {$articleTotal} article library tables</>");
 
@@ -287,9 +293,13 @@ class InitializeApps extends Command
         
         $this->info('AppQyV1 dictionary tables summary:');
         try {
-            $connection = 'appqyv1';
-            $allDictTables = \DB::connection($connection)
-                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
+            $appKey = AppKeys::APPQYV1;
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+            $connection = $model->getConnection();
+            $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+            $pattern = $prefix . '_%_dictionaries';
+            $allDictTables = $connection
+                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name", [$pattern]);
 
             $tablesWithData = [];
             $tablesEmpty = [];
@@ -297,9 +307,9 @@ class InitializeApps extends Command
             foreach ($allDictTables as $tableObj) {
                 $tableName = $tableObj->name;
                 try {
-                    $count = \DB::connection($connection)->table($tableName)->count();
+                    $count = $connection->table($tableName)->count();
                     if ($count > 0) {
-                        $langCode = str_replace(['app_qy_v1_', '_dictionaries'], '', $tableName);
+                        $langCode = str_replace([$prefix . '_', '_dictionaries'], '', $tableName);
                         $tablesWithData[] = ['name' => $tableName, 'code' => $langCode, 'count' => $count];
                     } else {
                         $tablesEmpty[] = $tableName;
@@ -329,11 +339,14 @@ class InitializeApps extends Command
 
         $this->newLine();
 
-        $this->info('Creating AppQyV1 user initialization tables...');
+        $this->info('Checking AppQyV1 user initialization tables...');
         $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
         foreach ($userInitResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $icon = $status === 'exists' ? '✅' : ($status === 'missing' ? '⚠️' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'missing') {
+                $this->line("     <fg=yellow>Run 'php artisan sys:init' to create this table</>");
+            }
         }
         $this->newLine();
 
@@ -369,11 +382,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
         
-        $this->info('Creating vocabulary library tables...');
+        $this->info('Checking vocabulary library tables...');
         $vocabResults = AppQyV1VocabularyService::ensureVocabularyTablesExist();
+        $missingCount = 0;
         foreach ($vocabResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $icon = $status === 'exists' ? '✅' : ($status === 'missing' ? '⚠️' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'missing') {
+                $missingCount++;
+            }
+        }
+        if ($missingCount > 0) {
+            $this->line("  <fg=yellow>⚠️  {$missingCount} table(s) missing. Run 'php artisan sys:init' to create them.</>");
         }
         
         $this->newLine();
@@ -394,9 +414,10 @@ class InitializeApps extends Command
         
         $this->info('Vocabulary library summary:');
         try {
-            $connection = 'appqyv1';
-            $libraries = \DB::connection($connection)
-                ->table('app_qy_v1_vocabulary_libraries')
+            $appKey = AppKeys::APPQYV1;
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel();
+            $libraries = $model->getConnection()
+                ->table(AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'))
                 ->select('name', 'total_words', 'difficulty_level')
                 ->where('is_public', 1)
                 ->get();
@@ -882,8 +903,10 @@ class InitializeApps extends Command
 
     private function cleanupConflictingTables(): array
     {
-        $connection = 'appqyv1';
-        $schema = \DB::connection($connection)->getSchemaBuilder();
+        $appKey = AppKeys::APPQYV1;
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $connection = $model->getConnection();
+        $schema = $connection->getSchemaBuilder();
 
         $learningTables = ['english', 'lao', 'japanese', 'vietnamese'];
         $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
@@ -895,7 +918,7 @@ class InitializeApps extends Command
                 continue;
             }
 
-            $oldTableName = "app_qy_v1_words_{$langCode}";
+            $oldTableName = AppTablePrefixServiceProvider::buildTableName($appKey, "words_{$langCode}");
 
             if ($schema->hasTable($oldTableName)) {
                 $schema->drop($oldTableName);

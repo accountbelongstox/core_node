@@ -16,6 +16,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Constants\AppKeys;
 use App\Services\UserSyncService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
@@ -121,7 +122,7 @@ class RegisteredUserController extends Controller
             ],
         ];
         
-        $result = \App\Services\UnifiedAuthService::register($credentials, 'appqyv1');
+        $result = \App\Services\UnifiedAuthService::register($credentials, AppKeys::APPQYV1);
 
         if (!$result['success']) {
             return $this->error($result['error'], 422);

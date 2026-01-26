@@ -137,7 +137,7 @@ class AppQyV1ProfileController extends BaseController
             if (!empty($subAppUpdateData)) {
                 $subAppUpdateData['updated_at'] = now();
 
-                DB::connection('appqyv1')
+                $user->getConnection()
                     ->table('users')
                     ->where('main_user_id', $user->id)
                     ->update($subAppUpdateData);
@@ -169,7 +169,7 @@ class AppQyV1ProfileController extends BaseController
      */
     private function saveAvatarFromBase64(string $base64Data, int $userId, ?string $filename = null): ?string
     {
-        return AvatarService::saveBase64Avatar($base64Data, $userId, 'appqyv1', $filename);
+        return AvatarService::saveBase64Avatar($base64Data, $userId, \App\Constants\AppKeys::APPQYV1, $filename);
     }
 
     /**

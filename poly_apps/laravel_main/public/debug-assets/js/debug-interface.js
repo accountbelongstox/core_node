@@ -31,31 +31,20 @@ function initializeNavigation() {
         });
     });
 
-    // Load default section immediately
+    // Load default section from localStorage or use 'api-testing' as default
     const savedSection = localStorage.getItem('active_section');
     const defaultSection = savedSection || 'api-testing';
     
-    // Set iframe src immediately to ensure it displays
-    const iframe = document.getElementById('section-iframe');
-    const sectionFileMap = {
-        'api-testing': '/debug-assets/debug-tools/sections/api-testing-section.html',
-        'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
-        'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
-        'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
-        'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
-        'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
-        'learning': '/debug-assets/debug-tools/sections/learning-section.html',
-        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html',
-        'sso': '/sso'
-    };
-    
-    if (iframe && sectionFileMap[defaultSection]) {
-        iframe.src = sectionFileMap[defaultSection];
-        iframe.style.display = 'block';
+    // If saved section is different from default, switch to it
+    if (defaultSection !== 'api-testing') {
+        showSection(defaultSection);
+    } else {
+        // Ensure default section is active
+        const defaultLink = document.querySelector('[data-section="api-testing"]');
+        if (defaultLink) {
+            defaultLink.classList.add('active');
+        }
     }
-    
-    // Then show the section properly
-    showSection(defaultSection);
 }
 
 function toggleSidebar() {

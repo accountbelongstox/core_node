@@ -3,6 +3,8 @@
 namespace App\Apps\McpV1\McpV1Utils;
 
 use App\Contracts\AppInitializerInterface;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +32,9 @@ class McpV1Initializer implements AppInitializerInterface
             mkdir($dbDir, 0755, true);
         }
 
-        $this->statusFile = $dbDir . '/mcp_v1_init_status.json';
+        $appKey = AppKeys::MCPV1;
+        $tablePrefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        $this->statusFile = $dbDir . '/' . $tablePrefix . '_init_status.json';
     }
 
     public function getAppName(): string
@@ -146,7 +150,8 @@ class McpV1Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            DB::connection()->getPdo();
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
+            DB::connection($connectionName)->getPdo();
 
             return [
                 'status' => 'success',
@@ -170,11 +175,8 @@ class McpV1Initializer implements AppInitializerInterface
                 ];
             }
 
-            Artisan::call('migrate', [
-                '--path' => 'database/migrations/mcpv1_placeholder_images_table.php',
-                '--force' => true,
-            ]);
-
+            // Migrations are handled by sys:init command
+            // This method only checks if tables exist
             if (Schema::hasTable('placeholder_images')) {
                 return [
                     'status' => 'success',

@@ -25,11 +25,12 @@ class LanguagesCenterClass {
     }
 
     // Try to load from 24-hour cache
-    const cached = StorageCenter.cache.get<SupportedLanguage[]>(
+    const cached = await StorageCenter.cache.get<SupportedLanguage[]>(
       StorageKey.SUPPORTED_LANGUAGES_CACHE
     );
 
-    if (cached && cached.length > 0) {
+    // Unified format: cached data is always an array
+    if (cached && Array.isArray(cached) && cached.length > 0) {
       console.log('[LanguagesCenter] Loaded from cache:', cached.length, 'languages');
       this.supportedLanguages = cached;
       this.initialized = true;
@@ -53,10 +54,12 @@ class LanguagesCenterClass {
     }
 
     // Check cache first (24 hours)
-    const cached = StorageCenter.cache.get<SupportedLanguage[]>(
+    const cached = await StorageCenter.cache.get<SupportedLanguage[]>(
       StorageKey.SUPPORTED_LANGUAGES_CACHE
     );
-    if (cached && cached.length > 0) {
+    
+    // Unified format: cached data is always an array
+    if (cached && Array.isArray(cached) && cached.length > 0) {
       console.log('[LanguagesCenter] Returning cached languages:', cached.length);
       this.supportedLanguages = cached;
       this.notifyListeners();
@@ -69,11 +72,13 @@ class LanguagesCenterClass {
     try {
       const response = await ApiCenter.system.getSupportedLanguages();
 
-      if (response.success && response.data) {
+      if (response.success && response.data && Array.isArray(response.data)) {
+        // Unified format: response.data is always SupportedLanguage[]
         this.supportedLanguages = response.data;
 
         // Cache for 24 hours (languages don't change often)
-        StorageCenter.cache.set(
+        // Note: ApiCenter.dictionary.getSupportedLanguages() already caches, but we cache here too for redundancy
+        await StorageCenter.cache.set(
           StorageKey.SUPPORTED_LANGUAGES_CACHE,
           response.data,
           24 * 60 * 60 * 1000 // 24 hours
@@ -84,11 +89,18 @@ class LanguagesCenterClass {
 
         return response.data;
       } else {
-        console.error('[LanguagesCenter] API returned error:', response.error);
+        // Don't log errors for public API - it's not critical if it fails
+        // Just return cached data or empty array
+        const errorCode = response.error?.code;
+        if (errorCode !== 'AUTH_REQUIRED') {
+          // Only log non-auth errors (auth errors are expected for public API)
+          console.warn('[LanguagesCenter] API returned error (non-critical):', response.error?.message);
+        }
         return this.supportedLanguages;
       }
-    } catch (error) {
-      console.error('[LanguagesCenter] Fetch failed:', error);
+    } catch (error: any) {
+      // Don't log errors for public API - it's not critical if it fails
+      console.warn('[LanguagesCenter] Fetch failed (non-critical):', error?.message || 'Network error');
       return this.supportedLanguages;
     } finally {
       this.loading = false;
@@ -123,7 +135,7 @@ class LanguagesCenterClass {
     const lowerQuery = query.toLowerCase();
     return this.supportedLanguages.filter(lang =>
       lang.name.toLowerCase().includes(lowerQuery) ||
-      lang.nativeName?.toLowerCase().includes(lowerQuery) ||
+      lang.native_name?.toLowerCase().includes(lowerQuery) ||
       lang.code.toLowerCase().includes(lowerQuery)
     );
   }
@@ -149,7 +161,7 @@ class LanguagesCenterClass {
     const lang = this.getByCode(code);
     if (!lang) return code.toUpperCase();
 
-    return preferNative && lang.nativeName ? lang.nativeName : lang.name;
+    return preferNative && lang.native_name ? lang.native_name : lang.name;
   }
 
   /**
@@ -157,8 +169,9 @@ class LanguagesCenterClass {
    */
   subscribe(listener: LanguagesListener): () => void {
     this.listeners.add(listener);
-    // Immediately call with current data
-    listener([...this.supportedLanguages]);
+    // Immediately call with current data (ensure it's always an array)
+    const languages = Array.isArray(this.supportedLanguages) ? [...this.supportedLanguages] : [];
+    listener(languages);
 
     return () => {
       this.listeners.delete(listener);
@@ -170,7 +183,7 @@ class LanguagesCenterClass {
    */
   async refresh(): Promise<SupportedLanguage[]> {
     console.log('[LanguagesCenter] Forcing refresh...');
-    StorageCenter.cache.invalidate(StorageKey.SUPPORTED_LANGUAGES_CACHE);
+    await StorageCenter.cache.invalidate(StorageKey.SUPPORTED_LANGUAGES_CACHE);
     return this.fetchSupportedLanguages();
   }
 
@@ -198,17 +211,17 @@ class LanguagesCenterClass {
   /**
    * Invalidate cache
    */
-  invalidateCache(): void {
-    StorageCenter.cache.invalidate(StorageKey.SUPPORTED_LANGUAGES_CACHE);
+  async invalidateCache(): Promise<void> {
+    await StorageCenter.cache.invalidate(StorageKey.SUPPORTED_LANGUAGES_CACHE);
   }
 
   /**
    * Clear all data
    */
-  clear(): void {
+  async clear(): Promise<void> {
     this.supportedLanguages = [];
     this.initialized = false;
-    this.invalidateCache();
+    await this.invalidateCache();
     this.notifyListeners();
   }
 
@@ -216,7 +229,8 @@ class LanguagesCenterClass {
    * Notify all listeners
    */
   private notifyListeners(): void {
-    const languagesCopy = [...this.supportedLanguages];
+    // Ensure it's always an array before spreading
+    const languagesCopy = Array.isArray(this.supportedLanguages) ? [...this.supportedLanguages] : [];
     this.listeners.forEach(listener => listener(languagesCopy));
   }
 }

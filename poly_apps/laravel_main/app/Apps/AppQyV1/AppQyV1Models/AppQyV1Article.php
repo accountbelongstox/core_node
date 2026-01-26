@@ -18,8 +18,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class AppQyV1Article extends Model
 {
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_articles';
+    protected $appKey = \App\Constants\AppKeys::APPQYV1;
+    protected $table;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = \App\Providers\AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
+    }
 
     protected $fillable = [
         'article_id',
