@@ -42,6 +42,26 @@ function Write-Success { param([string]$Message) Write-Host "[SUCCESS] $Message"
 function Write-Warning { param([string]$Message) Write-Host "[WARNING] $Message" -ForegroundColor Yellow }
 function Write-Error { param([string]$Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
 
+# Command execution with automatic printing
+function Invoke-CommandWithPrint {
+    param(
+        [string]$Command,
+        [string[]]$Arguments = @(),
+        [switch]$NoPrint
+    )
+    
+    if (-not $NoPrint) {
+        $fullCommand = $Command
+        if ($Arguments.Count -gt 0) {
+            $fullCommand += " " + ($Arguments -join " ")
+        }
+        Write-Host "  Command: $fullCommand" -ForegroundColor Yellow
+    }
+    
+    & $Command @Arguments
+    return $LASTEXITCODE
+}
+
 # Environment variables (kept for compatibility, may be used in future)
 # $IS_WSL = $false
 # $IS_PRODUCTION = $false
@@ -178,6 +198,7 @@ function Show-EnvironmentInfo {
     foreach ($tool in $tools) {
         $toolPath = Get-Command $tool -ErrorAction SilentlyContinue
         if ($toolPath) {
+            Write-Host "  Command: $tool --version" -ForegroundColor Yellow
             $version = & $tool --version 2>&1 | Select-Object -First 1
             Write-Host "  $tool : Available - $version"
         } else {
@@ -240,6 +261,7 @@ function Test-ComposerPackage {
     }
     
     # Try to check package
+    Write-Host "  Command: composer show $PackageName" -ForegroundColor Yellow
     $composerShow = composer show $PackageName 2>&1
     if ($composerShow -match $PackageName) {
         return $true
@@ -319,9 +341,11 @@ function Invoke-Up20251115InstallLaravelMcp {
     Write-Info "[UP] Step 2: Installing/Updating Laravel MCP..."
     if (Test-ComposerPackage -PackageName "laravel/mcp" -LaravelDir $laravelDir) {
         Write-Info "[UP] Laravel MCP already installed, ensuring latest version..."
+        Write-Host "  Command: composer update laravel/mcp" -ForegroundColor Yellow
         composer update laravel/mcp
     } else {
         Write-Info "[UP] Installing Laravel MCP..."
+        Write-Host "  Command: composer require laravel/mcp" -ForegroundColor Yellow
         composer require laravel/mcp
     }
     
@@ -331,6 +355,7 @@ function Invoke-Up20251115InstallLaravelMcp {
     if (Test-Path $aiRoutesFile) {
         Write-Info "[UP] AI routes already exist, skipping publish"
     } else {
+        Write-Host "  Command: php artisan vendor:publish --tag=ai-routes --force" -ForegroundColor Yellow
         php artisan vendor:publish --tag=ai-routes --force
     }
     
@@ -395,9 +420,11 @@ function Invoke-Up20251115InstallOctane {
     Write-Info "[UP] Step 2: Installing/Updating Laravel Octane..."
     if (Test-ComposerPackage -PackageName "laravel/octane" -LaravelDir $laravelDir) {
         Write-Info "[UP] Laravel Octane already installed, ensuring latest version..."
+        Write-Host "  Command: composer update laravel/octane" -ForegroundColor Yellow
         composer update laravel/octane
     } else {
         Write-Info "[UP] Installing Laravel Octane..."
+        Write-Host "  Command: composer require laravel/octane" -ForegroundColor Yellow
         composer require laravel/octane
     }
     
@@ -407,6 +434,7 @@ function Invoke-Up20251115InstallOctane {
     if (Test-Path $octaneConfigFile) {
         Write-Info "[UP] Octane config already exists, skipping publish"
     } else {
+        Write-Host "  Command: php artisan octane:install --server=swoole" -ForegroundColor Yellow
         php artisan octane:install --server=swoole
     }
     
@@ -470,7 +498,9 @@ function Invoke-Up20251127InstallChokidar {
         return $false
     }
     
+    Write-Host "  Command: node --version" -ForegroundColor Yellow
     $nodeVersion = node --version
+    Write-Host "  Command: pnpm --version" -ForegroundColor Yellow
     $pnpmVersion = pnpm --version
     Write-Success "[UP] OK Node.js: $nodeVersion"
     Write-Success "[UP] OK pnpm: $pnpmVersion"
@@ -480,9 +510,13 @@ function Invoke-Up20251127InstallChokidar {
     $chokidarDir = Join-Path $laravelDir "node_modules\chokidar"
     if (Test-Path $chokidarDir) {
         Write-Info "[UP] chokidar exists, verifying installation..."
+        Write-Host "  Command: pnpm install --save-dev chokidar" -ForegroundColor Yellow
+        Set-Location $laravelDir
         pnpm install --save-dev chokidar
     } else {
         Write-Info "[UP] Installing chokidar..."
+        Write-Host "  Command: pnpm install --save-dev chokidar" -ForegroundColor Yellow
+        Set-Location $laravelDir
         pnpm install --save-dev chokidar
     }
     
@@ -495,6 +529,7 @@ function Invoke-Up20251127InstallChokidar {
     }
     
     Write-Info "[UP] Step 4: Testing chokidar functionality..."
+    Write-Host '  Command: node -e "require(''chokidar''); console.log(''OK'')"' -ForegroundColor Yellow
     $testResult = node -e "require('chokidar'); console.log('OK')" 2>&1
     if ($testResult -match "OK") {
         Write-Success "[UP] OK chokidar can be loaded successfully"
@@ -549,9 +584,11 @@ function Invoke-Up20251206InstallFaker {
     Write-Info "[UP] Step 2: Installing/Updating FakerPHP..."
     if (Test-ComposerPackage -PackageName "fakerphp/faker" -LaravelDir $laravelDir) {
         Write-Info "[UP] FakerPHP already installed, ensuring latest version..."
+        Write-Host "  Command: composer update fakerphp/faker --dev" -ForegroundColor Yellow
         composer update fakerphp/faker --dev
     } else {
         Write-Info "[UP] Installing FakerPHP..."
+        Write-Host "  Command: composer require fakerphp/faker --dev" -ForegroundColor Yellow
         composer require fakerphp/faker --dev
     }
     
@@ -565,6 +602,7 @@ function Invoke-Up20251206InstallFaker {
     }
     
     Write-Info "[UP] Step 4: Testing fake() helper..."
+    Write-Host '  Command: php artisan tinker --execute="var_dump(function_exists(''fake''));"' -ForegroundColor Yellow
     $tinkerResult = php artisan tinker --execute="var_dump(function_exists('fake'));" 2>&1
     if ($tinkerResult -match "bool\(true\)") {
         Write-Success "[UP] OK fake() helper function is available"
@@ -621,15 +659,18 @@ function Invoke-Up20251215InstallReverb {
         Write-Info "[UP] Pusher PHP Server already installed"
     } else {
         Write-Info "[UP] Installing pusher/pusher-php-server..."
+        Write-Host "  Command: composer require pusher/pusher-php-server --with-all-dependencies" -ForegroundColor Yellow
         composer require pusher/pusher-php-server --with-all-dependencies
     }
     
     Write-Info "[UP] Step 3: Installing/Updating Laravel Reverb..."
     if (Test-ComposerPackage -PackageName "laravel/reverb" -LaravelDir $laravelDir) {
         Write-Info "[UP] Laravel Reverb already installed, ensuring latest version..."
+        Write-Host "  Command: composer update laravel/reverb --with-all-dependencies" -ForegroundColor Yellow
         composer update laravel/reverb --with-all-dependencies
     } else {
         Write-Info "[UP] Installing Laravel Reverb..."
+        Write-Host "  Command: composer require laravel/reverb --with-all-dependencies" -ForegroundColor Yellow
         composer require laravel/reverb --with-all-dependencies
     }
     
@@ -639,6 +680,7 @@ function Invoke-Up20251215InstallReverb {
     if (Test-Path $reverbConfigFile) {
         Write-Info "[UP] Reverb config already exists, skipping publish"
     } else {
+        Write-Host "  Command: php artisan reverb:install --no-interaction" -ForegroundColor Yellow
         php artisan reverb:install --no-interaction
     }
     
@@ -736,9 +778,11 @@ function Invoke-Up20251220InstallHaikunator {
     Write-Info "[UP] Step 2: Installing/Updating Haikunator..."
     if (Test-ComposerPackage -PackageName "atrox/haikunator" -LaravelDir $laravelDir) {
         Write-Info "[UP] Haikunator already installed, ensuring latest version..."
+        Write-Host "  Command: composer update atrox/haikunator" -ForegroundColor Yellow
         composer update atrox/haikunator
     } else {
         Write-Info "[UP] Installing Haikunator..."
+        Write-Host "  Command: composer require atrox/haikunator" -ForegroundColor Yellow
         composer require atrox/haikunator
     }
     
@@ -834,10 +878,12 @@ function Test-LaravelAvailable {
     if (-not (Test-Path $vendorDir)) {
         Write-Warning "[DEPLOY] Running composer install..."
         Set-Location $laravelDir
+        Write-Host "  Command: composer install --optimize-autoloader" -ForegroundColor Yellow
         composer install --optimize-autoloader
     }
     
     Set-Location $laravelDir
+    Write-Host "  Command: php artisan --version" -ForegroundColor Yellow
     php artisan --version
     
     Write-Success "[DEPLOY] OK Laravel is ready"
@@ -923,6 +969,7 @@ function Test-Initialization {
     # Generate APP_KEY if needed
     $envContent = Get-Content $envFile -Raw -ErrorAction SilentlyContinue
     if ($envContent -and $envContent -notmatch "^APP_KEY=base64:") {
+        Write-Host "  Command: php artisan key:generate --force" -ForegroundColor Yellow
         php artisan key:generate --force
     }
     
@@ -968,11 +1015,14 @@ function Repair-Prerequisites {
     $projectRoot = $CORE_NODE_DIR
     
     # Add current directory and project root to Git safe directories
+    Write-Host "  Command: git config --global --add safe.directory $currentDir" -ForegroundColor Yellow
     git config --global --add safe.directory $currentDir
+    Write-Host "  Command: git config --global --add safe.directory $projectRoot" -ForegroundColor Yellow
     git config --global --add safe.directory $projectRoot
     
     # Also add any parent directories that might be causing issues
     $parentDir = Split-Path -Parent $currentDir
+    Write-Host "  Command: git config --global --add safe.directory $parentDir" -ForegroundColor Yellow
     git config --global --add safe.directory $parentDir
     
     Write-Success "Git safe directories configured"
@@ -1006,6 +1056,7 @@ function Repair-Prerequisites {
     
     # 4. Verify Git functionality
     Write-Warning "Verifying Git functionality..."
+    Write-Host "  Command: git status" -ForegroundColor Yellow
     git status
     Write-Success "Git is working properly"
     
@@ -1053,6 +1104,7 @@ function Test-EnvFile {
         if ($envContent -match "APP_KEY=") {
             if (Get-Command php -ErrorAction SilentlyContinue) {
                 Set-Location $ProjectRoot
+                Write-Host "  Command: php artisan key:generate --quiet" -ForegroundColor Yellow
                 php artisan key:generate --quiet
                 Write-Success "Generated application encryption key"
             } else {
@@ -1162,6 +1214,7 @@ Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
 $parentDir = Split-Path -Parent $SCRIPT_DIR
 Set-Location $parentDir
 Write-Info "Running Laravel system initialization..."
+Write-Host "  Command: php artisan sys:init" -ForegroundColor Yellow
 php artisan sys:init
 Write-Success "Laravel system initialization completed"
 
@@ -1203,6 +1256,7 @@ if (-not (Test-Path $envFile)) {
 
 # Test basic artisan command
 Write-Info "Testing Laravel artisan command..."
+Write-Host "  Command: php artisan --version" -ForegroundColor Yellow
 php artisan --version
 Write-Success "Laravel artisan is working"
 
@@ -1236,6 +1290,7 @@ if ($FullDeploy) {
     function Test-Php {
         Write-Info "Verifying PHP installation..."
         if (Get-Command php -ErrorAction SilentlyContinue) {
+            Write-Host "  Command: php -v" -ForegroundColor Yellow
             $phpVersion = php -v | Select-Object -First 1
             Write-Success "PHP version: $phpVersion"
             return $true
@@ -1249,6 +1304,7 @@ if ($FullDeploy) {
     # Function to check and install required PHP extensions
     function Test-PhpExtensions {
         Write-Host "Checking required PHP extensions (dom, xml)..."
+        Write-Host "  Command: php -m" -ForegroundColor Yellow
         $phpModules = php -m 2>&1
         
         if ($phpModules -notmatch 'dom') {
@@ -1263,6 +1319,7 @@ if ($FullDeploy) {
     function Test-Composer {
         Write-Info "Verifying Composer installation..."
         if (Get-Command composer -ErrorAction SilentlyContinue) {
+            Write-Host "  Command: composer --version" -ForegroundColor Yellow
             $composerVersion = composer --version
             Write-Success "Composer version: $composerVersion"
             return $true
@@ -1281,6 +1338,7 @@ if ($FullDeploy) {
         if (-not (Test-Path $vendorDir)) {
             Write-Host "Vendor directory not found. Installing dependencies..."
             Set-Location $laravelDir
+            Write-Host "  Command: composer install" -ForegroundColor Yellow
             composer install
         } else {
             Write-Host "Vendor directory exists."
@@ -1296,9 +1354,13 @@ if ($FullDeploy) {
         Set-Location $laravelDir
         
         Write-Host "Clearing Laravel cache..."
+        Write-Host "  Command: php artisan cache:clear" -ForegroundColor Yellow
         php artisan cache:clear
+        Write-Host "  Command: php artisan config:clear" -ForegroundColor Yellow
         php artisan config:clear
+        Write-Host "  Command: php artisan route:clear" -ForegroundColor Yellow
         php artisan route:clear
+        Write-Host "  Command: php artisan view:clear" -ForegroundColor Yellow
         php artisan view:clear
     }
     
@@ -1357,15 +1419,19 @@ if ($FullDeploy) {
         Set-Location $laravelDir
         if ($dbExists) {
             Write-Info "[DATABASE] Running schema updates on existing database"
+            Write-Host "  Command: php artisan migrate --force" -ForegroundColor Yellow
             php artisan migrate --force
         } else {
             Write-Info "[DATABASE] Initializing new database with migrations"
+            Write-Host "  Command: php artisan migrate:fresh --force --seed" -ForegroundColor Yellow
             php artisan migrate:fresh --force --seed
         }
         
         # 5. Optional configuration (if needed)
+        Write-Host "  Command: php artisan" -ForegroundColor Yellow
         $artisanCommands = php artisan 2>&1
         if ($artisanCommands -match "database:config") {
+            Write-Host "  Command: php artisan database:config" -ForegroundColor Yellow
             php artisan database:config
         }
         
@@ -1388,6 +1454,7 @@ if ($FullDeploy) {
         
         # Always try to apply patch, silently skip if conditions not met
         if ((Test-Path $fixerScript) -and (Test-Path (Join-Path $laravelRoot "vendor\laravel\octane"))) {
+            Write-Host "  Command: php $fixerScript $laravelRoot" -ForegroundColor Yellow
             php $fixerScript $laravelRoot
         }
         
@@ -1433,14 +1500,15 @@ if ($FullDeploy) {
         
         # Test basic artisan command
         Write-Info "Testing Laravel artisan command..."
+        Write-Host "  Command: php artisan --version" -ForegroundColor Yellow
         php artisan --version
         Write-Success "Laravel artisan is working"
         
         Write-Host ""
         Write-Info "Laravel project is ready to start"
-        Write-Info "To start the development server, run:"
+        Write-Info "To start the Octane server, run:"
         Write-Host "  cd $laravelDir" -ForegroundColor Yellow
-        Write-Host "  php artisan serve" -ForegroundColor Yellow
+        Write-Host "  php artisan octane:start --server=roadrunner --port=9000" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "============================================================================" -ForegroundColor Cyan
         Write-Host ""
@@ -1509,6 +1577,7 @@ expose_php = Off
     $parentDir = Split-Path -Parent $SCRIPT_DIR
     Set-Location $parentDir
     Write-Info "Running Laravel system initialization (final step)..."
+    Write-Host "  Command: php artisan sys:init" -ForegroundColor Yellow
     php artisan sys:init
     Write-Success "Laravel system initialization completed"
     

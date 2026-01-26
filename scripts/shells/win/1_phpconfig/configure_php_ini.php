@@ -328,26 +328,107 @@ function enableExtension($iniContent, $name) {
     
     return implode("\n", $resultLines);
 }
+function downloadSwooleDll($extDir) {
+    global $phpDir;
+    
+    if (!is_dir($extDir)) {
+        return false;
+    }
+    
+    $phpVersion = PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;
+    $phpThreadSafety = (ZEND_THREAD_SAFE ? 'ts' : 'nts');
+    $phpArchitecture = (PHP_INT_SIZE === 8 ? 'x64' : 'x86');
+    $phpVersionShort = str_replace('.', '', $phpVersion);
+    
+    $swooleDllName = "php_swoole.dll";
+    $swooleDllPath = $extDir . '\\' . $swooleDllName;
+    
+    if (file_exists($swooleDllPath)) {
+        return true;
+    }
+    
+    echo "Attempting to download Swoole DLL for PHP $phpVersion ($phpThreadSafety, $phpArchitecture)...\n";
+    
+    $swooleVersions = ['5.1.3', '5.1.2', '5.1.1', '5.1.0', '5.0.3', '5.0.2', '5.0.1', '5.0.0', '4.8.13', '4.8.12'];
+    $baseUrl = "https://windows.php.net/downloads/pecl/releases/swoole/";
+    
+    foreach ($swooleVersions as $swooleVersion) {
+        $dllUrl = $baseUrl . $swooleVersion . "/php_swoole-" . $swooleVersion . "-" . $phpVersionShort . "-" . $phpThreadSafety . "-" . $phpArchitecture . ".zip";
+        
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 15,
+                    'user_agent' => 'PHP Swoole Installer',
+                    'follow_location' => 1
+                ]
+            ]);
+            
+            $zipContent = @file_get_contents($dllUrl, false, $context);
+            if ($zipContent !== false && strlen($zipContent) > 1000) {
+                $zipPath = $extDir . '\\swoole_temp.zip';
+                if (file_put_contents($zipPath, $zipContent) !== false) {
+                    $zip = new ZipArchive();
+                    if ($zip->open($zipPath) === TRUE) {
+                        for ($i = 0; $i < $zip->numFiles; $i++) {
+                            $filename = $zip->getNameIndex($i);
+                            if (preg_match('/php_swoole.*\.dll$/i', $filename)) {
+                                $dllContent = $zip->getFromIndex($i);
+                                if ($dllContent !== false && strlen($dllContent) > 10000) {
+                                    if (file_put_contents($swooleDllPath, $dllContent) !== false) {
+                                        $zip->close();
+                                        @unlink($zipPath);
+                                        echo "Success: Downloaded Swoole $swooleVersion DLL to $swooleDllPath\n";
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                        $zip->close();
+                    }
+                    @unlink($zipPath);
+                }
+            }
+        } catch (Exception $e) {
+            continue;
+        }
+    }
+    
+    echo "Warning: Could not download Swoole DLL automatically\n";
+    echo "Please download manually from: https://windows.php.net/downloads/pecl/releases/swoole/\n";
+    echo "Note: Swoole on Windows has limited support. Consider using WSL or Docker for production.\n";
+    return false;
+}
+
 function verifyExtension($iniContent, $name) {
     global $extDir;
     static $dllsListed = false;
     
     $matchingDll = findMatchingDll($name);
     if ($matchingDll === null) {
-        echo "Warning: Extension $name DLL not found in $extDir\n";
-        if (!$dllsListed) {
-            echo "\nAvailable extensions in $extDir:\n";
-            $dllFiles = glob($extDir . '\\*.dll');
-            if (!empty($dllFiles)) {
-                foreach ($dllFiles as $dll) {
-                    echo "  - " . basename($dll) . "\n";
-                }
-            } else {
-                echo "  No DLL files found in $extDir\n";
+        if ($name === 'swoole') {
+            echo "Swoole DLL not found, attempting to download...\n";
+            if (downloadSwooleDll($extDir)) {
+                $matchingDll = findMatchingDll($name);
             }
-            $dllsListed = true;
         }
-        return [$iniContent, false];
+        
+        if ($matchingDll === null) {
+            echo "Warning: Extension $name DLL not found in $extDir\n";
+            if (!$dllsListed) {
+                echo "\nAvailable extensions in $extDir:\n";
+                $dllFiles = glob($extDir . '\\*.dll');
+                if (!empty($dllFiles)) {
+                    foreach ($dllFiles as $dll) {
+                        echo "  - " . basename($dll) . "\n";
+                    }
+                } else {
+                    echo "  No DLL files found in $extDir\n";
+                }
+                $dllsListed = true;
+            }
+            return [$iniContent, false];
+        }
     }
     
     $newIniContent = enableExtension($iniContent, $name);
