@@ -191,7 +191,7 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/user/profile');
   }
 
-  async updateUserProfile(data: { displayName?: string; avatar?: string }): Promise<APIResponse> {
+  async updateUserProfile(data: { nickname?: string; name?: string; bio?: string; location?: string; avatar?: string }): Promise<APIResponse> {
     return this.put('/user/profile', data);
   }
 

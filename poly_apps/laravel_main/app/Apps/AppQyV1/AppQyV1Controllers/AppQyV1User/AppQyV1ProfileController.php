@@ -188,4 +188,76 @@ class AppQyV1ProfileController extends BaseController
     {
         return AvatarService::getAvatarUrl($avatar);
     }
-}
+
+    /**
+     * Get user preferences
+     */
+    public function getPreferences(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $defaultPreferences = [
+            'theme' => 'dark',
+            'language' => 'en',
+            'favorites' => [],
+            'recentTools' => [],
+        ];
+
+        $userPreferences = $user->preferences ?? [];
+        if (!is_array($userPreferences)) {
+            $userPreferences = [];
+        }
+
+        $preferences = array_merge($defaultPreferences, $userPreferences);
+
+        return $this->success($preferences, 'Preferences retrieved successfully');
+    }
+
+    /**
+     * Update user preferences
+     */
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'theme' => 'nullable|string|in:light,dark',
+            'language' => 'nullable|string|max:10',
+            'favorites' => 'nullable|array',
+            'recentTools' => 'nullable|array',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+        }
+
+        $validated = $validator->validated();
+
+        $defaultPreferences = [
+            'theme' => 'dark',
+            'language' => 'en',
+            'favorites' => [],
+            'recentTools' => [],
+        ];
+
+        $currentPreferences = $user->preferences ?? [];
+        if (!is_array($currentPreferences)) {
+            $currentPreferences = [];
+        }
+
+        $updatedPreferences = array_merge($defaultPreferences, $currentPreferences, $validated);
+
+        $user->preferences = $updatedPreferences;
+        $user->save();
+
+        return $this->success($updatedPreferences, 'Preferences updated successfully');
+    }
+ }

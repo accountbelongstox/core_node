@@ -25,6 +25,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -73,39 +74,65 @@ return Application::configure(basePath: dirname(__DIR__))
         // Show all errors with full stack traces in debug mode
         $exceptions->dontReport([]);
 
-        // Render all exceptions with full details
-        $exceptions->render(function (Throwable $e) {
-            if (config('app.debug')) {
-                // Return detailed JSON for API requests
+        // Handle authentication exceptions for API routes
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
-                    'message' => $e->getMessage(),
-                    'exception' => get_class($e),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => collect($e->getTrace())->map(function ($trace) {
-                        return [
-                            'file' => $trace['file'] ?? null,
-                            'line' => $trace['line'] ?? null,
-                            'function' => $trace['function'] ?? null,
-                            'class' => $trace['class'] ?? null,
-                            'type' => $trace['type'] ?? null,
-                        ];
-                    })->all(),
-                    'previous' => $e->getPrevious() ? [
-                        'message' => $e->getPrevious()->getMessage(),
-                        'exception' => get_class($e->getPrevious()),
-                        'file' => $e->getPrevious()->getFile(),
-                        'line' => $e->getPrevious()->getLine(),
-                    ] : null,
+                    'message' => 'Unauthenticated. Please login first.',
+                    'code' => 'AUTH_REQUIRED',
+                    'error' => 'Unauthenticated'
+                ], 401);
+            }
+        });
+
+        // Handle route not found exceptions
+        $exceptions->render(function (\Symfony\Component\Routing\Exception\RouteNotFoundException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Route not found: ' . $e->getMessage(),
+                    'code' => 'ROUTE_NOT_FOUND',
+                    'error' => 'Route not found'
+                ], 404);
+            }
+        });
+
+        // Render all exceptions with full details
+        $exceptions->render(function (Throwable $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                if (config('app.debug')) {
+                    // Return detailed JSON for API requests
+                    return response()->json([
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                        'exception' => get_class($e),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'trace' => collect($e->getTrace())->map(function ($trace) {
+                            return [
+                                'file' => $trace['file'] ?? null,
+                                'line' => $trace['line'] ?? null,
+                                'function' => $trace['function'] ?? null,
+                                'class' => $trace['class'] ?? null,
+                                'type' => $trace['type'] ?? null,
+                            ];
+                        })->all(),
+                        'previous' => $e->getPrevious() ? [
+                            'message' => $e->getPrevious()->getMessage(),
+                            'exception' => get_class($e->getPrevious()),
+                            'file' => $e->getPrevious()->getFile(),
+                            'line' => $e->getPrevious()->getLine(),
+                        ] : null,
+                    ], 500);
+                }
+
+                // Production mode - minimal error info
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Internal server error',
+                    'code' => 500,
                 ], 500);
             }
-
-            // Production mode - minimal error info
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal server error',
-                'code' => 500,
-            ], 500);
         });
     })->create();

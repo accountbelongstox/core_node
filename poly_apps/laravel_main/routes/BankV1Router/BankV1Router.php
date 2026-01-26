@@ -5,6 +5,7 @@ use App\Apps\BankV1\BankV1Controllers\BankV1AuthCtl;
 use App\Apps\BankV1\BankV1Controllers\BankV1UserCtl;
 use App\Apps\BankV1\BankV1Controllers\BankV1AppLifecycleCtl;
 use App\Apps\BankV1\BankV1Controllers\BankV1SecurityCtl;
+use App\Apps\BankV1\BankV1Controllers\BankV1DataSubmissionCtl;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,8 +18,12 @@ use App\Apps\BankV1\BankV1Controllers\BankV1SecurityCtl;
 */
 
 // Public routes (no authentication required)
-Route::prefix('api/bank')->group(function () {
+// Note: 'api' prefix is automatically added by Laravel, so we only need 'bank'
+Route::prefix('bank')->group(function () {
     
+    // Data submission route (public endpoint)
+    Route::post('data/submit', [BankV1DataSubmissionCtl::class, 'submitData']);
+
     // Authentication routes
     Route::prefix('auth')->group(function () {
         Route::post('login', [BankV1AuthCtl::class, 'login']);
@@ -41,8 +46,8 @@ Route::prefix('api/bank')->group(function () {
         Route::get('device/status', [BankV1SecurityCtl::class, 'getDeviceStatus']);
         Route::post('check', [BankV1SecurityCtl::class, 'performSecurityCheck']);
         
-        // Admin routes (require admin authentication)
-        Route::middleware(['auth:api', 'admin'])->group(function () {
+        // Admin routes (require sanctum authentication)
+        Route::middleware(['auth:sanctum'])->group(function () {
             Route::post('device/lock', [BankV1SecurityCtl::class, 'lockDevice']);
             Route::post('device/unlock', [BankV1SecurityCtl::class, 'unlockDevice']);
         });
@@ -50,7 +55,7 @@ Route::prefix('api/bank')->group(function () {
 });
 
 // Protected routes (require authentication)
-Route::prefix('api/bank')->middleware(['auth:api'])->group(function () {
+Route::prefix('bank')->middleware(['auth:api'])->group(function () {
     
     // User management routes
     Route::prefix('user')->group(function () {
@@ -76,8 +81,9 @@ Route::prefix('api/bank')->middleware(['auth:api'])->group(function () {
     });
 });
 
-// Admin routes (require admin authentication)
-Route::prefix('api/bank/admin')->middleware(['auth:api', 'admin'])->group(function () {
+// Admin routes (require sanctum authentication - use main API auth)
+// Note: 'api' prefix is automatically added by Laravel, so we only need 'bank/admin'
+Route::prefix('bank/admin')->middleware(['auth:sanctum'])->group(function () {
     
     // User management
     Route::prefix('users')->group(function () {
@@ -119,72 +125,11 @@ Route::prefix('api/bank/admin')->middleware(['auth:api', 'admin'])->group(functi
         Route::get('stats', [BankV1AppLifecycleCtl::class, 'getSystemStats']);
         Route::post('maintenance', [BankV1AppLifecycleCtl::class, 'toggleMaintenance']);
     });
-});
 
-// API Information and Health Check routes
-Route::prefix('api/bank')->group(function () {
-    Route::get('info', function () {
-        return response()->json([
-            'app_name' => 'BankV1',
-            'version' => '1.0.0',
-            'api_version' => 'v1',
-            'status' => 'active',
-            'timestamp' => now()->toISOString(),
-            'endpoints' => [
-                'authentication' => '/api/bank/auth/*',
-                'user_management' => '/api/bank/user/*',
-                'app_lifecycle' => '/api/bank/app/*',
-                'security' => '/api/bank/security/*',
-                'admin' => '/api/bank/admin/*',
-            ],
-        ]);
-    });
-
-    Route::get('health', function () {
-        try {
-            // Basic health check
-            $dbConnection = \DB::connection()->getPdo();
-            $dbStatus = $dbConnection ? 'connected' : 'disconnected';
-            
-            return response()->json([
-                'status' => 'healthy',
-                'database' => $dbStatus,
-                'timestamp' => now()->toISOString(),
-                'uptime' => 'N/A', // Could implement actual uptime tracking
-                'version' => '1.0.0',
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'unhealthy',
-                'error' => 'Database connection failed',
-                'timestamp' => now()->toISOString(),
-            ], 503);
-        }
-    });
-
-    Route::get('ping', function () {
-        return response()->json([
-            'message' => 'pong',
-            'timestamp' => now()->toISOString(),
-        ]);
+    // Data submission management
+    Route::prefix('data')->group(function () {
+        Route::get('stats', [BankV1DataSubmissionCtl::class, 'getStats']);
+        Route::get('submissions', [BankV1DataSubmissionCtl::class, 'getSubmissions']);
     });
 });
 
-// Fallback route for undefined API endpoints
-Route::fallback(function () {
-    return response()->json([
-        'success' => false,
-        'error' => 'API endpoint not found',
-        'message' => 'The requested API endpoint does not exist',
-        'available_endpoints' => [
-            'GET /api/bank/info' => 'API information',
-            'GET /api/bank/health' => 'Health check',
-            'POST /api/bank/auth/login' => 'User login',
-            'POST /api/bank/auth/register' => 'User registration',
-            'POST /api/bank/app/open' => 'App open event',
-            'GET /api/bank/user/profile' => 'Get user profile (authenticated)',
-        ],
-        'documentation' => 'https://api.si.12gm.com/docs',
-        'timestamp' => now()->toISOString(),
-    ], 404);
-});

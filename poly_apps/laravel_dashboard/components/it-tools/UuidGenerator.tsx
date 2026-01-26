@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { itToolsModel } from '../../core/models';
 import { useToolOperation, useClipboard } from '../../hooks';
-import { ToolContainer, CodeDisplay } from '../common';
+import { ToolContainer, CodeDisplay, CopyAllButton } from '../common';
 import { RefreshCw } from 'lucide-react';
 
 export function UuidGenerator() {
@@ -128,12 +128,15 @@ export function UuidGenerator() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Generated UUIDs ({uuids.length})
                 </label>
-                <button
-                  onClick={() => copyMultiple(uuids)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  Copy All
-                </button>
+                <CopyAllButton
+                  items={uuids}
+                  label="Copy All"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline !px-0 !py-0"
+                  showIcon={false}
+                  successMessage={`${uuids.length} UUIDs copied to clipboard`}
+                />
               </div>
               <div className="bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-4 max-h-96 overflow-y-auto">
                 <div className="space-y-2">

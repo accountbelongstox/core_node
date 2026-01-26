@@ -16,6 +16,58 @@ export interface SystemConfig {
   };
 }
 
+export interface ServerConfig {
+  app: {
+    name: string;
+    env: string;
+    debug: boolean;
+    url: string;
+    timezone: string;
+    locale: string;
+  };
+  database: {
+    default: string;
+    connections: Record<string, any>;
+  };
+  paths: {
+    core_node: string;
+    laravel_data: string;
+    wwwroot: string;
+    storage: string;
+    public: string;
+  };
+  server: {
+    php_version: string;
+    laravel_version: string;
+    server_software: string;
+  };
+  sanctum: {
+    expiration: number;
+    token_prefix: string;
+  };
+}
+
+export interface EnvironmentInfo {
+  php: {
+    version: string;
+    sapi: string;
+    memory_limit: string;
+    max_execution_time: string;
+    upload_max_filesize: string;
+    post_max_size: string;
+  };
+  laravel: {
+    version: string;
+    environment: string;
+    debug: boolean;
+  };
+  server: {
+    software: string;
+    os: string;
+    server_name: string;
+  };
+}
+
 /**
  * System Configuration API
  * 获取系统路径配置和其他全局配置
@@ -52,5 +104,29 @@ export class SystemConfigAPI extends BaseAPI {
    */
   async getPathMapping(name: string): Promise<APIResponse<PathMapping>> {
     return this.get(`/api/config/paths/${name}`);
+  }
+
+  /**
+   * Get server configuration
+   * Requires admin authentication
+   */
+  async getServerConfig(): Promise<APIResponse<ServerConfig>> {
+    return this.get('/api/config/server');
+  }
+
+  /**
+   * Update server configuration
+   * Requires super admin authentication
+   */
+  async updateServerConfig(data: Partial<ServerConfig>): Promise<APIResponse<any>> {
+    return this.put('/api/config/server', data);
+  }
+
+  /**
+   * Get environment information
+   * Requires admin authentication
+   */
+  async getEnvironment(): Promise<APIResponse<EnvironmentInfo>> {
+    return this.get('/api/config/environment');
   }
 }

@@ -17,10 +17,9 @@ namespace App\Http\Controllers\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Controller;
-use Laravolt\Avatar\Avatar;
+use App\Http\Controllers\Auth\AvatarPublic;
 use App\Traits\ApiResponse;
 
 /**
@@ -42,25 +41,25 @@ class LoginController extends Controller
             return $this->validationError("must be required username and password", 'Invalid credentials');
         }
 
-        $user = User::where('username', $request->username)->first();
+        $user = User::where('username', $request->username)
+            ->orWhere('email', $request->username)
+            ->first();
 
         if (!$user) {
-            throw ValidationException::withMessages([
-                'username' => [__('auth.failed')],
-            ]);
+            return $this->validationError(
+                ['username' => ['Username or email not found. Please check your credentials and try again.']],
+                'These credentials do not match our records.'
+            );
         }
 
         if (!Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'username' => [__('auth.failed')],
-            ]);
+            return $this->validationError(
+                ['password' => ['Incorrect password. Please check your password and try again.']],
+                'These credentials do not match our records.'
+            );
         }
 
-        if (!Auth::attempt(['username' => $request->username, 'password' => $request->password], $request->boolean('remember'))) {
-            throw ValidationException::withMessages([
-                'username' => [__('auth.failed')],
-            ]);
-        }
+        Auth::login($user, $request->boolean('remember'));
 
         $user = AvatarPublic::createAvatar($user, true);
         $token = $user->createToken('auth_token')->plainTextToken;

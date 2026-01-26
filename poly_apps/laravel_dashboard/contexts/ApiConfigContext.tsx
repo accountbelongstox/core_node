@@ -13,21 +13,16 @@ interface ApiConfigContextType {
   resetConfig: () => void;
 }
 
-const DEFAULT_PORT = 9000;
+import { getDefaultBaseURL, DEFAULT_API_PORT } from '../config/constants';
 
 const getDefaultBaseUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    return `${protocol}//${hostname}:${DEFAULT_PORT}`;
-  }
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:9000';
+  return getDefaultBaseURL();
 };
 
 const DEFAULT_CONFIG: ApiConfig = {
   baseUrl: getDefaultBaseUrl(),
   apiKey: import.meta.env.VITE_API_KEY || undefined,
-  port: DEFAULT_PORT
+  port: DEFAULT_API_PORT
 };
 
 const STORAGE_KEY = 'dashboard_api_config';

@@ -5,29 +5,17 @@ import { ServerManagerAPI } from './modules/ServerManagerAPI';
 import { ItToolsV1API } from './modules/ItToolsV1';
 import { InviteCodeAPI } from './modules/InviteCodeAPI';
 import { SystemConfigAPI } from './modules/SystemConfigAPI';
+import { BankV1API } from './modules/BankV1';
+import { AuthAPI } from './modules/AuthAPI';
+import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
 /**
  * API配置
  * NO ?? or || allowed - use explicit checks
  */
-const getDefaultBaseURL = (): string => {
-  const envBaseURL = import.meta.env.VITE_API_BASE_URL;
-  if (envBaseURL) {
-    return envBaseURL;
-  }
-
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    return `${protocol}//${hostname}:9000`;
-  }
-
-  return 'http://localhost:9000';
-};
-
 const API_CONFIG = {
   baseURL: getDefaultBaseURL(),
-  timeout: 30000
+  timeout: DEFAULT_API_TIMEOUT
 };
 
 /**
@@ -43,6 +31,8 @@ class APIService {
   public itToolsV1: ItToolsV1API;
   public inviteCode: InviteCodeAPI;
   public systemConfig: SystemConfigAPI;
+  public bankV1: BankV1API;
+  public auth: AuthAPI;
 
   private constructor() {
     // 初始化所有API模块
@@ -87,6 +77,18 @@ class APIService {
       prefix: '', // No prefix - paths are handled in SystemConfigAPI methods
       timeout: API_CONFIG.timeout
     });
+
+    this.bankV1 = new BankV1API({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/bank',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.auth = new AuthAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api',
+      timeout: API_CONFIG.timeout
+    });
   }
 
   /**
@@ -110,6 +112,8 @@ class APIService {
     this.serverManager.setHeader('Authorization', bearerToken);
     this.itToolsV1.setHeader('Authorization', bearerToken);
     this.inviteCode.setHeader('Authorization', bearerToken);
+    this.bankV1.setHeader('Authorization', bearerToken);
+    this.auth.setHeader('Authorization', bearerToken);
   }
 
   /**
@@ -122,6 +126,8 @@ class APIService {
     this.serverManager.removeHeader('Authorization');
     this.itToolsV1.removeHeader('Authorization');
     this.inviteCode.removeHeader('Authorization');
+    this.bankV1.removeHeader('Authorization');
+    this.auth.removeHeader('Authorization');
   }
 
   /**
@@ -134,6 +140,8 @@ class APIService {
     this.serverManager.setHeader(key, value);
     this.itToolsV1.setHeader(key, value);
     this.inviteCode.setHeader(key, value);
+    this.bankV1.setHeader(key, value);
+    this.auth.setHeader(key, value);
   }
 
   /**
@@ -166,6 +174,18 @@ class APIService {
     });
 
     this.inviteCode = new InviteCodeAPI({
+      baseURL,
+      prefix: '/api',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.bankV1 = new BankV1API({
+      baseURL,
+      prefix: '/api/bank',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.auth = new AuthAPI({
       baseURL,
       prefix: '/api',
       timeout: API_CONFIG.timeout

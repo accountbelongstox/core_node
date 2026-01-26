@@ -16,13 +16,16 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\InviteCode;
 use App\Constants\AppKeys;
+use App\Constants\InviteCodes;
 use App\Services\UserSyncService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Auth\AvatarPublic;
@@ -43,19 +46,96 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'username' => ['required', 'string', 'max:255'],
-            // 'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'email', 'max:255'],
+            'nickname' => ['nullable', 'string', 'max:255'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'registration_code' => ['nullable', 'string'],
+            'invite_code' => ['nullable', 'string'],
         ]);
+
         if ($this->checkUsernameIsExist($request->username)) {
             return $this->error('Username already exists', 400);
         }
+
+        $roleLevel = 0;
+        $roleName = 'user';
+        $inviteCode = $request->registration_code ?? $request->invite_code ?? null;
+        $invite = null;
+
+        if ($inviteCode) {
+            // Check for fixed constant APPQY2025 (legacy support)
+            if ($inviteCode === InviteCodes::APPQY2025) {
+                // Fixed code grants regular user role (rolelevel 0)
+                // This is for backward compatibility with the old AppQyV1 registration system
+                Log::info('[Registration] Using fixed invite code APPQY2025', [
+                    'code' => $inviteCode,
+                    'username' => $request->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName
+                ]);
+            } else {
+                // Check database for invite code
+                $invite = InviteCode::where('code', $inviteCode)->first();
+
+                if (!$invite) {
+                    Log::warning('[Registration] Invalid invite code', [
+                        'code' => $inviteCode,
+                        'username' => $request->username
+                    ]);
+                    return $this->validationError(
+                        ['registration_code' => ['Invalid invite code. Please check your code and try again.']],
+                        'Invalid invite code'
+                    );
+                }
+
+                if (!$invite->canBeUsed()) {
+                    Log::warning('[Registration] Invite code cannot be used', [
+                        'code' => $inviteCode,
+                        'username' => $request->username,
+                        'is_active' => $invite->is_active,
+                        'used_count' => $invite->used_count,
+                        'max_uses' => $invite->max_uses,
+                        'expires_at' => $invite->expires_at
+                    ]);
+                    return $this->validationError(
+                        ['registration_code' => ['Invite code is expired or already used.']],
+                        'Invite code is expired or already used'
+                    );
+                }
+
+                $roleLevel = $invite->getRoleLevel();
+                $roleName = $invite->getRoleName();
+
+                Log::info('[Registration] Using invite code', [
+                    'code' => $inviteCode,
+                    'type' => $invite->type,
+                    'username' => $request->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName
+                ]);
+            }
+        }
+
         $user = User::create([
             'username' => $request->username,
             'nickname' => $request->nickname,
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->string('password')),
+            'rolelevel' => $roleLevel,
+            'rolename' => $roleName,
         ]);
+
+        if ($inviteCode && $invite) {
+            $invite->use($user, $request->ip(), $request->ip(), $request->userAgent());
+            Log::info('[Registration] Invite code used successfully', [
+                'code' => $inviteCode,
+                'user_id' => $user->id,
+                'username' => $user->username
+            ]);
+        }
+
         $user = AvatarPublic::createAvatar($user);
         event(new Registered($user));
 
@@ -96,7 +176,7 @@ class RegisteredUserController extends Controller
         $invitationCodeFile = \App\Providers\PathMapper::getLaravelDataDir() . '/app_qy_v1_invitation_code.json';
         if (file_exists($invitationCodeFile)) {
             $data = json_decode(file_get_contents($invitationCodeFile), true);
-            $validCode = 'APPQY2025';
+            $validCode = InviteCodes::APPQY2025;
             if (isset($data['invitation_code'])) {
                 $validCode = $data['invitation_code'];
             }

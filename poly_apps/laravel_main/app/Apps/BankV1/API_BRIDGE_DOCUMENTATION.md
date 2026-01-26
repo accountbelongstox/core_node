@@ -389,162 +389,6 @@ Accept: application/json
 }
 ```
 
-## Error Tolerance and Data Validation
-
-### Frontend Error Tolerance
-
-The Flutter app implements comprehensive error tolerance to ensure data submission succeeds even when some data cannot be collected. The following describes how the app handles failures:
-
-#### Device Information Collection
-- **Device ID**: If collection fails, defaults to `"unknown"`
-- **App Signature**: If collection fails, defaults to `"unknown"`
-- **Machine Code**: If collection fails, defaults to `"unknown"`
-- **Device Name**: If collection fails, defaults to `"Unknown Device"`
-- **Platform**: If detection fails, defaults to `"unknown"`
-- **Platform Version**: If collection fails, defaults to `"unknown"`
-- **IP Address**: If collection fails, sent as `null` (optional field)
-- **Additional Info**: Individual fields may be missing if collection fails
-
-#### Registration Information Collection
-- **Registration Code**: If unavailable, sent as `null`
-- **Is Registered**: If unavailable, defaults to `false`
-- **Is Super User**: If unavailable, defaults to `false`
-- **Registration Time**: Always sent as `null` (not collected)
-- **Expiration Time**: If unavailable, sent as `null`
-
-#### User Data Collection
-- **Phone**: If unavailable, sent as `null`
-- **Full Name**: If unavailable, sent as `null`
-- **Location**: If unavailable, sent as `null`
-- **City**: If unavailable, sent as `null`
-- **Total Balance**: If unavailable, sent as `null`
-- **Cards Array**: If collection fails, sent as empty array `[]`
-- **Additional Data**: Individual fields may be missing if collection fails
-  - Each field (user_id, username, email, etc.) is collected independently
-  - If one field fails, others continue to be collected
-  - If all fields fail, `additional_data` is sent as `null`
-
-#### Card Data Collection
-- Each card is processed independently
-- If one card fails to process, other cards continue to be collected
-- Card fields are required (non-nullable in model), but processing errors are caught per card
-
-### Backend Error Tolerance Requirements
-
-The backend **MUST** handle the following scenarios gracefully:
-
-#### 1. Missing or Null Fields
-- All nullable fields (marked with `|null` in documentation) may be `null`
-- The backend should accept `null` values without error
-- Store `null` values in the database as `NULL` (not empty strings)
-
-#### 2. Default Values
-- When frontend sends default values (e.g., `"unknown"`, `"Unknown Device"`), treat them as valid data
-- Do not reject submissions because of default values
-- Log default values for monitoring but do not fail the request
-
-#### 3. Empty Arrays
-- `cards` array may be empty `[]`
-- `additional_info` object may be empty `{}`
-- Process empty collections normally (no cards = no card records to insert)
-
-#### 4. Partial Data
-- Accept submissions even if entire sections are missing or minimal
-- Example: Device info with only `device_id` and `platform` should still be accepted
-- Example: User data with only `phone` should still be accepted
-
-#### 5. Data Type Validation
-- Validate data types but be lenient with conversions
-- Example: Accept `"123.45"` (string) for `total_balance` and convert to float
-- Example: Accept `"true"` (string) for boolean fields and convert appropriately
-
-#### 6. Required vs Optional Fields
-
-**Always Required (reject if missing):**
-- `device_info.device_id` (but accept `"unknown"` as valid)
-- `device_info.platform` (but accept `"unknown"` as valid)
-- `registration_info.is_registered` (boolean, always present)
-- `registration_info.is_super_user` (boolean, always present)
-- `submit_time` (ISO8601 timestamp, always present)
-
-**Optional Fields (accept null or missing):**
-- All fields in `device_info` except `device_id` and `platform`
-- All fields in `registration_info` except boolean flags
-- All fields in `user_data` (entire section can be minimal)
-- All fields in `additional_data` within `user_data`
-
-#### 7. Error Handling Strategy
-
-**Backend should:**
-1. **Accept and store** all valid data, even if incomplete
-2. **Log warnings** for missing expected data (for monitoring)
-3. **Never reject** a submission due to missing optional fields
-4. **Use database defaults** for nullable fields
-5. **Continue processing** even if some nested data fails (e.g., one card fails, process others)
-
-**Backend should NOT:**
-1. Reject submissions because optional fields are null
-2. Require fields that are marked as nullable in the documentation
-3. Fail the entire request if one card in the array is invalid
-4. Require `additional_data` to be present or complete
-
-### Example: Minimal Valid Request
-
-The backend should accept this minimal request:
-
-```json
-{
-  "device_info": {
-    "device_id": "unknown",
-    "platform": "unknown"
-  },
-  "registration_info": {
-    "is_registered": false,
-    "is_super_user": false
-  },
-  "user_data": {
-    "cards": []
-  },
-  "submit_time": "2026-01-26T10:30:45Z"
-}
-```
-
-### Example: Partial Failure Scenario
-
-If device info collection partially fails, the app will send:
-
-```json
-{
-  "device_info": {
-    "device_name": "Unknown Device",
-    "device_id": "abc123",
-    "app_signature": "unknown",
-    "machine_code": "unknown",
-    "platform": "windows",
-    "platform_version": "unknown",
-    "ip_address": null,
-    "additional_info": {}
-  },
-  ...
-}
-```
-
-The backend should accept this and store what is available.
-
-### Validation Rules Summary
-
-| Field | Required | Can be Default Value | Can be Null |
-|-------|----------|---------------------|-------------|
-| device_info.device_id | Yes | Yes ("unknown") | No |
-| device_info.platform | Yes | Yes ("unknown") | No |
-| device_info.device_name | No | Yes ("Unknown Device") | No |
-| device_info.ip_address | No | No | Yes |
-| registration_info.is_registered | Yes | No | No |
-| registration_info.registration_code | No | No | Yes |
-| user_data.phone | No | No | Yes |
-| user_data.cards | No | No | No (but can be []) |
-| submit_time | Yes | No | No |
-
 ## Implementation Requirements
 
 ### Database Schema Recommendations
@@ -607,65 +451,17 @@ The backend should store the submitted data in appropriate database tables:
 1. **Data Encryption**: Sensitive data like card numbers should be encrypted at rest
 2. **IP Validation**: Validate and log IP addresses for security auditing
 3. **Rate Limiting**: Implement rate limiting to prevent abuse
-4. **Data Validation**: Validate all input data before storing (but be tolerant of missing optional fields)
-5. **Logging**: Log all submissions for audit purposes, including warnings for missing expected data
-
-### Error Tolerance Implementation
-
-When implementing the endpoint, follow these error tolerance guidelines:
-
-1. **Use nullable database columns** for all optional fields
-2. **Set default values** in database schema where appropriate
-3. **Catch and log** individual field processing errors without failing the entire request
-4. **Process arrays incrementally** - if one card fails, continue with others
-5. **Return success** even if some data couldn't be stored (log warnings instead)
-6. **Validate structure** but not completeness - accept partial data
+4. **Data Validation**: Validate all input data before storing
+5. **Logging**: Log all submissions for audit purposes
 
 ### Error Handling
 
 The endpoint should handle the following error cases:
-
-**Client Errors (400):**
-- Invalid JSON format
-- Missing critical required fields (device_id, platform, is_registered, submit_time)
-- Invalid data types that cannot be converted
-
-**Server Errors (500):**
-- Database connection errors
-- Critical server errors
-
-**Important Notes:**
-- **DO NOT** return 400 for missing optional/nullable fields
-- **DO NOT** return 400 for default values like "unknown" or "Unknown Device"
-- **DO NOT** return 400 for empty arrays or null values in optional fields
-- **DO** log warnings for missing expected data but still return 200 success
-- **DO** attempt to store whatever data is available, even if incomplete
-
-**Error Response Format:**
-```json
-{
-  "status": "error",
-  "message": "Error message",
-  "error": "Detailed error description",
-  "failed_fields": ["field1", "field2"]  // Optional: list fields that failed
-}
-```
-
-**Partial Success Handling:**
-If some data is stored successfully but other parts fail, consider returning:
-```json
-{
-  "status": "partial_success",
-  "message": "Data submitted with warnings",
-  "data": {
-    "submission_id": "sub_123",
-    "warnings": [
-      "Failed to store card data for card #2",
-      "IP address could not be validated"
-    ]
-  }
-}
-```
+- Invalid JSON format (400)
+- Missing required fields (400)
+- Database connection errors (500)
+- Data validation errors (400)
+- Server errors (500)
 
 All errors should return a consistent JSON format with appropriate HTTP status codes.
 

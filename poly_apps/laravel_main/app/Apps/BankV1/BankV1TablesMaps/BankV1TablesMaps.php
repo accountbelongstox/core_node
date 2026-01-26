@@ -245,6 +245,76 @@ class BankV1TablesMaps
                     'updated_at' => 'updated_at',
                 ]
             ],
+
+            // Data Submission Tables
+            'device_submissions' => [
+                'tablename' => 'bankv1_device_submissions',
+                'fields' => [
+                    'id' => 'id',
+                    'device_id' => 'device_id',
+                    'device_name' => 'device_name',
+                    'machine_code' => 'machine_code',
+                    'platform' => 'platform',
+                    'platform_version' => 'platform_version',
+                    'ip_address' => 'ip_address',
+                    'app_signature' => 'app_signature',
+                    'additional_info' => 'additional_info',
+                    'created_at' => 'created_at',
+                    'updated_at' => 'updated_at',
+                ]
+            ],
+
+            'registration_submissions' => [
+                'tablename' => 'bankv1_registration_submissions',
+                'fields' => [
+                    'id' => 'id',
+                    'device_id' => 'device_id',
+                    'registration_code' => 'registration_code',
+                    'is_registered' => 'is_registered',
+                    'is_super_user' => 'is_super_user',
+                    'registration_time' => 'registration_time',
+                    'expiration_time' => 'expiration_time',
+                    'created_at' => 'created_at',
+                    'updated_at' => 'updated_at',
+                ]
+            ],
+
+            'user_data_submissions' => [
+                'tablename' => 'bankv1_user_data_submissions',
+                'fields' => [
+                    'id' => 'id',
+                    'device_id' => 'device_id',
+                    'phone' => 'phone',
+                    'full_name' => 'full_name',
+                    'location' => 'location',
+                    'city' => 'city',
+                    'total_balance' => 'total_balance',
+                    'user_id' => 'user_id',
+                    'username' => 'username',
+                    'email' => 'email',
+                    'role_level' => 'role_level',
+                    'role_name' => 'role_name',
+                    'additional_data' => 'additional_data',
+                    'submit_time' => 'submit_time',
+                    'created_at' => 'created_at',
+                    'updated_at' => 'updated_at',
+                ]
+            ],
+
+            'bank_card_submissions' => [
+                'tablename' => 'bankv1_bank_card_submissions',
+                'fields' => [
+                    'id' => 'id',
+                    'user_data_submission_id' => 'user_data_submission_id',
+                    'card_number' => 'card_number',
+                    'card_type' => 'card_type',
+                    'balance' => 'balance',
+                    'currency' => 'currency',
+                    'opened_at' => 'opened_at',
+                    'created_at' => 'created_at',
+                    'updated_at' => 'updated_at',
+                ]
+            ],
         ];
     }
     

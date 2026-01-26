@@ -59,6 +59,14 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       priority: 4,
       isLocal: false,
       description: 'Primary Remote API Server'
+    },
+    {
+      id: 'secondary-remote',
+      url: 'api.si.gm15.com',
+      protocol: 'https',
+      priority: 5,
+      isLocal: false,
+      description: 'Secondary Remote API Server'
     }
   ],
   healthCheckInterval: 60000, // 1 minute

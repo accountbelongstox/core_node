@@ -9,6 +9,7 @@ use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\AwyV0\Utils\AwyV0Initializer;
+use App\Apps\BankV1\BankV1Utils\BankV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
@@ -531,6 +532,7 @@ class InitializeApps extends Command
         $manager->register(new AppQyV1Initializer());
         $manager->register(new McpV1Initializer());
         $manager->register(new AwyV0Initializer());
+        $manager->register(new BankV1Initializer());
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {
@@ -885,6 +887,47 @@ class InitializeApps extends Command
                 $this->line("  ✅ AppQyV1 connection migrations completed");
             } else {
                 $this->warn("  ⚠️  Some AppQyV1 connection migrations encountered issues");
+            }
+
+            // ====================================================================
+            // BANKV1 CONNECTION MIGRATIONS
+            // ====================================================================
+            // Run migrations on bankv1 connection
+            // 
+            // Connection resolution:
+            //   - Uses AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1)
+            //   - This is the KEY center for connection resolution
+            //   - Returns connection name (e.g., 'bankv1') from configuration
+            // 
+            // --force parameter explanation (same as above):
+            //   - Purpose: Bypass production confirmation prompts
+            //   - Does NOT: Delete tables, modify data, or change migration behavior
+            //   - Safe to use: Yes, because migrations use hasTable() checks
+            // 
+            // Migration execution flow (same as default connection):
+            //   1. Laravel reads migration files from database/migrations/
+            //   2. Checks migrations table for bankv1 connection
+            //   3. Runs only NEW migrations (not already executed)
+            //   4. Each migration file checks hasTable() before creating tables
+            //   5. If table exists, migration adds missing columns (preserves data)
+            //   6. If table doesn't exist, migration creates table with all columns
+            // 
+            // Data safety (same as default connection):
+            //   - Migrations never drop tables (unless explicitly in down() method)
+            //   - Migrations never delete data (only add columns)
+            //   - Migrations are idempotent (safe to run multiple times)
+            $bankv1ExitCode = $this->call('migrate', [
+                '--database' => AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1),
+                '--force' => true,
+            ]);
+
+            // Check migration exit code and display result
+            // Exit code 0 means success, non-zero means some migrations had issues
+            // Note: Even if some migrations fail, data is still safe (no deletions occurred)
+            if ($bankv1ExitCode === 0) {
+                $this->line("  ✅ BankV1 connection migrations completed");
+            } else {
+                $this->warn("  ⚠️  Some BankV1 connection migrations encountered issues");
             }
 
         } catch (\Exception $e) {

@@ -46,6 +46,7 @@ class User extends Authenticatable
         'rolename',
         'learning_languages',
         'native_language',
+        'preferences',
     ];
 
     /**
@@ -69,6 +70,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'learning_languages' => 'array',
+            'preferences' => 'array',
         ];
     }
 
