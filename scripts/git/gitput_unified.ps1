@@ -921,11 +921,15 @@ function Invoke-GitOperations {
         Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
 
-        # Ask if user wants to force push BEFORE any pull operations
-        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
-        $forcePushChoice = Read-Host
+        # Ask if user wants to force push BEFORE any pull operations (only once per session)
+        if ($null -eq $script:ForcePushChoice) {
+            Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
+            $script:ForcePushChoice = Read-Host
+        } else {
+            Write-ColorText "Using previous force push choice: $($script:ForcePushChoice)" -ForegroundColor DarkGray
+        }
 
-        if ($forcePushChoice -match '^[Yy]$') {
+        if ($script:ForcePushChoice -match '^[Yy]$') {
             # Force push mode - skip pull completely
             Write-ColorText "=== FORCE PUSH MODE ===" -ForegroundColor Red
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
