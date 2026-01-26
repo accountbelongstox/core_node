@@ -1,7 +1,4 @@
 #!/bin/bash
-# Enable command tracing - print all commands before execution
-set -x
-
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only
@@ -20,34 +17,55 @@ set -x
 # ============================================================================
 
 # ============================================================================
+# COMMAND PRINTING FUNCTION
+# ============================================================================
+# Print command before execution for debugging and transparency
+print_cmd() {
+    echo -e "${YELLOW}[CMD]${NC} $*" >&2
+}
+
+# ============================================================================
 # CONSTANTS - All constants defined at the beginning
 # ============================================================================
 
 # Script directory (deploy.sh location)
+print_cmd "cd \"\$(dirname \"\${BASH_SOURCE[0]}\")\" && pwd"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Save initial working directory
+print_cmd "pwd"
 INITIAL_WORK_DIR="$(pwd)"
 
 # Path constants based on SCRIPT_DIR
-LARAVEL_DIR="${SCRIPT_DIR}/.."
+print_cmd "cd \"${SCRIPT_DIR}/..\" && pwd"
+LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMMON_SCRIPTS_DIR="${SCRIPT_DIR}/../../../scripts/shells/linux/common"
 GVAR_COMMON="${COMMON_SCRIPTS_DIR}/gvar_common.sh"
 COMMON_FUNCTIONS="${COMMON_SCRIPTS_DIR}/common_functions.sh"
 GET_REAL_USER_SCRIPT="${COMMON_SCRIPTS_DIR}/get_real_user.sh"
+
+# Common file names (constants)
+ENV_FILE=".env"
+ENV_EXAMPLE=".env.example"
+
+# Path-based constants (will be set after sourcing common scripts)
+FIXER_SCRIPT="${LARAVEL_DIR}/app/Support/OctaneSwooleCompatFixer.php"
 
 # ============================================================================
 # SOURCE COMMON SCRIPTS
 # ============================================================================
 
 # Source gvar_common.sh for environment detection and path mapping
-    source "$GVAR_COMMON"
+print_cmd "source \"$GVAR_COMMON\""
+source "$GVAR_COMMON"
 
 # Source common_functions.sh for engineering color output functions
+print_cmd "source \"$COMMON_FUNCTIONS\""
 source "$COMMON_FUNCTIONS"
 
 # Source get_real_user.sh for real user detection
 if [ -f "$GET_REAL_USER_SCRIPT" ]; then
+    print_cmd "source \"$GET_REAL_USER_SCRIPT\""
     source "$GET_REAL_USER_SCRIPT"
 else
     # Fallback function if get_real_user.sh is not available
@@ -61,6 +79,19 @@ else
         fi
     }
 fi
+
+# ============================================================================
+# GLOBAL VARIABLES - Set after sourcing common scripts
+# ============================================================================
+# These variables depend on functions/scripts loaded above
+
+# Get real user (depends on get_real_user function)
+print_cmd "get_real_user"
+REAL_USER=$(get_real_user)
+
+# Get web root path (depends on map_web_path function from gvar_common.sh)
+print_cmd "map_web_path \"wwwroot\""
+WWW_ROOT=$(map_web_path "wwwroot")
 
 # ============================================================================
 # PRINT ENVIRONMENT AND CONSTANTS INFORMATION
@@ -88,9 +119,8 @@ print_environment_info() {
     echo -e "  IS_PRODUCTION: ${IS_PRODUCTION}"
     echo -e "  HAS_DESKTOP_ENVIRONMENT: ${HAS_DESKTOP_ENVIRONMENT}"
     
-    local real_user=$(get_real_user)
     echo -e "${BLUE}Real User:${NC}"
-    echo -e "  REAL_USER: ${real_user}"
+    echo -e "  REAL_USER: ${REAL_USER}"
     
     echo -e "${BLUE}Tools:${NC}"
     [ -n "$USE_SUDO" ] && echo -e "  USE_SUDO: ${USE_SUDO}" || echo -e "  USE_SUDO: (not set)"
@@ -144,11 +174,14 @@ up_20251115_install_laravel_mcp() {
     echo -e "${GREEN}[UP] OK Composer found${NC}"
 
     echo -e "${BLUE}[UP] Step 2: Installing/Updating Laravel MCP...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/mcp\""
     if $USE_SUDO composer show | grep -q "laravel/mcp"; then
         echo -e "${BLUE}[UP] Laravel MCP already installed, ensuring latest version...${NC}"
+        print_cmd "$USE_SUDO composer update laravel/mcp"
         $USE_SUDO composer update laravel/mcp
     else
         echo -e "${BLUE}[UP] Installing Laravel MCP...${NC}"
+        print_cmd "$USE_SUDO composer require laravel/mcp"
         $USE_SUDO composer require laravel/mcp
     fi
 
@@ -157,9 +190,11 @@ up_20251115_install_laravel_mcp() {
     fi
 
     echo -e "${BLUE}[UP] Step 3: Publishing AI routes...${NC}"
-    if [ -f "$laravel_dir/routes/ai.php" ]; then
+    print_cmd "test -f \"$LARAVEL_DIR/routes/ai.php\""
+    if [ -f "$LARAVEL_DIR/routes/ai.php" ]; then
         echo -e "${BLUE}[UP] AI routes already exist, skipping publish${NC}"
     else
+        print_cmd "$USE_SUDO php artisan vendor:publish --tag=ai-routes --force"
         $USE_SUDO php artisan vendor:publish --tag=ai-routes --force
     fi
 
@@ -170,6 +205,7 @@ up_20251115_install_laravel_mcp() {
     fi
 
     echo -e "${BLUE}[UP] Step 4: Verifying installation...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/mcp\""
     if $USE_SUDO composer show | grep -q "laravel/mcp"; then
         echo -e "${GREEN}[UP] OK Laravel MCP package installed${NC}"
     else
@@ -203,15 +239,16 @@ up_20251115_install_octane() {
 
     echo -e "${CYAN}========================================${NC}"
 
-    local laravel_dir="$LARAVEL_DIR"
-    if [ -z "$laravel_dir" ]; then
+    if [ -z "$LARAVEL_DIR" ]; then
         echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
     fi
 
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    print_cmd "command -v composer"
     if ! command -v composer &> /dev/null; then
         echo -e "${RED}[UP] Composer not found${NC}"
         return 1
@@ -220,11 +257,14 @@ up_20251115_install_octane() {
 
     echo -e "${BLUE}[UP] Step 2: Installing/Updating Laravel Octane...${NC}"
     # Check if already installed
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/octane\""
     if $USE_SUDO composer show | grep -q "laravel/octane"; then
         echo -e "${BLUE}[UP] Laravel Octane already installed, ensuring latest version...${NC}"
+        print_cmd "$USE_SUDO composer update laravel/octane"
         $USE_SUDO composer update laravel/octane
     else
         echo -e "${BLUE}[UP] Installing Laravel Octane...${NC}"
+        print_cmd "$USE_SUDO composer require laravel/octane"
         $USE_SUDO composer require laravel/octane
     fi
 
@@ -233,9 +273,11 @@ up_20251115_install_octane() {
     fi
 
     echo -e "${BLUE}[UP] Step 3: Publishing Octane configuration...${NC}"
-    if [ -f "$laravel_dir/config/octane.php" ]; then
+    print_cmd "test -f \"$LARAVEL_DIR/config/octane.php\""
+    if [ -f "$LARAVEL_DIR/config/octane.php" ]; then
         echo -e "${BLUE}[UP] Octane config already exists, skipping publish${NC}"
     else
+        print_cmd "$USE_SUDO php artisan octane:install --server=swoole 2>&1 | grep -v \"Octane installed successfully\""
         $USE_SUDO php artisan octane:install --server=swoole 2>&1 | grep -v "Octane installed successfully"
     fi
 
@@ -246,6 +288,7 @@ up_20251115_install_octane() {
     fi
 
     echo -e "${BLUE}[UP] Step 4: Verifying installation...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/octane\""
     if $USE_SUDO composer show | grep -q "laravel/octane"; then
         echo -e "${GREEN}[UP] OK Laravel Octane package installed${NC}"
     else
@@ -278,44 +321,53 @@ up_20251127_install_chokidar() {
     echo -e "${CYAN}[UP] Note: Always runs to ensure proper installation${NC}"
     echo -e "${CYAN}========================================${NC}"
 
-    local laravel_dir="$LARAVEL_DIR"
-    if [ -z "$laravel_dir" ]; then
+    if [ -z "$LARAVEL_DIR" ]; then
         echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
     fi
 
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     echo -e "${BLUE}[UP] Step 1: Checking Node.js and pnpm...${NC}"
+    print_cmd "command -v node"
     if ! command -v node &> /dev/null; then
         echo -e "${RED}[UP] ERROR: Node.js not found${NC}"
         echo -e "${YELLOW}[UP] Please install Node.js first${NC}"
         return 1
     fi
 
+    print_cmd "command -v pnpm"
     if ! command -v pnpm &> /dev/null; then
         echo -e "${RED}[UP] ERROR: pnpm not found${NC}"
         echo -e "${YELLOW}[UP] Please install pnpm first (npm install -g pnpm)${NC}"
         return 1
     fi
 
+    print_cmd "node --version"
     local node_version=$(node --version)
+    print_cmd "pnpm --version"
     local pnpm_version=$(pnpm --version)
     echo -e "${GREEN}[UP] OK Node.js: $node_version${NC}"
     echo -e "${GREEN}[UP] OK pnpm: $pnpm_version${NC}"
 
     echo -e "${BLUE}[UP] Step 2: Checking/Installing chokidar (always runs)...${NC}"
 
+    print_cmd "test -d \"node_modules/chokidar\""
     if [ -d "node_modules/chokidar" ]; then
         echo -e "${BLUE}[UP] chokidar exists, verifying installation...${NC}"
+        print_cmd "pnpm install --save-dev chokidar 2>&1 | grep -E \"(up to date|added|updated|Progress)\" || true"
         pnpm install --save-dev chokidar 2>&1 | grep -E "(up to date|added|updated|Progress)" || true
     else
         echo -e "${BLUE}[UP] Installing chokidar...${NC}"
+        print_cmd "pnpm install --save-dev chokidar"
         pnpm install --save-dev chokidar
     fi
 
     echo -e "${BLUE}[UP] Step 3: Verifying chokidar installation...${NC}"
+    print_cmd "test -d \"node_modules/chokidar\""
     if [ -d "node_modules/chokidar" ]; then
+        print_cmd "pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print \$2}' || echo \"unknown\""
         local chokidar_version=$(pnpm list chokidar 2>/dev/null | grep chokidar | head -1 | awk '{print $2}' || echo "unknown")
         echo -e "${GREEN}[UP] OK chokidar installed (version: $chokidar_version)${NC}"
     else
@@ -324,6 +376,7 @@ up_20251127_install_chokidar() {
     fi
 
     echo -e "${BLUE}[UP] Step 4: Testing chokidar functionality...${NC}"
+    print_cmd "node -e \"require('chokidar'); console.log('OK')\" 2>/dev/null | grep -q \"OK\""
     if node -e "require('chokidar'); console.log('OK')" 2>/dev/null | grep -q "OK"; then
         echo -e "${GREEN}[UP] OK chokidar can be loaded successfully${NC}"
     else
@@ -356,15 +409,16 @@ up_20251206_install_faker() {
 
     echo -e "${CYAN}========================================${NC}"
 
-    local laravel_dir="$LARAVEL_DIR"
-    if [ -z "$laravel_dir" ]; then
+    if [ -z "$LARAVEL_DIR" ]; then
         echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
     fi
 
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    print_cmd "command -v composer"
     if ! command -v composer &> /dev/null; then
         echo -e "${RED}[UP] Composer not found${NC}"
         return 1
@@ -372,11 +426,14 @@ up_20251206_install_faker() {
     echo -e "${GREEN}[UP] OK Composer found${NC}"
 
     echo -e "${BLUE}[UP] Step 2: Installing/Updating FakerPHP...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"fakerphp/faker\""
     if $USE_SUDO composer show | grep -q "fakerphp/faker"; then
         echo -e "${BLUE}[UP] FakerPHP already installed, ensuring latest version...${NC}"
+        print_cmd "$USE_SUDO composer update fakerphp/faker --dev"
         $USE_SUDO composer update fakerphp/faker --dev
     else
         echo -e "${BLUE}[UP] Installing FakerPHP...${NC}"
+        print_cmd "$USE_SUDO composer require fakerphp/faker --dev"
         $USE_SUDO composer require fakerphp/faker --dev
     fi
 
@@ -385,6 +442,7 @@ up_20251206_install_faker() {
     fi
 
     echo -e "${BLUE}[UP] Step 3: Verifying installation...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"fakerphp/faker\""
     if $USE_SUDO composer show | grep -q "fakerphp/faker"; then
         echo -e "${GREEN}[UP] OK FakerPHP package installed${NC}"
     else
@@ -393,6 +451,7 @@ up_20251206_install_faker() {
     fi
 
     echo -e "${BLUE}[UP] Step 4: Testing fake() helper...${NC}"
+    print_cmd "php artisan tinker --execute=\"var_dump(function_exists('fake'));\" 2>/dev/null | grep -q \"bool(true)\""
     if php artisan tinker --execute="var_dump(function_exists('fake'));" 2>/dev/null | grep -q "bool(true)"; then
         echo -e "${GREEN}[UP] OK fake() helper function is available${NC}"
     else
@@ -425,15 +484,16 @@ up_20251215_install_reverb() {
 
     echo -e "${CYAN}========================================${NC}"
 
-    local laravel_dir="$LARAVEL_DIR"
-    if [ -z "$laravel_dir" ]; then
+    if [ -z "$LARAVEL_DIR" ]; then
         echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
     fi
 
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    print_cmd "command -v composer"
     if ! command -v composer &> /dev/null; then
         echo -e "${RED}[UP] Composer not found${NC}"
         return 1
@@ -441,19 +501,24 @@ up_20251215_install_reverb() {
     echo -e "${GREEN}[UP] OK Composer found${NC}"
 
     echo -e "${BLUE}[UP] Step 2: Installing Pusher PHP Server (Reverb dependency)...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"pusher/pusher-php-server\""
     if $USE_SUDO composer show | grep -q "pusher/pusher-php-server"; then
         echo -e "${BLUE}[UP] Pusher PHP Server already installed${NC}"
     else
         echo -e "${BLUE}[UP] Installing pusher/pusher-php-server...${NC}"
+        print_cmd "$USE_SUDO composer require pusher/pusher-php-server --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Package)\" || true"
         $USE_SUDO composer require pusher/pusher-php-server --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
     fi
 
     echo -e "${BLUE}[UP] Step 3: Installing/Updating Laravel Reverb...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/reverb\""
     if $USE_SUDO composer show | grep -q "laravel/reverb"; then
         echo -e "${BLUE}[UP] Laravel Reverb already installed, ensuring latest version...${NC}"
+        print_cmd "$USE_SUDO composer update laravel/reverb --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Nothing)\" || true"
         $USE_SUDO composer update laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Nothing)" || true
     else
         echo -e "${BLUE}[UP] Installing Laravel Reverb...${NC}"
+        print_cmd "$USE_SUDO composer require laravel/reverb --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Package)\" || true"
         $USE_SUDO composer require laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
     fi
 
@@ -462,9 +527,11 @@ up_20251215_install_reverb() {
     fi
 
     echo -e "${BLUE}[UP] Step 4: Publishing Reverb configuration...${NC}"
-    if [ -f "$laravel_dir/config/reverb.php" ]; then
+    print_cmd "test -f \"$LARAVEL_DIR/config/reverb.php\""
+    if [ -f "$LARAVEL_DIR/config/reverb.php" ]; then
         echo -e "${BLUE}[UP] Reverb config already exists, skipping publish${NC}"
     else
+        print_cmd "$USE_SUDO php artisan reverb:install --no-interaction 2>&1 | grep -v \"npm install\" || true"
         $USE_SUDO php artisan reverb:install --no-interaction 2>&1 | grep -v "npm install" || true
     fi
 
@@ -475,6 +542,7 @@ up_20251215_install_reverb() {
     fi
 
     echo -e "${BLUE}[UP] Step 5: Verifying installation...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"laravel/reverb\""
     if $USE_SUDO composer show | grep -q "laravel/reverb"; then
         echo -e "${GREEN}[UP] OK Laravel Reverb package installed${NC}"
     else
@@ -483,25 +551,37 @@ up_20251215_install_reverb() {
     fi
 
     echo -e "${BLUE}[UP] Step 6: Updating .env for Reverb...${NC}"
-    if [ -f "$laravel_dir/.env" ]; then
-        if ! grep -q "^BROADCAST_CONNECTION=" "$laravel_dir/.env"; then
-            echo "BROADCAST_CONNECTION=reverb" >> "$laravel_dir/.env"
+    print_cmd "test -f \"$LARAVEL_DIR/$ENV_FILE\""
+    if [ -f "$LARAVEL_DIR/$ENV_FILE" ]; then
+        print_cmd "grep -q \"^BROADCAST_CONNECTION=\" \"$LARAVEL_DIR/$ENV_FILE\""
+        if ! grep -q "^BROADCAST_CONNECTION=" "$LARAVEL_DIR/$ENV_FILE"; then
+            print_cmd "echo \"BROADCAST_CONNECTION=reverb\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "BROADCAST_CONNECTION=reverb" >> "$LARAVEL_DIR/$ENV_FILE"
             echo -e "${GREEN}[UP] OK Added BROADCAST_CONNECTION=reverb${NC}"
-        elif grep -q "^BROADCAST_CONNECTION=log" "$laravel_dir/.env"; then
-            sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' "$laravel_dir/.env"
+        elif grep -q "^BROADCAST_CONNECTION=log" "$LARAVEL_DIR/$ENV_FILE"; then
+            print_cmd "sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' \"$LARAVEL_DIR/$ENV_FILE\""
+            sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' "$LARAVEL_DIR/$ENV_FILE"
             echo -e "${GREEN}[UP] OK Updated BROADCAST_CONNECTION to reverb${NC}"
         else
             echo -e "${BLUE}[UP] BROADCAST_CONNECTION already configured${NC}"
         fi
 
-        if ! grep -q "^REVERB_APP_ID=" "$laravel_dir/.env"; then
-            echo "" >> "$laravel_dir/.env"
-            echo "REVERB_APP_ID=task-system" >> "$laravel_dir/.env"
-            echo "REVERB_APP_KEY=reverb-key-$(date +%s)" >> "$laravel_dir/.env"
-            echo "REVERB_APP_SECRET=reverb-secret-$(date +%s)" >> "$laravel_dir/.env"
-            echo "REVERB_HOST=0.0.0.0" >> "$laravel_dir/.env"
-            echo "REVERB_PORT=8080" >> "$laravel_dir/.env"
-            echo "REVERB_SCHEME=http" >> "$laravel_dir/.env"
+        print_cmd "grep -q \"^REVERB_APP_ID=\" \"$LARAVEL_DIR/$ENV_FILE\""
+        if ! grep -q "^REVERB_APP_ID=" "$LARAVEL_DIR/$ENV_FILE"; then
+            print_cmd "echo \"\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_APP_ID=task-system\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_APP_ID=task-system" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_APP_KEY=reverb-key-\$(date +%s)\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_APP_KEY=reverb-key-$(date +%s)" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_APP_SECRET=reverb-secret-\$(date +%s)\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_APP_SECRET=reverb-secret-$(date +%s)" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_HOST=0.0.0.0\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_HOST=0.0.0.0" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_PORT=8080\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_PORT=8080" >> "$LARAVEL_DIR/$ENV_FILE"
+            print_cmd "echo \"REVERB_SCHEME=http\" >> \"$LARAVEL_DIR/$ENV_FILE\""
+            echo "REVERB_SCHEME=http" >> "$LARAVEL_DIR/$ENV_FILE"
             echo -e "${GREEN}[UP] OK Added Reverb configuration to .env${NC}"
         else
             echo -e "${BLUE}[UP] Reverb env variables already configured${NC}"
@@ -536,15 +616,16 @@ up_20251220_install_haikunator() {
 
     echo -e "${CYAN}========================================${NC}"
 
-    local laravel_dir="$LARAVEL_DIR"
-    if [ -z "$laravel_dir" ]; then
+    if [ -z "$LARAVEL_DIR" ]; then
         echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
         return 1
     fi
 
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
+    print_cmd "command -v composer"
     if ! command -v composer &> /dev/null; then
         echo -e "${RED}[UP] Composer not found${NC}"
         return 1
@@ -552,11 +633,14 @@ up_20251220_install_haikunator() {
     echo -e "${GREEN}[UP] OK Composer found${NC}"
 
     echo -e "${BLUE}[UP] Step 2: Installing/Updating Haikunator...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"atrox/haikunator\""
     if $USE_SUDO composer show | grep -q "atrox/haikunator"; then
         echo -e "${BLUE}[UP] Haikunator already installed, ensuring latest version...${NC}"
+        print_cmd "$USE_SUDO composer update atrox/haikunator"
         $USE_SUDO composer update atrox/haikunator
     else
         echo -e "${BLUE}[UP] Installing Haikunator...${NC}"
+        print_cmd "$USE_SUDO composer require atrox/haikunator"
         $USE_SUDO composer require atrox/haikunator
     fi
 
@@ -565,6 +649,7 @@ up_20251220_install_haikunator() {
     fi
 
     echo -e "${BLUE}[UP] Step 3: Verifying installation...${NC}"
+    print_cmd "$USE_SUDO composer show | grep -q \"atrox/haikunator\""
     if $USE_SUDO composer show | grep -q "atrox/haikunator"; then
         echo -e "${GREEN}[UP] OK Haikunator package installed${NC}"
     else
@@ -589,54 +674,93 @@ up_20251220_install_haikunator() {
 check_initialization() {
     echo -e "${BLUE}[INIT] Fixing Laravel environment permissions${NC}"
 
-    local real_user=$(get_real_user)
-    local laravel_dir="$LARAVEL_DIR"
+    print_cmd "pwd"
     local saved_dir="$(pwd)"
-    cd "$laravel_dir" || return 1
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 1
 
     # Create Laravel directories that don't exist (never delete existing directories)
-    [ ! -d "storage/framework/sessions" ] && $USE_SUDO mkdir -p storage/framework/sessions
-    [ ! -d "storage/framework/cache" ] && $USE_SUDO mkdir -p storage/framework/cache
-    [ ! -d "storage/framework/views" ] && $USE_SUDO mkdir -p storage/framework/views
-    [ ! -d "storage/logs" ] && $USE_SUDO mkdir -p storage/logs
-    [ ! -d "storage/app/public" ] && $USE_SUDO mkdir -p storage/app/public
-    [ ! -d "bootstrap/cache" ] && $USE_SUDO mkdir -p bootstrap/cache
+    if [ ! -d "storage/framework/sessions" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/sessions"
+        $USE_SUDO mkdir -p storage/framework/sessions
+    fi
+    if [ ! -d "storage/framework/cache" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/cache"
+        $USE_SUDO mkdir -p storage/framework/cache
+    fi
+    if [ ! -d "storage/framework/views" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/views"
+        $USE_SUDO mkdir -p storage/framework/views
+    fi
+    if [ ! -d "storage/logs" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/logs"
+        $USE_SUDO mkdir -p storage/logs
+    fi
+    if [ ! -d "storage/app/public" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/app/public"
+        $USE_SUDO mkdir -p storage/app/public
+    fi
+    if [ ! -d "bootstrap/cache" ]; then
+        print_cmd "$USE_SUDO mkdir -p bootstrap/cache"
+        $USE_SUDO mkdir -p bootstrap/cache
+    fi
 
     # Create external directories for PathMapper that don't exist
-    local www_root=$(map_web_path "wwwroot")
-    [ ! -d "$www_root/laravel_db/sessions" ] && $USE_SUDO mkdir -p "$www_root/laravel_db/sessions"
-    [ ! -d "$www_root/laravel_db/tmp" ] && $USE_SUDO mkdir -p "$www_root/laravel_db/tmp"
+    if [ ! -d "$WWW_ROOT/laravel_db/sessions" ]; then
+        print_cmd "$USE_SUDO mkdir -p \"$WWW_ROOT/laravel_db/sessions\""
+        $USE_SUDO mkdir -p "$WWW_ROOT/laravel_db/sessions"
+    fi
+    if [ ! -d "$WWW_ROOT/laravel_db/tmp" ]; then
+        print_cmd "$USE_SUDO mkdir -p \"$WWW_ROOT/laravel_db/tmp\""
+        $USE_SUDO mkdir -p "$WWW_ROOT/laravel_db/tmp"
+    fi
 
     # Always fix permissions for all directories (existing and newly created)
     # Running as root, change ownership to low privilege user
     if [ "$IS_WSL" = true ]; then
+        print_cmd "$USE_SUDO chmod -R 777 storage bootstrap/cache 2>/dev/null || true"
         $USE_SUDO chmod -R 777 storage bootstrap/cache 2>/dev/null || true
-        $USE_SUDO chmod -R 777 "$www_root/laravel_db" 2>/dev/null || true
+        print_cmd "$USE_SUDO chmod -R 777 \"$WWW_ROOT/laravel_db\" 2>/dev/null || true"
+        $USE_SUDO chmod -R 777 "$WWW_ROOT/laravel_db" 2>/dev/null || true
     else
         # Fix ownership to real user (running as root, change to low privilege user)
-        $USE_SUDO chown -R "$real_user:$real_user" storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
-        $USE_SUDO chmod -R 775 storage bootstrap/cache "$www_root/laravel_db" 2>/dev/null || true
+        print_cmd "$USE_SUDO chown -R \"$REAL_USER:$REAL_USER\" storage bootstrap/cache \"$WWW_ROOT/laravel_db\" 2>/dev/null || true"
+        $USE_SUDO chown -R "$REAL_USER:$REAL_USER" storage bootstrap/cache "$WWW_ROOT/laravel_db" 2>/dev/null || true
+        print_cmd "$USE_SUDO chmod -R 775 storage bootstrap/cache \"$WWW_ROOT/laravel_db\" 2>/dev/null || true"
+        $USE_SUDO chmod -R 775 storage bootstrap/cache "$WWW_ROOT/laravel_db" 2>/dev/null || true
     fi
 
     # Create .env if needed
-    [ ! -f ".env" ] && cp ".env.example" ".env"
-    grep -q "^APP_KEY=base64:" ".env" 2>/dev/null || $USE_SUDO php artisan key:generate --force >/dev/null 2>&1
+    if [ ! -f "$ENV_FILE" ]; then
+        print_cmd "cp \"$ENV_EXAMPLE\" \"$ENV_FILE\""
+        cp "$ENV_EXAMPLE" "$ENV_FILE"
+    fi
+    print_cmd "grep -q \"^APP_KEY=base64:\" \"$ENV_FILE\" 2>/dev/null || $USE_SUDO php artisan key:generate --force >/dev/null 2>&1"
+    grep -q "^APP_KEY=base64:" "$ENV_FILE" 2>/dev/null || {
+        print_cmd "$USE_SUDO php artisan key:generate --force >/dev/null 2>&1"
+        $USE_SUDO php artisan key:generate --force >/dev/null 2>&1
+    }
 
     # Fix permissions for Laravel root directory (../ from script location)
     echo -e "${BLUE}[INIT] Fixing Laravel root directory permissions${NC}"
     if [ "$IS_WSL" = true ]; then
-        $USE_SUDO chmod -R 777 "$laravel_dir" 2>/dev/null || true
+        print_cmd "$USE_SUDO chmod -R 777 \"$LARAVEL_DIR\" 2>/dev/null || true"
+        $USE_SUDO chmod -R 777 "$LARAVEL_DIR" 2>/dev/null || true
     else
         # Fix ownership to real user (running as root, change to low privilege user)
-        $USE_SUDO chown -R "$real_user:$real_user" "$laravel_dir" 2>/dev/null || true
-        $USE_SUDO chmod -R 755 "$laravel_dir" 2>/dev/null || true
+        print_cmd "$USE_SUDO chown -R \"$REAL_USER:$REAL_USER\" \"$LARAVEL_DIR\" 2>/dev/null || true"
+        $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DIR" 2>/dev/null || true
+        print_cmd "$USE_SUDO chmod -R 755 \"$LARAVEL_DIR\" 2>/dev/null || true"
+        $USE_SUDO chmod -R 755 "$LARAVEL_DIR" 2>/dev/null || true
         # Special permissions for writable directories
-        $USE_SUDO chmod -R 775 "$laravel_dir/storage" "$laravel_dir/bootstrap/cache" 2>/dev/null || true
+        print_cmd "$USE_SUDO chmod -R 775 \"$LARAVEL_DIR/storage\" \"$LARAVEL_DIR/bootstrap/cache\" 2>/dev/null || true"
+        $USE_SUDO chmod -R 775 "$LARAVEL_DIR/storage" "$LARAVEL_DIR/bootstrap/cache" 2>/dev/null || true
     fi
 
     echo -e "${GREEN}[INIT] OK Environment permissions fixed${NC}"
     
     # Restore original directory
+    print_cmd "cd \"$saved_dir\""
     cd "$saved_dir" || true
     return 0
 }
@@ -671,15 +795,20 @@ fix_prerequisites() {
 
     # 1. Fix Git safe directory issue (WSL/dual boot common problem)
     echo -e "${YELLOW}Fixing Git safe directory issues...${NC}"
+    print_cmd "pwd"
     local current_dir=$(pwd)
     local project_root="${CORE_NODE_DIR}"
     
     # Add current directory and project root to Git safe directories
+    print_cmd "git config --global --add safe.directory \"$current_dir\" 2>/dev/null || true"
     git config --global --add safe.directory "$current_dir" 2>/dev/null || true
+    print_cmd "git config --global --add safe.directory \"$project_root\" 2>/dev/null || true"
     git config --global --add safe.directory "$project_root" 2>/dev/null || true
     
     # Also add any parent directories that might be causing issues
+    print_cmd "dirname \"$current_dir\""
     local parent_dir=$(dirname "$current_dir")
+    print_cmd "git config --global --add safe.directory \"$parent_dir\" 2>/dev/null || true"
     git config --global --add safe.directory "$parent_dir" 2>/dev/null || true
     
     echo -e "${GREEN}????Git safe directories configured${NC}"
@@ -700,6 +829,7 @@ fix_prerequisites() {
         echo -e "${YELLOW}Installing missing tools: ${tools_needed[*]}${NC}"
         
         # Update package list
+        print_cmd "sudo apt update >/dev/null 2>&1"
         if sudo apt update >/dev/null 2>&1; then
             echo -e "${GREEN}????Package list updated${NC}"
         else
@@ -708,6 +838,7 @@ fix_prerequisites() {
         
         # Install missing tools
         for tool in "${tools_needed[@]}"; do
+            print_cmd "sudo apt install -y \"$tool\" >/dev/null 2>&1"
             if sudo apt install -y "$tool" >/dev/null 2>&1; then
                 echo -e "${GREEN}????Installed $tool${NC}"
             else
@@ -723,17 +854,20 @@ fix_prerequisites() {
     
     # Fix script permissions
     if [ -f "$(basename "$0")" ]; then
+        print_cmd "chmod +x \"\$(basename \"\$0\")\" 2>/dev/null || true"
         chmod +x "$(basename "$0")" 2>/dev/null || true
     fi
     
     # Fix common Laravel file permissions
     if [ -f "artisan" ]; then
+        print_cmd "chmod +x artisan 2>/dev/null || true"
         chmod +x artisan 2>/dev/null || true
         echo -e "${GREEN}????Fixed artisan permissions${NC}"
     fi
     
     # 4. Verify Git functionality
     echo -e "${YELLOW}Verifying Git functionality...${NC}"
+    print_cmd "git status >/dev/null 2>&1"
     if git status >/dev/null 2>&1; then
         echo -e "${GREEN}????Git is working properly${NC}"
     else
@@ -754,27 +888,29 @@ fix_prerequisites() {
 # Ensures the .env file exists and is properly configured
 # Usage: ensure_env_file [project_root]
 ensure_env_file() {
-    local env_file=".env"
-    local env_example=".env.example"
     local project_root="${1:-$(pwd)}"
-    local full_env_path="${project_root}/${env_file}"
+    local full_env_path="${project_root}/${ENV_FILE}"
 
     echo -e "\n${BLUE}[ENV SETUP] Verifying environment configuration${NC}"
 
     # Verify .env file existence
     if [ ! -f "$full_env_path" ]; then
-        if [ ! -f "${project_root}/${env_example}" ]; then
-            echo -e "${RED}????Error: Missing ${env_example} file in ${project_root}${NC}"
+        if [ ! -f "${project_root}/${ENV_EXAMPLE}" ]; then
+            echo -e "${RED}????Error: Missing ${ENV_EXAMPLE} file in ${project_root}${NC}"
             return 1
         fi
 
         # Create from example
-        cp "${project_root}/${env_example}" "$full_env_path"
-        echo -e "${GREEN}????Created ${env_file} from template${NC}"
+        print_cmd "cp \"${project_root}/${ENV_EXAMPLE}\" \"$full_env_path\""
+        cp "${project_root}/${ENV_EXAMPLE}" "$full_env_path"
+        echo -e "${GREEN}????Created ${ENV_FILE} from template${NC}"
 
         # Generate application key
+        print_cmd "grep -q \"APP_KEY=\" \"$full_env_path\""
         if grep -q "APP_KEY=" "$full_env_path"; then
+            print_cmd "command -v php"
             if command -v php &>/dev/null; then
+                print_cmd "(cd \"$project_root\" && php artisan key:generate --quiet)"
                 (cd "$project_root" && php artisan key:generate --quiet)
                 echo -e "${GREEN}????Generated application encryption key${NC}"
             else
@@ -782,11 +918,12 @@ ensure_env_file() {
             fi
         fi
     else
-        echo -e "${BLUE}????${env_file} already exists${NC}"
+        echo -e "${BLUE}????${ENV_FILE} already exists${NC}"
     fi
 
     # Set secure permissions
     if [ -f "$full_env_path" ]; then
+        print_cmd "chmod 600 \"$full_env_path\""
         chmod 600 "$full_env_path"
         echo -e "${GREEN}????Applied secure file permissions (600)${NC}"
     fi
@@ -795,43 +932,51 @@ ensure_env_file() {
 # Ensures production environment configuration
 # Usage: ensure_production_environment [project_root]
 ensure_production_environment() {
-    local env_file=".env"
     local project_root="${1:-$(pwd)}"
-    local full_env_path="${project_root}/${env_file}"
+    local full_env_path="${project_root}/${ENV_FILE}"
     local changes_made=false
 
     echo -e "\n${BLUE}[ENV CONFIG] Validating production settings${NC}"
 
     # Verify .env exists
     if [ ! -f "$full_env_path" ]; then
-        echo -e "${RED}????Error: ${env_file} not found in ${project_root}${NC}"
+        echo -e "${RED}????Error: ${ENV_FILE} not found in ${project_root}${NC}"
         return 1
     fi
 
     # Create backup
+    print_cmd "cp \"$full_env_path\" \"${full_env_path}.bak\""
     cp "$full_env_path" "${full_env_path}.bak"
     
     # Configure APP_ENV
+    print_cmd "grep -q \"^APP_ENV=\" \"$full_env_path\""
     if grep -q "^APP_ENV=" "$full_env_path"; then
+        print_cmd "grep -q \"^APP_ENV=production$\" \"$full_env_path\""
         if ! grep -q "^APP_ENV=production$" "$full_env_path"; then
+            print_cmd "sed -i 's/^APP_ENV=.*/APP_ENV=production/' \"$full_env_path\""
             sed -i 's/^APP_ENV=.*/APP_ENV=production/' "$full_env_path"
             changes_made=true
             echo -e "${GREEN}????Set APP_ENV to production${NC}"
         fi
     else
+        print_cmd "echo \"APP_ENV=production\" >> \"$full_env_path\""
         echo "APP_ENV=production" >> "$full_env_path"
         changes_made=true
         echo -e "${GREEN}????Added APP_ENV setting${NC}"
     fi
 
     # Configure APP_DEBUG
+    print_cmd "grep -q \"^APP_DEBUG=\" \"$full_env_path\""
     if grep -q "^APP_DEBUG=" "$full_env_path"; then
+        print_cmd "grep -q \"^APP_DEBUG=false$\" \"$full_env_path\""
         if ! grep -q "^APP_DEBUG=false$" "$full_env_path"; then
+            print_cmd "sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' \"$full_env_path\""
             sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' "$full_env_path"
             changes_made=true
             echo -e "${GREEN}????Disabled debug mode${NC}"
         fi
     else
+        print_cmd "echo \"APP_DEBUG=false\" >> \"$full_env_path\""
         echo "APP_DEBUG=false" >> "$full_env_path"
         changes_made=true
         echo -e "${GREEN}????Added APP_DEBUG setting${NC}"
@@ -839,6 +984,7 @@ ensure_production_environment() {
 
     # Cleanup if no changes were needed
     if [ "$changes_made" = false ]; then
+        print_cmd "rm -f \"${full_env_path}.bak\""
         rm -f "${full_env_path}.bak"
         echo -e "${BLUE}????Production settings already configured${NC}"
     else
@@ -850,10 +996,7 @@ ensure_production_environment() {
 run_artisan_sys_init() {
     echo -e "${BLUE}[ARTISAN] Running sys:init command${NC}"
     
-    local real_user=$(get_real_user)
-    local laravel_dir="$LARAVEL_DIR"
-    
-    if [ ! -f "$laravel_dir/artisan" ]; then
+    if [ ! -f "$LARAVEL_DIR/artisan" ]; then
         echo -e "${YELLOW}[ARTISAN] Warning: artisan file not found, skipping sys:init${NC}"
         return 0
     fi
@@ -862,39 +1005,72 @@ run_artisan_sys_init() {
     local check_cmd=""
     if [ -n "$USE_SUDO" ] && [ "$(id -u)" -eq 0 ]; then
         # Running as root, use sudo to check as real user
-        check_cmd="$USE_SUDO -u $real_user php $laravel_dir/artisan list 2>/dev/null"
+        check_cmd="$USE_SUDO -u $REAL_USER php $LARAVEL_DIR/artisan list 2>/dev/null"
     else
         # Not running as root, check directly
-        check_cmd="php $laravel_dir/artisan list 2>/dev/null"
+        check_cmd="php $LARAVEL_DIR/artisan list 2>/dev/null"
     fi
     
+    print_cmd "eval \"$check_cmd\" | grep -q \"sys:init\""
     if ! eval "$check_cmd" | grep -q "sys:init"; then
         echo -e "${YELLOW}[ARTISAN] Warning: sys:init command not found, skipping${NC}"
         return 0
     fi
     
     # Run php artisan sys:init as low privilege user
-    echo -e "${BLUE}[ARTISAN] Executing: php artisan sys:init (as user: $real_user)${NC}"
+    echo -e "${BLUE}[ARTISAN] Executing: php artisan sys:init (as user: $REAL_USER)${NC}"
+    print_cmd "pwd"
     local saved_dir="$(pwd)"
-    cd "$laravel_dir" || return 0
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 0
     
     if [ -n "$USE_SUDO" ] && [ "$(id -u)" -eq 0 ]; then
         # Running as root, use sudo to run as real user
-        $USE_SUDO -u "$real_user" php artisan sys:init 2>&1 || {
+        print_cmd "$USE_SUDO -u \"$REAL_USER\" php artisan sys:init 2>&1"
+        $USE_SUDO -u "$REAL_USER" php artisan sys:init 2>&1 || {
             echo -e "${YELLOW}[ARTISAN] Warning: sys:init command had issues, but continuing...${NC}"
         }
     else
         # Not running as root, run directly
+        print_cmd "php artisan sys:init 2>&1"
         php artisan sys:init 2>&1 || {
             echo -e "${YELLOW}[ARTISAN] Warning: sys:init command had issues, but continuing...${NC}"
         }
     fi
     
     # Restore original directory
+    print_cmd "cd \"$saved_dir\""
     cd "$saved_dir" || true
     
     echo -e "${GREEN}[ARTISAN] OK sys:init completed${NC}"
     return 0
+}
+
+# Function to install Laravel services (without domain binding)
+# Reference: ServerManagerV1PolyAppsCommand.php configureServiceOnly() - installs service without domain
+install_laravel_services() {
+    echo -e "${BLUE}[SERVICE] Installing Laravel services (without domain binding)${NC}"
+    
+    print_cmd "pwd"
+    local saved_dir="$(pwd)"
+    
+    if [ ! -d "$LARAVEL_DIR" ]; then
+        echo -e "${YELLOW}[SERVICE] Laravel directory not found, skipping service installation${NC}"
+        return 0
+    fi
+    
+    print_cmd "cd \"$LARAVEL_DIR\""
+    cd "$LARAVEL_DIR" || return 0
+    
+    # Install poly app service without domain binding (reference: ServerManagerV1PolyAppsCommand.php line 121-161)
+    # php artisan servermanager:poly_apps {appname} without domains parameter = service only mode
+    echo -e "${BLUE}[SERVICE] Configuring Laravel main service (service only, no domain binding)...${NC}"
+    print_cmd "$USE_SUDO php artisan servermanager:poly_apps laravel_main 2>&1"
+    $USE_SUDO php artisan servermanager:poly_apps laravel_main 2>&1
+    
+    # Restore original directory
+    print_cmd "cd \"$saved_dir\""
+    cd "$saved_dir" || true
 }
 
 # ============================================================================
@@ -913,6 +1089,7 @@ run_artisan_sys_init
 install_laravel_services
 
 # Restore initial working directory
+print_cmd "cd \"$INITIAL_WORK_DIR\""
 cd "$INITIAL_WORK_DIR" || true
 
 # ============================================================================
@@ -924,6 +1101,7 @@ cd "$INITIAL_WORK_DIR" || true
 if [ "${1:-}" = "--full-deploy" ]; then
 
 # Change to the script's directory
+print_cmd "cd \"$SCRIPT_DIR\""
 cd "$SCRIPT_DIR"
 echo "Changed to directory: $SCRIPT_DIR"
 
@@ -931,35 +1109,55 @@ echo "Changed to directory: $SCRIPT_DIR"
 setup_permissions() {
     echo -e "${BLUE}[PERMISSIONS] Fixing directory permissions${NC}"
 
-    local real_user=$(get_real_user)
-    echo -e "${BLUE}[PERMISSIONS] Using real user: $real_user${NC}"
+    echo -e "${BLUE}[PERMISSIONS] Using real user: $REAL_USER${NC}"
 
     # Create directories that don't exist (never delete existing directories)
-    [ ! -d "storage/framework/views" ] && $USE_SUDO mkdir -p storage/framework/views
-    [ ! -d "storage/framework/cache" ] && $USE_SUDO mkdir -p storage/framework/cache
-    [ ! -d "storage/framework/sessions" ] && $USE_SUDO mkdir -p storage/framework/sessions
-    [ ! -d "storage/logs" ] && $USE_SUDO mkdir -p storage/logs
-    [ ! -d "bootstrap/cache" ] && $USE_SUDO mkdir -p bootstrap/cache
+    if [ ! -d "storage/framework/views" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/views"
+        $USE_SUDO mkdir -p storage/framework/views
+    fi
+    if [ ! -d "storage/framework/cache" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/cache"
+        $USE_SUDO mkdir -p storage/framework/cache
+    fi
+    if [ ! -d "storage/framework/sessions" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/framework/sessions"
+        $USE_SUDO mkdir -p storage/framework/sessions
+    fi
+    if [ ! -d "storage/logs" ]; then
+        print_cmd "$USE_SUDO mkdir -p storage/logs"
+        $USE_SUDO mkdir -p storage/logs
+    fi
+    if [ ! -d "bootstrap/cache" ]; then
+        print_cmd "$USE_SUDO mkdir -p bootstrap/cache"
+        $USE_SUDO mkdir -p bootstrap/cache
+    fi
 
     # Always fix ownership and permissions for all directories (existing and newly created)
     # Running as root, change ownership to low privilege user
     echo -e "${BLUE}[PERMISSIONS] Fixing ownership to $real_user:$real_user${NC}"
+    print_cmd "$USE_SUDO chown -R \"$real_user:$real_user\" . 2>/dev/null || true"
     $USE_SUDO chown -R "$real_user:$real_user" . 2>/dev/null || {
         echo -e "${YELLOW}[PERMISSIONS] Warning: Could not change ownership, fixing permissions only${NC}"
     }
 
     # Fix directory permissions
     echo -e "${BLUE}[PERMISSIONS] Fixing directory permissions to 755${NC}"
+    print_cmd "find . -type d -exec $USE_SUDO chmod 755 {} \\; 2>/dev/null || true"
     find . -type d -exec $USE_SUDO chmod 755 {} \; 2>/dev/null || true
 
     # Fix file permissions
     echo -e "${BLUE}[PERMISSIONS] Fixing file permissions to 644${NC}"
+    print_cmd "find . -type f -exec $USE_SUDO chmod 644 {} \\; 2>/dev/null || true"
     find . -type f -exec $USE_SUDO chmod 644 {} \; 2>/dev/null || true
 
     # Set special permissions for storage and bootstrap/cache
     echo -e "${BLUE}[PERMISSIONS] Fixing special permissions for storage and bootstrap/cache${NC}"
-    $USE_SUDO chown -R "$real_user:$real_user" storage bootstrap/cache 2>/dev/null || true
+        print_cmd "$USE_SUDO chown -R \"$REAL_USER:$REAL_USER\" storage bootstrap/cache 2>/dev/null || true"
+        $USE_SUDO chown -R "$REAL_USER:$REAL_USER" storage bootstrap/cache 2>/dev/null || true
+    print_cmd "$USE_SUDO chmod -R 775 storage 2>/dev/null || true"
     $USE_SUDO chmod -R 775 storage 2>/dev/null || true
+    print_cmd "$USE_SUDO chmod -R 775 bootstrap/cache 2>/dev/null || true"
     $USE_SUDO chmod -R 775 bootstrap/cache 2>/dev/null || true
 
     echo -e "${GREEN}[PERMISSIONS] OK Permissions fixed${NC}"
@@ -967,7 +1165,9 @@ setup_permissions() {
 
 # Function to verify PHP installation
 verify_php() {
+    print_cmd "command -v php"
     if command -v php &>/dev/null; then
+        print_cmd "php -v | head -n 1 | cut -d \" \" -f 2"
         php_version=$(php -v | head -n 1 | cut -d " " -f 2)
         echo -e "${GREEN}[VERIFY] PHP version: $php_version${NC}"
         return 0
@@ -981,21 +1181,29 @@ verify_php() {
 # Function to check and install required PHP extensions
 ensure_php_extensions() {
     echo "Checking required PHP extensions (dom, xml)..."
+    print_cmd "php -m | grep -q 'dom'"
     if ! php -m | grep -q 'dom'; then
         echo "PHP extension 'dom' not found. Installing..."
+        print_cmd "sudo apt update"
         sudo apt update
+        print_cmd "sudo apt install -y php-xml"
         sudo apt install -y php-xml
     fi
+    print_cmd "php -m | grep -q 'xml'"
     if ! php -m | grep -q 'xml'; then
         echo "PHP extension 'xml' not found. Installing..."
+        print_cmd "sudo apt update"
         sudo apt update
+        print_cmd "sudo apt install -y php-xml"
         sudo apt install -y php-xml
     fi
 }
 
 # Function to verify Composer installation
 verify_composer() {
+    print_cmd "command -v composer"
     if command -v composer &>/dev/null; then
+        print_cmd "composer --version | cut -d \" \" -f 3"
         composer_version=$(composer --version | cut -d " " -f 3)
         echo -e "${GREEN}[VERIFY] Composer version: $composer_version${NC}"
         return 0
@@ -1008,8 +1216,10 @@ verify_composer() {
 
 # Function to check and install vendor dependencies
 ensure_vendor() {
+    print_cmd "test -d \"vendor\""
     if [ ! -d "vendor" ]; then
         echo "Vendor directory not found. Installing dependencies..."
+        print_cmd "composer install"
         composer install
     else
         echo "Vendor directory exists."
@@ -1022,40 +1232,47 @@ ensure_vendor() {
 # Function to clear Laravel cache
 clear_cache() {
     echo "Clearing Laravel cache..."
+    print_cmd "php artisan cache:clear"
     php artisan cache:clear
+    print_cmd "php artisan config:clear"
     php artisan config:clear
+    print_cmd "php artisan route:clear"
     php artisan route:clear
+    print_cmd "php artisan view:clear"
     php artisan view:clear
 }
 # Function to handle SQLite database with intelligent migration
 handle_database() {
     # Use gvar_common.sh map_web_path to get correct path
-    local wwwroot=$(map_web_path "wwwroot")
-    DB_DIR="$wwwroot/laravel_db"
+    DB_DIR="$WWW_ROOT/laravel_db"
     DB_FILE="$DB_DIR/database.sqlite"
-    ENV_FILE=".env"
 
     echo -e "${BLUE}[DATABASE] Initializing SQLite database${NC}"
     echo "Database file location: ${GREEN}$DB_FILE${NC}"
 
     # 1. Ensure database directory exists and fix permissions
-    local real_user=$(get_real_user)
     # Only create if doesn't exist (never delete existing directories)
+    print_cmd "test -d \"$DB_DIR\""
     if [ ! -d "$DB_DIR" ]; then
+        print_cmd "$USE_SUDO mkdir -p \"$DB_DIR\""
         $USE_SUDO mkdir -p "$DB_DIR"
         echo -e "${YELLOW}Created database directory${NC}"
     fi
     # Always fix permissions for directory (existing and newly created)
     # Running as root, change ownership to low privilege user
+    print_cmd "$USE_SUDO chown \"$real_user:$real_user\" \"$DB_DIR\" 2>/dev/null || true"
     $USE_SUDO chown "$real_user:$real_user" "$DB_DIR" 2>/dev/null || true
+    print_cmd "$USE_SUDO chmod 755 \"$DB_DIR\" 2>/dev/null || true"
     $USE_SUDO chmod 755 "$DB_DIR" 2>/dev/null || true
 
     # 2. Handle database file creation
     db_exists=false
+    print_cmd "test -f \"$DB_FILE\""
     if [ ! -f "$DB_FILE" ]; then
         read -p "Database file does not exist. Create it? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
+            print_cmd "touch \"$DB_FILE\""
             touch "$DB_FILE"
             echo -e "${GREEN}Created new database file${NC}"
         else
@@ -1068,36 +1285,53 @@ handle_database() {
     fi
 
     # 3. Configure .env file
+    print_cmd "test -f \"$ENV_FILE\""
     if [ ! -f "$ENV_FILE" ]; then
-        cp .env.example "$ENV_FILE"
+        print_cmd "cp $ENV_EXAMPLE \"$ENV_FILE\""
+        cp "$ENV_EXAMPLE" "$ENV_FILE"
         echo -e "${YELLOW}Created .env file from example${NC}"
     fi
 
     # Update .env with SQLite configuration
+    print_cmd "grep -q \"^DB_CONNECTION=sqlite\" \"$ENV_FILE\""
     if ! grep -q "^DB_CONNECTION=sqlite" "$ENV_FILE"; then
+        print_cmd "sed -i 's/DB_CONNECTION=.*/DB_CONNECTION=sqlite/' \"$ENV_FILE\""
         sed -i 's/DB_CONNECTION=.*/DB_CONNECTION=sqlite/' "$ENV_FILE"
     fi
+    print_cmd "sed -i \"s|^DB_DATABASE=.*|DB_DATABASE=$DB_FILE|\" \"$ENV_FILE\""
     sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_FILE|" "$ENV_FILE"
 
     # 4. Run appropriate migrations based on database state
     if [ "$db_exists" = true ]; then
         echo -e "${BLUE}[DATABASE] Running schema updates on existing database${NC}"
+        print_cmd "php artisan migrate --force"
         php artisan migrate --force
     else
         echo -e "${BLUE}[DATABASE] Initializing new database with migrations${NC}"
+        print_cmd "php artisan migrate:fresh --force --seed"
         php artisan migrate:fresh --force --seed
     fi
 
     # 5. Optional configuration (if needed)
+    print_cmd "test -f \"artisan\" && php artisan | grep -q \"database:config\""
     if [ -f "artisan" ] && php artisan | grep -q "database:config"; then
+        print_cmd "php artisan database:config"
         php artisan database:config
     fi
 
     # Always fix proper permissions using real user (running as root, change to low privilege user)
-    $USE_SUDO chown "$real_user:$real_user" "$DB_DIR" 2>/dev/null || true
-    [ -f "$DB_FILE" ] && $USE_SUDO chown "$real_user:$real_user" "$DB_FILE" 2>/dev/null || true
+    print_cmd "$USE_SUDO chown \"$REAL_USER:$REAL_USER\" \"$DB_DIR\" 2>/dev/null || true"
+    $USE_SUDO chown "$REAL_USER:$REAL_USER" "$DB_DIR" 2>/dev/null || true
+    if [ -f "$DB_FILE" ]; then
+        print_cmd "$USE_SUDO chown \"$REAL_USER:$REAL_USER\" \"$DB_FILE\" 2>/dev/null || true"
+        $USE_SUDO chown "$REAL_USER:$REAL_USER" "$DB_FILE" 2>/dev/null || true
+    fi
+    print_cmd "$USE_SUDO chmod 755 \"$DB_DIR\" 2>/dev/null || true"
     $USE_SUDO chmod 755 "$DB_DIR" 2>/dev/null || true
-    [ -f "$DB_FILE" ] && $USE_SUDO chmod 644 "$DB_FILE" 2>/dev/null || true
+    if [ -f "$DB_FILE" ]; then
+        print_cmd "$USE_SUDO chmod 644 \"$DB_FILE\" 2>/dev/null || true"
+        $USE_SUDO chmod 644 "$DB_FILE" 2>/dev/null || true
+    fi
     echo -e "${GREEN}Database setup complete${NC}"
 }
 # Function to fix Octane/Swoole compatibility
@@ -1112,51 +1346,30 @@ handle_database() {
 # This function calls OctaneSwooleCompatFixer.php to apply the patch
 # The patch is idempotent (safe to run multiple times)
 fix_octane_swoole_compatibility() {
-    local laravel_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    local fixer_script="${laravel_root}/app/Support/OctaneSwooleCompatFixer.php"
-
     # Always try to apply patch, silently skip if conditions not met
-    if [ -f "$fixer_script" ] && [ -d "$laravel_root/vendor/laravel/octane" ]; then
-        php "$fixer_script" "$laravel_root" >/dev/null 2>&1 || true
+    print_cmd "test -f \"$FIXER_SCRIPT\" && test -d \"$LARAVEL_DIR/vendor/laravel/octane\""
+    if [ -f "$FIXER_SCRIPT" ] && [ -d "$LARAVEL_DIR/vendor/laravel/octane" ]; then
+        print_cmd "php \"$FIXER_SCRIPT\" \"$LARAVEL_DIR\" >/dev/null 2>&1 || true"
+        php "$FIXER_SCRIPT" "$LARAVEL_DIR" >/dev/null 2>&1 || true
     fi
 
     return 0
 }
 
-# Function to install Laravel services (without domain binding)
-# Reference: ServerManagerV1PolyAppsCommand.php configureServiceOnly() - installs service without domain
-install_laravel_services() {
-    echo -e "${BLUE}[SERVICE] Installing Laravel services (without domain binding)${NC}"
-    
-    local laravel_dir="$LARAVEL_DIR"
-    local saved_dir="$(pwd)"
-    
-    if [ ! -d "$laravel_dir" ]; then
-        echo -e "${YELLOW}[SERVICE] Laravel directory not found, skipping service installation${NC}"
-        return 0
-    fi
-    
-    cd "$laravel_dir" || return 0
-    
-    # Install poly app service without domain binding (reference: ServerManagerV1PolyAppsCommand.php line 121-161)
-    # php artisan servermanager:poly_apps {appname} without domains parameter = service only mode
-    echo -e "${BLUE}[SERVICE] Configuring Laravel main service (service only, no domain binding)...${NC}"
-    $USE_SUDO php artisan servermanager:poly_apps laravel_main 2>&1
-    
-    # Restore original directory
-    cd "$saved_dir" || true
-}
 # Function to configure open_basedir in project's .user.ini
 configure_project_open_basedir() {
     echo -e "${BLUE}[PHP CONFIG] Configuring .user.ini${NC}"
 
-    local real_user=$(get_real_user)
     local project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local user_ini_file="$project_root/public/.user.ini"
 
     # Only create directory if doesn't exist (never delete existing directories)
-    [ ! -d "$project_root/public" ] && $USE_SUDO mkdir -p "$project_root/public"
+    if [ ! -d "$project_root/public" ]; then
+        print_cmd "$USE_SUDO mkdir -p \"$project_root/public\""
+        $USE_SUDO mkdir -p "$project_root/public"
+    fi
 
+    print_cmd "cat > \"$user_ini_file\" <<'EOF'"
     cat > "$user_ini_file" <<'EOF'
 ; Disable open_basedir for Laravel poly projects to allow PathMapper environment detection
 open_basedir = none
@@ -1167,8 +1380,11 @@ expose_php = Off
 EOF
 
     # Always fix permissions (running as root, change to low privilege user)
-    $USE_SUDO chown "$real_user:$real_user" "$project_root/public" "$user_ini_file" 2>/dev/null || true
+    print_cmd "$USE_SUDO chown \"$REAL_USER:$REAL_USER\" \"$project_root/public\" \"$user_ini_file\" 2>/dev/null || true"
+    $USE_SUDO chown "$REAL_USER:$REAL_USER" "$project_root/public" "$user_ini_file" 2>/dev/null || true
+    print_cmd "$USE_SUDO chmod 755 \"$project_root/public\" 2>/dev/null || true"
     $USE_SUDO chmod 755 "$project_root/public" 2>/dev/null || true
+    print_cmd "$USE_SUDO chmod 644 \"$user_ini_file\" 2>/dev/null || true"
     $USE_SUDO chmod 644 "$user_ini_file" 2>/dev/null || true
     echo -e "${GREEN}[PHP CONFIG] OK .user.ini configured${NC}"
 }
@@ -1192,6 +1408,7 @@ if [ -f /etc/debian_version ]; then
     handle_database
     configure_project_open_basedir
     # Create initialization marker
+    print_cmd "touch .laravel_initialized"
     touch .laravel_initialized
     echo "Project initialization completed. Marker file created."
 
