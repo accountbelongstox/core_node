@@ -1,14 +1,10 @@
 
 import { ToolConfig, ApiResponse } from "../types";
 import { MockService } from "./mockData";
+import { getDefaultBaseURL } from "../config/constants";
 
 const getDefaultBaseUrl = (): string => {
-    if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-        return `${protocol}//${hostname}:9000`;
-    }
-    return 'http://localhost:9000';
+    return getDefaultBaseURL();
 };
 
 class ApiClient {

@@ -14,7 +14,8 @@ import {
   Timer,
   Network,
   Sparkles,
-  KeyRound
+  KeyRound,
+  CreditCard
 } from "lucide-react";
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
   { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
   { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
+  { id: ViewType.BANK_MANAGER, icon: CreditCard, labelKey: 'bankManager' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 

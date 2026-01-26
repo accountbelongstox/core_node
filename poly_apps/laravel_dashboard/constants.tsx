@@ -44,7 +44,8 @@ export const TRANSLATIONS = {
       mcp: "MCP Manager",
       octane: "Octane Tasks",
       server: "Server Manager",
-      inviteCodes: "Invite Codes"
+      inviteCodes: "Invite Codes",
+      bankManager: "Bank Manager"
     },
     header: {
       system_online: "System Online",
@@ -65,6 +66,7 @@ export const TRANSLATIONS = {
         octane: "Octane Timer Tasks Monitor",
         server: "Server Management Dashboard",
         invite_codes: "Invite Code Management",
+        bank_manager: "Bank Data Management",
         settings: "Settings"
       }
     },
@@ -400,7 +402,8 @@ export const TRANSLATIONS = {
       mcp: "MCP 管理器",
       octane: "Octane 任务",
       server: "服务器管理",
-      inviteCodes: "邀请码管理"
+      inviteCodes: "邀请码管理",
+      bankManager: "银行管理"
     },
     header: {
       system_online: "系统在线",
@@ -416,10 +419,12 @@ export const TRANSLATIONS = {
         api: "API 测试接口",
         system: "系统信息仪表板",
         vocabulary: "词汇学习中心",
+        ai_tools: "AI 工具套件",
         mcp: "MCP 管理器",
         octane: "Octane 定时任务监控",
         server: "服务器管理仪表板",
         invite_codes: "邀请码管理",
+        bank_manager: "银行数据管理",
         settings: "系统设置"
       }
     },

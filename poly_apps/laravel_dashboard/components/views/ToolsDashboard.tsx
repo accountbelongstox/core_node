@@ -9,6 +9,7 @@ import PasswordGenerator from '../tools/PasswordGenerator';
 import WordCounter from '../tools/WordCounter';
 import UniversalTool from '../tools/UniversalTool';
 import { LayoutMode, Language } from '../../types';
+import { CopyButton } from '../common/CopyButton';
 
 interface UploadedFile {
     name: string;
@@ -64,6 +65,7 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
         { name: 'desktop.ini', size: '520 Bytes', type: 'config' }
     ]);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const clipboardTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     const toggleClipboard = () => {
         const newState = !isClipboardCollapsed;
@@ -258,6 +260,7 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                             <div className="relative flex-1 min-h-[100px]">
                                 <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Text Content (auto-saves on change):</label>
                                 <textarea 
+                                    ref={clipboardTextareaRef}
                                     className="w-full h-[calc(100%-20px)] bg-black/5 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg p-3 font-mono text-xs text-slate-600 dark:text-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none resize-none"
                                     defaultValue={`API key not found. Check that<meta-data android:name="com.google.android.geo.API_KEY" ...`}
                                 ></textarea>
@@ -308,10 +311,22 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                 <button className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium flex items-center gap-1">
                                     <Paperclip size={12} /> New Clipboard
                                 </button>
-                                <button className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-medium flex items-center gap-1">
-                                    <FileIcon size={12} /> Copy All Text
-                                </button>
-                                <button className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-medium flex items-center gap-1">
+                                <CopyButton
+                                    text={() => clipboardTextareaRef.current?.value || ''}
+                                    label="Copy All Text"
+                                    size="sm"
+                                    iconSize={12}
+                                    className="!px-3 !py-1.5"
+                                    successMessage="All text copied to clipboard"
+                                />
+                                <button 
+                                    onClick={() => {
+                                        if (clipboardTextareaRef.current) {
+                                            clipboardTextareaRef.current.value = '';
+                                        }
+                                    }}
+                                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-medium flex items-center gap-1"
+                                >
                                     <Trash2 size={12} /> Clear Text
                                 </button>
                             </div>

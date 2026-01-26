@@ -10,6 +10,7 @@ import MCPManager from './components/views/MCPManager';
 import OctaneTasks from './components/views/OctaneTasks';
 import ServerManager from './components/views/ServerManager';
 import Settings from './components/views/Settings';
+import BankManager from './components/views/BankManager';
 import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
 import { HtmlErrorModal } from './components/debug/HtmlErrorModal';
@@ -156,6 +157,8 @@ const AppContent: React.FC = () => {
             <InviteCodeManager lang={lang} />
           </AuthGuard>
         );
+      case ViewType.BANK_MANAGER:
+        return <BankManager lang={lang} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -178,6 +181,7 @@ const AppContent: React.FC = () => {
       case ViewType.OCTANE_TASKS: return t.header.titles.octane;
       case ViewType.SERVER_MANAGER: return t.header.titles.server;
       case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
+      case ViewType.BANK_MANAGER: return t.header.titles.bank_manager;
       case ViewType.SETTINGS: return t.header.titles.settings;
       default: return APP_NAME;
     }

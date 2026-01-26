@@ -20,6 +20,7 @@ import {
 } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
+import { getDefaultBaseURL } from '../../config/constants';
 import { 
   Network, 
   Shield, 
@@ -129,7 +130,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       // Step 1: Trigger restart
       setRestartProgress('Sending restart command...');
-      const response = await fetch('http://localhost:9000/api/server-manager/restart', {
+      const apiBaseUrl = api.systemConfig['baseURL'] || getDefaultBaseURL();
+      const response = await fetch(`${apiBaseUrl}/api/server-manager/restart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -162,7 +164,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
     const checkHealth = async (): Promise<boolean> => {
       try {
-        const healthResponse = await fetch('http://localhost:9000/api/health', {
+        const apiBaseUrl = api.systemConfig['baseURL'] || getDefaultBaseURL();
+        const healthResponse = await fetch(`${apiBaseUrl}/api/health`, {
           method: 'GET',
           cache: 'no-cache'
         });

@@ -99,6 +99,10 @@ export class ServerManagerAPI extends BaseAPI {
   /**
    * Get Octane Timer Tasks Status
    */
+  /**
+   * Get Octane Timer Tasks Status
+   * Note: These are web routes, not API routes, so we use direct fetch
+   */
   async getOctaneTasksStatus(): Promise<ApiResponse<{
     summary: {
       total_discovered: number;
@@ -136,11 +140,19 @@ export class ServerManagerAPI extends BaseAPI {
     };
     timestamp: string;
   }>> {
-    return this.request({
-      url: '/octane-tasks/status',
+    // These are web routes, not API routes, so we bypass the prefix
+    const url = `${this.config.baseURL}/octane-tasks/status`;
+    const response = await fetch(url, {
       method: 'GET',
-      baseURL: this.config.baseURL,
+      headers: this.headers
     });
+    const data = await response.json();
+    return {
+      success: response.ok,
+      data: data.data || data,
+      error: response.ok ? null : data.error || 'Request failed',
+      status: response.status
+    };
   }
 
   /**
@@ -157,11 +169,18 @@ export class ServerManagerAPI extends BaseAPI {
     run_count: number;
     error_count: number;
   }>>> {
-    return this.request({
-      url: '/octane-tasks/basic',
+    const url = `${this.config.baseURL}/octane-tasks/basic`;
+    const response = await fetch(url, {
       method: 'GET',
-      baseURL: this.config.baseURL,
+      headers: this.headers
     });
+    const data = await response.json();
+    return {
+      success: response.ok,
+      data: data.data || data,
+      error: response.ok ? null : data.error || 'Request failed',
+      status: response.status
+    };
   }
 
   /**
@@ -177,11 +196,18 @@ export class ServerManagerAPI extends BaseAPI {
     status: string;
     runtime?: any;
   }>> {
-    return this.request({
-      url: `/octane-tasks/task/${taskName}`,
+    const url = `${this.config.baseURL}/octane-tasks/task/${taskName}`;
+    const response = await fetch(url, {
       method: 'GET',
-      baseURL: this.config.baseURL,
+      headers: this.headers
     });
+    const data = await response.json();
+    return {
+      success: response.ok,
+      data: data.data || data,
+      error: response.ok ? null : data.error || 'Request failed',
+      status: response.status
+    };
   }
 
   /**
@@ -200,10 +226,17 @@ export class ServerManagerAPI extends BaseAPI {
     };
     timestamp: string;
   }>> {
-    return this.request({
-      url: '/octane-tasks/verify',
+    const url = `${this.config.baseURL}/octane-tasks/verify`;
+    const response = await fetch(url, {
       method: 'GET',
-      baseURL: this.config.baseURL,
+      headers: this.headers
     });
+    const data = await response.json();
+    return {
+      success: response.ok,
+      data: data.data || data,
+      error: response.ok ? null : data.error || 'Request failed',
+      status: response.status
+    };
   }
 }
