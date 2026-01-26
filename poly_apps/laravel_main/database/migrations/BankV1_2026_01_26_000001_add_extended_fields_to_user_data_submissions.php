@@ -1,54 +1,75 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
     {
-        $appKey = AppKeys::BANKV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-
-        if (Schema::connection($connection)->hasTable('bankv1_user_data_submissions')) {
-            Schema::connection($connection)->table('bankv1_user_data_submissions', function (Blueprint $table) {
-                if (!Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'complete_user_profile')) {
-                    $table->json('complete_user_profile')->nullable()->after('additional_data');
-                }
-                if (!Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'global_app_data')) {
-                    $table->json('global_app_data')->nullable()->after('complete_user_profile');
-                }
-                if (!Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'app_state')) {
-                    $table->json('app_state')->nullable()->after('global_app_data');
-                }
-            });
-        }
+        $this->appKey = AppKeys::BANKV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = 'bankv1_user_data_submissions';
     }
 
-    /**
-     * Reverse the migrations.
-     */
+    public function up(): void
+    {
+        // This migration only adds columns to existing table
+        $tableStructure = [
+            'columns' => [
+                'complete_user_profile' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'after' => 'additional_data',
+                ],
+                'global_app_data' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'after' => 'complete_user_profile',
+                ],
+                'app_state' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'after' => 'global_app_data',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
     public function down(): void
     {
-        $appKey = AppKeys::BANKV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-
-        if (Schema::connection($connection)->hasTable('bankv1_user_data_submissions')) {
-            Schema::connection($connection)->table('bankv1_user_data_submissions', function (Blueprint $table) {
-                if (Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'complete_user_profile')) {
-                    $table->dropColumn('complete_user_profile');
+        if (Schema::connection($this->connection)->hasTable($this->tableName)) {
+            Schema::connection($this->connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                $columnsToRemove = [];
+                if (Schema::connection($this->connection)->hasColumn($this->tableName, 'complete_user_profile')) {
+                    $columnsToRemove[] = 'complete_user_profile';
                 }
-                if (Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'global_app_data')) {
-                    $table->dropColumn('global_app_data');
+                if (Schema::connection($this->connection)->hasColumn($this->tableName, 'global_app_data')) {
+                    $columnsToRemove[] = 'global_app_data';
                 }
-                if (Schema::connection($connection)->hasColumn('bankv1_user_data_submissions', 'app_state')) {
-                    $table->dropColumn('app_state');
+                if (Schema::connection($this->connection)->hasColumn($this->tableName, 'app_state')) {
+                    $columnsToRemove[] = 'app_state';
+                }
+                if (!empty($columnsToRemove)) {
+                    $table->dropColumn($columnsToRemove);
                 }
             });
         }

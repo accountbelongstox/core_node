@@ -1,137 +1,332 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
+    protected $connection = 'codemartv1';
+
     public function up(): void
     {
-        // Wallets table
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_wallets')) {
-        Schema::connection('codemartv1')->create('codemart_v1_wallets', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->unique()->constrained('users')->onDelete('cascade');
-            $table->decimal('balance', 15, 2)->default(0);
-            $table->decimal('available_balance', 15, 2)->default(0);
-            $table->decimal('frozen_balance', 15, 2)->default(0);
-            $table->string('currency')->default('CNY');
-            $table->timestamps();
-            $table->index('user_id');
-        });
-        }
+        $this->createWalletsTable();
+        $this->createWalletTransactionsTable();
+        $this->createPaymentsTable();
+        $this->createEscrowsTable();
+        $this->createInvoicesTable();
+        $this->createRefundsTable();
+    }
 
-        // Wallet transactions
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_wallet_transactions')) {
-        Schema::connection('codemartv1')->create('codemart_v1_wallet_transactions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('wallet_id')->constrained('codemart_v1_wallets')->onDelete('cascade');
-            $table->enum('type', ['deposit', 'withdrawal', 'payment', 'refund', 'earning', 'escrow_hold', 'escrow_release'])->default('payment');
-            $table->decimal('amount', 15, 2);
-            $table->decimal('balance_after', 15, 2);
-            $table->text('description')->nullable();
-            $table->json('metadata')->nullable(); // Additional data like payment method, order ID
-            $table->enum('status', ['pending', 'success', 'failed', 'cancelled'])->default('pending');
-            $table->timestamps();
-            $table->index('wallet_id');
-            $table->index('type');
-            $table->index('status');
-        });
-        }
+    private function createWalletsTable(): void
+    {
+        $tableName = 'codemart_v1_wallets';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false, 'unique' => true],
+                'balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'available_balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'frozen_balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'currency' => ['type' => 'string', 'nullable' => false, 'default' => 'CNY'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
 
-        // Payments table
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_payments')) {
-        Schema::connection('codemartv1')->create('codemart_v1_payments', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('payee_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('project_id')->nullable()->constrained('codemart_v1_projects')->onDelete('set null');
-            $table->foreignId('milestone_id')->nullable()->constrained('codemart_v1_milestones')->onDelete('set null');
-            $table->decimal('amount', 15, 2);
-            $table->string('currency')->default('CNY');
-            $table->enum('type', ['milestone', 'hourly', 'refund', 'bonus'])->default('milestone');
-            $table->enum('status', ['pending', 'completed', 'failed', 'cancelled', 'disputed'])->default('pending');
-            $table->enum('payment_method', ['wallet', 'credit_card', 'bank_transfer', 'alipay', 'wechat'])->nullable();
-            $table->string('transaction_id')->nullable()->unique();
-            $table->text('description')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-            $table->index('payer_id');
-            $table->index('payee_id');
-            $table->index('project_id');
-            $table->index('status');
-        });
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
 
-        // Escrow accounts
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_escrows')) {
-        Schema::connection('codemartv1')->create('codemart_v1_escrows', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('project_id')->constrained('codemart_v1_projects')->onDelete('cascade');
-            $table->foreignId('payer_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('payee_id')->constrained('users')->onDelete('cascade');
-            $table->decimal('amount', 15, 2);
-            $table->string('currency')->default('CNY');
-            $table->enum('status', ['held', 'released', 'refunded', 'disputed'])->default('held');
-            $table->datetime('released_at')->nullable();
-            $table->text('release_reason')->nullable();
-            $table->timestamps();
-            $table->index('project_id');
-            $table->index('payer_id');
-            $table->index('payee_id');
-            $table->index('status');
-        });
-        }
+    private function createWalletTransactionsTable(): void
+    {
+        $tableName = 'codemart_v1_wallet_transactions';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'wallet_id' => ['type' => 'foreignId', 'nullable' => false],
+                'type' => ['type' => 'enum', 'values' => ['deposit', 'withdrawal', 'payment', 'refund', 'earning', 'escrow_hold', 'escrow_release'], 'nullable' => false, 'default' => 'payment'],
+                'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'balance_after' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'description' => ['type' => 'text', 'nullable' => true],
+                'metadata' => ['type' => 'json', 'nullable' => true],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'success', 'failed', 'cancelled'], 'nullable' => false, 'default' => 'pending'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['wallet_id']],
+                ['columns' => ['type']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'wallet_id',
+                    'references' => 'codemart_v1_wallets',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
 
-        // Invoices
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_invoices')) {
-        Schema::connection('codemartv1')->create('codemart_v1_invoices', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
-            $table->string('invoice_number')->unique();
-            $table->foreignId('issued_by')->constrained('users')->onDelete('cascade');
-            $table->text('description')->nullable();
-            $table->json('line_items')->nullable(); // Array of invoice items
-            $table->decimal('subtotal', 15, 2);
-            $table->decimal('tax', 15, 2)->default(0);
-            $table->decimal('total', 15, 2);
-            $table->date('issued_date');
-            $table->date('due_date')->nullable();
-            $table->enum('status', ['draft', 'sent', 'paid', 'cancelled', 'overdue'])->default('draft');
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-            $table->index('payment_id');
-            $table->index('invoice_number');
-            $table->index('status');
-        });
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
 
-        // Refunds
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_refunds')) {
-        Schema::connection('codemartv1')->create('codemart_v1_refunds', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('payment_id')->constrained('codemart_v1_payments')->onDelete('cascade');
-            $table->decimal('amount', 15, 2);
-            $table->enum('status', ['pending', 'approved', 'rejected', 'completed'])->default('pending');
-            $table->text('reason');
-            $table->text('notes')->nullable();
-            $table->datetime('requested_at');
-            $table->datetime('processed_at')->nullable();
-            $table->timestamps();
-            $table->index('payment_id');
-            $table->index('status');
-        });
-        }
+    private function createPaymentsTable(): void
+    {
+        $tableName = 'codemart_v1_payments';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'payer_id' => ['type' => 'foreignId', 'nullable' => false],
+                'payee_id' => ['type' => 'foreignId', 'nullable' => false],
+                'project_id' => ['type' => 'foreignId', 'nullable' => true],
+                'milestone_id' => ['type' => 'foreignId', 'nullable' => true],
+                'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'currency' => ['type' => 'string', 'nullable' => false, 'default' => 'CNY'],
+                'type' => ['type' => 'enum', 'values' => ['milestone', 'hourly', 'refund', 'bonus'], 'nullable' => false, 'default' => 'milestone'],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'completed', 'failed', 'cancelled', 'disputed'], 'nullable' => false, 'default' => 'pending'],
+                'payment_method' => ['type' => 'enum', 'values' => ['wallet', 'credit_card', 'bank_transfer', 'alipay', 'wechat'], 'nullable' => true],
+                'transaction_id' => ['type' => 'string', 'nullable' => true, 'unique' => true],
+                'description' => ['type' => 'text', 'nullable' => true],
+                'metadata' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['payer_id']],
+                ['columns' => ['payee_id']],
+                ['columns' => ['project_id']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'payer_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'payee_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'project_id',
+                    'references' => 'codemart_v1_projects',
+                    'on' => 'id',
+                    'onDelete' => 'set null',
+                ],
+                [
+                    'column' => 'milestone_id',
+                    'references' => 'codemart_v1_milestones',
+                    'on' => 'id',
+                    'onDelete' => 'set null',
+                ],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createEscrowsTable(): void
+    {
+        $tableName = 'codemart_v1_escrows';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'project_id' => ['type' => 'foreignId', 'nullable' => false],
+                'payer_id' => ['type' => 'foreignId', 'nullable' => false],
+                'payee_id' => ['type' => 'foreignId', 'nullable' => false],
+                'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'currency' => ['type' => 'string', 'nullable' => false, 'default' => 'CNY'],
+                'status' => ['type' => 'enum', 'values' => ['held', 'released', 'refunded', 'disputed'], 'nullable' => false, 'default' => 'held'],
+                'released_at' => ['type' => 'dateTime', 'nullable' => true],
+                'release_reason' => ['type' => 'text', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['project_id']],
+                ['columns' => ['payer_id']],
+                ['columns' => ['payee_id']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'project_id',
+                    'references' => 'codemart_v1_projects',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'payer_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'payee_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createInvoicesTable(): void
+    {
+        $tableName = 'codemart_v1_invoices';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'payment_id' => ['type' => 'foreignId', 'nullable' => false],
+                'invoice_number' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'issued_by' => ['type' => 'foreignId', 'nullable' => false],
+                'description' => ['type' => 'text', 'nullable' => true],
+                'line_items' => ['type' => 'json', 'nullable' => true],
+                'subtotal' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'tax' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'total' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'issued_date' => ['type' => 'date', 'nullable' => false],
+                'due_date' => ['type' => 'date', 'nullable' => true],
+                'status' => ['type' => 'enum', 'values' => ['draft', 'sent', 'paid', 'cancelled', 'overdue'], 'nullable' => false, 'default' => 'draft'],
+                'metadata' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['payment_id']],
+                ['columns' => ['invoice_number']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'payment_id',
+                    'references' => 'codemart_v1_payments',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'issued_by',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createRefundsTable(): void
+    {
+        $tableName = 'codemart_v1_refunds';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'payment_id' => ['type' => 'foreignId', 'nullable' => false],
+                'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'approved', 'rejected', 'completed'], 'nullable' => false, 'default' => 'pending'],
+                'reason' => ['type' => 'text', 'nullable' => false],
+                'notes' => ['type' => 'text', 'nullable' => true],
+                'requested_at' => ['type' => 'dateTime', 'nullable' => false],
+                'processed_at' => ['type' => 'dateTime', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['payment_id']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'payment_id',
+                    'references' => 'codemart_v1_payments',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_refunds');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_invoices');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_escrows');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_payments');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_wallet_transactions');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_wallets');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_refunds');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_invoices');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_escrows');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_payments');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_wallet_transactions');
+        Schema::connection($this->connection)->dropIfExists('codemart_v1_wallets');
     }
 };

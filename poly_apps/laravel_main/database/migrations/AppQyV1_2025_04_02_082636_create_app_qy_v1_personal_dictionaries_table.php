@@ -1,20 +1,7 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -22,45 +9,73 @@ return new class extends Migration
 {
     protected $connection;
     protected $appKey;
+    protected $tableName;
     
     public function __construct()
     {
         $this->appKey = AppKeys::APPQYV1;
         $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'personal_dictionaries');
     }
 
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'personal_dictionaries');
-        if (!Schema::connection($this->connection)->hasTable($tableName)) {
-            Schema::connection($this->connection)->create($tableName, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('uid')->comment('User ID');
-                $table->json('personal_dicts')->nullable()->comment('Personal Words Collection');
-                $table->timestamps();
-                $table->softDeletes();
-
-                // Indexes
-                $table->index('uid');
-
-                // Foreign key constraint
-                $table->foreign('uid')
-                      ->references('id')
-                      ->on('users')
-                      ->onDelete('cascade');
-            });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'uid' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'comment' => 'User ID',
+                ],
+                'personal_dicts' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'comment' => 'Personal Words Collection',
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'deleted_at' => [
+                    'type' => 'softDeletes',
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['uid'],
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'uid',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'personal_dictionaries');
-        Schema::connection($this->connection)->dropIfExists($tableName);
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

@@ -1,50 +1,70 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
+    protected $connection = 'codemartv1';
+    
     public function up(): void
     {
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_reviewer_applications')) {
-            Schema::connection('codemartv1')->create('codemart_v1_reviewer_applications', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->enum('status', ['in_progress', 'passed', 'failed'])->default('in_progress');
-                $table->text('test_cases');
-                $table->text('user_reviews')->nullable();
-                $table->decimal('similarity_score', 5, 2)->nullable();
-                $table->timestamp('completed_at')->nullable();
-                $table->timestamps();
-
-                $table->index('user_id');
-                $table->index('status');
-            });
-        }
-
-        if (!Schema::connection('codemartv1')->hasTable('codemart_v1_code_reviews')) {
-            Schema::connection('codemartv1')->create('codemart_v1_code_reviews', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('submission_id');
-                $table->unsignedBigInteger('reviewer_id');
-                $table->tinyInteger('quality_rating');
-                $table->tinyInteger('readability_rating');
-                $table->tinyInteger('efficiency_rating');
-                $table->text('comments');
-                $table->timestamps();
-
-                $table->index('submission_id');
-                $table->index('reviewer_id');
-                $table->unique(['submission_id', 'reviewer_id']);
-            });
-        }
+        $this->createReviewerApplicationsTable();
+        $this->createCodeReviewsTable();
+    }
+    
+    private function createReviewerApplicationsTable(): void
+    {
+        $tableName = 'codemart_v1_reviewer_applications';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false, 'index' => true],
+                'status' => ['type' => 'enum', 'values' => ['in_progress', 'passed', 'failed'], 'nullable' => false, 'default' => 'in_progress', 'index' => true],
+                'test_cases' => ['type' => 'text', 'nullable' => false],
+                'user_reviews' => ['type' => 'text', 'nullable' => true],
+                'similarity_score' => ['type' => 'decimal', 'precision' => 5, 'scale' => 2, 'nullable' => true],
+                'completed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['status']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createCodeReviewsTable(): void
+    {
+        $tableName = 'codemart_v1_code_reviews';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'submission_id' => ['type' => 'unsignedBigInteger', 'nullable' => false, 'index' => true],
+                'reviewer_id' => ['type' => 'unsignedBigInteger', 'nullable' => false, 'index' => true],
+                'quality_rating' => ['type' => 'tinyInteger', 'nullable' => false],
+                'readability_rating' => ['type' => 'tinyInteger', 'nullable' => false],
+                'efficiency_rating' => ['type' => 'tinyInteger', 'nullable' => false],
+                'comments' => ['type' => 'text', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['submission_id']],
+                ['columns' => ['reviewer_id']],
+                ['columns' => ['submission_id', 'reviewer_id'], 'unique' => true],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
     }
 
     public function down(): void
     {
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_code_reviews');
-        Schema::connection('codemartv1')->dropIfExists('codemart_v1_reviewer_applications');
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('codemart_v1_code_reviews');
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists('codemart_v1_reviewer_applications');
     }
 };

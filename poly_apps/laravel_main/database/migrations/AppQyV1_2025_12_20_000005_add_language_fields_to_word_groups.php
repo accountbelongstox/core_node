@@ -1,58 +1,77 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'word_groups');
+    }
+
     public function up(): void
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
+        // This migration only adds columns and indexes to existing table
+        $tableStructure = [
+            'columns' => [
+                'language' => [
+                    'type' => 'string',
+                    'length' => 10,
+                    'nullable' => false,
+                    'default' => 'en',
+                    'after' => 'thumbnail_url',
+                    'comment' => 'Language code (en, zh, ja, etc.)',
+                ],
+                'is_language_default' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => false,
+                    'after' => 'language',
+                    'comment' => 'Is this the default group for this language',
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['uid', 'language'],
+                    'name' => 'idx_uid_language',
+                ],
+                [
+                    'columns' => ['uid', 'language', 'is_language_default'],
+                    'name' => 'idx_uid_language_default',
+                ],
+            ],
+        ];
         
-        if (Schema::connection($connection)->hasTable($tableName)) {
-            Schema::connection($connection)->table($tableName, function (Blueprint $table) use ($connection, $tableName) {
-                if (!Schema::connection($connection)->hasColumn($tableName, 'language')) {
-                    $table->string('language', 10)->default('en')->after('thumbnail_url')->comment('Language code (en, zh, ja, etc.)');
-                }
-                if (!Schema::connection($connection)->hasColumn($tableName, 'is_language_default')) {
-                    $table->boolean('is_language_default')->default(false)->after('language')->comment('Is this the default group for this language');
-                }
-            });
-
-            $dbConnection = Schema::connection($connection)->getConnection();
-            $indexExists = $dbConnection->select(
-                "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_uid_language'"
-            );
-
-            if (empty($indexExists)) {
-                $dbConnection->statement("CREATE INDEX idx_uid_language ON {$tableName}(uid, language)");
-            }
-
-            $indexExists2 = $dbConnection->select(
-                "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_uid_language_default'"
-            );
-
-            if (empty($indexExists2)) {
-                $dbConnection->statement("CREATE INDEX idx_uid_language_default ON {$tableName}(uid, language, is_language_default)");
-            }
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
-        
-        if (Schema::connection($connection)->hasTable($tableName)) {
-            Schema::connection($connection)->table($tableName, function (Blueprint $table) {
+        if (Schema::connection($this->connection)->hasTable($this->tableName)) {
+            Schema::connection($this->connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
                 $table->dropColumn(['language', 'is_language_default']);
             });
-
-            $dbConnection = Schema::connection($connection)->getConnection();
+            
+            $dbConnection = Schema::connection($this->connection)->getConnection();
             $dbConnection->statement('DROP INDEX IF EXISTS idx_uid_language');
             $dbConnection->statement('DROP INDEX IF EXISTS idx_uid_language_default');
         }

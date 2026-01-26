@@ -1,52 +1,134 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_covers');
+    }
+
     public function up(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers');
-
-        if (!Schema::connection($connectionName)->hasTable($tableName)) {
-            Schema::connection($connectionName)->create($tableName, function (Blueprint $table) use ($appKey) {
-                $table->increments('id');
-                $table->unsignedInteger('library_id')->unique();
-                $table->string('cover_filename', 255);
-                $table->string('status', 50)->default('pending');
-                $table->text('prompt')->nullable();
-                $table->text('description')->nullable();
-                $table->integer('priority')->default(0);
-                $table->text('error_message')->nullable();
-                $table->integer('width')->default(1280);
-                $table->integer('height')->default(720);
-                $table->timestamp('last_requested_at')->nullable();
-                $table->timestamp('last_generated_at')->nullable();
-                $table->timestamp('started_at')->nullable();
-                $table->timestamp('finished_at')->nullable();
-                $table->timestamps();
-
-                $table->foreign('library_id')
-                    ->references('id')
-                    ->on(\App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'))
-                    ->onDelete('cascade');
-
-                $table->index('status', 'idx_vocab_covers_status');
-                $table->index('priority', 'idx_vocab_covers_priority');
-            });
-        }
+        $referencedTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_libraries');
+        
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'increments',
+                ],
+                'library_id' => [
+                    'type' => 'unsignedInteger',
+                    'nullable' => false,
+                    'unique' => true,
+                ],
+                'cover_filename' => [
+                    'type' => 'string',
+                    'length' => 255,
+                    'nullable' => false,
+                ],
+                'status' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => false,
+                    'default' => 'pending',
+                ],
+                'prompt' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'description' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'priority' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'error_message' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'width' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 1280,
+                ],
+                'height' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 720,
+                ],
+                'last_requested_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'last_generated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'started_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'finished_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['status'],
+                    'name' => 'idx_vocab_covers_status',
+                ],
+                [
+                    'columns' => ['priority'],
+                    'name' => 'idx_vocab_covers_priority',
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'library_id',
+                    'references' => $referencedTable,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers');
-        Schema::connection($connectionName)->dropIfExists($tableName);
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };
-

@@ -1,289 +1,509 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::BANKV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+    
     public function up(): void
     {
-        // Users table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_users')) {
-            Schema::connection('bankv1')->create('bankv1_users', function (Blueprint $table) {
-                $table->id();
-                $table->string('username')->unique();
-                $table->string('email')->unique();
-                $table->timestamp('email_verified_at')->nullable();
-                $table->string('password');
-                $table->string('full_name');
-                $table->string('phone')->nullable();
-                $table->date('date_of_birth')->nullable();
-                $table->enum('gender', ['male', 'female', 'other'])->nullable();
-                $table->enum('account_status', ['active', 'inactive', 'suspended'])->default('active');
-                $table->boolean('is_locked')->default(false);
-                $table->string('lock_reason')->nullable();
-                $table->timestamp('locked_at')->nullable();
-                $table->timestamp('last_login_at')->nullable();
-                $table->integer('login_attempts')->default(0);
-                $table->timestamps();
-
-                $table->index(['username', 'email']);
-                $table->index('account_status');
-                $table->index('is_locked');
-            });
-        }
-
-        // User profiles table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_user_profiles')) {
-            Schema::connection('bankv1')->create('bankv1_user_profiles', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('avatar')->nullable();
-                $table->text('bio')->nullable();
-                $table->json('preferences')->nullable();
-                $table->json('notification_settings')->nullable();
-                $table->timestamps();
-
-                $table->index('user_id');
-            });
-        }
-
-        // User addresses table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_user_addresses')) {
-            Schema::connection('bankv1')->create('bankv1_user_addresses', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->constrained('bankv1_users')->onDelete('cascade');
-                $table->enum('type', ['primary', 'billing', 'shipping'])->default('primary');
-                $table->string('street')->nullable();
-                $table->string('city')->nullable();
-                $table->string('state')->nullable();
-                $table->string('zip_code')->nullable();
-                $table->string('country')->nullable();
-                $table->boolean('is_primary')->default(false);
-                $table->timestamps();
-
-                $table->index(['user_id', 'type']);
-                $table->index('is_primary');
-            });
-        }
-
-        // Accounts table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_accounts')) {
-            Schema::connection('bankv1')->create('bankv1_accounts', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('account_number')->unique();
-                $table->enum('account_type', ['checking', 'savings', 'credit'])->default('checking');
-                $table->decimal('balance', 15, 2)->default(0.00);
-                $table->string('currency', 3)->default('USD');
-                $table->enum('status', ['active', 'inactive', 'closed'])->default('active');
-                $table->timestamp('opened_at');
-                $table->timestamp('closed_at')->nullable();
-                $table->timestamps();
-
-                $table->index(['user_id', 'status']);
-                $table->index('account_number');
-            });
-        }
-
-        // Transactions table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_transactions')) {
-            Schema::connection('bankv1')->create('bankv1_transactions', function (Blueprint $table) {
-                $table->id();
-                $table->string('transaction_id')->unique();
-                $table->foreignId('from_account_id')->nullable()->constrained('bankv1_accounts');
-                $table->foreignId('to_account_id')->nullable()->constrained('bankv1_accounts');
-                $table->decimal('amount', 15, 2);
-                $table->decimal('fee', 15, 2)->default(0.00);
-                $table->string('currency', 3)->default('USD');
-                $table->enum('type', ['transfer', 'payment', 'deposit', 'withdrawal', 'fee', 'refund', 'adjustment']);
-                $table->enum('status', ['pending', 'completed', 'failed', 'cancelled', 'processing'])->default('pending');
-                $table->string('description')->nullable();
-                $table->string('reference')->nullable();
-                $table->json('metadata')->nullable();
-                $table->timestamp('processed_at')->nullable();
-                $table->timestamps();
-
-                $table->index(['transaction_id', 'status']);
-                $table->index(['from_account_id', 'to_account_id']);
-                $table->index(['type', 'status']);
-                $table->index('processed_at');
-            });
-        }
-
-        // Devices table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_devices')) {
-            Schema::connection('bankv1')->create('bankv1_devices', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->nullable()->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->unique();
-                $table->string('app_signature');
-                $table->string('device_name')->nullable();
-                $table->enum('platform', ['android', 'ios', 'web', 'windows', 'macos', 'linux'])->default('android');
-                $table->string('app_version')->nullable();
-                $table->enum('status', ['active', 'locked', 'suspended', 'pending', 'revoked'])->default('pending');
-                $table->boolean('is_locked')->default(false);
-                $table->string('lock_reason')->nullable();
-                $table->timestamp('locked_at')->nullable();
-                $table->timestamp('last_used_at')->nullable();
-                $table->timestamp('registered_at');
-                $table->timestamps();
-
-                $table->index(['device_id', 'status']);
-                $table->index(['user_id', 'status']);
-                $table->index('is_locked');
-            });
-        }
-
-        // Sessions table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_sessions')) {
-            Schema::connection('bankv1')->create('bankv1_sessions', function (Blueprint $table) {
-                $table->id();
-                $table->string('session_id')->unique();
-                $table->foreignId('user_id')->nullable()->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->nullable();
-                $table->ipAddress('ip_address')->nullable();
-                $table->text('user_agent')->nullable();
-                $table->timestamp('started_at');
-                $table->timestamp('ended_at')->nullable();
-                $table->timestamp('last_activity_at');
-                $table->integer('duration')->nullable(); // in seconds
-                $table->boolean('is_active')->default(true);
-                $table->timestamps();
-
-                $table->index(['session_id', 'is_active']);
-                $table->index(['user_id', 'device_id']);
-                $table->index('last_activity_at');
-            });
-        }
-
-        // App logs table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_app_logs')) {
-            Schema::connection('bankv1')->create('bankv1_app_logs', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->nullable()->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->nullable();
-                $table->string('session_id')->nullable();
-                $table->string('event_type');
-                $table->json('event_data')->nullable();
-                $table->ipAddress('ip_address')->nullable();
-                $table->text('user_agent')->nullable();
-                $table->timestamp('timestamp');
-                $table->timestamp('created_at');
-
-                $table->index(['user_id', 'event_type']);
-                $table->index(['device_id', 'event_type']);
-                $table->index(['event_type', 'timestamp']);
-                $table->index('timestamp');
-            });
-        }
-
-        // Security logs table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_security_logs')) {
-            Schema::connection('bankv1')->create('bankv1_security_logs', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->nullable()->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->nullable();
-                $table->string('event_type');
-                $table->enum('severity', ['low', 'medium', 'high', 'critical'])->default('medium');
-                $table->string('description');
-                $table->json('event_data')->nullable();
-                $table->ipAddress('ip_address')->nullable();
-                $table->text('user_agent')->nullable();
-                $table->boolean('resolved')->default(false);
-                $table->timestamp('resolved_at')->nullable();
-                $table->foreignId('resolved_by')->nullable()->constrained('bankv1_users');
-                $table->timestamp('timestamp');
-                $table->timestamp('created_at');
-
-                $table->index(['user_id', 'event_type']);
-                $table->index(['device_id', 'event_type']);
-                $table->index(['event_type', 'severity']);
-                $table->index(['resolved', 'severity']);
-                $table->index('timestamp');
-            });
-        }
-
-        // Registration codes table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_registration_codes')) {
-            Schema::connection('bankv1')->create('bankv1_registration_codes', function (Blueprint $table) {
-                $table->id();
-                $table->string('code')->unique();
-                $table->enum('type', ['balance_bonus', 'discount', 'feature_unlock'])->default('balance_bonus');
-                $table->decimal('value', 15, 2)->default(0.00);
-                $table->string('description')->nullable();
-                $table->integer('max_uses')->nullable();
-                $table->integer('used_count')->default(0);
-                $table->boolean('is_active')->default(true);
-                $table->timestamp('expires_at')->nullable();
-                $table->foreignId('created_by')->nullable()->constrained('bankv1_users');
-                $table->timestamps();
-
-                $table->index(['code', 'is_active']);
-                $table->index(['type', 'is_active']);
-                $table->index('expires_at');
-            });
-        }
-
-        // Code usage table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_code_usage')) {
-            Schema::connection('bankv1')->create('bankv1_code_usage', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('code_id')->constrained('bankv1_registration_codes')->onDelete('cascade');
-                $table->foreignId('user_id')->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->nullable();
-                $table->timestamp('used_at');
-                $table->ipAddress('ip_address')->nullable();
-                $table->text('user_agent')->nullable();
-                $table->timestamp('created_at');
-
-                $table->index(['code_id', 'user_id']);
-                $table->index('used_at');
-            });
-        }
-
-        // JWT tokens table
-        if (!Schema::connection('bankv1')->hasTable('bankv1_jwt_tokens')) {
-            Schema::connection('bankv1')->create('bankv1_jwt_tokens', function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('user_id')->constrained('bankv1_users')->onDelete('cascade');
-                $table->string('device_id')->nullable();
-                $table->string('token_id')->unique();
-                $table->string('token_hash');
-                $table->string('refresh_token_hash');
-                $table->timestamp('expires_at');
-                $table->timestamp('refresh_expires_at');
-                $table->boolean('is_revoked')->default(false);
-                $table->timestamp('revoked_at')->nullable();
-                $table->timestamps();
-
-                $table->index(['user_id', 'device_id']);
-                $table->index(['token_hash', 'is_revoked']);
-                $table->index('expires_at');
-            });
-        }
+        $this->createUsersTable();
+        $this->createUserProfilesTable();
+        $this->createUserAddressesTable();
+        $this->createAccountsTable();
+        $this->createTransactionsTable();
+        $this->createDevicesTable();
+        $this->createSessionsTable();
+        $this->createAppLogsTable();
+        $this->createSecurityLogsTable();
+        $this->createRegistrationCodesTable();
+        $this->createCodeUsageTable();
+        $this->createJwtTokensTable();
+    }
+    
+    private function createUsersTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'username' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'email' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'email_verified_at' => ['type' => 'timestamp', 'nullable' => true],
+                'password' => ['type' => 'string', 'nullable' => false],
+                'full_name' => ['type' => 'string', 'nullable' => false],
+                'phone' => ['type' => 'string', 'nullable' => true],
+                'date_of_birth' => ['type' => 'date', 'nullable' => true],
+                'gender' => ['type' => 'enum', 'values' => ['male', 'female', 'other'], 'nullable' => true],
+                'account_status' => ['type' => 'enum', 'values' => ['active', 'inactive', 'suspended'], 'nullable' => false, 'default' => 'active'],
+                'is_locked' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'lock_reason' => ['type' => 'string', 'nullable' => true],
+                'locked_at' => ['type' => 'timestamp', 'nullable' => true],
+                'last_login_at' => ['type' => 'timestamp', 'nullable' => true],
+                'login_attempts' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['username', 'email']],
+                ['columns' => ['account_status']],
+                ['columns' => ['is_locked']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createUserProfilesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_profiles');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false],
+                'avatar' => ['type' => 'string', 'nullable' => true],
+                'bio' => ['type' => 'text', 'nullable' => true],
+                'preferences' => ['type' => 'json', 'nullable' => true],
+                'notification_settings' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createUserAddressesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_addresses');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false],
+                'type' => ['type' => 'enum', 'values' => ['primary', 'billing', 'shipping'], 'nullable' => false, 'default' => 'primary'],
+                'street' => ['type' => 'string', 'nullable' => true],
+                'city' => ['type' => 'string', 'nullable' => true],
+                'state' => ['type' => 'string', 'nullable' => true],
+                'zip_code' => ['type' => 'string', 'nullable' => true],
+                'country' => ['type' => 'string', 'nullable' => true],
+                'is_primary' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'type']],
+                ['columns' => ['is_primary']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createAccountsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'accounts');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false],
+                'account_number' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'account_type' => ['type' => 'enum', 'values' => ['checking', 'savings', 'credit'], 'nullable' => false, 'default' => 'checking'],
+                'balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0.00],
+                'currency' => ['type' => 'string', 'length' => 3, 'nullable' => false, 'default' => 'USD'],
+                'status' => ['type' => 'enum', 'values' => ['active', 'inactive', 'closed'], 'nullable' => false, 'default' => 'active'],
+                'opened_at' => ['type' => 'timestamp', 'nullable' => false],
+                'closed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'status']],
+                ['columns' => ['account_number']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createTransactionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'transactions');
+        $accountsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'accounts');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'transaction_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'from_account_id' => ['type' => 'foreignId', 'nullable' => true],
+                'to_account_id' => ['type' => 'foreignId', 'nullable' => true],
+                'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'fee' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0.00],
+                'currency' => ['type' => 'string', 'length' => 3, 'nullable' => false, 'default' => 'USD'],
+                'type' => ['type' => 'enum', 'values' => ['transfer', 'payment', 'deposit', 'withdrawal', 'fee', 'refund', 'adjustment'], 'nullable' => false],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'completed', 'failed', 'cancelled', 'processing'], 'nullable' => false, 'default' => 'pending'],
+                'description' => ['type' => 'string', 'nullable' => true],
+                'reference' => ['type' => 'string', 'nullable' => true],
+                'metadata' => ['type' => 'json', 'nullable' => true],
+                'processed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['transaction_id', 'status']],
+                ['columns' => ['from_account_id', 'to_account_id']],
+                ['columns' => ['type', 'status']],
+                ['columns' => ['processed_at']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'from_account_id',
+                    'references' => $accountsTableName,
+                    'on' => 'id',
+                ],
+                [
+                    'column' => 'to_account_id',
+                    'references' => $accountsTableName,
+                    'on' => 'id',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createDevicesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'devices');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => true],
+                'device_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'app_signature' => ['type' => 'string', 'nullable' => false],
+                'device_name' => ['type' => 'string', 'nullable' => true],
+                'platform' => ['type' => 'enum', 'values' => ['android', 'ios', 'web', 'windows', 'macos', 'linux'], 'nullable' => false, 'default' => 'android'],
+                'app_version' => ['type' => 'string', 'nullable' => true],
+                'status' => ['type' => 'enum', 'values' => ['active', 'locked', 'suspended', 'pending', 'revoked'], 'nullable' => false, 'default' => 'pending'],
+                'is_locked' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'lock_reason' => ['type' => 'string', 'nullable' => true],
+                'locked_at' => ['type' => 'timestamp', 'nullable' => true],
+                'last_used_at' => ['type' => 'timestamp', 'nullable' => true],
+                'registered_at' => ['type' => 'timestamp', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['device_id', 'status']],
+                ['columns' => ['user_id', 'status']],
+                ['columns' => ['is_locked']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createSessionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'sessions');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'session_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'user_id' => ['type' => 'foreignId', 'nullable' => true],
+                'device_id' => ['type' => 'string', 'nullable' => true],
+                'ip_address' => ['type' => 'ipAddress', 'nullable' => true],
+                'user_agent' => ['type' => 'text', 'nullable' => true],
+                'started_at' => ['type' => 'timestamp', 'nullable' => false],
+                'ended_at' => ['type' => 'timestamp', 'nullable' => true],
+                'last_activity_at' => ['type' => 'timestamp', 'nullable' => false],
+                'duration' => ['type' => 'integer', 'nullable' => true],
+                'is_active' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['session_id', 'is_active']],
+                ['columns' => ['user_id', 'device_id']],
+                ['columns' => ['last_activity_at']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createAppLogsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'app_logs');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => true],
+                'device_id' => ['type' => 'string', 'nullable' => true],
+                'session_id' => ['type' => 'string', 'nullable' => true],
+                'event_type' => ['type' => 'string', 'nullable' => false],
+                'event_data' => ['type' => 'json', 'nullable' => true],
+                'ip_address' => ['type' => 'ipAddress', 'nullable' => true],
+                'user_agent' => ['type' => 'text', 'nullable' => true],
+                'timestamp' => ['type' => 'timestamp', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => false],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'event_type']],
+                ['columns' => ['device_id', 'event_type']],
+                ['columns' => ['event_type', 'timestamp']],
+                ['columns' => ['timestamp']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createSecurityLogsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'security_logs');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => true],
+                'device_id' => ['type' => 'string', 'nullable' => true],
+                'event_type' => ['type' => 'string', 'nullable' => false],
+                'severity' => ['type' => 'enum', 'values' => ['low', 'medium', 'high', 'critical'], 'nullable' => false, 'default' => 'medium'],
+                'description' => ['type' => 'string', 'nullable' => false],
+                'event_data' => ['type' => 'json', 'nullable' => true],
+                'ip_address' => ['type' => 'ipAddress', 'nullable' => true],
+                'user_agent' => ['type' => 'text', 'nullable' => true],
+                'resolved' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'resolved_at' => ['type' => 'timestamp', 'nullable' => true],
+                'resolved_by' => ['type' => 'foreignId', 'nullable' => true],
+                'timestamp' => ['type' => 'timestamp', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => false],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'event_type']],
+                ['columns' => ['device_id', 'event_type']],
+                ['columns' => ['event_type', 'severity']],
+                ['columns' => ['resolved', 'severity']],
+                ['columns' => ['timestamp']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'resolved_by',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createRegistrationCodesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'registration_codes');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'code' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'type' => ['type' => 'enum', 'values' => ['balance_bonus', 'discount', 'feature_unlock'], 'nullable' => false, 'default' => 'balance_bonus'],
+                'value' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0.00],
+                'description' => ['type' => 'string', 'nullable' => true],
+                'max_uses' => ['type' => 'integer', 'nullable' => true],
+                'used_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'is_active' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'expires_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_by' => ['type' => 'foreignId', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['code', 'is_active']],
+                ['columns' => ['type', 'is_active']],
+                ['columns' => ['expires_at']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'created_by',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createCodeUsageTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'code_usage');
+        $registrationCodesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'registration_codes');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'code_id' => ['type' => 'foreignId', 'nullable' => false],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false],
+                'device_id' => ['type' => 'string', 'nullable' => true],
+                'used_at' => ['type' => 'timestamp', 'nullable' => false],
+                'ip_address' => ['type' => 'ipAddress', 'nullable' => true],
+                'user_agent' => ['type' => 'text', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => false],
+            ],
+            'indexes' => [
+                ['columns' => ['code_id', 'user_id']],
+                ['columns' => ['used_at']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'code_id',
+                    'references' => $registrationCodesTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createJwtTokensTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'jwt_tokens');
+        $usersTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false],
+                'device_id' => ['type' => 'string', 'nullable' => true],
+                'token_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'token_hash' => ['type' => 'string', 'nullable' => false],
+                'refresh_token_hash' => ['type' => 'string', 'nullable' => false],
+                'expires_at' => ['type' => 'timestamp', 'nullable' => false],
+                'refresh_expires_at' => ['type' => 'timestamp', 'nullable' => false],
+                'is_revoked' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'revoked_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'device_id']],
+                ['columns' => ['token_hash', 'is_revoked']],
+                ['columns' => ['expires_at']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => $usersTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::connection('bankv1')->dropIfExists('bankv1_jwt_tokens');
-        Schema::connection('bankv1')->dropIfExists('bankv1_code_usage');
-        Schema::connection('bankv1')->dropIfExists('bankv1_registration_codes');
-        Schema::connection('bankv1')->dropIfExists('bankv1_security_logs');
-        Schema::connection('bankv1')->dropIfExists('bankv1_app_logs');
-        Schema::connection('bankv1')->dropIfExists('bankv1_sessions');
-        Schema::connection('bankv1')->dropIfExists('bankv1_devices');
-        Schema::connection('bankv1')->dropIfExists('bankv1_transactions');
-        Schema::connection('bankv1')->dropIfExists('bankv1_accounts');
-        Schema::connection('bankv1')->dropIfExists('bankv1_user_addresses');
-        Schema::connection('bankv1')->dropIfExists('bankv1_user_profiles');
-        Schema::connection('bankv1')->dropIfExists('bankv1_users');
+        $tables = [
+            'jwt_tokens',
+            'code_usage',
+            'registration_codes',
+            'security_logs',
+            'app_logs',
+            'sessions',
+            'devices',
+            'transactions',
+            'accounts',
+            'user_addresses',
+            'user_profiles',
+            'users',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

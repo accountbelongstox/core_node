@@ -1,40 +1,94 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_languages');
+    }
+
     public function up(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages');
-
-        if (!Schema::connection($connectionName)->hasTable($tableName)) {
-            Schema::connection($connectionName)->create($tableName, function (Blueprint $table) {
-                $table->increments('id');
-                $table->unsignedInteger('user_id');
-                $table->string('language', 50);
-                $table->string('native_language', 50)->nullable();
-                $table->boolean('is_learning')->default(true);
-                $table->string('proficiency_level', 50)->nullable();
-                $table->timestamps();
-
-                $table->unique(['user_id', 'language'], 'uniq_user_language');
-                $table->index('user_id', 'idx_user_lang_user');
-                $table->index('is_learning', 'idx_user_lang_learning');
-            });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'increments',
+                ],
+                'user_id' => [
+                    'type' => 'unsignedInteger',
+                    'nullable' => false,
+                ],
+                'language' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => false,
+                ],
+                'native_language' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => true,
+                ],
+                'is_learning' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => true,
+                ],
+                'proficiency_level' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['user_id', 'language'],
+                    'name' => 'uniq_user_language',
+                    'unique' => true,
+                ],
+                [
+                    'columns' => ['user_id'],
+                    'name' => 'idx_user_lang_user',
+                ],
+                [
+                    'columns' => ['is_learning'],
+                    'name' => 'idx_user_lang_learning',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages');
-        Schema::connection($connectionName)->dropIfExists($tableName);
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };
-
