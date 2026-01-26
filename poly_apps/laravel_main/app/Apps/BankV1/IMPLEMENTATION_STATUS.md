@@ -50,7 +50,19 @@ The following tables are used for data storage:
 1. **device_submissions** - Stores device information
 2. **registration_submissions** - Stores registration/license information
 3. **user_data_submissions** - Stores user data (includes JSON fields for extended data)
+   - `additional_data` (JSON) - Basic additional user data
+   - `complete_user_profile` (JSON, nullable) - Complete user profile from BankUserModel
+   - `global_app_data` (JSON, nullable) - Global application data from BankGlobalData
+   - `app_state` (JSON, nullable) - Current application state
 4. **bank_card_submissions** - Stores bank card information (encrypted)
+
+**Note**: A migration file has been created to add the extended fields:
+- `BankV1_2026_01_26_000001_add_extended_fields_to_user_data_submissions.php`
+
+Run the migration to add the new fields:
+```bash
+php artisan migrate
+```
 
 ## Validation Rules
 
