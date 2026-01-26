@@ -35,9 +35,10 @@ class InitializeApps extends Command
         $this->newLine();
 
         $this->info('Creating external storage directories...');
+        $separator = DIRECTORY_SEPARATOR;
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
-            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . '/appqyv1',
+            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . $separator . 'appqyv1',
             'uploads' => \App\Providers\PathMapper::getLaravelUploadsDir(),
             'static' => \App\Providers\PathMapper::getLaravelStaticDir(),
             'cache' => \App\Providers\PathMapper::getLaravelCacheDir(),
@@ -1000,14 +1001,24 @@ class InitializeApps extends Command
     private function installChokidar()
     {
         $laravelPath = base_path();
-        $chokidarPath = $laravelPath . '/node_modules/chokidar';
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $separator = $isWindows ? '\\' : '/';
+        $chokidarPath = $laravelPath . $separator . 'node_modules' . $separator . 'chokidar';
 
         $this->line("  <fg=cyan>Checking Node.js and pnpm...</>");
 
-        $this->line("  <fg=yellow>Command: command -v node</>");
-        exec('command -v node 2>&1', $nodeOutput, $nodeCode);
-        $this->line("  <fg=yellow>Command: command -v pnpm</>");
-        exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
+        // Platform-specific command to check if command exists
+        if ($isWindows) {
+            $this->line("  <fg=yellow>Command: where node</>");
+            exec('where node 2>NUL', $nodeOutput, $nodeCode);
+            $this->line("  <fg=yellow>Command: where pnpm</>");
+            exec('where pnpm 2>NUL', $pnpmOutput, $pnpmCode);
+        } else {
+            $this->line("  <fg=yellow>Command: command -v node</>");
+            exec('command -v node 2>&1', $nodeOutput, $nodeCode);
+            $this->line("  <fg=yellow>Command: command -v pnpm</>");
+            exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
+        }
 
         if ($nodeCode !== 0) {
             $this->warn("  ⚠️  Node.js not found - hot-reload will not be available");
@@ -1054,9 +1065,26 @@ class InitializeApps extends Command
         }
 
         if (is_dir($chokidarPath)) {
-            $this->line("  <fg=yellow>Command: pnpm list chokidar | grep chokidar | head -1</>");
-            exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
-            $version = trim($versionOutput[0] ?? 'unknown');
+            // Platform-specific version check
+            if ($isWindows) {
+                $this->line("  <fg=yellow>Command: pnpm list chokidar</>");
+                exec('pnpm list chokidar 2>&1', $versionOutput);
+                // Extract version from output (Windows doesn't have grep/head)
+                $version = 'unknown';
+                foreach ($versionOutput as $line) {
+                    if (stripos($line, 'chokidar') !== false && stripos($line, '@') !== false) {
+                        // Extract version like "chokidar@3.5.3"
+                        if (preg_match('/chokidar@([\d.]+)/i', $line, $matches)) {
+                            $version = 'chokidar@' . $matches[1];
+                            break;
+                        }
+                    }
+                }
+            } else {
+                $this->line("  <fg=yellow>Command: pnpm list chokidar | grep chokidar | head -1</>");
+                exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
+                $version = trim($versionOutput[0] ?? 'unknown');
+            }
             $this->line("  ✅ chokidar installed: {$version}");
 
             $this->line("  <fg=yellow>Command: node -e \"require('chokidar'); console.log('OK')\"</>");

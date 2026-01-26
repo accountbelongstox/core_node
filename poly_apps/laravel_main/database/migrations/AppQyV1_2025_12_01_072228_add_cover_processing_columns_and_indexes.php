@@ -23,13 +23,27 @@ return new class extends Migration
     public function up(): void
     {
         $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_covers');
-        Schema::connection($this->connection)->table($tableName, function (Blueprint $table) {
-            // Add attempts column for retry tracking
-            $table->integer('attempts')->default(0)->after('priority');
+        
+        // Check if table exists before modifying it
+        if (!Schema::connection($this->connection)->hasTable($tableName)) {
+            return; // Table doesn't exist yet, skip this migration (will be created by create_vocabulary_covers_table migration)
+        }
+        
+        Schema::connection($this->connection)->table($tableName, function (Blueprint $table) use ($tableName) {
+            // Add attempts column for retry tracking (only if it doesn't exist)
+            if (!Schema::connection($this->connection)->hasColumn($tableName, 'attempts')) {
+                $table->integer('attempts')->default(0)->after('priority');
+            }
 
             // Add composite index for efficient timer task queries
             // Optimizes: WHERE status IN ('pending', 'retry') ORDER BY priority DESC, last_requested_at ASC
-            $table->index(['status', 'priority', 'last_requested_at'], 'idx_cover_processing');
+            // Check if index already exists before adding
+            $indexName = 'idx_cover_processing';
+            $indexes = Schema::connection($this->connection)->getConnection()
+                ->select("SELECT name FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?", [$indexName, $tableName]);
+            if (empty($indexes)) {
+                $table->index(['status', 'priority', 'last_requested_at'], $indexName);
+            }
         });
     }
 
@@ -39,9 +53,25 @@ return new class extends Migration
     public function down(): void
     {
         $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_covers');
-        Schema::connection($this->connection)->table($tableName, function (Blueprint $table) {
-            $table->dropIndex('idx_cover_processing');
-            $table->dropColumn('attempts');
+        
+        // Check if table exists before modifying it
+        if (!Schema::connection($this->connection)->hasTable($tableName)) {
+            return; // Table doesn't exist, nothing to rollback
+        }
+        
+        Schema::connection($this->connection)->table($tableName, function (Blueprint $table) use ($tableName) {
+            // Only drop index if it exists
+            $indexName = 'idx_cover_processing';
+            $indexes = Schema::connection($this->connection)->getConnection()
+                ->select("SELECT name FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?", [$indexName, $tableName]);
+            if (!empty($indexes)) {
+                $table->dropIndex($indexName);
+            }
+            
+            // Only drop column if it exists
+            if (Schema::connection($this->connection)->hasColumn($tableName, 'attempts')) {
+                $table->dropColumn('attempts');
+            }
         });
     }
 };

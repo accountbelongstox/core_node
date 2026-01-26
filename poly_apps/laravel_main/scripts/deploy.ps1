@@ -42,6 +42,26 @@ function Write-Success { param([string]$Message) Write-Host "[SUCCESS] $Message"
 function Write-Warning { param([string]$Message) Write-Host "[WARNING] $Message" -ForegroundColor Yellow }
 function Write-Error { param([string]$Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
 
+# Command execution with automatic printing
+function Invoke-CommandWithPrint {
+    param(
+        [string]$Command,
+        [string[]]$Arguments = @(),
+        [switch]$NoPrint
+    )
+    
+    if (-not $NoPrint) {
+        $fullCommand = $Command
+        if ($Arguments.Count -gt 0) {
+            $fullCommand += " " + ($Arguments -join " ")
+        }
+        Write-Host "  Command: $fullCommand" -ForegroundColor Yellow
+    }
+    
+    & $Command @Arguments
+    return $LASTEXITCODE
+}
+
 # Environment variables (kept for compatibility, may be used in future)
 # $IS_WSL = $false
 # $IS_PRODUCTION = $false
@@ -178,6 +198,7 @@ function Show-EnvironmentInfo {
     foreach ($tool in $tools) {
         $toolPath = Get-Command $tool -ErrorAction SilentlyContinue
         if ($toolPath) {
+            Write-Host "  Command: $tool --version" -ForegroundColor Yellow
             $version = & $tool --version 2>&1 | Select-Object -First 1
             Write-Host "  $tool : Available - $version"
         } else {
@@ -240,6 +261,7 @@ function Test-ComposerPackage {
     }
     
     # Try to check package
+    Write-Host "  Command: composer show $PackageName" -ForegroundColor Yellow
     $composerShow = composer show $PackageName 2>&1
     if ($composerShow -match $PackageName) {
         return $true
@@ -507,7 +529,7 @@ function Invoke-Up20251127InstallChokidar {
     }
     
     Write-Info "[UP] Step 4: Testing chokidar functionality..."
-    Write-Host "  Command: node -e \"require('chokidar'); console.log('OK')\"" -ForegroundColor Yellow
+    Write-Host '  Command: node -e "require(''chokidar''); console.log(''OK'')"' -ForegroundColor Yellow
     $testResult = node -e "require('chokidar'); console.log('OK')" 2>&1
     if ($testResult -match "OK") {
         Write-Success "[UP] OK chokidar can be loaded successfully"
@@ -580,7 +602,7 @@ function Invoke-Up20251206InstallFaker {
     }
     
     Write-Info "[UP] Step 4: Testing fake() helper..."
-    Write-Host "  Command: php artisan tinker --execute=\"var_dump(function_exists('fake'));\"" -ForegroundColor Yellow
+    Write-Host '  Command: php artisan tinker --execute="var_dump(function_exists(''fake''));"' -ForegroundColor Yellow
     $tinkerResult = php artisan tinker --execute="var_dump(function_exists('fake'));" 2>&1
     if ($tinkerResult -match "bool\(true\)") {
         Write-Success "[UP] OK fake() helper function is available"
@@ -644,9 +666,11 @@ function Invoke-Up20251215InstallReverb {
     Write-Info "[UP] Step 3: Installing/Updating Laravel Reverb..."
     if (Test-ComposerPackage -PackageName "laravel/reverb" -LaravelDir $laravelDir) {
         Write-Info "[UP] Laravel Reverb already installed, ensuring latest version..."
+        Write-Host "  Command: composer update laravel/reverb --with-all-dependencies" -ForegroundColor Yellow
         composer update laravel/reverb --with-all-dependencies
     } else {
         Write-Info "[UP] Installing Laravel Reverb..."
+        Write-Host "  Command: composer require laravel/reverb --with-all-dependencies" -ForegroundColor Yellow
         composer require laravel/reverb --with-all-dependencies
     }
     
@@ -656,6 +680,7 @@ function Invoke-Up20251215InstallReverb {
     if (Test-Path $reverbConfigFile) {
         Write-Info "[UP] Reverb config already exists, skipping publish"
     } else {
+        Write-Host "  Command: php artisan reverb:install --no-interaction" -ForegroundColor Yellow
         php artisan reverb:install --no-interaction
     }
     
@@ -753,9 +778,11 @@ function Invoke-Up20251220InstallHaikunator {
     Write-Info "[UP] Step 2: Installing/Updating Haikunator..."
     if (Test-ComposerPackage -PackageName "atrox/haikunator" -LaravelDir $laravelDir) {
         Write-Info "[UP] Haikunator already installed, ensuring latest version..."
+        Write-Host "  Command: composer update atrox/haikunator" -ForegroundColor Yellow
         composer update atrox/haikunator
     } else {
         Write-Info "[UP] Installing Haikunator..."
+        Write-Host "  Command: composer require atrox/haikunator" -ForegroundColor Yellow
         composer require atrox/haikunator
     }
     
@@ -1229,6 +1256,7 @@ if (-not (Test-Path $envFile)) {
 
 # Test basic artisan command
 Write-Info "Testing Laravel artisan command..."
+Write-Host "  Command: php artisan --version" -ForegroundColor Yellow
 php artisan --version
 Write-Success "Laravel artisan is working"
 
@@ -1262,6 +1290,7 @@ if ($FullDeploy) {
     function Test-Php {
         Write-Info "Verifying PHP installation..."
         if (Get-Command php -ErrorAction SilentlyContinue) {
+            Write-Host "  Command: php -v" -ForegroundColor Yellow
             $phpVersion = php -v | Select-Object -First 1
             Write-Success "PHP version: $phpVersion"
             return $true
@@ -1275,6 +1304,7 @@ if ($FullDeploy) {
     # Function to check and install required PHP extensions
     function Test-PhpExtensions {
         Write-Host "Checking required PHP extensions (dom, xml)..."
+        Write-Host "  Command: php -m" -ForegroundColor Yellow
         $phpModules = php -m 2>&1
         
         if ($phpModules -notmatch 'dom') {
@@ -1289,6 +1319,7 @@ if ($FullDeploy) {
     function Test-Composer {
         Write-Info "Verifying Composer installation..."
         if (Get-Command composer -ErrorAction SilentlyContinue) {
+            Write-Host "  Command: composer --version" -ForegroundColor Yellow
             $composerVersion = composer --version
             Write-Success "Composer version: $composerVersion"
             return $true
@@ -1397,6 +1428,7 @@ if ($FullDeploy) {
         }
         
         # 5. Optional configuration (if needed)
+        Write-Host "  Command: php artisan" -ForegroundColor Yellow
         $artisanCommands = php artisan 2>&1
         if ($artisanCommands -match "database:config") {
             Write-Host "  Command: php artisan database:config" -ForegroundColor Yellow
@@ -1422,6 +1454,7 @@ if ($FullDeploy) {
         
         # Always try to apply patch, silently skip if conditions not met
         if ((Test-Path $fixerScript) -and (Test-Path (Join-Path $laravelRoot "vendor\laravel\octane"))) {
+            Write-Host "  Command: php $fixerScript $laravelRoot" -ForegroundColor Yellow
             php $fixerScript $laravelRoot
         }
         
