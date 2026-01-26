@@ -67,7 +67,12 @@ Accept: application/json
     "ip_address": "string|null",
     "additional_info": {
       "locale": "string",
-      "number_of_processors": "integer"
+      "number_of_processors": "integer",
+      "operating_system": "string",
+      "operating_system_version": "string",
+      "environment": "string",
+      "resolved_executable": "string",
+      "package_config": "string|null"
     }
   },
   "registration_info": {
@@ -100,6 +105,73 @@ Accept: application/json
       "role_name": "string|null",
       "global_balance": "float|null",
       "holdings_total": "float|null"
+    },
+    "complete_user_profile": {
+      "id": "string|null",
+      "name": "string|null",
+      "nickname": "string|null",
+      "username": "string|null",
+      "email": "string|null",
+      "phone": "string|null",
+      "full_name": "string|null",
+      "avatar": "string|null",
+      "about": "string|null",
+      "age": "integer|null",
+      "gender": "string|null",
+      "birthday": "string|null",
+      "date_of_birth": "string|null (ISO8601)",
+      "city": "string|null",
+      "location": "string|null",
+      "education": "string|null",
+      "occupation": "string|null",
+      "language": "string|null",
+      "account_status": "string|null",
+      "account_number": "string|null",
+      "account_type": "string|null",
+      "balance": "float|null",
+      "currency": "string|null",
+      "card_count": "integer|null",
+      "points": "integer|null",
+      "coupons": "integer|null",
+      "credit_card_level": "string|null",
+      "last_login_at": "string|null (ISO8601)",
+      "login_attempts": "integer|null",
+      "street": "string|null",
+      "state": "string|null",
+      "zip_code": "string|null",
+      "country": "string|null",
+      "created_at": "string|null (ISO8601)",
+      "updated_at": "string|null (ISO8601)"
+    },
+    "global_app_data": {
+      "last_active_time": "string (ISO8601)",
+      "session_count": "integer",
+      "app_version": "string",
+      "location": "string|null",
+      "city": "string|null",
+      "balance": "float|null",
+      "username": "string|null",
+      "full_name": "string|null",
+      "points": "integer|null",
+      "coupons": "integer|null",
+      "credit_card_level": "string|null",
+      "settings": "object",
+      "metadata": "object"
+    },
+    "app_state": {
+      "is_authenticated": "boolean",
+      "is_initialized": "boolean",
+      "is_debug_mode": "boolean",
+      "is_dashboard_balance_visible": "boolean",
+      "is_profile_balance_visible": "boolean",
+      "is_investment_balance_visible": "boolean",
+      "total_assets": "float",
+      "current_balance": "float",
+      "holdings_total": "float",
+      "card_count": "integer",
+      "auth_type": "string",
+      "has_token": "boolean",
+      "needs_auth_refresh": "boolean"
     }
   },
   "submit_time": "string (ISO8601)"
@@ -119,6 +191,11 @@ Accept: application/json
 - `additional_info`: Additional device information
   - `locale`: System locale (e.g., "en_US", "zh_CN")
   - `number_of_processors`: Number of CPU cores
+  - `operating_system`: Operating system identifier
+  - `operating_system_version`: Full OS version string
+  - `environment`: Platform environment variables (string representation)
+  - `resolved_executable`: Path to resolved executable
+  - `package_config`: Package configuration path (nullable)
 
 #### registration_info
 - `registration_code`: Registration/license code (nullable)
@@ -147,6 +224,36 @@ Accept: application/json
   - `role_name`: User role name
   - `global_balance`: Global balance
   - `holdings_total`: Total holdings value
+- `complete_user_profile`: Complete user profile data (nullable, all fields nullable)
+  - Contains all user fields from BankUserModel including: id, name, nickname, username, email, phone, full_name, avatar, about, age, gender, birthday, date_of_birth, city, location, education, occupation, language, account_status, account_number, account_type, balance, currency, card_count, points, coupons, credit_card_level, last_login_at, login_attempts, street, state, zip_code, country, created_at, updated_at
+- `global_app_data`: Global application data (nullable)
+  - `last_active_time`: Last active timestamp (ISO8601)
+  - `session_count`: Number of sessions
+  - `app_version`: Application version
+  - `location`: Global location setting
+  - `city`: Global city setting
+  - `balance`: Global balance
+  - `username`: Global username
+  - `full_name`: Global full name
+  - `points`: User points
+  - `coupons`: User coupons count
+  - `credit_card_level`: Credit card level
+  - `settings`: Application settings (object)
+  - `metadata`: Application metadata (object)
+- `app_state`: Current application state (nullable)
+  - `is_authenticated`: Whether user is authenticated
+  - `is_initialized`: Whether provider is initialized
+  - `is_debug_mode`: Whether debug mode is enabled
+  - `is_dashboard_balance_visible`: Dashboard balance visibility
+  - `is_profile_balance_visible`: Profile balance visibility
+  - `is_investment_balance_visible`: Investment balance visibility
+  - `total_assets`: Total assets value
+  - `current_balance`: Current balance (活期)
+  - `holdings_total`: Total holdings value
+  - `card_count`: Number of bank cards
+  - `auth_type`: Authentication type
+  - `has_token`: Whether authentication token exists
+  - `needs_auth_refresh`: Whether auth refresh is needed
 
 #### submit_time
 - ISO8601 formatted timestamp of when the data was submitted
@@ -227,6 +334,43 @@ Accept: application/json
       "role_name": "普通用户",
       "global_balance": 125000.50,
       "holdings_total": 50000.00
+    },
+    "complete_user_profile": {
+      "id": "user_123",
+      "username": "13800138000",
+      "email": "user@example.com",
+      "phone": "13800138000",
+      "full_name": "*8000",
+      "balance": 125000.50,
+      "card_count": 2,
+      "points": 5000,
+      "coupons": 3,
+      "account_status": "active",
+      "last_login_at": "2026-01-26T10:00:00Z"
+    },
+    "global_app_data": {
+      "last_active_time": "2026-01-26T10:30:00Z",
+      "session_count": 15,
+      "app_version": "1.0.0",
+      "location": "北京市",
+      "city": "北京市",
+      "balance": 125000.50,
+      "points": 5000,
+      "coupons": 3,
+      "settings": {
+        "theme": "light",
+        "language": "zh_CN"
+      }
+    },
+    "app_state": {
+      "is_authenticated": true,
+      "is_initialized": true,
+      "total_assets": 125000.50,
+      "current_balance": 100000.00,
+      "holdings_total": 50000.00,
+      "card_count": 2,
+      "auth_type": "jwt",
+      "has_token": true
     }
   },
   "submit_time": "2026-01-26T10:30:45.123Z"
