@@ -144,6 +144,80 @@ get_installed_package_size() {
     fi
 }
 
+# Clean up old Cursor installer files from Downloads directories
+cleanup_old_downloads() {
+    print_step_from_common_functions "Cleaning up old Cursor installer files..."
+    find_and_remove_old_installers "cursor*.AppImage"
+    find_and_remove_old_installers "cursor*.deb"
+}
+
+# Detect installation type from file extension
+detect_install_type() {
+    local file_path="$1"
+    local file_ext="${file_path##*.}"
+    if [[ "$file_ext" == "AppImage" ]]; then
+        echo "appimage"
+    elif [[ "$file_ext" == "deb" ]]; then
+        echo "deb"
+    else
+        echo ""
+    fi
+}
+
+# Download and rename Cursor installer with timestamp
+download_and_rename_cursor() {
+    local download_dir="$1"
+    local remote_version="$2"
+    
+    print_step_from_common_functions "Downloading Cursor from API..."
+    print_info_from_common_functions "API URL: $CURSOR_API_URL"
+    print_info_from_common_functions "Download directory: $download_dir"
+    
+    local downloaded_file=$(download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3)
+    
+    if [[ -z "$downloaded_file" ]] || [[ ! -f "$downloaded_file" ]]; then
+        return 1
+    fi
+    
+    # Rename with timestamp for reliable scanning
+    local file_dir=$(dirname "$downloaded_file")
+    local file_name=$(basename "$downloaded_file")
+    local file_ext="${file_name##*.}"
+    local timestamp=$(date '+%Y%m%d_%H%M%S')
+    
+    # Build base name: prefer remote_version, fallback to original name
+    local base_name="cursor"
+    if [[ -n "$remote_version" ]]; then
+        base_name="cursor-${remote_version}"
+    else
+        local name_no_ext="${file_name%.*}"
+        base_name="cursor-${name_no_ext}"
+    fi
+    
+    local new_filename="${base_name}-${timestamp}"
+    if [[ -n "$file_ext" ]]; then
+        new_filename="${new_filename}.${file_ext}"
+    fi
+    
+    local renamed_file="$file_dir/$new_filename"
+    mv -f "$downloaded_file" "$renamed_file" || return 1
+    
+    echo "$renamed_file"
+    return 0
+}
+
+# Get download directory (prioritize user Downloads)
+get_download_directory() {
+    local download_dir="$PRIMARY_DOWNLOAD_DIR"
+    if [[ ! -d "$download_dir" ]]; then
+        download_dir=$(find /home -maxdepth 2 -type d -name "Downloads" 2>/dev/null | head -1)
+    fi
+    if [[ -z "$download_dir" ]] || [[ ! -d "$download_dir" ]]; then
+        download_dir="/tmp"
+    fi
+    echo "$download_dir"
+}
+
 # Save installation info
 save_installation_info() {
     local version="$1"
