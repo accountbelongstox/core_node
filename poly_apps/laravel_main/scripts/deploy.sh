@@ -811,7 +811,7 @@ fix_prerequisites() {
     print_cmd "git config --global --add safe.directory \"$parent_dir\" 2>/dev/null || true"
     git config --global --add safe.directory "$parent_dir" 2>/dev/null || true
     
-    echo -e "${GREEN}????Git safe directories configured${NC}"
+    echo -e "${GREEN}[OK] Git safe directories configured${NC}"
     
     # 2. Install unzip and p7zip for Composer
     echo -e "${YELLOW}Checking archive extraction tools...${NC}"
@@ -831,22 +831,22 @@ fix_prerequisites() {
         # Update package list
         print_cmd "sudo apt update >/dev/null 2>&1"
         if sudo apt update >/dev/null 2>&1; then
-            echo -e "${GREEN}????Package list updated${NC}"
+            echo -e "${GREEN}[OK] Package list updated${NC}"
         else
-            echo -e "${RED}????Failed to update package list${NC}"
+            echo -e "${RED}[ERROR] Failed to update package list${NC}"
         fi
         
         # Install missing tools
         for tool in "${tools_needed[@]}"; do
             print_cmd "sudo apt install -y \"$tool\" >/dev/null 2>&1"
             if sudo apt install -y "$tool" >/dev/null 2>&1; then
-                echo -e "${GREEN}????Installed $tool${NC}"
+                echo -e "${GREEN}[OK] Installed $tool${NC}"
             else
-                echo -e "${RED}????Failed to install $tool${NC}"
+                echo -e "${RED}[ERROR] Failed to install $tool${NC}"
             fi
         done
     else
-        echo -e "${GREEN}????Archive extraction tools already available${NC}"
+        echo -e "${GREEN}[OK] Archive extraction tools already available${NC}"
     fi
     
     # 3. Fix file permissions for WSL (common issue)
@@ -862,24 +862,24 @@ fix_prerequisites() {
     if [ -f "artisan" ]; then
         print_cmd "chmod +x artisan 2>/dev/null || true"
         chmod +x artisan 2>/dev/null || true
-        echo -e "${GREEN}????Fixed artisan permissions${NC}"
+        echo -e "${GREEN}[OK] Fixed artisan permissions${NC}"
     fi
     
     # 4. Verify Git functionality
     echo -e "${YELLOW}Verifying Git functionality...${NC}"
     print_cmd "git status >/dev/null 2>&1"
     if git status >/dev/null 2>&1; then
-        echo -e "${GREEN}????Git is working properly${NC}"
+        echo -e "${GREEN}[OK] Git is working properly${NC}"
     else
-        echo -e "${YELLOW}????Git may still have issues, but continuing...${NC}"
+        echo -e "${YELLOW}[WARNING] Git may still have issues, but continuing...${NC}"
     fi
     
     # 5. Check Composer functionality
     echo -e "${YELLOW}Checking Composer zip handling...${NC}"
     if command -v unzip >/dev/null 2>&1 || command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1; then
-        echo -e "${GREEN}????Archive extraction tools available for Composer${NC}"
+        echo -e "${GREEN}[OK] Archive extraction tools available for Composer${NC}"
     else
-        echo -e "${YELLOW}????No archive tools found - Composer will use PHP zip extension${NC}"
+        echo -e "${YELLOW}[WARNING] No archive tools found - Composer will use PHP zip extension${NC}"
     fi
     
     echo -e "${GREEN}[PREREQUISITES] Setup complete${NC}\n"
@@ -896,14 +896,14 @@ ensure_env_file() {
     # Verify .env file existence
     if [ ! -f "$full_env_path" ]; then
         if [ ! -f "${project_root}/${ENV_EXAMPLE}" ]; then
-            echo -e "${RED}????Error: Missing ${ENV_EXAMPLE} file in ${project_root}${NC}"
+            echo -e "${RED}[ERROR] Missing ${ENV_EXAMPLE} file in ${project_root}${NC}"
             return 1
         fi
 
         # Create from example
         print_cmd "cp \"${project_root}/${ENV_EXAMPLE}\" \"$full_env_path\""
         cp "${project_root}/${ENV_EXAMPLE}" "$full_env_path"
-        echo -e "${GREEN}????Created ${ENV_FILE} from template${NC}"
+        echo -e "${GREEN}[OK] Created ${ENV_FILE} from template${NC}"
 
         # Generate application key
         print_cmd "grep -q \"APP_KEY=\" \"$full_env_path\""
@@ -912,20 +912,20 @@ ensure_env_file() {
             if command -v php &>/dev/null; then
                 print_cmd "(cd \"$project_root\" && php artisan key:generate --quiet)"
                 (cd "$project_root" && php artisan key:generate --quiet)
-                echo -e "${GREEN}????Generated application encryption key${NC}"
+                echo -e "${GREEN}[OK] Generated application encryption key${NC}"
             else
-                echo -e "${YELLOW}????PHP not available - APP_KEY remains unset${NC}"
+                echo -e "${YELLOW}[WARNING] PHP not available - APP_KEY remains unset${NC}"
             fi
         fi
     else
-        echo -e "${BLUE}????${ENV_FILE} already exists${NC}"
+        echo -e "${BLUE}[INFO] ${ENV_FILE} already exists${NC}"
     fi
 
     # Set secure permissions
     if [ -f "$full_env_path" ]; then
         print_cmd "chmod 600 \"$full_env_path\""
         chmod 600 "$full_env_path"
-        echo -e "${GREEN}????Applied secure file permissions (600)${NC}"
+        echo -e "${GREEN}[OK] Applied secure file permissions (600)${NC}"
     fi
 }
 
@@ -940,7 +940,7 @@ ensure_production_environment() {
 
     # Verify .env exists
     if [ ! -f "$full_env_path" ]; then
-        echo -e "${RED}????Error: ${ENV_FILE} not found in ${project_root}${NC}"
+        echo -e "${RED}[ERROR] ${ENV_FILE} not found in ${project_root}${NC}"
         return 1
     fi
 
@@ -956,13 +956,13 @@ ensure_production_environment() {
             print_cmd "sed -i 's/^APP_ENV=.*/APP_ENV=production/' \"$full_env_path\""
             sed -i 's/^APP_ENV=.*/APP_ENV=production/' "$full_env_path"
             changes_made=true
-            echo -e "${GREEN}????Set APP_ENV to production${NC}"
+            echo -e "${GREEN}[OK] Set APP_ENV to production${NC}"
         fi
     else
         print_cmd "echo \"APP_ENV=production\" >> \"$full_env_path\""
         echo "APP_ENV=production" >> "$full_env_path"
         changes_made=true
-        echo -e "${GREEN}????Added APP_ENV setting${NC}"
+        echo -e "${GREEN}[OK] Added APP_ENV setting${NC}"
     fi
 
     # Configure APP_DEBUG
@@ -973,22 +973,22 @@ ensure_production_environment() {
             print_cmd "sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' \"$full_env_path\""
             sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' "$full_env_path"
             changes_made=true
-            echo -e "${GREEN}????Disabled debug mode${NC}"
+            echo -e "${GREEN}[OK] Disabled debug mode${NC}"
         fi
     else
         print_cmd "echo \"APP_DEBUG=false\" >> \"$full_env_path\""
         echo "APP_DEBUG=false" >> "$full_env_path"
         changes_made=true
-        echo -e "${GREEN}????Added APP_DEBUG setting${NC}"
+        echo -e "${GREEN}[OK] Added APP_DEBUG setting${NC}"
     fi
 
     # Cleanup if no changes were needed
     if [ "$changes_made" = false ]; then
         print_cmd "rm -f \"${full_env_path}.bak\""
         rm -f "${full_env_path}.bak"
-        echo -e "${BLUE}????Production settings already configured${NC}"
+        echo -e "${BLUE}[INFO] Production settings already configured${NC}"
     else
-        echo -e "${GREEN}????Production configuration complete${NC}"
+        echo -e "${GREEN}[OK] Production configuration complete${NC}"
     fi
 }
 
