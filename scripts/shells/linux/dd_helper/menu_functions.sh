@@ -40,6 +40,16 @@ show_service_manager() {
     bash "$SERVICE_MANAGER_SCRIPT_PATH"
 }
 
+show_backup_management() {
+    export USE_SUDO
+    local backup_script_path="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/gitea_backup/backup_management_main.sh"
+    if [ -f "$backup_script_path" ]; then
+        bash "$backup_script_path"
+    else
+        echo "Error: Backup management script not found at: $backup_script_path"
+    fi
+}
+
 handle_menu_action() {
     local action="$1"
     local value="$2"
@@ -71,6 +81,9 @@ handle_menu_action() {
             ;;
         "show_service_manager")
             show_service_manager
+            ;;
+        "show_backup_management")
+            show_backup_management
             ;;
         "unified_manager")
             cd "$CORE_NODE_ROOT_DIR"
