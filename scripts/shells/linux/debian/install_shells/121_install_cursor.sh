@@ -137,11 +137,24 @@ get_installed_type() {
     fi
 }
 
+# Get installed package size (in bytes) from saved metadata
+get_installed_package_size() {
+    if [[ -f "$CURSOR_INSTALLED_FLAG" ]]; then
+        grep "^SIZE=" "$CURSOR_INSTALLED_FLAG" 2>/dev/null | cut -d= -f2
+    fi
+}
+
 # Save installation info
 save_installation_info() {
     local version="$1"
     local package_file="$2"
     local install_type="$3"
+    local file_size=""
+
+    # Get package file size for future comparisons (if file exists)
+    if [[ -f "$package_file" ]]; then
+        file_size=$(stat -c%s "$package_file" 2>/dev/null || stat -f%z "$package_file" 2>/dev/null || echo "")
+    fi
 
     # Create app versions directory if it doesn't exist
     $USE_SUDO mkdir -p "$APP_VERSIONS_DIR"
@@ -153,6 +166,7 @@ VERSION=$version
 TYPE=$install_type
 PACKAGE=$(basename "$package_file")
 PATH=$package_file
+SIZE=$file_size
 EOF
 }
 
@@ -1170,10 +1184,40 @@ install_cursor() {
 
         # If function returned a path, verify it exists
         if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
-            cursor_file="$downloaded_file"
+            # Normalize filename: keep current matching rules (cursor*.AppImage / cursor*.deb)
+            # and append timestamp to avoid collisions and make scanning reliable.
+            local file_dir
+            local file_name
+            local file_ext
+            file_dir=$(dirname "$downloaded_file")
+            file_name=$(basename "$downloaded_file")
+            file_ext="${file_name##*.}"
 
-            # Detect type from downloaded file
+            local timestamp
+            timestamp=$(date '+%Y%m%d_%H%M%S')
+
+            # Build base name: prefer remote_version, fallback to original name (without extension)
+            local base_name="cursor"
+            if [[ -n "$remote_version" ]]; then
+                base_name="cursor-${remote_version}"
+            else
+                local name_no_ext="${file_name%.*}"
+                base_name="cursor-${name_no_ext}"
+            fi
+
+            local new_filename="${base_name}-${timestamp}"
+            if [[ -n "$file_ext" ]]; then
+                new_filename="${new_filename}.${file_ext}"
+            fi
+
+            local renamed_file="$file_dir/$new_filename"
+            mv -f "$downloaded_file" "$renamed_file"
+
+            cursor_file="$renamed_file"
+
+            print_success_from_common_functions "Auto-download successful: $(basename "$cursor_file")"
+
+            # Detect type from downloaded (renamed) file
             local file_ext="${cursor_file##*.}"
             if [[ "$file_ext" == "AppImage" ]]; then
                 install_type="appimage"
@@ -1323,6 +1367,38 @@ install_cursor() {
                         install_type="deb"
                     fi
                 fi
+            fi
+        fi
+    fi
+
+    # If this is an upgrade operation, compare package size with previously installed package.
+    if [[ "$is_upgrade_operation" == true ]]; then
+        local installed_pkg_size
+        installed_pkg_size=$(get_installed_package_size)
+
+        if [[ -n "$installed_pkg_size" ]]; then
+            local current_pkg_size=""
+            current_pkg_size=$(stat -c%s "$cursor_file" 2>/dev/null || stat -f%z "$cursor_file" 2>/dev/null || echo "")
+
+            if [[ -n "$current_pkg_size" ]] && [[ "$current_pkg_size" == "$installed_pkg_size" ]]; then
+                print_warning_from_common_functions "Installer package size matches the currently installed package ($current_pkg_size bytes)."
+                echo -n "Package appears identical. Force re-download and reinstall anyway? (y/N): "
+                read -r force_upgrade_choice
+
+                case "$force_upgrade_choice" in
+                    [yY]|[yY][eE][sS])
+                        print_step_from_common_functions "Forcing re-download and reinstall..."
+                        # Remove current installer to avoid reuse
+                        rm -f "$cursor_file" 2>/dev/null || true
+                        # Restart script to go through download flow again
+                        print_info_from_common_functions "Restarting script for fresh download: $0 $@"
+                        exec "$0" "$@"
+                        ;;
+                    *)
+                        print_info_from_common_functions "Skipping upgrade because installer is identical to currently installed package."
+                        return 0
+                        ;;
+                esac
             fi
         fi
     fi
