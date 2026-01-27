@@ -250,18 +250,7 @@ class BankUserModel extends BaseUserModel {
   }
 
   factory BankUserModel.defaultUser() {
-    return const BankUserModel(
-      name: 'Default User',
-      username: 'default_user',
-      email: 'user@example.com',
-      balance: 0.0,
-      cardCount: 0,
-      points: 0,
-      coupons: 0,
-      accountStatus: 'active',
-      isLocked: false,
-      loginAttempts: 0,
-    );
+    return const BankUserModel();
   }
 
   BankUserModel copyWith({

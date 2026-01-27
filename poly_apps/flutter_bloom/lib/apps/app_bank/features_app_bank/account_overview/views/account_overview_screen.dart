@@ -23,40 +23,8 @@ class BankAccountOverviewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<BankAccount> accounts = [
-      BankAccount(
-        name: 'Checking Account',
-        accountNumber: '****1234',
-        balance: 8459.50,
-        type: 'Checking',
-        icon: Icons.account_balance_wallet,
-        color: const Color(0xFF4CAF50),
-      ),
-      BankAccount(
-        name: 'Savings Account',
-        accountNumber: '****5678',
-        balance: 4000.00,
-        type: 'Savings',
-        icon: Icons.savings,
-        color: const Color(0xFF2196F3),
-      ),
-      BankAccount(
-        name: 'Credit Card',
-        accountNumber: '****9012',
-        balance: -1250.75,
-        type: 'Credit',
-        icon: Icons.credit_card,
-        color: const Color(0xFFFF5722),
-      ),
-      BankAccount(
-        name: 'Investment Account',
-        accountNumber: '****3456',
-        balance: 15750.25,
-        type: 'Investment',
-        icon: Icons.trending_up,
-        color: const Color(0xFF9C27B0),
-      ),
-    ];
+    // Accounts should be loaded from BankUserProvider, not hardcoded
+    final List<BankAccount> accounts = [];
 
     return Scaffold(
       appBar: AppBar(
@@ -88,7 +56,7 @@ class BankAccountOverviewScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '\$26,959.00',
+                      '\$0.00',
                       style: ThemeTextStyles.headingLarge.copyWith(
                         color: ThemeColors.textPrimary,
                         fontWeight: FontWeight.bold,

@@ -47,14 +47,6 @@ class BankGlobalData {
         'first_launch': DateTime.now().toIso8601String(),
         'device_info': {},
       },
-      location: '北京',
-      city: '北京',
-      balance: 0.0,
-      username: null,
-      fullName: null,
-      points: 0,
-      coupons: 0,
-      creditCardLevel: null,
     );
   }
 

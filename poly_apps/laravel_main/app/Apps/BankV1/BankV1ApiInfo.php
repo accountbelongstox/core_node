@@ -49,7 +49,7 @@ class BankV1ApiInfo
                         'device_info.app_signature' => 'string|required',
                         'device_info.machine_code' => 'string|required',
                         'device_info.platform' => 'string|required',
-                        'device_info.platform_version' => 'string|required',
+                        'device_info.platform_version' => 'string|required|max:255',
                         'device_info.ip_address' => 'ip|nullable',
                         'device_info.additional_info' => 'array|nullable',
                         'registration_info' => 'array|required',

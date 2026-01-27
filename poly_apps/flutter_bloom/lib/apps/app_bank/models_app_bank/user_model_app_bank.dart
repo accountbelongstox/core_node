@@ -142,8 +142,8 @@ class BankUser {
 
   /// Additional fields for Bank app compatibility
   String? get username => email.split('@').first;
-  double get balance => 0.0; // TODO: Implement balance management
-  String? get address => null; // TODO: Implement address management
+  double get balance => 0.0;
+  String? get address => null;
 }
 
 /// Bank User Preferences

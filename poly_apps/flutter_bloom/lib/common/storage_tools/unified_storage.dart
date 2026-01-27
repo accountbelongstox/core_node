@@ -306,19 +306,32 @@ abstract class UnifiedStorage {
     // If it's a JSON string, try to deserialize
     if (value is String) {
       try {
-        final Map<String, dynamic> map = jsonDecode(value);
-        
-        // Check for serialization error
-        if (map.containsKey('error') && map['error'] == 'serialization_failed') {
+        final dynamic decoded = jsonDecode(value);
+
+        // Handle serialization error wrapper
+        if (decoded is Map<String, dynamic> &&
+            decoded.containsKey('error') &&
+            decoded['error'] == 'serialization_failed') {
           if (kDebugMode) {
-            print('UnifiedStorage: Deserialization failed for $T');
+            print('UnifiedStorage: Deserialization failed for $T (serialization_failed marker)');
           }
           return null;
         }
-        
-        // For now, return the map as the object
-        // Specific models should implement fromMap factory
-        return map as T?;
+
+        // If decoded value already matches the expected type, return directly
+        if (decoded is T) {
+          return decoded;
+        }
+
+        // Fallback: try a safe cast, swallow type errors
+        try {
+          return decoded as T?;
+        } catch (e) {
+          if (kDebugMode) {
+            print('UnifiedStorage: Type cast failed for $T after JSON decode: $e');
+          }
+          return null;
+        }
       } catch (e) {
         if (kDebugMode) {
           print('UnifiedStorage: JSON deserialization failed for $T: $e');

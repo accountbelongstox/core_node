@@ -35,39 +35,8 @@ class _BankCardManagementScreenEnhancedState extends State<BankCardManagementScr
   final PageController _cardPageController = PageController(viewportFraction: 0.8);
   int _currentCardIndex = 0;
 
-  final List<BankCard> _cards = [
-    BankCard(
-      cardNumber: '1234 5678 9012 3456',
-      cardHolder: 'JOHN DOE',
-      expiryDate: '12/28',
-      cardType: CardType.debit,
-      bank: 'Flutter Bank',
-      balance: 12459.50,
-      gradient: const [Color(0xFF667eea), Color(0xFF764ba2)],
-      isActive: true,
-    ),
-    BankCard(
-      cardNumber: '9876 5432 1098 7654',
-      cardHolder: 'JOHN DOE',
-      expiryDate: '09/27',
-      cardType: CardType.credit,
-      bank: 'Flutter Bank',
-      creditLimit: 5000.0,
-      balance: -1250.75,
-      gradient: const [Color(0xFFf093fb), Color(0xFFf5576c)],
-      isActive: true,
-    ),
-    BankCard(
-      cardNumber: '5555 4444 3333 2222',
-      cardHolder: 'JOHN DOE',
-      expiryDate: '06/26',
-      cardType: CardType.debit,
-      bank: 'Flutter Bank',
-      balance: 3750.25,
-      gradient: const [Color(0xFF4facfe), Color(0xFF00f2fe)],
-      isActive: false,
-    ),
-  ];
+  // Cards should be loaded from BankUserProvider, not hardcoded
+  final List<BankCard> _cards = [];
 
   @override
   void initState() {

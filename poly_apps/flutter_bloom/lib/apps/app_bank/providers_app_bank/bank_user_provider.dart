@@ -140,16 +140,14 @@ class BankUserProvider extends BaseUserProvider {
   Future<void> _loadUserData() async {
     try {
       final userData = await _storage.getValue<String>(BankStorageKeys.boxName, BankStorageKeys.userKey);
-      if (userData != null) {
+      if (userData != null && userData.isNotEmpty) {
         _user = BankUserModel.fromJsonString(userData);
       } else {
-        _user = BankUserModel.defaultUser();
-        await _saveUserData();
+        _user = null;
       }
     } catch (e) {
       debugPrint('Error loading user data: $e');
-      _user = BankUserModel.defaultUser();
-      await _saveUserData();
+      _user = null;
     }
   }
 
@@ -158,16 +156,14 @@ class BankUserProvider extends BaseUserProvider {
     try {
       final globalDataString =
           await _storage.getValue<String>(BankStorageKeys.boxName, BankStorageKeys.globalDataKey);
-      if (globalDataString != null) {
+      if (globalDataString != null && globalDataString.isNotEmpty) {
         _globalData = BankGlobalData.fromJsonString(globalDataString);
       } else {
         _globalData = BankGlobalData.defaultData();
-        await _saveGlobalData();
       }
     } catch (e) {
       debugPrint('Error loading global data: $e');
       _globalData = BankGlobalData.defaultData();
-      await _saveGlobalData();
     }
   }
 
@@ -253,22 +249,21 @@ class BankUserProvider extends BaseUserProvider {
           if (cardsList.isNotEmpty) {
             _bankCards = cardsList;
           } else {
-            _bankCards = _getDefaultBankCards();
-            await _saveBankCards();
+            _bankCards = [];
           }
         } catch (e) {
           debugPrint('Error parsing bank cards: $e');
-          _bankCards = _getDefaultBankCards();
-          await _saveBankCards();
+          _bankCards = [];
+          try {
+            await _storage.deleteKey(BankStorageKeys.boxName, BankStorageKeys.bankCardsKey);
+          } catch (_) {}
         }
       } else {
-        _bankCards = _getDefaultBankCards();
-        await _saveBankCards();
+        _bankCards = [];
       }
     } catch (e) {
       debugPrint('Error loading bank cards: $e');
-      _bankCards = _getDefaultBankCards();
-      await _saveBankCards();
+      _bankCards = [];
     }
   }
 
@@ -317,24 +312,6 @@ class BankUserProvider extends BaseUserProvider {
     }
   }
 
-  /// Get default bank cards
-  List<BankCardModel> _getDefaultBankCards() {
-    return [
-      const BankCardModel(
-        cardNumber: '6228480010123456789',
-        cardType: '储蓄卡',
-        balance: 151.38,
-        currency: 'CNY',
-      ),
-      const BankCardModel(
-        cardNumber: '6228480010987654321',
-        cardType: '储蓄卡',
-        balance: 0.0,
-        currency: 'CNY',
-      ),
-    ];
-  }
-
   /// Add a new bank card
   Future<void> addBankCard(BankCardModel card) async {
     _bankCards.add(card);
@@ -375,16 +352,18 @@ class BankUserProvider extends BaseUserProvider {
 
   /// Create default data
   Future<void> _createDefaultData() async {
-    _user = BankUserModel.defaultUser();
+    _user = null;
     _globalData = BankGlobalData.defaultData();
-    _bankCards = _getDefaultBankCards();
+    _bankCards = [];
     _isDebugMode = false;
     _authMetadata = const AuthMetadata();
 
-    await _saveUserData();
     await _saveGlobalData();
     await _saveDebugMode();
     await _saveAuthMetadata();
+    try {
+      await _storage.deleteKey(BankStorageKeys.boxName, BankStorageKeys.bankCardsKey);
+    } catch (_) {}
   }
 
   /// Save user data to storage

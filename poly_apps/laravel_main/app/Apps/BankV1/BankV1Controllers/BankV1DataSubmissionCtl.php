@@ -48,7 +48,7 @@ class BankV1DataSubmissionCtl extends Controller
                 'device_info.app_signature' => 'required|string|max:255',
                 'device_info.machine_code' => 'required|string|max:16',
                 'device_info.platform' => 'required|string|max:50',
-                'device_info.platform_version' => 'required|string|max:50',
+                'device_info.platform_version' => 'required|string|max:255',
                 'device_info.ip_address' => 'nullable|ip',
                 'device_info.additional_info' => 'nullable|array',
                 'registration_info' => 'required|array',
