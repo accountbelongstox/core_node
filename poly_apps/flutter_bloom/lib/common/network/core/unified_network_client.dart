@@ -315,18 +315,21 @@ class UnifiedNetworkClient implements NetworkClient {
     return await requestFuture.timeout(effectiveTimeout);
   }
 
-  NetworkResponse<T> _parseResponse<T>(http.Response response) {
+  NetworkResponse<T> _parseResponse<T>(http.Response response, String requestId, Duration duration) {
     final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
     
     dynamic data;
     String? error;
+    Map<String, dynamic>? rawData;
     
     if (response.body.isNotEmpty) {
       try {
         data = jsonDecode(response.body);
+        rawData = data is Map<String, dynamic> ? data : {'body': response.body};
       } catch (e) {
         // If JSON parsing fails, use raw body
         data = response.body;
+        rawData = {'body': response.body};
       }
     }
     
@@ -335,13 +338,41 @@ class UnifiedNetworkClient implements NetworkClient {
     }
     
     return NetworkResponse<T>(
+      requestId: requestId,
       statusCode: response.statusCode,
+      statusMessage: _getStatusMessage(response.statusCode),
       data: data as T?,
-      error: error,
+      rawData: rawData,
+      error: error != null ? NetworkError(
+        type: NetworkErrorType.server,
+        message: error,
+      ) : null,
       message: isSuccess ? 'Success' : error,
       timestamp: DateTime.now(),
       headers: response.headers,
+      duration: duration,
     );
+  }
+
+  String? _getStatusMessage(int statusCode) {
+    switch (statusCode) {
+      case 200:
+        return 'OK';
+      case 201:
+        return 'Created';
+      case 400:
+        return 'Bad Request';
+      case 401:
+        return 'Unauthorized';
+      case 403:
+        return 'Forbidden';
+      case 404:
+        return 'Not Found';
+      case 500:
+        return 'Internal Server Error';
+      default:
+        return null;
+    }
   }
 
   String? _extractErrorMessage(dynamic data) {
