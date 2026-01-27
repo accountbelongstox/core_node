@@ -19,7 +19,9 @@ import 'network_types.dart';
 import '../models/api_config.dart';
 import '../utils/network_utils.dart';
 import '../interceptors/auth_interceptor.dart';
+import '../interceptors/network_interceptors.dart';
 import 'api_endpoint_manager.dart';
+import 'endpoint_network_models.dart';
 
 /// Unified Network Client - Production-ready HTTP client
 /// 
@@ -34,6 +36,7 @@ class UnifiedNetworkClient implements NetworkClient {
   final http.Client _httpClient;
   final NetworkUtils _networkUtils;
   final AuthInterceptor _authInterceptor;
+  final NetworkInterceptors _networkInterceptors = NetworkInterceptors.instance;
   
   bool _isDisposed = false;
   static final Map<String, UnifiedNetworkClient> _instances = {};
@@ -88,39 +91,57 @@ class UnifiedNetworkClient implements NetworkClient {
   }) async {
     // Check network connectivity
     if (!_networkUtils.isConnected) {
-      return NetworkResponse<T>(
+      final errorResponse = NetworkResponse<T>(
+        requestId: request.id,
         statusCode: 0,
         error: 'No network connection',
         data: null,
         timestamp: DateTime.now(),
       );
+      await _networkInterceptors.processResponse<T>(errorResponse);
+      return errorResponse;
     }
 
+    final stopwatch = Stopwatch()..start();
+    NetworkRequest processedRequest = request;
+    NetworkResponse<T>? processedResponse;
+
     try {
+      // Process request through interceptors
+      final endpointNetworkRequest = _convertToEndpointNetworkRequest(request);
+      processedRequest = await _networkInterceptors.processRequest(endpointNetworkRequest);
+      
       // Build URL
-      final uri = _buildUri(request.endpoint, request.parameters);
+      final uri = _buildUri(processedRequest.path, processedRequest.queryParameters);
       
       // Build headers with authentication
-      final headers = await _buildHeaders(request);
+      final headers = await _buildHeaders(processedRequest);
       
       // Log request
       if (config.enableLogging) {
-        debugPrint('→ ${request.method.name} ${uri.toString()}');
+        debugPrint('→ ${processedRequest.method.toUpperCase()} ${uri.toString()}');
         if (_authInterceptor.isAuthenticated()) {
           debugPrint('   🔐 Authenticated request');
         }
       }
       
       // Make HTTP request
-      final response = await _makeHttpRequest(uri, request.method, headers, request.body, request.timeout);
+      final httpResponse = await _makeHttpRequest(uri, processedRequest.method, headers, processedRequest.data, processedRequest.timeout);
+      stopwatch.stop();
+      
+      // Parse response
+      final parsedResponse = _parseResponse<T>(httpResponse, processedRequest.id, stopwatch.elapsed);
+      
+      // Process response through interceptors
+      processedResponse = await _networkInterceptors.processResponse<T>(parsedResponse);
       
       // Log response
       if (config.enableLogging) {
-        debugPrint('← ${response.statusCode} ${uri.toString()}');
+        debugPrint('← ${processedResponse.statusCode} ${uri.toString()}');
       }
       
       // Handle 401 Unauthorized - Auto refresh token and retry
-      if (response.statusCode == 401 && !isRetry) {
+      if (processedResponse.statusCode == 401 && !isRetry) {
         debugPrint('⚠️  Received 401 Unauthorized, attempting token refresh...');
         
         final refreshSuccess = await _authInterceptor.refreshToken();
@@ -135,18 +156,59 @@ class UnifiedNetworkClient implements NetworkClient {
         }
       }
       
-      // Parse response
-      return _parseResponse<T>(response);
+      return processedResponse;
       
     } catch (e) {
+      stopwatch.stop();
       debugPrint('Network request failed: $e');
       
-      return NetworkResponse<T>(
+      final errorResponse = NetworkResponse<T>(
+        requestId: processedRequest.id,
         statusCode: 500,
         error: e.toString(),
         data: null,
         timestamp: DateTime.now(),
+        duration: stopwatch.elapsed,
       );
+      
+      await _networkInterceptors.processResponse<T>(errorResponse);
+      return errorResponse;
+    }
+  }
+
+  /// Convert NetworkRequest (from network_types.dart) to NetworkRequest (from endpoint_network_models.dart)
+  NetworkRequest _convertToEndpointNetworkRequest(NetworkRequest request) {
+    return NetworkRequest(
+      id: request.id ?? _generateRequestId(),
+      method: _requestMethodToString(request.method),
+      path: request.endpoint,
+      queryParameters: request.parameters,
+      data: request.body,
+      headers: request.headers,
+      timeout: request.timeout,
+    );
+  }
+
+  String _generateRequestId() {
+    return '${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString()}';
+  }
+
+  String _requestMethodToString(RequestMethod method) {
+    switch (method) {
+      case RequestMethod.get:
+        return 'GET';
+      case RequestMethod.post:
+        return 'POST';
+      case RequestMethod.put:
+        return 'PUT';
+      case RequestMethod.patch:
+        return 'PATCH';
+      case RequestMethod.delete:
+        return 'DELETE';
+      case RequestMethod.head:
+        return 'HEAD';
+      case RequestMethod.options:
+        return 'OPTIONS';
     }
   }
 
