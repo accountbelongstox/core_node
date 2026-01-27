@@ -3,10 +3,7 @@
 # Uses built-in gnome-remote-desktop instead of xrdp
 #
 # Usage:
-#   ./125_setup_gnome_rdp.sh                 # Setup for detected desktop user
-#   ./125_setup_gnome_rdp.sh --user ubuntu   # Setup for specific user
-#   ./125_setup_gnome_rdp.sh --disable       # Disable remote desktop
-#   ./125_setup_gnome_rdp.sh --status        # Check status
+#   ./125_setup_gnome_rdp.sh   # Setup for detected desktop user (no arguments)
 
 # Script paths
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +16,6 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Default user - use detected desktop user
 TARGET_USER="${ACTUAL_DESKTOP_USER:-ubuntu}"
-ACTION="enable"
 RDP_PASSWORD=""
 
 # Colors
@@ -29,50 +25,20 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --user)
-            TARGET_USER="$2"
-            shift 2
-            ;;
-        --password)
-            RDP_PASSWORD="$2"
-            shift 2
-            ;;
-        --disable)
-            ACTION="disable"
-            shift
-            ;;
-        --status)
-            ACTION="status"
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--user USERNAME] [--password PASSWORD] [--disable] [--status]"
-            exit 1
-            ;;
-    esac
-done
-
 print_header_from_common_functions "GNOME Remote Desktop Setup"
 
-# Only check desktop environment for enable action
-if [ "$ACTION" = "enable" ]; then
-    # Check if running on desktop system
-    if [ "$HAS_DESKTOP_ENVIRONMENT" != "true" ]; then
-        print_info_from_common_functions "No desktop environment detected (server mode)."
-        print_info_from_common_functions "GNOME Remote Desktop is designed for desktop systems only."
-        print_info_from_common_functions "Skipping installation."
-        echo ""
-        print_info_from_common_functions "For headless servers, consider:"
-        print_info_from_common_functions "  - SSH Remote Access (17_setup_ssh_remote.sh)"
-        exit 0
-    fi
-
-    print_info_from_common_functions "Desktop environment detected: $DESKTOP_ENVIRONMENT"
+# Check if running on desktop system
+if [ "$HAS_DESKTOP_ENVIRONMENT" != "true" ]; then
+    print_info_from_common_functions "No desktop environment detected (server mode)."
+    print_info_from_common_functions "GNOME Remote Desktop is designed for desktop systems only."
+    print_info_from_common_functions "Skipping installation."
+    echo ""
+    print_info_from_common_functions "For headless servers, consider:"
+    print_info_from_common_functions "  - SSH Remote Access (17_setup_ssh_remote.sh)"
+    exit 0
 fi
+
+print_info_from_common_functions "Desktop environment detected: $DESKTOP_ENVIRONMENT"
 
 # Verify user exists
 if ! id "$TARGET_USER" &>/dev/null; then
@@ -81,6 +47,52 @@ if ! id "$TARGET_USER" &>/dev/null; then
 fi
 
 print_info_from_common_functions "Target user: $TARGET_USER"
+
+# Detect Ubuntu version
+detect_ubuntu_version() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [ "$ID" = "ubuntu" ]; then
+            VERSION_ID="${VERSION_ID%.*}"
+            echo "$VERSION_ID"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Reset all RDP settings
+reset_rdp_settings() {
+    print_step_from_common_functions "Resetting all GNOME Remote Desktop settings for user: $TARGET_USER"
+    
+    USER_UID=$(id -u "$TARGET_USER")
+    DBUS_SESSION=$(pgrep -u "$TARGET_USER" gnome-session | head -1)
+    
+    # Try to disable RDP if user is logged in
+    if [ -n "$DBUS_SESSION" ]; then
+        DBUS_ADDRESS=$(tr '\0' '\n' < /proc/$DBUS_SESSION/environ 2>/dev/null | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2-)
+        if [ -n "$DBUS_ADDRESS" ]; then
+            print_info_from_common_functions "Disabling RDP via grdctl..."
+            sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
+                grdctl rdp disable 2>/dev/null || true
+        fi
+    fi
+    
+    # Stop and disable service
+    print_info_from_common_functions "Stopping and disabling gnome-remote-desktop service..."
+    sudo -u "$TARGET_USER" systemctl --user stop gnome-remote-desktop 2>/dev/null || true
+    sudo -u "$TARGET_USER" systemctl --user disable gnome-remote-desktop 2>/dev/null || true
+    
+    # Remove configuration files
+    print_info_from_common_functions "Removing configuration files..."
+    USER_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+    if [ -n "$USER_HOME" ]; then
+        sudo rm -rf "$USER_HOME/.local/share/gnome-remote-desktop" 2>/dev/null || true
+        sudo rm -rf "$USER_HOME/.config/gnome-remote-desktop" 2>/dev/null || true
+    fi
+    
+    print_success_from_common_functions "All RDP settings have been reset"
+}
 
 # Check status
 check_status() {
@@ -209,6 +221,15 @@ prompt_installation() {
 # Enable Remote Desktop
 enable_rdp() {
     print_step_from_common_functions "Enabling GNOME Remote Desktop for user: $TARGET_USER"
+
+    # Check Ubuntu version and reset if 26.04
+    UBUNTU_VERSION=$(detect_ubuntu_version)
+    if [ "$UBUNTU_VERSION" = "26" ]; then
+        print_warning_from_common_functions "Ubuntu 26.04 detected - resetting existing RDP settings..."
+        reset_rdp_settings
+        print_info_from_common_functions "Reset done on Ubuntu 26.04, skipping further configuration."
+        return 0
+    fi
 
     # Install required packages
     print_step_from_common_functions "Installing required packages..."
@@ -404,19 +425,7 @@ disable_rdp() {
     print_success_from_common_functions "GNOME Remote Desktop disabled"
 }
 
-# Main execution
-case "$ACTION" in
-    enable)
-        if prompt_installation; then
-            enable_rdp
-        else
-            exit 0
-        fi
-        ;;
-    disable)
-        disable_rdp
-        ;;
-    status)
-        check_status
-        ;;
-esac
+# Main execution (no arguments supported)
+if prompt_installation; then
+    enable_rdp
+fi

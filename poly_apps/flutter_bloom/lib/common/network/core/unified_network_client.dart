@@ -15,13 +15,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'network_types.dart';
+import 'network_types.dart' as network_types;
 import '../models/api_config.dart';
 import '../utils/network_utils.dart';
 import '../interceptors/auth_interceptor.dart';
 import '../interceptors/network_interceptors.dart';
 import 'api_endpoint_manager.dart';
-import 'endpoint_network_models.dart';
+import 'endpoint_network_models.dart' as endpoint_models;
 
 /// Unified Network Client - Production-ready HTTP client
 /// 
@@ -31,7 +31,7 @@ import 'endpoint_network_models.dart';
 /// - Network connectivity check
 /// - Request/response logging
 /// - Type-safe responses
-class UnifiedNetworkClient implements NetworkClient {
+class UnifiedNetworkClient implements network_types.NetworkClient {
   final ApiConfig config;
   final http.Client _httpClient;
   final NetworkUtils _networkUtils;
@@ -76,7 +76,7 @@ class UnifiedNetworkClient implements NetworkClient {
   }
 
   @override
-  Future<NetworkResponse<T>> request<T>(NetworkRequest request) async {
+  Future<network_types.NetworkResponse<T>> request<T>(network_types.NetworkRequest request) async {
     if (_isDisposed) {
       throw StateError('NetworkClient has been disposed');
     }
@@ -85,30 +85,29 @@ class UnifiedNetworkClient implements NetworkClient {
   }
   
   /// Make request with authentication and auto-retry on 401
-  Future<NetworkResponse<T>> _makeRequestWithAuth<T>(
-    NetworkRequest request, {
+  Future<network_types.NetworkResponse<T>> _makeRequestWithAuth<T>(
+    network_types.NetworkRequest request, {
     required bool isRetry,
   }) async {
     // Check network connectivity
     if (!_networkUtils.isConnected) {
-      final errorResponse = NetworkResponse<T>(
-        requestId: request.id,
+      final endpointErrorResponse = endpoint_models.NetworkResponse<T>.error(
+        requestId: request.metadata?['id'] as String? ?? _generateRequestId(),
         statusCode: 0,
-        error: 'No network connection',
-        data: null,
-        timestamp: DateTime.now(),
+        message: 'No network connection',
+        error: endpoint_models.NetworkError.connection(message: 'No network connection'),
       );
-      await _networkInterceptors.processResponse<T>(errorResponse);
-      return errorResponse;
+      await _networkInterceptors.processResponse<T>(endpointErrorResponse);
+      return _convertToNetworkTypesResponse<T>(endpointErrorResponse);
     }
 
     final stopwatch = Stopwatch()..start();
-    NetworkRequest processedRequest = request;
-    NetworkResponse<T>? processedResponse;
+    final endpointNetworkRequest = _convertToEndpointNetworkRequest(request);
+    endpoint_models.NetworkRequest processedRequest = endpointNetworkRequest;
+    endpoint_models.NetworkResponse<T>? processedResponse;
 
     try {
       // Process request through interceptors
-      final endpointNetworkRequest = _convertToEndpointNetworkRequest(request);
       processedRequest = await _networkInterceptors.processRequest(endpointNetworkRequest);
       
       // Build URL
@@ -126,7 +125,8 @@ class UnifiedNetworkClient implements NetworkClient {
       }
       
       // Make HTTP request
-      final httpResponse = await _makeHttpRequest(uri, processedRequest.method, headers, processedRequest.data, processedRequest.timeout);
+      final requestMethod = _stringToRequestMethod(processedRequest.method);
+      final httpResponse = await _makeHttpRequest(uri, requestMethod, headers, processedRequest.data, processedRequest.timeout);
       stopwatch.stop();
       
       // Parse response
@@ -156,30 +156,30 @@ class UnifiedNetworkClient implements NetworkClient {
         }
       }
       
-      return processedResponse;
+      return _convertToNetworkTypesResponse<T>(processedResponse);
       
     } catch (e) {
       stopwatch.stop();
       debugPrint('Network request failed: $e');
       
-      final errorResponse = NetworkResponse<T>(
+      final errorResponse = endpoint_models.NetworkResponse<T>.error(
         requestId: processedRequest.id,
         statusCode: 500,
-        error: e.toString(),
-        data: null,
-        timestamp: DateTime.now(),
+        message: e.toString(),
+        error: endpoint_models.NetworkError.unknown(message: e.toString()),
         duration: stopwatch.elapsed,
       );
       
-      await _networkInterceptors.processResponse<T>(errorResponse);
-      return errorResponse;
+      final processedErrorResponse = await _networkInterceptors.processResponse<T>(errorResponse);
+      return _convertToNetworkTypesResponse<T>(processedErrorResponse);
     }
   }
 
   /// Convert NetworkRequest (from network_types.dart) to NetworkRequest (from endpoint_network_models.dart)
-  NetworkRequest _convertToEndpointNetworkRequest(NetworkRequest request) {
-    return NetworkRequest(
-      id: request.id ?? _generateRequestId(),
+  endpoint_models.NetworkRequest _convertToEndpointNetworkRequest(network_types.NetworkRequest request) {
+    final requestId = request.metadata?['id'] as String? ?? _generateRequestId();
+    return endpoint_models.NetworkRequest(
+      id: requestId,
       method: _requestMethodToString(request.method),
       path: request.endpoint,
       queryParameters: request.parameters,
@@ -189,26 +189,67 @@ class UnifiedNetworkClient implements NetworkClient {
     );
   }
 
+  /// Convert NetworkResponse (from endpoint_network_models.dart) to NetworkResponse (from network_types.dart)
+  network_types.NetworkResponse<T> _convertToNetworkTypesResponse<T>(endpoint_models.NetworkResponse<T> response) {
+    return network_types.NetworkResponse<T>(
+      data: response.data,
+      statusCode: response.statusCode,
+      message: response.message,
+      error: response.error?.message,
+      headers: response.headers,
+      isFromCache: response.isFromCache,
+      timestamp: response.timestamp,
+      latency: response.duration,
+      metadata: {
+        'requestId': response.requestId,
+        'statusMessage': response.statusMessage,
+        'errorCode': response.errorCode,
+        if (response.error != null) 'errorType': response.error!.type.toString(),
+      },
+    );
+  }
+
   String _generateRequestId() {
     return '${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().toString()}';
   }
 
-  String _requestMethodToString(RequestMethod method) {
+  String _requestMethodToString(network_types.RequestMethod method) {
     switch (method) {
-      case RequestMethod.get:
+      case network_types.RequestMethod.get:
         return 'GET';
-      case RequestMethod.post:
+      case network_types.RequestMethod.post:
         return 'POST';
-      case RequestMethod.put:
+      case network_types.RequestMethod.put:
         return 'PUT';
-      case RequestMethod.patch:
+      case network_types.RequestMethod.patch:
         return 'PATCH';
-      case RequestMethod.delete:
+      case network_types.RequestMethod.delete:
         return 'DELETE';
-      case RequestMethod.head:
+      case network_types.RequestMethod.head:
         return 'HEAD';
-      case RequestMethod.options:
+      case network_types.RequestMethod.options:
         return 'OPTIONS';
+    }
+  }
+
+  network_types.RequestMethod _stringToRequestMethod(String method) {
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return network_types.RequestMethod.get;
+      case 'POST':
+        return network_types.RequestMethod.post;
+      case 'PUT':
+        return network_types.RequestMethod.put;
+      case 'PATCH':
+        return network_types.RequestMethod.patch;
+      case 'DELETE':
+        return network_types.RequestMethod.delete;
+      case 'HEAD':
+        return network_types.RequestMethod.head;
+      case 'OPTIONS':
+        return network_types.RequestMethod.options;
+      default:
+        return network_types.RequestMethod.get;
     }
   }
 
@@ -240,7 +281,7 @@ class UnifiedNetworkClient implements NetworkClient {
     return Uri.parse(fullUrl);
   }
 
-  Future<Map<String, String>> _buildHeaders(NetworkRequest request) async {
+  Future<Map<String, String>> _buildHeaders(endpoint_models.NetworkRequest endpointRequest) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -248,8 +289,8 @@ class UnifiedNetworkClient implements NetworkClient {
     };
     
     // Add custom headers from request
-    if (request.headers != null) {
-      headers.addAll(request.headers!);
+    if (endpointRequest.headers != null) {
+      headers.addAll(endpointRequest.headers!);
     }
     
     // INTEGRATED: Add authentication headers via AuthInterceptor
@@ -265,7 +306,7 @@ class UnifiedNetworkClient implements NetworkClient {
 
   Future<http.Response> _makeHttpRequest(
     Uri uri,
-    RequestMethod method,
+    network_types.RequestMethod method,
     Map<String, String> headers,
     dynamic body,
     Duration? timeout,
@@ -275,37 +316,37 @@ class UnifiedNetworkClient implements NetworkClient {
     Future<http.Response> requestFuture;
     
     switch (method) {
-      case RequestMethod.get:
+      case network_types.RequestMethod.get:
         requestFuture = _httpClient.get(uri, headers: headers);
         break;
-      case RequestMethod.post:
+      case network_types.RequestMethod.post:
         requestFuture = _httpClient.post(
           uri,
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
         break;
-      case RequestMethod.put:
+      case network_types.RequestMethod.put:
         requestFuture = _httpClient.put(
           uri,
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
         break;
-      case RequestMethod.delete:
+      case network_types.RequestMethod.delete:
         requestFuture = _httpClient.delete(uri, headers: headers);
         break;
-      case RequestMethod.patch:
+      case network_types.RequestMethod.patch:
         requestFuture = _httpClient.patch(
           uri,
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         );
         break;
-      case RequestMethod.head:
+      case network_types.RequestMethod.head:
         requestFuture = _httpClient.head(uri, headers: headers);
         break;
-      case RequestMethod.options:
+      case network_types.RequestMethod.options:
         // http package doesn't have options, use generic request
         requestFuture = _httpClient.send(http.Request('OPTIONS', uri)..headers.addAll(headers))
             .then((streamedResponse) => http.Response.fromStream(streamedResponse));
@@ -315,11 +356,11 @@ class UnifiedNetworkClient implements NetworkClient {
     return await requestFuture.timeout(effectiveTimeout);
   }
 
-  NetworkResponse<T> _parseResponse<T>(http.Response response, String requestId, Duration duration) {
+  endpoint_models.NetworkResponse<T> _parseResponse<T>(http.Response response, String requestId, Duration duration) {
     final isSuccess = response.statusCode >= 200 && response.statusCode < 300;
     
     dynamic data;
-    String? error;
+    String? errorMessage;
     Map<String, dynamic>? rawData;
     
     if (response.body.isNotEmpty) {
@@ -334,24 +375,37 @@ class UnifiedNetworkClient implements NetworkClient {
     }
     
     if (!isSuccess) {
-      error = _extractErrorMessage(data) ?? 'Request failed with status ${response.statusCode}';
+      errorMessage = _extractErrorMessage(data) ?? 'Request failed with status ${response.statusCode}';
     }
     
-    return NetworkResponse<T>(
-      requestId: requestId,
-      statusCode: response.statusCode,
-      statusMessage: _getStatusMessage(response.statusCode),
-      data: data as T?,
-      rawData: rawData,
-      error: error != null ? NetworkError(
-        type: NetworkErrorType.server,
-        message: error,
-      ) : null,
-      message: isSuccess ? 'Success' : error,
-      timestamp: DateTime.now(),
-      headers: response.headers,
-      duration: duration,
-    );
+    if (isSuccess) {
+      return endpoint_models.NetworkResponse<T>.success(
+        requestId: requestId,
+        statusCode: response.statusCode,
+        statusMessage: _getStatusMessage(response.statusCode),
+        data: data as T?,
+        rawData: rawData,
+        headers: response.headers,
+        message: 'Success',
+        timestamp: DateTime.now(),
+        duration: duration,
+      );
+    } else {
+      return endpoint_models.NetworkResponse<T>.error(
+        requestId: requestId,
+        statusCode: response.statusCode,
+        statusMessage: _getStatusMessage(response.statusCode),
+        rawData: rawData,
+        headers: response.headers,
+        message: errorMessage,
+        error: endpoint_models.NetworkError.server(
+          statusCode: response.statusCode,
+          message: errorMessage ?? 'Request failed',
+        ),
+        timestamp: DateTime.now(),
+        duration: duration,
+      );
+    }
   }
 
   String? _getStatusMessage(int statusCode) {

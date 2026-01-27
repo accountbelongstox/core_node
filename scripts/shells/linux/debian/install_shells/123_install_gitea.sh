@@ -7,9 +7,7 @@
 #   - wget/curl (automatically installed)
 #
 # Usage:
-#   ./123_install_gitea.sh                    # Normal installation
-#   ./123_install_gitea.sh --force           # Force reinstallation
-#   ./123_install_gitea.sh --cleanup         # Remove Gitea installation
+#   ./123_install_gitea.sh   # Normal installation (no arguments)
 #
 # This script installs Gitea - a self-hosted Git service
 # After installation, it will detect all IPs and display available web addresses
@@ -45,8 +43,6 @@ init_global_vars
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_GITEA=$(get_var "INSTALL_GITEA" "true")
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 
 # Gitea version and configuration
 GITEA_VERSION="1.21.5"
@@ -80,26 +76,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parse command line arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 # Get installed version
 get_installed_version() {
@@ -1130,15 +1107,6 @@ backup_gitea_data() {
 
 # Main script execution
 main() {
-    # Parse arguments
-    parse_arguments "$@"
-
-    # Handle cleanup mode
-    if [[ "$CLEANUP_MODE" == true ]]; then
-        cleanup_gitea
-        exit $?
-    fi
-
     # Check if Gitea installation is disabled via global variable
     if [[ "$INSTALL_GITEA" == "false" ]]; then
         print_header_from_common_functions "Gitea Installation Script"
@@ -1160,11 +1128,9 @@ main() {
     print_info_from_common_functions "Installation Directory: $GITEA_INSTALL_DIR"
     print_info_from_common_functions "Version: $GITEA_VERSION"
 
-    # Interactive cleanup prompt (unless force install is specified)
-    if [[ "$FORCE_INSTALL" != true ]]; then
-        if ! prompt_cleanup_reinstall; then
-            exit 0
-        fi
+    # Interactive cleanup prompt
+    if ! prompt_cleanup_reinstall; then
+        exit 0
     fi
 
     # Run installation
@@ -1172,5 +1138,5 @@ main() {
     exit $?
 }
 
-# Run main function with all arguments
-main "$@"
+# Run main function (no arguments supported)
+main

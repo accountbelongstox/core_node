@@ -2,10 +2,7 @@
 # Cursor IDE Installation Script
 #
 # Usage:
-#   ./121_install_cursor.sh                    # Normal installation (root mode with pkexec)
-#   ./121_install_cursor.sh --force           # Force reinstallation
-#   ./121_install_cursor.sh --cleanup         # Remove Cursor installation
-#   ./121_install_cursor.sh --no-root         # Install in normal mode (no pkexec)
+#   ./121_install_cursor.sh   # Normal installation (no arguments)
 #
 # This script installs Cursor IDE using installer files stored in ~/Downloads or /home/*/Downloads
 # If no installer is found, it opens the Cursor download page and waits for the user to download manually
@@ -35,14 +32,13 @@ source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
-USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
-# Cursor version configuration
-CURSOR_VERSION="2.1"
-CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/$CURSOR_VERSION"
+# Cursor API configuration
+# NOTE: Do NOT hardcode a specific version here.
+# The API endpoint will redirect to the latest available Cursor build,
+# and the actual version is detected dynamically via redirects.
+CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/"
 
 # Cursor installation directories using map_web_path
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
@@ -68,31 +64,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parse command line arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                USE_ROOT_MODE_SPECIFIED=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 # Extract version from filename (use full filename without extension as version)
 # Example: "Cursor-2.1.41-x86_64.AppImage" -> "Cursor-2.1.41-x86_64"
@@ -993,8 +965,8 @@ install_cursor() {
         remote_version=""
     fi
 
-    # Prompt for root mode if not already specified via command line
-    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
+    # Prompt for root mode
+    if true; then
         echo ""
         echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
         read -r response
@@ -1475,15 +1447,6 @@ prompt_cleanup_reinstall() {
 
 # Main script execution
 main() {
-    # Parse arguments
-    parse_arguments "$@"
-
-    # Handle cleanup mode
-    if [[ "$CLEANUP_MODE" == true ]]; then
-        cleanup_cursor
-        exit $?
-    fi
-
     # Check if we have a desktop environment (Cursor is a GUI application)
     # Only skip if we're on a pure server without any desktop environment
     if [[ "$HAS_DESKTOP_ENVIRONMENT" != true ]] && [[ "$IS_WSL" != true ]] && [[ "$IS_PRODUCTION" == true ]]; then
@@ -1495,18 +1458,10 @@ main() {
     print_header_from_common_functions "Cursor IDE Installation Script"
     print_info_from_common_functions "Installation Directory: $CURSOR_INSTALL_DIR"
 
-    # Force cleanup if --force flag is specified
-    if [[ "$FORCE_INSTALL" == true ]]; then
-        if is_cursor_installed; then
-            print_info_from_common_functions "Force install specified - cleaning up existing installation..."
-            cleanup_cursor
-        fi
-    fi
-
-    # Run installation (will prompt for cleanup if already installed and not forced)
+    # Run installation (will prompt for cleanup if already installed)
     install_cursor
     exit $?
 }
 
-# Run main function with all arguments
-main "$@"
+# Run main function (no arguments supported)
+main

@@ -2,10 +2,7 @@
 # Antigravity Installation Script (Debian/Ubuntu)
 #
 # Usage:
-#   ./126_install_antigravity.sh              # Install (root mode with pkexec, will prompt)
-#   ./126_install_antigravity.sh --force      # Force install even if already present
-#   ./126_install_antigravity.sh --cleanup    # Remove package, repo, and desktop entries
-#   ./126_install_antigravity.sh --no-root    # Install in normal mode (no pkexec)
+#   ./126_install_antigravity.sh   # Normal installation (no arguments)
 #
 # This script installs the Antigravity app from the official Google Artifact Registry
 # repo and creates desktop entries. By default, it runs with root privileges (pkexec)
@@ -34,8 +31,6 @@ REPO_SOURCE_LINE="deb [signed-by=$REPO_KEY_FILE] https://us-central1-apt.pkg.dev
 DESKTOP_ENTRY_SYSTEM="/usr/share/applications/antigravity.desktop"
 DESKTOP_ENTRY_NAME="Antigravity"
 DESKTOP_ENTRY_ICON="antigravity"
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
 
 # Source shared libraries
@@ -51,34 +46,7 @@ log() {
     echo "[${SCRIPT_INDEX}] $1"
 }
 
-# Parse CLI arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                shift
-                ;;
-            --fix-desktop)
-                FIX_DESKTOP_MODE=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root] [--fix-desktop]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 ensure_requirements() {
     if ! command -v apt >/dev/null 2>&1; then
@@ -121,10 +89,6 @@ prompt_installation_decision() {
 
 # Prompt for root mode selection
 prompt_root_mode_selection() {
-    # Skip prompt if explicitly set via command line
-    if [[ "$FORCE_INSTALL" == "true" ]]; then
-        return 0
-    fi
 
     echo ""
     echo "=========================================="
@@ -622,25 +586,10 @@ EOF
 }
 
 main() {
-    parse_arguments "$@"
     ensure_requirements
-
-    # Handle cleanup mode
-    if $CLEANUP_MODE; then
-        cleanup_antigravity
-        exit 0
-    fi
 
     # Check if already installed
     if is_antigravity_installed; then
-        if $FORCE_INSTALL; then
-            log "Forcing reinstallation..."
-            install_antigravity
-            create_desktop_entry
-            log "$DESKTOP_ENTRY_NAME reinstallation finished."
-            exit 0
-        fi
-
         # Already installed - prompt for update
         if prompt_update_decision; then
             update_antigravity
@@ -668,4 +617,4 @@ main() {
     fi
 }
 
-main "$@"
+main

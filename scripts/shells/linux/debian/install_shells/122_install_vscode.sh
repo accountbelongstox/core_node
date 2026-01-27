@@ -2,10 +2,7 @@
 # Visual Studio Code Installation Script
 #
 # Usage:
-#   ./122_install_vscode.sh                    # Normal installation (root mode with pkexec)
-#   ./122_install_vscode.sh --force           # Force reinstallation
-#   ./122_install_vscode.sh --cleanup         # Remove VS Code installation
-#   ./122_install_vscode.sh --no-root         # Install in normal mode (no pkexec)
+#   ./122_install_vscode.sh   # Normal installation (no arguments)
 #
 # This script installs Visual Studio Code from .deb files found in /home/<username>/Downloads
 # If no .deb is found, it opens the download page and waits for manual download confirmation
@@ -38,10 +35,7 @@ init_global_vars
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
-USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
 # VSCode version configuration
 VSCODE_VERSION="stable"
@@ -124,31 +118,7 @@ detect_vscode_desktop_user() {
     echo "$USER:$HOME"
 }
 
-# Parse command line arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                USE_ROOT_MODE_SPECIFIED=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 # Extract version from filename (use full filename without extension as version)
 # Example: "code_1.85.0-1234567890_amd64.deb" -> "code_1.85.0-1234567890_amd64"
@@ -614,8 +584,8 @@ cleanup_vscode() {
 install_vscode() {
     print_header_from_common_functions "Installing Visual Studio Code"
 
-    # Prompt for root mode if not already specified via command line
-    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
+    # Prompt for root mode
+    if true; then
         echo ""
         echo -n "Do you want to install VS Code with root privileges (pkexec)? (Y/n): "
         read -r response
@@ -860,15 +830,6 @@ prompt_cleanup_reinstall() {
 
 # Main script execution
 main() {
-    # Parse arguments
-    parse_arguments "$@"
-
-    # Handle cleanup mode
-    if [[ "$CLEANUP_MODE" == true ]]; then
-        cleanup_vscode
-        exit $?
-    fi
-
     # Check if we have a desktop environment (VS Code is a GUI application)
     # Only skip if we're on a pure server without any desktop environment
     if [[ "$HAS_DESKTOP_ENVIRONMENT" != true ]] && [[ "$IS_WSL" != true ]] && [[ "$IS_PRODUCTION" == true ]]; then
@@ -880,11 +841,9 @@ main() {
     print_header_from_common_functions "Visual Studio Code Installation Script"
     print_info_from_common_functions "Installation Directory: $VSCODE_INSTALL_DIR"
 
-    # Interactive cleanup prompt (unless force install is specified)
-    if [[ "$FORCE_INSTALL" != true ]]; then
-        if ! prompt_cleanup_reinstall; then
-            exit 0
-        fi
+    # Interactive cleanup prompt
+    if ! prompt_cleanup_reinstall; then
+        exit 0
     fi
 
     # Run installation
@@ -892,5 +851,5 @@ main() {
     exit $?
 }
 
-# Run main function with all arguments
-main "$@"
+# Run main function (no arguments supported)
+main

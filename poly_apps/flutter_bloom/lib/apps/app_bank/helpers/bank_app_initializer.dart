@@ -44,16 +44,7 @@ class BankAppInitializer {
       await endpointManager.initialize(autoDetect: true, timeout: const Duration(seconds: 1));
       debugPrint('✅ API endpoint manager initialized: ${endpointManager.getCurrentBaseUrl()}');
 
-      // 1. Initialize user provider
-      debugPrint('📱 Initializing user provider...');
-      _userProvider = BankUserProvider();
-      await _userProvider!.initialize();
-
-      // 2. Initialize network service with user provider integration
-      debugPrint('🌐 Initializing network service...');
-      await BankNetworkService.instance.initializeWithUserProvider(_userProvider!);
-
-      // 2.1. Initialize network log interceptors
+      // 1. Initialize network log interceptors FIRST (before any network service)
       debugPrint('📝 Initializing network log interceptors...');
       final networkInterceptors = NetworkInterceptors.instance;
       await networkInterceptors.initialize();
@@ -61,9 +52,18 @@ class BankAppInitializer {
       networkInterceptors.addResponseInterceptor(BankNetworkLogResponseInterceptor());
       debugPrint('✅ Network log interceptors initialized');
 
-      // 3. Initialize app lifecycle manager
+      // 2. Initialize user provider
+      debugPrint('📱 Initializing user provider...');
+      _userProvider = BankUserProvider();
+      await _userProvider!.initialize();
+
+      // 3. Initialize network service with user provider integration
+      debugPrint('🌐 Initializing network service...');
+      await BankNetworkService.instance.initializeWithUserProvider(_userProvider!);
+
+      // 3. Initialize app lifecycle manager (with user provider for data submission)
       debugPrint('🔄 Initializing app lifecycle manager...');
-      await AppLifecycleManager().initialize();
+      await AppLifecycleManager().initialize(userProvider: _userProvider);
 
       // 4. Initialize user manager
       debugPrint('👤 Initializing user manager...');
