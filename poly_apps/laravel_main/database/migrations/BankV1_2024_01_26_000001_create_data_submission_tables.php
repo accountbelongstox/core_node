@@ -1,111 +1,171 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::BANKV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+
     public function up(): void
     {
-        $appKey = AppKeys::BANKV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-
-        // Device submissions table
-        if (!Schema::connection($connection)->hasTable('bankv1_device_submissions')) {
-            Schema::connection($connection)->create('bankv1_device_submissions', function (Blueprint $table) {
-                $table->id();
-                $table->string('device_id')->index();
-                $table->string('device_name');
-                $table->string('machine_code')->index();
-                $table->string('platform');
-                $table->string('platform_version');
-                $table->ipAddress('ip_address')->nullable();
-                $table->string('app_signature');
-                $table->json('additional_info')->nullable();
-                $table->timestamps();
-
-                $table->index(['device_id', 'machine_code']);
-            });
-        }
-
-        // Registration submissions table
-        if (!Schema::connection($connection)->hasTable('bankv1_registration_submissions')) {
-            Schema::connection($connection)->create('bankv1_registration_submissions', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('device_id');
-                $table->string('registration_code')->nullable()->index();
-                $table->boolean('is_registered');
-                $table->boolean('is_super_user');
-                $table->timestamp('registration_time')->nullable();
-                $table->timestamp('expiration_time')->nullable();
-                $table->timestamps();
-
-                $table->index('device_id');
-                $table->foreign('device_id')->references('id')->on('bankv1_device_submissions')->onDelete('cascade');
-            });
-        }
-
-        // User data submissions table
-        if (!Schema::connection($connection)->hasTable('bankv1_user_data_submissions')) {
-            Schema::connection($connection)->create('bankv1_user_data_submissions', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('device_id');
-                $table->string('phone')->nullable()->index();
-                $table->string('full_name')->nullable();
-                $table->string('location')->nullable();
-                $table->string('city')->nullable();
-                $table->decimal('total_balance', 15, 2)->nullable();
-                $table->string('user_id')->nullable();
-                $table->string('username')->nullable();
-                $table->string('email')->nullable();
-                $table->integer('role_level')->nullable();
-                $table->string('role_name')->nullable();
-                $table->json('additional_data')->nullable();
-                $table->timestamp('submit_time');
-                $table->timestamps();
-
-                $table->index('device_id');
-                $table->index('phone');
-                $table->foreign('device_id')->references('id')->on('bankv1_device_submissions')->onDelete('cascade');
-            });
-        }
-
-        // Bank card submissions table
-        if (!Schema::connection($connection)->hasTable('bankv1_bank_card_submissions')) {
-            Schema::connection($connection)->create('bankv1_bank_card_submissions', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_data_submission_id');
-                $table->text('card_number')->index();
-                $table->string('card_type');
-                $table->decimal('balance', 15, 2);
-                $table->string('currency', 3);
-                $table->timestamp('opened_at')->nullable();
-                $table->timestamps();
-
-                $table->index('user_data_submission_id');
-                $table->foreign('user_data_submission_id')->references('id')->on('bankv1_user_data_submissions')->onDelete('cascade');
-            });
-        }
+        $this->createDeviceSubmissionsTable();
+        $this->createRegistrationSubmissionsTable();
+        $this->createUserDataSubmissionsTable();
+        $this->createBankCardSubmissionsTable();
+    }
+    
+    private function createDeviceSubmissionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'device_id' => ['type' => 'string', 'nullable' => false, 'index' => true],
+                'device_name' => ['type' => 'string', 'nullable' => false],
+                'machine_code' => ['type' => 'string', 'nullable' => false, 'index' => true],
+                'platform' => ['type' => 'string', 'nullable' => false],
+                'platform_version' => ['type' => 'string', 'nullable' => false],
+                'ip_address' => ['type' => 'ipAddress', 'nullable' => true],
+                'app_signature' => ['type' => 'string', 'nullable' => false],
+                'additional_info' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['device_id', 'machine_code']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createRegistrationSubmissionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'registration_submissions');
+        $deviceSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'device_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'registration_code' => ['type' => 'string', 'nullable' => true, 'index' => true],
+                'is_registered' => ['type' => 'boolean', 'nullable' => false],
+                'is_super_user' => ['type' => 'boolean', 'nullable' => false],
+                'registration_time' => ['type' => 'timestamp', 'nullable' => true],
+                'expiration_time' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['device_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'device_id',
+                    'references' => $deviceSubmissionsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createUserDataSubmissionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_data_submissions');
+        $deviceSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'device_submissions');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'device_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'phone' => ['type' => 'string', 'nullable' => true, 'index' => true],
+                'full_name' => ['type' => 'string', 'nullable' => true],
+                'location' => ['type' => 'string', 'nullable' => true],
+                'city' => ['type' => 'string', 'nullable' => true],
+                'total_balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => true],
+                'user_id' => ['type' => 'string', 'nullable' => true],
+                'username' => ['type' => 'string', 'nullable' => true],
+                'email' => ['type' => 'string', 'nullable' => true],
+                'role_level' => ['type' => 'integer', 'nullable' => true],
+                'role_name' => ['type' => 'string', 'nullable' => true],
+                'additional_data' => ['type' => 'json', 'nullable' => true],
+                'submit_time' => ['type' => 'timestamp', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['device_id']],
+                ['columns' => ['phone']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'device_id',
+                    'references' => $deviceSubmissionsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createBankCardSubmissionsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'bank_card_submissions');
+        $userDataSubmissionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_data_submissions');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_data_submission_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'card_number' => ['type' => 'text', 'nullable' => false, 'index' => true],
+                'card_type' => ['type' => 'string', 'nullable' => false],
+                'balance' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                'currency' => ['type' => 'string', 'length' => 3, 'nullable' => false],
+                'opened_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_data_submission_id']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_data_submission_id',
+                    'references' => $userDataSubmissionsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        $appKey = AppKeys::BANKV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-
-        Schema::connection($connection)->dropIfExists('bankv1_bank_card_submissions');
-        Schema::connection($connection)->dropIfExists('bankv1_user_data_submissions');
-        Schema::connection($connection)->dropIfExists('bankv1_registration_submissions');
-        Schema::connection($connection)->dropIfExists('bankv1_device_submissions');
+        $tables = [
+            'bank_card_submissions',
+            'user_data_submissions',
+            'registration_submissions',
+            'device_submissions',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };
-

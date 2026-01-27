@@ -1,55 +1,60 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Services\SafeMigrationHelper;
 use App\Apps\DictV1\Controllers\DictV1Public\DictV1WordGroupPublicController;
 use App\Utils\StrTool;
 
-return new class extends Migration {
-    /**
-     * Run the migrations.
-     */
+return new class extends Migration
+{
+    protected $connection = 'sqlite';
+    protected $tableName = 'users';
+
     public function up(): void
     {
-        if (!Schema::hasColumn('users', 'rolelevel')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->integer('rolelevel')->default(0)->after('avatar');
-            });
-        }
+        // Add columns to users table if missing
+        $tableStructure = [
+            'columns' => [
+                'rolelevel' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                    'after' => 'avatar',
+                ],
+                'rolename' => [
+                    'type' => 'string',
+                    'nullable' => false,
+                    'default' => 'user',
+                    'after' => 'rolelevel',
+                ],
+                'user_token' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'after' => 'password',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => false,
+            ]
+        );
 
-        if (!Schema::hasColumn('users', 'rolename')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->string('rolename')->default('user')->after('rolelevel');
-            });
-        }
-
-        if (!Schema::hasColumn('users', 'user_token')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->string('user_token')->nullable()->after('password');
-            });
-        }
-
+        // Create admin user if not exists
         $username = 'adminroot';
-        $hasAdmin = DB::table('users')->where('username', $username)->first();
+        $hasAdmin = DB::table($this->tableName)->where('username', $username)->first();
         if ($hasAdmin) {
-            echo "Admin user already exists";
             $adminId = $hasAdmin->id;
-        }else{
+        } else {
             $userData = [
                 'nickname' => 'Administrator',
                 'username' => $username,
@@ -61,26 +66,23 @@ return new class extends Migration {
                 'updated_at' => now(),
                 'user_token' => StrTool::genUserTokenByTimeAndUUID(),
             ];
-            if (Schema::hasColumn('users', 'email_verified_at')) {
+            if (Schema::hasColumn($this->tableName, 'email_verified_at')) {
                 $userData['email_verified_at'] = now();
             }
-            $adminId = DB::table('users')->insertGetId($userData);
+            $adminId = DB::table($this->tableName)->insertGetId($userData);
         }
 
         if ($adminId) {
             if (class_exists('App\Apps\DictV1\Controllers\DictV1Public\DictV1WordGroupPublicController')) {
                 DictV1WordGroupPublicController::ensureDefaultGroupIfNotExist($adminId, $username);
             }
-        }else{
-            echo "Failed to create admin user, but default group is created";
         }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
+        // Remove admin user if exists
+        $username = 'adminroot';
+        DB::table($this->tableName)->where('username', $username)->delete();
     }
 };

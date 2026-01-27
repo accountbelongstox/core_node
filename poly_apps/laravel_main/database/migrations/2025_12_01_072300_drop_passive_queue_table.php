@@ -1,41 +1,54 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * Drops the app_passive_queue_jobs table as we've migrated to Octane Timer tasks.
-     * PassiveQueue has been replaced by AppQyV1CoverGenerationTask which runs every 5 seconds.
-     */
+    protected $connection = null;
+
     public function up(): void
     {
-        Schema::dropIfExists('app_passive_queue_jobs');
+        // Drop the app_passive_queue_jobs table as we've migrated to Octane Timer tasks.
+        // PassiveQueue has been replaced by AppQyV1CoverGenerationTask which runs every 5 seconds.
+        $connection = $this->connection ?? config('database.default');
+        Schema::connection($connection)->dropIfExists('app_passive_queue_jobs');
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::create('app_passive_queue_jobs', function (Blueprint $table) {
-            $table->id();
-            $table->string('job_class');
-            $table->json('payload')->nullable();
-            $table->string('status')->default('pending');
-            $table->integer('attempts')->default(0);
-            $table->text('error_message')->nullable();
-            $table->timestamp('available_at')->nullable();
-            $table->timestamp('started_at')->nullable();
-            $table->timestamp('finished_at')->nullable();
-            $table->timestamps();
+        // Recreate the table if rollback is needed
+        $tableName = 'app_passive_queue_jobs';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'job_class' => ['type' => 'string', 'nullable' => false],
+                'payload' => ['type' => 'json', 'nullable' => true],
+                'status' => ['type' => 'string', 'nullable' => false, 'default' => 'pending'],
+                'attempts' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'error_message' => ['type' => 'text', 'nullable' => true],
+                'available_at' => ['type' => 'timestamp', 'nullable' => true],
+                'started_at' => ['type' => 'timestamp', 'nullable' => true],
+                'finished_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['status', 'available_at']],
+                ['columns' => ['job_class']],
+            ],
+        ];
 
-            $table->index(['status', 'available_at']);
-            $table->index('job_class');
-        });
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection ?? config('database.default'),
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 };

@@ -1,8 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -10,46 +9,133 @@ return new class extends Migration
 {
     protected $connection;
     protected $appKey;
+    protected $tableName;
     
     public function __construct()
     {
         $this->appKey = AppKeys::APPQYV1;
         $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_learning_progress');
     }
 
-    public function up()
+    public function up(): void
     {
-        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_learning_progress');
-        if (!Schema::connection($this->connection)->hasTable($tableName)) {
-            Schema::connection($this->connection)->create($tableName, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id')->nullable(false);
-                $table->string('lang_code', 10)->nullable(false);
-                $table->string('word_md5', 32)->nullable(false);
-                $table->text('word_content')->nullable(false);
-                $table->string('learning_status', 20)->default('new')->comment('new|learning|learned|reviewing|mastered');
-                $table->integer('review_count')->default(0);
-                $table->integer('correct_count')->default(0);
-                $table->integer('wrong_count')->default(0);
-                $table->timestamp('last_reviewed_at')->nullable();
-                $table->timestamp('next_review_at')->nullable()->comment('Spaced repetition schedule');
-                $table->integer('familiarity_level')->default(0)->comment('0-5 based on spaced repetition algorithm');
-                $table->json('review_history')->nullable()->comment('Track review performance over time');
-                $table->timestamps();
-                $table->softDeletes();
-
-                $table->index(['user_id', 'lang_code'], 'idx_learning_progress_user_lang');
-                $table->index(['user_id', 'learning_status'], 'idx_user_status');
-                $table->index(['user_id', 'next_review_at'], 'idx_user_next_review');
-                $table->index('word_md5', 'idx_word_md5');
-                $table->unique(['user_id', 'lang_code', 'word_md5'], 'unique_user_word');
-            });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'user_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                ],
+                'lang_code' => [
+                    'type' => 'string',
+                    'length' => 10,
+                    'nullable' => false,
+                ],
+                'word_md5' => [
+                    'type' => 'string',
+                    'length' => 32,
+                    'nullable' => false,
+                ],
+                'word_content' => [
+                    'type' => 'text',
+                    'nullable' => false,
+                ],
+                'learning_status' => [
+                    'type' => 'string',
+                    'length' => 20,
+                    'nullable' => false,
+                    'default' => 'new',
+                    'comment' => 'new|learning|learned|reviewing|mastered',
+                ],
+                'review_count' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'correct_count' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'wrong_count' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'last_reviewed_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'next_review_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                    'comment' => 'Spaced repetition schedule',
+                ],
+                'familiarity_level' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                    'comment' => '0-5 based on spaced repetition algorithm',
+                ],
+                'review_history' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'comment' => 'Track review performance over time',
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'deleted_at' => [
+                    'type' => 'softDeletes',
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['user_id', 'lang_code'],
+                    'name' => 'idx_learning_progress_user_lang',
+                ],
+                [
+                    'columns' => ['user_id', 'learning_status'],
+                    'name' => 'idx_user_status',
+                ],
+                [
+                    'columns' => ['user_id', 'next_review_at'],
+                    'name' => 'idx_user_next_review',
+                ],
+                [
+                    'columns' => ['word_md5'],
+                    'name' => 'idx_word_md5',
+                ],
+                [
+                    'columns' => ['user_id', 'lang_code', 'word_md5'],
+                    'name' => 'unique_user_word',
+                    'unique' => true,
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
-    public function down()
+    public function down(): void
     {
-        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_learning_progress');
-        Schema::connection($this->connection)->dropIfExists($tableName);
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

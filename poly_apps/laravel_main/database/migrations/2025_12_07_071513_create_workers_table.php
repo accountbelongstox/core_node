@@ -1,46 +1,55 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection = null;
+
     public function up(): void
     {
-        // Check if table exists before creating
-        if (!Schema::hasTable('workers')) {
-            Schema::create('workers', function (Blueprint $table) {
-                $table->bigIncrements('id');
-                $table->string('worker_id')->unique();
-                $table->string('worker_name');
-                $table->json('processor_types');
-                $table->enum('status', ['online', 'offline', 'busy'])->default('offline');
-                $table->timestamp('last_heartbeat_at')->nullable();
-                $table->string('hostname')->nullable();
-                $table->string('platform')->nullable();
-                $table->json('metadata')->nullable();
-                $table->integer('completed_tasks')->default(0);
-                $table->integer('failed_tasks')->default(0);
-                $table->string('current_task_id')->nullable();
-                $table->timestamps();
+        $tableName = 'workers';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'worker_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'worker_name' => ['type' => 'string', 'nullable' => false],
+                'processor_types' => ['type' => 'json', 'nullable' => false],
+                'status' => ['type' => 'enum', 'values' => ['online', 'offline', 'busy'], 'nullable' => false, 'default' => 'offline'],
+                'last_heartbeat_at' => ['type' => 'timestamp', 'nullable' => true],
+                'hostname' => ['type' => 'string', 'nullable' => true],
+                'platform' => ['type' => 'string', 'nullable' => true],
+                'metadata' => ['type' => 'json', 'nullable' => true],
+                'completed_tasks' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'failed_tasks' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'current_task_id' => ['type' => 'string', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['status']],
+                ['columns' => ['last_heartbeat_at']],
+                ['columns' => ['status', 'last_heartbeat_at'], 'name' => 'idx_worker_status'],
+            ],
+        ];
 
-                // Indexes
-                $table->index('status');
-                $table->index('last_heartbeat_at');
-                $table->index(['status', 'last_heartbeat_at'], 'idx_worker_status');
-            });
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection ?? config('database.default'),
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('workers');
+        $connection = $this->connection ?? config('database.default');
+        Schema::connection($connection)->dropIfExists('workers');
     }
 };

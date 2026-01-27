@@ -1,86 +1,86 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection;
+    protected $appKey;
+    protected $prefix;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->prefix = AppTablePrefixServiceProvider::getPrefix($this->appKey);
+    }
+
     public function up(): void
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
-        $prefix = \App\Providers\AppTablePrefixServiceProvider::getPrefix($appKey);
-        
         // Get all dictionary table names
-        $pattern = $prefix . '_%_dictionaries';
-        $tables = DB::connection($connection)
+        $pattern = $this->prefix . '_%_dictionaries';
+        $tables = DB::connection($this->connection)
             ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [$pattern]);
 
         foreach ($tables as $table) {
             $tableName = $table->name;
-
-            // Check if column already exists
-            $columns = DB::connection($connection)->select("PRAGMA table_info({$tableName})");
-            $hasColumn = false;
-
+            
+            // Define structure for adding has_audio column
+            $tableStructure = [
+                'columns' => [
+                    'has_audio' => [
+                        'type' => 'integer',
+                        'nullable' => false,
+                        'default' => 0,
+                    ],
+                ],
+            ];
+            
+            // Align table structure (adds has_audio if missing)
+            SafeMigrationHelper::alignTableStructureFromArray(
+                $this->connection,
+                $tableName,
+                $tableStructure,
+                [
+                    'shrink_columns' => false,
+                    'modify_columns' => true,
+                    'add_indexes' => false,
+                ]
+            );
+            
+            // Update has_audio based on existing tts_files if column exists
+            $columns = DB::connection($this->connection)->select("PRAGMA table_info({$tableName})");
+            $hasTtsFilesColumn = false;
             foreach ($columns as $column) {
-                if ($column->name === 'has_audio') {
-                    $hasColumn = true;
+                if ($column->name === 'tts_files') {
+                    $hasTtsFilesColumn = true;
                     break;
                 }
             }
-
-            if (!$hasColumn) {
-                // Add has_audio column
-                DB::connection($connection)->statement(
-                    "ALTER TABLE {$tableName} ADD COLUMN has_audio INTEGER DEFAULT 0"
+            
+            if ($hasTtsFilesColumn) {
+                DB::connection($this->connection)->statement(
+                    "UPDATE {$tableName} SET has_audio = 1 WHERE tts_files IS NOT NULL AND tts_files != '' AND tts_files != '[]'"
                 );
-
-                // Check if tts_files column exists before updating
-                $hasTtsFilesColumn = false;
-                foreach ($columns as $column) {
-                    if ($column->name === 'tts_files') {
-                        $hasTtsFilesColumn = true;
-                        break;
-                    }
-                }
-
-                // Update has_audio based on existing tts_files if column exists
-                if ($hasTtsFilesColumn) {
-                    DB::connection($connection)->statement(
-                        "UPDATE {$tableName} SET has_audio = 1 WHERE tts_files IS NOT NULL AND tts_files != '' AND tts_files != '[]'"
-                    );
-                }
-
-                echo "Added has_audio column to {$tableName}\n";
             }
         }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        $appKey = AppKeys::APPQYV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-        $tablePrefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        // SQLite doesn't support DROP COLUMN directly
+        // For safety, we skip rollback (column will remain)
+        $pattern = $this->prefix . '_%_dictionaries';
+        $tables = DB::connection($this->connection)
+            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [$pattern]);
         
-        // Get all dictionary table names
-        $tables = DB::connection($connection)
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$tablePrefix}_%_dictionaries'");
-
         foreach ($tables as $table) {
             $tableName = $table->name;
-
-            // SQLite doesn't support DROP COLUMN directly, would need to recreate table
-            // For now, just leave the column (safer for rollback)
-            echo "Skipping rollback for {$tableName} (SQLite limitation)\n";
+            // SQLite limitation: cannot drop column, so we leave it
         }
     }
 };

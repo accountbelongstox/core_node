@@ -99,16 +99,103 @@
 
 ## SafeMigrationHelper 使用说明
 
-### 基本用法
+### 核心方法：alignTableStructureFromArray（推荐）
+
+这是最强大的方法，可以：
+1. ✅ 表不存在则创建
+2. ✅ 添加缺失字段
+3. ✅ 收缩多余字段（可选，默认关闭）
+4. ✅ 修正字段属性（类型、长度、nullable、default等）
+5. ✅ 添加缺失索引
 
 ```php
 use App\Services\SafeMigrationHelper;
 
+public function up(): void
+{
+    $connection = 'appqyv1';
+    $tableName = 'app_qy_v1_example';
+    
+    // 定义完整的表结构
+    $tableStructure = [
+        'columns' => [
+            'id' => [
+                'type' => 'bigIncrements',
+                'comment' => 'Primary key',
+            ],
+            'name' => [
+                'type' => 'string',
+                'length' => 255,
+                'nullable' => false,
+                'comment' => 'Name field',
+            ],
+            'status' => [
+                'type' => 'string',
+                'length' => 50,
+                'nullable' => false,
+                'default' => 'active',
+            ],
+            'created_at' => [
+                'type' => 'timestamp',
+                'nullable' => true,
+            ],
+            'updated_at' => [
+                'type' => 'timestamp',
+                'nullable' => true,
+            ],
+        ],
+        'indexes' => [
+            ['columns' => ['name'], 'name' => 'idx_example_name'],
+            ['columns' => ['status'], 'name' => 'idx_example_status'],
+        ],
+    ];
+    
+    // 对齐表结构
+    $result = SafeMigrationHelper::alignTableStructureFromArray(
+        $connection,
+        $tableName,
+        $tableStructure,
+        [
+            'shrink_columns' => false, // false=不删除多余字段（安全），true=删除多余字段（危险）
+            'modify_columns' => true,  // 修正字段属性
+            'add_indexes' => true,    // 添加缺失索引
+        ]
+    );
+}
+```
+
+### 支持的字段类型
+
+- `bigIncrements` - 自增主键
+- `increments` - 自增整数
+- `string` - 字符串（可指定length）
+- `text` - 文本
+- `integer` - 整数
+- `bigInteger` - 大整数
+- `boolean` - 布尔值
+- `timestamp` - 时间戳
+- `json` - JSON
+- `decimal` - 小数（需要precision和scale）
+
+### 字段属性
+
+- `type` - 字段类型（必需）
+- `length` - 长度（string类型）
+- `nullable` - 是否允许NULL（默认true）
+- `default` - 默认值
+- `unsigned` - 无符号（整数类型）
+- `comment` - 注释
+- `after` - 在哪个字段之后（MySQL）
+- `unique` - 是否唯一
+- `index` - 是否创建索引
+
+### 基本方法（单独使用）
+
+```php
 // 1. 安全创建表
 SafeMigrationHelper::safeCreateTable($connection, $tableName, function (Blueprint $table) {
     $table->id();
     $table->string('name');
-    // ...
 });
 
 // 2. 安全添加字段
@@ -121,39 +208,8 @@ SafeMigrationHelper::safeAddIndex($connection, $tableName, 'column_name', 'index
 
 // 4. 安全添加外键
 SafeMigrationHelper::safeAddForeignKey($connection, $tableName, 'user_id', 'users', 'id');
-
-// 5. 批量添加字段
-SafeMigrationHelper::safeAddColumns($connection, $tableName, [
-    'column1' => function (Blueprint $table, string $columnName) {
-        $table->string($columnName);
-    },
-    'column2' => function (Blueprint $table, string $columnName) {
-        $table->integer($columnName);
-    },
-]);
 ```
 
-### 迁移文件模板
+### 完整示例
 
-```php
-public function up(): void
-{
-    $connection = 'appqyv1';
-    $tableName = 'app_qy_v1_example';
-    
-    // 创建表（如果不存在）
-    SafeMigrationHelper::safeCreateTable($connection, $tableName, function (Blueprint $table) {
-        $table->id();
-        $table->string('name');
-        $table->timestamps();
-    });
-    
-    // 添加字段（如果不存在）
-    SafeMigrationHelper::safeAddColumn($connection, $tableName, 'new_field', function (Blueprint $table, string $columnName) {
-        $table->string($columnName)->nullable();
-    });
-    
-    // 添加索引（如果不存在）
-    SafeMigrationHelper::safeAddIndex($connection, $tableName, 'name', 'idx_example_name');
-}
-```
+参考文件：`database/migrations/EXAMPLE_using_SafeMigrationHelper.php`

@@ -1,140 +1,269 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    protected $connection;
+    protected $appKey;
+
+    public function __construct()
     {
-        // Nginx Sites Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_nginx_sites')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_nginx_sites', function (Blueprint $table) {
-            $table->id();
-            $table->string('site_name')->unique();
-            $table->string('domain');
-            $table->enum('site_type', ['php', 'laravel', 'static', 'proxy']);
-            $table->string('document_root')->nullable();
-            $table->string('php_version')->nullable();
-            $table->boolean('ssl_enabled')->default(false);
-            $table->string('ssl_cert_path')->nullable();
-            $table->string('ssl_key_path')->nullable();
-            $table->string('proxy_pass')->nullable();
-            $table->longText('config_content');
-            $table->boolean('is_enabled')->default(true);
-            $table->timestamps();
-        });
-        }
-
-        // Execution Logs Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_execution_logs')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_execution_logs', function (Blueprint $table) {
-            $table->id();
-            $table->string('script_id');
-            $table->string('script_name');
-            $table->string('script_category');
-            $table->text('command');
-            $table->json('arguments')->nullable();
-            $table->longText('output')->nullable();
-            $table->longText('error_output')->nullable();
-            $table->integer('exit_code');
-            $table->float('execution_time');
-            $table->bigInteger('memory_usage');
-            $table->string('user_ip');
-            $table->string('user_agent')->nullable();
-            $table->timestamp('started_at');
-            $table->timestamp('completed_at')->nullable();
-            $table->timestamps();
-        });
-        }
-
-        // SSL Certificates Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_certificates')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_certificates', function (Blueprint $table) {
-            $table->id();
-            $table->string('domain')->unique();
-            $table->string('certificate_path');
-            $table->string('private_key_path');
-            $table->string('chain_path')->nullable();
-            $table->string('issuer')->nullable();
-            $table->timestamp('issued_at')->nullable();
-            $table->timestamp('expires_at')->nullable();
-            $table->boolean('auto_renew')->default(true);
-            $table->timestamp('last_renewed_at')->nullable();
-            $table->integer('renewal_attempts')->default(0);
-            $table->enum('status', ['active', 'expired', 'pending', 'failed']);
-            $table->timestamps();
-        });
-        }
-
-        // System Snapshots Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_system_snapshots')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_system_snapshots', function (Blueprint $table) {
-            $table->id();
-            $table->enum('snapshot_type', ['scheduled', 'manual', 'alert']);
-            $table->float('cpu_usage')->nullable();
-            $table->bigInteger('memory_total')->nullable();
-            $table->bigInteger('memory_used')->nullable();
-            $table->bigInteger('memory_free')->nullable();
-            $table->bigInteger('disk_total')->nullable();
-            $table->bigInteger('disk_used')->nullable();
-            $table->bigInteger('disk_free')->nullable();
-            $table->json('load_average')->nullable();
-            $table->integer('process_count')->nullable();
-            $table->json('network_info')->nullable();
-            $table->json('service_status')->nullable();
-            $table->timestamps();
-        });
-        }
-
-        // File Access Logs Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_file_access_logs')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_file_access_logs', function (Blueprint $table) {
-            $table->id();
-            $table->enum('action', ['browse', 'download', 'preview', 'info']);
-            $table->text('file_path');
-            $table->bigInteger('file_size')->nullable();
-            $table->string('file_type')->nullable();
-            $table->string('user_ip');
-            $table->string('user_agent')->nullable();
-            $table->boolean('success');
-            $table->text('error_message')->nullable();
-            $table->timestamps();
-        });
-        }
-
-        // Predefined Scripts Table
-        if (!Schema::connection('servermanagerv1')->hasTable('servermanagerv1_predefined_scripts')) {
-        Schema::connection('servermanagerv1')->create('servermanagerv1_predefined_scripts', function (Blueprint $table) {
-            $table->id();
-            $table->string('script_name')->unique();
-            $table->string('script_category');
-            $table->text('description');
-            $table->text('command');
-            $table->json('arguments')->nullable();
-            $table->string('working_directory')->nullable();
-            $table->integer('timeout')->default(300);
-            $table->boolean('requires_sudo')->default(false);
-            $table->boolean('is_enabled')->default(true);
-            $table->timestamps();
-        });
-        }
+        $this->appKey = AppKeys::SERVERMANAGERV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
-    /**
-     * Reverse the migrations.
-     */
+    public function up(): void
+    {
+        $this->createNginxSitesTable();
+        $this->createExecutionLogsTable();
+        $this->createCertificatesTable();
+        $this->createSystemSnapshotsTable();
+        $this->createFileAccessLogsTable();
+        $this->createPredefinedScriptsTable();
+    }
+
+    private function createNginxSitesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'nginx_sites');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'site_name' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'domain' => ['type' => 'string', 'nullable' => false],
+                'site_type' => ['type' => 'enum', 'values' => ['php', 'laravel', 'static', 'proxy'], 'nullable' => false],
+                'document_root' => ['type' => 'string', 'nullable' => true],
+                'php_version' => ['type' => 'string', 'nullable' => true],
+                'ssl_enabled' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'ssl_cert_path' => ['type' => 'string', 'nullable' => true],
+                'ssl_key_path' => ['type' => 'string', 'nullable' => true],
+                'proxy_pass' => ['type' => 'string', 'nullable' => true],
+                'config_content' => ['type' => 'longText', 'nullable' => false],
+                'is_enabled' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createExecutionLogsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'execution_logs');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'script_id' => ['type' => 'string', 'nullable' => false],
+                'script_name' => ['type' => 'string', 'nullable' => false],
+                'script_category' => ['type' => 'string', 'nullable' => false],
+                'command' => ['type' => 'text', 'nullable' => false],
+                'arguments' => ['type' => 'json', 'nullable' => true],
+                'output' => ['type' => 'longText', 'nullable' => true],
+                'error_output' => ['type' => 'longText', 'nullable' => true],
+                'exit_code' => ['type' => 'integer', 'nullable' => false],
+                'execution_time' => ['type' => 'float', 'nullable' => false],
+                'memory_usage' => ['type' => 'bigInteger', 'nullable' => false],
+                'user_ip' => ['type' => 'string', 'nullable' => false],
+                'user_agent' => ['type' => 'string', 'nullable' => true],
+                'started_at' => ['type' => 'timestamp', 'nullable' => false],
+                'completed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['script_id']],
+                ['columns' => ['started_at']],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createCertificatesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'certificates');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'domain' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'certificate_path' => ['type' => 'string', 'nullable' => false],
+                'private_key_path' => ['type' => 'string', 'nullable' => false],
+                'chain_path' => ['type' => 'string', 'nullable' => true],
+                'issuer' => ['type' => 'string', 'nullable' => true],
+                'issued_at' => ['type' => 'timestamp', 'nullable' => true],
+                'expires_at' => ['type' => 'timestamp', 'nullable' => true],
+                'auto_renew' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'last_renewed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'renewal_attempts' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'status' => ['type' => 'enum', 'values' => ['active', 'expired', 'pending', 'failed'], 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['status']],
+                ['columns' => ['expires_at']],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createSystemSnapshotsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'system_snapshots');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'snapshot_type' => ['type' => 'enum', 'values' => ['scheduled', 'manual', 'alert'], 'nullable' => false],
+                'cpu_usage' => ['type' => 'float', 'nullable' => true],
+                'memory_total' => ['type' => 'bigInteger', 'nullable' => true],
+                'memory_used' => ['type' => 'bigInteger', 'nullable' => true],
+                'memory_free' => ['type' => 'bigInteger', 'nullable' => true],
+                'disk_total' => ['type' => 'bigInteger', 'nullable' => true],
+                'disk_used' => ['type' => 'bigInteger', 'nullable' => true],
+                'disk_free' => ['type' => 'bigInteger', 'nullable' => true],
+                'load_average' => ['type' => 'json', 'nullable' => true],
+                'process_count' => ['type' => 'integer', 'nullable' => true],
+                'network_info' => ['type' => 'json', 'nullable' => true],
+                'service_status' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['snapshot_type']],
+                ['columns' => ['created_at']],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createFileAccessLogsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'file_access_logs');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'action' => ['type' => 'enum', 'values' => ['browse', 'download', 'preview', 'info'], 'nullable' => false],
+                'file_path' => ['type' => 'text', 'nullable' => false],
+                'file_size' => ['type' => 'bigInteger', 'nullable' => true],
+                'file_type' => ['type' => 'string', 'nullable' => true],
+                'user_ip' => ['type' => 'string', 'nullable' => false],
+                'user_agent' => ['type' => 'string', 'nullable' => true],
+                'success' => ['type' => 'boolean', 'nullable' => false],
+                'error_message' => ['type' => 'text', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['action']],
+                ['columns' => ['created_at']],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createPredefinedScriptsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'predefined_scripts');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'script_name' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'script_category' => ['type' => 'string', 'nullable' => false],
+                'description' => ['type' => 'text', 'nullable' => false],
+                'command' => ['type' => 'text', 'nullable' => false],
+                'arguments' => ['type' => 'json', 'nullable' => true],
+                'working_directory' => ['type' => 'string', 'nullable' => true],
+                'timeout' => ['type' => 'integer', 'nullable' => false, 'default' => 300],
+                'requires_sudo' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'is_enabled' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['script_category']],
+                ['columns' => ['is_enabled']],
+            ],
+        ];
+
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
     public function down(): void
     {
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_predefined_scripts');
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_file_access_logs');
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_system_snapshots');
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_certificates');
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_execution_logs');
-        Schema::connection('servermanagerv1')->dropIfExists('servermanagerv1_nginx_sites');
+        $tables = [
+            'predefined_scripts',
+            'file_access_logs',
+            'system_snapshots',
+            'certificates',
+            'execution_logs',
+            'nginx_sites',
+        ];
+        
+        foreach ($tables as $tableSuffix) {
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, $tableSuffix);
+            Schema::connection($this->connection)->dropIfExists($tableName);
+        }
     }
 };

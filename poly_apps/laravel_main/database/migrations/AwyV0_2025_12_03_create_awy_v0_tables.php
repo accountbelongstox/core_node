@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -19,217 +19,328 @@ return new class extends Migration
 
     public function up(): void
     {
-        if (!Schema::connection($this->connection)->hasTable('awy_v0_users')) {
-            Schema::connection($this->connection)->create('awy_v0_users', function (Blueprint $table) {
-                $table->id();
-                $table->string('username')->unique();
-                $table->string('email')->unique()->nullable();
-                $table->string('phone', 20)->unique()->nullable();
-                $table->string('password');
-                $table->string('name')->nullable();
-                $table->string('avatar')->nullable();
-                $table->string('signature')->nullable();
-                $table->enum('gender', ['male', 'female'])->nullable();
-                $table->string('address')->nullable();
-                $table->date('birthday')->nullable();
-                $table->string('id_card')->nullable();
-                $table->string('user_token')->nullable();
-                $table->integer('status')->default(1);
-                $table->timestamps();
-                $table->softDeletes();
-
-                $table->index('username');
-                $table->index('email');
-                $table->index('phone');
-            });
-        }
-
-        $verificationCodesTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'verification_codes');
-        if (!Schema::connection($this->connection)->hasTable($verificationCodesTable)) {
-            Schema::connection($this->connection)->create($verificationCodesTable, function (Blueprint $table) {
-                $table->id();
-                $table->string('phone', 20);
-                $table->string('code', 10);
-                $table->timestamp('expires_at');
-                $table->boolean('used')->default(false);
-                $table->timestamps();
-
-                $table->index('phone');
-                $table->index('expires_at');
-            });
-        }
-
-        $friendRequestsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friend_requests');
-        if (!Schema::connection($this->connection)->hasTable($friendRequestsTable)) {
-            Schema::connection($this->connection)->create($friendRequestsTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('from_user_id');
-                $table->unsignedBigInteger('to_user_id');
-                $table->string('message')->nullable();
-                $table->string('alias')->nullable();
-                $table->enum('relation', ['Partner', 'Child', 'Parent', 'Friend', 'Family'])->nullable();
-                $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');
-                $table->timestamps();
-
-                $table->index('from_user_id');
-                $table->index('to_user_id');
-                $table->index('status');
-            });
-        }
-
-        $friendsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friends');
-        if (!Schema::connection($this->connection)->hasTable($friendsTable)) {
-            Schema::connection($this->connection)->create($friendsTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->unsignedBigInteger('friend_id');
-                $table->enum('relation', ['Partner', 'Child', 'Parent', 'Friend', 'Family'])->nullable();
-                $table->string('alias')->nullable();
-                $table->integer('days_connected')->default(0);
-                $table->boolean('is_monitored')->default(false);
-                $table->enum('status', ['active', 'blocked'])->default('active');
-                $table->timestamps();
-
-                $table->unique(['user_id', 'friend_id']);
-                $table->index('user_id');
-                $table->index('friend_id');
-            });
-        }
-
-        $devicesTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'devices');
-        if (!Schema::connection($this->connection)->hasTable($devicesTable)) {
-            Schema::connection($this->connection)->create($devicesTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->string('device_name');
-                $table->string('device_type');
-                $table->string('device_token')->nullable();
-                $table->string('platform')->nullable();
-                $table->string('network')->nullable();
-                $table->integer('unlocks')->default(0);
-                $table->integer('usage_time_minutes')->default(0);
-                $table->integer('battery')->nullable();
-                $table->timestamp('last_unlock')->nullable();
-                $table->timestamps();
-
-                $table->index('user_id');
-                $table->index('device_token');
-            });
-        }
-
-        $locationsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'locations');
-        if (!Schema::connection($this->connection)->hasTable($locationsTable)) {
-            Schema::connection($this->connection)->create($locationsTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->decimal('lat', 10, 7);
-                $table->decimal('lng', 10, 7);
-                $table->string('address')->nullable();
-                $table->decimal('accuracy', 8, 2)->nullable();
-                $table->decimal('speed', 8, 2)->nullable();
-                $table->decimal('heading', 8, 2)->nullable();
-                $table->timestamp('location_timestamp');
-                $table->timestamps();
-
-                $table->index('user_id');
-                $table->index('location_timestamp');
-            });
-        }
-
-        $locationHistoryTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'location_history');
-        if (!Schema::connection($this->connection)->hasTable($locationHistoryTable)) {
-            Schema::connection($this->connection)->create($locationHistoryTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->string('location_name')->nullable();
-                $table->string('address')->nullable();
-                $table->decimal('lat', 10, 7);
-                $table->decimal('lng', 10, 7);
-                $table->integer('duration_minutes')->nullable();
-                $table->timestamp('visited_at');
-                $table->timestamp('left_at')->nullable();
-                $table->timestamps();
-
-                $table->index('user_id');
-                $table->index('visited_at');
-            });
-        }
-
-        $healthDataTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'health_data');
-        if (!Schema::connection($this->connection)->hasTable($healthDataTable)) {
-            Schema::connection($this->connection)->create($healthDataTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->integer('steps')->default(0);
-                $table->integer('heart_rate')->nullable();
-                $table->decimal('temperature', 4, 1)->nullable();
-                $table->date('data_date');
-                $table->timestamps();
-
-                $table->unique(['user_id', 'data_date']);
-                $table->index('user_id');
-                $table->index('data_date');
-            });
-        }
-
-        $chatsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'chats');
-        if (!Schema::connection($this->connection)->hasTable($chatsTable)) {
-            Schema::connection($this->connection)->create($chatsTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('sender_id');
-                $table->unsignedBigInteger('receiver_id');
-                $table->text('message');
-                $table->enum('message_type', ['text', 'image', 'voice', 'video'])->default('text');
-                $table->boolean('read')->default(false);
-                $table->enum('status', ['sent', 'delivered', 'read', 'deleted'])->default('sent');
-                $table->timestamps();
-
-                $table->index('sender_id');
-                $table->index('receiver_id');
-                $table->index(['sender_id', 'receiver_id']);
-                $table->index('created_at');
-            });
-        }
-
-        $productsTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'products');
-        if (!Schema::connection($this->connection)->hasTable($productsTable)) {
-            Schema::connection($this->connection)->create($productsTable, function (Blueprint $table) {
-                $table->id();
-                $table->string('name');
-                $table->string('name_en')->nullable();
-                $table->decimal('price', 10, 2);
-                $table->string('currency', 10)->default('CNY');
-                $table->decimal('rating', 3, 2)->default(0);
-                $table->integer('reviews_count')->default(0);
-                $table->string('image')->nullable();
-                $table->json('images')->nullable();
-                $table->text('description')->nullable();
-                $table->text('description_en')->nullable();
-                $table->enum('category', ['watch', 'accessory', 'health'])->default('watch');
-                $table->json('specifications')->nullable();
-                $table->boolean('in_stock')->default(true);
-                $table->integer('stock_count')->default(0);
-                $table->timestamps();
-
-                $table->index('category');
-                $table->index('in_stock');
-            });
-        }
-
-        $aiChatHistoryTable = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_chat_history');
-        if (!Schema::connection($this->connection)->hasTable($aiChatHistoryTable)) {
-            Schema::connection($this->connection)->create($aiChatHistoryTable, function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('user_id');
-                $table->enum('role', ['user', 'assistant'])->default('user');
-                $table->text('content');
-                $table->json('context')->nullable();
-                $table->timestamps();
-
-                $table->index('user_id');
-                $table->index('created_at');
-            });
-        }
+        // Table 1: awy_v0_users
+        $this->createAwyV0UsersTable();
+        
+        // Table 2: verification_codes
+        $this->createVerificationCodesTable();
+        
+        // Table 3: friend_requests
+        $this->createFriendRequestsTable();
+        
+        // Table 4: friends
+        $this->createFriendsTable();
+        
+        // Table 5: devices
+        $this->createDevicesTable();
+        
+        // Table 6: locations
+        $this->createLocationsTable();
+        
+        // Table 7: location_history
+        $this->createLocationHistoryTable();
+        
+        // Table 8: health_data
+        $this->createHealthDataTable();
+        
+        // Table 9: chats
+        $this->createChatsTable();
+        
+        // Table 10: products
+        $this->createProductsTable();
+        
+        // Table 11: ai_chat_history
+        $this->createAiChatHistoryTable();
+    }
+    
+    private function createAwyV0UsersTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'users');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'username' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'email' => ['type' => 'string', 'nullable' => true, 'unique' => true],
+                'phone' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'unique' => true],
+                'password' => ['type' => 'string', 'nullable' => false],
+                'name' => ['type' => 'string', 'nullable' => true],
+                'avatar' => ['type' => 'string', 'nullable' => true],
+                'signature' => ['type' => 'string', 'nullable' => true],
+                'gender' => ['type' => 'enum', 'values' => ['male', 'female'], 'nullable' => true],
+                'address' => ['type' => 'string', 'nullable' => true],
+                'birthday' => ['type' => 'date', 'nullable' => true],
+                'id_card' => ['type' => 'string', 'nullable' => true],
+                'user_token' => ['type' => 'string', 'nullable' => true],
+                'status' => ['type' => 'integer', 'nullable' => false, 'default' => 1],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+                'deleted_at' => ['type' => 'softDeletes'],
+            ],
+            'indexes' => [
+                ['columns' => ['username']],
+                ['columns' => ['email']],
+                ['columns' => ['phone']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createVerificationCodesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'verification_codes');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'phone' => ['type' => 'string', 'length' => 20, 'nullable' => false],
+                'code' => ['type' => 'string', 'length' => 10, 'nullable' => false],
+                'expires_at' => ['type' => 'timestamp', 'nullable' => false],
+                'used' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['phone']],
+                ['columns' => ['expires_at']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createFriendRequestsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friend_requests');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'from_user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'to_user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'message' => ['type' => 'string', 'nullable' => true],
+                'alias' => ['type' => 'string', 'nullable' => true],
+                'relation' => ['type' => 'enum', 'values' => ['Partner', 'Child', 'Parent', 'Friend', 'Family'], 'nullable' => true],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'accepted', 'rejected'], 'nullable' => false, 'default' => 'pending'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['from_user_id']],
+                ['columns' => ['to_user_id']],
+                ['columns' => ['status']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createFriendsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'friends');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'friend_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'relation' => ['type' => 'enum', 'values' => ['Partner', 'Child', 'Parent', 'Friend', 'Family'], 'nullable' => true],
+                'alias' => ['type' => 'string', 'nullable' => true],
+                'days_connected' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'is_monitored' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'status' => ['type' => 'enum', 'values' => ['active', 'blocked'], 'nullable' => false, 'default' => 'active'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'friend_id'], 'unique' => true],
+                ['columns' => ['user_id']],
+                ['columns' => ['friend_id']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createDevicesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'devices');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'device_name' => ['type' => 'string', 'nullable' => false],
+                'device_type' => ['type' => 'string', 'nullable' => false],
+                'device_token' => ['type' => 'string', 'nullable' => true],
+                'platform' => ['type' => 'string', 'nullable' => true],
+                'network' => ['type' => 'string', 'nullable' => true],
+                'unlocks' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'usage_time_minutes' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'battery' => ['type' => 'integer', 'nullable' => true],
+                'last_unlock' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['device_token']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createLocationsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'locations');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'lat' => ['type' => 'decimal', 'precision' => 10, 'scale' => 7, 'nullable' => false],
+                'lng' => ['type' => 'decimal', 'precision' => 10, 'scale' => 7, 'nullable' => false],
+                'address' => ['type' => 'string', 'nullable' => true],
+                'accuracy' => ['type' => 'decimal', 'precision' => 8, 'scale' => 2, 'nullable' => true],
+                'speed' => ['type' => 'decimal', 'precision' => 8, 'scale' => 2, 'nullable' => true],
+                'heading' => ['type' => 'decimal', 'precision' => 8, 'scale' => 2, 'nullable' => true],
+                'location_timestamp' => ['type' => 'timestamp', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['location_timestamp']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createLocationHistoryTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'location_history');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'location_name' => ['type' => 'string', 'nullable' => true],
+                'address' => ['type' => 'string', 'nullable' => true],
+                'lat' => ['type' => 'decimal', 'precision' => 10, 'scale' => 7, 'nullable' => false],
+                'lng' => ['type' => 'decimal', 'precision' => 10, 'scale' => 7, 'nullable' => false],
+                'duration_minutes' => ['type' => 'integer', 'nullable' => true],
+                'visited_at' => ['type' => 'timestamp', 'nullable' => false],
+                'left_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['visited_at']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createHealthDataTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'health_data');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'steps' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'heart_rate' => ['type' => 'integer', 'nullable' => true],
+                'temperature' => ['type' => 'decimal', 'precision' => 4, 'scale' => 1, 'nullable' => true],
+                'data_date' => ['type' => 'date', 'nullable' => false],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id', 'data_date'], 'unique' => true],
+                ['columns' => ['user_id']],
+                ['columns' => ['data_date']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createChatsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'chats');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'sender_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'receiver_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'message' => ['type' => 'text', 'nullable' => false],
+                'message_type' => ['type' => 'enum', 'values' => ['text', 'image', 'voice', 'video'], 'nullable' => false, 'default' => 'text'],
+                'read' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'status' => ['type' => 'enum', 'values' => ['sent', 'delivered', 'read', 'deleted'], 'nullable' => false, 'default' => 'sent'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['sender_id']],
+                ['columns' => ['receiver_id']],
+                ['columns' => ['sender_id', 'receiver_id']],
+                ['columns' => ['created_at']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createProductsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'products');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'name' => ['type' => 'string', 'nullable' => false],
+                'name_en' => ['type' => 'string', 'nullable' => true],
+                'price' => ['type' => 'decimal', 'precision' => 10, 'scale' => 2, 'nullable' => false],
+                'currency' => ['type' => 'string', 'length' => 10, 'nullable' => false, 'default' => 'CNY'],
+                'rating' => ['type' => 'decimal', 'precision' => 3, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'reviews_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'image' => ['type' => 'string', 'nullable' => true],
+                'images' => ['type' => 'json', 'nullable' => true],
+                'description' => ['type' => 'text', 'nullable' => true],
+                'description_en' => ['type' => 'text', 'nullable' => true],
+                'category' => ['type' => 'enum', 'values' => ['watch', 'accessory', 'health'], 'nullable' => false, 'default' => 'watch'],
+                'specifications' => ['type' => 'json', 'nullable' => true],
+                'in_stock' => ['type' => 'boolean', 'nullable' => false, 'default' => true],
+                'stock_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['category']],
+                ['columns' => ['in_stock']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
+    }
+    
+    private function createAiChatHistoryTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_chat_history');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false],
+                'role' => ['type' => 'enum', 'values' => ['user', 'assistant'], 'nullable' => false, 'default' => 'user'],
+                'content' => ['type' => 'text', 'nullable' => false],
+                'context' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['created_at']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray($this->connection, $tableName, $tableStructure);
     }
 
     public function down(): void

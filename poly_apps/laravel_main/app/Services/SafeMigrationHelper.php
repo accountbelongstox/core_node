@@ -200,12 +200,63 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全添加索引（如果不存在）
+     * Safe add unique index (if not exists)
      * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string|array $columns 索引字段（字符串或数组）
-     * @param string|null $indexName 索引名称（可选）
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string|array $columns Index columns (string or array)
+     * @param string|null $indexName Index name (optional)
+     * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
+     */
+    public static function safeAddUniqueIndex(
+        string $connection,
+        string $tableName,
+        $columns,
+        ?string $indexName = null
+    ): array {
+        $schema = Schema::connection($connection);
+        
+        if (!$schema->hasTable($tableName)) {
+            return [
+                'status' => 'error',
+                'message' => "Table {$tableName} does not exist"
+            ];
+        }
+        
+        // Generate index name
+        if ($indexName === null) {
+            $indexName = self::generateIndexName($tableName, $columns);
+        }
+        
+        // Check if index exists
+        if (self::indexExists($connection, $tableName, $indexName)) {
+            return [
+                'status' => 'exists',
+                'message' => "Unique index {$indexName} on {$tableName} already exists"
+            ];
+        }
+        
+        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
+            if (is_array($columns)) {
+                $table->unique($columns, $indexName);
+            } else {
+                $table->unique($columns, $indexName);
+            }
+        });
+        
+        return [
+            'status' => 'added',
+            'message' => "Unique index {$indexName} on {$tableName} added successfully"
+        ];
+    }
+
+    /**
+     * Safe add index (if not exists)
+     * 
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string|array $columns Index columns (string or array)
+     * @param string|null $indexName Index name (optional)
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
      */
     public static function safeAddIndex(
@@ -660,26 +711,21 @@ class SafeMigrationHelper
     }
 
     /**
-     * 提取表结构定义
+     * 提取表结构定义（从闭包）
+     * 
+     * 注意：此方法难以实现，因为需要解析闭包内容
+     * 推荐使用 alignTableStructureFromArray 方法，直接传入数组定义
      * 
      * @param callable $tableDefinition 表定义闭包
      * @return array ['columns' => array, 'indexes' => array]
      */
     private static function extractTableStructure(callable $tableDefinition): array
     {
-        $columns = [];
-        $indexes = [];
-        
-        // 创建一个模拟的Blueprint来捕获结构
-        $blueprint = new \Illuminate\Database\Schema\Blueprint('temp');
-        
-        // 执行表定义，捕获列和索引信息
-        // 注意：这是一个简化的实现，实际需要更复杂的解析
-        // 这里我们使用一个辅助方法来解析
-        
+        // 注意：此方法需要复杂的闭包解析，目前返回空结构
+        // 推荐使用 alignTableStructureFromArray 方法替代
         return [
-            'columns' => $columns,
-            'indexes' => $indexes,
+            'columns' => [],
+            'indexes' => [],
         ];
     }
 
@@ -716,11 +762,29 @@ class SafeMigrationHelper
             case 'bigInteger':
                 $column = $table->bigInteger($columnName);
                 break;
+            case 'unsignedBigInteger':
+                $column = $table->unsignedBigInteger($columnName);
+                break;
+            case 'unsignedInteger':
+            case 'unsigned':
+                $column = $table->unsignedInteger($columnName);
+                break;
             case 'boolean':
                 $column = $table->boolean($columnName);
                 break;
             case 'timestamp':
                 $column = $table->timestamp($columnName);
+                break;
+            case 'timestamps':
+                // Special case: timestamps() creates both created_at and updated_at
+                $table->timestamps();
+                return;
+            case 'softDeletes':
+                // Special case: softDeletes() creates deleted_at
+                $table->softDeletes($columnName);
+                break;
+            case 'softDeletesTz':
+                $table->softDeletesTz($columnName);
                 break;
             case 'json':
                 $column = $table->json($columnName);
@@ -730,17 +794,94 @@ class SafeMigrationHelper
                 $scale = $columnDef['scale'] ?? 2;
                 $column = $table->decimal($columnName, $precision, $scale);
                 break;
+            case 'foreignId':
+                $column = $table->foreignId($columnName);
+                break;
+            case 'uuid':
+                $column = $table->uuid($columnName);
+                break;
+            case 'date':
+                $column = $table->date($columnName);
+                break;
+            case 'dateTime':
+                $column = $table->dateTime($columnName);
+                break;
+            case 'dateTimeTz':
+                $column = $table->dateTimeTz($columnName);
+                break;
+            case 'time':
+                $column = $table->time($columnName);
+                break;
+            case 'char':
+                $column = $length ? $table->char($columnName, $length) : $table->char($columnName);
+                break;
+            case 'mediumText':
+                $column = $table->mediumText($columnName);
+                break;
+            case 'longText':
+                $column = $table->longText($columnName);
+                break;
+            case 'tinyInteger':
+                $column = $table->tinyInteger($columnName);
+                break;
+            case 'tinyInteger':
+                $column = $table->tinyInteger($columnName);
+                break;
+            case 'smallInteger':
+                $column = $table->smallInteger($columnName);
+                break;
+            case 'mediumInteger':
+                $column = $table->mediumInteger($columnName);
+                break;
+            case 'float':
+                $column = $table->float($columnName);
+                break;
+            case 'double':
+                $column = $table->double($columnName);
+                break;
+            case 'enum':
+                $values = $columnDef['values'] ?? [];
+                if (empty($values)) {
+                    $column = $table->string($columnName);
+                } else {
+                    $column = $table->enum($columnName, $values);
+                }
+                break;
+            case 'ipAddress':
+                $column = $table->ipAddress($columnName);
+                break;
+            case 'macAddress':
+                $column = $table->macAddress($columnName);
+                break;
+            case 'morphs':
+                // Special case: morphs() creates tokenable_type and tokenable_id
+                $table->morphs($columnName);
+                return;
+            case 'foreignId':
+                $column = $table->foreignId($columnName);
+                break;
             default:
                 $column = $table->string($columnName);
         }
         
-        // 应用修饰符
+        // Apply modifiers
         if (isset($columnDef['nullable']) && $columnDef['nullable']) {
             $column->nullable();
         }
         
         if (isset($columnDef['default'])) {
-            $column->default($columnDef['default']);
+            $defaultValue = $columnDef['default'];
+            // Support DB::raw() expressions
+            if (is_string($defaultValue) && (strpos($defaultValue, 'CURRENT_TIMESTAMP') !== false || strpos($defaultValue, 'DB::raw') !== false)) {
+                // For SQLite, use useCurrent() instead
+                if (isset($columnDef['useCurrent']) && $columnDef['useCurrent']) {
+                    $column->useCurrent();
+                } else {
+                    $column->default($defaultValue);
+                }
+            } else {
+                $column->default($defaultValue);
+            }
         }
         
         if (isset($columnDef['unsigned']) && $columnDef['unsigned']) {
@@ -761,6 +902,14 @@ class SafeMigrationHelper
         
         if (isset($columnDef['index']) && $columnDef['index']) {
             $column->index();
+        }
+        
+        if (isset($columnDef['useCurrent']) && $columnDef['useCurrent']) {
+            $column->useCurrent();
+        }
+        
+        if (isset($columnDef['useCurrentOnUpdate']) && $columnDef['useCurrentOnUpdate']) {
+            $column->useCurrentOnUpdate();
         }
     }
 
@@ -1057,18 +1206,42 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤6: 添加缺失索引
+        // Step 6: Add missing indexes
         $addIndexes = $options['add_indexes'] ?? true;
         if ($addIndexes && !empty($expectedStructure['indexes'])) {
             foreach ($expectedStructure['indexes'] as $indexDef) {
-                $result = self::safeAddIndex(
+                $columns = $indexDef['columns'] ?? $indexDef['column'] ?? [];
+                $indexName = $indexDef['name'] ?? null;
+                $isUnique = $indexDef['unique'] ?? false;
+                
+                if ($isUnique) {
+                    // Handle unique index
+                    $result = self::safeAddUniqueIndex($connection, $tableName, $columns, $indexName);
+                } else {
+                    // Handle regular index
+                    $result = self::safeAddIndex($connection, $tableName, $columns, $indexName);
+                }
+                
+                if ($result['status'] === 'added') {
+                    $actions[] = ['action' => 'added_index', 'index' => $indexName ?? 'auto', 'message' => $result['message']];
+                }
+            }
+        }
+        
+        // Step 7: Add missing foreign keys
+        if (!empty($expectedStructure['foreignKeys'])) {
+            foreach ($expectedStructure['foreignKeys'] as $fkDef) {
+                $result = self::safeAddForeignKey(
                     $connection,
                     $tableName,
-                    $indexDef['columns'] ?? $indexDef['column'] ?? [],
-                    $indexDef['name'] ?? null
+                    $fkDef['column'],
+                    $fkDef['references'],
+                    $fkDef['on'] ?? 'id',
+                    $fkDef['name'] ?? null,
+                    $fkDef['onDelete'] ?? 'cascade'
                 );
                 if ($result['status'] === 'added') {
-                    $actions[] = ['action' => 'added_index', 'index' => $indexDef['name'] ?? 'auto', 'message' => $result['message']];
+                    $actions[] = ['action' => 'added_foreign_key', 'fk' => $fkDef['name'] ?? 'auto', 'message' => $result['message']];
                 }
             }
         }

@@ -1,77 +1,143 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
     {
-        $appKey = AppKeys::APPQYV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
-        
-        if (!Schema::connection($connection)->hasTable($tableName)) {
-            Schema::connection($connection)->create($tableName, function (Blueprint $table) {
-            $table->id();  // Same as auto-incrementing primary key
-            
-            $table->text('content')->nullable(false);
-            $table->text('md5')->nullable(false);
-            $table->json('translation')->nullable();
-            $table->boolean('isTranslation')->default(false)->nullable();
-            $table->integer('translation_provider')->default(0)->nullable();
-            
-            // Timestamps
-            $table->dateTime('lastModified')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
-            $table->dateTime('lastInsertTime')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
-            $table->dateTime('lastUpdateTime')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
-            $table->dateTime('lastQueryTime')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
-            
-            $table->integer('queryCount')->default(0)->nullable();
-            $table->text('usPhonetic')->nullable();
-            $table->text('ukPhonetic')->nullable();
-            $table->json('voice_files')->nullable();
-            $table->json('image_files')->nullable();
-            $table->boolean('isExistLocal')->default(false)->nullable();
-            $table->integer('voice_files_provider')->default(0)->nullable();
-            $table->integer('image_files_provider')->default(0)->nullable();
-            $table->boolean('hasOperations')->default(true)->nullable();
-            
-            // Laravel's default timestamps (created_at and updated_at)
-            $table->timestamps();
-            
-            // If you need to keep your original createdAt field
-            $table->dateTime('createdAt')->default(DB::raw('CURRENT_TIMESTAMP'))->nullable();
-        });
-        }
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'dictionaries');
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down()
+    public function up(): void
     {
-        $appKey = AppKeys::APPQYV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
-        Schema::connection($connection)->dropIfExists($tableName);
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'content' => [
+                    'type' => 'text',
+                    'nullable' => false,
+                ],
+                'md5' => [
+                    'type' => 'text',
+                    'nullable' => false,
+                ],
+                'translation' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                ],
+                'isTranslation' => [
+                    'type' => 'boolean',
+                    'nullable' => true,
+                    'default' => false,
+                ],
+                'translation_provider' => [
+                    'type' => 'integer',
+                    'nullable' => true,
+                    'default' => 0,
+                ],
+                'lastModified' => [
+                    'type' => 'dateTime',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+                'lastInsertTime' => [
+                    'type' => 'dateTime',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+                'lastUpdateTime' => [
+                    'type' => 'dateTime',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+                'lastQueryTime' => [
+                    'type' => 'dateTime',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+                'queryCount' => [
+                    'type' => 'integer',
+                    'nullable' => true,
+                    'default' => 0,
+                ],
+                'usPhonetic' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'ukPhonetic' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'voice_files' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                ],
+                'image_files' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                ],
+                'isExistLocal' => [
+                    'type' => 'boolean',
+                    'nullable' => true,
+                    'default' => false,
+                ],
+                'voice_files_provider' => [
+                    'type' => 'integer',
+                    'nullable' => true,
+                    'default' => 0,
+                ],
+                'image_files_provider' => [
+                    'type' => 'integer',
+                    'nullable' => true,
+                    'default' => 0,
+                ],
+                'hasOperations' => [
+                    'type' => 'boolean',
+                    'nullable' => true,
+                    'default' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'createdAt' => [
+                    'type' => 'dateTime',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    public function down(): void
+    {
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

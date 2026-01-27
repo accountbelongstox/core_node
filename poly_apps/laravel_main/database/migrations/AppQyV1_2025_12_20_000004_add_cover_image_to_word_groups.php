@@ -1,43 +1,74 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'word_groups');
+    }
+
     public function up(): void
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
+        // This migration only adds columns to existing table
+        $tableStructure = [
+            'columns' => [
+                'cover_image_uuid' => [
+                    'type' => 'string',
+                    'length' => 36,
+                    'nullable' => true,
+                    'after' => 'words_frequency',
+                    'comment' => 'Cover image UUID',
+                ],
+                'cover_category' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => true,
+                    'after' => 'cover_image_uuid',
+                    'comment' => 'Cover category: vocabulary, grammar, etc.',
+                ],
+                'cover_url' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                    'after' => 'cover_category',
+                    'comment' => 'Cover image URL',
+                ],
+                'thumbnail_url' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                    'after' => 'cover_url',
+                    'comment' => 'Thumbnail image URL',
+                ],
+            ],
+        ];
         
-        if (Schema::connection($connection)->hasTable($tableName)) {
-            Schema::connection($connection)->table($tableName, function (Blueprint $table) use ($connection, $tableName) {
-                if (!Schema::connection($connection)->hasColumn($tableName, 'cover_image_uuid')) {
-                    $table->string('cover_image_uuid', 36)->nullable()->after('words_frequency')->comment('Cover image UUID');
-                }
-                if (!Schema::connection($connection)->hasColumn($tableName, 'cover_category')) {
-                    $table->string('cover_category', 50)->nullable()->after('cover_image_uuid')->comment('Cover category: vocabulary, grammar, etc.');
-                }
-                if (!Schema::connection($connection)->hasColumn($tableName, 'cover_url')) {
-                    $table->text('cover_url')->nullable()->after('cover_category')->comment('Cover image URL');
-                }
-                if (!Schema::connection($connection)->hasColumn($tableName, 'thumbnail_url')) {
-                    $table->text('thumbnail_url')->nullable()->after('cover_url')->comment('Thumbnail image URL');
-                }
-            });
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
-        
-        if (Schema::connection($connection)->hasTable($tableName)) {
-            Schema::connection($connection)->table($tableName, function (Blueprint $table) {
+        if (Schema::connection($this->connection)->hasTable($this->tableName)) {
+            Schema::connection($this->connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
                 $table->dropColumn(['cover_image_uuid', 'cover_category', 'cover_url', 'thumbnail_url']);
             });
         }

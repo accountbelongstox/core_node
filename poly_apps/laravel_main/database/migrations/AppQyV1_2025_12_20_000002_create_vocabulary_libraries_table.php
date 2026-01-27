@@ -1,50 +1,140 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_libraries');
+    }
+
     public function up(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries');
-
-        if (!Schema::connection($connectionName)->hasTable($tableName)) {
-            Schema::connection($connectionName)->create($tableName, function (Blueprint $table) {
-                $table->increments('id');
-                $table->string('name', 255);
-                $table->text('description')->nullable();
-                $table->string('language', 50)->default('english');
-                $table->integer('total_words')->default(0);
-                $table->boolean('is_public')->default(true);
-                $table->unsignedInteger('owner_user_id')->nullable();
-                $table->string('source', 100)->nullable();
-                $table->string('difficulty_level', 50)->nullable();
-                $table->string('category', 100)->default('general');
-                $table->text('image_url')->nullable();
-                $table->boolean('is_recommended')->default(false);
-                $table->text('tags')->nullable();
-                $table->timestamps();
-
-                $table->unique('source', 'uniq_vocab_lib_source');
-                $table->index('language', 'idx_vocab_lib_language');
-                $table->index('is_public', 'idx_vocab_lib_public');
-                $table->index('owner_user_id', 'idx_vocab_lib_owner');
-                $table->index('category', 'idx_vocab_lib_category');
-                $table->index('is_recommended', 'idx_vocab_lib_recommended');
-            });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'increments',
+                ],
+                'name' => [
+                    'type' => 'string',
+                    'length' => 255,
+                    'nullable' => false,
+                ],
+                'description' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'language' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => false,
+                    'default' => 'english',
+                ],
+                'total_words' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'is_public' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => true,
+                ],
+                'owner_user_id' => [
+                    'type' => 'unsignedInteger',
+                    'nullable' => true,
+                ],
+                'source' => [
+                    'type' => 'string',
+                    'length' => 100,
+                    'nullable' => true,
+                ],
+                'difficulty_level' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => true,
+                ],
+                'category' => [
+                    'type' => 'string',
+                    'length' => 100,
+                    'nullable' => false,
+                    'default' => 'general',
+                ],
+                'image_url' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'is_recommended' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => false,
+                ],
+                'tags' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['source'],
+                    'name' => 'uniq_vocab_lib_source',
+                    'unique' => true,
+                ],
+                [
+                    'columns' => ['language'],
+                    'name' => 'idx_vocab_lib_language',
+                ],
+                [
+                    'columns' => ['is_public'],
+                    'name' => 'idx_vocab_lib_public',
+                ],
+                [
+                    'columns' => ['owner_user_id'],
+                    'name' => 'idx_vocab_lib_owner',
+                ],
+                [
+                    'columns' => ['category'],
+                    'name' => 'idx_vocab_lib_category',
+                ],
+                [
+                    'columns' => ['is_recommended'],
+                    'name' => 'idx_vocab_lib_recommended',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        $connectionName = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $appKey = \App\Constants\AppKeys::APPQYV1;
-        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries');
-        Schema::connection($connectionName)->dropIfExists($tableName);
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };
-
