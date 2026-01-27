@@ -20,6 +20,76 @@ $STEP_NUMBER = 2
 # Registry file path for Windows 10 context menu
 $REG_SUB_PATH = "shells/win/scripts/Step2_Win10ContextMenu.reg"
 
+# BitLocker pre-check variables (dual boot compatibility)
+$bitLockerCmdAvailable = $false
+$bitLockerVolumes = @()
+$bitLockerTargets = @()
+$bitLockerErrors = (New-Object -TypeName 'System.Collections.Generic.List[string]')
+$bitLockerUbuntuNotice = "[Step $STEP_NUMBER] BitLocker must be disabled for dual-boot with Ubuntu to avoid boot and disk access issues. Checking all fixed disks now..."
+$bitLockerNotAvailableNotice = "[Step $STEP_NUMBER] BitLocker cmdlets are not available on this system. Skipping BitLocker check."
+$bitLockerAllClearNotice = "[Step $STEP_NUMBER] All fixed disks appear to have BitLocker disabled (or fully decrypted)."
+$bitLockerDisableStartNotice = "[Step $STEP_NUMBER] Disabling BitLocker (starting decryption where needed)..."
+$bitLockerDisableDoneNotice = "[Step $STEP_NUMBER] BitLocker disable requests submitted. Decryption may take time; you can monitor in 'Manage BitLocker' or by running: manage-bde -status"
+
+function Disable-AllFixedDisksBitLocker {
+    Write-ColorMessage -Message $bitLockerUbuntuNotice -Type "Warning"
+
+    $script:bitLockerCmdAvailable = ($null -ne (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue))
+    if (-not $script:bitLockerCmdAvailable) {
+        Write-ColorMessage -Message $bitLockerNotAvailableNotice -Type "Warning"
+        return
+    }
+
+    try {
+        $script:bitLockerVolumes = @(Get-BitLockerVolume -ErrorAction Stop)
+    }
+    catch {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to query BitLocker status: $($_.Exception.Message)" -Type "Error"
+        return
+    }
+
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] BitLocker status overview (fixed disks):" -Type "Info"
+    $script:bitLockerVolumes | Where-Object {
+        $_.MountPoint -and ($_.VolumeType -eq "OperatingSystem" -or $_.VolumeType -eq "FixedData")
+    } | ForEach-Object {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) -> Type: $($_.VolumeType), Status: $($_.VolumeStatus), Protection: $($_.ProtectionStatus), Lock: $($_.LockStatus)" -Type "Info"
+    }
+
+    $script:bitLockerTargets = @(
+        $script:bitLockerVolumes | Where-Object {
+            $_.MountPoint -and
+            ($_.VolumeType -eq "OperatingSystem" -or $_.VolumeType -eq "FixedData") -and
+            (($_.ProtectionStatus -eq "On") -or ($_.VolumeStatus -ne "FullyDecrypted"))
+        }
+    )
+
+    if (-not $script:bitLockerTargets -or $script:bitLockerTargets.Count -eq 0) {
+        Write-ColorMessage -Message $bitLockerAllClearNotice -Type "Success"
+        return
+    }
+
+    Write-ColorMessage -Message $bitLockerDisableStartNotice -Type "Info"
+
+    $script:bitLockerErrors.Clear()
+    $script:bitLockerTargets | ForEach-Object {
+        try {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) -> Status: $($_.VolumeStatus), Protection: $($_.ProtectionStatus). Disabling..." -Type "Info"
+            Disable-BitLocker -MountPoint $_.MountPoint -ErrorAction Stop | Out-Null
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) BitLocker disable initiated." -Type "Success"
+        }
+        catch {
+            $null = $script:bitLockerErrors.Add("[Step $STEP_NUMBER] Volume $($_.MountPoint) disable failed: $($_.Exception.Message)")
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) disable failed: $($_.Exception.Message)" -Type "Error"
+        }
+    }
+
+    Write-ColorMessage -Message $bitLockerDisableDoneNotice -Type "Warning"
+
+    if ($script:bitLockerErrors -and $script:bitLockerErrors.Count -gt 0) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Some BitLocker disable operations failed. Make sure you run this script as Administrator and that volumes are unlocked." -Type "Error"
+    }
+}
+
 function Stop-DisableHttpIisServices {
     Write-Host "[Step 2] Stopping and disabling HTTP and IIS services..." -ForegroundColor Cyan
     
@@ -282,6 +352,9 @@ function Restart-ExplorerOnce {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error restarting File Explorer: $_" -Type "Error"
     }
 }
+
+# Always check BitLocker status first (dual boot compatibility)
+Disable-AllFixedDisksBitLocker
 
 # Always stop and disable HTTP/IIS services (independent of base settings flag)
 Write-ColorMessage -Message "[Step $STEP_NUMBER] Stopping and disabling HTTP/IIS services..." -Type "Info"

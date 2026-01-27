@@ -33,6 +33,7 @@ import '../features_app_bank/debug_tools/views/exclusive_customer_screen.dart';
 import '../features_app_bank/debug_tools/views/debug_settings_screen.dart';
 import '../features_app_bank/debug_tools/views/developer_feedback_screen.dart';
 import '../features_app_bank/debug_tools/views/developer_tools_screen.dart';
+import '../features_app_bank/debug_tools/views/api_status_monitor_screen.dart';
 
 /// Bank App Router Configuration
 /// Defines all routes and navigation for the Bank application
@@ -274,6 +275,13 @@ class BankAppRouter {
           path: routeDeveloperTools,
           name: 'bank_developer_tools',
           builder: (context, state) => const DeveloperToolsScreen(),
+        ),
+
+        // API Status Monitor Screen
+        GoRoute(
+          path: BankConstants.routeApiStatusMonitor,
+          name: 'bank_api_status_monitor',
+          builder: (context, state) => const ApiStatusMonitorScreen(),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

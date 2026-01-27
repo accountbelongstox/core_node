@@ -11,9 +11,11 @@ import '../managers_app_bank/user_manager.dart';
 import '../managers_app_bank/license_registration_manager.dart';
 import '../../../common/network/integration/network_user_integration.dart';
 import '../../../common/network/core/api_endpoint_manager.dart';
+import '../../../common/network/interceptors/network_interceptors.dart';
 import '../config_app_bank/api_endpoints_app_bank.dart';
 import '../config_app_bank/endpoint_storage_app_bank.dart';
 import '../config_app_bank/prefs_app_bank.dart';
+import '../services_app_bank/bank_network_log_interceptor.dart';
 
 class BankAppInitializer {
   static BankAppInitializer? _instance;
@@ -50,6 +52,14 @@ class BankAppInitializer {
       // 2. Initialize network service with user provider integration
       debugPrint('🌐 Initializing network service...');
       await BankNetworkService.instance.initializeWithUserProvider(_userProvider!);
+
+      // 2.1. Initialize network log interceptors
+      debugPrint('📝 Initializing network log interceptors...');
+      final networkInterceptors = NetworkInterceptors.instance;
+      await networkInterceptors.initialize();
+      networkInterceptors.addRequestInterceptor(BankNetworkLogRequestInterceptor());
+      networkInterceptors.addResponseInterceptor(BankNetworkLogResponseInterceptor());
+      debugPrint('✅ Network log interceptors initialized');
 
       // 3. Initialize app lifecycle manager
       debugPrint('🔄 Initializing app lifecycle manager...');

@@ -155,6 +155,7 @@ class BankConstants {
   static const String routeDebugSettings = '/bank/debug_settings';
   static const String routeDeveloperFeedback = '/bank/developer_feedback';
   static const String routeDeveloperTools = '/bank/developer_tools';
+  static const String routeApiStatusMonitor = '/bank/api_status_monitor';
   static const String routeWealthCheckup = '/bank/wealth_checkup';
   static const String routePensionPlanning = '/bank/pension_planning';
   static const String routeWealthActivity = '/bank/wealth_activity';

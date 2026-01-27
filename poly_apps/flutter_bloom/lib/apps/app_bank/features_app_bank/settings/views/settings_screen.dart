@@ -278,9 +278,19 @@ class SettingsScreen extends StatelessWidget {
             context,
             icon: Icons.info_outline,
             title: BankLocalizationKeys.bankAboutApp.tr(context),
-            subtitle: BankLocalizationKeys.bankAboutAppDesc.tr(context),
+            subtitle: '${BankConstants.appVersion}·开发者测试',
             onTap: () {
               _showAboutDialog(context);
+            },
+          ),
+          _buildDivider(),
+          _buildSettingsItem(
+            context,
+            icon: Icons.bug_report_outlined,
+            title: '开发者测试',
+            subtitle: 'API状态监控和网络日志',
+            onTap: () {
+              context.push(BankConstants.routeDeveloperTools);
             },
           ),
           _buildDivider(),

@@ -27,20 +27,103 @@ APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
 
-# Source common functions if available
-if [ -f "$APT_REPO_MANAGER_DIR/common_functions.sh" ]; then
-    source "$APT_REPO_MANAGER_DIR/common_functions.sh"
+# Source required files (trust-based programming)
+source "$APT_REPO_MANAGER_DIR/common_functions.sh"
+source "$APT_REPO_MANAGER_DIR/gvar_common.sh"
+
+# Ensure USE_SUDO is set
+if [ -z "${USE_SUDO:-}" ]; then
+    if [ "$(id -u)" -eq 0 ]; then
+        USE_SUDO=""
+    else
+        USE_SUDO="sudo"
+    fi
 fi
 
-# Source gvar_common.sh if available
-if [ -f "$APT_REPO_MANAGER_DIR/gvar_common.sh" ]; then
-    source "$APT_REPO_MANAGER_DIR/gvar_common.sh"
-fi
+# Get real login user (not root)
+get_real_login_user_from_apt_repository_manager() {
+    # Use function from common_functions.sh if available (check if function exists)
+    if type get_real_user_from_common_functions >/dev/null 2>&1; then
+        local result=$(get_real_user_from_common_functions 2>/dev/null)
+        if [ -n "$result" ] && [ "$result" != "root" ]; then
+            echo "$result"
+            return 0
+        fi
+    fi
+    
+    # Fallback: simple detection
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "$USER"
+        return 0
+    elif [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        echo "$SUDO_USER"
+        return 0
+    elif [ -n "${ACTUAL_DESKTOP_USER:-}" ] && [ "$ACTUAL_DESKTOP_USER" != "root" ]; then
+        echo "$ACTUAL_DESKTOP_USER"
+        return 0
+    else
+        # Last resort: find first non-system user
+        local real_user=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}')
+        if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+            echo "$real_user"
+            return 0
+        fi
+    fi
+    
+    # Final fallback (should not reach here)
+    return 1
+}
+
+# Fix file permissions to real user (not root)
+fix_file_permissions_from_apt_repository_manager() {
+    local file_path="$1"
+    local permissions="${2:-+x}"
+    
+    if [ -z "$file_path" ]; then
+        return 1
+    fi
+    
+    local real_user=$(get_real_login_user_from_apt_repository_manager)
+    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
+        # If we can't determine real user, just chmod
+        $USE_SUDO chmod "$permissions" "$file_path" 2>/dev/null || return 1
+        return 0
+    fi
+    
+    # Set ownership to real user first, then chmod
+    $USE_SUDO chown "$real_user:$real_user" "$file_path" 2>/dev/null || true
+    $USE_SUDO chmod "$permissions" "$file_path" 2>/dev/null || return 1
+    
+    return 0
+}
+
+# Ensure packages are installed
+ensure_packages_from_apt_repository_manager() {
+    local packages="$*"
+    [ -z "$packages" ] && return 0
+    
+    local missing_packages=""
+    for pkg in $packages; do
+        if ! command -v "$pkg" >/dev/null 2>&1 && ! dpkg -l | grep -q "^ii.*$pkg "; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
+    
+    [ -z "$missing_packages" ] && return 0
+    
+    echo "Installing packages:$missing_packages"
+    $USE_SUDO apt update >/dev/null 2>&1
+    $USE_SUDO apt install -y $missing_packages >/dev/null 2>&1 || {
+        echo "ERROR: Failed to install packages:$missing_packages" >&2
+        return 1
+    }
+    return 0
+}
 
 # Initialize backup directory structure
 init_apt_backup_dir_from_apt_repository_manager() {
     # Create base backup directory (user-accessible)
-    mkdir -p "$APT_BACKUP_BASE_DIR" 2>/dev/null || {
+    $USE_SUDO mkdir -p "$APT_BACKUP_BASE_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create backup base directory: $APT_BACKUP_BASE_DIR" >&2
         return 1
     }
@@ -53,7 +136,7 @@ init_apt_backup_dir_from_apt_repository_manager() {
     APT_BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     APT_BACKUP_DIR="$APT_BACKUP_BASE_DIR/$APT_BACKUP_TIMESTAMP"
     
-    mkdir -p "$APT_BACKUP_DIR" 2>/dev/null || {
+    $USE_SUDO mkdir -p "$APT_BACKUP_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create backup directory: $APT_BACKUP_DIR" >&2
         return 1
     }
@@ -68,7 +151,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
     fi
     
     echo "Creating original APT sources backup (first time use)..."
-    mkdir -p "$APT_ORIGINAL_BACKUP_DIR" 2>/dev/null || {
+    $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create original backup directory" >&2
         return 1
     }
@@ -89,7 +172,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
     
     # Backup keyrings directory
     if [ -d "$APT_KEYRINGS_DIR" ]; then
-        mkdir -p "$APT_ORIGINAL_BACKUP_DIR/keyrings" 2>/dev/null || true
+        $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR/keyrings" 2>/dev/null || true
         $USE_SUDO cp -rp "$APT_KEYRINGS_DIR"/* "$APT_ORIGINAL_BACKUP_DIR/keyrings/" 2>/dev/null || {
             echo "WARNING: Failed to backup $APT_KEYRINGS_DIR" >&2
         }
@@ -97,7 +180,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
     
     # Backup trusted keys directory
     if [ -d "$APT_TRUSTED_KEYS_DIR" ]; then
-        mkdir -p "$APT_ORIGINAL_BACKUP_DIR/trusted.gpg.d" 2>/dev/null || true
+        $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR/trusted.gpg.d" 2>/dev/null || true
         $USE_SUDO cp -rp "$APT_TRUSTED_KEYS_DIR"/* "$APT_ORIGINAL_BACKUP_DIR/trusted.gpg.d/" 2>/dev/null || {
             echo "WARNING: Failed to backup $APT_TRUSTED_KEYS_DIR" >&2
         }
@@ -112,7 +195,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
         echo "This is the original backup created on first use of the repository manager."
         echo "Files backed up:"
         find "$APT_ORIGINAL_BACKUP_DIR" -type f 2>/dev/null | sort
-    } > "$APT_ORIGINAL_BACKUP_DIR/manifest.txt" 2>/dev/null || true
+    } | $USE_SUDO tee "$APT_ORIGINAL_BACKUP_DIR/manifest.txt" >/dev/null 2>&1 || true
     
     echo "Original backup completed: $APT_ORIGINAL_BACKUP_DIR"
     return 0
@@ -124,11 +207,14 @@ backup_apt_sources_from_apt_repository_manager() {
     local backup_path="$APT_BACKUP_BASE_DIR/$backup_id"
     
     if [ -z "$backup_id" ] || [ "$backup_id" = "$APT_BACKUP_TIMESTAMP" ]; then
-        init_apt_backup_dir_from_apt_repository_manager
+        if ! init_apt_backup_dir_from_apt_repository_manager; then
+            echo "ERROR: Failed to initialize backup directory" >&2
+            return 1
+        fi
         backup_path="$APT_BACKUP_DIR"
     fi
     
-    mkdir -p "$backup_path" 2>/dev/null || {
+    $USE_SUDO mkdir -p "$backup_path" 2>/dev/null || {
         echo "ERROR: Failed to create backup directory: $backup_path" >&2
         return 1
     }
@@ -151,7 +237,7 @@ backup_apt_sources_from_apt_repository_manager() {
     
     # Backup keyrings directory (directory copy)
     if [ -d "$APT_KEYRINGS_DIR" ]; then
-        mkdir -p "$backup_path/keyrings" 2>/dev/null || true
+        $USE_SUDO mkdir -p "$backup_path/keyrings" 2>/dev/null || true
         $USE_SUDO cp -rp "$APT_KEYRINGS_DIR"/* "$backup_path/keyrings/" 2>/dev/null || {
             echo "WARNING: Failed to backup $APT_KEYRINGS_DIR" >&2
         }
@@ -159,7 +245,7 @@ backup_apt_sources_from_apt_repository_manager() {
     
     # Backup trusted keys directory (directory copy)
     if [ -d "$APT_TRUSTED_KEYS_DIR" ]; then
-        mkdir -p "$backup_path/trusted.gpg.d" 2>/dev/null || true
+        $USE_SUDO mkdir -p "$backup_path/trusted.gpg.d" 2>/dev/null || true
         $USE_SUDO cp -rp "$APT_TRUSTED_KEYS_DIR"/* "$backup_path/trusted.gpg.d/" 2>/dev/null || {
             echo "WARNING: Failed to backup $APT_TRUSTED_KEYS_DIR" >&2
         }
@@ -175,7 +261,7 @@ backup_apt_sources_from_apt_repository_manager() {
         echo ""
         echo "Files backed up:"
         find "$backup_path" -type f 2>/dev/null | sort
-    } > "$manifest_file" 2>/dev/null || true
+    } | $USE_SUDO tee "$manifest_file" >/dev/null 2>&1 || true
     
     echo "Backup completed: $backup_path"
     echo "$backup_path"
@@ -248,11 +334,16 @@ add_repository_with_backup_from_apt_repository_manager() {
     fi
     
     # Initialize backup
-    init_apt_backup_dir_from_apt_repository_manager
+    if ! init_apt_backup_dir_from_apt_repository_manager; then
+        echo "ERROR: Failed to initialize backup directory" >&2
+        return 1
+    fi
     
     # Backup before adding repository
-    local backup_id=$(backup_apt_sources_from_apt_repository_manager)
-    if [ $? -ne 0 ]; then
+    local backup_id
+    backup_id=$(backup_apt_sources_from_apt_repository_manager)
+    local backup_result=$?
+    if [ $backup_result -ne 0 ] || [ -z "$backup_id" ]; then
         echo "ERROR: Failed to backup before adding repository" >&2
         return 1
     fi
@@ -264,6 +355,12 @@ add_repository_with_backup_from_apt_repository_manager() {
     if [ -n "$key_url" ] && [ -n "$key_file" ]; then
         echo "Adding GPG key from: $key_url"
         $USE_SUDO mkdir -p "$(dirname "$key_file")" 2>/dev/null || true
+        
+        # Ensure curl is available
+        if ! ensure_packages_from_apt_repository_manager curl; then
+            echo "WARNING: Failed to install curl, cannot add GPG key" >&2
+            return 1
+        fi
         
         if curl -fsSL "$key_url" | $USE_SUDO gpg --dearmor -o "$key_file" 2>/dev/null; then
             echo "GPG key added successfully"
@@ -331,7 +428,7 @@ execute_with_repo_backup_from_apt_repository_manager() {
     local key_url="$3"
     local key_file="$4"
     shift 4
-    local command_to_execute="$@"
+    local command_to_execute="$*"
     
     if [ -z "$repo_name" ] || [ -z "$command_to_execute" ]; then
         echo "ERROR: Repository name and command are required" >&2
@@ -339,8 +436,10 @@ execute_with_repo_backup_from_apt_repository_manager() {
     fi
     
     # Backup before adding repository
-    local backup_id=$(add_repository_with_backup_from_apt_repository_manager "$repo_name" "$repo_line" "$key_url" "$key_file")
-    if [ $? -ne 0 ]; then
+    local backup_id
+    backup_id=$(add_repository_with_backup_from_apt_repository_manager "$repo_name" "$repo_line" "$key_url" "$key_file")
+    local backup_result=$?
+    if [ $backup_result -ne 0 ] || [ -z "$backup_id" ]; then
         echo "ERROR: Failed to backup and add repository" >&2
         return 1
     fi
@@ -421,7 +520,7 @@ clean_old_apt_backups_from_apt_repository_manager() {
     for ((i=$keep_count; i<$total_backups; i++)); do
         local backup_to_remove="$APT_BACKUP_BASE_DIR/${backups[$i]}"
         if [ -d "$backup_to_remove" ] && [ "$(basename "$backup_to_remove")" != "original" ]; then
-            rm -rf "$backup_to_remove"
+            $USE_SUDO rm -rf "$backup_to_remove"
             echo "Removed: ${backups[$i]}"
         fi
     done
@@ -583,14 +682,23 @@ add_mysql_repository_from_apt_repository_manager() {
     local backup_dir="$APT_BACKUP_BASE_DIR/$backup_id"
     
     # Initialize backup directory
-    init_apt_backup_dir_from_apt_repository_manager
+    if ! init_apt_backup_dir_from_apt_repository_manager; then
+        echo "ERROR: Failed to initialize backup directory" >&2
+        return 1
+    fi
     
     # Backup current state
-    backup_apt_sources_from_apt_repository_manager "$backup_id"
+    if ! backup_apt_sources_from_apt_repository_manager "$backup_id"; then
+        echo "ERROR: Failed to backup current state" >&2
+        return 1
+    fi
     
-    # Install prerequisites
-    $USE_SUDO apt update
-    $USE_SUDO apt install -y curl apt-transport-https ca-certificates
+    # Ensure required packages are available
+    if ! ensure_packages_from_apt_repository_manager curl apt-transport-https ca-certificates; then
+        echo "ERROR: Failed to install required packages" >&2
+        restore_apt_sources_from_apt_repository_manager "$backup_id"
+        return 1
+    fi
     
     # Download and run MariaDB repository setup script
     local setup_script="/tmp/mariadb_repo_setup"
@@ -600,18 +708,18 @@ add_mysql_repository_from_apt_repository_manager() {
         return 1
     fi
     
-    mv mariadb_repo_setup "$setup_script"
-    chmod +x "$setup_script"
+    $USE_SUDO mv mariadb_repo_setup "$setup_script"
+    fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
     
     # Run the setup script
     if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11"; then
         echo "ERROR: Failed to setup MariaDB repository" >&2
-        rm -f "$setup_script"
+        $USE_SUDO rm -f "$setup_script"
         restore_apt_sources_from_apt_repository_manager "$backup_id"
         return 1
     fi
     
-    rm -f "$setup_script"
+    $USE_SUDO rm -f "$setup_script"
     
     # Update package list
     $USE_SUDO apt update
@@ -645,6 +753,12 @@ add_apt_repository_from_apt_repository_manager() {
     if [ -n "$key_url" ] && [ -n "$key_file" ]; then
         echo "Adding GPG key from: $key_url"
         $USE_SUDO mkdir -p "$(dirname "$key_file")" 2>/dev/null || true
+        
+        # Ensure curl is available
+        if ! ensure_packages_from_apt_repository_manager curl; then
+            echo "WARNING: Failed to install curl, cannot add GPG key" >&2
+            return 1
+        fi
         
         if curl -fsSL "$key_url" | $USE_SUDO gpg --dearmor -o "$key_file" 2>/dev/null; then
             echo "GPG key added successfully"
@@ -740,7 +854,9 @@ manage_repositories_from_apt_repository_manager() {
     echo "INSTALL_EDGE: $install_edge, INSTALL_MYSQL: $install_mysql"
     
     # Initialize backup directory (ensure original backup exists)
-    init_apt_backup_dir_from_apt_repository_manager
+    if ! init_apt_backup_dir_from_apt_repository_manager; then
+        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    fi
     
     # Manage Edge repository
     if [ "$install_edge" = "true" ]; then
@@ -805,18 +921,24 @@ manage_repositories_from_apt_repository_manager() {
         
         if [ "$already_added" = false ]; then
             # Use MariaDB setup script (permanent, no restore)
+            # Ensure required packages are available
+            if ! ensure_packages_from_apt_repository_manager curl apt-transport-https ca-certificates; then
+                echo "Warning: Failed to install required packages" >&2
+                return 1
+            fi
+            
             local setup_script="/tmp/mariadb_repo_setup"
             if curl -LsSO https://r.mariadb.com/downloads/mariadb_repo_setup; then
-                mv mariadb_repo_setup "$setup_script"
-                chmod +x "$setup_script"
+                $USE_SUDO mv mariadb_repo_setup "$setup_script"
+                fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
                 
                 if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11"; then
-                    rm -f "$setup_script"
+                    $USE_SUDO rm -f "$setup_script"
                     $USE_SUDO apt update
                     echo "MariaDB repository added successfully"
                 else
                     echo "Warning: MariaDB repository addition failed"
-                    rm -f "$setup_script"
+                    $USE_SUDO rm -f "$setup_script"
                 fi
             else
                 echo "Warning: Failed to download MariaDB setup script"
@@ -837,11 +959,15 @@ cleanup_all_custom_repositories_from_apt_repository_manager() {
     echo "Cleaning up all custom repositories..."
     
     # Initialize backup directory
-    init_apt_backup_dir_from_apt_repository_manager
+    if ! init_apt_backup_dir_from_apt_repository_manager; then
+        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    fi
     
     # Backup current state before cleanup
     local cleanup_backup_id="cleanup_$(date +%Y%m%d_%H%M%S)"
-    backup_apt_sources_from_apt_repository_manager "$cleanup_backup_id"
+    if ! backup_apt_sources_from_apt_repository_manager "$cleanup_backup_id"; then
+        echo "WARNING: Failed to backup before cleanup, continuing anyway..." >&2
+    fi
     
     # Remove all custom repository files (keep system defaults)
     echo "Removing custom repository files..."
@@ -898,9 +1024,16 @@ detect_and_fix_repository_issues_from_apt_repository_manager() {
         local sources_list_count=$(grep -c "^deb " "$APT_SOURCES_LIST" 2>/dev/null || echo "0")
         local sources_list_d_count=$(find "$APT_SOURCES_LIST_D" -name "*.list" -exec grep -c "^deb " {} \; 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
         
-        if [ "$sources_list_count" -gt 0 ] && [ "$sources_list_d_count" -gt 0 ]; then
-            echo "WARNING: Found potential duplicate sources (sources.list and sources.list.d both have entries)"
-            issues_found=$((issues_found + 1))
+        # Ensure variables are numeric (remove any whitespace and non-numeric characters)
+        sources_list_count=$(echo "$sources_list_count" | tr -d '[:space:]' | grep -E '^[0-9]+$' || echo "0")
+        sources_list_d_count=$(echo "$sources_list_d_count" | tr -d '[:space:]' | grep -E '^[0-9]+$' || echo "0")
+        
+        # Validate and compare numeric values
+        if [ -n "$sources_list_count" ] && [ -n "$sources_list_d_count" ]; then
+            if [ "$sources_list_count" -gt 0 ] 2>/dev/null && [ "$sources_list_d_count" -gt 0 ] 2>/dev/null; then
+                echo "WARNING: Found potential duplicate sources (sources.list and sources.list.d both have entries)"
+                issues_found=$((issues_found + 1))
+            fi
         fi
     fi
     
@@ -947,12 +1080,17 @@ repair_repositories_from_apt_repository_manager() {
     echo "Starting comprehensive repository repair..."
     
     # Initialize backup directory
-    init_apt_backup_dir_from_apt_repository_manager
+    if ! init_apt_backup_dir_from_apt_repository_manager; then
+        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    fi
     
     # Backup current state before repair
     local repair_backup_id="repair_$(date +%Y%m%d_%H%M%S)"
-    backup_apt_sources_from_apt_repository_manager "$repair_backup_id"
-    echo "Backup created: $repair_backup_id"
+    if ! backup_apt_sources_from_apt_repository_manager "$repair_backup_id"; then
+        echo "WARNING: Failed to backup before repair, continuing anyway..." >&2
+    else
+        echo "Backup created: $repair_backup_id"
+    fi
     
     # Step 1: Clean up problematic repositories
     echo "Step 1: Cleaning up problematic repositories..."

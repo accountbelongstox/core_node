@@ -630,6 +630,250 @@ handle_data_disk() {
 }
 
 # =============================================================================
+# Desktop System Configuration Functions
+# =============================================================================
+
+detect_desktop_type() {
+    local desktop_type=""
+    
+    # Check for GNOME
+    if pgrep -x "gnome-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "GNOME" ] || [ "$DESKTOP_SESSION" = "gnome" ]; then
+        desktop_type="gnome"
+    # Check for KDE
+    elif pgrep -x "kde-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "KDE" ] || [ "$DESKTOP_SESSION" = "kde-plasma" ]; then
+        desktop_type="kde"
+    # Check for XFCE
+    elif pgrep -x "xfce4-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "XFCE" ] || [ "$DESKTOP_SESSION" = "xfce" ]; then
+        desktop_type="xfce"
+    # Check for MATE
+    elif pgrep -x "mate-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "MATE" ] || [ "$DESKTOP_SESSION" = "mate" ]; then
+        desktop_type="mate"
+    # Check for Cinnamon
+    elif pgrep -x "cinnamon-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "X-Cinnamon" ] || [ "$DESKTOP_SESSION" = "cinnamon" ]; then
+        desktop_type="cinnamon"
+    fi
+    
+    echo "$desktop_type"
+}
+
+configure_gnome_desktop() {
+    log "Configuring GNOME desktop for high performance..."
+    
+    # Detect desktop user
+    local desktop_user=""
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        desktop_user="$SUDO_USER"
+    else
+        # Try to find desktop user
+        for user_home in /home/*; do
+            if [ -d "$user_home" ]; then
+                local user_name=$(basename "$user_home")
+                if pgrep -u "$user_name" -x "gnome-session" >/dev/null 2>&1; then
+                    desktop_user="$user_name"
+                    break
+                fi
+            fi
+        done
+    fi
+    
+    if [ -z "$desktop_user" ]; then
+        warning "Could not detect desktop user, skipping GNOME configuration"
+        return 1
+    fi
+    
+    local user_home=$(getent passwd "$desktop_user" 2>/dev/null | cut -d: -f6)
+    if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+        warning "Could not find home directory for user $desktop_user"
+        return 1
+    fi
+    
+    info "Configuring GNOME for user: $desktop_user"
+    
+    # Disable screen lock (compatible with Ubuntu 24.04, 26.04, and GNOME 50)
+    if command -v gsettings >/dev/null 2>&1; then
+        local user_id=$(id -u "$desktop_user" 2>/dev/null)
+        local dbus_address="unix:path=/run/user/$user_id/bus"
+        
+        # Try to get DBUS_SESSION_BUS_ADDRESS from user's environment (works for both X11 and Wayland)
+        if [ -S "/run/user/$user_id/bus" ]; then
+            dbus_address="unix:path=/run/user/$user_id/bus"
+        fi
+        
+        # Method 1: Complete lock screen disable (Ubuntu 24.04+, GNOME 50 compatible)
+        info "Disabling lock screen completely..."
+        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.lockdown disable-lock-screen true 2>/dev/null || \
+        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.lockdown disable-lock-screen true 2>/dev/null || \
+        warning "Failed to disable lock screen via lockdown (may not be available in all GNOME versions)"
+        
+        # Method 2: Disable automatic screen lock (fallback method, works on all GNOME versions)
+        info "Disabling automatic screen lock..."
+        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || \
+        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || \
+        warning "Failed to disable screen lock (may need to run from desktop session)"
+        
+        # Disable idle delay (prevent screen from going idle)
+        info "Disabling idle delay..."
+        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null || \
+        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null || \
+        warning "Failed to disable idle delay (may need to run from desktop session)"
+        
+        # Disable screensaver idle activation
+        info "Disabling screensaver idle activation..."
+        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || \
+        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || \
+        warning "Failed to disable screensaver idle activation"
+    else
+        warning "gsettings command not found, skipping GNOME configuration"
+        return 1
+    fi
+    
+    # Set high performance power profile
+    if command -v powerprofilesctl >/dev/null 2>&1; then
+        info "Setting power profile to performance mode..."
+        if $USE_SUDO powerprofilesctl set performance 2>/dev/null; then
+            log "Power profile set to performance mode"
+        else
+            warning "Failed to set power profile to performance mode (may require system-level configuration)"
+        fi
+    else
+        info "powerprofilesctl not available, skipping power profile configuration"
+    fi
+    
+    log "GNOME desktop configuration completed"
+    return 0
+}
+
+configure_kde_desktop() {
+    log "Configuring KDE desktop for high performance..."
+    
+    # Detect desktop user
+    local desktop_user=""
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        desktop_user="$SUDO_USER"
+    else
+        # Try to find desktop user
+        for user_home in /home/*; do
+            if [ -d "$user_home" ]; then
+                local user_name=$(basename "$user_home")
+                if pgrep -u "$user_name" -x "kde-session" >/dev/null 2>&1; then
+                    desktop_user="$user_name"
+                    break
+                fi
+            fi
+        done
+    fi
+    
+    if [ -z "$desktop_user" ]; then
+        warning "Could not detect desktop user, skipping KDE configuration"
+        return 1
+    fi
+    
+    local user_home=$(getent passwd "$desktop_user" 2>/dev/null | cut -d: -f6)
+    if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+        warning "Could not find home directory for user $desktop_user"
+        return 1
+    fi
+    
+    info "Configuring KDE for user: $desktop_user"
+    
+    # Configure KDE screensaver settings
+    local kde_config_dir="$user_home/.config"
+    local screensaver_config="$kde_config_dir/kscreensaverrc"
+    
+    if [ ! -d "$kde_config_dir" ]; then
+        $USE_SUDO mkdir -p "$kde_config_dir"
+        $USE_SUDO chown "$desktop_user:$desktop_user" "$kde_config_dir"
+    fi
+    
+    info "Disabling screen lock in KDE..."
+    $USE_SUDO -u "$desktop_user" mkdir -p "$kde_config_dir" 2>/dev/null || true
+    
+    # Create or update kscreensaverrc
+    if [ -f "$screensaver_config" ]; then
+        $USE_SUDO -u "$desktop_user" sed -i '/\[ScreenSaver\]/,/^\[/ {
+            /Enabled=/d
+            /Lock=/d
+            /Timeout=/d
+        }' "$screensaver_config" 2>/dev/null || true
+    fi
+    
+    # Add screen saver configuration
+    if ! grep -q "\[ScreenSaver\]" "$screensaver_config" 2>/dev/null; then
+        $USE_SUDO -u "$desktop_user" bash -c "echo '[ScreenSaver]' >> '$screensaver_config'" 2>/dev/null || true
+    fi
+    
+    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Enabled=' '$screensaver_config' 2>/dev/null || echo 'Enabled=false' >> '$screensaver_config'" 2>/dev/null || true
+    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Lock=' '$screensaver_config' 2>/dev/null || echo 'Lock=false' >> '$screensaver_config'" 2>/dev/null || true
+    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Timeout=' '$screensaver_config' 2>/dev/null || echo 'Timeout=36000060' >> '$screensaver_config'" 2>/dev/null || true
+    
+    # Update existing values if they exist
+    $USE_SUDO -u "$desktop_user" sed -i 's/^Enabled=.*/Enabled=false/' "$screensaver_config" 2>/dev/null || true
+    $USE_SUDO -u "$desktop_user" sed -i 's/^Lock=.*/Lock=false/' "$screensaver_config" 2>/dev/null || true
+    $USE_SUDO -u "$desktop_user" sed -i 's/^Timeout=.*/Timeout=36000060/' "$screensaver_config" 2>/dev/null || true
+    
+    # Set ownership
+    $USE_SUDO chown "$desktop_user:$desktop_user" "$screensaver_config" 2>/dev/null || true
+    
+    # Configure power management (Power Devil)
+    # Note: Plasma 6.0+ uses powerdevilrc, older versions may use powermanagementprofilesrc
+    local powerdevil_config="$kde_config_dir/powerdevilrc"
+    local powerdevil_legacy_config="$kde_config_dir/powermanagementprofilesrc"
+    
+    # Configure Plasma 6.0+ powerdevilrc
+    if [ -f "$powerdevil_config" ]; then
+        info "Configuring KDE power management (Plasma 6.0+)..."
+        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_config" 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_config" 2>/dev/null || true
+    # Fallback to legacy config for older Plasma versions
+    elif [ -f "$powerdevil_legacy_config" ]; then
+        info "Configuring KDE power management (Plasma 5.x)..."
+        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
+    fi
+    
+    log "KDE desktop configuration completed"
+    return 0
+}
+
+configure_desktop_system() {
+    # Check if desktop environment is detected
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ]; then
+        info "No desktop environment detected, skipping desktop system configuration"
+        return 0
+    fi
+    
+    log "Desktop environment detected: ${DESKTOP_ENVIRONMENT:-unknown}"
+    
+    # Detect desktop type
+    local desktop_type=$(detect_desktop_type)
+    
+    if [ -z "$desktop_type" ]; then
+        info "Could not determine desktop type, skipping desktop configuration"
+        return 0
+    fi
+    
+    info "Detected desktop type: $desktop_type"
+    
+    case "$desktop_type" in
+        gnome)
+            configure_gnome_desktop
+            ;;
+        kde)
+            configure_kde_desktop
+            ;;
+        xfce|mate|cinnamon)
+            info "Desktop type $desktop_type detected but configuration not yet implemented"
+            info "You may need to configure power management and screen lock manually"
+            ;;
+        *)
+            info "Unknown desktop type: $desktop_type"
+            ;;
+    esac
+    
+    return 0
+}
+
+# =============================================================================
 # Main Function
 # =============================================================================
 
@@ -687,6 +931,11 @@ main() {
     echo ""
     log "Step 2: Mail service control"
     stop_mail_services
+
+    # Step 3: Desktop system optimization (if desktop environment detected)
+    echo ""
+    log "Step 3: Desktop system optimization"
+    configure_desktop_system
 
     log "Base system setup completed!"
 

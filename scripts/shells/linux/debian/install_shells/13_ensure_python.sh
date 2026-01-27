@@ -229,6 +229,40 @@ install_python_essentials() {
     return 0
 }
 
+# Generic function to run pip install with real-time output
+# Args: $1=python_cmd, $2=package_spec (e.g., "package" or "package==1.0.0" or "--upgrade package1 package2"), $3=additional_flags (optional)
+run_pip_install_realtime() {
+    local python_cmd="$1"
+    local package_spec="$2"
+    local additional_flags="${3:-}"
+
+    if [ -z "$python_cmd" ] || [ -z "$package_spec" ]; then
+        return 1
+    fi
+
+    # Build command array for safe execution
+    local cmd_args=("$python_cmd" "-m" "pip" "install")
+    
+    # Split package_spec into words and add to cmd_args
+    # This handles cases like "--upgrade package1 package2"
+    local IFS=' '
+    read -ra package_words <<< "$package_spec"
+    cmd_args+=("${package_words[@]}")
+    
+    # Add standard flags
+    cmd_args+=("--index-url" "https://pypi.org/simple/" "--break-system-packages" "--no-user")
+    
+    # Add additional flags if provided
+    if [ -n "$additional_flags" ]; then
+        read -ra flag_words <<< "$additional_flags"
+        cmd_args+=("${flag_words[@]}")
+    fi
+
+    # Execute with real-time output (let pip handle all output)
+    "${cmd_args[@]}" 2>&1
+    return $?
+}
+
 # Function to upgrade pip with official PyPI only
 upgrade_pip_official() {
     local pip_cmd="$1"
@@ -245,13 +279,8 @@ upgrade_pip_official() {
 
     # IDEMPOTENCY: Always upgrade pip to ensure latest version
     # Use --no-user to force system-level installation (not /var/_core_node/Users)
-    if $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/ --break-system-packages --no-user --ignore-installed 2>&1 | grep -v "WARNING\|Retrying" | head -20; then
-        print_success_from_common_functions "pip upgraded successfully using official PyPI"
-        return 0
-    else
-        print_warning_from_common_functions "pip upgrade failed, continuing with existing pip version"
-        return 1
-    fi
+    run_pip_install_realtime "$python_cmd" "--upgrade pip" "--ignore-installed" || true
+    return 0
 }
 
 # Function to install required Python packages with official PyPI only
@@ -277,13 +306,8 @@ install_python_packages_official() {
 
     # IDEMPOTENCY: Always check and install/upgrade packages
     # Use --no-user to force system-level installation (not /var/_core_node/Users)
-    if $python_cmd -m pip install --upgrade --index-url https://pypi.org/simple/ --break-system-packages --no-user --ignore-installed "${packages[@]}" 2>&1 | grep -v "WARNING\|Retrying" | head -30; then
-        print_success_from_common_functions "Packages installed successfully using official PyPI"
-        return 0
-    else
-        print_warning_from_common_functions "Package installation failed, continuing anyway"
-        return 1
-    fi
+    run_pip_install_realtime "$python_cmd" "--upgrade ${packages[*]}" "--ignore-installed" || true
+    return 0
 }
 
 # Function to set pip mirror to official PyPI
@@ -868,28 +892,25 @@ check_urllib3_for_certbot() {
     print_info_from_common_functions "Installing urllib3 1.26.18 (last version with DEFAULT_CIPHERS)..."
 
     # Remove incompatible versions
-    $USE_SUDO pip3 uninstall -y urllib3 >/dev/null 2>&1 || true
+    echo ">>> Uninstalling existing urllib3..."
+    $USE_SUDO pip3 uninstall -y urllib3 2>&1 || true
 
-    # Install compatible version
-    if python3 -m pip install --break-system-packages --no-user urllib3==1.26.18 >/dev/null 2>&1; then
-        local new_version=$(python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null)
-        print_success_from_common_functions "urllib3 $new_version installed successfully"
+    # Install compatible version with real-time output
+    echo ">>> Installing urllib3==1.26.18..."
+    run_pip_install_realtime "python3" "urllib3==1.26.18" "" || true
 
-        # Verify DEFAULT_CIPHERS
-        if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
-            print_success_from_common_functions "DEFAULT_CIPHERS verified"
+    # Verify DEFAULT_CIPHERS
+    if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
+        print_success_from_common_functions "DEFAULT_CIPHERS verified"
 
-            # Test certbot
-            if certbot plugins >/dev/null 2>&1; then
-                print_success_from_common_functions "certbot compatibility fixed"
-            else
-                print_warning_from_common_functions "certbot still has issues, may need manual fix"
-            fi
+        # Test certbot
+        if certbot plugins >/dev/null 2>&1; then
+            print_success_from_common_functions "certbot compatibility fixed"
         else
-            print_warning_from_common_functions "DEFAULT_CIPHERS still not available"
+            print_warning_from_common_functions "certbot still has issues, may need manual fix"
         fi
     else
-        print_warning_from_common_functions "Failed to install urllib3 1.26.18"
+        print_warning_from_common_functions "DEFAULT_CIPHERS still not available"
     fi
 
     return 0
@@ -909,19 +930,11 @@ check_and_fix_package_version() {
     if ! python3 -c "$import_cmd" 2>/dev/null; then
         # Package not installed
         if [ -n "$version_constraint" ]; then
-            print_step_from_common_functions "Installing $pip_package$version_constraint..."
-            if python3 -m pip install "$pip_package$version_constraint" --break-system-packages --no-user 2>&1 | tail -5 | grep -q -E "(Successfully installed|already satisfied)"; then
-                print_success_from_common_functions "$pip_package installed successfully"
-            else
-                print_warning_from_common_functions "Failed to install $pip_package, continuing anyway"
-            fi
+            echo ">>> Installing $pip_package$version_constraint..."
+            run_pip_install_realtime "python3" "$pip_package$version_constraint" "" || true
         else
-            print_step_from_common_functions "Installing $pip_package..."
-            if python3 -m pip install "$pip_package" --break-system-packages --no-user 2>&1 | tail -5 | grep -q -E "(Successfully installed|already satisfied)"; then
-                print_success_from_common_functions "$pip_package installed successfully"
-            else
-                print_warning_from_common_functions "Failed to install $pip_package, continuing anyway"
-            fi
+            echo ">>> Installing $pip_package..."
+            run_pip_install_realtime "python3" "$pip_package" "" || true
         fi
         return 0
     fi
@@ -929,17 +942,8 @@ check_and_fix_package_version() {
     # Package is installed - check if version constraint exists and needs verification
     if [ -n "$version_constraint" ]; then
         # For packages with version constraints, force reinstall to ensure correct version
-        print_step_from_common_functions "Verifying $pip_package version constraint: $version_constraint"
-
-        # Use pip install with --force-reinstall to ensure version matches constraint
-        if python3 -m pip install "$pip_package$version_constraint" --break-system-packages --no-user --force-reinstall 2>&1 | tail -5 | grep -q -E "(Successfully installed|already satisfied)"; then
-            print_success_from_common_functions "$pip_package version verified and fixed if needed"
-        else
-            print_warning_from_common_functions "Failed to verify/fix $pip_package version, continuing anyway"
-        fi
-    else
-        # No version constraint - package is already installed and working
-        print_success_from_common_functions "$pip_package is already installed"
+        echo ">>> Verifying $pip_package version constraint: $version_constraint"
+        run_pip_install_realtime "python3" "$pip_package$version_constraint" "--force-reinstall" || true
     fi
 
     return 0
@@ -1111,12 +1115,8 @@ check_and_fix_edge_tts_version_from_dependency_map() {
 
     # Check if edge-tts is installed
     if ! python3 -c "import edge_tts" 2>/dev/null; then
-        print_step_from_common_functions "edge-tts not installed, installing version $required_version..."
-        if python3 -m pip install "edge-tts==$required_version" --break-system-packages --no-user 2>&1 | tail -5 | grep -q -E "(Successfully installed|already satisfied)"; then
-            print_success_from_common_functions "edge-tts $required_version installed successfully"
-        else
-            print_warning_from_common_functions "Failed to install edge-tts, continuing anyway"
-        fi
+        echo ">>> edge-tts not installed, installing version $required_version..."
+        run_pip_install_realtime "python3" "edge-tts==$required_version" "" || true
         return 0
     fi
 
@@ -1134,28 +1134,16 @@ check_and_fix_edge_tts_version_from_dependency_map() {
     done
 
     if [ $is_compatible -eq 1 ]; then
-        print_success_from_common_functions "edge-tts version $current_version is compatible, no action needed"
         return 0
     fi
 
     # Incompatible version detected (7.2.2+), need to downgrade
     print_warning_from_common_functions "WARNING: edge-tts $current_version is incompatible (has NoAudioReceived bug)"
     print_warning_from_common_functions "Reference: https://github.com/rany2/edge-tts/issues/443"
-    print_step_from_common_functions "Downgrading to $required_version..."
+    echo ">>> Downgrading edge-tts to $required_version..."
 
     # Force reinstall with correct version
-    if python3 -m pip install "edge-tts==$required_version" --break-system-packages --no-user --force-reinstall 2>&1 | tail -10 | grep -q -E "(Successfully installed|already satisfied)"; then
-        # Verify installation
-        local new_version=$(python3 -c "import edge_tts; print(edge_tts.__version__)" 2>/dev/null || echo "unknown")
-
-        if [ "$new_version" = "$required_version" ]; then
-            print_success_from_common_functions "SUCCESS: edge-tts downgraded from $current_version to $new_version"
-        else
-            print_warning_from_common_functions "WARNING: Downgrade attempted but got version $new_version instead of $required_version"
-        fi
-    else
-        print_warning_from_common_functions "Failed to downgrade edge-tts, continuing anyway"
-    fi
+    run_pip_install_realtime "python3" "edge-tts==$required_version" "--force-reinstall" || true
 
     return 0
 }

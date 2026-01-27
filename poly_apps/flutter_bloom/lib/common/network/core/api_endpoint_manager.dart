@@ -368,6 +368,26 @@ class ApiEndpointManager {
     }
   }
 
+  /// Check health of all configured endpoints
+  Future<Map<String, EndpointHealthResult>> checkAllEndpoints({
+    Duration timeout = const Duration(seconds: 2),
+    String? healthCheckPath,
+  }) async {
+    final results = <String, EndpointHealthResult>{};
+    final testPath = healthCheckPath ?? '/';
+    
+    for (final endpoint in _endpoints) {
+      final result = await checkEndpoint(
+        endpoint,
+        timeout: timeout,
+        path: testPath,
+      );
+      results[endpoint.id] = result;
+    }
+    
+    return results;
+  }
+
   /// Reset manager state
   void reset() {
     _currentEndpoint = null;
