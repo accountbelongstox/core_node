@@ -1039,6 +1039,95 @@ prompt_cleanup_reinstall() {
     return 0
 }
 
+# Backup Gitea data
+# This function stops the service, creates a timestamped backup archive, and optionally starts a download server
+backup_gitea_data() {
+    print_header_from_common_functions "Gitea Data Backup"
+
+    if ! is_gitea_installed; then
+        print_error_from_common_functions "Gitea is not installed"
+        print_info_from_common_functions "Please install Gitea first using this script"
+        return 1
+    fi
+
+    local was_running=false
+    if systemctl is-active --quiet "$GITEA_SERVICE" 2>/dev/null; then
+        was_running=true
+        print_info_from_common_functions "Gitea service is running and will be stopped for backup"
+    fi
+
+    # Stop Gitea service
+    if [[ "$was_running" == true ]]; then
+        print_step_from_common_functions "Stopping Gitea service..."
+        if ! $USE_SUDO systemctl stop "$GITEA_SERVICE"; then
+            print_error_from_common_functions "Failed to stop Gitea service"
+            return 1
+        fi
+        sleep 3
+        print_success_from_common_functions "Gitea service stopped"
+    fi
+
+    # Create backup directory
+    local backup_base_dir=$(map_web_path "www")
+    local backup_dir="$backup_base_dir/backups/gitea"
+    $USE_SUDO mkdir -p "$backup_dir"
+    $USE_SUDO chmod 755 "$backup_dir" 2>/dev/null || true
+
+    # Create timestamped backup filename
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local backup_filename="gitea-backup-${timestamp}.tar.gz"
+    local backup_path="$backup_dir/$backup_filename"
+
+    print_step_from_common_functions "Creating backup archive: $backup_filename"
+    print_info_from_common_functions "This may take a while depending on data size..."
+
+    # Create backup archive
+    cd "$GITEA_BASE_DIR" || {
+        print_error_from_common_functions "Failed to change to Gitea base directory"
+        if [[ "$was_running" == true ]]; then
+            $USE_SUDO systemctl start "$GITEA_SERVICE"
+        fi
+        return 1
+    }
+
+    if $USE_SUDO tar -czf "$backup_path" data config custom log 2>/dev/null; then
+        $USE_SUDO chmod 640 "$backup_path" 2>/dev/null || true
+        local backup_size=$(du -h "$backup_path" | cut -f1)
+        print_success_from_common_functions "Backup created successfully"
+        print_info_from_common_functions "Backup file: $backup_filename"
+        print_info_from_common_functions "Backup size: $backup_size"
+        print_info_from_common_functions "Backup location: $backup_path"
+    else
+        print_error_from_common_functions "Backup failed"
+        if [[ "$was_running" == true ]]; then
+            $USE_SUDO systemctl start "$GITEA_SERVICE"
+        fi
+        return 1
+    fi
+
+    # Restart service if it was running
+    if [[ "$was_running" == true ]]; then
+        echo ""
+        print_step_from_common_functions "Starting Gitea service..."
+        if $USE_SUDO systemctl start "$GITEA_SERVICE"; then
+            sleep 3
+            if systemctl is-active --quiet "$GITEA_SERVICE" 2>/dev/null; then
+                print_success_from_common_functions "Gitea service started"
+            else
+                print_warning_from_common_functions "Gitea service may not have started properly"
+            fi
+        else
+            print_error_from_common_functions "Failed to start Gitea service"
+            print_warning_from_common_functions "Please start Gitea manually: sudo systemctl start gitea"
+        fi
+    fi
+
+    echo ""
+    print_success_from_common_functions "Backup completed successfully"
+    echo "$backup_path"
+    return 0
+}
+
 # Main script execution
 main() {
     # Parse arguments

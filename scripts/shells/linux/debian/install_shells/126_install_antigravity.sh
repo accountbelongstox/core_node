@@ -265,88 +265,43 @@ remove_repository() {
 }
 
 install_antigravity() {
-    # Step 1: Add repository
-    log "Step 1/4: Adding Antigravity repository..."
-    if ! add_repository; then
-        log "ERROR: Failed to add repository"
-        return 1
-    fi
-
-    # Step 2: Update package cache
-    log "Step 2/4: Updating package cache..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if ! $USE_SUDO apt update; then
-        log "ERROR: Failed to update package cache"
-        remove_repository
-        return 1
-    fi
-
-    # Step 3: Install package
-    log "Step 3/4: Installing $ANTIGRAVITY_PACKAGE..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y "$ANTIGRAVITY_PACKAGE"; then
-        log "Package installed successfully"
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore
+    log "Installing $ANTIGRAVITY_PACKAGE with repository manager..."
+    add_antigravity_repository_from_apt_repository_manager \
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Installation completed successfully"
+        return 0
     else
         log "ERROR: Failed to install package"
-        remove_repository
         return 1
     fi
-
-    # Step 4: Remove repository immediately after installation
-    log "Step 4/4: Removing repository (cleanup after installation)..."
-    remove_repository
-
-    log "Installation completed successfully"
-    return 0
 }
 
 # Function: Update Antigravity (add repo �?upgrade �?remove repo)
 update_antigravity() {
     log "Updating $ANTIGRAVITY_PACKAGE..."
-
-    # Step 1: Add repository
-    log "Step 1/4: Adding Antigravity repository..."
-    if ! add_repository; then
-        log "ERROR: Failed to add repository"
-        return 1
-    fi
-
-    # Step 2: Update package cache
-    log "Step 2/4: Updating package cache..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if ! $USE_SUDO apt update; then
-        log "ERROR: Failed to update package cache"
-        remove_repository
-        return 1
-    fi
-
-    # Step 3: Upgrade package
-    log "Step 3/4: Upgrading $ANTIGRAVITY_PACKAGE..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install --only-upgrade -y "$ANTIGRAVITY_PACKAGE"; then
-        log "Package upgraded successfully"
+    
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore
+    add_antigravity_repository_from_apt_repository_manager \
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install --only-upgrade -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Update completed"
+        return 0
     else
         log "WARNING: Package may already be at latest version or upgrade failed"
+        return 1
     fi
-
-    # Step 4: Remove repository immediately after update
-    log "Step 4/4: Removing repository (cleanup after update)..."
-    remove_repository
-
-    log "Update completed"
-    return 0
 }
 
 # Function: Prompt user to update if already installed

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup Management</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">Backup Management</h1>
+                <div class="header-actions">
+                    <button id="statsBtn" class="btn btn-secondary">Statistics</button>
+                    <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Statistics Panel -->
+        <div id="statsPanel" class="stats-panel hidden">
+            <div class="stats-content">
+                <h2>Backup Statistics</h2>
+                <div id="statsData" class="stats-grid"></div>
+                <button class="btn btn-secondary" onclick="closeStats()">Close</button>
+            </div>
+        </div>
+
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <div class="filter-group">
+                <label for="namespaceFilter">Namespace:</label>
+                <select id="namespaceFilter" class="filter-select">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="searchInput">Search:</label>
+                <input type="text" id="searchInput" class="filter-input" placeholder="Search backups...">
+            </div>
+            <div class="filter-group">
+                <label for="sortSelect">Sort by:</label>
+                <select id="sortSelect" class="filter-select">
+                    <option value="date-desc">Date (Newest)</option>
+                    <option value="date-asc">Date (Oldest)</option>
+                    <option value="size-desc">Size (Largest)</option>
+                    <option value="size-asc">Size (Smallest)</option>
+                    <option value="name-asc">Name (A-Z)</option>
+                    <option value="name-desc">Name (Z-A)</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <button id="batchSelectBtn" class="btn btn-secondary">Select Multiple</button>
+                <button id="batchDeleteBtn" class="btn btn-danger hidden">Delete Selected</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <div id="loading" class="loading">Loading backups...</div>
+            <div id="error" class="error hidden"></div>
+            
+            <div id="backupList" class="backup-list"></div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Backup Details</h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <div id="restoreModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Restore Backup</h2>
+            <div id="restoreModalBody"></div>
+        </div>
+    </div>
+
+    <div id="verifyModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Verify Backup</h2>
+            <div id="verifyModalBody"></div>
+        </div>
+    </div>
+
+    <!-- HTML Templates - 不离组件复用，所有HTML模板都在这里 -->
+    <template id="template-empty-state">
+        <div class="empty-state">
+            <div class="empty-state-icon">📦</div>
+            <div class="empty-state-text">No backups found</div>
+        </div>
+    </template>
+
+    <template id="template-namespace-section">
+        <div class="namespace-section">
+            <div class="namespace-header">
+                <div>
+                    <span class="namespace-title"></span>
+                    <span class="backup-count"></span>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="template-backup-item">
+        <div class="backup-item" data-backup-path="">
+            <div class="backup-item-content">
+                <input type="checkbox" class="backup-checkbox" data-path="">
+                <div class="backup-info">
+                    <div class="backup-name"></div>
+                    <div class="backup-meta">
+                        <span class="backup-size"></span>
+                        <span class="backup-modified"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="backup-actions">
+                <button class="btn btn-success btn-small" data-action="download">Download</button>
+                <button class="btn btn-primary btn-small" data-action="info">Info</button>
+                <button class="btn btn-warning btn-small" data-action="verify">Verify</button>
+                <button class="btn btn-secondary btn-small" data-action="restore">Restore</button>
+                <button class="btn btn-danger btn-small" data-action="delete">Delete</button>
+            </div>
+        </div>
+    </template>
+
+    <template id="template-detail-row">
+        <div class="detail-row">
+            <span class="detail-label"></span>
+            <span class="detail-value"></span>
+        </div>
+    </template>
+
+    <template id="template-stat-card">
+        <div class="stat-card">
+            <div class="stat-label"></div>
+            <div class="stat-value"></div>
+            <div class="stat-subvalue hidden"></div>
+        </div>
+    </template>
+
+    <template id="template-progress-bar">
+        <div class="progress-bar">
+            <div class="progress-fill" data-percent="0">0%</div>
+        </div>
+    </template>
+
+    <template id="template-status-badge">
+        <span class="status-badge"></span>
+    </template>
+
+    <template id="template-warning-box">
+        <div class="warning-box">
+            <strong>⚠️ Warning:</strong> <span class="warning-message"></span>
+        </div>
+    </template>
+
+    <template id="template-loading">
+        <div class="loading"></div>
+    </template>
+
+    <template id="template-error-message">
+        <div class="error"></div>
+    </template>
+
+    <template id="template-restore-dialog">
+        <div class="warning-box">
+            <strong>⚠️ Warning:</strong> <span class="warning-message">Restoring from backup will replace all current data for this namespace. This action cannot be undone. Make sure you have a current backup before proceeding.</span>
+        </div>
+        <p class="info-text"><strong>Namespace:</strong> <span class="restore-namespace"></span></p>
+        <p class="info-text"><strong>Backup:</strong> <span class="restore-backup-path"></span></p>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" id="restoreConfirm" class="checkbox-input">
+                <span>I understand that this will replace all current data</span>
+            </label>
+        </div>
+        <div class="button-group">
+            <button class="btn btn-danger" id="restoreBtn" disabled>Restore</button>
+            <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+        </div>
+    </template>
+
+    <template id="template-restore-progress">
+        <div class="loading">Restoring backup...</div>
+        <div class="progress-bar">
+            <div class="progress-fill" data-percent="0">0%</div>
+        </div>
+        <p class="progress-hint">This may take several minutes depending on backup size.</p>
+    </template>
+
+    <template id="template-restore-result">
+        <span class="status-badge"></span>
+        <p class="result-message"></p>
+        <div class="detail-rows"></div>
+        <div class="button-group">
+            <button class="btn btn-primary" data-action="close">Close</button>
+        </div>
+    </template>
+
+    <template id="template-verify-result">
+        <span class="status-badge"></span>
+        <p class="result-message"></p>
+        <div class="detail-rows"></div>
+    </template>
+
+    <!-- Scripts -->
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/ui-controls.js"></script>
+    <script src="/static/js/components.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/stats.js"></script>
+    <script src="/static/js/filter.js"></script>
+    <script src="/static/js/backup-list.js"></script>
+    <script src="/static/js/backup-actions.js"></script>
+    <script src="/static/js/restore.js"></script>
+    <script src="/static/js/verify.js"></script>
+    <script src="/static/js/batch.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
