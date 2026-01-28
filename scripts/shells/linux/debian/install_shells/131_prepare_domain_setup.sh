@@ -29,6 +29,12 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Source Laravel deploy script for reusable functions
 source "$CORE_NODE_DIR/poly_apps/laravel_main/scripts/deploy.sh"
 
+# Source unified Laravel service manager
+LARAVEL_SERVICE_MANAGER="$CORE_NODE_DIR/scripts/unified_manager/modules/laravel_service_manager.sh"
+if [ -f "$LARAVEL_SERVICE_MANAGER" ]; then
+    source "$LARAVEL_SERVICE_MANAGER"
+fi
+
 # Variable declarations
 laravel_dir=""
 www_root=""
@@ -368,9 +374,16 @@ laravel_dir=$(get_laravel_dir)
 if [ -d "$laravel_dir" ]; then
     cd "$laravel_dir" || exit 1
 
-    # Check if any Octane services exist
+    # Check if any Octane services exist using unified Laravel service manager
     echo "[$SCRIPT_INDEX] Checking for existing Octane services..."
-    octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep "octane-poly" | head -1)
+    
+    if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v check_laravel_service_status >/dev/null 2>&1; then
+        # Use unified Laravel service manager
+        octane_services=$(check_laravel_service_status "laravel_main" 2>/dev/null || true)
+    else
+        # Fallback to direct artisan command
+        octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep "octane-poly" | head -1)
+    fi
 
     if [ -n "$octane_services" ]; then
         echo "[$SCRIPT_INDEX] Found existing Octane service"
@@ -384,20 +397,30 @@ if [ -d "$laravel_dir" ]; then
             echo "[$SCRIPT_INDEX] Using domain: $first_domain"
             echo "[$SCRIPT_INDEX] Regenerating service configuration with latest settings..."
 
-            # This triggers the idempotent logic in ServerManagerV1WebsiteCommand.php
-            # STEP 1: Regenerates service file with ProtectSystem=full
-            # STEP 2: Reloads systemd daemon
-            # STEP 3: Restarts service to apply changes
-            $USE_SUDO php artisan servermanager:website add "$first_domain" \
-                --type=poly --ssl=auto --php-mode=swoole 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config" | while read -r line; do
-                echo "[$SCRIPT_INDEX]   $line"
-            done
+            # Use unified Laravel service manager if available
+            if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v add_laravel_website >/dev/null 2>&1; then
+                # Use unified script
+                add_laravel_website "$first_domain" "auto" 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config|Website added" | while read -r line; do
+                    echo "[$SCRIPT_INDEX]   $line"
+                done
+            else
+                # Fallback to direct artisan command
+                $USE_SUDO php artisan servermanager:website add "$first_domain" \
+                    --type=poly --ssl=auto --php-mode=swoole 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config" | while read -r line; do
+                    echo "[$SCRIPT_INDEX]   $line"
+                done
+            fi
 
             echo "[$SCRIPT_INDEX] Service configuration refreshed"
 
             # Verify service is running
-            service_status=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "● octane-poly")
-            if echo "$service_status" | grep -q "●"; then
+            if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v check_laravel_service_status >/dev/null 2>&1; then
+                service_status=$(check_laravel_service_status "laravel_main" 2>/dev/null || true)
+            else
+                service_status=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "● octane-poly")
+            fi
+            
+            if echo "$service_status" | grep -q "●\|octane-poly"; then
                 echo "[$SCRIPT_INDEX] ✓ Octane service is active"
             else
                 echo "[$SCRIPT_INDEX] ⚠ Octane service may need manual check"

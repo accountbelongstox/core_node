@@ -684,14 +684,9 @@ extract_appimage() {
 
     if [[ -n "$chrome_sandbox" ]]; then
         print_step_from_common_functions "Fixing chrome-sandbox permissions at: $chrome_sandbox"
-        # Use sudo directly for chrome-sandbox permissions (required for security)
-        if command -v sudo >/dev/null 2>&1; then
-            sudo chmod 4755 "$chrome_sandbox"
-            sudo chown root:root "$chrome_sandbox"
-        else
-            chmod 4755 "$chrome_sandbox"
-            chown root:root "$chrome_sandbox"
-        fi
+        # Fix chrome-sandbox permissions (required for security)
+        $USE_SUDO chmod 4755 "$chrome_sandbox"
+        $USE_SUDO chown root:root "$chrome_sandbox"
     else
         print_warning_from_common_functions "chrome-sandbox not found, Cursor may not work properly"
     fi
