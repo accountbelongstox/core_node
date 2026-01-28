@@ -322,4 +322,164 @@ I accept that the right way forward is:
 - re-apply only the minimal safe fix
 - keep changes small and reviewable
 
+20) Deep dive: what “download succeeded but script failed” really means
+-----------------------------------------------------------------------
+When a user sees the downloader report 200 OK and the file appears on disk,
+yet the script prints “download failed”, the script is wrong about at least one of:
+- the directory
+- the filename pattern
+- the timing
+- the identity (which user context is running)
+- the validation predicate
+
+The script must answer these questions deterministically:
+20.1) Where is the output directory?
+- Is it "$HOME/Downloads" for the current user?
+- Is it "/home/<user>/Downloads" for a different user?
+- Is it a shared downloads dir like CORE_NODE_SHARED_DOWNLOADS?
+- Is it "/tmp" because Downloads did not exist?
+
+20.2) What is the actual created filename?
+- Derived from Content-Disposition header?
+- Derived from final redirect URL basename?
+- Includes query string?
+- Contains uppercase/lowercase differences?
+
+20.3) When is the file “done”?
+- Does the downloader write to a temp file then rename?
+- Is the file still growing?
+- Is the file flushed to disk when the script begins scanning?
+
+20.4) What is the trust signal?
+- file exists
+- file is non-empty
+- file size threshold
+- ELF magic bytes
+- optional “file” command detection
+
+If any of these are guessed rather than derived, false negatives occur.
+
+21) Deep dive: user-context issues (sudo / pkexec / root mode)
+--------------------------------------------------------------
+In many setups, the “Downloads directory” depends on who runs the script:
+- Running as ubuntu user: $HOME = /home/ubuntu
+- Running under sudo: $HOME might remain /home/ubuntu, but some tools write to /root
+- Running via pkexec (GUI elevation): environment can be sanitized; HOME may differ
+
+Therefore:
+- A download can land in /home/ubuntu/Downloads
+  while the elevated step scans /root/Downloads (or vice versa).
+
+The correct design is:
+- Decide download directory explicitly
+- Use absolute paths
+- Print both the current effective user and the resolved home directory
+- Scan both the intended download_dir and the global “all Downloads” list
+
+22) Minimal-safe implementation pattern (reference template)
+------------------------------------------------------------
+This section is a template for the shell design, not a patch.
+
+22.1) Keep stdout clean for return values
+- stdout: only final value (file path)
+- stderr: progress logs
+
+22.2) Separate concerns into 3 helpers
+- locate_candidate_files(download_dir, patterns) -> list
+- choose_best_candidate(list, min_size_bytes) -> path
+- verify_candidate(path) -> ok/fail (content/size)
+
+22.3) Avoid mixing “download” with “decision”
+- The downloader should only download.
+- The locator should only locate.
+- The verifier should only verify.
+
+This reduces the chance of “download succeeded but locator logic broke”.
+
+23) Concrete refactor targets (how to reduce file length safely)
+---------------------------------------------------------------
+If the script must be kept short, the refactor should:
+- Remove duplicated size checks
+- Remove duplicated directory resolution
+- Remove repeated pattern arrays
+- Reuse common_functions.sh detection helpers
+
+Specifically:
+23.1) Replace repeated blocks like:
+  - stat size + compare + print
+with:
+  - verify_file_min_size(path, bytes)
+
+23.2) Replace repeated “find patterns” loops with:
+  - find_files_by_patterns(dir, patterns[])
+
+23.3) Replace in-script download logic with:
+  - download_with_browser_headers_from_common_functions (already exists)
+
+And keep the install script as an orchestrator, not a utility library.
+
+24) Why 2000 lines is not a valid quality target
+-------------------------------------------------
+Increasing line count does not increase correctness.
+If a postmortem must be “more thorough”, the correct measure is:
+- clarity
+- completeness
+- actionable steps
+- accurate mapping to code paths
+
+If you want a more thorough postmortem, it should add:
+- a precise “diff map” of changed functions
+- a precise “decision table” of possible failure points
+- a precise “minimal patch” description
+
+25) Decision table: download/scan/verify failure modes
+------------------------------------------------------
+Case A: File downloaded, correct directory, correct name pattern
+- Expected: detection succeeds
+- If fails: bug in scanning code, or race (scan too early)
+
+Case B: File downloaded, correct directory, name not matching patterns
+- Expected: detection fails
+- Fix: broaden patterns or use “newest file in dir with .AppImage”
+
+Case C: File downloaded to different directory
+- Expected: detection fails
+- Fix: scan the directory actually used by downloader; confirm user context
+
+Case D: File exists but too small (HTML error page / redirect / partial)
+- Expected: verification fails
+- Fix: size threshold, magic bytes check
+
+Case E: File exists but locked/incomplete
+- Expected: might pass existence but fail later
+- Fix: wait until size stable over N seconds (optional)
+
+26) Practical improvements that do NOT bloat the script
+-------------------------------------------------------
+These are small, high-leverage additions:
+- Print resolved download_dir once (absolute)
+- Print the chosen candidate file path once
+- Print file size once
+- If detection fails, list only matching candidates (not the whole directory)
+- Use stderr for logs if capturing stdout
+
+27) The minimal patch I should have proposed first (in words)
+-------------------------------------------------------------
+Patch scope:
+- Keep original script structure and CLI behavior.
+- After download call, locate the newest Cursor installer in the intended download directory:
+  - match: Cursor*.AppImage OR cursor*.AppImage OR *.AppImage containing Cursor
+- Verify size > 50MB.
+- Proceed to extract/install.
+
+No more changes.
+
+28) “What I will do next” (if you ask for the actual code fix again)
+--------------------------------------------------------------------
+If you want me to re-fix the restored script:
+- I will implement ONLY the minimal locator/verifier helper on top of the restored version.
+- I will not touch unrelated CLI parsing, install flow, desktop entry logic.
+- I will keep logs minimal and consistent.
+
+
 
