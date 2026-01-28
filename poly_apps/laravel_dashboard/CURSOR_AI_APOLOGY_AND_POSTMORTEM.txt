@@ -787,6 +787,87 @@ Result:
 - In shell: stdout for return values, stderr for progress logs.
 - Prefer “locate-after-download” using a stable, minimal candidate selection rule.
 
+36) Apology in engineering terms (what I own)
+---------------------------------------------
+I own these failures:
+- I expanded scope beyond the bug.
+- I created long, hard-to-review diffs.
+- I added duplicate logic that belonged in shared helpers.
+- I produced inconsistent UX (silent vs verbose), which is itself a reliability issue.
+- I missed a well-known shell pitfall (stdout capture under `$(...)`) and only corrected it late.
+
+I do not own:
+- network/CDN variability and upstream API changes,
+but I do own how poorly I handled them (overcomplicating rather than making a minimal, robust locator).
+
+37) The exact failure mode: “download succeeded but file not found”
+-------------------------------------------------------------------
+This bug class usually comes from one of these mismatches:
+- **Path mismatch**: downloader wrote to a directory different from what the script later scans.
+- **Name mismatch**: filename differs (Cursor vs cursor, version string differs, query suffixes removed/kept).
+- **Return-value mismatch**: helper returns empty/incorrect path even if the file exists.
+- **Timing mismatch**: scan runs before the file is fully flushed to disk.
+
+The minimal, reliable mitigation is:
+- Determine *the* download directory used for this run.
+- After download, locate the newest matching candidate *in that directory* using a broad-but-safe pattern.
+- Verify the candidate by file signals (exists, size threshold; optionally ELF magic for AppImage).
+
+38) Minimal backfill that was applied (post-restore)
+----------------------------------------------------
+On top of the restored script, the minimal backfill implemented is:
+- `resolve_cursor_download_dir()`:
+  - resolves the directory deterministically for the current run (HOME/Downloads → /home/*/Downloads → /tmp)
+- `find_newest_cursor_installer_in_dir(dir)`:
+  - finds newest file in that directory matching `*cursor*.AppImage` or `*cursor*.deb` (case-insensitive)
+- `verify_cursor_installer_file(path)`:
+  - validates by file existence + minimum size threshold (50MB)
+- Updated auto-download branch:
+  - if returned path fails verification, scan the download directory and pick the newest verified candidate
+
+Why this is minimal:
+- no changes to the rest of install flow
+- no changes to prompts/UX outside the download branch
+- no large refactor
+
+39) Output discipline note (shell-specific)
+-------------------------------------------
+Whenever code uses:
+  `var="$(func)"`
+then:
+- `func` must print only the value to stdout
+- all progress/debug must go to stderr
+
+Violating this causes:
+- missing progress on screen
+- corrupted `var` content (because it includes logs)
+
+40) Suggested “tight change budget” policy for scripts like this
+---------------------------------------------------------------
+For installer scripts that affect system state:
+- **Bugfix limit**: <= ~40 lines changed per fix (unless user explicitly approves a refactor)
+- **One reason per change**: each edited block must map to one failing symptom
+- **No behavior refactor + formatting refactor together**
+- **Use shared helpers first**
+
+41) A short “diff review checklist” for this file
+-------------------------------------------------
+Before accepting a change to `121_install_cursor.sh`, a reviewer should ask:
+- Does this change alter CLI behavior or prompts? If yes, is that intended?
+- Does this duplicate logic available in `common_functions.sh`?
+- Does this rely on exit codes for download success? If yes, why?
+- Does it correctly handle dynamic filenames?
+- Does it print logs to stdout in functions that are called with `$(...)`?
+- Does it delete user-downloaded installers automatically? If yes, is it safe?
+
+42) Closing statement (again)
+-----------------------------
+I’m sorry for the wasted cycles.
+When you want, the next safe step is to run the script again and confirm:
+- auto-download is followed by directory scan
+- newest valid installer is selected
+- install continues without false “download failed”
+
 
 
 
