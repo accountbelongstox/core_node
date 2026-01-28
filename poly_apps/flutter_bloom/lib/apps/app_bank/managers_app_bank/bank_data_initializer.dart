@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import '../../../common/storage/unified_storage.dart';
 import '../providers_app_bank/bank_user_provider.dart';
 import '../config_app_bank/bank_storage_keys.dart';
+import '../models_app_bank/bank_card_model.dart';
 
 class BankDataInitializer {
   static bool _isInitialized = false;
@@ -21,7 +22,8 @@ class BankDataInitializer {
   static bool get isInitialized => _isInitialized;
 
   static Future<void> checkAndInitialize(BankUserProvider provider) async {
-    final initialized = await UnifiedStorage.get<bool>(BankStorageKeys.dataInitializedKey);
+    final initialized =
+        await UnifiedStorage.get<bool>(BankStorageKeys.dataInitializedKey);
     if (initialized == true) {
       _isInitialized = true;
       debugPrint('BankDataInitializer: Data already initialized, skipping');
@@ -42,15 +44,15 @@ class BankDataInitializer {
       // This ensures fresh data after login, even if old cards exist in storage
       await _initializeBankCards(provider);
 
-      final hasName = provider.user?.fullName != null && 
-                     provider.user?.fullName!.isNotEmpty == true &&
-                     provider.user?.fullName != 'Default User';
+      final hasName = provider.user?.fullName != null &&
+          provider.user?.fullName!.isNotEmpty == true &&
+          provider.user?.fullName != 'Default User';
       if (!hasName) {
         await _initializeUserName(provider);
       }
 
-      final hasLocation = provider.globalData?.location != null && 
-                         provider.globalData?.location!.isNotEmpty == true;
+      final hasLocation = provider.globalData?.location != null &&
+          provider.globalData?.location!.isNotEmpty == true;
       if (!hasLocation) {
         await _initializeLocation(provider);
       }
@@ -88,9 +90,27 @@ class BankDataInitializer {
         await provider.removeBankCard(0);
       }
 
-      // Bank cards should be loaded from server API, not generated locally
-      // This method is kept as a placeholder for future server integration
-      debugPrint('BankDataInitializer: Bank cards initialization - waiting for server data');
+      await provider.addBankCard(
+        const BankCardModel(
+          cardNumber: '6222 8888 8888 8888',
+          cardType: '储蓄卡',
+          balance: 12500.75,
+          currency: 'CNY',
+          cardName: '薪资卡',
+        ),
+      );
+      await provider.addBankCard(
+        const BankCardModel(
+          cardNumber: '6222 6666 6666 6666',
+          cardType: '信用卡',
+          balance: 3800.25,
+          currency: 'CNY',
+          cardName: '日常消费卡',
+        ),
+      );
+
+      debugPrint(
+          'BankDataInitializer: Bank cards initialized with 2 default cards');
     } catch (e) {
       debugPrint('BankDataInitializer: Error initializing bank cards: $e');
     }
@@ -98,14 +118,17 @@ class BankDataInitializer {
 
   static Future<void> _initializeUserName(BankUserProvider provider) async {
     try {
-      final currentName = provider.user?.fullName ?? provider.globalData?.fullName;
+      final currentName =
+          provider.user?.fullName ?? provider.globalData?.fullName;
       if (currentName != null && currentName.isNotEmpty) {
-        debugPrint('BankDataInitializer: User name already exists: $currentName');
+        debugPrint(
+            'BankDataInitializer: User name already exists: $currentName');
         return;
       }
 
       // User name should be loaded from server API, not generated locally
-      debugPrint('BankDataInitializer: User name initialization - waiting for server data');
+      debugPrint(
+          'BankDataInitializer: User name initialization - waiting for server data');
     } catch (e) {
       debugPrint('BankDataInitializer: Error initializing user name: $e');
     }
@@ -114,21 +137,23 @@ class BankDataInitializer {
   static Future<void> _initializeLocation(BankUserProvider provider) async {
     try {
       // Location should be loaded from server API or user preferences, not hardcoded
-      debugPrint('BankDataInitializer: Location initialization - waiting for server data');
+      debugPrint(
+          'BankDataInitializer: Location initialization - waiting for server data');
     } catch (e) {
       debugPrint('BankDataInitializer: Error initializing location: $e');
     }
   }
 
-  static Future<void> _initializeHoldingsTotal(BankUserProvider provider) async {
+  static Future<void> _initializeHoldingsTotal(
+      BankUserProvider provider) async {
     try {
       // Holdings total should be loaded from server API, not generated locally
-      debugPrint('BankDataInitializer: Holdings total initialization - waiting for server data');
+      debugPrint(
+          'BankDataInitializer: Holdings total initialization - waiting for server data');
     } catch (e) {
       debugPrint('BankDataInitializer: Error initializing holdings total: $e');
     }
   }
-
 
   static Future<void> resetInitialization() async {
     await UnifiedStorage.remove(BankStorageKeys.dataInitializedKey);
