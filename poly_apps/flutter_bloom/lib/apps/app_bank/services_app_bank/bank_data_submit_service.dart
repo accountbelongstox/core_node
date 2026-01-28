@@ -564,6 +564,17 @@ class BankDataSubmitService {
         timeout: const Duration(seconds: 30),
       );
 
+      // Print full API URL for debugging
+      final endpointManager = ApiEndpointManager();
+      final baseUrl = endpointManager.getCurrentBaseUrl() ?? 'http://localhost';
+      final fullUrl = baseUrl.endsWith('/') 
+          ? '$baseUrl${networkRequest.endpoint.substring(1)}'
+          : '${baseUrl}${networkRequest.endpoint}';
+      debugPrint('🌐 Full API URL: $fullUrl');
+      debugPrint('🌐 Method: ${networkRequest.method}');
+      debugPrint('🌐 Endpoint: ${networkRequest.endpoint}');
+      debugPrint('🌐 Base URL: $baseUrl');
+
       final response =
           await _client!.request<Map<String, dynamic>>(networkRequest);
 

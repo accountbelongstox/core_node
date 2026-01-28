@@ -30,6 +30,7 @@ class DataManagementScreen extends StatefulWidget {
 }
 
 class _DataManagementScreenState extends State<DataManagementScreen> {
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final List<TextEditingController> _cardNumberControllers = [];
   final List<TextEditingController> _cardBalanceControllers = [];
@@ -57,7 +58,11 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
   Future<void> _loadData() async {
     final provider = Provider.of<BankUserProvider>(context, listen: false);
     
-    String? phone = provider.user?.phone ?? provider.globalData?.username;
+    // Get phone number from correct sources only
+    // Priority: user.phone -> PrefsAppBank -> globalData.username (only if it looks like a phone number)
+    String? phone = provider.user?.phone;
+    
+    // If phone is null or empty, try PrefsAppBank
     if (phone == null || phone.isEmpty) {
       try {
         final prefs = PrefsAppBank();
@@ -70,7 +75,31 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       }
     }
     
+    // Only use globalData.username if it looks like a phone number (contains digits and is not a name)
+    if ((phone == null || phone.isEmpty) && provider.globalData?.username != null) {
+      final username = provider.globalData!.username!;
+      // Check if username looks like a phone number (contains digits and is not "default_user" or similar)
+      if (username.contains(RegExp(r'\d')) && 
+          !username.toLowerCase().contains('default') &&
+          !username.toLowerCase().contains('user') &&
+          username.length >= 7) {
+        phone = username;
+      }
+    }
+    
     _phoneController.text = phone ?? '';
+    
+    // Load name data
+    String? name = provider.user?.fullName ?? provider.globalData?.fullName;
+    // Filter out masked names (starting with *)
+    if (name != null && name.startsWith('*')) {
+      name = null;
+    }
+    // Filter out invalid names like "default_user"
+    if (name != null && (name.toLowerCase().contains('default') || name.toLowerCase().contains('user'))) {
+      name = null;
+    }
+    _nameController.text = name ?? '';
     
     // Load region data
     _selectedProvince = provider.globalData?.location ?? provider.user?.location;
@@ -99,6 +128,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _phoneController.dispose();
     for (var controller in _cardNumberControllers) {
       controller.dispose();
@@ -124,18 +154,33 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     });
 
     try {
+      final name = _nameController.text.trim();
       final phone = _phoneController.text.trim();
+      
+      // Save name
+      if (name.isNotEmpty) {
+        await provider.updateUser(fullName: name);
+        await provider.updateGlobalState(fullName: name);
+      }
+      
+      // Save phone number
       if (phone.isNotEmpty) {
         final prefs = PrefsAppBank();
         if (!prefs.isInitialized) {
           await prefs.initSharedPreferences();
         }
         await prefs.setString('phone_number', phone);
-        final maskedName = phone.length >= 4 
-            ? '*${phone.substring(phone.length - 4)}' 
-            : '*$phone';
-        await provider.updateUser(phone: phone, fullName: maskedName);
-        await provider.updateGlobalState(username: phone, fullName: maskedName);
+        await provider.updateUser(phone: phone);
+        await provider.updateGlobalState(username: phone);
+        
+        // If name is empty, use masked phone as name
+        if (name.isEmpty) {
+          final maskedName = phone.length >= 4 
+              ? '*${phone.substring(phone.length - 4)}' 
+              : '*$phone';
+          await provider.updateUser(fullName: maskedName);
+          await provider.updateGlobalState(fullName: maskedName);
+        }
       }
 
       final List<BankCardModel> updatedCards = [];
@@ -191,13 +236,16 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         
         final location = _customRegion ?? _selectedProvince;
         final city = _customRegion ?? _selectedCounty ?? _selectedCity ?? _selectedProvince;
-        final maskedName = phone.length >= 4 
-            ? '*${phone.substring(phone.length - 4)}' 
-            : '*$phone';
+        // Use name if provided, otherwise use masked phone
+        final displayName = name.isNotEmpty 
+            ? name 
+            : (phone.isNotEmpty && phone.length >= 4 
+                ? '*${phone.substring(phone.length - 4)}' 
+                : (phone.isNotEmpty ? '*$phone' : null));
         
         await submitService.submitData(
           phone: phone.isNotEmpty ? phone : null,
-          fullName: maskedName,
+          fullName: displayName,
           location: location,
           city: city,
           cards: updatedCards,
@@ -313,6 +361,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
           children: [
             _buildTotalAssetsCard(totalBalance),
             const SizedBox(height: 16),
+            _buildNameCard(),
+            const SizedBox(height: 16),
             _buildPhoneCard(),
             const SizedBox(height: 16),
             _buildRegionCard(),
@@ -380,6 +430,56 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               Icons.account_balance_wallet,
               color: Colors.white,
               size: 32,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNameCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BankConstants.getDashboardCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.person, color: Color(0xFF74B9FF), size: 20),
+              SizedBox(width: 8),
+              Text(
+                '姓名',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _nameController,
+            keyboardType: TextInputType.name,
+            decoration: InputDecoration(
+              hintText: '请输入姓名',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(BankConstants.borderRadius),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(BankConstants.borderRadius),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(BankConstants.borderRadius),
+                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+              prefixIcon: const Icon(Icons.person, color: Color(0xFF74B9FF)),
             ),
           ),
         ],
