@@ -223,14 +223,12 @@ download_and_rename_cursor() {
     
     # Final verification: file must exist and have valid size
     if [[ -z "$downloaded_file" ]] || [[ ! -f "$downloaded_file" ]]; then
-        print_error_from_common_functions "Downloaded file not found or invalid in download directory"
         return 1
     fi
     
     # Verify file is not empty and has minimum size
     local file_size=$(stat -c%s "$downloaded_file" 2>/dev/null || stat -f%z "$downloaded_file" 2>/dev/null || echo "0")
     if [[ "$file_size" -lt 52428800 ]]; then
-        print_error_from_common_functions "Downloaded file too small ($file_size bytes), expected > 50MB"
         return 1
     fi
     
@@ -256,19 +254,16 @@ download_and_rename_cursor() {
     
     local renamed_file="$file_dir/$new_filename"
     if ! mv -f "$downloaded_file" "$renamed_file" 2>/dev/null; then
-        print_error_from_common_functions "Failed to rename file: $downloaded_file"
         return 1
     fi
     
     # Final verification: renamed file must exist and have valid size
     if [[ ! -f "$renamed_file" ]]; then
-        print_error_from_common_functions "Renamed file not found: $renamed_file"
         return 1
     fi
     
     local final_size=$(stat -c%s "$renamed_file" 2>/dev/null || stat -f%z "$renamed_file" 2>/dev/null || echo "0")
     if [[ "$final_size" -lt 52428800 ]]; then
-        print_error_from_common_functions "Renamed file size invalid ($final_size bytes)"
         return 1
     fi
     
@@ -1162,15 +1157,12 @@ install_cursor() {
     
     # Verify file exists and has valid size (file-based verification, not exit code)
     if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-        print_error_from_common_functions "Failed to download Cursor installer (file not found)"
         return 1
     fi
     
     # Verify file size (must be > 50MB)
     local file_size=$(stat -c%s "$cursor_file" 2>/dev/null || stat -f%z "$cursor_file" 2>/dev/null || echo "0")
     if [[ "$file_size" -lt 52428800 ]]; then
-        print_error_from_common_functions "Downloaded file too small ($file_size bytes), expected > 50MB"
-        print_error_from_common_functions "File may be corrupted: $cursor_file"
         return 1
     fi
 
