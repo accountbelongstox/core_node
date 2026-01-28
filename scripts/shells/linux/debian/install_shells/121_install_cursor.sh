@@ -990,9 +990,108 @@ cleanup_cursor() {
     return 0
 }
 
+# Ensure Cursor Agent is installed (pre-check before main installation)
+ensure_cursor_agent_installed() {
+    # Check if agent command exists
+    if command -v agent >/dev/null 2>&1; then
+        local agent_path=$(command -v agent)
+        print_info_from_common_functions "Cursor Agent already installed: $agent_path"
+        echo "$agent_path"
+        return 0
+    fi
+
+    print_step_from_common_functions "Cursor Agent not found, installing..."
+    
+    # Ensure curl is installed
+    if ! command -v curl >/dev/null 2>&1; then
+        print_step_from_common_functions "Installing curl..."
+        $USE_SUDO apt-get update -qq
+        $USE_SUDO apt-get install -y curl
+    fi
+
+    # Detect actual user for agent installation (works in root mode)
+    local agent_user="${SUDO_USER:-$USER}"
+    if [[ "$agent_user" == "root" ]] || [[ -z "$agent_user" ]]; then
+        # Find first non-root user
+        agent_user=$(detect_system_user)
+    fi
+    local agent_home=$(getent passwd "$agent_user" 2>/dev/null | cut -d: -f6)
+    if [[ -z "$agent_home" ]] || [[ ! -d "$agent_home" ]]; then
+        agent_home="$HOME"
+        agent_user="$USER"
+    fi
+
+    print_info_from_common_functions "Installing Cursor Agent for user: $agent_user ($agent_home)"
+
+    # Install agent using official installer
+    if curl -fsS https://cursor.com/install | bash; then
+        print_success_from_common_functions "Cursor Agent installed successfully"
+    else
+        print_warning_from_common_functions "Cursor Agent installation may have failed"
+    fi
+
+    # Add ~/.local/bin to PATH for the detected user
+    local local_bin_dir="$agent_home/.local/bin"
+    if [[ -d "$local_bin_dir" ]]; then
+        # Add to user's .bashrc
+        local bashrc_file="$agent_home/.bashrc"
+        if [[ -f "$bashrc_file" ]] && ! grep -q "export PATH=.*$local_bin_dir" "$bashrc_file" 2>/dev/null; then
+            echo "" >> "$bashrc_file"
+            echo "# Added by Cursor installer" >> "$bashrc_file"
+            echo "export PATH=\"$local_bin_dir:\$PATH\"" >> "$bashrc_file"
+        fi
+
+        # Add to /etc/environment for system-wide access (works in root mode)
+        if ! grep -q "PATH.*$local_bin_dir" /etc/environment 2>/dev/null; then
+            $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+            local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "/usr/local/bin:/usr/bin:/bin")
+            echo "PATH=\"$local_bin_dir:$current_path\"" | $USE_SUDO tee -a /etc/environment > /dev/null
+        fi
+
+        # Refresh environment variables
+        set -a
+        source /etc/environment 2>/dev/null || true
+        set +a
+        export PATH="$local_bin_dir:$PATH"
+    fi
+
+    # Find agent binary
+    local agent_path=""
+    if [[ -f "$local_bin_dir/agent" ]]; then
+        agent_path="$local_bin_dir/agent"
+    elif command -v agent >/dev/null 2>&1; then
+        agent_path=$(command -v agent)
+    else
+        # Search in common locations
+        for search_dir in "$agent_home/.local/bin" "/usr/local/bin" "/usr/bin"; do
+            if [[ -f "$search_dir/agent" ]]; then
+                agent_path="$search_dir/agent"
+                break
+            fi
+        done
+    fi
+
+    if [[ -n "$agent_path" ]] && [[ -f "$agent_path" ]]; then
+        print_success_from_common_functions "Cursor Agent installed at: $agent_path"
+        echo "$agent_path"
+        return 0
+    else
+        print_warning_from_common_functions "Cursor Agent installation completed but binary not found"
+        return 1
+    fi
+}
+
 # Main installation function
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
+
+    # Pre-check: Ensure Cursor Agent is installed (independent of main installation)
+    print_step_from_common_functions "Pre-check: Ensuring Cursor Agent is installed..."
+    local agent_path=$(ensure_cursor_agent_installed)
+    if [[ -n "$agent_path" ]]; then
+        print_info_from_common_functions "Cursor Agent absolute path: $agent_path"
+    fi
+    echo ""
 
     # Track if this is an upgrade operation
     local is_upgrade_operation=false
@@ -1171,7 +1270,7 @@ install_cursor() {
             print_success_from_common_functions "Found installer already matches target version: $remote_version"
             print_info_from_common_functions "No download needed - using existing file"
         elif [[ -n "$remote_version" ]] && [[ "$existing_file_version" != "$remote_version" ]]; then
-            print_warning_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
+            print_info_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
             print_info_from_common_functions "Will attempt to download newer version..."
 
             # Keep the old file path for fallback
@@ -1238,7 +1337,20 @@ install_cursor() {
             fi
         fi
 
-        # If still no file, fallback and manual-download logic below remains unchanged
+        # If still no file after download attempt, check for fallback
+        if [[ -z "$cursor_file" ]] && [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
+            print_warning_from_common_functions "Auto-download failed, using available fallback installer"
+            print_info_from_common_functions "Fallback file: $(basename "$fallback_file")"
+            cursor_file="$fallback_file"
+            install_type="$fallback_type"
+        fi
+    fi
+
+    # Final check: cursor_file must exist
+    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+        print_error_from_common_functions "No valid Cursor installer found"
+        print_info_from_common_functions "Please download Cursor installer manually and save it to any /home/*/Downloads directory"
+        return 1
     fi
 
     print_success_from_common_functions "Using Cursor file: $(basename "$cursor_file")"
