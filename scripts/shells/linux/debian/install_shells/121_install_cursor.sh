@@ -767,52 +767,74 @@ install_deb_package() {
 extract_appimage() {
     local appimage_file="$1"
 
-    print_step_from_common_functions "Extracting Cursor AppImage..."
+    print_step_from_common_functions "=== AppImage Extraction Phase ==="
+    print_info_from_common_functions "AppImage file: $appimage_file"
 
-    # Check file integrity before extraction
+    # Step 1: Check file integrity before extraction
+    print_step_from_common_functions "Step 1: Checking file integrity..."
     if [[ ! -f "$appimage_file" ]]; then
-        print_error_from_common_functions "AppImage file not found: $appimage_file"
+        print_info_from_common_functions "AppImage file not found: $appimage_file"
         return 2
     fi
 
     local file_size=$(stat -c%s "$appimage_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
+    
     if [[ "$file_size" -lt 50000000 ]]; then
-        print_error_from_common_functions "AppImage file too small ($file_size bytes), expected > 50MB"
-        print_error_from_common_functions "File appears to be corrupted"
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 50000000 bytes (50MB)"
         return 2
     fi
+    print_success_from_common_functions "File integrity check passed"
 
-    # Create directories
+    # Step 2: Create directories
+    print_step_from_common_functions "Step 2: Creating installation directories..."
+    print_info_from_common_functions "Package directory: $CURSOR_PACKAGE_DIR"
+    print_info_from_common_functions "Extracted directory: $CURSOR_EXTRACTED_DIR"
+    print_info_from_common_functions "Bin directory: $CURSOR_BIN_DIR"
     $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
+    print_success_from_common_functions "Directories created"
 
-    # Copy AppImage to installation directory
-    print_step_from_common_functions "Copying AppImage to $CURSOR_PACKAGE_DIR"
+    # Step 3: Copy AppImage to installation directory
+    print_step_from_common_functions "Step 3: Copying AppImage to installation directory..."
+    print_info_from_common_functions "Source: $appimage_file"
+    print_info_from_common_functions "Destination: $CURSOR_PACKAGE_DIR"
     if ! $USE_SUDO cp "$appimage_file" "$CURSOR_PACKAGE_DIR/"; then
-        print_error_from_common_functions "Failed to copy AppImage file (file may be corrupted)"
+        print_info_from_common_functions "Failed to copy AppImage file"
         return 2
     fi
+    print_success_from_common_functions "AppImage copied successfully"
 
     local appimage_name=$(basename "$appimage_file")
     local installed_appimage="$CURSOR_PACKAGE_DIR/$appimage_name"
+    print_info_from_common_functions "Installed AppImage path: $installed_appimage"
 
-    # Make AppImage executable
+    # Step 4: Make AppImage executable
+    print_step_from_common_functions "Step 4: Making AppImage executable..."
     $USE_SUDO chmod +x "$installed_appimage"
+    print_success_from_common_functions "AppImage is now executable"
 
-    # Extract AppImage
-    print_step_from_common_functions "Extracting AppImage contents..."
+    # Step 5: Extract AppImage
+    print_step_from_common_functions "Step 5: Extracting AppImage contents..."
+    print_info_from_common_functions "Extraction directory: $CURSOR_EXTRACTED_DIR"
+    print_info_from_common_functions "This may take a few minutes..."
     cd "$CURSOR_EXTRACTED_DIR"
-    if ! $USE_SUDO "$installed_appimage" --appimage-extract >/dev/null 2>&1; then
-        print_error_from_common_functions "Failed to extract AppImage (file may be corrupted)"
+    if ! $USE_SUDO "$installed_appimage" --appimage-extract 2>&1 | while IFS= read -r line; do
+        print_info_from_common_functions "  $line"
+    done; then
+        print_info_from_common_functions "AppImage extraction failed"
         return 2
     fi
 
     if [[ ! -d "$CURSOR_EXTRACTED_DIR/squashfs-root" ]]; then
-        print_error_from_common_functions "Failed to extract AppImage (extraction incomplete)"
+        print_info_from_common_functions "Extraction incomplete: squashfs-root directory not found"
         return 2
     fi
+    
+    local extracted_size=$(du -sh "$CURSOR_EXTRACTED_DIR/squashfs-root" 2>/dev/null | cut -f1)
+    print_success_from_common_functions "AppImage extracted successfully (size: $extracted_size)"
 
-    # Fix chrome-sandbox permissions (critical for Cursor to work)
-    # Find chrome-sandbox in various possible locations
+    # Step 6: Fix chrome-sandbox permissions (critical for Cursor to work)
+    print_step_from_common_functions "Step 6: Fixing chrome-sandbox permissions..."
     local chrome_sandbox=""
     local possible_paths=(
         "$CURSOR_EXTRACTED_DIR/squashfs-root/chrome-sandbox"
@@ -820,14 +842,16 @@ extract_appimage() {
     )
 
     for path in "${possible_paths[@]}"; do
+        print_info_from_common_functions "  Checking: $path"
         if [[ -f "$path" ]]; then
             chrome_sandbox="$path"
+            print_info_from_common_functions "  Found chrome-sandbox at: $chrome_sandbox"
             break
         fi
     done
 
     if [[ -n "$chrome_sandbox" ]]; then
-        print_step_from_common_functions "Fixing chrome-sandbox permissions at: $chrome_sandbox"
+        print_info_from_common_functions "Setting permissions: chmod 4755, chown root:root"
         # Use sudo directly for chrome-sandbox permissions (required for security)
         if command -v sudo >/dev/null 2>&1; then
             sudo chmod 4755 "$chrome_sandbox"
@@ -836,10 +860,12 @@ extract_appimage() {
             chmod 4755 "$chrome_sandbox"
             chown root:root "$chrome_sandbox"
         fi
+        print_success_from_common_functions "chrome-sandbox permissions fixed"
     else
-        print_warning_from_common_functions "chrome-sandbox not found, Cursor may not work properly"
+        print_info_from_common_functions "chrome-sandbox not found in expected locations"
     fi
 
+    print_success_from_common_functions "AppImage extraction completed"
     return 0
 }
 
