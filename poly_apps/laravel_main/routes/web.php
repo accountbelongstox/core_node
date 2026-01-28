@@ -25,6 +25,7 @@ use App\Http\Controllers\TranslationController;
 use App\Http\Controllers\TTSController;
 use App\Http\Controllers\AppInitializationController;
 use App\Http\Controllers\StartupMonitorController;
+use App\Http\Controllers\Auth\SsoController;
 
 
 /*
@@ -40,6 +41,16 @@ use App\Http\Controllers\StartupMonitorController;
 
 // Root route displays a complete HTML debugging interface (MUST be first to avoid conflicts)
 Route::get('/', [DebugIndex::class, 'index']);
+
+// SSO routes
+Route::prefix('sso')->group(function () {
+    Route::get('/', [SsoController::class, 'index']);
+    Route::post('/authorize', [SsoController::class, 'getAuthorizationUrl']);
+    Route::post('/authenticate', [SsoController::class, 'authenticate']);
+    Route::get('/callback', [SsoController::class, 'callback']);
+    Route::get('/user', [SsoController::class, 'getUser']);
+    Route::post('/logout', [SsoController::class, 'logout']);
+});
 
 // This route is the single web entry point for debugging and must not be modified.
 // It points to the ApiInfoIndex class which is responsible for gathering all information.

@@ -101,39 +101,37 @@ class AppQyV1VocabularyImporter
         ?string $description = null
     ): array {
         try {
-            DB::connection('appqyv1')->beginTransaction();
+            DB::transaction(function () use ($collectionName, $langCode, $sourceType, $ownerId, $isPublic, $description, $words, &$ensuredCount, &$collection) {
+                $existing = AppQyV1VocabularyCollectionModel::where('collection_name', $collectionName)
+                    ->where('lang_code', $langCode)
+                    ->where('owner_id', $ownerId)
+                    ->first();
 
-            $existing = AppQyV1VocabularyCollectionModel::where('collection_name', $collectionName)
-                ->where('lang_code', $langCode)
-                ->where('owner_id', $ownerId)
-                ->first();
+                if ($existing) {
+                    $collection = $existing;
+                    $collection->description = $description ?? $collection->description;
+                    $collection->save();
 
-            if ($existing) {
-                $collection = $existing;
-                $collection->description = $description ?? $collection->description;
-                $collection->save();
+                    AppQyV1VocabularyItemModel::where('collection_id', $collection->id)->delete();
+                } else {
+                    $collection = new AppQyV1VocabularyCollectionModel([
+                        'collection_name' => $collectionName,
+                        'lang_code' => $langCode,
+                        'source_type' => $sourceType,
+                        'owner_id' => $ownerId,
+                        'is_public' => $isPublic,
+                        'description' => $description,
+                        'total_words' => count($words),
+                    ]);
+                    $collection->save();
+                }
 
-                AppQyV1VocabularyItemModel::where('collection_id', $collection->id)->delete();
-            } else {
-                $collection = new AppQyV1VocabularyCollectionModel([
-                    'collection_name' => $collectionName,
-                    'lang_code' => $langCode,
-                    'source_type' => $sourceType,
-                    'owner_id' => $ownerId,
-                    'is_public' => $isPublic,
-                    'description' => $description,
-                    'total_words' => count($words),
-                ]);
-                $collection->save();
-            }
+                AppQyV1VocabularyItemModel::createBatch($collection->id, $langCode, $words);
 
-            AppQyV1VocabularyItemModel::createBatch($collection->id, $langCode, $words);
+                $collection->updateWordCount();
 
-            $collection->updateWordCount();
-
-            $ensuredCount = $this->ensureWordsInDictionary($langCode, $words);
-
-            DB::connection('appqyv1')->commit();
+                $ensuredCount = $this->ensureWordsInDictionary($langCode, $words);
+            });
 
             return [
                 'success' => true,
@@ -144,7 +142,6 @@ class AppQyV1VocabularyImporter
             ];
 
         } catch (\Exception $e) {
-            DB::connection('appqyv1')->rollBack();
 
             Log::error('[AppQyV1VocabularyImporter] Error creating collection', [
                 'collection_name' => $collectionName,

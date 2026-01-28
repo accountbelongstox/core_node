@@ -187,14 +187,19 @@ def extract_icons_auto_detect(
     icon_regions = []
     for v_start, v_end in vertical_ranges:
         for h_start, h_end in horizontal_ranges:
-            icon_regions.append({
-                'x': h_start,
-                'y': v_start,
-                'w': h_end - h_start + 1,
-                'h': v_end - v_start + 1
-            })
+            width = h_end - h_start + 1
+            height = v_end - v_start + 1
+            # Filter out regions that are too small (likely separators or text lines)
+            # Minimum size: 30x30 pixels for valid icons
+            if width >= 30 and height >= 30:
+                icon_regions.append({
+                    'x': h_start,
+                    'y': v_start,
+                    'w': width,
+                    'h': height
+                })
     
-    print(f"\nDetected {len(icon_regions)} icon regions:")
+    print(f"\nDetected {len(icon_regions)} icon regions (filtered, min size 30x30):")
     for i, region in enumerate(icon_regions):
         print(f"  Icon {i+1}: x={region['x']}, y={region['y']}, w={region['w']}, h={region['h']}")
     

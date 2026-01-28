@@ -3,22 +3,24 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 
 class UserSyncService
 {
-    const SUB_APPS = [
-        'AppQyV1',
-        'AwyV0',
-        'VipClubV1',
-        'ServerManagerV1',
-        'AChatV1',
-        'CodeMartV1',
-        'McpV1',
-        'ItToolsV1',
-        'BankV1',
-    ];
+    /**
+     * Get all sub-app keys from AppKeys constants
+     * 
+     * @return array
+     */
+    public static function getSubAppKeys(): array
+    {
+        return AppKeys::all();
+    }
     
     public static function syncUserToAllApps(array $userData): array
     {
@@ -35,17 +37,17 @@ class UserSyncService
             $results['main'] = true;
             $results['main_user_id'] = $mainUser->id;
             
-            foreach (self::SUB_APPS as $appName) {
+            foreach (self::getSubAppKeys() as $appKey) {
                 try {
-                    $connectionName = strtolower($appName);
+                    $connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
                     
                     if (!config("database.connections.{$connectionName}")) {
-                        $results['sub_apps'][$appName] = 'skipped_no_connection';
+                        $results['sub_apps'][$appKey] = 'skipped_no_connection';
                         continue;
                     }
                     
                     if (!self::tableExists($connectionName, 'users')) {
-                        $results['sub_apps'][$appName] = 'skipped_no_table';
+                        $results['sub_apps'][$appKey] = 'skipped_no_table';
                         continue;
                     }
                     
@@ -53,14 +55,17 @@ class UserSyncService
                         'main_user_id' => $mainUser->id,
                     ]);
                     
-                    DB::connection($connectionName)->table('users')->insert($subAppData);
+                    // Use model connection instead of DB::connection()
+                    $userModel = new User();
+                    $userModel->setConnection($connectionName);
+                    $userModel->getConnection()->table('users')->insert($subAppData);
                     
-                    $results['sub_apps'][$appName] = 'success';
+                    $results['sub_apps'][$appKey] = 'success';
                     
                 } catch (\Exception $e) {
-                    Log::error("[UserSync] Failed to sync user to {$appName}: " . $e->getMessage());
-                    $results['sub_apps'][$appName] = 'error';
-                    $results['errors'][$appName] = $e->getMessage();
+                    Log::error("[UserSync] Failed to sync user to {$appKey}: " . $e->getMessage());
+                    $results['sub_apps'][$appKey] = 'error';
+                    $results['errors'][$appKey] = $e->getMessage();
                 }
             }
             
@@ -88,9 +93,7 @@ class UserSyncService
     private static function tableExists(string $connection, string $table): bool
     {
         try {
-            return DB::connection($connection)
-                ->getSchemaBuilder()
-                ->hasTable($table);
+            return Schema::connection($connection)->hasTable($table);
         } catch (\Exception $e) {
             return false;
         }
@@ -99,16 +102,47 @@ class UserSyncService
     public static function getTableStructure(string $connection, string $tableName): array
     {
         try {
-            $columns = DB::connection($connection)->select("PRAGMA table_info({$tableName})");
+            $schema = Schema::connection($connection);
+            
+            if (!$schema->hasTable($tableName)) {
+                return [];
+            }
+            
+            $config = config("database.connections.{$connection}");
+            $driver = $config['driver'] ?? 'sqlite';
+            
+            // For SQLite, use PRAGMA for detailed structure info
+            if ($driver === 'sqlite') {
+                // Use model connection for query builder, DB::connection() for raw SQL
+                $dbConnection = DB::connection($connection);
+                $columns = $dbConnection->select("PRAGMA table_info({$tableName})");
+                $structure = [];
+                
+                foreach ($columns as $column) {
+                    $structure[] = [
+                        'name' => $column->name,
+                        'type' => $column->type,
+                        'notnull' => $column->notnull ? 'NOT NULL' : 'NULL',
+                        'default' => $column->dflt_value,
+                        'pk' => $column->pk ? 'PK' : '',
+                    ];
+                }
+                
+                return $structure;
+            }
+            
+            // For other databases, use Schema Builder
+            $columns = $schema->getColumnListing($tableName);
             $structure = [];
             
-            foreach ($columns as $column) {
+            foreach ($columns as $columnName) {
+                $columnType = $schema->getColumnType($tableName, $columnName);
                 $structure[] = [
-                    'name' => $column->name,
-                    'type' => $column->type,
-                    'notnull' => $column->notnull ? 'NOT NULL' : 'NULL',
-                    'default' => $column->dflt_value,
-                    'pk' => $column->pk ? 'PK' : '',
+                    'name' => $columnName,
+                    'type' => $columnType,
+                    'notnull' => '',
+                    'default' => null,
+                    'pk' => '',
                 ];
             }
             
@@ -122,18 +156,55 @@ class UserSyncService
     public static function getTableIndexes(string $connection, string $tableName): array
     {
         try {
-            $indexes = DB::connection($connection)->select("PRAGMA index_list({$tableName})");
-            $indexDetails = [];
+            $schema = Schema::connection($connection);
             
-            foreach ($indexes as $index) {
-                $indexInfo = DB::connection($connection)->select("PRAGMA index_info({$index->name})");
-                $columns = array_map(fn($col) => $col->name, $indexInfo);
+            if (!$schema->hasTable($tableName)) {
+                return [];
+            }
+            
+            $config = config("database.connections.{$connection}");
+            $driver = $config['driver'] ?? 'sqlite';
+            
+            // For SQLite, use PRAGMA for detailed index info
+            if ($driver === 'sqlite') {
+                // Use DB::connection() for raw SQL queries (PRAGMA)
+                $dbConnection = DB::connection($connection);
+                $indexes = $dbConnection->select("PRAGMA index_list({$tableName})");
+                $indexDetails = [];
                 
-                $indexDetails[] = [
-                    'name' => $index->name,
-                    'unique' => $index->unique ? 'UNIQUE' : '',
-                    'columns' => implode(', ', $columns),
-                ];
+                foreach ($indexes as $index) {
+                    $indexInfo = $dbConnection->select("PRAGMA index_info({$index->name})");
+                    $columns = array_map(fn($col) => $col->name, $indexInfo);
+                    
+                    $indexDetails[] = [
+                        'name' => $index->name,
+                        'unique' => $index->unique ? 'UNIQUE' : '',
+                        'columns' => implode(', ', $columns),
+                    ];
+                }
+                
+                return $indexDetails;
+            }
+            
+            // For other databases, try to get indexes from information_schema
+            // Note: This is a simplified approach, full implementation would require
+            // database-specific queries
+            $indexDetails = [];
+            try {
+                // Use DB::connection() for raw SQL queries (SHOW INDEXES)
+                $dbConnection = DB::connection($connection);
+                $indexes = $dbConnection->select("SHOW INDEXES FROM {$tableName}");
+                
+                foreach ($indexes as $index) {
+                    $indexDetails[] = [
+                        'name' => $index->Key_name ?? $index->key_name ?? '',
+                        'unique' => ($index->Non_unique ?? $index->non_unique ?? 1) == 0 ? 'UNIQUE' : '',
+                        'columns' => $index->Column_name ?? $index->column_name ?? '',
+                    ];
+                }
+            } catch (\Exception $e) {
+                // Fallback: return empty array if SHOW INDEXES is not supported
+                Log::debug("[TableIndexes] Could not get indexes for {$tableName}: " . $e->getMessage());
             }
             
             return $indexDetails;
@@ -143,43 +214,67 @@ class UserSyncService
         }
     }
     
+    /**
+     * Ensure user tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureUserTablesExist(): array
     {
         $results = [];
 
+        // Line 230: Check main database users table (no data deletion)
         if (self::tableExists('sqlite', 'users')) {
             $results['Main'] = 'exists';
         } else {
+            // Line 233: Table does not exist, will be created by migrations (no data deletion)
             $results['Main'] = 'skipped - will be created by migrations';
         }
 
+        // Line 236: Check main database personal_access_tokens table (no data deletion)
         if (self::tableExists('sqlite', 'personal_access_tokens')) {
             $results['Main (personal_access_tokens)'] = 'exists';
         } else {
+            // Line 239: Table does not exist, will be created by migrations (no data deletion)
             $results['Main (personal_access_tokens)'] = 'skipped - will be created by migrations';
         }
 
-        foreach (self::SUB_APPS as $appName) {
-            $connectionName = strtolower($appName);
+        // Line 242: Check all sub-app users tables (no data deletion)
+        foreach (self::getSubAppKeys() as $appKey) {
+            $connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
 
+            // Line 246: If connection does not exist, skip (no data deletion)
             if (!config("database.connections.{$connectionName}")) {
-                $results[$appName] = 'no_connection';
+                $results[$appKey] = 'no_connection';
                 continue;
             }
 
+            // Line 251: If table does not exist, create it (no data deletion, table doesn't exist)
             if (!self::tableExists($connectionName, 'users')) {
                 self::createUserTable($connectionName);
-                $results[$appName] = 'created';
+                $results[$appKey] = 'created';
             } else {
-                $results[$appName] = 'exists';
+                // Line 255: Table exists, skip (no data deletion)
+                $results[$appKey] = 'exists';
             }
         }
 
         return $results;
     }
     
+    /**
+     * Create user table (no data deletion)
+     * 
+     * IMPORTANT: This method only creates table if it doesn't exist, returns immediately if table exists
+     * NEVER deletes tables or data
+     */
     private static function createUserTable(string $connection): void
     {
+        // Line 265: If SQLite, ensure database file exists (no data deletion)
         $config = config("database.connections.{$connection}");
         if ($config && $config['driver'] === 'sqlite') {
             $dbPath = $config['database'];
@@ -193,59 +288,48 @@ class UserSyncService
             }
         }
         
-        if ($connection === 'sqlite') {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username VARCHAR(255),
-                    name VARCHAR(255),
-                    nickname VARCHAR(255),
-                    email VARCHAR(255) UNIQUE,
-                    phone VARCHAR(20),
-                    email_verified_at TIMESTAMP NULL,
-                    password VARCHAR(255),
-                    remember_token VARCHAR(100),
-                    avatar TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ');
-        } else {
-            DB::connection($connection)->statement('
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    main_user_id INTEGER NOT NULL,
-                    username VARCHAR(255),
-                    name VARCHAR(255),
-                    nickname VARCHAR(255),
-                    email VARCHAR(255),
-                    phone VARCHAR(20),
-                    email_verified_at TIMESTAMP NULL,
-                    remember_token VARCHAR(100),
-                    avatar TEXT,
-                    credit INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (main_user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ');
+        // Line 278: If table exists, return immediately (no data deletion)
+        if (Schema::connection($connection)->hasTable('users')) {
+            return;
         }
         
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_users_main_user_id ON users(main_user_id)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname)
-        ');
+        // Line 282: Table does not exist, create it (no data deletion, table doesn't exist)
+        Schema::connection($connection)->create('users', function (Blueprint $table) use ($connection) {
+            $table->id();
+            
+            if ($connection !== 'sqlite') {
+                $table->unsignedBigInteger('main_user_id');
+            }
+            
+            $table->string('username')->nullable();
+            $table->string('name')->nullable();
+            $table->string('nickname')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone', 20)->nullable();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password')->nullable();
+            $table->string('remember_token', 100)->nullable();
+            $table->text('avatar')->nullable();
+            
+            if ($connection !== 'sqlite') {
+                $table->integer('credit')->default(0);
+            }
+            
+            $table->timestamps();
+            
+            if ($connection === 'sqlite') {
+                $table->unique('email');
+            }
+            
+            if ($connection !== 'sqlite') {
+                $table->foreign('main_user_id')->references('id')->on('users')->onDelete('cascade');
+            }
+            
+            $table->index('main_user_id');
+            $table->index('username');
+            $table->index('email');
+            $table->index('nickname');
+        });
     }
 
     private static function createPersonalAccessTokensTable(string $connection): void
@@ -263,86 +347,108 @@ class UserSyncService
             }
         }
 
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS personal_access_tokens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tokenable_type VARCHAR(255) NOT NULL,
-                tokenable_id INTEGER NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                token VARCHAR(64) UNIQUE NOT NULL,
-                abilities TEXT,
-                last_used_at TIMESTAMP NULL,
-                expires_at TIMESTAMP NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ');
+        if (Schema::connection($connection)->hasTable('personal_access_tokens')) {
+            return;
+        }
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_tokenable ON personal_access_tokens(tokenable_type, tokenable_id)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_personal_access_tokens_token ON personal_access_tokens(token)
-        ');
+        Schema::connection($connection)->create('personal_access_tokens', function (Blueprint $table) {
+            $table->id();
+            $table->string('tokenable_type');
+            $table->unsignedBigInteger('tokenable_id');
+            $table->string('name');
+            $table->string('token', 64)->unique();
+            $table->text('abilities')->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
+            $table->timestamps();
+            
+            $table->index(['tokenable_type', 'tokenable_id']);
+            $table->index('token');
+        });
     }
 
+    /**
+     * Ensure TTS cache table exists with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureTTSCacheTablesExist(): array
     {
         $results = [];
-        $connection = 'appqyv1';
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, 'tts_cache');
 
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS app_qy_v1_tts_cache (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                text_hash VARCHAR(32) UNIQUE NOT NULL,
-                text TEXT NOT NULL,
-                language VARCHAR(10) NOT NULL,
-                type VARCHAR(50) NOT NULL,
-                voice VARCHAR(100),
-                audio_path TEXT NOT NULL,
-                audio_size INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                access_count INTEGER DEFAULT 1
-            )
-        ');
+        // Line 387: Check if table exists - if exists, skip (no data deletion)
+        if (Schema::connection($connection)->hasTable($tableName)) {
+            $results[$tableName] = 'exists';
+            return $results;
+        }
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_tts_cache_hash ON app_qy_v1_tts_cache(text_hash)
-        ');
+        // Line 393: Table does not exist, create it (no data deletion, table doesn't exist)
+        Schema::connection($connection)->create($tableName, function (Blueprint $table) {
+            $table->id();
+            $table->string('text_hash', 32)->unique();
+            $table->text('text');
+            $table->string('language', 10);
+            $table->string('type', 50);
+            $table->string('voice', 100)->nullable();
+            $table->text('audio_path');
+            $table->integer('audio_size')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('last_accessed')->useCurrent();
+            $table->integer('access_count')->default(1);
+            
+            $table->index('text_hash');
+            $table->index('language');
+            $table->index('type');
+            $table->index('last_accessed');
+        });
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_tts_cache_language ON app_qy_v1_tts_cache(language)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_tts_cache_type ON app_qy_v1_tts_cache(type)
-        ');
-
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_tts_cache_last_accessed ON app_qy_v1_tts_cache(last_accessed)
-        ');
-
-        $results['app_qy_v1_tts_cache'] = 'created';
+        $results[$tableName] = 'created';
 
         return $results;
     }
 
+    /**
+     * Ensure multilingual dictionary tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists but missing columns: Add missing columns (no data deletion)
+     * 3. If table exists with correct structure: Skip (no data deletion)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only adds missing columns
+     */
     public static function ensureMultiLangDictionaryTablesExist($progressCallback = null): array
     {
         $results = [];
-        $connection = 'appqyv1';
-        $schema = DB::connection($connection)->getSchemaBuilder();
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $schema = Schema::connection($connection);
 
         $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
         $total = count($supportedLanguages);
         $current = 0;
 
+        // Line 439: Define all required columns (for checking table structure completeness)
+        $requiredColumns = [
+            'id', 'content', 'md5', 'translations', 'has_translation', 'translation_provider',
+            'phonetic', 'us_phonetic', 'uk_phonetic', 'tts_files', 'tts_provider',
+            'has_audio', 'image_files', 'image_provider', 'word_details',
+            'is_exist_local', 'has_operations', 'query_count',
+            'last_modified', 'last_query_time', 'created_at', 'updated_at'
+        ];
+
         foreach ($supportedLanguages as $langCode) {
             $current++;
             $tableName = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
 
+            // Line 452: If table does not exist, create it (no data deletion, table doesn't exist)
             if (!$schema->hasTable($tableName)) {
                 $schema->create($tableName, function ($table) {
                     $table->increments('id');
@@ -376,13 +482,23 @@ class UserSyncService
 
                 $results[$tableName] = 'created';
             } else {
-                if (!$schema->hasColumn($tableName, 'has_audio')) {
-                    $schema->table($tableName, function ($table) {
-                        $table->boolean('has_audio')->default(false)->after('tts_provider');
-                        $table->index('has_audio');
+                // Line 481: Table exists, check and add missing columns (no data deletion)
+                $existingColumns = $schema->getColumnListing($tableName);
+                $missingColumns = array_diff($requiredColumns, $existingColumns);
+                
+                if (!empty($missingColumns)) {
+                    // Line 485: Add missing columns (no data deletion)
+                    $schema->table($tableName, function ($table) use ($missingColumns, $existingColumns) {
+                        // Line 487: Add has_audio column if missing
+                        if (in_array('has_audio', $missingColumns)) {
+                            $table->boolean('has_audio')->default(false)->after('tts_provider');
+                            $table->index('has_audio');
+                        }
+                        // Note: Only add columns, never delete columns, never modify existing columns
                     });
                     $results[$tableName] = 'migrated';
                 } else {
+                    // Line 495: Table structure is complete, skip
                     $results[$tableName] = 'exists';
                 }
             }
@@ -399,19 +515,36 @@ class UserSyncService
         return $results;
     }
 
+    /**
+     * Ensure multilingual word tables exist with correct structure (no data deletion)
+     * 
+     * Table structure alignment strategy:
+     * 1. If table does not exist: Create table (no data deletion, table doesn't exist)
+     * 2. If table exists: Skip (no data deletion, no modification to existing table structure)
+     * 
+     * IMPORTANT: This method NEVER deletes tables or data, only creates non-existent tables
+     */
     public static function ensureMultilingualWordTablesExist(): array
     {
         $results = [];
-        $connection = 'appqyv1';
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $dbConnection = $model->getConnection();
 
-        $allDictTables = DB::connection($connection)
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
+        // Line 536: Get all existing dictionary tables (these tables will not be deleted)
+        $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+        $pattern = $prefix . '_%_dictionaries';
+        $allDictTables = $dbConnection
+            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name", [$pattern]);
 
+        // Line 542: Mark all existing tables (these tables will not be deleted)
         foreach ($allDictTables as $tableObj) {
             $tableName = $tableObj->name;
             $results[$tableName] = 'exists';
         }
 
+        // Line 548: Define language tables that need to be created
         $languages = [
             'lao' => ['lo', 'Lao'],
             'japanese' => ['ja', 'Japanese'],
@@ -421,93 +554,72 @@ class UserSyncService
 
         foreach ($languages as $langKey => $langInfo) {
             list($langCode, $langName) = $langInfo;
-            $tableName = "app_qy_v1_{$langCode}_dictionaries";
+            $tableName = \App\Providers\AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
 
+            // Line 560: If table is already in results (exists), skip (no data deletion)
             if (isset($results[$tableName])) {
                 continue;
             }
 
-            // Create dictionary table with standardized structure
+            // Line 565: If table exists, mark as exists (no data deletion)
+            if (Schema::connection($connection)->hasTable($tableName)) {
+                $results[$tableName] = 'exists';
+                continue;
+            }
+
+            // Line 571: Table does not exist, create it (no data deletion, table doesn't exist)
             if ($langKey === 'english') {
-                DB::connection($connection)->statement("
-                    CREATE TABLE IF NOT EXISTS {$tableName} (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        content TEXT NOT NULL,
-                        md5 VARCHAR NOT NULL,
-                        translations TEXT,
-                        has_translation TINYINT(1) DEFAULT 0,
-                        translation_provider VARCHAR,
-                        phonetic TEXT,
-                        us_phonetic TEXT,
-                        uk_phonetic TEXT,
-                        tts_files TEXT,
-                        tts_provider VARCHAR,
-                        image_files TEXT,
-                        image_provider VARCHAR,
-                        word_details TEXT,
-                        is_exist_local TINYINT(1) DEFAULT 0,
-                        has_operations TINYINT(1) DEFAULT 1,
-                        query_count INTEGER DEFAULT 0,
-                        last_modified DATETIME,
-                        last_query_time DATETIME,
-                        created_at DATETIME,
-                        updated_at DATETIME
-                    )
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE UNIQUE INDEX IF NOT EXISTS unique_{$langCode}_content_md5 ON {$tableName}(content, md5)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_content ON {$tableName}(content)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_query_count ON {$tableName}(query_count)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_has_translation ON {$tableName}(has_translation)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_last_query_time ON {$tableName}(last_query_time)
-                ");
+                Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($langCode) {
+                    $table->id();
+                    $table->text('content');
+                    $table->string('md5');
+                    $table->text('translations')->nullable();
+                    $table->boolean('has_translation')->default(false);
+                    $table->string('translation_provider')->nullable();
+                    $table->text('phonetic')->nullable();
+                    $table->text('us_phonetic')->nullable();
+                    $table->text('uk_phonetic')->nullable();
+                    $table->text('tts_files')->nullable();
+                    $table->string('tts_provider')->nullable();
+                    $table->text('image_files')->nullable();
+                    $table->string('image_provider')->nullable();
+                    $table->text('word_details')->nullable();
+                    $table->boolean('is_exist_local')->default(false);
+                    $table->boolean('has_operations')->default(true);
+                    $table->integer('query_count')->default(0);
+                    $table->dateTime('last_modified')->nullable();
+                    $table->dateTime('last_query_time')->nullable();
+                    $table->timestamps();
+                    
+                    $table->unique(['content', 'md5'], "unique_{$langCode}_content_md5");
+                    $table->index('content', "idx_{$langCode}_content");
+                    $table->index('query_count', "idx_{$langCode}_query_count");
+                    $table->index('has_translation', "idx_{$langCode}_has_translation");
+                    $table->index('last_query_time', "idx_{$langCode}_last_query_time");
+                });
             } else {
-                // For other languages, use similar structure
-                DB::connection($connection)->statement("
-                    CREATE TABLE IF NOT EXISTS {$tableName} (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        content TEXT NOT NULL,
-                        md5 VARCHAR NOT NULL,
-                        pronunciation TEXT,
-                        meaning_en TEXT,
-                        meaning_zh TEXT,
-                        translations TEXT,
-                        has_translation TINYINT(1) DEFAULT 0,
-                        phonetic TEXT,
-                        tts_files TEXT,
-                        image_files TEXT,
-                        word_details TEXT,
-                        query_count INTEGER DEFAULT 0,
-                        last_query_time DATETIME,
-                        created_at DATETIME,
-                        updated_at DATETIME
-                    )
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE UNIQUE INDEX IF NOT EXISTS unique_{$langCode}_content_md5 ON {$tableName}(content, md5)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_content ON {$tableName}(content)
-                ");
-
-                DB::connection($connection)->statement("
-                    CREATE INDEX IF NOT EXISTS idx_{$langCode}_has_translation ON {$tableName}(has_translation)
-                ");
+                // Line 590: For other languages, use similar structure (no data deletion)
+                Schema::connection($connection)->create($tableName, function (Blueprint $table) use ($langCode) {
+                    $table->id();
+                    $table->text('content');
+                    $table->string('md5');
+                    $table->text('pronunciation')->nullable();
+                    $table->text('meaning_en')->nullable();
+                    $table->text('meaning_zh')->nullable();
+                    $table->text('translations')->nullable();
+                    $table->boolean('has_translation')->default(false);
+                    $table->text('phonetic')->nullable();
+                    $table->text('tts_files')->nullable();
+                    $table->text('image_files')->nullable();
+                    $table->text('word_details')->nullable();
+                    $table->integer('query_count')->default(0);
+                    $table->dateTime('last_query_time')->nullable();
+                    $table->timestamps();
+                    
+                    $table->unique(['content', 'md5'], "unique_{$langCode}_content_md5");
+                    $table->index('content', "idx_{$langCode}_content");
+                    $table->index('has_translation', "idx_{$langCode}_has_translation");
+                });
             }
 
             $results[$tableName] = 'created';
@@ -525,7 +637,9 @@ class UserSyncService
             'errors' => [],
         ];
         
-        $connection = 'appqyv1';
+        $appKey = AppKeys::APPQYV1;
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $dbConnection = $model->getConnection();
         $dataDir = base_path('init_data/AppQyV1/Multilingual_basic_data/Inspection_table');
         
         if (!is_dir($dataDir)) {
@@ -536,7 +650,8 @@ class UserSyncService
         $mdFiles = glob("{$dataDir}/*.md");
         $results['total_files'] = count($mdFiles);
         
-        $existingCount = DB::connection($connection)->table('app_qy_v1_en_dictionaries')->count();
+        $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+        $existingCount = $dbConnection->table($enDictTable)->count();
         if ($existingCount > 0) {
             $results['skipped'] = true;
             $results['message'] = "Tables already have {$existingCount} records, skipping import";
@@ -632,15 +747,18 @@ class UserSyncService
             $chunkSize = 500;
 
             foreach (array_chunk($laoData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_lo_dictionaries')->insert($chunk);
+                $loDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('lo');
+                $dbConnection->table($loDictTable)->insert($chunk);
             }
 
             foreach (array_chunk($japaneseData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_ja_dictionaries')->insert($chunk);
+                $jaDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('ja');
+                $dbConnection->table($jaDictTable)->insert($chunk);
             }
 
             foreach (array_chunk($vietnameseData, $chunkSize) as $chunk) {
-                DB::connection($connection)->table('app_qy_v1_vi_dictionaries')->insert($chunk);
+                $viDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('vi');
+                $dbConnection->table($viDictTable)->insert($chunk);
             }
 
             $results['imported'] = $results['total_words'];
@@ -678,7 +796,8 @@ class UserSyncService
     private static function importTranslationsFromJson(): array
     {
         $jsonFile = \App\Providers\PathMapper::getLaravelTmpDir() . '/dictionary_import/extracted/olddb.txt';
-        $connection = 'appqyv1';
+        $appKey = \App\Constants\AppKeys::APPQYV1;
+        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection($appKey);
         $delimiter = '------------------------------TokenLine-----------------------------';
         
         if (!file_exists($jsonFile)) {
@@ -786,17 +905,20 @@ class UserSyncService
         $updated = 0;
         $inserted = 0;
         $now = now();
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $dbConnection = $model->getConnection();
 
         foreach ($batch as $item) {
-            $existing = DB::connection($connection)
-                ->table('app_qy_v1_en_dictionaries')
+            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+            $existing = $dbConnection
+                ->table($enDictTable)
                 ->where('content', $item['content'])
                 ->where('md5', $item['md5'])
                 ->first();
 
             if ($existing) {
-                DB::connection($connection)
-                    ->table('app_qy_v1_en_dictionaries')
+                $dbConnection
+                    ->table($enDictTable)
                     ->where('id', $existing->id)
                     ->update([
                         'us_phonetic' => $item['us_phonetic'],
@@ -808,8 +930,8 @@ class UserSyncService
                     ]);
                 $updated++;
             } else {
-                DB::connection($connection)
-                    ->table('app_qy_v1_en_dictionaries')
+                $dbConnection
+                    ->table($enDictTable)
                     ->insert([
                         'content' => $item['content'],
                         'md5' => $item['md5'],
@@ -911,13 +1033,16 @@ class UserSyncService
     private static function importDictionaryWords(): array
     {
         $outputFile = base_path('init_data/AppQyV1/VoiceStaticServer/dictionary/output.txt');
-        $connection = 'appqyv1';
+        $appKey = AppKeys::APPQYV1;
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $dbConnection = $model->getConnection();
         
         if (!file_exists($outputFile)) {
             return ['error' => 'output.txt not found'];
         }
         
-        $existingCount = DB::connection($connection)->table('app_qy_v1_en_dictionaries')->count();
+        $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+        $existingCount = $dbConnection->table($enDictTable)->count();
         if ($existingCount > 50000) {
             return [
                 'skipped' => true,
@@ -954,14 +1079,18 @@ class UserSyncService
             ];
 
             if (count($batch) >= 1000) {
-                DB::connection($connection)->table('app_qy_v1_en_dictionaries')->insert($batch);
+                $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+                // Use model connection for query builder
+                $dbConnection->table($enDictTable)->insert($batch);
                 $imported += count($batch);
                 $batch = [];
             }
         }
 
         if (!empty($batch)) {
-            DB::connection($connection)->table('app_qy_v1_en_dictionaries')->insert($batch);
+            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+            // Use model connection for query builder
+            $dbConnection->table($enDictTable)->insert($batch);
             $imported += count($batch);
         }
         
@@ -1003,30 +1132,32 @@ class UserSyncService
     public static function ensureVoiceSubtitleTablesExist(): array
     {
         $results = [];
-        $connection = 'mcpv1';
+        $appKey = AppKeys::MCPV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'user_settings');
 
-        DB::connection($connection)->statement('
-            CREATE TABLE IF NOT EXISTS voice_subtitle_user_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_identifier VARCHAR(100) UNIQUE NOT NULL,
-                target_language TEXT DEFAULT \'["en"]\' NOT NULL,
-                default_voice VARCHAR(100) DEFAULT "en-US-AriaNeural" NOT NULL,
-                playback_rate DECIMAL(3,2) DEFAULT 1.0 NOT NULL,
-                auto_play INTEGER DEFAULT 0 NOT NULL,
-                play_mode VARCHAR(50) DEFAULT "all" NOT NULL,
-                play_limit INTEGER DEFAULT 300 NOT NULL,
-                play_group VARCHAR(100),
-                play_language VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ');
+        if (Schema::connection($connection)->hasTable($tableName)) {
+            $results[$tableName] = 'exists';
+            return $results;
+        }
 
-        DB::connection($connection)->statement('
-            CREATE INDEX IF NOT EXISTS idx_voice_subtitle_user_identifier ON voice_subtitle_user_settings(user_identifier)
-        ');
+        Schema::connection($connection)->create($tableName, function (Blueprint $table) {
+            $table->id();
+            $table->string('user_identifier', 100)->unique();
+            $table->text('target_language')->default('["en"]');
+            $table->string('default_voice', 100)->default('en-US-AriaNeural');
+            $table->decimal('playback_rate', 3, 2)->default(1.0);
+            $table->boolean('auto_play')->default(false);
+            $table->string('play_mode', 50)->default('all');
+            $table->integer('play_limit')->default(300);
+            $table->string('play_group', 100)->nullable();
+            $table->string('play_language', 50)->nullable();
+            $table->timestamps();
+            
+            $table->index('user_identifier');
+        });
 
-        $results['voice_subtitle_user_settings'] = 'created';
+        $results[$tableName] = 'created';
 
         return $results;
     }

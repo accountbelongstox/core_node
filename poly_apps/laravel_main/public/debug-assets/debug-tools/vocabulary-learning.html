@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🌐 AI Translation & Language Learning Tool</title>
-    <link rel="stylesheet" href="/debug-assets/debug-tools/assets/main.css">
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
 </head>
 <body>
     <div class="container">
@@ -47,7 +47,7 @@
                         <div class="language-tag" data-lang="zh" onclick="toggleLearningLanguage('zh')">🇨🇳 Chinese</div>
                     </div>
                 </div>
-                <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" onclick="saveLanguages()">💾 Save Language Settings</button>
+                <button class="btn btn-primary w-full mt-5" onclick="saveLanguages()">💾 Save Language Settings</button>
                 <div id="language-result"></div>
             </div>
         </div>
@@ -85,10 +85,10 @@
         <!-- Learn Tab -->
         <div id="learn-tab" class="tab-content">
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                <div class="flex justify-between items-center mb-5 flex-wrap gap-2.5">
                     <h2>Learning Session</h2>
-                    <div style="display: flex; gap: 10px;">
-                        <select id="learn-lang" style="padding: 8px 16px; border-radius: 6px; border: 2px solid #e0e0e0;">
+                    <div class="flex gap-2.5">
+                        <select id="learn-lang" class="px-4 py-2 rounded-md border-2 border-gray-300">
                             <option value="en">English</option>
                             <option value="ja">Japanese</option>
                             <option value="ko">Korean</option>
@@ -115,7 +115,7 @@
                     <option value="lo">Lao</option>
                 </select>
                 <textarea id="document-text" placeholder="Paste your document here... Words will be automatically extracted."></textarea>
-                <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="uploadDocument()">Extract & Create Library</button>
+                <button class="btn btn-primary w-full mt-4" onclick="uploadDocument()">Extract & Create Library</button>
                 <div id="upload-result"></div>
             </div>
         </div>

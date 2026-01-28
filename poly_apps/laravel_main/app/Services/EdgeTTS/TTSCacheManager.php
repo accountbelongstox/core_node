@@ -160,8 +160,8 @@ class TTSCacheManager
     {
         $stats = [];
         
-        $languages = array_keys(EdgeTTSService::VOICES);
-        $types = EdgeTTSService::TEXT_TYPES;
+        $languages = array_keys(EdgeTTSService::getVoices());
+        $types = EdgeTTSService::getTextTypes();
         
         foreach ($languages as $langCode) {
             foreach ($types as $textType) {
@@ -197,7 +197,7 @@ class TTSCacheManager
                 $cleared = 1;
             }
         } elseif ($langCode) {
-            foreach (EdgeTTSService::TEXT_TYPES as $type) {
+            foreach (EdgeTTSService::getTextTypes() as $type) {
                 $dbFile = $this->getDbFilePath($langCode, $type);
                 if (FileSystemManager::exists($dbFile)) {
                     FileSystemManager::delete($dbFile);
@@ -206,8 +206,8 @@ class TTSCacheManager
                 }
             }
         } else {
-            foreach (array_keys(EdgeTTSService::VOICES) as $lang) {
-                foreach (EdgeTTSService::TEXT_TYPES as $type) {
+            foreach (array_keys(EdgeTTSService::getVoices()) as $lang) {
+                foreach (EdgeTTSService::getTextTypes() as $type) {
                     $dbFile = $this->getDbFilePath($lang, $type);
                     if (FileSystemManager::exists($dbFile)) {
                         FileSystemManager::delete($dbFile);

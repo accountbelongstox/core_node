@@ -261,20 +261,17 @@ class AppQyV1TTSController extends Controller
     /**
      * Add batch words to TTS queue
      * Frontend sends words without audio, backend queues for async generation
-     *
+     *-----------------------------------------------------------------------------------------------------------------------
      * POST /api/app_qy_v1/tts/queue_batch
      */
     public function queueBatch(Request $request): JsonResponse
     {
-        $user = AuthHelper::requireAuth($request);
-        if (!$user) {
-            return $this->unauthorized('Authentication required');
-        }
-
         $validated = $request->validate([
             'words' => 'required|array|min:1|max:100',
-            'words.*.word' => 'required|string|max:255',
-            'words.*.language' => 'required|string|max:10',
+            'words.*.word' => 'nullable|string|max:255',
+            'words.*.text' => 'nullable|string|max:255',
+            'words.*.language' => 'nullable|string|max:10',
+            'words.*.languageCode' => 'nullable|string|max:10',
             'words.*.priority' => 'nullable|integer|min:0|max:100',
         ]);
 
@@ -282,8 +279,17 @@ class AppQyV1TTSController extends Controller
         $available = [];
 
         foreach ($validated['words'] as $item) {
-            $word = $item['word'];
-            $language = $item['language'];
+            // Support both 'word' and 'text' fields for backward compatibility
+            $word = $item['word'] ?? $item['text'] ?? null;
+            if (!$word) {
+                continue; // Skip invalid items
+            }
+            
+            // Support both 'language' and 'languageCode' fields
+            $language = $item['language'] ?? $item['languageCode'] ?? 'en';
+            if (!$language) {
+                $language = 'en'; // Default to English if not provided
+            }
             $priority = 0;
             if (isset($item['priority'])) {
                 $priority = $item['priority'];
@@ -371,11 +377,6 @@ class AppQyV1TTSController extends Controller
      */
     public function checkBatchStatus(AppQyV1TTSCheckBatchRequest $request): JsonResponse
     {
-        $user = AuthHelper::requireAuth($request);
-        if (!$user) {
-            return $this->unauthorized('Authentication required');
-        }
-
         $results = [];
         $notFound = [];
         $summary = [

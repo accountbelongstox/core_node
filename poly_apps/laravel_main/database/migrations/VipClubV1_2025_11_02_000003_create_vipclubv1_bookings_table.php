@@ -1,40 +1,81 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::VIPCLUBV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'bookings');
+    }
+
     public function up(): void
     {
-        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_bookings')) {
-        Schema::connection('vipclubv1')->create('vipclubv1_bookings', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('facility_id')->constrained('vipclubv1_facilities')->onDelete('cascade');
-            $table->enum('facility_type', ['shooting', 'golf', 'hotel']);
-            $table->string('facility_name');
-            $table->date('booking_date');
-            $table->string('time_slot');
-            $table->integer('duration')->default(1);
-            $table->decimal('price', 10, 2)->default(0);
-            $table->decimal('discount', 10, 2)->default(0);
-            $table->decimal('final_price', 10, 2)->default(0);
-            $table->enum('status', ['pending', 'confirmed', 'cancelled', 'completed'])->default('pending');
-            $table->json('extras')->nullable();
-            $table->timestamps();
-
-            $table->index('user_id');
-            $table->index('facility_id');
-            $table->index('booking_date');
-            $table->index('status');
-        });
-        }
+        $facilitiesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'facilities');
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'user_id' => ['type' => 'foreignId', 'nullable' => false, 'index' => true],
+                'facility_id' => ['type' => 'foreignId', 'nullable' => false, 'index' => true],
+                'facility_type' => ['type' => 'enum', 'values' => ['shooting', 'golf', 'hotel'], 'nullable' => false],
+                'facility_name' => ['type' => 'string', 'nullable' => false],
+                'booking_date' => ['type' => 'date', 'nullable' => false, 'index' => true],
+                'time_slot' => ['type' => 'string', 'nullable' => false],
+                'duration' => ['type' => 'integer', 'nullable' => false, 'default' => 1],
+                'price' => ['type' => 'decimal', 'precision' => 10, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'discount' => ['type' => 'decimal', 'precision' => 10, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'final_price' => ['type' => 'decimal', 'precision' => 10, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'confirmed', 'cancelled', 'completed'], 'nullable' => false, 'default' => 'pending', 'index' => true],
+                'extras' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['user_id']],
+                ['columns' => ['facility_id']],
+                ['columns' => ['booking_date']],
+                ['columns' => ['status']],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'user_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'facility_id',
+                    'references' => $facilitiesTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_bookings');
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

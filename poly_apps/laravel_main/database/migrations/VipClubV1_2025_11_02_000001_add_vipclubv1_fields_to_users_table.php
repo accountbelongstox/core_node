@@ -1,68 +1,91 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
+    protected $connection = 'sqlite';
+    protected $tableName = 'users';
+
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'phone')) {
-                $table->string('phone')->nullable()->after('email');
-            }
-            if (!Schema::hasColumn('users', 'avatar_url')) {
-                $table->string('avatar_url')->nullable()->after('phone');
-            }
-            if (!Schema::hasColumn('users', 'member_type')) {
-                $table->enum('member_type', ['guest', 'regular', 'gold', 'platinum', 'diamond'])->default('guest')->after('avatar_url');
-            }
-            if (!Schema::hasColumn('users', 'vip_points')) {
-                $table->integer('vip_points')->default(0)->after('member_type');
-            }
-            if (!Schema::hasColumn('users', 'member_since')) {
-                $table->timestamp('member_since')->nullable()->after('vip_points');
-            }
-            if (!Schema::hasColumn('users', 'member_expiry')) {
-                $table->timestamp('member_expiry')->nullable()->after('member_since');
-            }
-            if (!Schema::hasColumn('users', 'is_active')) {
-                $table->boolean('is_active')->default(true)->after('member_expiry');
-            }
-            if (!Schema::hasColumn('users', 'preferences')) {
-                $table->json('preferences')->nullable()->after('is_active');
-            }
-        });
+        // This migration only adds columns to existing users table
+        $tableStructure = [
+            'columns' => [
+                'phone' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'after' => 'email',
+                ],
+                'avatar_url' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'after' => 'phone',
+                ],
+                'member_type' => [
+                    'type' => 'enum',
+                    'values' => ['guest', 'regular', 'gold', 'platinum', 'diamond'],
+                    'nullable' => false,
+                    'default' => 'guest',
+                    'after' => 'avatar_url',
+                ],
+                'vip_points' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                    'after' => 'member_type',
+                ],
+                'member_since' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                    'after' => 'vip_points',
+                ],
+                'member_expiry' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                    'after' => 'member_since',
+                ],
+                'is_active' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => true,
+                    'after' => 'member_expiry',
+                ],
+                'preferences' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'after' => 'is_active',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => false,
+            ]
+        );
     }
 
     public function down(): void
     {
-        if (Schema::hasTable('users')) {
-            Schema::table('users', function (Blueprint $table) {
-                if (Schema::hasColumn('users', 'phone')) {
-                    $table->dropColumn('phone');
+        if (Schema::hasTable($this->tableName)) {
+            Schema::table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                $columns = ['phone', 'avatar_url', 'member_type', 'vip_points', 'member_since', 'member_expiry', 'is_active', 'preferences'];
+                $columnsToRemove = [];
+                foreach ($columns as $column) {
+                    if (Schema::hasColumn($this->tableName, $column)) {
+                        $columnsToRemove[] = $column;
+                    }
                 }
-                if (Schema::hasColumn('users', 'avatar_url')) {
-                    $table->dropColumn('avatar_url');
-                }
-                if (Schema::hasColumn('users', 'member_type')) {
-                    $table->dropColumn('member_type');
-                }
-                if (Schema::hasColumn('users', 'vip_points')) {
-                    $table->dropColumn('vip_points');
-                }
-                if (Schema::hasColumn('users', 'member_since')) {
-                    $table->dropColumn('member_since');
-                }
-                if (Schema::hasColumn('users', 'member_expiry')) {
-                    $table->dropColumn('member_expiry');
-                }
-                if (Schema::hasColumn('users', 'is_active')) {
-                    $table->dropColumn('is_active');
-                }
-                if (Schema::hasColumn('users', 'preferences')) {
-                    $table->dropColumn('preferences');
+                if (!empty($columnsToRemove)) {
+                    $table->dropColumn($columnsToRemove);
                 }
             });
         }

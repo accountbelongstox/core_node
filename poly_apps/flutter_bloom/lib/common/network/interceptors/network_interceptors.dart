@@ -13,10 +13,13 @@ class NetworkInterceptors {
 
   final List<RequestInterceptor> _requestInterceptors = [];
   final List<ResponseInterceptor> _responseInterceptors = [];
-  final UnifiedAuthManager _authManager = UnifiedAuthManager.instance;
+  bool _isInitialized = false;
 
   /// Initialize interceptors
   Future<void> initialize() async {
+    if (_isInitialized) {
+      return;
+    }
     // Add default interceptors
     _requestInterceptors.addAll([
       LoggingRequestInterceptor(),
@@ -31,6 +34,7 @@ class NetworkInterceptors {
     ]);
 
     debugPrint('NetworkInterceptors initialized with ${_requestInterceptors.length} request and ${_responseInterceptors.length} response interceptors');
+    _isInitialized = true;
   }
 
   /// Add request interceptor

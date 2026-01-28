@@ -5,6 +5,9 @@ namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Database\Eloquent\Model;
 
 class UserSettingsManager
 {
@@ -13,7 +16,9 @@ class UserSettingsManager
 
     public function getUserSettings(string $userIdentifier): array
     {
-        $settings = DB::connection('mcpv1')->table('voice_subtitle_user_settings')
+        // Use model connection for query builder (Laravel best practice)
+        $dbConnection = $this->getDbConnection();
+        $settings = $dbConnection->table('voice_subtitle_user_settings')
             ->where('user_identifier', $userIdentifier)
             ->first();
 
@@ -70,12 +75,12 @@ class UserSettingsManager
             $updateData['updated_at'] = now();
         }
 
-        $exists = DB::connection('mcpv1')->table('voice_subtitle_user_settings')
+        $exists = $this->dbConnection->table('voice_subtitle_user_settings')
             ->where('user_identifier', $userIdentifier)
             ->exists();
 
         if ($exists) {
-            DB::connection('mcpv1')->table('voice_subtitle_user_settings')
+            $this->dbConnection->table('voice_subtitle_user_settings')
                 ->where('user_identifier', $userIdentifier)
                 ->update($updateData);
         } else {
@@ -85,7 +90,7 @@ class UserSettingsManager
             if ($this->hasColumn('created_at')) {
                 $updateData['created_at'] = now();
             }
-            DB::connection('mcpv1')->table('voice_subtitle_user_settings')->insert($updateData);
+            $this->dbConnection->table('voice_subtitle_user_settings')->insert($updateData);
         }
 
         return [
@@ -112,7 +117,7 @@ class UserSettingsManager
 
         $dbSettings = $this->filterColumns($defaultSettings);
         if (!empty($dbSettings)) {
-            DB::connection('mcpv1')->table('voice_subtitle_user_settings')->insert($dbSettings);
+            $this->dbConnection->table('voice_subtitle_user_settings')->insert($dbSettings);
         }
 
         Log::info('[UserSettingsManager] Created default settings', [
@@ -160,7 +165,8 @@ class UserSettingsManager
         }
 
         try {
-            $this->tableColumns = Schema::connection('mcpv1')->getColumnListing('voice_subtitle_user_settings');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
+            $this->tableColumns = Schema::connection($connectionName)->getColumnListing('voice_subtitle_user_settings');
         } catch (\Throwable $e) {
             Log::error('[UserSettingsManager] Failed to fetch column listing', [
                 'error' => $e->getMessage(),

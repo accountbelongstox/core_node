@@ -1434,8 +1434,21 @@ if [ "$START_NGINX" = "true" ]; then
 
     # Step 2: Ensure Nginx is installed
     echo "[$SCRIPT_INDEX] Checking Nginx installation..."
+    local nginx_was_installed=false
     if check_nginx; then
         echo "[$SCRIPT_INDEX] [OK] Nginx is already installed: $(nginx -v 2>&1)"
+        nginx_was_installed=true
+        
+        # If nginx is already installed and running, stop it temporarily for reconfiguration
+        if systemctl is-active --quiet nginx 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] Nginx is running, stopping temporarily for reconfiguration..."
+            $USE_SUDO systemctl stop nginx 2>/dev/null || true
+            sleep 2
+        fi
+        
+        # Check port 80 even when nginx is already installed
+        echo "[$SCRIPT_INDEX] Checking port 80 availability..."
+        force_stop_port_80_services
     else
         echo "[$SCRIPT_INDEX] Installing Nginx..."
         install_nginx
@@ -1449,42 +1462,42 @@ if [ "$START_NGINX" = "true" ]; then
     # Step 3: Fix directory structure and permissions (always run)
     fix_directory_structure
 
-    # Step 4: Fix Nginx service (always run)
-    fix_nginx_service
-
-    # Step 5: Create/fix Nginx symlink (always run)
-    create_nginx_symlink
-
-    # Step 6: Configure Nginx for port 80 (always run)
-    echo "[$SCRIPT_INDEX] Configuring Nginx for port $NGINX_PORT..."
-    configure_nginx_port
-
-    # Step 7: Fix default HTML page with current IPs (always run)
-    fix_default_html
-
-    # Step 8: Setup Laravel ServerManager compatibility
-    echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
-    setup_laravel_compatibility
-
-    # Step 8.5: Update nginx.conf (always run)
+    # Step 4: Update nginx.conf FIRST (before creating site configs)
     echo "[$SCRIPT_INDEX] Updating nginx.conf configuration..."
     update_nginx_conf
 
-    # Step 8.6: Check and fix duplicate default_server declarations (always run)
+    # Step 5: Setup Laravel ServerManager compatibility (creates directory structure)
+    echo "[$SCRIPT_INDEX] Setting up Laravel ServerManager compatibility..."
+    setup_laravel_compatibility
+
+    # Step 6: Configure Nginx for port 80 (after nginx.conf and Laravel setup)
+    echo "[$SCRIPT_INDEX] Configuring Nginx for port $NGINX_PORT..."
+    configure_nginx_port
+
+    # Step 7: Check and fix duplicate default_server declarations (after all configs are created)
     echo "[$SCRIPT_INDEX] Checking for duplicate default_server declarations..."
     check_and_fix_duplicate_default_servers
 
-    # Step 9: Create nginx configuration symlinks
+    # Step 8: Create/fix Nginx symlink (always run)
+    create_nginx_symlink
+
+    # Step 9: Fix Nginx service (after all configurations are done)
+    fix_nginx_service
+
+    # Step 10: Fix default HTML page with current IPs (always run)
+    fix_default_html
+
+    # Step 11: Create nginx configuration symlinks
     echo "[$SCRIPT_INDEX] Setting up nginx configuration symlinks..."
     create_nginx_config_symlinks
 
-    # Step 10: Verify and fix symlinks (always run)
+    # Step 12: Verify and fix symlinks (always run)
     verify_and_fix_symlinks
 
-    # Step 11: Store/update Nginx information (always run)
+    # Step 13: Store/update Nginx information (always run)
     store_nginx_info
 
-    # Step 12: Comprehensive verification and final repair attempt
+    # Step 14: Comprehensive verification and final repair attempt
     echo "[$SCRIPT_INDEX] COMPREHENSIVE VERIFICATION"
 
     if ! verify_nginx_installation; then

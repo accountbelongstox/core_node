@@ -250,18 +250,7 @@ class BankUserModel extends BaseUserModel {
   }
 
   factory BankUserModel.defaultUser() {
-    return const BankUserModel(
-      name: 'Default User',
-      username: 'default_user',
-      email: 'user@example.com',
-      balance: 0.0,
-      cardCount: 0,
-      points: 0,
-      coupons: 0,
-      accountStatus: 'active',
-      isLocked: false,
-      loginAttempts: 0,
-    );
+    return const BankUserModel();
   }
 
   BankUserModel copyWith({
@@ -378,8 +367,16 @@ class BankUserModel extends BaseUserModel {
     );
   }
 
-  /// Get masked name (first character replaced with *)
+  /// Get masked name (phone last 4 digits with * prefix)
   String get maskedName {
+    if (phone != null && phone!.isNotEmpty) {
+      if (phone!.length >= 4) {
+        final last4 = phone!.substring(phone!.length - 4);
+        return '*$last4';
+      } else {
+        return '*${phone!}';
+      }
+    }
     final displayName = name ?? fullName ?? 'User';
     if (displayName.isEmpty) return '';
     if (displayName.length == 1) return '*';

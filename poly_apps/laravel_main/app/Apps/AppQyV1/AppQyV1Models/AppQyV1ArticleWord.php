@@ -15,14 +15,27 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 
 class AppQyV1ArticleWord extends Model
 {
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_article_words';
+    protected $appKey = AppKeys::APPQYV1;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'article_words');
+    }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
 
     protected $fillable = [
         'article_id',
@@ -50,9 +63,7 @@ class AppQyV1ArticleWord extends Model
      */
     public function dictionaryEntry(string $langCode)
     {
-        return AppQyV1MultiLangDictionaryModel::query()
-            ->connection('appqyv1')
-            ->from(AppQyV1TableMaps::getDictionaryTableName($langCode))
+        return AppQyV1MultiLangDictionaryModel::forLanguage($langCode)
             ->where('md5', $this->word_md5)
             ->first();
     }
@@ -88,7 +99,7 @@ class AppQyV1ArticleWord extends Model
         }
 
         if (!empty($insertData)) {
-            DB::connection('appqyv1')->table('app_qy_v1_article_words')->insert($insertData);
+            self::insert($insertData);
         }
 
         return $dictionaryInfo;

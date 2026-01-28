@@ -3,6 +3,7 @@
 namespace App\Services\EdgeTTS;
 
 use App\Providers\PathMapper;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Cache;
@@ -42,51 +43,46 @@ class EdgeTTSService
     // Concurrent request counter
     private const CONCURRENT_COUNTER_KEY = 'edge_tts_concurrent_count';
 
-    const VOICES = [
-        'af' => 'af-ZA-AdriNeural', 'am' => 'am-ET-MekdesNeural',
-        'ar' => 'ar-EG-SalmaNeural', 'as' => 'as-IN-YashicaNeural',
-        'az' => 'az-AZ-BanuNeural', 'bg' => 'bg-BG-KalinaNeural',
-        'bn' => 'bn-IN-TanishaaNeural', 'bs' => 'bs-BA-VesnaNeural',
-        'ca' => 'ca-ES-AlbaNeural', 'cs' => 'cs-CZ-VlastaNeural',
-        'cy' => 'cy-GB-NiaNeural', 'da' => 'da-DK-ChristelNeural',
-        'de' => 'de-DE-KatjaNeural', 'el' => 'el-GR-AthinaNeural',
-        'en' => 'en-US-JennyNeural', 'es' => 'es-ES-ElviraNeural',
-        'et' => 'et-EE-AnuNeural', 'eu' => 'eu-ES-AinhoaNeural',
-        'fa' => 'fa-IR-DilaraNeural', 'fi' => 'fi-FI-NooraNeural',
-        'fil' => 'fil-PH-BlessicaNeural', 'fr' => 'fr-FR-DeniseNeural',
-        'ga' => 'ga-IE-OrlaNeural', 'gl' => 'gl-ES-SabelaNeural',
-        'gu' => 'gu-IN-DhwaniNeural', 'he' => 'he-IL-HilaNeural',
-        'hi' => 'hi-IN-SwaraNeural', 'hr' => 'hr-HR-GabrijelaNeural',
-        'hu' => 'hu-HU-NoemiNeural', 'hy' => 'hy-AM-AnahitNeural',
-        'id' => 'id-ID-GadisNeural', 'is' => 'is-IS-GudrunNeural',
-        'it' => 'it-IT-ElsaNeural', 'ja' => 'ja-JP-NanamiNeural',
-        'jv' => 'jv-ID-SitiNeural', 'ka' => 'ka-GE-EkaNeural',
-        'kk' => 'kk-KZ-AigulNeural', 'km' => 'km-KH-SreymomNeural',
-        'kn' => 'kn-IN-SapnaNeural', 'ko' => 'ko-KR-SunHiNeural',
-        'lo' => 'lo-LA-KeomanyNeural', 'lt' => 'lt-LT-OnaNeural',
-        'lv' => 'lv-LV-EveritaNeural', 'mk' => 'mk-MK-MarijaNeural',
-        'ml' => 'ml-IN-SobhanaNeural', 'mn' => 'mn-MN-YesuiNeural',
-        'mr' => 'mr-IN-AarohiNeural', 'ms' => 'ms-MY-YasminNeural',
-        'mt' => 'mt-MT-GraceNeural', 'my' => 'my-MM-NilarNeural',
-        'nb' => 'nb-NO-IselinNeural', 'ne' => 'ne-NP-HemkalaNeural',
-        'nl' => 'nl-NL-ColetteNeural', 'or' => 'or-IN-SubhasiniNeural',
-        'pa' => 'pa-IN-VaaniNeural', 'pl' => 'pl-PL-ZofiaNeural',
-        'ps' => 'ps-AF-LatifaNeural', 'pt' => 'pt-BR-FranciscaNeural',
-        'ro' => 'ro-RO-AlinaNeural', 'ru' => 'ru-RU-SvetlanaNeural',
-        'si' => 'si-LK-ThiliniNeural', 'sk' => 'sk-SK-ViktoriaNeural',
-        'sl' => 'sl-SI-PetraNeural', 'so' => 'so-SO-UbaxNeural',
-        'sq' => 'sq-AL-AnilaNeural', 'sr' => 'sr-RS-SophieNeural',
-        'su' => 'su-ID-TutiNeural', 'sv' => 'sv-SE-HilleviNeural',
-        'sw' => 'sw-TZ-RehemaNeural', 'ta' => 'ta-IN-PallaviNeural',
-        'te' => 'te-IN-ShrutiNeural', 'th' => 'th-TH-PremwadeeNeural',
-        'tr' => 'tr-TR-EmelNeural', 'uk' => 'uk-UA-PolinaNeural',
-        'ur' => 'ur-PK-UzmaNeural', 'uz' => 'uz-UZ-MadinaNeural',
-        'vi' => 'vi-VN-HoaiMyNeural', 'wuu' => 'wuu-CN-XiaotongNeural',
-        'yue' => 'yue-CN-XiaoMinNeural', 'zh' => 'zh-CN-XiaoxiaoNeural',
-        'zu' => 'zu-ZA-ThandoNeural',
-    ];
+    // Cached voices and text types (loaded from AppQyV1LanguageConfigService)
+    private static $cachedVoices = null;
+    private static $cachedTextTypes = null;
 
-    const TEXT_TYPES = ['sentence', 'word', 'letter'];
+    /**
+     * Get Edge-TTS voice mappings
+     * Single source of truth: AppQyV1LanguageConfigService::getTTSVoices()
+     * 
+     * @return array Language code => voice_id mapping
+     */
+    public static function getVoices(): array
+    {
+        if (self::$cachedVoices === null) {
+            self::$cachedVoices = AppQyV1LanguageConfigService::getTTSVoices();
+        }
+        return self::$cachedVoices;
+    }
+
+    /**
+     * Get Edge-TTS text types
+     * Single source of truth: AppQyV1LanguageConfigService::getTTSTextTypes()
+     * 
+     * @return array Text types array
+     */
+    public static function getTextTypes(): array
+    {
+        if (self::$cachedTextTypes === null) {
+            self::$cachedTextTypes = AppQyV1LanguageConfigService::getTTSTextTypes();
+        }
+        return self::$cachedTextTypes;
+    }
+
+    /**
+     * @deprecated Use getTextTypes() instead. Kept for backward compatibility.
+     * Returns cached text types from AppQyV1LanguageConfigService
+     */
+    public static function getTEXT_TYPES(): array
+    {
+        return self::getTextTypes();
+    }
 
     public function __construct()
     {
@@ -101,6 +97,11 @@ class EdgeTTSService
 
         $this->initializeDirectories();
         $this->cacheManager = new TTSCacheManager($jsonDbDir);
+
+        // Automatic cleanup: 5% chance to clean zero-byte files on initialization
+        if (rand(1, 100) <= 5) {
+            $this->cleanZeroByteFilesBackground();
+        }
     }
 
     private function initializeDirectories(): void
@@ -160,14 +161,16 @@ class EdgeTTSService
             ];
         }
 
-        if (!isset(self::VOICES[$langCode])) {
+        $voices = self::getVoices();
+        if (!isset($voices[$langCode])) {
             return [
                 'success' => false,
                 'error' => 'Unsupported language: ' . $langCode,
             ];
         }
 
-        if (!in_array($textType, self::TEXT_TYPES)) {
+        $textTypes = self::getTextTypes();
+        if (!in_array($textType, $textTypes)) {
             $textType = 'sentence';
         }
 
@@ -188,16 +191,27 @@ class EdgeTTSService
         if ($cached && isset($cached['audio_path'])) {
             $fullPath = $this->audioDir . '/' . $cached['audio_path'];
             if (file_exists($fullPath)) {
-                return [
-                    'success' => true,
-                    'cached' => true,
-                    'audio_path' => $cached['audio_path'],
-                    'audio_url' => '/tts/audio/' . $cached['audio_path'],
-                    'text' => $text,
-                    'language' => $langCode,
-                    'type' => $textType,
-                    'speed' => $rate,
-                ];
+                // Verify cached file is not zero-byte
+                $fileSize = filesize($fullPath);
+                if ($fileSize === 0) {
+                    // Remove zero-byte file from cache and filesystem
+                    @unlink($fullPath);
+                    Log::warning('[EdgeTTS] Removed zero-byte cached file', [
+                        'path' => $cached['audio_path'],
+                    ]);
+                    // Continue to generate new file
+                } else {
+                    return [
+                        'success' => true,
+                        'cached' => true,
+                        'audio_path' => $cached['audio_path'],
+                        'audio_url' => '/tts/audio/' . $cached['audio_path'],
+                        'text' => $text,
+                        'language' => $langCode,
+                        'type' => $textType,
+                        'speed' => $rate,
+                    ];
+                }
             }
         }
 
@@ -207,20 +221,32 @@ class EdgeTTSService
         $fullPath = $this->audioDir . '/' . $relativePath;
 
         if (file_exists($fullPath)) {
-            $this->cacheManager->set($langCode, $textType, $cacheKey, $relativePath);
-            return [
-                'success' => true,
-                'cached' => true,
-                'audio_path' => $relativePath,
-                'audio_url' => '/tts/audio/' . $relativePath,
-                'text' => $text,
-                'language' => $langCode,
-                'type' => $textType,
-                'speed' => $rate,
-            ];
+            // Verify existing file is not zero-byte
+            $fileSize = filesize($fullPath);
+            if ($fileSize === 0) {
+                // Remove zero-byte file
+                @unlink($fullPath);
+                Log::warning('[EdgeTTS] Removed zero-byte existing file', [
+                    'path' => $relativePath,
+                ]);
+                // Continue to generate new file
+            } else {
+                $this->cacheManager->set($langCode, $textType, $cacheKey, $relativePath);
+                return [
+                    'success' => true,
+                    'cached' => true,
+                    'audio_path' => $relativePath,
+                    'audio_url' => '/tts/audio/' . $relativePath,
+                    'text' => $text,
+                    'language' => $langCode,
+                    'type' => $textType,
+                    'speed' => $rate,
+                ];
+            }
         }
 
-        $voice = self::VOICES[$langCode];
+        $voices = self::getVoices();
+        $voice = $voices[$langCode];
         $volume = $options['volume'] ?? '+0%';
         $pitch = $options['pitch'] ?? '+0Hz';
 
@@ -315,11 +341,54 @@ class EdgeTTSService
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($outputPath)) {
+                // Verify file size - MP3 files should be at least 100 bytes
+                // A valid MP3 file header alone is typically 10-32 bytes, but we use 100 bytes as minimum
+                $fileSize = filesize($outputPath);
+                $minFileSize = 100; // Minimum valid MP3 file size in bytes
+                
+                if ($fileSize === 0) {
+                    // Delete zero-byte file
+                    @unlink($outputPath);
+                    $error = 'Generated audio file is 0 bytes (empty file). This may indicate a network issue, timeout, or edge-tts service problem.';
+                    Log::error('[EdgeTTS] Zero-byte file detected and deleted', [
+                        'output_path' => $outputPath,
+                        'text_length' => strlen($text),
+                        'voice' => $voice,
+                    ]);
+                    return [
+                        'success' => false,
+                        'error' => $error,
+                    ];
+                }
+                
+                if ($fileSize < $minFileSize) {
+                    // File is suspiciously small, but not zero - log warning but keep file
+                    // Some very short audio clips might be valid but small
+                    Log::warning('[EdgeTTS] Generated audio file is very small', [
+                        'output_path' => $outputPath,
+                        'file_size' => $fileSize,
+                        'min_expected' => $minFileSize,
+                        'text_length' => strlen($text),
+                    ]);
+                }
+                
                 return ['success' => true];
             } else {
                 $error = implode("\n", $output);
                 Log::error('[EdgeTTS] Command failed: ' . $command);
                 Log::error('[EdgeTTS] Output: ' . $error);
+                
+                // Clean up: if file was created but command failed, delete it
+                if (file_exists($outputPath)) {
+                    $fileSize = filesize($outputPath);
+                    if ($fileSize === 0) {
+                        @unlink($outputPath);
+                        Log::info('[EdgeTTS] Deleted zero-byte file after command failure', [
+                            'output_path' => $outputPath,
+                        ]);
+                    }
+                }
+                
                 return [
                     'success' => false,
                     'error' => 'edge-tts execution failed: ' . $error,
@@ -442,7 +511,7 @@ class EdgeTTSService
      */
     public function getAvailableVoices(): array
     {
-        return self::VOICES;
+        return self::getVoices();
     }
 
     /**
@@ -450,7 +519,7 @@ class EdgeTTSService
      */
     public function getSupportedLanguages(): array
     {
-        return array_keys(self::VOICES);
+        return array_keys(self::getVoices());
     }
 
     /**
@@ -460,5 +529,59 @@ class EdgeTTSService
     {
         $fullPath = $this->audioDir . '/' . $relativePath;
         return file_exists($fullPath) ? $fullPath : null;
+    }
+
+    /**
+     * Clean zero-byte audio files in background (non-blocking)
+     * Called randomly during service initialization to maintain clean storage
+     * Limits: Max 100 files per call to avoid performance impact
+     */
+    private function cleanZeroByteFilesBackground(): void
+    {
+        try {
+            $maxFilesToClean = 100;
+            $cleaned = 0;
+
+            // Use RecursiveIteratorIterator for efficient directory traversal
+            if (!is_dir($this->audioDir)) {
+                return;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->audioDir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $file) {
+                // Stop after cleaning max files
+                if ($cleaned >= $maxFilesToClean) {
+                    break;
+                }
+
+                // Only process .mp3 files
+                if (!$file->isFile() || $file->getExtension() !== 'mp3') {
+                    continue;
+                }
+
+                // Check if file is zero bytes
+                if ($file->getSize() === 0) {
+                    $filePath = $file->getRealPath();
+                    if (@unlink($filePath)) {
+                        $cleaned++;
+                    }
+                }
+            }
+
+            if ($cleaned > 0) {
+                Log::info('[EdgeTTS] Background cleanup removed zero-byte files', [
+                    'files_cleaned' => $cleaned,
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Silent fail - don't break TTS service if cleanup fails
+            Log::warning('[EdgeTTS] Background cleanup failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

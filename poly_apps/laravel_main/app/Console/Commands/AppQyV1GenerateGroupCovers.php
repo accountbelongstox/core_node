@@ -5,7 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
-use Illuminate\Support\Facades\DB;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1GenerateGroupCovers extends Command
 {
@@ -38,11 +39,16 @@ class AppQyV1GenerateGroupCovers extends Command
         $successCount = 0;
         $errorCount = 0;
 
+        $appKey = AppKeys::APPQYV1;
+        $model = new AppQyV1WordGroupModel();
+        $connection = $model->getConnection();
+        $groupWordsTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'group_words');
+
         foreach ($groups as $group) {
             $category = AppQyV1CoverImageService::inferCategory($group->gname);
 
-            $wordCount = DB::connection('appqyv1')
-                ->table('app_qy_v1_group_words')
+            $wordCount = $connection
+                ->table($groupWordsTable)
                 ->where('group_id', $group->id)
                 ->count();
 

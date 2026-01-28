@@ -10,6 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
 import 'config_app_bank/app_config_app_bank.dart';
@@ -18,6 +19,7 @@ import 'router_app_bank/router_app_bank.dart';
 import 'settings_app_bank/settings_app_bank.dart';
 import 'localization_app_bank/en_app_bank.dart';
 import 'localization_app_bank/zh_app_bank.dart';
+import 'helpers/bank_app_initializer.dart';
 
 
 
@@ -28,8 +30,15 @@ import 'localization_app_bank/zh_app_bank.dart';
 /// NOTE: We pass the Bank SharedPreferences class to runCommonApp
 /// which will properly initialize it after Flutter binding is ready
 Future<void> main() async {
+  // CRITICAL: Initialize Flutter binding first before any operations that require it
+  // This must be called before SharedPreferences or any other Flutter services
+  WidgetsFlutterBinding.ensureInitialized();
+  
   // Initialize BankUserProvider before running the app
   await bankUserProvider.initialize();
+  
+  // Initialize Bank App (including license registration manager)
+  await BankAppInitializer.instance.initialize();
 
   await runCommonApp(
     appName: BankAppConfig.appName,

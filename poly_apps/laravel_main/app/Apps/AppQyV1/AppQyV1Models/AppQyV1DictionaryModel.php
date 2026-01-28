@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1DictionaryModel extends Model
 {
@@ -27,7 +29,7 @@ class AppQyV1DictionaryModel extends Model
      *
      * @var string
      */
-    protected $connection = 'appqyv1';
+    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
@@ -42,7 +44,8 @@ class AppQyV1DictionaryModel extends Model
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->table = AppQyV1TableMaps::getTableName('app_qy_v1_DICTIONARIES');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppQyV1TableMaps::getTableName('DICTIONARIES');
     }
 
     /**
@@ -96,19 +99,19 @@ class AppQyV1DictionaryModel extends Model
     }
 
     public static function countByTranslation(){
-        $isTranslationField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'isTranslation');
+        $isTranslationField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'isTranslation');
         return self::where($isTranslationField, true)->count();
     }
 
     public static function countHasTranslation(){
-        $translationField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'translation');
+        $translationField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'translation');
         return self::where($translationField, '!=', null)->count();
     }
 
     public function incrementQueryCount()
     {
-        $queryCountField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'queryCount');
-        $lastQueryTimeField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'lastQueryTime');
+        $queryCountField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'queryCount');
+        $lastQueryTimeField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'lastQueryTime');
         
         $this->increment($queryCountField);
         $this->update([$lastQueryTimeField => now()]);
@@ -116,19 +119,19 @@ class AppQyV1DictionaryModel extends Model
 
     public static function findByContent($content)
     {
-        $contentField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'content');
+        $contentField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'content');
         return self::where($contentField, $content)->first();
     }
 
     public static function findByMd5($md5)
     {
-        $md5Field = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'md5');
+        $md5Field = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'md5');
         return self::where($md5Field, $md5)->first();
     }
 
     public static function findMissingEntries(array $contentArray): array
     {
-        $contentField = AppQyV1TableMaps::getFieldName('app_qy_v1_DICTIONARIES', 'content');
+        $contentField = AppQyV1TableMaps::getFieldName('DICTIONARIES', 'content');
         $existingEntries = self::whereIn($contentField, $contentArray)->pluck($contentField)->toArray();
         return array_diff($contentArray, $existingEntries);
     }

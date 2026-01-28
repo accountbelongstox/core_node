@@ -233,4 +233,63 @@ local edge_version=$(get_var "EDGE_VERSION" 2>/dev/null || echo "not set")
 echo "[$SCRIPT_INDEX] Stored variables:"
 echo "[$SCRIPT_INDEX]   EDGE_BIN: $edge_bin"
 echo "[$SCRIPT_INDEX]   EDGE_VERSION: $edge_version"
-echo "[$SCRIPT_INDEX] ===============================" 
+echo "[$SCRIPT_INDEX] ==============================="
+
+# Function to check and fix edge-tts Python package version
+check_and_fix_edge_tts_version() {
+    local required_version="7.2.1"
+    local compatible_versions=("7.2.1" "7.2.0" "7.1.0" "7.0.0")
+
+    echo "[$SCRIPT_INDEX] ==============================="
+    echo "[$SCRIPT_INDEX] Checking edge-tts Python package..."
+    echo "[$SCRIPT_INDEX] ==============================="
+
+    # Check if edge-tts is installed
+    if ! python3 -c "import edge_tts" 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] edge-tts not installed, installing version $required_version..."
+        pip3 install "edge-tts==$required_version" --break-system-packages 2>&1 | tail -5
+        echo "[$SCRIPT_INDEX] edge-tts $required_version installed"
+        return 0
+    fi
+
+    # Get current version
+    local current_version=$(python3 -c "import edge_tts; print(edge_tts.__version__)" 2>/dev/null || echo "unknown")
+    echo "[$SCRIPT_INDEX] Current edge-tts version: $current_version"
+
+    # Check if current version is compatible
+    local is_compatible=0
+    for ver in "${compatible_versions[@]}"; do
+        if [ "$current_version" = "$ver" ]; then
+            is_compatible=1
+            break
+        fi
+    done
+
+    if [ $is_compatible -eq 1 ]; then
+        echo "[$SCRIPT_INDEX] edge-tts version $current_version is compatible, no action needed"
+        return 0
+    fi
+
+    # Incompatible version detected (7.2.2+), need to downgrade
+    echo "[$SCRIPT_INDEX] WARNING: edge-tts $current_version is incompatible (has NoAudioReceived bug)"
+    echo "[$SCRIPT_INDEX] Reference: https://github.com/rany2/edge-tts/issues/443"
+    echo "[$SCRIPT_INDEX] Downgrading to $required_version..."
+
+    # Force reinstall with correct version
+    pip3 install "edge-tts==$required_version" --break-system-packages --force-reinstall 2>&1 | tail -10
+
+    # Verify installation
+    local new_version=$(python3 -c "import edge_tts; print(edge_tts.__version__)" 2>/dev/null || echo "unknown")
+
+    if [ "$new_version" = "$required_version" ]; then
+        echo "[$SCRIPT_INDEX] SUCCESS: edge-tts downgraded from $current_version to $new_version"
+    else
+        echo "[$SCRIPT_INDEX] WARNING: Downgrade attempted but got version $new_version instead of $required_version"
+    fi
+
+    echo "[$SCRIPT_INDEX] ==============================="
+}
+
+# Check and fix edge-tts version
+check_and_fix_edge_tts_version
+ 

@@ -1,6 +1,14 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { ApiCenter } from '../../services/ApiCenter';
+import {
+  AuthLayout,
+  AuthCard,
+  AuthInput,
+  AuthError,
+  AuthSuccess,
+  AuthBackButton,
+} from '../../components/Auth';
 
 const ForgotPassword = () => {
   const { t, navigate } = useContext(AppContext);
@@ -38,71 +46,35 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-5">
-      <div className="w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/login')}
-          className="mb-4 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+    <AuthLayout showHeader={false}>
+      <div className="w-full sm:max-w-sm sm:mx-auto">
+        <AuthBackButton to="/login" />
+
+        <AuthCard
+          title={t('auth.forgotPassword')}
+          subtitle="Enter your email to receive password reset instructions"
         >
-          <span>←</span>
-          <span>{t('common.back')}</span>
-        </button>
-
-        {/* Card */}
-        <div className="glass-panel bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
-              {t('auth.forgotPassword')}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
-              Enter your email to receive password reset instructions
-            </p>
-          </div>
-
           {success ? (
-            /* Success Message */
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">✓</span>
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                Check Your Email
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                We've sent password reset instructions to <strong>{email}</strong>
-              </p>
-              <button
-                onClick={() => navigate('/login')}
-                className="w-full py-4 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all"
-              >
-                {t('common.back')} to Login
-              </button>
-            </div>
+            <AuthSuccess
+              title="Check Your Email"
+              message={`We've sent password reset instructions to ${email}`}
+              actionLabel={`${t('common.back')} to Login`}
+              onAction={() => navigate('/login')}
+            />
           ) : (
-            /* Form */
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
-                  {error}
-                </div>
-              )}
+              <AuthError message={error} className="p-4" />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {t('auth.email')}
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@example.com"
-                  disabled={loading}
-                  className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
-                  autoComplete="email"
-                />
-              </div>
+              <AuthInput
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                disabled={loading}
+                autoComplete="email"
+                label={t('auth.email')}
+                required
+              />
 
               <button
                 type="submit"
@@ -123,9 +95,9 @@ const ForgotPassword = () => {
               </div>
             </form>
           )}
-        </div>
+        </AuthCard>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 

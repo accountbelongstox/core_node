@@ -443,4 +443,79 @@ class FileSystemManager
             return false;
         }
     }
+
+    /**
+     * Scan directory and calculate file statistics
+     * Returns array with: total_size, total_files, zero_byte_files, scanned_directories, errors
+     * 
+     * @param array $directories Array of directory paths to scan
+     * @param array $extensions Array of file extensions to include (e.g., ['mp3', 'wav'])
+     * @return array Statistics array
+     */
+    public static function scanDirectoriesForFiles(array $directories, array $extensions = []): array
+    {
+        $totalSize = 0;
+        $totalFiles = 0;
+        $zeroByteFiles = 0;
+        $scannedDirectories = [];
+        $errors = [];
+
+        foreach ($directories as $dir) {
+            try {
+                // Use exists() to check if directory exists (handles mapped paths)
+                if (!self::exists($dir) || !is_dir($dir)) {
+                    continue;
+                }
+
+                $dirFiles = 0;
+                $dirSize = 0;
+
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::LEAVES_ONLY
+                );
+
+                foreach ($iterator as $file) {
+                    if ($file->isFile() && $file->isReadable()) {
+                        // Filter by extension if provided
+                        if (!empty($extensions)) {
+                            $extension = strtolower($file->getExtension());
+                            if (!in_array($extension, $extensions)) {
+                                continue;
+                            }
+                        }
+
+                        $filePath = $file->getPathname();
+                        $fileSize = @filesize($filePath);
+                        if ($fileSize !== false) {
+                            if ($fileSize > 0) {
+                                $totalSize += $fileSize;
+                                $totalFiles++;
+                                $dirSize += $fileSize;
+                                $dirFiles++;
+                            } else {
+                                $zeroByteFiles++;
+                            }
+                        }
+                    }
+                }
+
+                if ($dirFiles > 0 || is_dir($dir)) {
+                    $scannedDirectories[] = $dir;
+                }
+            } catch (\Exception $e) {
+                $errorMsg = "Failed to scan directory: {$dir} - " . $e->getMessage();
+                $errors[] = $errorMsg;
+                \Log::warning($errorMsg);
+            }
+        }
+
+        return [
+            'total_size' => $totalSize,
+            'total_files' => $totalFiles,
+            'zero_byte_files' => $zeroByteFiles,
+            'scanned_directories' => $scannedDirectories,
+            'errors' => $errors,
+        ];
+    }
 }

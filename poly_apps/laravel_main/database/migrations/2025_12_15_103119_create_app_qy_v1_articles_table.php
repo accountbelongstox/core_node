@@ -1,49 +1,71 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
     {
-        Schema::connection('appqyv1')->create('app_qy_v1_articles', function (Blueprint $table) {
-            $table->id();
-            $table->string('article_id', 64)->unique()->comment('Unique article identifier');
-            $table->string('title')->nullable()->comment('Article title');
-            $table->text('content')->comment('Article content');
-            $table->string('language', 20)->default('english')->comment('Article language');
-            $table->string('article_type', 50)->default('general')->comment('Article type for categorization');
-            $table->string('source')->nullable()->comment('Source of the article');
-            $table->string('difficulty_level', 20)->nullable()->comment('Difficulty level (beginner, intermediate, advanced)');
-            $table->integer('word_count')->default(0)->comment('Total word count');
-            $table->integer('unique_word_count')->default(0)->comment('Unique word count');
-            $table->integer('sentence_count')->default(0)->comment('Total sentence count');
-            $table->boolean('is_daily_reading')->default(false)->comment('Is this a daily reading article');
-            $table->date('reading_date')->nullable()->comment('Date for daily reading');
-            $table->string('task_id', 64)->nullable()->comment('Associated task ID');
-            $table->boolean('tts_generated')->default(false)->comment('Whether TTS audio has been generated');
-            $table->json('metadata')->nullable()->comment('Additional metadata');
-            $table->timestamps();
-
-            $table->index('article_id');
-            $table->index('language');
-            $table->index('article_type');
-            $table->index('is_daily_reading');
-            $table->index('reading_date');
-            $table->index('task_id');
-        });
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
     }
 
-    /**
-     * Reverse the migrations.
-     */
+    public function up(): void
+    {
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'article_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'unique' => true, 'comment' => 'Unique article identifier'],
+                'title' => ['type' => 'string', 'nullable' => true, 'comment' => 'Article title'],
+                'content' => ['type' => 'text', 'nullable' => false, 'comment' => 'Article content'],
+                'language' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'english', 'index' => true, 'comment' => 'Article language'],
+                'article_type' => ['type' => 'string', 'length' => 50, 'nullable' => false, 'default' => 'general', 'index' => true, 'comment' => 'Article type for categorization'],
+                'source' => ['type' => 'string', 'nullable' => true, 'comment' => 'Source of the article'],
+                'difficulty_level' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'comment' => 'Difficulty level (beginner, intermediate, advanced)'],
+                'word_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Total word count'],
+                'unique_word_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Unique word count'],
+                'sentence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Total sentence count'],
+                'is_daily_reading' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'index' => true, 'comment' => 'Is this a daily reading article'],
+                'reading_date' => ['type' => 'date', 'nullable' => true, 'index' => true, 'comment' => 'Date for daily reading'],
+                'task_id' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'index' => true, 'comment' => 'Associated task ID'],
+                'tts_generated' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'comment' => 'Whether TTS audio has been generated'],
+                'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['article_id']],
+                ['columns' => ['language']],
+                ['columns' => ['article_type']],
+                ['columns' => ['is_daily_reading']],
+                ['columns' => ['reading_date']],
+                ['columns' => ['task_id']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
     public function down(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_articles');
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

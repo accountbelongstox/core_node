@@ -8,6 +8,7 @@ use App\Services\SMS\Providers\LogSmsProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\Eloquent\Model;
 
 class VerificationCodeService
 {
@@ -103,7 +104,9 @@ class VerificationCodeService
         $expiresAt = now()->addMinutes($this->codeExpiryMinutes);
 
         try {
-            DB::connection($this->connection)->table($this->tableName)->insert([
+            // Use model connection for query builder (Laravel best practice)
+            $dbConnection = $this->getDbConnection();
+            $dbConnection->table($this->tableName)->insert([
                 'phone' => $phone,
                 'code' => $code,
                 'expires_at' => $expiresAt,
@@ -125,7 +128,9 @@ class VerificationCodeService
                     'provider' => $smsResult['provider'] ?? 'unknown',
                 ];
             } else {
-                DB::connection($this->connection)
+                // Use model connection for query builder (Laravel best practice)
+                $dbConnection = $this->getDbConnection();
+                $dbConnection
                     ->table($this->tableName)
                     ->where('phone', $phone)
                     ->where('code', $code)
@@ -170,7 +175,10 @@ class VerificationCodeService
             ];
         }
 
-        $record = DB::connection($this->connection)
+        // Use model connection for query builder (Laravel best practice)
+        $dbConnection = $this->getDbConnection();
+        
+        $record = $dbConnection
             ->table($this->tableName)
             ->where('phone', $phone)
             ->where('code', $code)
@@ -192,7 +200,7 @@ class VerificationCodeService
             ];
         }
 
-        DB::connection($this->connection)
+        $dbConnection
             ->table($this->tableName)
             ->where('id', $record->id)
             ->update([
@@ -200,7 +208,7 @@ class VerificationCodeService
                 'updated_at' => now(),
             ]);
 
-        DB::connection($this->connection)
+        $dbConnection
             ->table($this->tableName)
             ->where('phone', $phone)
             ->where('id', '!=', $record->id)
@@ -220,7 +228,9 @@ class VerificationCodeService
     public function cleanupExpiredCodes(): int
     {
         try {
-            $deleted = DB::connection($this->connection)
+            // Use model connection for query builder (Laravel best practice)
+            $dbConnection = $this->getDbConnection();
+            $deleted = $dbConnection
                 ->table($this->tableName)
                 ->where('expires_at', '<', now()->subDays(7))
                 ->delete();
@@ -308,9 +318,24 @@ class VerificationCodeService
         Cache::put($cacheKey, now(), $this->rateLimitSeconds);
     }
 
+    /**
+     * Get database connection using model (Laravel best practice)
+     * Creates a temporary model instance to get the connection
+     */
+    protected function getDbConnection()
+    {
+        $model = new class extends Model {
+            // Temporary model for getting connection
+        };
+        $model->setConnection($this->connection);
+        return $model->getConnection();
+    }
+
     protected function checkDailyLimit(string $phone): array
     {
-        $count = DB::connection($this->connection)
+        // Use model connection for query builder (Laravel best practice)
+        $dbConnection = $this->getDbConnection();
+        $count = $dbConnection
             ->table($this->tableName)
             ->where('phone', $phone)
             ->where('created_at', '>=', now()->startOfDay())

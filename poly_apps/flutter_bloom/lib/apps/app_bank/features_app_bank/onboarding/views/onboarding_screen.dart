@@ -17,7 +17,7 @@ import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import '../../../config_app_bank/bank_text_styles.dart';
-import '../../../config_app_bank/constants.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import '../../../localization_app_bank/localization_keys_app_bank.dart';
 
 /// Bank Onboarding Screen
@@ -144,7 +144,7 @@ class _BankOnboardingScreenState extends State<BankOnboardingScreen> {
                         color: _currentPage == index
                             ? ThemeColors.primaryColor
                             : ThemeColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                       ),
                     ),
                   ),
@@ -162,7 +162,7 @@ class _BankOnboardingScreenState extends State<BankOnboardingScreen> {
                       backgroundColor: ThemeColors.primaryColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                       ),
                     ),
                     child: Text(

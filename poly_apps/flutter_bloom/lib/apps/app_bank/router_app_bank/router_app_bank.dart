@@ -12,12 +12,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../config_app_bank/constants.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import '../features_app_bank/splash/views/splash_screen.dart';
 import '../features_app_bank/onboarding/views/onboarding_screen.dart';
 import '../features_app_bank/authentication/views/authentication_screen.dart';
 import '../features_app_bank/dashboard/views/dashboard_screen.dart';
-import '../features_app_bank/account_overview/views/account_overview_screen.dart';
+import '../features_app_bank/account_overview/views/account_overview_screen_new.dart';
 import '../features_app_bank/transfer/views/transfer_screen.dart';
 import '../features_app_bank/payment/views/payment_screen.dart';
 import '../features_app_bank/transaction_history/views/transaction_history_screen.dart';
@@ -29,10 +29,11 @@ import '../features_app_bank/profile/views/profile_screen.dart';
 import '../features_app_bank/help/views/help_screen.dart';
 import '../features_app_bank/life/views/life_screen.dart';
 import '../features_app_bank/settings/views/settings_screen.dart';
-import '../features_app_bank/debug/views/exclusive_customer_screen.dart';
-import '../features_app_bank/debug/views/debug_settings_screen.dart';
-import '../features_app_bank/debug/views/developer_feedback_screen.dart';
-import '../features_app_bank/debug/views/developer_tools_screen.dart';
+import '../features_app_bank/debug_tools/views/exclusive_customer_screen.dart';
+import '../features_app_bank/debug_tools/views/debug_settings_screen.dart';
+import '../features_app_bank/debug_tools/views/developer_feedback_screen.dart';
+import '../features_app_bank/debug_tools/views/developer_tools_screen.dart';
+import '../features_app_bank/debug_tools/views/api_status_monitor_screen.dart';
 
 /// Bank App Router Configuration
 /// Defines all routes and navigation for the Bank application
@@ -45,7 +46,8 @@ class BankAppRouter {
   static const String routeAccountOverview = BankConstants.routeAccountOverview;
   static const String routeTransfer = BankConstants.routeTransfer;
   static const String routePayment = BankConstants.routePayment;
-  static const String routeTransactionHistory = BankConstants.routeTransactionHistory;
+  static const String routeTransactionHistory =
+      BankConstants.routeTransactionHistory;
   static const String routeCardManagement = BankConstants.routeCardManagement;
   static const String routeInvestment = BankConstants.routeInvestment;
   static const String routeLoan = BankConstants.routeLoan;
@@ -54,9 +56,11 @@ class BankAppRouter {
   static const String routeHelp = BankConstants.routeHelp;
   static const String routeLife = BankConstants.routeLife;
   static const String routeSettings = BankConstants.routeSettings;
-  static const String routeExclusiveCustomer = BankConstants.routeExclusiveCustomer;
+  static const String routeExclusiveCustomer =
+      BankConstants.routeExclusiveCustomer;
   static const String routeDebugSettings = BankConstants.routeDebugSettings;
-  static const String routeDeveloperFeedback = BankConstants.routeDeveloperFeedback;
+  static const String routeDeveloperFeedback =
+      BankConstants.routeDeveloperFeedback;
   static const String routeDeveloperTools = BankConstants.routeDeveloperTools;
 
   /// Get all route paths for debugging/validation
@@ -120,7 +124,7 @@ class BankAppRouter {
 
   /// Get default route for app initialization
   static String getDefaultRoute() => routeDashboard;
-  
+
   /// Get home route for navigation
   static String getHomeRoute() => routeDashboard;
 
@@ -161,7 +165,7 @@ class BankAppRouter {
         GoRoute(
           path: routeAccountOverview,
           name: 'bank_account_overview',
-          builder: (context, state) => const BankAccountOverviewScreen(),
+          builder: (context, state) => const AccountOverviewScreenNew(),
         ),
 
         // Transfer Screen
@@ -217,7 +221,11 @@ class BankAppRouter {
         GoRoute(
           path: routeProfile,
           name: 'bank_profile',
-          builder: (context, state) => const BankProfileScreen(),
+          builder: (context, state) {
+            final viewParam = state.uri.queryParameters['view'];
+            final forceOriginalView = viewParam != null && viewParam == 'original';
+            return BankProfileScreen(forceOriginalView: forceOriginalView);
+          },
         ),
 
         // Life Services Screen
@@ -267,6 +275,13 @@ class BankAppRouter {
           path: routeDeveloperTools,
           name: 'bank_developer_tools',
           builder: (context, state) => const DeveloperToolsScreen(),
+        ),
+
+        // API Status Monitor Screen
+        GoRoute(
+          path: BankConstants.routeApiStatusMonitor,
+          name: 'bank_api_status_monitor',
+          builder: (context, state) => const ApiStatusMonitorScreen(),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

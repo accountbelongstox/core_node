@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
@@ -17,7 +18,7 @@ class AppQyV1WordGroupService
         int $libraryId,
         int $userId
     ): array {
-        return DB::connection('appqyv1')->transaction(function () use ($group, $libraryId, $userId) {
+        return DB::transaction(function () use ($group, $libraryId, $userId) {
             $library = AppQyV1VocabularyLibraryModel::findOrFail($libraryId);
 
             $groupLibrary = AppQyV1GroupLibraryModel::create([
@@ -43,7 +44,7 @@ class AppQyV1WordGroupService
         array $wordIds,
         int $userId
     ): array {
-        return DB::connection('appqyv1')->transaction(function () use ($group, $wordIds, $userId) {
+        return DB::transaction(function () use ($group, $wordIds, $userId) {
             $existingWordIds = AppQyV1GroupWordModel::where('group_id', $group->id)
                 ->whereIn('word_id', $wordIds)
                 ->pluck('word_id')
@@ -60,12 +61,16 @@ class AppQyV1WordGroupService
                 ];
             }
 
-            $words = DB::connection('appqyv1')
-                ->table('app_qy_v1_vocabulary_words as vw')
-                ->leftJoin('app_qy_v1_vocabulary_libraries as vl', 'vw.library_id', '=', 'vl.id')
-                ->whereIn('vw.id', $wordsToAdd)
-                ->select(['vw.id', 'vw.word', 'vl.language'])
+            $words = AppQyV1VocabularyItemModel::with('collection')
+                ->whereIn('id', $wordsToAdd)
                 ->get()
+                ->map(function ($item) {
+                    return (object)[
+                        'id' => $item->id,
+                        'word' => $item->word_content,
+                        'language' => $item->collection->lang_code ?? null,
+                    ];
+                })
                 ->keyBy('id');
 
             $result = $this->bulkInsertGroupWords($group, $words, $userId);
@@ -89,11 +94,15 @@ class AppQyV1WordGroupService
             ->pluck('word_id')
             ->toArray();
 
-        $words = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_words')
-            ->where('library_id', $library->id)
+        $words = AppQyV1VocabularyItemModel::where('collection_id', $library->id)
             ->whereNotIn('id', $existingWordIds)
-            ->get(['id', 'word']);
+            ->get()
+            ->map(function ($item) {
+                return (object)[
+                    'id' => $item->id,
+                    'word' => $item->word_content,
+                ];
+            });
 
         $result = $this->bulkInsertGroupWords($group, $words, $userId, $library->language);
 
@@ -154,13 +163,13 @@ class AppQyV1WordGroupService
 
         $addedCount = 0;
         if (!empty($groupWordsData)) {
-            DB::connection('appqyv1')->table('app_qy_v1_group_words')->insert($groupWordsData);
+            AppQyV1GroupWordModel::insert($groupWordsData);
             $addedCount = count($groupWordsData);
         }
 
         if (!empty($progressData)) {
             foreach (array_chunk($progressData, 500) as $chunk) {
-                DB::connection('appqyv1')->table('app_qy_v1_user_word_progress')->insert($chunk);
+                AppQyV1UserWordProgressModel::insert($chunk);
             }
         }
 

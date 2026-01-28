@@ -31,11 +31,19 @@ function initializeNavigation() {
         });
     });
 
+    // Load default section from localStorage or use 'api-testing' as default
     const savedSection = localStorage.getItem('active_section');
-    if (savedSection) {
-        showSection(savedSection);
+    const defaultSection = savedSection || 'api-testing';
+    
+    // If saved section is different from default, switch to it
+    if (defaultSection !== 'api-testing') {
+        showSection(defaultSection);
     } else {
-        showSection('api-testing');
+        // Ensure default section is active
+        const defaultLink = document.querySelector('[data-section="api-testing"]');
+        if (defaultLink) {
+            defaultLink.classList.add('active');
+        }
     }
 }
 
@@ -118,7 +126,8 @@ function showSection(sectionType) {
         'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
         'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
         'learning': '/debug-assets/debug-tools/sections/learning-section.html',
-        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html'
+        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html',
+        'sso': '/sso'
     };
 
     const sectionTitles = {
@@ -129,7 +138,8 @@ function showSection(sectionType) {
         'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
         'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
         'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
-        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' }
+        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' },
+        'sso': { title: 'SSO Authentication', desc: 'Single Sign-On authentication with WorkOS AuthKit' }
     };
 
     const iframe = document.getElementById('section-iframe');

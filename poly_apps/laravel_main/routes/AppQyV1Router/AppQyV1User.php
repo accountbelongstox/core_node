@@ -66,5 +66,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/profile', [AppQyV1ProfileController::class, 'getProfile']);
         Route::put('/profile', [AppQyV1ProfileController::class, 'updateProfile']);
         Route::post('/profile', [AppQyV1ProfileController::class, 'updateProfile']);
+
+        // User preferences
+        Route::get('/preferences', [AppQyV1ProfileController::class, 'getPreferences']);
+        Route::put('/preferences', [AppQyV1ProfileController::class, 'updatePreferences']);
+        Route::post('/preferences', [AppQyV1ProfileController::class, 'updatePreferences']);
     });
 });

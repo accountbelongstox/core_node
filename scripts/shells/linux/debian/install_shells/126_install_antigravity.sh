@@ -2,10 +2,7 @@
 # Antigravity Installation Script (Debian/Ubuntu)
 #
 # Usage:
-#   ./126_install_antigravity.sh              # Install (root mode with pkexec, will prompt)
-#   ./126_install_antigravity.sh --force      # Force install even if already present
-#   ./126_install_antigravity.sh --cleanup    # Remove package, repo, and desktop entries
-#   ./126_install_antigravity.sh --no-root    # Install in normal mode (no pkexec)
+#   ./126_install_antigravity.sh   # Normal installation (no arguments)
 #
 # This script installs the Antigravity app from the official Google Artifact Registry
 # repo and creates desktop entries. By default, it runs with root privileges (pkexec)
@@ -34,8 +31,6 @@ REPO_SOURCE_LINE="deb [signed-by=$REPO_KEY_FILE] https://us-central1-apt.pkg.dev
 DESKTOP_ENTRY_SYSTEM="/usr/share/applications/antigravity.desktop"
 DESKTOP_ENTRY_NAME="Antigravity"
 DESKTOP_ENTRY_ICON="antigravity"
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
 
 # Source shared libraries
@@ -51,34 +46,7 @@ log() {
     echo "[${SCRIPT_INDEX}] $1"
 }
 
-# Parse CLI arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                shift
-                ;;
-            --fix-desktop)
-                FIX_DESKTOP_MODE=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root] [--fix-desktop]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 ensure_requirements() {
     if ! command -v apt >/dev/null 2>&1; then
@@ -121,10 +89,6 @@ prompt_installation_decision() {
 
 # Prompt for root mode selection
 prompt_root_mode_selection() {
-    # Skip prompt if explicitly set via command line
-    if [[ "$FORCE_INSTALL" == "true" ]]; then
-        return 0
-    fi
 
     echo ""
     echo "=========================================="
@@ -265,88 +229,43 @@ remove_repository() {
 }
 
 install_antigravity() {
-    # Step 1: Add repository
-    log "Step 1/4: Adding Antigravity repository..."
-    if ! add_repository; then
-        log "ERROR: Failed to add repository"
-        return 1
-    fi
-
-    # Step 2: Update package cache
-    log "Step 2/4: Updating package cache..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if ! $USE_SUDO apt update; then
-        log "ERROR: Failed to update package cache"
-        remove_repository
-        return 1
-    fi
-
-    # Step 3: Install package
-    log "Step 3/4: Installing $ANTIGRAVITY_PACKAGE..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y "$ANTIGRAVITY_PACKAGE"; then
-        log "Package installed successfully"
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore
+    log "Installing $ANTIGRAVITY_PACKAGE with repository manager..."
+    add_antigravity_repository_from_apt_repository_manager \
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Installation completed successfully"
+        return 0
     else
         log "ERROR: Failed to install package"
-        remove_repository
         return 1
     fi
-
-    # Step 4: Remove repository immediately after installation
-    log "Step 4/4: Removing repository (cleanup after installation)..."
-    remove_repository
-
-    log "Installation completed successfully"
-    return 0
 }
 
 # Function: Update Antigravity (add repo �?upgrade �?remove repo)
 update_antigravity() {
     log "Updating $ANTIGRAVITY_PACKAGE..."
-
-    # Step 1: Add repository
-    log "Step 1/4: Adding Antigravity repository..."
-    if ! add_repository; then
-        log "ERROR: Failed to add repository"
-        return 1
-    fi
-
-    # Step 2: Update package cache
-    log "Step 2/4: Updating package cache..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if ! $USE_SUDO apt update; then
-        log "ERROR: Failed to update package cache"
-        remove_repository
-        return 1
-    fi
-
-    # Step 3: Upgrade package
-    log "Step 3/4: Upgrading $ANTIGRAVITY_PACKAGE..."
-    if ! wait_for_apt_lock; then
-        remove_repository
-        return 1
-    fi
-    if DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install --only-upgrade -y "$ANTIGRAVITY_PACKAGE"; then
-        log "Package upgraded successfully"
+    
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore
+    add_antigravity_repository_from_apt_repository_manager \
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install --only-upgrade -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Update completed"
+        return 0
     else
         log "WARNING: Package may already be at latest version or upgrade failed"
+        return 1
     fi
-
-    # Step 4: Remove repository immediately after update
-    log "Step 4/4: Removing repository (cleanup after update)..."
-    remove_repository
-
-    log "Update completed"
-    return 0
 }
 
 # Function: Prompt user to update if already installed
@@ -667,25 +586,10 @@ EOF
 }
 
 main() {
-    parse_arguments "$@"
     ensure_requirements
-
-    # Handle cleanup mode
-    if $CLEANUP_MODE; then
-        cleanup_antigravity
-        exit 0
-    fi
 
     # Check if already installed
     if is_antigravity_installed; then
-        if $FORCE_INSTALL; then
-            log "Forcing reinstallation..."
-            install_antigravity
-            create_desktop_entry
-            log "$DESKTOP_ENTRY_NAME reinstallation finished."
-            exit 0
-        fi
-
         # Already installed - prompt for update
         if prompt_update_decision; then
             update_antigravity
@@ -713,4 +617,4 @@ main() {
     fi
 }
 
-main "$@"
+main

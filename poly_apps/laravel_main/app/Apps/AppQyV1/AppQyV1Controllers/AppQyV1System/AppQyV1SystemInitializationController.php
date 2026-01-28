@@ -17,7 +17,9 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1LegacyDatabaseProcessor;
@@ -26,6 +28,11 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ImageFileProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyProcessor\AppQyV1VocabularyProcessor;
 use App\Traits\ApiResponse;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 
 class AppQyV1SystemInitializationController extends Controller
 {
@@ -454,47 +461,671 @@ class AppQyV1SystemInitializationController extends Controller
 
     public function getDictionaryStatistics()
     {
-            $connection = 'AppQyV1';
+        $languages = [
+            'english' => 'English',
+            'lao' => 'Lao',
+            'japanese' => 'Japanese',
+            'vietnamese' => 'Vietnamese',
+        ];
+        
+        $statistics = collect($languages)->map(function ($langName, $langCode) {
+            $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
             
-            $languages = [
-                'english' => 'English',
-                'lao' => 'Lao',
-                'japanese' => 'Japanese',
-                'vietnamese' => 'Vietnamese',
+            $total = $model->count();
+            $reviewed = $model->where('ai_reviewed', true)->count();
+            
+            return [
+                'language' => $langName,
+                'language_code' => $langCode,
+                'total_words' => $total,
+                'ai_reviewed' => $reviewed,
+                'review_percentage' => $total > 0 ? round(($reviewed / $total) * 100, 2) : 0
             ];
+        });
+        
+        $totalWords = $statistics->sum('total_words');
+        $totalReviewed = $statistics->sum('ai_reviewed');
+        
+        return $this->success([
+            'languages' => $statistics->values(),
+            'summary' => [
+                'total_words' => $totalWords,
+                'total_reviewed' => $totalReviewed,
+                'overall_review_percentage' => $totalWords > 0 ? round(($totalReviewed / $totalWords) * 100, 2) : 0
+            ]
+        ]);
+    }
+
+    public function getSystemStatistics()
+    {
+        $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
+        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
+        
+        $languageStats = $supportedLanguages->map(function ($langCode) use ($connectionName) {
+            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $tableExists = Schema::connection($connectionName)->hasTable($dictModel->getTable());
             
-            $statistics = [];
-            $totalWords = 0;
-            $totalReviewed = 0;
-            
-            foreach ($languages as $langCode => $langName) {
-                $tableName = "app_qy_v1_words_{$langCode}";
-                
-                $total = DB::connection($connection)->table($tableName)->count();
-                $reviewed = DB::connection($connection)->table($tableName)->where('ai_reviewed', 1)->count();
-                
-                $statistics[] = [
-                    'language' => $langName,
+            if (!$tableExists) {
+                return [
                     'language_code' => $langCode,
-                    'total_words' => $total,
-                    'ai_reviewed' => $reviewed,
-                    'review_percentage' => $total > 0 ? round(($reviewed / $total) * 100, 2) : 0
+                    'words' => 0,
+                    'sentences' => 0,
+                    'articles' => 0,
+                    'audio' => 0,
                 ];
-                
-                $totalWords += $total;
-                $totalReviewed += $reviewed;
             }
             
-            return response()->json([
-                'status' => 'success',
-                'data' => [
-                    'languages' => $statistics,
-                    'summary' => [
-                        'total_words' => $totalWords,
-                        'total_reviewed' => $totalReviewed,
-                        'overall_review_percentage' => $totalWords > 0 ? round(($totalReviewed / $totalWords) * 100, 2) : 0
-                    ]
-                ]
-            ]);
+            $wordCount = $dictModel->count();
+            $sentenceCount = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->count();
+            $audioCount = $dictModel->where('has_audio', true)->count();
+            
+            $articleModel = AppQyV1ArticleLibraryModel::forLanguage($langCode);
+            $articleCount = 0;
+            $articleAudioCount = 0;
+            if (Schema::connection($connectionName)->hasTable($articleModel->getTable())) {
+                $articleCount = $articleModel->count();
+                $articleAudioCount = $articleModel->where('has_audio', true)->count();
+            }
+            
+            $ttsQueueModel = new AppQyV1TTSQueueModel();
+            $ttsQueueTableExists = Schema::connection($ttsQueueModel->getConnectionName())->hasTable($ttsQueueModel->getTable());
+            
+            $sentenceAudioCount = 0;
+            $completedAudioByLang = 0;
+            if ($ttsQueueTableExists) {
+                $sentenceAudioCount = AppQyV1TTSQueueModel::where('language', $langCode)
+                    ->where('task_type', 'sentence')
+                    ->where('status', 'completed')
+                    ->count();
+                
+                $completedAudioByLang = AppQyV1TTSQueueModel::where('language', $langCode)
+                    ->where('status', 'completed')
+                    ->count();
+            }
+            
+            return [
+                'language_code' => $langCode,
+                'words' => $wordCount,
+                'sentences' => $sentenceCount + $sentenceAudioCount,
+                'articles' => $articleCount,
+                'audio' => $audioCount + $articleAudioCount + $completedAudioByLang,
+            ];
+        });
+        
+        // Get TTS Queue Statistics
+        $ttsQueueStats = AppQyV1TTSQueueModel::getStats();
+        
+        // Get Untranslated Words Statistics (for English dictionary as reference)
+        $untranslatedStats = $this->getUntranslatedWordsStatistics();
+        
+        $summary = [
+            'total_languages' => $supportedLanguages->count(),
+            'total_words' => $languageStats->sum('words'),
+            'total_sentences' => $languageStats->sum('sentences'),
+            'total_articles' => $languageStats->sum('articles'),
+            'total_audio' => $languageStats->sum('audio'),
+        ];
+        
+        return $this->success([
+            'languages' => $languageStats->values(),
+            'summary' => $summary,
+            'queues' => [
+                'tts' => [
+                    'pending' => $ttsQueueStats['pending'],
+                    'processing' => $ttsQueueStats['processing'],
+                    'completed' => $ttsQueueStats['completed'],
+                    'failed' => $ttsQueueStats['failed'],
+                    'total' => $ttsQueueStats['total'],
+                ],
+                'translation' => $untranslatedStats,
+            ],
+        ]);
+    }
+
+    /**
+     * Get system statistics summary (fast, cached)
+     * Returns only summary data without detailed language breakdown
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSystemStatisticsSummary()
+    {
+        $cacheKey = 'appqyv1_system_statistics_summary';
+        $lockKey = $cacheKey . '_lock';
+
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            return $this->success($cached);
+        }
+
+        $lock = Cache::lock($lockKey, 60);
+
+        if ($lock->get()) {
+            $cached = Cache::get($cacheKey);
+
+            if ($cached !== null) {
+                $lock->release();
+                return $this->success($cached);
+            }
+
+            $result = $this->computeSystemStatisticsSummary();
+
+            Cache::put($cacheKey, $result, now()->addMinutes(5));
+
+            $lock->release();
+
+            return $this->success($result);
+        }
+
+        $maxWaitTime = 10;
+        $waitStart = microtime(true);
+
+        while (microtime(true) - $waitStart < $maxWaitTime) {
+            $cached = Cache::get($cacheKey);
+            if ($cached !== null) {
+                return $this->success($cached);
+            }
+            usleep(100000);
+        }
+
+        $result = $this->computeSystemStatisticsSummary();
+        return $this->success($result);
+    }
+
+    private function computeSystemStatisticsSummary(): array
+    {
+        $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
+        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
+
+        $summary = [
+            'total_languages' => $supportedLanguages->count(),
+            'total_words' => 0,
+            'total_sentences' => 0,
+            'total_articles' => 0,
+            'total_audio' => 0,
+        ];
+
+        $languageDetails = [];
+
+        $includeFileScan = request()->boolean('include_file_scan', false);
+
+        $wordSoundsDir = \App\Providers\PathMapper::getAppQyV1AudioDir();
+        $sentenceSoundsDir = \App\Providers\PathMapper::getAppQyV1SentenceSoundsDir();
+        $audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'];
+
+        foreach ($supportedLanguages as $langCode) {
+            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $tableExists = Schema::connection($connectionName)->hasTable($dictModel->getTable());
+
+            if (!$tableExists) {
+                continue;
+            }
+
+            $langWords = $dictModel->count();
+
+            if ($langWords === 0) {
+                continue;
+            }
+
+            $langSentences = 0;
+            $langArticles = 0;
+            $langAudio = 0;
+            $langAudioFiles = 0;
+            $langAudioSize = 0;
+
+            $langSentences = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->count();
+            $langAudio = $dictModel->where('has_audio', true)->count();
+
+            $articleModel = AppQyV1ArticleLibraryModel::forLanguage($langCode);
+            if (Schema::connection($connectionName)->hasTable($articleModel->getTable())) {
+                $langArticles = $articleModel->count();
+                $langAudio += $articleModel->where('has_audio', true)->count();
+            }
+
+            if ($includeFileScan) {
+                $langWordDir = $wordSoundsDir . '/' . $langCode;
+                $langSentenceDir = $sentenceSoundsDir . '/' . $langCode;
+
+                $langDirs = [];
+                if (is_dir($langWordDir)) {
+                    $langDirs[] = $langWordDir;
+                }
+                if (is_dir($langSentenceDir)) {
+                    $langDirs[] = $langSentenceDir;
+                }
+
+                if (!empty($langDirs)) {
+                    $langAudioStats = \App\Utils\FileSystemManager::scanDirectoriesForFiles($langDirs, $audioExtensions);
+                    $langAudioFiles = $langAudioStats['total_files'];
+                    $langAudioSize = $langAudioStats['total_size'];
+                }
+            }
+
+            $summary['total_words'] += $langWords;
+            $summary['total_sentences'] += $langSentences;
+            $summary['total_articles'] += $langArticles;
+            $summary['total_audio'] += $langAudio;
+
+            $languageDetails[$langCode] = [
+                'words' => $langWords,
+                'sentences' => $langSentences,
+                'articles' => $langArticles,
+                'audio' => $langAudio,
+                'audio_files' => $langAudioFiles,
+                'audio_size_bytes' => $langAudioSize,
+                'audio_size_mb' => round($langAudioSize / (1024 * 1024), 2),
+                'audio_formatted_size' => $this->formatFileSize($langAudioSize),
+            ];
+        }
+
+        $result = array_merge($summary, [
+            'languages' => $languageDetails,
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Get detailed language statistics (load on demand)
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSystemStatisticsLanguages()
+    {
+        $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
+        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
+        
+        $languageStats = $supportedLanguages->map(function ($langCode) use ($connectionName) {
+            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $tableExists = Schema::connection($connectionName)->hasTable($dictModel->getTable());
+            
+            if (!$tableExists) {
+                return [
+                    'language_code' => $langCode,
+                    'words' => 0,
+                    'sentences' => 0,
+                    'articles' => 0,
+                    'audio' => 0,
+                ];
+            }
+            
+            $wordCount = $dictModel->count();
+            $sentenceCount = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->count();
+            $audioCount = $dictModel->where('has_audio', true)->count();
+            
+            $articleModel = AppQyV1ArticleLibraryModel::forLanguage($langCode);
+            $articleCount = 0;
+            $articleAudioCount = 0;
+            if (Schema::connection($connectionName)->hasTable($articleModel->getTable())) {
+                $articleCount = $articleModel->count();
+                $articleAudioCount = $articleModel->where('has_audio', true)->count();
+            }
+            
+            $ttsQueueModel = new AppQyV1TTSQueueModel();
+            $ttsQueueTableExists = Schema::connection($ttsQueueModel->getConnectionName())->hasTable($ttsQueueModel->getTable());
+            
+            $sentenceAudioCount = 0;
+            $completedAudioByLang = 0;
+            if ($ttsQueueTableExists) {
+                $sentenceAudioCount = AppQyV1TTSQueueModel::where('language', $langCode)
+                    ->where('task_type', 'sentence')
+                    ->where('status', 'completed')
+                    ->count();
+                
+                $completedAudioByLang = AppQyV1TTSQueueModel::where('language', $langCode)
+                    ->where('status', 'completed')
+                    ->count();
+            }
+            
+            $totalData = $wordCount + $sentenceCount + $sentenceAudioCount + $articleCount + $audioCount + $articleAudioCount + $completedAudioByLang;
+            
+            return [
+                'language_code' => $langCode,
+                'words' => $wordCount,
+                'sentences' => $sentenceCount + $sentenceAudioCount,
+                'articles' => $articleCount,
+                'audio' => $audioCount + $articleAudioCount + $completedAudioByLang,
+                '_total_data' => $totalData, // Internal field for sorting
+            ];
+        });
+        
+        // Sort by total data (descending), languages with data first
+        $sortedStats = $languageStats->sortByDesc('_total_data')->map(function ($item) {
+            unset($item['_total_data']); // Remove internal sorting field
+            return $item;
+        })->values();
+        
+        return $this->success($sortedStats);
+    }
+
+    /**
+     * Get queue statistics (load on demand)
+     * Includes audio file size statistics with 30-minute cache
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSystemStatisticsQueues()
+    {
+        $ttsQueueStats = AppQyV1TTSQueueModel::getStats();
+        $untranslatedStats = $this->getUntranslatedWordsStatistics();
+        
+        // Get force_refresh parameter from request
+        $forceRefresh = request()->boolean('force_refresh', false);
+        
+        // Get audio file size statistics (cached for 30 minutes, or force refresh)
+        $audioSizeStats = $this->getAudioFileSizeStatistics($forceRefresh);
+        
+        return $this->success([
+            'tts' => [
+                'pending' => $ttsQueueStats['pending'],
+                'processing' => $ttsQueueStats['processing'],
+                'completed' => $ttsQueueStats['completed'],
+                'failed' => $ttsQueueStats['failed'],
+                'total' => $ttsQueueStats['total'],
+            ],
+            'translation' => $untranslatedStats,
+            'audio_storage' => $audioSizeStats,
+        ]);
+    }
+
+    /**
+     * Get audio file size statistics with language breakdown
+     * Cached for 30 minutes, only recalculates if cache is expired or force refresh is true
+     * 
+     * @param bool $forceRefresh Force refresh even if cache exists
+     * @return array
+     */
+    private function getAudioFileSizeStatistics(bool $forceRefresh = false): array
+    {
+        $cacheKey = 'appqyv1_audio_file_size_stats';
+        
+        // If not forcing refresh, check cache first
+        if (!$forceRefresh) {
+            $cached = Cache::get($cacheKey);
+            if ($cached !== null) {
+                return $cached;
+            }
+        }
+        
+        // Get all audio directories using PathMapper (unified path management)
+        $wordSoundsDir = \App\Providers\PathMapper::getAppQyV1AudioDir();
+        $sentenceSoundsDir = \App\Providers\PathMapper::getAppQyV1SentenceSoundsDir();
+        
+        // Scan directories using FileSystemManager (handles path mapping automatically)
+        $audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'];
+        
+        // Get total statistics
+        $audioDirectories = [$wordSoundsDir, $sentenceSoundsDir];
+        $stats = \App\Utils\FileSystemManager::scanDirectoriesForFiles($audioDirectories, $audioExtensions);
+        
+        // Get language-specific statistics
+        $supportedLanguages = AppQyV1TableMaps::getSupportedLanguages();
+        $languageStats = [];
+        $totalSizeByLang = 0;
+        $totalFilesByLang = 0;
+        $totalZeroByLang = 0;
+        
+        foreach ($supportedLanguages as $langCode) {
+            $langWordDir = $wordSoundsDir . '/' . $langCode;
+            $langSentenceDir = $sentenceSoundsDir . '/' . $langCode;
+            
+            $langDirs = [];
+            if (is_dir($langWordDir)) {
+                $langDirs[] = $langWordDir;
+            }
+            if (is_dir($langSentenceDir)) {
+                $langDirs[] = $langSentenceDir;
+            }
+            
+            if (!empty($langDirs)) {
+                $langStats = \App\Utils\FileSystemManager::scanDirectoriesForFiles($langDirs, $audioExtensions);
+                
+                $langSize = $langStats['total_size'];
+                $langFiles = $langStats['total_files'];
+                $langZero = $langStats['zero_byte_files'];
+                
+                $totalSizeByLang += $langSize;
+                $totalFilesByLang += $langFiles;
+                $totalZeroByLang += $langZero;
+                
+                $languageStats[$langCode] = [
+                    'size_bytes' => $langSize,
+                    'size_mb' => round($langSize / (1024 * 1024), 2),
+                    'size_gb' => round($langSize / (1024 * 1024 * 1024), 2),
+                    'files' => $langFiles,
+                    'zero_byte_files' => $langZero,
+                    'formatted_size' => $this->formatFileSize($langSize),
+                ];
+            } else {
+                $languageStats[$langCode] = [
+                    'size_bytes' => 0,
+                    'size_mb' => 0,
+                    'size_gb' => 0,
+                    'files' => 0,
+                    'zero_byte_files' => 0,
+                    'formatted_size' => '0 B',
+                ];
+            }
+        }
+        
+        $result = [
+            'total_size_bytes' => $stats['total_size'],
+            'total_size_mb' => round($stats['total_size'] / (1024 * 1024), 2),
+            'total_size_gb' => round($stats['total_size'] / (1024 * 1024 * 1024), 2),
+            'total_files' => $stats['total_files'],
+            'zero_byte_files' => $stats['zero_byte_files'],
+            'formatted_size' => $this->formatFileSize($stats['total_size']),
+            'scanned_directories' => $stats['scanned_directories'],
+            'errors' => $stats['errors'],
+            'by_language' => $languageStats,
+        ];
+        
+        if ($stats['zero_byte_files'] > 0) {
+            $result['warning'] = "Found {$stats['zero_byte_files']} zero-byte audio files. These may be incomplete or failed TTS generations.";
+        }
+        
+        // Cache for 30 minutes
+        Cache::put($cacheKey, $result, now()->addMinutes(30));
+        
+        return $result;
+    }
+
+    /**
+     * Format file size in human-readable format (MB/GB)
+     * 
+     * @param int $bytes
+     * @return string
+     */
+    private function formatFileSize(int $bytes): string
+    {
+        if ($bytes >= 1024 * 1024 * 1024) {
+            return round($bytes / (1024 * 1024 * 1024), 2) . ' GB';
+        } elseif ($bytes >= 1024 * 1024) {
+            return round($bytes / (1024 * 1024), 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return round($bytes / 1024, 2) . ' KB';
+        }
+        return $bytes . ' B';
+    }
+
+    /**
+     * Get untranslated words and sentences statistics
+     * Statistics by language namespace, reusing the same logic as getSystemStatistics
+     * 
+     * @return array
+     */
+    private function getUntranslatedWordsStatistics(): array
+    {
+        $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
+        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
+        
+        $totalWords = 0;
+        $totalSentences = 0;
+        $completeWords = 0;
+        $completeSentences = 0;
+        $missingTranslation = 0;
+        $missingPhonetic = 0;
+        $missingAudio = 0;
+        $missingImages = 0;
+        $missingSentenceTranslation = 0;
+        $missingSentenceAudio = 0;
+        
+        $ttsQueueModel = new AppQyV1TTSQueueModel();
+        $ttsQueueTableExists = Schema::connection($ttsQueueModel->getConnectionName())->hasTable($ttsQueueModel->getTable());
+        
+        // Statistics by language namespace (reuse getSystemStatistics logic)
+        foreach ($supportedLanguages as $langCode) {
+            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $tableExists = Schema::connection($connectionName)->hasTable($dictModel->getTable());
+            
+            if (!$tableExists) {
+                continue;
+            }
+            
+            // Count words (all entries)
+            $wordCount = $dictModel->count();
+            $totalWords += $wordCount;
+            
+            // Count sentences (LENGTH(content) > 50 AND < 500)
+            $sentenceCount = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->count();
+            $totalSentences += $sentenceCount;
+            
+            // Count words with translation (has_translation = true OR translations is not empty)
+            $wordsWithTranslation = $dictModel->where(function ($q) {
+                $q->where('has_translation', true)
+                  ->orWhereNotNull('translations')
+                  ->where('translations', '!=', '')
+                  ->where('translations', '!=', '{}')
+                  ->where('translations', '!=', '[]');
+            })->count();
+            $completeWords += $wordsWithTranslation;
+            
+            // Count words missing translation
+            $wordsMissingTranslation = $dictModel->where(function ($q) {
+                $q->where('has_translation', false)
+                  ->orWhereNull('translations')
+                  ->orWhere('translations', '')
+                  ->orWhere('translations', '{}')
+                  ->orWhere('translations', '[]');
+            })->count();
+            $missingTranslation += $wordsMissingTranslation;
+            
+            // Count words missing phonetic (both us_phonetic and uk_phonetic are empty)
+            $wordsMissingPhonetic = $dictModel->where(function ($q) {
+                $q->where(function ($subQuery) {
+                    $subQuery->whereNull('us_phonetic')
+                             ->orWhere('us_phonetic', '');
+                })->where(function ($subQuery) {
+                    $subQuery->whereNull('uk_phonetic')
+                             ->orWhere('uk_phonetic', '');
+                });
+            })->count();
+            $missingPhonetic += $wordsMissingPhonetic;
+            
+            // Count words missing audio
+            $wordsMissingAudio = $dictModel->where(function ($q) {
+                $q->where('has_audio', false)
+                  ->orWhereNull('tts_files')
+                  ->orWhere('tts_files', '')
+                  ->orWhere('tts_files', '{}')
+                  ->orWhere('tts_files', '[]');
+            })->count();
+            $missingAudio += $wordsMissingAudio;
+            
+            // Count words missing images
+            $wordsMissingImages = $dictModel->where(function ($q) {
+                $q->whereNull('image_files')
+                  ->orWhere('image_files', '')
+                  ->orWhere('image_files', '{}')
+                  ->orWhere('image_files', '[]');
+            })->count();
+            $missingImages += $wordsMissingImages;
+            
+            // Count sentences with translation
+            $sentencesWithTranslation = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->where(function ($q) {
+                    $q->where('has_translation', true)
+                      ->orWhereNotNull('translations')
+                      ->where('translations', '!=', '')
+                      ->where('translations', '!=', '{}')
+                      ->where('translations', '!=', '[]');
+                })
+                ->count();
+            $completeSentences += $sentencesWithTranslation;
+            
+            // Count sentences missing translation
+            $sentencesMissingTranslation = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->where(function ($q) {
+                    $q->where('has_translation', false)
+                      ->orWhereNull('translations')
+                      ->orWhere('translations', '')
+                      ->orWhere('translations', '{}')
+                      ->orWhere('translations', '[]');
+                })
+                ->count();
+            $missingSentenceTranslation += $sentencesMissingTranslation;
+            
+            // Count sentences missing audio
+            $sentencesMissingAudio = $dictModel->whereRaw('LENGTH(content) > 50')
+                ->whereRaw('LENGTH(content) < 500')
+                ->where(function ($q) {
+                    $q->where('has_audio', false)
+                      ->orWhereNull('tts_files')
+                      ->orWhere('tts_files', '')
+                      ->orWhere('tts_files', '{}')
+                      ->orWhere('tts_files', '[]');
+                })
+                ->count();
+            $missingSentenceAudio += $sentencesMissingAudio;
+        }
+        
+        // Count sentence audio from TTS queue (completed sentences)
+        // Reuse the same logic as in getSystemStatistics method
+        $sentenceAudioCount = 0;
+        if ($ttsQueueTableExists) {
+            $sentenceAudioCount = AppQyV1TTSQueueModel::where('task_type', 'sentence')
+                ->where('status', 'completed')
+                ->count();
+        }
+        
+        // Total sentences includes both dictionary sentences and completed TTS sentence audio
+        // This matches the logic in getSystemStatistics: 'sentences' => $sentenceCount + $sentenceAudioCount
+        $totalSentencesWithAudio = $totalSentences + $sentenceAudioCount;
+
+        return [
+            'total_words' => $totalWords,
+            'complete_words' => $completeWords,
+            'completion_rate' => $totalWords > 0 ? round(($completeWords / $totalWords) * 100, 2) : 0,
+            'total_sentences' => $totalSentencesWithAudio,
+            'complete_sentences' => $completeSentences + $sentenceAudioCount,
+            'sentence_completion_rate' => $totalSentencesWithAudio > 0 ? round((($completeSentences + $sentenceAudioCount) / $totalSentencesWithAudio) * 100, 2) : 0,
+            'missing_breakdown' => [
+                'translation' => $missingTranslation,
+                'phonetic' => $missingPhonetic,
+                'audio' => $missingAudio,
+                'images' => $missingImages,
+                'sentence_translation' => $missingSentenceTranslation,
+                'sentence_audio' => $missingSentenceAudio,
+            ],
+            'missing_percentages' => [
+                'translation' => $totalWords > 0 ? round(($missingTranslation / $totalWords) * 100, 2) : 0,
+                'phonetic' => $totalWords > 0 ? round(($missingPhonetic / $totalWords) * 100, 2) : 0,
+                'audio' => $totalWords > 0 ? round(($missingAudio / $totalWords) * 100, 2) : 0,
+                'images' => $totalWords > 0 ? round(($missingImages / $totalWords) * 100, 2) : 0,
+                'sentence_translation' => $totalSentences > 0 ? round(($missingSentenceTranslation / $totalSentences) * 100, 2) : 0,
+                'sentence_audio' => $totalSentences > 0 ? round(($missingSentenceAudio / $totalSentences) * 100, 2) : 0,
+            ],
+        ];
     }
 }

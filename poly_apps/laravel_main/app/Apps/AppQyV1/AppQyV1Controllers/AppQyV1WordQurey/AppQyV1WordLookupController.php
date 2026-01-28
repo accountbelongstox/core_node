@@ -5,7 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordLookupController extends Controller
@@ -36,11 +36,7 @@ class AppQyV1WordLookupController extends Controller
         $language = $request->input('language', 'english');
         $generateAudio = $request->input('generate_audio', true);
         
-        $connection = 'AppQyV1';
-        $tableName = "app_qy_v1_words_{$language}";
-        
-        $wordData = DB::connection($connection)
-            ->table($tableName)
+        $wordData = AppQyV1MultiLangDictionaryModel::forLanguage($language)
             ->where('word', $word)
             ->first();
         
@@ -92,10 +88,8 @@ class AppQyV1WordLookupController extends Controller
                     ];
                     
                     if (!$wordData->tts_generated) {
-                        DB::connection($connection)
-                            ->table($tableName)
-                            ->where('word', $word)
-                            ->update(['tts_generated' => 1]);
+                        $wordData->tts_generated = true;
+                        $wordData->save();
                     }
                 } else {
                     $result['data']['audio'] = [

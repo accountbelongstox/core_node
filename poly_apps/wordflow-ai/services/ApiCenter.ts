@@ -7,6 +7,7 @@ import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
 import { UserDataCenter } from './UserDataCenter';
 import { inferLanguageFromWords, BackendGroupData, BackendGroupsResponse } from './languageUtils';
+import { SupportedLanguage } from '../types';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -124,10 +125,19 @@ class ApiCenterClass {
 
       // Add auth token if required
       if (useAuth) {
-        const token = StorageCenter.auth.getToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+        const token = await StorageCenter.auth.getToken();
+        if (!token) {
+          // Don't make API call if authentication is required but no token exists
+          console.warn(`[ApiCenter] Authentication required for ${endpoint} but no token found. Skipping request.`);
+          return {
+            success: false,
+            error: {
+              code: 'AUTH_REQUIRED',
+              message: 'Authentication required. Please login first.',
+            },
+          };
         }
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
       const controller = new AbortController();
@@ -227,10 +237,10 @@ class ApiCenterClass {
         }
 
         if (token) {
-          StorageCenter.auth.setToken(token);
+          await StorageCenter.auth.setToken(token);
         }
         if (user) {
-          StorageCenter.auth.setUser(user);
+          await StorageCenter.auth.setUser(user);
         }
 
         const result = {
@@ -262,10 +272,10 @@ class ApiCenterClass {
         }
 
         if (token) {
-          StorageCenter.auth.setToken(token);
+          await StorageCenter.auth.setToken(token);
         }
         if (user) {
-          StorageCenter.auth.setUser(user);
+          await StorageCenter.auth.setUser(user);
         }
 
         return {
@@ -295,8 +305,8 @@ class ApiCenterClass {
       });
 
       if (response.success) {
-        StorageCenter.auth.clearAuth();
-        StorageCenter.cache.invalidateAll();
+        await StorageCenter.auth.clearAuth();
+        await StorageCenter.cache.invalidateAll();
       }
 
       return response;
@@ -304,7 +314,7 @@ class ApiCenterClass {
 
     getProfile: async (): Promise<ApiResponse<User>> => {
       // Check cache first (cache for 5 minutes)
-      const cached = StorageCenter.cache.get<User>(StorageKey.USER_PROFILE_CACHE);
+      const cached = await StorageCenter.cache.get<User>(StorageKey.USER_PROFILE_CACHE);
       if (cached) {
         console.log('[ApiCenter] Returning cached user profile');
         return { success: true, data: cached };
@@ -317,7 +327,7 @@ class ApiCenterClass {
 
       // Cache immediately after successful fetch
       if (response.success && response.data) {
-        StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
+        await StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
         console.log('[ApiCenter] Cached user profile');
       }
 
@@ -365,7 +375,7 @@ class ApiCenterClass {
   wordGroups = {
     getAll: async (): Promise<ApiResponse<WordGroup[]>> => {
       // Check cache first
-      const cached = StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
+      const cached = await StorageCenter.cache.get<WordGroup[]>(StorageKey.WORD_GROUPS_CACHE);
       if (cached) {
         console.log('[ApiCenter] Returning cached word groups');
         return { success: true, data: cached };
@@ -417,7 +427,7 @@ class ApiCenterClass {
 
         // Cache for 5 minutes
         if (frontendGroups.length > 0) {
-          StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, frontendGroups, 5 * 60 * 1000);
+          await StorageCenter.cache.set(StorageKey.WORD_GROUPS_CACHE, frontendGroups, 5 * 60 * 1000);
           console.log(`[ApiCenter] Cached ${frontendGroups.length} word groups`);
         }
 
@@ -490,7 +500,7 @@ class ApiCenterClass {
 
       // Invalidate cache after creating
       if (response.success) {
-        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+        await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
       }
 
       return response;
@@ -505,7 +515,7 @@ class ApiCenterClass {
 
       // Invalidate cache after deletion
       if (response.success) {
-        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+        await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
       }
 
       return response;
@@ -520,7 +530,7 @@ class ApiCenterClass {
 
       // Invalidate cache after deletion
       if (response.success) {
-        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+        await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
       }
 
       return response;
@@ -546,7 +556,7 @@ class ApiCenterClass {
 
       // Invalidate cache after adding library
       if (response.success) {
-        StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
+        await StorageCenter.cache.invalidate(StorageKey.WORD_GROUPS_CACHE);
       }
 
       return response;
@@ -867,7 +877,7 @@ class ApiCenterClass {
       const baseUrl = apiManager.getCurrentBaseUrl();
       const url = `${baseUrl}/api/app_qy_v1/learning/upload`;
 
-      const token = StorageCenter.auth.getToken();
+      const token = await StorageCenter.auth.getToken();
       const headers: HeadersInit = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -994,23 +1004,25 @@ class ApiCenterClass {
       });
     },
 
-    getSupportedLanguages: async (): Promise<ApiResponse<string[]>> => {
+    getSupportedLanguages: async (): Promise<ApiResponse<SupportedLanguage[]>> => {
       // Check cache first (cache for 24 hours - languages don't change often)
-      const cached = StorageCenter.cache.get<any>(StorageKey.SUPPORTED_LANGUAGES_CACHE);
-      if (cached) {
+      const cached = await StorageCenter.cache.get<SupportedLanguage[]>(StorageKey.SUPPORTED_LANGUAGES_CACHE);
+      if (cached && Array.isArray(cached)) {
         console.log('[ApiCenter] Returning cached supported languages');
         return { success: true, data: cached };
       }
 
-      // Fetch from API
-      const response = await this.request<string[]>('/dictionary/languages', {
+      // Fetch from API (public endpoint, no auth required)
+      // Backend now returns: {success: true, data: SupportedLanguage[]}
+      // Unified format - no transformation needed
+      const response = await this.request<SupportedLanguage[]>('/system/supported-languages', {
         method: 'GET',
-      });
+      }, false); // Public API, no authentication required
 
       // Cache immediately after successful fetch
-      if (response.success && response.data) {
-        StorageCenter.cache.set(StorageKey.SUPPORTED_LANGUAGES_CACHE, response.data, 24 * 60 * 60 * 1000); // 24 hours
-        console.log('[ApiCenter] Cached supported languages');
+      if (response.success && response.data && Array.isArray(response.data)) {
+        await StorageCenter.cache.set(StorageKey.SUPPORTED_LANGUAGES_CACHE, response.data, 24 * 60 * 60 * 1000); // 24 hours
+        console.log('[ApiCenter] Cached', response.data.length, 'supported languages');
       }
 
       return response;
@@ -1023,7 +1035,7 @@ class ApiCenterClass {
   user = {
     getProfile: async (): Promise<ApiResponse<{ user: User }>> => {
       // Check cache first (cache for 5 minutes)
-      const cached = StorageCenter.cache.get<{ user: User }>(StorageKey.USER_PROFILE_CACHE);
+      const cached = await StorageCenter.cache.get<{ user: User }>(StorageKey.USER_PROFILE_CACHE);
       if (cached) {
         console.log('[ApiCenter] Returning cached user profile');
         return { success: true, data: cached };
@@ -1036,7 +1048,7 @@ class ApiCenterClass {
 
       // Cache immediately after successful fetch
       if (response.success && response.data?.user) {
-        StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
+        await StorageCenter.cache.set(StorageKey.USER_PROFILE_CACHE, response.data, 5 * 60 * 1000); // 5 minutes
         console.log('[ApiCenter] Cached user profile');
         response.data.user = UserDataCenter.processUserData(response.data.user);
       }
@@ -1073,7 +1085,7 @@ class ApiCenterClass {
       const baseUrl = apiManager.getCurrentBaseUrl();
       const url = `${baseUrl}/api/app_qy_v1/user/avatar`;
 
-      const token = StorageCenter.auth.getToken();
+      const token = await StorageCenter.auth.getToken();
       const headers: HeadersInit = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -1130,6 +1142,23 @@ class ApiCenterClass {
       }>('/user/statistics', {
         method: 'GET',
       }, true);
+    },
+
+    getRetentionStats: async (): Promise<ApiResponse<any[]>> => {
+      // Use learning stats API for retention stats
+      try {
+        const response = await this.learning.getStats();
+        if (response.success && response.data) {
+          // Transform stats to retention stats format if needed
+          return {
+            success: true,
+            data: response.data.retention_stats || [],
+          };
+        }
+        return { success: false, error: { message: 'Failed to fetch retention stats' } };
+      } catch (error) {
+        return { success: false, error: { message: 'Error fetching retention stats' } };
+      }
     },
   };
 
@@ -1200,7 +1229,7 @@ class ApiCenterClass {
         languages: string[];
       }>('/vocabulary/statistics', {
         method: 'GET',
-      });
+      }, false); // Public API, no auth required
     },
 
     getRecommendedLibraries: async (params?: {
@@ -1238,7 +1267,7 @@ class ApiCenterClass {
 
       return this.request<any[]>(endpoint, {
         method: 'GET',
-      }, false);
+      }, false); // Public API, no auth required
     },
 
     getLibraryWords: async (
@@ -1340,10 +1369,182 @@ class ApiCenterClass {
       }, false);
     },
 
+    getSystemStatistics: async (): Promise<ApiResponse<{
+      languages: Array<{
+        language_code: string;
+        words: number;
+        sentences: number;
+        articles: number;
+        audio: number;
+      }>;
+      summary: {
+        total_languages: number;
+        total_words: number;
+        total_sentences: number;
+        total_articles: number;
+        total_audio: number;
+      };
+      articles?: any;
+      tts_queue?: any;
+    }>> => {
+      return this.request<{
+        languages: Array<{
+          language_code: string;
+          words: number;
+          sentences: number;
+          articles: number;
+          audio: number;
+        }>;
+        summary: {
+          total_languages: number;
+          total_words: number;
+          total_sentences: number;
+          total_articles: number;
+          total_audio: number;
+        };
+        articles?: any;
+        tts_queue?: any;
+      }>('/system/statistics', {
+        method: 'GET',
+      }, false);
+    },
+
+    getSystemStatisticsSummary: async (): Promise<ApiResponse<{
+      total_languages: number;
+      total_words: number;
+      total_sentences: number;
+      total_articles: number;
+      total_audio: number;
+    }>> => {
+      return this.request<{
+        total_languages: number;
+        total_words: number;
+        total_sentences: number;
+        total_articles: number;
+        total_audio: number;
+      }>('/system/statistics/summary', {
+        method: 'GET',
+      }, false);
+    },
+
+    getSystemStatisticsLanguages: async (): Promise<ApiResponse<Array<{
+      language_code: string;
+      words: number;
+      sentences: number;
+      articles: number;
+      audio: number;
+    }>>> => {
+      return this.request<Array<{
+        language_code: string;
+        words: number;
+        sentences: number;
+        articles: number;
+        audio: number;
+      }>>('/system/statistics/languages', {
+        method: 'GET',
+      }, false);
+    },
+
+    getSystemStatisticsQueues: async (forceRefresh: boolean = false): Promise<ApiResponse<{
+      tts: {
+        pending: number;
+        processing: number;
+        completed: number;
+        failed: number;
+        total: number;
+      };
+      translation: {
+        total_words: number;
+        complete_words: number;
+        completion_rate: number;
+        total_sentences?: number;
+        complete_sentences?: number;
+        sentence_completion_rate?: number;
+        missing_breakdown: {
+          translation: number;
+          phonetic: number;
+          audio: number;
+          images: number;
+          sentence_translation?: number;
+          sentence_audio?: number;
+        };
+        missing_percentages: {
+          translation: number;
+          phonetic: number;
+          audio: number;
+          images: number;
+          sentence_translation?: number;
+          sentence_audio?: number;
+        };
+      };
+      audio_storage: {
+        total_size_bytes: number;
+        total_size_mb: number;
+        total_size_gb: number;
+        total_files: number;
+        zero_byte_files?: number;
+        formatted_size: string;
+        warning?: string;
+        scanned_directories?: string[];
+        errors?: string[];
+      };
+    }>> => {
+      const url = forceRefresh 
+        ? '/system/statistics/queues?force_refresh=1'
+        : '/system/statistics/queues';
+      return this.request<{
+        tts: {
+          pending: number;
+          processing: number;
+          completed: number;
+          failed: number;
+          total: number;
+        };
+        translation: {
+          total_words: number;
+          complete_words: number;
+          completion_rate: number;
+          total_sentences?: number;
+          complete_sentences?: number;
+          sentence_completion_rate?: number;
+          missing_breakdown: {
+            translation: number;
+            phonetic: number;
+            audio: number;
+            images: number;
+            sentence_translation?: number;
+            sentence_audio?: number;
+          };
+          missing_percentages: {
+            translation: number;
+            phonetic: number;
+            audio: number;
+            images: number;
+            sentence_translation?: number;
+            sentence_audio?: number;
+          };
+        };
+        audio_storage: {
+          total_size_bytes: number;
+          total_size_mb: number;
+          total_size_gb: number;
+          total_files: number;
+          formatted_size: string;
+        };
+      }>(url, {
+        method: 'GET',
+      }, false);
+    },
+
     getLanguageByCode: async (code: string): Promise<ApiResponse<any>> => {
       return this.request<any>(`/system/supported-languages/${code}`, {
         method: 'GET',
       }, false);
+    },
+
+    getSupportedLanguages: async (): Promise<ApiResponse<SupportedLanguage[]>> => {
+      // Use dictionary API for supported languages (which calls system API)
+      return this.dictionary.getSupportedLanguages();
     },
 
     reinitialize: async (clientToken: string, data?: any): Promise<ApiResponse<{ message: string }>> => {

@@ -28,15 +28,15 @@ class ReadingProgressCenterClass {
   /**
    * Initialize - load from storage
    */
-  initialize(): void {
-    const stored = StorageCenter.get<Array<[string, ReadingProgress]>>(
+  async initialize(): Promise<void> {
+    const stored = await StorageCenter.get<Array<[string, ReadingProgress]>>(
       StorageKey.READING_PROGRESS,
       []
     );
 
     // Convert array back to Map and restore dates
     this.progressMap = new Map(
-      stored.map(([key, progress]) => [
+      (stored || []).map(([key, progress]) => [
         key,
         {
           ...progress,
@@ -53,7 +53,7 @@ class ReadingProgressCenterClass {
   /**
    * Start reading a group (or resume)
    */
-  startReading(groupId: string, groupName?: string, totalWords?: number): ReadingProgress {
+  async startReading(groupId: string, groupName?: string, totalWords?: number): Promise<ReadingProgress> {
     let progress = this.progressMap.get(groupId);
 
     if (progress) {
@@ -77,7 +77,7 @@ class ReadingProgressCenterClass {
     }
 
     this.progressMap.set(groupId, progress);
-    this.save();
+    await this.save();
     this.notifyListeners();
 
     return progress;
@@ -86,11 +86,11 @@ class ReadingProgressCenterClass {
   /**
    * Update reading progress
    */
-  updateProgress(
+  async updateProgress(
     groupId: string,
     currentIndex: number,
     timeSpent?: number
-  ): ReadingProgress | undefined {
+  ): Promise<ReadingProgress | undefined> {
     const progress = this.progressMap.get(groupId);
 
     if (!progress) {
@@ -119,7 +119,7 @@ class ReadingProgressCenterClass {
     }
 
     this.progressMap.set(groupId, progress);
-    this.save();
+    await this.save();
     this.notifyListeners();
 
     return progress;
@@ -168,11 +168,11 @@ class ReadingProgressCenterClass {
   /**
    * Reset progress for a group
    */
-  resetProgress(groupId: string): boolean {
+  async resetProgress(groupId: string): Promise<boolean> {
     const deleted = this.progressMap.delete(groupId);
 
     if (deleted) {
-      this.save();
+      await this.save();
       this.notifyListeners();
       console.log('[ReadingProgressCenter] Reset progress for:', groupId);
     }
@@ -183,9 +183,9 @@ class ReadingProgressCenterClass {
   /**
    * Clear all progress
    */
-  clearAllProgress(): void {
+  async clearAllProgress(): Promise<void> {
     this.progressMap.clear();
-    this.save();
+    await this.save();
     this.notifyListeners();
     console.log('[ReadingProgressCenter] Cleared all reading progress');
   }
@@ -193,7 +193,7 @@ class ReadingProgressCenterClass {
   /**
    * Clear completed progress (older than N days)
    */
-  clearCompletedProgress(olderThanDays: number = 30): void {
+  async clearCompletedProgress(olderThanDays: number = 30): Promise<void> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
@@ -207,7 +207,7 @@ class ReadingProgressCenterClass {
     }
 
     if (clearedCount > 0) {
-      this.save();
+      await this.save();
       this.notifyListeners();
       console.log('[ReadingProgressCenter] Cleared', clearedCount, 'completed progress records');
     }
@@ -269,10 +269,10 @@ class ReadingProgressCenterClass {
   /**
    * Private: Save to storage
    */
-  private save(): void {
+  private async save(): Promise<void> {
     // Convert Map to array for serialization
     const data = Array.from(this.progressMap.entries());
-    StorageCenter.set(StorageKey.READING_PROGRESS, data);
+    await StorageCenter.set(StorageKey.READING_PROGRESS, data);
   }
 
   /**

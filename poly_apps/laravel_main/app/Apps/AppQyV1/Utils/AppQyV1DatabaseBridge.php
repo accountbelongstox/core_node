@@ -14,6 +14,8 @@
 namespace App\Apps\AppQyV1\Utils;
 
 use Illuminate\Support\Facades\Config;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1DatabaseBridge
 {
@@ -174,7 +176,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getDictionariesTableName(): string
     {
-        return self::getTableName('app_qy_v1_dictionaries') ?? 'app_qy_v1_dictionaries';
+        $appKey = AppKeys::APPQYV1;
+        return AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
     }
 
     /**
@@ -184,7 +187,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getPersonalDictionariesTableName(): string
     {
-        return self::getTableName('app_qy_v1_personal_dictionaries') ?? 'app_qy_v1_personal_dictionaries';
+        $appKey = AppKeys::APPQYV1;
+        return AppTablePrefixServiceProvider::buildTableName($appKey, 'personal_dictionaries');
     }
 
     /**
@@ -194,7 +198,8 @@ class AppQyV1DatabaseBridge
      */
     public static function getWordGroupsTableName(): string
     {
-        return self::getTableName('app_qy_v1_word_groups') ?? 'app_qy_v1_word_groups';
+        $appKey = AppKeys::APPQYV1;
+        return AppTablePrefixServiceProvider::buildTableName($appKey, 'word_groups');
     }
 
     /**

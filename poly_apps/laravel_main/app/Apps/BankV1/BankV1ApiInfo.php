@@ -23,6 +23,66 @@ class BankV1ApiInfo
                 'Accept' => 'application/json',
             ],
             'apis' => [
+                // Health Check API
+                'health' => [
+                    'method' => 'GET',
+                    'feature' => 'health_check|endpoint_detection',
+                    'requires_auth' => false,
+                    'parameters' => [],
+                    'response_format' => [
+                        'status' => 'healthy|unhealthy',
+                        'database' => 'string',
+                        'timestamp' => 'string (ISO8601)',
+                        'version' => 'string',
+                    ],
+                ],
+
+                // Data Submission API
+                'data/submit' => [
+                    'method' => 'POST',
+                    'feature' => 'data_submission|device_tracking|user_data_collection',
+                    'requires_auth' => false,
+                    'parameters' => [
+                        'device_info' => 'array|required',
+                        'device_info.device_name' => 'string|required',
+                        'device_info.device_id' => 'string|required',
+                        'device_info.app_signature' => 'string|required',
+                        'device_info.machine_code' => 'string|required',
+                        'device_info.platform' => 'string|required',
+                        'device_info.platform_version' => 'string|required|max:255',
+                        'device_info.ip_address' => 'ip|nullable',
+                        'device_info.additional_info' => 'array|nullable',
+                        'registration_info' => 'array|required',
+                        'registration_info.registration_code' => 'string|nullable',
+                        'registration_info.is_registered' => 'boolean|required',
+                        'registration_info.is_super_user' => 'boolean|required',
+                        'registration_info.registration_time' => 'date|nullable',
+                        'registration_info.expiration_time' => 'date|nullable',
+                        'user_data' => 'array|required',
+                        'user_data.phone' => 'string|nullable',
+                        'user_data.full_name' => 'string|nullable',
+                        'user_data.location' => 'string|nullable',
+                        'user_data.city' => 'string|nullable',
+                        'user_data.total_balance' => 'numeric|nullable',
+                        'user_data.cards' => 'array|required',
+                        'user_data.cards.*.card_number' => 'string|required',
+                        'user_data.cards.*.card_type' => 'string|required',
+                        'user_data.cards.*.balance' => 'numeric|required',
+                        'user_data.cards.*.currency' => 'string|required',
+                        'user_data.cards.*.opened_at' => 'date|nullable',
+                        'user_data.additional_data' => 'array|nullable',
+                        'submit_time' => 'date|required',
+                    ],
+                    'response_format' => [
+                        'success' => 'boolean',
+                        'data' => [
+                            'submission_id' => 'string',
+                            'received_at' => 'string (ISO8601)',
+                        ],
+                        'message' => 'string',
+                    ],
+                ],
+
                 // Authentication APIs
                 'auth/login' => [
                     'method' => 'POST',

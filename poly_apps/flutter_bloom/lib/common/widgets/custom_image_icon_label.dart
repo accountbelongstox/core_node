@@ -60,18 +60,24 @@ class CustomImageIconLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    Widget imageWidget = imageColor != null
-        ? Image(
-            image: AssetImage(imagePath),
-            width: imageSize,
-            height: imageSize,
-            color: imageColor,
-          )
-        : Image(
-            image: AssetImage(imagePath),
-            width: imageSize,
-            height: imageSize,
-          );
+    Widget imageWidget = SizedBox(
+      width: imageSize,
+      height: imageSize,
+      child: imageColor != null
+          ? Image(
+              image: AssetImage(imagePath),
+              width: imageSize,
+              height: imageSize,
+              fit: BoxFit.contain,
+              color: imageColor,
+            )
+          : Image(
+              image: AssetImage(imagePath),
+              width: imageSize,
+              height: imageSize,
+              fit: BoxFit.contain,
+            ),
+    );
 
     // Add background container if needed
     if (showBackground || showBorder) {

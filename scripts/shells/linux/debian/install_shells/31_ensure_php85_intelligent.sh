@@ -912,36 +912,40 @@ setup_php_repository() {
     $USE_SUDO rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list 2>/dev/null || true
     $USE_SUDO rm -f /usr/share/keyrings/php-archive-keyring.gpg 2>/dev/null || true
 
-    # Setup repository based on OS
+    # Determine repository line and key
+    local php_repo_line=""
+    local php_key_url="https://packages.sury.org/php/apt.gpg"
+    local php_key_file="/usr/share/keyrings/php-archive-keyring.gpg"
+    
     if [[ "$os_id" == "ubuntu" ]]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Setting up Ubuntu PPA repository...${NC}"
-        # For Ubuntu: use PPA
-        if $USE_SUDO add-apt-repository ppa:ondrej/php -y 2>/dev/null; then
-            echo -e "${GREEN}$SCRIPT_INDEX Ubuntu PPA added successfully${NC}"
-        else
-            echo -e "${YELLOW}$SCRIPT_INDEX PPA failed, trying manual method...${NC}"
-            # Manual fallback for Ubuntu
-            $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
-            echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
-        fi
+        echo -e "${YELLOW}$SCRIPT_INDEX Setting up Ubuntu PPA repository with backup...${NC}"
+        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main"
     elif [[ "$os_id" == "debian" ]]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Setting up Debian Sury repository...${NC}"
-        # For Debian: use Sury repository directly (as per debian documentation)
-        $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://packages.sury.org/php/ $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
-        echo -e "${GREEN}$SCRIPT_INDEX Debian Sury repository added${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Setting up Debian Sury repository with backup...${NC}"
+        php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $os_codename main"
     else
         echo -e "${RED}$SCRIPT_INDEX Unsupported OS: $os_id${NC}"
         return 1
     fi
 
-    # Update package index with new repository
-    echo -e "${YELLOW}$SCRIPT_INDEX Updating package index with new repository...${NC}"
-    $USE_SUDO apt update 2>/dev/null || {
-        echo -e "${YELLOW}$SCRIPT_INDEX Repository update failed, trying alternative methods...${NC}"
-        # Try without signature verification as fallback
-        $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
-    }
+    # Source repository manager directly (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use PHP repository manager function (trust-based programming, direct call)
+    echo -e "${YELLOW}$SCRIPT_INDEX Using PHP repository manager with automatic backup/restore...${NC}"
+    add_php_repository_from_apt_repository_manager \
+        "$os_id" \
+        "$os_codename" \
+        "$USE_SUDO apt install -y php8.5 php8.5-cli php8.5-fpm php8.5-common php8.5-mysql php8.5-zip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 installed successfully with repository cleanup${NC}"
+        return 0
+    else
+        echo -e "${RED}$SCRIPT_INDEX Failed to install PHP 8.5${NC}"
+        return 1
+    fi
 
     # Verify PHP 8.5 availability
     echo -e "${BLUE}$SCRIPT_INDEX Verifying PHP 8.5 availability...${NC}"

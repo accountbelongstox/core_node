@@ -269,11 +269,10 @@ class AppQyV1DictionaryManagementController extends BaseController
             $allMd5s = array_map('md5', $allContents);
             
             // Find existing entries by MD5 hashes
-            $existingEntries = DB::table('app_qy_v1_dictionaries')
-                ->whereIn('md5', $allMd5s)
+            $existingEntries = AppQyV1DictionaryModel::whereIn('md5', $allMd5s)
                 ->select('id', 'content', 'md5', 'queryCount')
                 ->get();
-            $dictionariesRecoredCount = DB::table( 'app_qy_v1_dictionaries' )->count();
+            $dictionariesRecoredCount = AppQyV1DictionaryModel::count();
             $existingMd5s = $existingEntries->pluck('md5')->toArray();
                 
             // Create a lookup array for faster checking
@@ -289,12 +288,10 @@ class AppQyV1DictionaryManagementController extends BaseController
                 
                 if (isset($existingMd5Lookup[$md5])) {
                     // Update query count for existing entries
-                    DB::table('app_qy_v1_dictionaries')
-                        ->where('md5', $md5)
-                        ->update([
-                            'queryCount' => DB::raw('queryCount + 1'),
-                            'lastQueryTime' => DB::raw('CURRENT_TIMESTAMP'),
-                            'updated_at' => DB::raw('CURRENT_TIMESTAMP')
+                    AppQyV1DictionaryModel::where('md5', $md5)
+                        ->increment('queryCount', 1, [
+                            'lastQueryTime' => now(),
+                            'updated_at' => now()
                         ]);
                     
                     // Find the existing entry details

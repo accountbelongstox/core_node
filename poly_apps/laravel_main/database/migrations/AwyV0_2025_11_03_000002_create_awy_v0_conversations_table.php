@@ -1,49 +1,304 @@
 <?php
 
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
     {
-        if (!Schema::connection('awyv0')->hasTable('awy_v0_conversations')) {
-            Schema::connection('awyv0')->create('awy_v0_conversations', function (Blueprint $table) {
-            $table->id();
-            $table->string('conversation_id', 100)->unique();
-            $table->string('type')->default('direct'); // direct, group
-            $table->string('title')->nullable();
-            $table->unsignedBigInteger('created_by')->index();
-            $table->timestamps();
-
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('cascade');
-            $table->index('created_by', 'awy_v0_conversations_created_by');
-            $table->index('type', 'awy_v0_conversations_type');
-        });
-        }
+        $this->appKey = AppKeys::AWYV0;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
-    /**
-     * Reverse the migrations.
-     */
+    public function up(): void
+    {
+        $this->createConversationsTable();
+        $this->createConversationParticipantsTable();
+        $this->createMessagesTable();
+    }
+
+    private function createConversationsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversations');
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'conversation_id' => [
+                    'type' => 'string',
+                    'length' => 100,
+                    'nullable' => false,
+                    'unique' => true,
+                ],
+                'type' => [
+                    'type' => 'string',
+                    'nullable' => false,
+                    'default' => 'direct',
+                ],
+                'title' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                ],
+                'created_by' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['created_by'],
+                    'name' => 'awy_v0_conversations_created_by',
+                ],
+                [
+                    'columns' => ['type'],
+                    'name' => 'awy_v0_conversations_type',
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'created_by',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createConversationParticipantsTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversation_participants');
+        $conversationsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversations');
+        
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'conversation_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'user_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'role' => [
+                    'type' => 'enum',
+                    'values' => ['participant', 'admin'],
+                    'nullable' => false,
+                    'default' => 'participant',
+                ],
+                'joined_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                ],
+                'last_read_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'is_active' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['conversation_id', 'user_id'],
+                    'name' => 'awy_v0_conversation_participants_unique',
+                    'unique' => true,
+                ],
+                [
+                    'columns' => ['user_id', 'is_active'],
+                    'name' => 'awy_v0_conversation_participants_user_active',
+                ],
+                [
+                    'columns' => ['joined_at'],
+                    'name' => 'awy_v0_conversation_participants_joined_at',
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'conversation_id',
+                    'references' => $conversationsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'user_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    private function createMessagesTable(): void
+    {
+        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'messages');
+        $conversationsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversations');
+        
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'conversation_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'sender_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'content' => [
+                    'type' => 'text',
+                    'nullable' => false,
+                ],
+                'type' => [
+                    'type' => 'enum',
+                    'values' => ['text', 'image', 'file', 'system'],
+                    'nullable' => false,
+                    'default' => 'text',
+                ],
+                'metadata' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                ],
+                'is_read' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => false,
+                ],
+                'read_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'edited_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'deleted_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['conversation_id', 'created_at'],
+                    'name' => 'awy_v0_messages_conversation_created',
+                ],
+                [
+                    'columns' => ['sender_id', 'created_at'],
+                    'name' => 'awy_v0_messages_sender_created',
+                ],
+                [
+                    'columns' => ['conversation_id', 'is_read'],
+                    'name' => 'awy_v0_messages_conversation_read',
+                ],
+                [
+                    'columns' => ['is_read'],
+                    'name' => 'awy_v0_messages_read',
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'conversation_id',
+                    'references' => $conversationsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+                [
+                    'column' => 'sender_id',
+                    'references' => 'users',
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
     public function down(): void
     {
-        Schema::connection('awyv0')->dropIfExists('awy_v0_conversations');
+        $messagesTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'messages');
+        $participantsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversation_participants');
+        $conversationsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'conversations');
+        
+        Schema::connection($this->connection)->dropIfExists($messagesTableName);
+        Schema::connection($this->connection)->dropIfExists($participantsTableName);
+        Schema::connection($this->connection)->dropIfExists($conversationsTableName);
     }
 };

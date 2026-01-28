@@ -1,36 +1,62 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+
+    public function __construct()
+    {
+        $this->appKey = AppKeys::VIPCLUBV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'facilities');
+    }
+
     public function up(): void
     {
-        if (!Schema::connection('vipclubv1')->hasTable('vipclubv1_facilities')) {
-        Schema::connection('vipclubv1')->create('vipclubv1_facilities', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->enum('type', ['shooting', 'golf', 'hotel']);
-            $table->text('description')->nullable();
-            $table->string('image_url')->nullable();
-            $table->decimal('base_price', 10, 2)->default(0);
-            $table->json('available_times')->nullable();
-            $table->json('features')->nullable();
-            $table->boolean('is_active')->default(true);
-            $table->boolean('vip_only')->default(false);
-            $table->json('specific_data')->nullable();
-            $table->timestamps();
-
-            $table->index('type');
-            $table->index('is_active');
-        });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'name' => ['type' => 'string', 'nullable' => false],
+                'type' => ['type' => 'enum', 'values' => ['shooting', 'golf', 'hotel'], 'nullable' => false, 'index' => true],
+                'description' => ['type' => 'text', 'nullable' => true],
+                'image_url' => ['type' => 'string', 'nullable' => true],
+                'base_price' => ['type' => 'decimal', 'precision' => 10, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'available_times' => ['type' => 'json', 'nullable' => true],
+                'features' => ['type' => 'json', 'nullable' => true],
+                'is_active' => ['type' => 'boolean', 'nullable' => false, 'default' => true, 'index' => true],
+                'vip_only' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'specific_data' => ['type' => 'json', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['type']],
+                ['columns' => ['is_active']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        Schema::connection('vipclubv1')->dropIfExists('vipclubv1_facilities');
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupProgressController
@@ -60,10 +61,7 @@ class AppQyV1WordGroupProgressController
             ->first();
 
         if (!$progress) {
-            $word = DB::connection('appqyv1')
-                ->table('app_qy_v1_vocabulary_words')
-                ->where('id', $wordId)
-                ->first();
+            $word = AppQyV1VocabularyItemModel::with('collection')->find($wordId);
 
             if (!$word) {
                 return $this->error('Word not found', 404, [
@@ -71,17 +69,12 @@ class AppQyV1WordGroupProgressController
                 ]);
             }
 
-            $library = DB::connection('appqyv1')
-                ->table('app_qy_v1_vocabulary_libraries')
-                ->where('id', $word->library_id)
-                ->first();
-
             $progress = AppQyV1UserWordProgressModel::create([
                 'user_id' => $user->id,
                 'word_id' => $wordId,
                 'group_id' => $group->id,
-                'language_code' => $library ? $library->language : null,
-                'weight' => strlen($word->word),
+                'language_code' => $word->collection->lang_code ?? null,
+                'weight' => strlen($word->word_content),
                 'proficiency' => 0,
                 'read_count' => 0,
                 'review_count' => 0,

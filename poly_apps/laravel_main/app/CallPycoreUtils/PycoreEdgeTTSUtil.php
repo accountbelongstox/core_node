@@ -61,6 +61,34 @@ class PycoreEdgeTTSUtil
             ];
         }
 
+        // Verify file size - MP3 files should be at least 100 bytes
+        $fileSize = FileSystemManager::filesize($tempFile);
+        $minFileSize = 100; // Minimum valid MP3 file size in bytes
+        
+        if ($fileSize === 0) {
+            // Delete zero-byte file
+            FileSystemManager::delete($tempFile);
+            Log::error('[PycoreEdgeTTS] Generated audio file is 0 bytes (empty file)', [
+                'output_path' => $tempFile,
+                'text_length' => strlen($text),
+                'voice' => $voice,
+            ]);
+            return [
+                'success' => false,
+                'error' => 'Generated audio file is 0 bytes (empty file). This may indicate a network issue, timeout, or edge-tts service problem.',
+            ];
+        }
+        
+        if ($fileSize < $minFileSize) {
+            // File is suspiciously small, but not zero - log warning
+            Log::warning('[PycoreEdgeTTS] Generated audio file is very small', [
+                'output_path' => $tempFile,
+                'file_size' => $fileSize,
+                'min_expected' => $minFileSize,
+                'text_length' => strlen($text),
+            ]);
+        }
+
         // Fix permissions automatically (FileSystemManager handles this)
         FileSystemManager::fixPermissions($tempFile);
 

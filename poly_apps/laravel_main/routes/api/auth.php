@@ -19,6 +19,8 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Auth\UserProfileController;
+
 $apiVersionPrefix = '';
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::post('/register', [RegisteredUserController::class, 'apiStore'])->name('common.register');
@@ -32,5 +34,16 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::any('/user', function (Request $request) {
             return $request->user();
         });
+        
+        // Common user profile routes
+        Route::get('/user/profile', [UserProfileController::class, 'getProfile']);
+        Route::put('/user/profile', [UserProfileController::class, 'updateProfile']);
+        Route::post('/user/profile', [UserProfileController::class, 'updateProfile']);
+        Route::post('/user/change-password', [UserProfileController::class, 'changePassword']);
+        
+        // Common user preferences routes
+        Route::get('/user/preferences', [UserProfileController::class, 'getPreferences']);
+        Route::put('/user/preferences', [UserProfileController::class, 'updatePreferences']);
+        Route::post('/user/preferences', [UserProfileController::class, 'updatePreferences']);
     });
 });

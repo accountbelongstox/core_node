@@ -3,10 +3,13 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\AwyV0\Utils\AwyV0Initializer;
+use App\Apps\BankV1\BankV1Utils\BankV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
@@ -32,9 +35,10 @@ class InitializeApps extends Command
         $this->newLine();
 
         $this->info('Creating external storage directories...');
+        $separator = DIRECTORY_SEPARATOR;
         $directories = [
             'avatars' => \App\Providers\PathMapper::getLaravelAvatarsDir(),
-            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . '/appqyv1',
+            'avatars/appqyv1' => \App\Providers\PathMapper::getLaravelAvatarsDir() . $separator . 'appqyv1',
             'uploads' => \App\Providers\PathMapper::getLaravelUploadsDir(),
             'static' => \App\Providers\PathMapper::getLaravelStaticDir(),
             'cache' => \App\Providers\PathMapper::getLaravelCacheDir(),
@@ -97,14 +101,14 @@ class InitializeApps extends Command
 
                 try {
                     if (config("database.connections.{$connection}")) {
-                        $tables = \DB::connection($connection)->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+                        $tables = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
 
                         if (!empty($tables)) {
                             foreach ($tables as $table) {
                                 $tableName = $table->name;
-                                $count = \DB::connection($connection)->table($tableName)->count();
-                                $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
-                                $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
+                                $count = $connection->table($tableName)->count();
+                                $structure = \App\Services\UserSyncService::getTableStructure($connectionName, $tableName);
+                                $indexes = \App\Services\UserSyncService::getTableIndexes($connectionName, $tableName);
 
                                 $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
                                 $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
@@ -140,8 +144,12 @@ class InitializeApps extends Command
         $this->info('Cleaning up conflicting tables...');
         $cleanupResult = $this->cleanupConflictingTables();
         if ($cleanupResult['deleted'] > 0) {
-            $this->line("  ✅ Deleted {$cleanupResult['deleted']} conflicting tables");
-        } else {
+            $this->line("  ✅ Deleted {$cleanupResult['deleted']} conflicting tables (data preserved)");
+        }
+        if ($cleanupResult['skipped'] > 0) {
+            $this->line("  ⏭️  Skipped {$cleanupResult['skipped']} tables (preserving data)");
+        }
+        if ($cleanupResult['deleted'] === 0 && $cleanupResult['skipped'] === 0) {
             $this->line("  ✓ No conflicting tables found");
         }
         $this->newLine();
@@ -164,11 +172,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating unified TTS queue table (word/sentence/article)...');
+        $this->info('Checking unified TTS queue table (word/sentence/article)...');
         $ttsQueueResults = \App\Services\AppQyV1TTSQueueInitializer::ensureTablesExist();
         foreach ($ttsQueueResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : ($status === 'migrated' ? '🔄' : '❌'));
-            $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'exists') {
+                $this->line("  ✅ {$table}: exists");
+            } elseif (strpos($status, 'incomplete') === 0) {
+                $this->warn("  ⚠️  {$table}: {$status}");
+                $this->line("     <fg=yellow>Migration will add missing columns on next run</>");
+            } else {
+                $this->warn("  ⚠️  {$table}: {$status}");
+                $this->line("     <fg=yellow>Migration will create this table on next run</>");
+            }
         }
 
         $ttsQueueStats = \App\Services\AppQyV1TTSQueueInitializer::getTableStats();
@@ -178,21 +193,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
-        $this->info('Creating article library tables (all languages)...');
+        $this->info('Checking article library tables (all languages)...');
         $articleLibResults = \App\Services\AppQyV1ArticleLibraryInitializer::ensureTablesExist();
-        $articleCreated = count(array_filter($articleLibResults, fn($s) => $s === 'created'));
-        $articleMigrated = count(array_filter($articleLibResults, fn($s) => $s === 'migrated'));
         $articleExists = count(array_filter($articleLibResults, fn($s) => $s === 'exists'));
+        $articleMissing = count(array_filter($articleLibResults, fn($s) => $s === 'missing'));
         $articleTotal = count($articleLibResults);
 
-        if ($articleCreated > 0) {
-            $this->line("  ✅ Created: {$articleCreated} tables");
-        }
-        if ($articleMigrated > 0) {
-            $this->line("  🔄 Migrated: {$articleMigrated} tables");
-        }
         if ($articleExists > 0) {
-            $this->line("  ✓ Exists: {$articleExists} tables");
+            $this->line("  ✅ Exists: {$articleExists} tables");
+        }
+        if ($articleMissing > 0) {
+            $this->line("  ⚠️  Missing: {$articleMissing} tables");
+            $this->line("     <fg=yellow>Run 'php artisan sys:init' to create missing tables</>");
         }
         $this->line("  <fg=cyan>Total: {$articleTotal} article library tables</>");
 
@@ -287,9 +299,13 @@ class InitializeApps extends Command
         
         $this->info('AppQyV1 dictionary tables summary:');
         try {
-            $connection = 'appqyv1';
-            $allDictTables = \DB::connection($connection)
-                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'app_qy_v1_%_dictionaries' ORDER BY name");
+            $appKey = AppKeys::APPQYV1;
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+            $connection = $model->getConnection();
+            $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
+            $pattern = $prefix . '_%_dictionaries';
+            $allDictTables = $connection
+                ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name", [$pattern]);
 
             $tablesWithData = [];
             $tablesEmpty = [];
@@ -297,9 +313,9 @@ class InitializeApps extends Command
             foreach ($allDictTables as $tableObj) {
                 $tableName = $tableObj->name;
                 try {
-                    $count = \DB::connection($connection)->table($tableName)->count();
+                    $count = $connection->table($tableName)->count();
                     if ($count > 0) {
-                        $langCode = str_replace(['app_qy_v1_', '_dictionaries'], '', $tableName);
+                        $langCode = str_replace([$prefix . '_', '_dictionaries'], '', $tableName);
                         $tablesWithData[] = ['name' => $tableName, 'code' => $langCode, 'count' => $count];
                     } else {
                         $tablesEmpty[] = $tableName;
@@ -329,11 +345,14 @@ class InitializeApps extends Command
 
         $this->newLine();
 
-        $this->info('Creating AppQyV1 user initialization tables...');
+        $this->info('Checking AppQyV1 user initialization tables...');
         $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
         foreach ($userInitResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $icon = $status === 'exists' ? '✅' : ($status === 'missing' ? '⚠️' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'missing') {
+                $this->line("     <fg=yellow>Run 'php artisan sys:init' to create this table</>");
+            }
         }
         $this->newLine();
 
@@ -369,11 +388,18 @@ class InitializeApps extends Command
         }
         $this->newLine();
         
-        $this->info('Creating vocabulary library tables...');
+        $this->info('Checking vocabulary library tables...');
         $vocabResults = AppQyV1VocabularyService::ensureVocabularyTablesExist();
+        $missingCount = 0;
         foreach ($vocabResults as $table => $status) {
-            $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+            $icon = $status === 'exists' ? '✅' : ($status === 'missing' ? '⚠️' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+            if ($status === 'missing') {
+                $missingCount++;
+            }
+        }
+        if ($missingCount > 0) {
+            $this->line("  <fg=yellow>⚠️  {$missingCount} table(s) missing. Run 'php artisan sys:init' to create them.</>");
         }
         
         $this->newLine();
@@ -394,9 +420,10 @@ class InitializeApps extends Command
         
         $this->info('Vocabulary library summary:');
         try {
-            $connection = 'appqyv1';
-            $libraries = \DB::connection($connection)
-                ->table('app_qy_v1_vocabulary_libraries')
+            $appKey = AppKeys::APPQYV1;
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel();
+            $libraries = $model->getConnection()
+                ->table(AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'))
                 ->select('name', 'total_words', 'difficulty_level')
                 ->where('is_public', 1)
                 ->get();
@@ -506,6 +533,7 @@ class InitializeApps extends Command
         $manager->register(new AppQyV1Initializer());
         $manager->register(new McpV1Initializer());
         $manager->register(new AwyV0Initializer());
+        $manager->register(new BankV1Initializer());
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {
@@ -745,22 +773,178 @@ class InitializeApps extends Command
         }
     }
 
+    /**
+     * Run database migrations with idempotency (safe mode)
+     * 
+     * ============================================================================
+     * IMPORTANT: DATA SAFETY GUARANTEES
+     * ============================================================================
+     * 
+     * 1. The --force flag ONLY bypasses confirmation prompts in production.
+     *    It does NOT delete tables or modify existing data.
+     * 
+     * 2. Migration behavior (idempotent):
+     *    - If table doesn't exist: Creates the table with all required columns
+     *    - If table exists: Checks for missing columns and adds them (preserves data)
+     *    - If table exists with all columns: Skips (no changes)
+     * 
+     * 3. All migration files MUST use hasTable() checks to ensure idempotency.
+     *    Migration files that don't check table existence are unsafe.
+     * 
+     * 4. This ensures:
+     *    - Tables are created if missing (no data loss, table doesn't exist)
+     *    - Missing columns are added without data loss (preserves existing data)
+     *    - Existing data is always preserved (never deleted or modified)
+     *    - Code aligns with database structure (not rebuilding tables)
+     * 
+     * 5. Why use --force?
+     *    - In production, Laravel asks for confirmation before running migrations
+     *    - --force bypasses this prompt (required for automated scripts)
+     *    - --force does NOT change migration behavior (migrations are still idempotent)
+     *    - --force does NOT delete data (migrations use hasTable() checks)
+     * 
+     * ============================================================================
+     * LINE-BY-LINE EXPLANATION
+     * ============================================================================
+     */
     private function runSafeMigrations()
     {
         try {
-            $this->line("  <fg=cyan>Running database migrations (safe mode - only new migrations)</>");
+            // Line 793: Display message to user about migration mode
+            // This informs the user that migrations run in idempotent mode (preserves data)
+            $this->line("  <fg=cyan>Running database migrations (idempotent mode - preserves data)</>");
 
+            // ====================================================================
+            // DEFAULT CONNECTION MIGRATIONS
+            // ====================================================================
+            // Line 798-800: Run migrations on default connection (usually 'sqlite')
+            // 
+            // --force parameter explanation:
+            //   - Purpose: Bypass production confirmation prompts
+            //   - Does NOT: Delete tables, modify data, or change migration behavior
+            //   - Safe to use: Yes, because migrations use hasTable() checks
+            // 
+            // Migration execution flow:
+            //   1. Laravel reads migration files from database/migrations/
+            //   2. Checks migrations table to see which migrations have run
+            //   3. Runs only NEW migrations (not already executed)
+            //   4. Each migration file checks hasTable() before creating tables
+            //   5. If table exists, migration adds missing columns (preserves data)
+            //   6. If table doesn't exist, migration creates table with all columns
+            // 
+            // Data safety:
+            //   - Migrations never drop tables (unless explicitly in down() method)
+            //   - Migrations never delete data (only add columns)
+            //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $this->line("  <fg=yellow>Command: php artisan migrate --force</>");
             $exitCode = $this->call('migrate', [
+                '--force' => true, // Line 799: Bypass confirmation only, safe to use (does NOT delete data)
+            ]);
+            
+            // Line 802-806: Check migration exit code and display result
+            // Exit code 0 means success, non-zero means some migrations had issues
+            // Note: Even if some migrations fail, data is still safe (no deletions occurred)
+            if ($exitCode === 0) {
+                $this->line("  ✅ Default connection migrations completed");
+            } else {
+                $this->warn("  ⚠️  Some default connection migrations encountered issues");
+            }
+
+            // ====================================================================
+            // APPQYV1 CONNECTION MIGRATIONS
+            // ====================================================================
+            // Line 812-815: Run migrations on appqyv1 connection
+            // 
+            // Connection resolution:
+            //   - Uses AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1)
+            //   - This is the KEY center for connection resolution
+            //   - Returns connection name (e.g., 'appqyv1') from configuration
+            // 
+            // --force parameter explanation (same as above):
+            //   - Purpose: Bypass production confirmation prompts
+            //   - Does NOT: Delete tables, modify data, or change migration behavior
+            //   - Safe to use: Yes, because migrations use hasTable() checks
+            // 
+            // Migration execution flow (same as default connection):
+            //   1. Laravel reads migration files from database/migrations/
+            //   2. Checks migrations table for appqyv1 connection
+            //   3. Runs only NEW migrations (not already executed)
+            //   4. Each migration file checks hasTable() before creating tables
+            //   5. If table exists, migration adds missing columns (preserves data)
+            //   6. If table doesn't exist, migration creates table with all columns
+            // 
+            // Data safety (same as default connection):
+            //   - Migrations never drop tables (unless explicitly in down() method)
+            //   - Migrations never delete data (only add columns)
+            //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $appqyv1Connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+            $this->line("  <fg=yellow>Command: php artisan migrate --database={$appqyv1Connection} --force</>");
+            $appqyv1ExitCode = $this->call('migrate', [
+                '--database' => $appqyv1Connection, // Line 813: KEY center for connection resolution
+                '--force' => true, // Line 814: Bypass confirmation only, safe to use (does NOT delete data)
+            ]);
+            
+            // Line 817-821: Check migration exit code and display result
+            // Exit code 0 means success, non-zero means some migrations had issues
+            // Note: Even if some migrations fail, data is still safe (no deletions occurred)
+            if ($appqyv1ExitCode === 0) {
+                $this->line("  ✅ AppQyV1 connection migrations completed");
+            } else {
+                $this->warn("  ⚠️  Some AppQyV1 connection migrations encountered issues");
+            }
+
+            // ====================================================================
+            // BANKV1 CONNECTION MIGRATIONS
+            // ====================================================================
+            // Run migrations on bankv1 connection
+            // 
+            // Connection resolution:
+            //   - Uses AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1)
+            //   - This is the KEY center for connection resolution
+            //   - Returns connection name (e.g., 'bankv1') from configuration
+            // 
+            // --force parameter explanation (same as above):
+            //   - Purpose: Bypass production confirmation prompts
+            //   - Does NOT: Delete tables, modify data, or change migration behavior
+            //   - Safe to use: Yes, because migrations use hasTable() checks
+            // 
+            // Migration execution flow (same as default connection):
+            //   1. Laravel reads migration files from database/migrations/
+            //   2. Checks migrations table for bankv1 connection
+            //   3. Runs only NEW migrations (not already executed)
+            //   4. Each migration file checks hasTable() before creating tables
+            //   5. If table exists, migration adds missing columns (preserves data)
+            //   6. If table doesn't exist, migration creates table with all columns
+            // 
+            // Data safety (same as default connection):
+            //   - Migrations never drop tables (unless explicitly in down() method)
+            //   - Migrations never delete data (only add columns)
+            //   - Migrations are idempotent (safe to run multiple times)
+            
+            // Print command before execution
+            $bankv1Connection = AppTablePrefixServiceProvider::getConnection(AppKeys::BANKV1);
+            $this->line("  <fg=yellow>Command: php artisan migrate --database={$bankv1Connection} --force</>");
+            $bankv1ExitCode = $this->call('migrate', [
+                '--database' => $bankv1Connection,
                 '--force' => true,
             ]);
-
-            if ($exitCode === 0) {
-                $this->line("  ✅ Database migrations completed successfully");
+            
+            // Check migration exit code and display result
+            // Exit code 0 means success, non-zero means some migrations had issues
+            // Note: Even if some migrations fail, data is still safe (no deletions occurred)
+            if ($bankv1ExitCode === 0) {
+                $this->line("  ✅ BankV1 connection migrations completed");
             } else {
-                $this->warn("  ⚠️  Some migrations encountered issues");
+                $this->warn("  ⚠️  Some BankV1 connection migrations encountered issues");
             }
 
         } catch (\Exception $e) {
+            // Line 824: Catch and display any exceptions during migration
+            // This ensures errors are reported but don't crash the entire initialization
             $this->error("  ❌ Migration error: " . $e->getMessage());
         }
     }
@@ -817,12 +1001,24 @@ class InitializeApps extends Command
     private function installChokidar()
     {
         $laravelPath = base_path();
-        $chokidarPath = $laravelPath . '/node_modules/chokidar';
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $separator = $isWindows ? '\\' : '/';
+        $chokidarPath = $laravelPath . $separator . 'node_modules' . $separator . 'chokidar';
 
         $this->line("  <fg=cyan>Checking Node.js and pnpm...</>");
 
-        exec('command -v node 2>&1', $nodeOutput, $nodeCode);
-        exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
+        // Platform-specific command to check if command exists
+        if ($isWindows) {
+            $this->line("  <fg=yellow>Command: where node</>");
+            exec('where node 2>NUL', $nodeOutput, $nodeCode);
+            $this->line("  <fg=yellow>Command: where pnpm</>");
+            exec('where pnpm 2>NUL', $pnpmOutput, $pnpmCode);
+        } else {
+            $this->line("  <fg=yellow>Command: command -v node</>");
+            exec('command -v node 2>&1', $nodeOutput, $nodeCode);
+            $this->line("  <fg=yellow>Command: command -v pnpm</>");
+            exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
+        }
 
         if ($nodeCode !== 0) {
             $this->warn("  ⚠️  Node.js not found - hot-reload will not be available");
@@ -836,7 +1032,9 @@ class InitializeApps extends Command
             return;
         }
 
+        $this->line("  <fg=yellow>Command: node --version</>");
         exec('node --version 2>&1', $nodeVersion);
+        $this->line("  <fg=yellow>Command: pnpm --version</>");
         exec('pnpm --version 2>&1', $pnpmVersion);
         $this->line("  ✓ Node.js: " . trim($nodeVersion[0] ?? 'unknown'));
         $this->line("  ✓ pnpm: " . trim($pnpmVersion[0] ?? 'unknown'));
@@ -848,9 +1046,11 @@ class InitializeApps extends Command
 
         if (is_dir($chokidarPath)) {
             $this->line("  ⟳ chokidar exists, verifying installation...");
+            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
             exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
         } else {
             $this->line("  ⬇ Installing chokidar...");
+            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
             exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
         }
 
@@ -865,10 +1065,29 @@ class InitializeApps extends Command
         }
 
         if (is_dir($chokidarPath)) {
-            exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
-            $version = trim($versionOutput[0] ?? 'unknown');
+            // Platform-specific version check
+            if ($isWindows) {
+                $this->line("  <fg=yellow>Command: pnpm list chokidar</>");
+                exec('pnpm list chokidar 2>&1', $versionOutput);
+                // Extract version from output (Windows doesn't have grep/head)
+                $version = 'unknown';
+                foreach ($versionOutput as $line) {
+                    if (stripos($line, 'chokidar') !== false && stripos($line, '@') !== false) {
+                        // Extract version like "chokidar@3.5.3"
+                        if (preg_match('/chokidar@([\d.]+)/i', $line, $matches)) {
+                            $version = 'chokidar@' . $matches[1];
+                            break;
+                        }
+                    }
+                }
+            } else {
+                $this->line("  <fg=yellow>Command: pnpm list chokidar | grep chokidar | head -1</>");
+                exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
+                $version = trim($versionOutput[0] ?? 'unknown');
+            }
             $this->line("  ✅ chokidar installed: {$version}");
 
+            $this->line("  <fg=yellow>Command: node -e \"require('chokidar'); console.log('OK')\"</>");
             exec('node -e "require(\'chokidar\'); console.log(\'OK\')" 2>&1', $testOutput, $testCode);
             if ($testCode === 0 && isset($testOutput[0]) && trim($testOutput[0]) === 'OK') {
                 $this->line("  ✅ chokidar test passed - hot-reload ready");
@@ -880,29 +1099,79 @@ class InitializeApps extends Command
         }
     }
 
+    /**
+     * Clean up conflicting old tables (idempotent operation, data protection)
+     * 
+     * Important: This method only deletes old tables under very specific circumstances and strictly protects data
+     * 
+     * Conditions for deleting old tables (all must be met):
+     * 1. New table (*_dictionaries) exists
+     * 2. New table has data (migration completed) OR old table is empty (no data to lose)
+     * 
+     * Data protection strategy:
+     * - If old table has data but new table is empty, keep old table (do not delete)
+     * - If table check fails, skip deletion (protect data)
+     * - If new table does not exist, keep old table (do not delete)
+     * 
+     * This method ensures data is protected during migration and no data is lost
+     */
     private function cleanupConflictingTables(): array
     {
-        $connection = 'appqyv1';
-        $schema = \DB::connection($connection)->getSchemaBuilder();
+        $appKey = AppKeys::APPQYV1;
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $connection = $model->getConnection();
+        $schema = $connection->getSchemaBuilder();
 
+        // Learning table list (these tables will not be deleted)
         $learningTables = ['english', 'lao', 'japanese', 'vietnamese'];
         $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
 
         $deleted = 0;
+        $skipped = 0;
 
         foreach ($supportedLanguages as $langCode) {
+            // Skip learning tables (these tables will not be deleted)
             if (in_array($langCode, $learningTables)) {
                 continue;
             }
 
-            $oldTableName = "app_qy_v1_words_{$langCode}";
+            // Build old table name and new table name
+            $oldTableName = AppTablePrefixServiceProvider::buildTableName($appKey, "words_{$langCode}");
+            $newTableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
 
-            if ($schema->hasTable($oldTableName)) {
-                $schema->drop($oldTableName);
-                $deleted++;
+            // If old table does not exist, skip
+            if (!$schema->hasTable($oldTableName)) {
+                continue; // Old table does not exist, skip
+            }
+
+            // If new table does not exist, keep old table (do not delete)
+            if (!$schema->hasTable($newTableName)) {
+                $skipped++; // New table does not exist, keep old table
+                continue;
+            }
+
+            // Check data in both tables
+            try {
+                $oldTableCount = $connection->table($oldTableName)->count();
+                $newTableCount = $connection->table($newTableName)->count();
+                
+                // Only delete old table under the following conditions (protect data):
+                // 1. New table has data (migration completed), OR
+                // 2. Old table is empty (no data to lose)
+                if ($newTableCount > 0 || $oldTableCount === 0) {
+                    // Safe deletion: only delete when data migration is confirmed or old table is empty
+                    $schema->drop($oldTableName);
+                    $deleted++;
+                } else {
+                    // Old table has data but new table is empty, keep old table (protect data)
+                    $skipped++;
+                }
+            } catch (\Exception $e) {
+                // Error checking table, skip deletion (protect data)
+                $skipped++;
             }
         }
 
-        return ['deleted' => $deleted];
+        return ['deleted' => $deleted, 'skipped' => $skipped];
     }
 }

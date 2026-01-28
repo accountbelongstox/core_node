@@ -4,13 +4,22 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1VocabularyCoverModel extends Model
 {
     use HasFactory;
 
-    protected $connection = 'appqyv1';
-    protected $table = 'app_qy_v1_vocabulary_covers';
+    protected $appKey = AppKeys::APPQYV1;
+    protected $table;
+    
+    public function __construct(array $attributes = [])
+    {
+        parent::__construct($attributes);
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_covers');
+    }
 
     protected $fillable = [
         'library_id',

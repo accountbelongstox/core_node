@@ -11,8 +11,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:flutter/services.dart';
 import '../../../config_app_bank/bank_text_styles.dart';
+import '../../../widgets_app_bank/bank_transaction_item.dart';
 
 /// Account Detail Screen - Shows detailed balance and transaction information
 /// Features balance visibility toggle, quick actions, and recent transactions
@@ -171,11 +173,11 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
       child: Card(
         elevation: 8,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(BankConstants.borderRadius),
         ),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(BankConstants.borderRadius),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -288,7 +290,7 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                       ),
                       child: const Icon(
                         Icons.copy,
@@ -336,7 +338,7 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(BankConstants.borderRadius),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -391,7 +393,7 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(BankConstants.borderRadius),
             ),
             child: Icon(
               icon,
@@ -418,8 +420,8 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(BankConstants.borderRadius),
+          topRight: Radius.circular(BankConstants.borderRadius),
         ),
       ),
       child: Column(
@@ -462,7 +464,7 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
               ),
               itemBuilder: (context, index) {
                 final transaction = _recentTransactions[index];
-                return _buildTransactionItem(transaction);
+                return BankTransactionItem(transaction: transaction);
               },
             ),
           ),
@@ -471,137 +473,4 @@ class _BankAccountDetailScreenState extends State<BankAccountDetailScreen> {
     );
   }
 
-  Widget _buildTransactionItem(TransactionDetail transaction) {
-    final IconData iconData;
-    final Color iconColor;
-
-    switch (transaction.type) {
-      case TransactionType.credit:
-        iconData = Icons.add_circle;
-        iconColor = Colors.green;
-        break;
-      case TransactionType.debit:
-        iconData = Icons.shopping_cart;
-        iconColor = Colors.orange;
-        break;
-      case TransactionType.transfer:
-        iconData = Icons.send;
-        iconColor = Colors.blue;
-        break;
-      case TransactionType.withdrawal:
-        iconData = Icons.local_atm;
-        iconColor = Colors.red;
-        break;
-    }
-
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      leading: CircleAvatar(
-        backgroundColor: iconColor.withOpacity(0.1),
-        child: Icon(
-          iconData,
-          color: iconColor,
-          size: 24,
-        ),
-      ),
-      title: Text(
-        transaction.title,
-        style: BankTextStyles.bodyLarge.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 2),
-          Text(
-            transaction.subtitle,
-            style: BankTextStyles.bodySmall.copyWith(
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            transaction.reference,
-            style: BankTextStyles.bodySmall.copyWith(
-              color: Colors.grey[500],
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            '${transaction.amount > 0 ? '+' : ''}\$${transaction.amount.abs().toStringAsFixed(2)}',
-            style: BankTextStyles.bodyLarge.copyWith(
-              color: transaction.amount > 0 ? Colors.green : Colors.red,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _formatDate(transaction.date),
-            style: BankTextStyles.bodySmall.copyWith(
-              color: Colors.grey[500],
-            ),
-          ),
-          const SizedBox(height: 2),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              transaction.status,
-              style: BankTextStyles.bodySmall.copyWith(
-                color: Colors.green,
-                fontSize: 10,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${date.day}/${date.month}';
-    }
-  }
-}
-
-enum TransactionType { credit, debit, transfer, withdrawal }
-
-class TransactionDetail {
-  final String title;
-  final String subtitle;
-  final double amount;
-  final DateTime date;
-  final TransactionType type;
-  final String status;
-  final String reference;
-
-  TransactionDetail({
-    required this.title,
-    required this.subtitle,
-    required this.amount,
-    required this.date,
-    required this.type,
-    required this.status,
-    required this.reference,
-  });
 }

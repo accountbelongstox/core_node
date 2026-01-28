@@ -94,7 +94,7 @@ export const BottomTabNav = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe">
-      <div className="max-w-6xl mx-auto px-2">
+      <div className="w-full px-2">
         <div className="flex items-center justify-around h-16">
           {tabs.map((tab) => {
             const isActive = isTabActive(tab);

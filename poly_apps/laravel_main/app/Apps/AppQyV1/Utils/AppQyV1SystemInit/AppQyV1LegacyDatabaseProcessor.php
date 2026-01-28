@@ -15,6 +15,7 @@ namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 
 /**
@@ -198,7 +199,7 @@ class AppQyV1LegacyDatabaseProcessor
 
         } catch (\Exception $e) {
             // Log error but continue processing
-            \Log::error('Failed to convert legacy record: ' . $e->getMessage(), ['record' => $legacyRecord]);
+            Log::error('Failed to convert legacy record: ' . $e->getMessage(), ['record' => $legacyRecord]);
             return false;
         }
     }
@@ -255,7 +256,7 @@ class AppQyV1LegacyDatabaseProcessor
             return true;
             
         } catch (\Exception $e) {
-            \Log::error('Failed to update existing record: ' . $e->getMessage());
+            Log::error('Failed to update existing record: ' . $e->getMessage());
             return false;
         }
     }

@@ -30,67 +30,79 @@ class PathMapper
     /**
      * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
      * 
+     * Windows: Uses fixed D:\ drive for all web-related paths (matches deploy.ps1 logic)
+     * Linux: Uses environment-aware path mapping (WSL, Desktop, Server)
+     * 
      * @param string $pathKey The path key (wwwroot, nginxconfig, shared-data, backup, www, etc.)
      * @param string|null $subPath Optional sub-path to append
      * @return string The mapped path based on environment
      */
     public static function mapWebPath(string $pathKey, ?string $subPath = ""): string
     {
-        // Detect environment
-        $isWsl = self::isWSL();
-        $isProduction = self::isProduction();
+        // Detect Windows environment (matches deploy.ps1 Windows path logic)
+        $isWindows = self::isWindows();
         
-        // Get base data directory (same logic as get_base_data_directory in gvar_common.sh)
-        $dataBase = self::getBaseDataDirectory();
-        
-        // Determine base path for www based on environment
-        if ($isWsl) {
-            $basePath = $dataBase . '/www';
-        } elseif ($isProduction) {
-            $basePath = '/www';
+        // Get base path - Windows uses fixed D:\www, Linux uses environment-aware mapping
+        if ($isWindows) {
+            $basePath = "D:\\www";
         } else {
-            // Desktop environment: use data base + /www, unless data base is already /www
-            $basePath = ($dataBase === '/www') ? '/www' : $dataBase . '/www';
+            // Linux: Environment-aware path mapping
+            $isWsl = self::isWSL();
+            $isProduction = self::isProduction();
+            $dataBase = self::getBaseDataDirectory();
+            
+            if ($isWsl) {
+                $basePath = $dataBase . '/www';
+            } elseif ($isProduction) {
+                $basePath = '/www';
+            } else {
+                $basePath = ($dataBase === '/www') ? '/www' : $dataBase . '/www';
+            }
         }
         
-        // Map paths using common base path
+        // Path separator based on OS
+        $separator = $isWindows ? '\\' : '/';
+        
+        // Map paths - structure is the same, only base path differs
         $mappedPath = match($pathKey) {
-            'wwwroot' => $basePath . '/wwwroot',
-            'nginxconfig' => $basePath . '/nginxconfig',
-            'shared-data' => $basePath . '/shared-data',
-            'backup' => $basePath . '/backup',
+            'wwwroot' => $basePath . $separator . 'wwwroot',
+            'nginxconfig' => $basePath . $separator . 'nginxconfig',
+            'shared-data' => $basePath . $separator . 'shared-data',
+            'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
-            'laravel_data_dir' => $basePath . '/wwwroot/laravel_db',
-            'nginx' => self::findActualPath('/etc/nginx'),
-            'php' => self::findActualPath('/etc/php'),
-            'logs' => self::findLaravelLogPath($basePath),
+            'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
+            'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
+            'php' => $isWindows ? 'php.exe' : self::findActualPath('/etc/php'),
+            'logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs') : self::findLaravelLogPath($basePath),
 
-            // Script paths
-            'scripts_dir' => self::getCoreNodeDir() . '/scripts',
-            'shells_dir' => self::getCoreNodeDir() . '/scripts/shells',
-            'linux_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux',
-            'debian_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/debian',
-            'install_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/debian/install_shells',
-            'common_shells_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/common',
-            'dd_helper_dir' => self::getCoreNodeDir() . '/scripts/shells/linux/dd_helper',
+            // Script paths - same structure, just normalize separators
+            'scripts_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts'),
+            'shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells'),
+            'linux_shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells/linux'),
+            'debian_shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells/linux/debian'),
+            'install_shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells/linux/debian/install_shells'),
+            'common_shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells/linux/common'),
+            'dd_helper_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells/linux/dd_helper'),
 
-            // System paths - Binary symlinks
-            'node_symlink' => '/usr/local/bin/node',
-            'go_symlink' => '/usr/local/bin/go',
-            'flutter_symlink' => '/usr/local/bin/flutter',
+            // System paths - Binary commands (Windows: just command name, Linux: full path)
+            'node_symlink' => $isWindows ? 'node.exe' : '/usr/local/bin/node',
+            'go_symlink' => $isWindows ? 'go.exe' : '/usr/local/bin/go',
+            'flutter_symlink' => $isWindows ? 'flutter.bat' : '/usr/local/bin/flutter',
 
             // System paths - System directories
-            'systemd_dir' => '/etc/systemd/system',
-            'systemd_bin' => '/usr/bin/systemctl',
+            'systemd_dir' => $isWindows ? 'C:\\Windows\\System32' : '/etc/systemd/system',
+            'systemd_bin' => $isWindows ? 'sc.exe' : '/usr/bin/systemctl',
 
             default => $pathKey,
         };
         
         // If sub_path is provided, concatenate it to the mapped path
         if ($subPath !== null && $subPath !== '') {
-            // Remove leading slash from sub_path if present to avoid double slashes
-            $subPath = ltrim($subPath, '/');
-            $mappedPath = rtrim($mappedPath, '/') . '/' . $subPath;
+            // Remove leading slashes/backslashes from sub_path
+            $subPath = ltrim($subPath, '/\\');
+            // Normalize to OS-specific separator
+            $subPath = str_replace(['/', '\\'], $separator, $subPath);
+            $mappedPath = rtrim($mappedPath, '/\\') . $separator . $subPath;
         }
         
         return $mappedPath;
@@ -121,11 +133,25 @@ class PathMapper
     }
 
     /**
+     * Check if running on Windows
+     * Detects Windows by checking PHP_OS and DIRECTORY_SEPARATOR
+     */
+    public static function isWindows(): bool
+    {
+        return str_starts_with(PHP_OS, 'WIN') || DIRECTORY_SEPARATOR === '\\';
+    }
+
+    /**
      * Check if running in WSL environment
      * Detects WSL by checking for /mnt/c/Users directory
      */
     public static function isWSL(): bool
     {
+        // If Windows, not WSL
+        if (self::isWindows()) {
+            return false;
+        }
+        
         // Primary check: /mnt/c/Users directory exists (Windows user directory in WSL)
         if (is_dir('/mnt/c/Users')) {
             return true;
@@ -234,8 +260,10 @@ class PathMapper
      */
     private static function findLaravelLogPath(string $basePath): string
     {
-        $laravelDataDir = $basePath . '/wwwroot/laravel_db';
-        $logPath = $laravelDataDir . '/log';
+        // Use proper path separator based on OS
+        $separator = self::isWindows() ? '\\' : '/';
+        $laravelDataDir = rtrim($basePath, '/\\') . $separator . 'wwwroot' . $separator . 'laravel_db';
+        $logPath = $laravelDataDir . $separator . 'log';
         
         // If log directory doesn't exist, try to create it
         if (!is_dir($logPath)) {
@@ -247,9 +275,9 @@ class PathMapper
             @mkdir($logPath, 0755, true);
         }
         
-        // If still doesn't exist, fallback to /var/log
+        // If still doesn't exist, fallback (Windows: temp dir, Linux: /var/log)
         if (!is_dir($logPath)) {
-            return '/var/log';
+            return self::isWindows() ? sys_get_temp_dir() : '/var/log';
         }
         
         return $logPath;
@@ -337,6 +365,89 @@ class PathMapper
         return $basePath;
     }
 
+    /**
+     * Get TTS data directory (used by EdgeTTSService)
+     * Returns: getLaravelDataDir() . '/tts_data'
+     */
+    public static function getTTSDataDir(?string $subPath = ""): string
+    {
+        $basePath = self::getLaravelDataDir() . '/tts_data';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get TTS audio directory (used by EdgeTTSService)
+     * Returns: getTTSDataDir() . '/audio'
+     */
+    public static function getTTSAudioDir(?string $subPath = ""): string
+    {
+        $basePath = self::getTTSDataDir() . '/audio';
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 external data root directory
+     * Based on config('AppQyV1.paths.external_data_root')
+     */
+    public static function getAppQyV1ExternalDataRoot(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.external_data_root', storage_path('app/external_data'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 audio directory (word sounds)
+     * Based on config('AppQyV1.paths.audio_directory')
+     */
+    public static function getAppQyV1AudioDir(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.audio_directory', storage_path('app/external_data/audio/word_sounds'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get AppQyV1 sentence sounds directory
+     * Based on config('AppQyV1.paths.sentence_sounds')
+     */
+    public static function getAppQyV1SentenceSoundsDir(?string $subPath = ""): string
+    {
+        $basePath = config('AppQyV1.paths.sentence_sounds', storage_path('app/external_data/audio/sentence_sounds'));
+        if ($subPath !== null && $subPath !== '') {
+            $subPath = ltrim($subPath, '/');
+            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        }
+        return $basePath;
+    }
+
+    /**
+     * Get all AppQyV1 audio directories
+     * Returns only the actual dictionary audio directories (word sounds and sentence sounds)
+     * These directories contain language namespaces underneath
+     */
+    public static function getAppQyV1AllAudioDirs(): array
+    {
+        return [
+            self::getAppQyV1AudioDir(),           // Word sounds directory (contains language namespaces)
+            self::getAppQyV1SentenceSoundsDir(),  // Sentence sounds directory (contains language namespaces)
+        ];
+    }
+
     public static function getLaravelStaticDir(?string $subPath = ""): string
     {
         $basePath = self::getLaravelDatabaseDir() . '/static';
@@ -383,11 +494,14 @@ class PathMapper
             mkdir($defaultDatabasePath, 0755, true);
         }
 
-        $fullPath = $defaultDatabasePath . '/' . $databaseName;
+        // Use proper path separator based on OS
+        $separator = self::isWindows() ? '\\' : '/';
+        $fullPath = rtrim($defaultDatabasePath, '/\\') . $separator . $databaseName;
 
         if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $fullPath = rtrim($fullPath, '/') . '/' . $subPath;
+            $subPath = ltrim($subPath, '/\\');
+            $subPath = str_replace(['/', '\\'], $separator, $subPath);
+            $fullPath = rtrim($fullPath, '/\\') . $separator . $subPath;
         }
 
         return $fullPath;

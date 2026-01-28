@@ -8,7 +8,14 @@ import '../providers_app_bank/bank_user_provider.dart';
 import '../services_app_bank/bank_network_service.dart';
 import '../managers_app_bank/app_lifecycle_manager.dart';
 import '../managers_app_bank/user_manager.dart';
+import '../managers_app_bank/license_registration_manager.dart';
 import '../../../common/network/integration/network_user_integration.dart';
+import '../../../common/network/core/api_endpoint_manager.dart';
+import '../../../common/network/interceptors/network_interceptors.dart';
+import '../config_app_bank/api_endpoints_app_bank.dart';
+import '../config_app_bank/endpoint_storage_app_bank.dart';
+import '../config_app_bank/prefs_app_bank.dart';
+import '../services_app_bank/bank_network_log_interceptor.dart';
 
 class BankAppInitializer {
   static BankAppInitializer? _instance;
@@ -25,22 +32,55 @@ class BankAppInitializer {
     try {
       debugPrint('🏦 Initializing Bank Application...');
 
-      // 1. Initialize user provider
+      // 0. Initialize API endpoint manager
+      debugPrint('🔗 Initializing API endpoint manager...');
+      ApiEndpointsAppBank.configure();
+      final endpointManager = ApiEndpointManager();
+      final prefs = PrefsAppBank();
+      if (!prefs.isInitialized) {
+        await prefs.initSharedPreferences();
+      }
+      endpointManager.setStorage(EndpointStorageAppBank(prefs));
+      await endpointManager.initialize(autoDetect: true, timeout: const Duration(seconds: 1));
+      debugPrint('✅ API endpoint manager initialized: ${endpointManager.getCurrentBaseUrl()}');
+
+      // 1. Initialize network log interceptors FIRST (before any network service)
+      debugPrint('📝 Initializing network log interceptors...');
+      final networkInterceptors = NetworkInterceptors.instance;
+      await networkInterceptors.initialize();
+      networkInterceptors.addRequestInterceptor(BankNetworkLogRequestInterceptor());
+      networkInterceptors.addResponseInterceptor(BankNetworkLogResponseInterceptor());
+      debugPrint('✅ Network log interceptors initialized');
+
+      // 2. Initialize user provider
       debugPrint('📱 Initializing user provider...');
       _userProvider = BankUserProvider();
       await _userProvider!.initialize();
 
-      // 2. Initialize network service with user provider integration
+      // 3. Initialize network service with user provider integration
       debugPrint('🌐 Initializing network service...');
       await BankNetworkService.instance.initializeWithUserProvider(_userProvider!);
 
-      // 3. Initialize app lifecycle manager
+      // 3. Initialize app lifecycle manager (with user provider for data submission)
       debugPrint('🔄 Initializing app lifecycle manager...');
-      await AppLifecycleManager().initialize();
+      await AppLifecycleManager().initialize(userProvider: _userProvider);
 
       // 4. Initialize user manager
       debugPrint('👤 Initializing user manager...');
       await UserManager().initialize();
+
+      // 5. Initialize license registration manager
+      debugPrint('🔐 Initializing license registration manager...');
+      await LicenseRegistrationManager().initialize(
+        onLicenseExpired: () {
+          debugPrint('⚠️ License expired - redirecting to authentication');
+        },
+      );
+      
+      final licenseValid = await LicenseRegistrationManager().checkLicenseValidity();
+      if (!licenseValid) {
+        debugPrint('⚠️ License check failed - user needs to register');
+      }
 
       _isInitialized = true;
       debugPrint('✅ Bank Application initialized successfully!');

@@ -18,10 +18,10 @@ export class UserModel {
   }
 
   /**
-   * Login
+   * Login - Use public authentication endpoint
    */
   async login(username: string, password: string): Promise<void> {
-    const response = await api.appQyV1.login({ username, password });
+    const response = await api.auth.login({ username, password });
 
     if (!response.success) {
       throw new Error(response.error || 'Login failed');
@@ -44,7 +44,7 @@ export class UserModel {
   }
 
   /**
-   * Register
+   * Register - Use public authentication endpoint
    */
   async register(
     username: string,
@@ -53,11 +53,12 @@ export class UserModel {
     nickname?: string,
     registrationCode?: string
   ): Promise<void> {
-    const response = await api.appQyV1.register({
+    const response = await api.auth.register({
       username,
       password,
       email,
       nickname,
+      name: nickname,
       registration_code: registrationCode
     });
 
@@ -82,11 +83,11 @@ export class UserModel {
   }
 
   /**
-   * 登出
+   * Logout - Use public authentication endpoint
    */
   async logout(): Promise<void> {
     try {
-      await api.appQyV1.logout();
+      await api.auth.logout();
     } catch (error) {
       console.warn('Logout API failed:', error);
     }
@@ -126,7 +127,7 @@ export class UserModel {
 
     // 同步到服务器
     try {
-      await api.appQyV1.updateUserPreferences(prefs);
+      await api.auth.updateUserPreferences(prefs);
     } catch (error) {
       console.warn('Failed to sync preferences:', error);
     }
@@ -172,7 +173,7 @@ export class UserModel {
    */
   private async loadPreferences(): Promise<void> {
     try {
-      const response = await api.appQyV1.getUserPreferences();
+      const response = await api.auth.getUserPreferences();
       if (response.success && response.data) {
         this.preferences = { ...this.preferences, ...response.data };
         this.savePreferences();

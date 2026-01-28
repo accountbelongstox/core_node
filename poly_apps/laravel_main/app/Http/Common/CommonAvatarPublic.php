@@ -2,6 +2,7 @@
 
 namespace App\Http\Common;
 
+use App\Constants\AppKeys;
 use App\Services\AvatarService;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
@@ -40,7 +41,7 @@ class CommonAvatarPublic
                 'seed' => $seed,
             ]);
 
-            $avatarPath = AvatarService::generateAndSave($seed, $user->id, 'appqyv1');
+            $avatarPath = AvatarService::generateAndSave($seed, $user->id, AppKeys::APPQYV1);
 
             if ($avatarPath) {
                 $user->avatar = $avatarPath;

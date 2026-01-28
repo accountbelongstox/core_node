@@ -11,7 +11,9 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
 
 /// Custom Service Section Component
 ///
@@ -28,7 +30,7 @@ class CustomServiceSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16), // Remove horizontal padding
       decoration: BoxDecoration(
         color: Colors.transparent, // Transparent background
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(BankConstants.buttonBorderRadius),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,7 +39,7 @@ class CustomServiceSection extends StatelessWidget {
           // Customized Services (定制服务) with plus icon and dashed border
           GestureDetector(
             onTap: () {
-              // Handle customized services tap
+              BankLoadingDialog.show(context, title: '定制服务');
             },
             child: SizedBox(
               width: double.infinity, // Full width of card
@@ -80,7 +82,7 @@ class CustomServiceSection extends StatelessWidget {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    // Handle 多彩消保 tap
+                    BankLoadingDialog.show(context, title: '多彩消保');
                   },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -120,7 +122,7 @@ class CustomServiceSection extends StatelessWidget {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    // Handle 投诉指南 tap
+                    BankLoadingDialog.show(context, title: '投诉指南');
                   },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -185,7 +187,7 @@ class DashedBorderPainter extends CustomPainter {
       ..addRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(12),
+          Radius.circular(BankConstants.buttonBorderRadius),
         ),
       );
 

@@ -1,36 +1,115 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    public function up()
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_vocabulary_collections')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_vocabulary_collections', function (Blueprint $table) {
-                $table->id();
-                $table->string('collection_name', 255)->nullable(false);
-                $table->string('lang_code', 10)->nullable(false)->index();
-                $table->string('source_type', 50)->default('system')->comment('system|user_upload');
-                $table->unsignedBigInteger('owner_id')->nullable()->comment('User ID for private collections');
-                $table->boolean('is_public')->default(true);
-                $table->text('description')->nullable();
-                $table->integer('total_words')->default(0);
-                $table->json('meta_data')->nullable()->comment('Additional metadata like difficulty level, category');
-                $table->timestamps();
-                $table->softDeletes();
-
-                $table->index(['lang_code', 'is_public'], 'idx_lang_public');
-                $table->index('owner_id', 'idx_owner');
-                $table->unique(['collection_name', 'lang_code', 'owner_id'], 'unique_collection_per_user_lang');
-            });
-        }
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_collections');
     }
 
-    public function down()
+    public function up(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_vocabulary_collections');
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'collection_name' => [
+                    'type' => 'string',
+                    'length' => 255,
+                    'nullable' => false,
+                ],
+                'lang_code' => [
+                    'type' => 'string',
+                    'length' => 10,
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'source_type' => [
+                    'type' => 'string',
+                    'length' => 50,
+                    'nullable' => false,
+                    'default' => 'system',
+                    'comment' => 'system|user_upload',
+                ],
+                'owner_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => true,
+                    'comment' => 'User ID for private collections',
+                ],
+                'is_public' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => true,
+                ],
+                'description' => [
+                    'type' => 'text',
+                    'nullable' => true,
+                ],
+                'total_words' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
+                'meta_data' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'comment' => 'Additional metadata like difficulty level, category',
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'deleted_at' => [
+                    'type' => 'softDeletes',
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['lang_code', 'is_public'],
+                    'name' => 'idx_lang_public',
+                ],
+                [
+                    'columns' => ['owner_id'],
+                    'name' => 'idx_owner',
+                ],
+                [
+                    'columns' => ['collection_name', 'lang_code', 'owner_id'],
+                    'name' => 'unique_collection_per_user_lang',
+                    'unique' => true,
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    public function down(): void
+    {
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

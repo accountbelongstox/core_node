@@ -24,9 +24,13 @@ GITEA_CONFIG_DIR="$GITEA_BASE_DIR/config"
 GITEA_CUSTOM_DIR="$GITEA_BASE_DIR/custom"
 GITEA_LOG_DIR="$GITEA_BASE_DIR/log"
 
+# Source common backup functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/backup_common.sh"
+
 # Backup configuration
-BACKUP_BASE_DIR=$(map_web_path "www")
-BACKUP_DIR="$BACKUP_BASE_DIR/backups/gitea"
+GITEA_NAMESPACE="gitea"
+BACKUP_DIR=$(get_backup_dir "$GITEA_NAMESPACE")
 BACKUP_RETENTION_DAYS=30
 
 # Check if Gitea is installed
@@ -100,20 +104,9 @@ get_gitea_version() {
     fi
 }
 
-# Create backup filename
-create_backup_filename() {
-    local timestamp=$(date +%Y%m%d-%H%M%S)
-    local version=$(get_gitea_version)
-    local backup_number=1
-    local base_filename="gitea-backup-${timestamp}"
-    local filename="${base_filename}-${backup_number}.zip"
-
-    while [[ -f "$BACKUP_DIR/$filename" ]]; do
-        ((backup_number++))
-        filename="${base_filename}-${backup_number}.zip"
-    done
-
-    echo "$filename"
+# Create backup filename (using common function)
+create_gitea_backup_filename() {
+    create_backup_filename "$GITEA_NAMESPACE" "gitea" "zip"
 }
 
 # Perform Gitea backup
@@ -139,7 +132,7 @@ backup_gitea() {
     $USE_SUDO mkdir -p "$BACKUP_DIR"
     $USE_SUDO chmod 755 "$BACKUP_DIR" 2>/dev/null || true
 
-    local backup_filename=$(create_backup_filename)
+    local backup_filename=$(create_gitea_backup_filename)
     local backup_path="$BACKUP_DIR/$backup_filename"
 
     print_warning_from_common_functions "Gitea service MUST be stopped during backup to ensure consistency"
@@ -202,52 +195,18 @@ backup_gitea() {
     echo ""
     print_success_from_common_functions "Backup completed successfully"
 
-    return 0
-}
-
-# Cleanup old backups
-cleanup_old_backups() {
-    local retention_days="${1:-$BACKUP_RETENTION_DAYS}"
-
-    print_step_from_common_functions "Cleaning up old backups (older than $retention_days days)..."
-
-    if [[ ! -d "$BACKUP_DIR" ]]; then
-        print_info_from_common_functions "Backup directory does not exist, nothing to clean"
-        return 0
-    fi
-
-    local deleted_count=0
-    while IFS= read -r -d '' file; do
-        $USE_SUDO rm -f "$file"
-        ((deleted_count++))
-        print_info_from_common_functions "Deleted: $(basename "$file")"
-    done < <(find "$BACKUP_DIR" -name "gitea-backup-*.zip" -mtime +$retention_days -print0 2>/dev/null)
-
-    if [[ $deleted_count -eq 0 ]]; then
-        print_info_from_common_functions "No old backups found to delete"
-    else
-        print_success_from_common_functions "Deleted $deleted_count old backup(s)"
-    fi
+    # Prompt for download server
+    prompt_download_server "$backup_path" "$GITEA_NAMESPACE"
 
     return 0
 }
 
-# Verify backup file
-verify_backup() {
-    local backup_file="$1"
+# Cleanup old backups (wrapper for common function)
+cleanup_old_gitea_backups() {
+    cleanup_old_backups "$GITEA_NAMESPACE" "${1:-$BACKUP_RETENTION_DAYS}" "gitea-backup-*.zip"
+}
 
-    if [[ ! -f "$backup_file" ]]; then
-        print_error_from_common_functions "Backup file not found: $backup_file"
-        return 1
-    fi
-
-    print_step_from_common_functions "Verifying backup file integrity..."
-
-    if ! unzip -t "$backup_file" &>/dev/null; then
-        print_error_from_common_functions "Backup file is corrupted or invalid"
-        return 1
-    fi
-
-    print_success_from_common_functions "Backup file integrity verified"
-    return 0
+# Verify backup file (wrapper for common function)
+verify_gitea_backup() {
+    verify_backup "$1"
 }

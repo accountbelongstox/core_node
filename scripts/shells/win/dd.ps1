@@ -71,11 +71,17 @@ $windowsPathFunctionPath = Join-Path $PSScriptRoot "win_common\WindowsPathFuncti
 
 # Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
 $gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
-Import-Module $gitManagementFunctionsPath -Force
-
-# Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
-$gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
-Import-Module $gitManagementFunctionsPath -Force
+# Resolve path to absolute path to handle execution from different directories
+$gitManagementFunctionsPath = Resolve-Path $gitManagementFunctionsPath -ErrorAction SilentlyContinue
+if ($null -ne $gitManagementFunctionsPath -and (Test-Path $gitManagementFunctionsPath)) {
+    try {
+        Import-Module $gitManagementFunctionsPath -Force -ErrorAction Stop
+    } catch {
+        Write-ColorMessage -Message "Warning: Failed to import GitManagementFunctions.psm1: $_" -Type "Warning"
+    }
+} else {
+    Write-ColorMessage -Message "Warning: GitManagementFunctions.psm1 not found. Git management features may be limited." -Type "Warning"
+}
 
 #region Variable Declarations 
 # =============================================================================
@@ -320,6 +326,13 @@ function Invoke-InteractiveMenu {
         [Parameter(Mandatory=$true)] [string]$Title,
         [Parameter()] [bool]$EnableValueToggle = $true
     )
+    
+    # Validate Items parameter
+    if ($null -eq $Items -or $Items.Count -eq 0) {
+        Write-ColorMessage -Message "Error: Menu items are not initialized or empty" -Type "Error"
+        return -1
+    }
+    
     $selectedIndex = 0
 
     # Test console capabilities first
@@ -706,6 +719,12 @@ function Show-InstallerSubMenu {
         }
     }
 
+    # Validate subItems array
+    if ($null -eq $subItems -or $subItems.Count -eq 0) {
+        Write-ColorMessage -Message "Error: Sub-menu items are not initialized" -Type "Error"
+        return
+    }
+    
     $selected = 0
     while ($true) {
         Clear-Host
@@ -947,6 +966,12 @@ function Initialize-MenuItems {
 }
 
 function Show-InteractiveMenu {
+    # Validate MenuItems before proceeding
+    if ($null -eq $script:MenuItems -or $script:MenuItems.Count -eq 0) {
+        Write-ColorMessage -Message "Error: Menu items are not initialized. Please check script initialization." -Type "Error"
+        return -1
+    }
+    
     $selectedIndex = 0
     
     # Safe console operations with error handling
@@ -1044,7 +1069,19 @@ function Start-MainLoop {
         Write-ColorMessage -Message "Current system: $($script:SYSTEM_VERSION)" -Type "Info"
         
         $selectedIndex = Show-InteractiveMenu
+        if ($selectedIndex -lt 0 -or $null -eq $script:MenuItems -or $selectedIndex -ge $script:MenuItems.Count) {
+            Write-ColorMessage -Message "Error: Invalid menu selection or menu items not initialized" -Type "Error"
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
+        
         $selectedItem = $script:MenuItems[$selectedIndex]
+        if ($null -eq $selectedItem -or $null -eq $selectedItem.Values -or $selectedItem.Values.Count -eq 0) {
+            Write-ColorMessage -Message "Error: Selected menu item is invalid" -Type "Error"
+            Read-Host "Press Enter to continue"
+            continue
+        }
+        
         $selectedValue = $selectedItem.Values[$selectedItem.CurrentValueIndex]
         
         Write-ColorMessage -Message "Selected: $($selectedItem.Text) [$selectedValue]" -Type "Info"

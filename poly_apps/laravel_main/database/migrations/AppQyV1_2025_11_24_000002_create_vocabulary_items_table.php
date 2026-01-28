@@ -1,37 +1,106 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
-    public function up()
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_vocabulary_items')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_vocabulary_items', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('collection_id')->nullable(false);
-                $table->string('lang_code', 10)->nullable(false)->index();
-                $table->text('word_content')->nullable(false);
-                $table->string('word_md5', 32)->nullable(false)->index();
-                $table->integer('word_index')->default(0)->comment('Order in collection');
-                $table->json('extra_data')->nullable()->comment('Additional word metadata');
-                $table->timestamps();
-
-                $table->foreign('collection_id')
-                    ->references('id')
-                    ->on('app_qy_v1_vocabulary_collections')
-                    ->onDelete('cascade');
-
-                $table->index(['collection_id', 'word_index'], 'idx_collection_index');
-                $table->index(['lang_code', 'word_md5'], 'idx_lang_md5');
-            });
-        }
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_items');
     }
 
-    public function down()
+    public function up(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_vocabulary_items');
+        $collectionsTableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_collections');
+        
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'collection_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                ],
+                'lang_code' => [
+                    'type' => 'string',
+                    'length' => 10,
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'word_content' => [
+                    'type' => 'text',
+                    'nullable' => false,
+                ],
+                'word_md5' => [
+                    'type' => 'string',
+                    'length' => 32,
+                    'nullable' => false,
+                    'index' => true,
+                ],
+                'word_index' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                    'comment' => 'Order in collection',
+                ],
+                'extra_data' => [
+                    'type' => 'json',
+                    'nullable' => true,
+                    'comment' => 'Additional word metadata',
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['collection_id', 'word_index'],
+                    'name' => 'idx_collection_index',
+                ],
+                [
+                    'columns' => ['lang_code', 'word_md5'],
+                    'name' => 'idx_lang_md5',
+                ],
+            ],
+            'foreignKeys' => [
+                [
+                    'column' => 'collection_id',
+                    'references' => $collectionsTableName,
+                    'on' => 'id',
+                    'onDelete' => 'cascade',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
+    }
+
+    public function down(): void
+    {
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

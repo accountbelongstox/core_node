@@ -339,6 +339,38 @@ class AppQyV1LanguageConfigService
     }
 
     /**
+     * Get all Edge-TTS voice mappings (language code => voice_id)
+     * This is the single source of truth for Edge-TTS VOICES constant
+     * Used by EdgeTTSService and other TTS services
+     * 
+     * @return array Language code => voice_id mapping
+     */
+    public static function getTTSVoices(): array
+    {
+        $voices = [];
+        $ttsLanguages = self::getTTSLanguages();
+        
+        foreach ($ttsLanguages as $code => $lang) {
+            if (isset($lang['voice_id'])) {
+                $voices[$code] = $lang['voice_id'];
+            }
+        }
+        
+        return $voices;
+    }
+
+    /**
+     * Get Edge-TTS text types
+     * Single source of truth for TEXT_TYPES constant
+     * 
+     * @return array Text types array
+     */
+    public static function getTTSTextTypes(): array
+    {
+        return ['sentence', 'word', 'letter'];
+    }
+
+    /**
      * Get language flag icon identifier
      */
     public static function getFlagIcon(string $code): ?string

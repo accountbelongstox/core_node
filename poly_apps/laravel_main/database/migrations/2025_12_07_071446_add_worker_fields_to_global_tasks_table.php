@@ -1,109 +1,66 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection = null;
+
     public function up(): void
     {
-        // Check if global_tasks table exists
-        if (!Schema::hasTable('global_tasks')) {
-            // Create complete table from scratch
-            Schema::create('global_tasks', function (Blueprint $table) {
-                $table->bigIncrements('id');
-                $table->string('task_id')->unique();
-                $table->string('app_name')->index();
-                $table->string('task_type')->nullable();
-                $table->string('execution_type')->default('local_timer')->index();
-                $table->string('status')->default('pending')->index();
-                $table->string('assigned_to')->nullable()->index();
-                $table->timestamp('assigned_at')->nullable();
-                $table->timestamp('timeout_at')->nullable()->index();
-                $table->integer('timeout_seconds')->default(120);
-                $table->integer('priority')->default(0)->index();
-                $table->integer('retry_count')->default(0);
-                $table->integer('max_retries')->default(3);
-                $table->decimal('progress', 5, 2)->default(0);
-                $table->json('payload')->nullable();
-                $table->json('steps')->nullable();
-                $table->json('result')->nullable();
-                $table->text('error')->nullable();
-                $table->string('queue_item_id')->nullable()->index();
-                $table->timestamp('completed_at')->nullable();
-                $table->timestamps();
+        $tableName = 'global_tasks';
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'task_id' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                'app_name' => ['type' => 'string', 'nullable' => false],
+                'task_type' => ['type' => 'string', 'nullable' => true],
+                'execution_type' => ['type' => 'string', 'nullable' => false, 'default' => 'local_timer'],
+                'status' => ['type' => 'string', 'nullable' => false, 'default' => 'pending'],
+                'assigned_to' => ['type' => 'string', 'nullable' => true],
+                'assigned_at' => ['type' => 'timestamp', 'nullable' => true],
+                'timeout_at' => ['type' => 'timestamp', 'nullable' => true],
+                'timeout_seconds' => ['type' => 'integer', 'nullable' => false, 'default' => 120],
+                'priority' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'retry_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'max_retries' => ['type' => 'integer', 'nullable' => false, 'default' => 3],
+                'progress' => ['type' => 'decimal', 'precision' => 5, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                'payload' => ['type' => 'json', 'nullable' => true],
+                'steps' => ['type' => 'json', 'nullable' => true],
+                'result' => ['type' => 'json', 'nullable' => true],
+                'error' => ['type' => 'text', 'nullable' => true],
+                'queue_item_id' => ['type' => 'string', 'nullable' => true],
+                'completed_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['app_name']],
+                ['columns' => ['execution_type']],
+                ['columns' => ['status']],
+                ['columns' => ['assigned_to']],
+                ['columns' => ['timeout_at']],
+                ['columns' => ['priority']],
+                ['columns' => ['queue_item_id']],
+                ['columns' => ['status', 'execution_type', 'priority'], 'name' => 'idx_task_pulling'],
+                ['columns' => ['status', 'timeout_at'], 'name' => 'idx_timeout_check'],
+            ],
+        ];
 
-                // Composite indexes for efficient task pulling
-                $table->index(['status', 'execution_type', 'priority'], 'idx_task_pulling');
-                $table->index(['status', 'timeout_at'], 'idx_timeout_check');
-            });
-        } else {
-            // Table exists, add missing fields only if they don't exist
-            Schema::table('global_tasks', function (Blueprint $table) {
-                if (!Schema::hasColumn('global_tasks', 'execution_type')) {
-                    $table->string('execution_type')->default('local_timer')->after('task_type')->index();
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'assigned_to')) {
-                    $table->string('assigned_to')->nullable()->after('status')->index();
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'assigned_at')) {
-                    $table->timestamp('assigned_at')->nullable()->after('assigned_to');
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'timeout_at')) {
-                    $table->timestamp('timeout_at')->nullable()->after('assigned_at')->index();
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'timeout_seconds')) {
-                    $table->integer('timeout_seconds')->default(120)->after('timeout_at');
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'priority')) {
-                    $table->integer('priority')->default(0)->after('timeout_seconds')->index();
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'retry_count')) {
-                    $table->integer('retry_count')->default(0)->after('priority');
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'max_retries')) {
-                    $table->integer('max_retries')->default(3)->after('retry_count');
-                }
-
-                if (!Schema::hasColumn('global_tasks', 'completed_at')) {
-                    $table->timestamp('completed_at')->nullable()->after('error');
-                }
-            });
-
-            // Try to add composite indexes (ignore if already exist)
-            try {
-                Schema::table('global_tasks', function (Blueprint $table) {
-                    $table->index(['status', 'execution_type', 'priority'], 'idx_task_pulling');
-                });
-            } catch (\Exception $e) {
-                // Index already exists, ignore
-            }
-
-            try {
-                Schema::table('global_tasks', function (Blueprint $table) {
-                    $table->index(['status', 'timeout_at'], 'idx_timeout_check');
-                });
-            } catch (\Exception $e) {
-                // Index already exists, ignore
-            }
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection ?? config('database.default'),
+            $tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         // Skip rollback - this migration creates/updates essential tables

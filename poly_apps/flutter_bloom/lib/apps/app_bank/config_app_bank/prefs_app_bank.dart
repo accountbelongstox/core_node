@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qyflutter/common/storage/app_prefs_base.dart';
+import 'package:qyflutter/common/storage_tools/app_prefs_base.dart';
 import 'constants.dart';
 
 /// Bank App SharedPreferences Manager
@@ -163,15 +163,34 @@ class PrefsAppBank extends AppPrefsBase {
   }
 
   /// Clear all Bank preferences
+  /// CRITICAL: Registration information keys are preserved and will NOT be cleared
+  /// Registration info is machine-bound and should persist across logout/login cycles
   @override
   Future<void> clearAll() async {
     if (!_isInitialized) return;
+    
+    // CRITICAL: Preserve registration information keys
+    // These keys should NEVER be cleared, as registration is machine-bound
+    final registrationKeys = {
+      'license_is_registered',
+      'license_is_super_user',
+      'license_registration_code',
+      'license_registration_time',
+      'license_expiration_time',
+      'license_cached_network_time',
+      'license_last_network_time_request',
+    };
     
     final keys = _instance!.getKeys()
         .where((key) => key.startsWith(BankConstants.prefsPrefix));
     
     for (final key in keys) {
-      await _instance!.remove(key);
+      // Remove prefix to get the actual key name
+      final keyWithoutPrefix = key.replaceFirst(BankConstants.prefsPrefix, '');
+      // Skip registration-related keys - they should persist
+      if (!registrationKeys.contains(keyWithoutPrefix)) {
+        await _instance!.remove(key);
+      }
     }
   }
 

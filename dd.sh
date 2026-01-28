@@ -60,10 +60,18 @@ SYSTEM_NAME=""
 GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
 GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 
-# File Download Variables
+# File Download Variables (relative paths)
+GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
+SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
+PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+
+# File Download Variables (absolute paths)
 GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
 SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/2_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
+
+# Temporary directory for core_node operations
+CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
 
 # Menu script paths (called via bash from menu_functions.sh, NOT sourced)
 # These scripts are executed when user selects corresponding menu items
@@ -158,40 +166,437 @@ source_file_with_dos2unix() {
 
 # Function Definitions
 
-# System functions moved to system_functions.sh
+# =============================================================================
+# Essential Functions for Standalone Operation
+# =============================================================================
 
-# Cache and file processing functions moved to cache_functions.sh and file_processing.sh
+# Detect WSL environment
+IS_WSL=false
+if [ -s /proc/version ] && grep -qi microsoft /proc/version; then
+    IS_WSL=true
+fi
 
-# Menu Functions
-
-# Functions moved to dd_helper directory:
-# - sync_linuxenvs_to_bin -> linuxenvs_sync.sh
-# - show_special_software_env_menu, show_service_manager, load_saved_values, handle_menu_action -> menu_functions.sh
-
-# read_secret_input and ensure_secret_keys_ready moved to main_functions.sh
-
-# show_service_manager function moved to menu_functions.sh
-
-# initialize_menu_items and show_interactive_menu moved to menu_display.sh
-
-# determine_global_var_dir moved to main_functions.sh
-# check_and_install_sudo moved to system_functions.sh
-
-# Source first files (constants.sh and system_functions.sh) to get check_and_install_sudo
-# (needed before ensure_dos2unix which requires $sudo)
-first_file_count=0
-first_file_total=${#SOURCE_FIRSTFILES[@]}
-for source_file in "${SOURCE_FIRSTFILES[@]}"; do
-    ((first_file_count++))
-    basename_file="$(basename "$source_file")"
-    sed -i 's/\r$//' "$source_file" 2>/dev/null
-    source "$source_file" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        echo "[$first_file_count/$first_file_total] $basename_file - [OK]"
-    else
-        echo "[$first_file_count/$first_file_total] $basename_file - [FAILED]"
+# System detection
+detect_system_version() {
+    if [ -s /.dockerenv ]; then
+        echo "Running inside Docker container"
+        SYSTEM_VERSION="Docker"
+        SYSTEM_NAME="Docker"
+        set_global_var "CURRENT_SYSTEM" "DOCKER" "false"
+        return
     fi
-done
+
+    if [ ! -s /etc/os-release ]; then
+        echo "Error: Cannot detect operating system (missing /etc/os-release)"
+        exit 1
+    fi
+
+    . /etc/os-release
+    case "$ID" in
+        ubuntu)
+            SYSTEM_VERSION="ubuntu_$(echo $VERSION_ID | cut -d. -f1)"
+            SYSTEM_NAME="debian"
+            echo -e "\033[32mUbuntu $(echo $VERSION_ID) detected - using Debian-compatible scripts\033[0m"
+            set_global_var "CURRENT_SYSTEM" "UBUNTU_$(echo $VERSION_ID | cut -d. -f1)" "false"
+            ;;
+        debian)
+            SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"
+            SYSTEM_NAME="debian"
+            echo -e "\033[32mDebian $(echo $VERSION_ID) detected\033[0m"
+            set_global_var "CURRENT_SYSTEM" "DEBIAN_$(echo $VERSION_ID | cut -d. -f1)" "false"
+            ;;
+        *)
+            echo "Error: This script only supports Debian and Ubuntu systems"
+            exit 1
+            ;;
+    esac
+}
+
+# Install package helper
+install_package() {
+    local package_name="$1"
+    echo "Attempting to install $package_name..."
+    if ! command -v apt-get &>/dev/null; then
+        echo "Error: apt-get not found. This script only supports Debian-based systems."
+        return 1
+    fi
+    $sudo apt-get update && $sudo apt-get install -y "$package_name"
+    return $?
+}
+
+# Check and install sudo
+check_and_install_sudo() {
+    if [ "$EUID" -eq 0 ]; then
+        sudo=""
+        USE_SUDO=""
+        echo "Running as root. sudo not needed."
+        export USE_SUDO
+        return
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        echo "sudo not found. Attempting to install..."
+        if install_package "sudo"; then
+            echo "sudo installed successfully."
+        else
+            echo "Failed to install sudo. Commands will be run without sudo."
+            sudo=""
+            USE_SUDO=""
+            export USE_SUDO
+            return
+        fi
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        sudo="sudo"
+        USE_SUDO="sudo"
+        echo "sudo is available and will be used."
+    else
+        sudo=""
+        USE_SUDO=""
+        echo "sudo is not available. Commands will be run without sudo."
+    fi
+    export USE_SUDO
+}
+
+# Check and install git
+check_and_install_git() {
+    if ! command -v git &>/dev/null; then
+        echo "git is not installed, attempting to install..."
+        if install_package "git"; then
+            echo "git installed successfully."
+        else
+            echo "Failed to install git. Please install it manually and try again."
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Determine global variable directory
+determine_global_var_dir() {
+    local default_dir="/usr/core_node/global_var"
+    local wsl_users_path="/mnt/c/Users"
+    
+    [ -d "$wsl_users_path" ] && {
+        for user_dir in "$wsl_users_path"/*; do
+            [ -d "$user_dir" ] && {
+                local potential_dir="$user_dir/.core_node/global_var"
+                [ -d "$potential_dir" ] && {
+                    echo "$potential_dir"
+                    return 0
+                }
+            }
+        done
+    }
+    
+    echo "$default_dir"
+    return 0
+}
+
+# Helper function to normalize key and get file path
+_get_var_file_path() {
+    local key="$1"
+    # Convert key to uppercase and remove any special characters
+    key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
+    echo "$GLOBAL_VAR_DIR/$key"
+}
+
+# Set global variable
+set_global_var() {
+    local key="$1"
+    local val="$2"
+    local print="${3:-}"
+
+    if [[ -z "$key" ]] || [[ -z "$val" ]]; then
+        echo "Error: Both key and value must be provided"
+        return 1
+    fi
+
+    local file_path=$(_get_var_file_path "$key")
+    
+    if [ ! -d "$GLOBAL_VAR_DIR" ]; then
+        $sudo mkdir -p "$GLOBAL_VAR_DIR"
+    fi
+
+    echo "$val" | $sudo tee "$file_path" >/dev/null
+    if [[ $? -eq 0 ]]; then
+        if [[ "$print" != "false" ]]; then
+            echo "Successfully set global variable: $key -> $val"
+        fi
+        return 0
+    else
+        echo "Error: Failed to write to $file_path"
+        return 1
+    fi
+}
+
+# Get global variable
+get_global_var() {
+    local key="$1"
+    local default_value="$2"
+
+    if [[ -z "$key" ]]; then
+        echo "Error: Key must be provided"
+        return 1
+    fi
+
+    local file_path=$(_get_var_file_path "$key")
+
+    if [[ -f "$file_path" ]]; then
+        cat "$file_path" 2>/dev/null
+        return 0
+    else
+        if [[ -n "$default_value" ]]; then
+            echo "$default_value"
+            return 0
+        else
+            return 1
+        fi
+    fi
+}
+
+# File validation
+is_file_valid() {
+    local file_path="$1"
+
+    if [ ! -r "$file_path" ]; then
+        echo "[WARNING] File is not readable: $file_path"
+        return 1
+    fi
+
+    if [ ! -s "$file_path" ]; then
+        echo "[WARNING] File is empty: $file_path"
+        return 1
+    fi
+
+    local first_line=$(head -n 1 "$file_path" 2>/dev/null)
+    if [[ ! "$first_line" =~ ^#! ]]; then
+        echo "[WARNING] File does not start with shebang: $file_path"
+        return 1
+    fi
+
+    return 0
+}
+
+# Download file
+download_file() {
+    local file_path="$1"
+    local relative_path="$2"
+    local selected_region=$(get_global_var "SELECTED_REGION" "Global")
+
+    local base_url=""
+    case "$selected_region" in
+        "Global")
+            base_url="$GITHUB_BASE_URL"
+            ;;
+        "China")
+            base_url="$GITEE_BASE_URL"
+            ;;
+        *)
+            base_url="$GITHUB_BASE_URL"
+            ;;
+    esac
+
+    local download_url="$base_url/$relative_path"
+
+    if [ ! -d "$CORE_NODE_TMP_DIR" ]; then
+        $sudo mkdir -p "$CORE_NODE_TMP_DIR"
+    fi
+
+    local temp_file="$CORE_NODE_TMP_DIR/core_node_download_$(basename "$file_path").$$"
+
+    echo "Downloading $relative_path..."
+    echo "Source URL: $download_url"
+    echo "Target file: $file_path"
+
+    local download_success=false
+    local download_method=""
+
+    if command -v wget >/dev/null 2>&1; then
+        echo "Attempting download with wget..."
+        if wget -q -O "$temp_file" "$download_url" 2>&1; then
+            if [ -s "$temp_file" ]; then
+                echo "Download successful using wget"
+                download_success=true
+                download_method="wget"
+            else
+                echo "wget completed but file is empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
+        else
+            echo "wget download failed"
+            rm -f "$temp_file" 2>/dev/null
+        fi
+    fi
+
+    if [ "$download_success" = false ] && command -v curl >/dev/null 2>&1; then
+        echo "Attempting download with curl..."
+        if curl -f -s -L -o "$temp_file" "$download_url" 2>&1; then
+            if [ -s "$temp_file" ]; then
+                echo "Download successful using curl"
+                download_success=true
+                download_method="curl"
+            else
+                echo "curl completed but file is empty"
+                rm -f "$temp_file" 2>/dev/null
+            fi
+        else
+            echo "curl download failed"
+            rm -f "$temp_file" 2>/dev/null
+        fi
+    fi
+
+    if [ "$download_success" = false ]; then
+        echo "[ERROR] All download methods failed"
+        echo "  URL: $download_url"
+        echo "  Target: $file_path"
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+
+    local file_size=$(stat -c%s "$temp_file" 2>/dev/null)
+    echo "Downloaded successfully using $download_method ($file_size bytes)"
+
+    local file_dir=$(dirname "$file_path")
+    if [ ! -d "$file_dir" ]; then
+        echo "Creating directory: $file_dir"
+        if ! $sudo mkdir -p "$file_dir"; then
+            echo "[ERROR] Failed to create directory: $file_dir"
+            rm -f "$temp_file" 2>/dev/null
+            return 1
+        fi
+    fi
+
+    echo "Installing file to: $file_path"
+
+    if $sudo mv "$temp_file" "$file_path"; then
+        $sudo chmod +x "$file_path"
+        echo "[SUCCESS] File installed: $file_path"
+        return 0
+    else
+        echo "[ERROR] Failed to move file to target location"
+        rm -f "$temp_file" 2>/dev/null
+        return 1
+    fi
+}
+
+# Show region selection menu
+show_region_selection_menu() {
+    echo ""
+    echo "=========================================="
+    echo "Select Download Region:"
+    echo "=========================================="
+    echo "1) Global (GitHub)"
+    echo "2) China (Gitee)"
+    echo "=========================================="
+    echo -n "Enter your choice (1-2): "
+    
+    read -r choice
+    case "$choice" in
+        1)
+            set_global_var "SELECTED_REGION" "Global" "false"
+            echo "Selected region: Global (GitHub)"
+            ;;
+        2)
+            set_global_var "SELECTED_REGION" "China" "false"
+            echo "Selected region: China (Gitee)"
+            ;;
+        *)
+            echo "Invalid choice, defaulting to Global"
+            set_global_var "SELECTED_REGION" "Global" "false"
+            ;;
+    esac
+}
+
+# Check and download required files
+check_and_download_files() {
+    echo "Checking for required files..."
+
+    local gvar_common_file="$CORE_NODE_ROOT_DIR/$GVAR_COMMON_FILE_RELATIVE"
+    local setting_base_file="$CORE_NODE_ROOT_DIR/$SETTING_BASE_FILE_RELATIVE"
+    local project_validator_file="$CORE_NODE_ROOT_DIR/$PROJECT_VALIDATOR_FILE_RELATIVE"
+
+    local force_update=false
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        force_update=true
+        echo -e "\033[33m[INFO] Installation mode detected - will update all temporary scripts\033[0m"
+    fi
+
+    if [ "$force_update" = true ] || ! is_file_valid "$gvar_common_file"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating gvar_common.sh to latest version..."
+        else
+            echo "gvar_common.sh not found or invalid, downloading..."
+        fi
+        if download_file "$gvar_common_file" "scripts/shells/linux/common/gvar_common.sh"; then
+            echo "gvar_common.sh downloaded successfully"
+        else
+            echo "Failed to download gvar_common.sh"
+            return 1
+        fi
+    else
+        echo "gvar_common.sh already exists and is valid"
+    fi
+
+    if [ "$force_update" = true ] || ! is_file_valid "$setting_base_file"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 2_setting_base.sh to latest version..."
+        else
+            echo "2_setting_base.sh not found or invalid, downloading..."
+        fi
+        if download_file "$setting_base_file" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
+            echo "2_setting_base.sh downloaded successfully"
+        else
+            echo "Failed to download 2_setting_base.sh"
+            return 1
+        fi
+    else
+        echo "2_setting_base.sh already exists and is valid"
+    fi
+
+    if [ "$force_update" = true ] || ! is_file_valid "$project_validator_file"; then
+        if [ "$force_update" = true ]; then
+            echo "Updating 8_project_validator.sh to latest version..."
+        else
+            echo "8_project_validator.sh not found or invalid, downloading..."
+        fi
+        if download_file "$project_validator_file" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
+            echo "8_project_validator.sh downloaded successfully"
+        else
+            echo "Failed to download 8_project_validator.sh"
+            return 1
+        fi
+    else
+        echo "8_project_validator.sh already exists and is valid"
+    fi
+
+    if [ "$force_update" = true ]; then
+        echo -e "\033[32mAll required files updated to latest version\033[0m"
+    else
+        echo "All required files are available and valid"
+    fi
+    return 0
+}
+
+# Placeholder functions (will be overridden if source files are available)
+ensure_secret_keys_ready() { return 0; }
+cleanup_behavior_cache() { return 0; }
+cleanup_file_cache() { return 0; }
+cleanup_directory_processing_cache() { return 0; }
+process_sh_files() { return 0; }
+check_directory_processing_cache() { return 1; }
+set_directory_processing_cache() { return 0; }
+make_sh_executable() { return 0; }
+smart_permissions_fix() { return 0; }
+sync_linuxenvs_to_bin() { return 0; }
+initialize_menu_items() { return 0; }
+show_interactive_menu() { echo "Menu system not available. Please download required files first."; return 0; }
+handle_arguments() { echo "Command line mode not available. Please download required files first."; return 0; }
+show_cli_help() { echo "Help not available. Please download required files first."; return 0; }
+
+# Set GLOBAL_VAR_DIR early (before sourcing other files)
+GLOBAL_VAR_DIR=$(determine_global_var_dir)
 
 # Ensure sudo is available before ensure_dos2unix
 check_and_install_sudo
@@ -200,22 +605,42 @@ check_and_install_sudo
 ensure_dos2unix
 check_and_install_git
 
-# Source all required files (with dos2unix processing)
+# Source first files (constants.sh and system_functions.sh) if available
+first_file_count=0
+first_file_total=${#SOURCE_FIRSTFILES[@]}
+for source_file in "${SOURCE_FIRSTFILES[@]}"; do
+    ((first_file_count++))
+    basename_file="$(basename "$source_file")"
+    if [ -f "$source_file" ]; then
+        sed -i 's/\r$//' "$source_file" 2>/dev/null
+        source "$source_file" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            echo "[$first_file_count/$first_file_total] $basename_file - [OK]"
+        else
+            echo "[$first_file_count/$first_file_total] $basename_file - [FAILED]"
+        fi
+    else
+        echo "[$first_file_count/$first_file_total] $basename_file - [SKIPPED - not found]"
+    fi
+done
+
+# Source all required files (with dos2unix processing) if available
 file_count=0
 file_total=${#SOURCE_FILES[@]}
 for source_file in "${SOURCE_FILES[@]}"; do
     ((file_count++))
     basename_file="$(basename "$source_file")"
-    source_file_with_dos2unix "$source_file"
-    if [ $? -eq 0 ]; then
-        echo "[$file_count/$file_total] $basename_file - [OK]"
+    if [ -f "$source_file" ]; then
+        source_file_with_dos2unix "$source_file"
+        if [ $? -eq 0 ]; then
+            echo "[$file_count/$file_total] $basename_file - [OK]"
+        else
+            echo "[$file_count/$file_total] $basename_file - [FAILED]"
+        fi
     else
-        echo "[$file_count/$file_total] $basename_file - [FAILED]"
+        echo "[$file_count/$file_total] $basename_file - [SKIPPED - not found]"
     fi
 done
-
-# Set GLOBAL_VAR_DIR using the determine_global_var_dir function (after source main_functions.sh)
-GLOBAL_VAR_DIR=$(determine_global_var_dir)
 
 # Main Execution
 main() {

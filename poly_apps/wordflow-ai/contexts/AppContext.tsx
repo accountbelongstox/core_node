@@ -48,8 +48,11 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     console.log('[AppContext] Initializing...');
 
     // 0. Initialize UserModel from storage FIRST
-    UserModel.init();
-    console.log('[AppContext] UserModel initialized from storage');
+    UserModel.init().then(() => {
+      console.log('[AppContext] UserModel initialized from storage');
+    }).catch(err => {
+      console.error('[AppContext] Failed to initialize UserModel:', err);
+    });
 
     // 0.5. Initialize Global Data Centers
     GlobalInitializer.initialize().catch(err => {
@@ -101,8 +104,8 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
 
     // 5. Load user from storage and validate
     const initAuth = async () => {
-      const storedUser = StorageCenter.auth.getUser();
-      const storedToken = StorageCenter.auth.getToken();
+      const storedUser = await StorageCenter.auth.getUser();
+      const storedToken = await StorageCenter.auth.getToken();
 
       if (storedUser && storedToken) {
         console.log('[AppContext] Found stored user:', storedUser.username);
@@ -143,15 +146,18 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
 
     initAuth();
 
-    // 6. Load playlist settings from Storage Center
-    const savedPlaylist = StorageCenter.settings.getPlaylist();
-    if (savedPlaylist) {
-      setPlaylistSettings({ ...DEFAULT_PLAYLIST_SETTINGS, ...savedPlaylist });
-    }
+    // 6. Load playlist settings and active group from Storage Center
+    const loadSettings = async () => {
+      const savedPlaylist = await StorageCenter.settings.getPlaylist();
+      if (savedPlaylist) {
+        setPlaylistSettings({ ...DEFAULT_PLAYLIST_SETTINGS, ...savedPlaylist });
+      }
 
-    // 7. Load active group
-    const savedGroup = StorageCenter.settings.getActiveGroupId();
-    setActiveGroupId(savedGroup);
+      // 7. Load active group
+      const savedGroup = await StorageCenter.settings.getActiveGroupId();
+      setActiveGroupId(savedGroup);
+    };
+    loadSettings();
 
     // Cleanup
     return () => {

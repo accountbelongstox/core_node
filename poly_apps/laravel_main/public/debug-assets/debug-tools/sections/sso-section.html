@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSO Authentication</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+    <style type="text/tailwindcss">
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.4s ease-out;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        .animate-pulse-dot {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8 bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-600">
+    <div class="w-full max-w-md animate-slide-up">
+        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 px-8 pt-12 pb-8 text-center text-white">
+                <div class="w-16 h-16 mx-auto mb-6 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold mb-2">Single Sign-On</h1>
+                <p class="text-sm opacity-90">Secure authentication with WorkOS AuthKit</p>
+            </div>
+
+            <!-- Status Card -->
+            <div id="sso-status" class="mx-8 mt-4 p-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
+                <div class="status-indicator flex items-center gap-3 text-white text-sm" id="status-indicator">
+                    <span class="status-dot w-2.5 h-2.5 rounded-full bg-white/50 animate-pulse-dot inline-block flex-shrink-0" id="status-dot"></span>
+                    <span id="status-text">Checking authentication status...</span>
+                </div>
+            </div>
+
+            <!-- Login Section -->
+            <div id="sso-login-section" class="p-8 hidden">
+                <!-- Tabs -->
+                <div class="flex gap-2 mb-8 bg-gray-50 p-1.5 rounded-xl">
+                    <button class="tab-btn flex-1 px-4 py-3.5 bg-white rounded-lg cursor-pointer text-sm font-medium text-slate-500 transition-all flex items-center justify-center gap-2 shadow-sm" data-tab="password" id="tab-password">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        <span>Password</span>
+                    </button>
+                    <button class="tab-btn flex-1 px-4 py-3.5 bg-transparent rounded-lg cursor-pointer text-sm font-medium text-slate-500 transition-all flex items-center justify-center gap-2" data-tab="sso" id="tab-sso">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <span>SSO</span>
+                    </button>
+                </div>
+
+                <!-- Password Login Tab -->
+                <div id="password-login-tab" class="login-tab-content animate-fade-in">
+                    <form id="password-login-form" class="space-y-6">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" for="login-email">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-500">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                    <polyline points="22,6 12,13 2,6"/>
+                                </svg>
+                                Email Address
+                            </label>
+                            <input type="email" id="login-email" class="w-full px-4 py-3.5 text-base border-2 border-gray-200 rounded-xl transition-all focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="name@company.com" required autocomplete="email">
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" for="login-password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-500">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                Password
+                            </label>
+                            <input type="password" id="login-password" class="w-full px-4 py-3.5 text-base border-2 border-gray-200 rounded-xl transition-all focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="Enter your password" required autocomplete="current-password">
+                        </div>
+                        <button type="submit" id="password-login-btn" class="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold text-base shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/50 active:translate-y-0 flex items-center justify-center gap-2">
+                            <span>Sign In</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                                <polyline points="12 5 19 12 12 19"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- SSO Login Tab -->
+                <div id="sso-login-tab" class="login-tab-content hidden animate-fade-in">
+                    <div class="flex items-start gap-3 p-4 bg-blue-50 rounded-xl mb-6 border border-blue-200">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-500 flex-shrink-0 mt-0.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                        <p class="text-sm text-blue-900 leading-relaxed">Use SSO to authenticate with your organization's identity provider.</p>
+                    </div>
+                    <form class="space-y-6">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" for="organization-id">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-500">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                                Organization ID <span class="font-normal text-gray-500 text-xs">(Optional)</span>
+                            </label>
+                            <input type="text" id="organization-id" class="w-full px-4 py-3.5 text-base border-2 border-gray-200 rounded-xl transition-all focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="org_123456789">
+                            <small class="text-xs text-gray-500 mt-1 block">Leave empty to use AuthKit provider selection</small>
+                        </div>
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2" for="provider-select">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-indigo-500">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                Provider
+                            </label>
+                            <select id="provider-select" class="w-full px-4 py-3.5 text-base border-2 border-gray-200 rounded-xl transition-all focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900">
+                                <option value="authkit">AuthKit (Default)</option>
+                                <option value="GoogleOAuth">Google</option>
+                                <option value="MicrosoftOAuth">Microsoft</option>
+                                <option value="GitHubOAuth">GitHub</option>
+                                <option value="AppleOAuth">Apple</option>
+                            </select>
+                        </div>
+                        <button type="button" id="sso-login-btn" class="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold text-base shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/50 active:translate-y-0 flex items-center justify-center gap-2">
+                            <span>Sign in with SSO</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                                <polyline points="12 5 19 12 12 19"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User Section -->
+            <div id="sso-user-section" class="p-8 hidden">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Welcome back!</h2>
+                    <p class="text-gray-600 text-sm">You are successfully authenticated</p>
+                </div>
+                <div class="flex items-center gap-6 p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl mb-6 border border-gray-200">
+                    <div class="relative w-18 h-18 flex-shrink-0">
+                        <img id="user-avatar" src="" alt="User Avatar" class="hidden w-full h-full rounded-full object-cover border-4 border-white shadow-lg">
+                        <div id="user-avatar-placeholder" class="w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold border-4 border-white shadow-lg">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xl font-bold text-gray-900 mb-1 break-words" id="user-name">User Name</div>
+                        <div class="text-sm text-gray-600 mb-2 break-all" id="user-email">user@example.com</div>
+                        <div class="text-xs text-gray-400 font-mono break-all" id="user-id">ID: -</div>
+                    </div>
+                </div>
+                <div class="mb-6 p-5 bg-gray-50 rounded-xl border border-gray-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-gray-700">SSO URL</h3>
+                        <button id="copy-sso-url-btn" class="p-2 bg-transparent rounded-lg cursor-pointer text-gray-500 transition-all hover:bg-gray-200 hover:text-gray-700 flex items-center justify-center" title="Copy URL">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="text-xs font-mono text-gray-900 bg-white p-3.5 rounded-lg break-all border border-gray-200 min-h-12 flex items-center leading-relaxed" id="sso-url-display">Generate SSO URL by clicking "Sign in with SSO"</div>
+                </div>
+                <button id="sso-logout-btn" class="w-full px-6 py-4 bg-gray-100 text-gray-700 rounded-xl font-semibold text-base border-2 border-gray-200 transition-all hover:bg-gray-200 hover:border-gray-300 flex items-center justify-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    <span>Sign Out</span>
+                </button>
+            </div>
+
+            <!-- Config Section -->
+            <div id="sso-config-section" class="p-8">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-gray-900 mb-1">Configuration Status</h3>
+                    <p class="text-sm text-gray-600">Environment variables configuration</p>
+                </div>
+                <div class="space-y-4 mb-6">
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold text-gray-600 font-mono">WORKOS_CLIENT_ID</span>
+                            <span class="text-xs px-2 py-1 rounded-md font-semibold uppercase tracking-wide" id="badge-client-id">-</span>
+                        </div>
+                        <div class="text-sm text-gray-700 font-mono break-all" id="config-client-id">Not configured</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold text-gray-600 font-mono">WORKOS_API_KEY</span>
+                            <span class="text-xs px-2 py-1 rounded-md font-semibold uppercase tracking-wide" id="badge-api-key">-</span>
+                        </div>
+                        <div class="text-sm text-gray-700 font-mono break-all" id="config-api-key">Not configured</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold text-gray-600 font-mono">WORKOS_CLIENT_SECRET</span>
+                            <span class="text-xs px-2 py-1 rounded-md font-semibold uppercase tracking-wide" id="badge-client-secret">-</span>
+                        </div>
+                        <div class="text-sm text-gray-700 font-mono break-all" id="config-client-secret">Not configured</div>
+                    </div>
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold text-gray-600 font-mono">WORKOS_REDIRECT_URL</span>
+                            <span class="text-xs px-2 py-1 rounded-md font-semibold uppercase tracking-wide" id="badge-redirect-url">-</span>
+                        </div>
+                        <div class="text-sm text-gray-700 font-mono break-all" id="config-redirect-url">Not configured</div>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-500 flex-shrink-0 mt-0.5">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <div class="text-sm text-blue-900 leading-relaxed">
+                        <strong>Note:</strong> Configure these environment variables in your <code class="bg-blue-100 px-1.5 py-0.5 rounded text-blue-800 font-mono text-xs">.env</code> file to enable SSO functionality.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert Messages -->
+            <div id="sso-error" class="mx-8 mb-4 p-4 bg-red-50 rounded-xl border border-red-200 hidden flex items-start gap-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-500 flex-shrink-0 mt-0.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span class="flex-1 text-sm text-red-900 leading-relaxed"></span>
+            </div>
+            <div id="sso-success" class="mx-8 mb-4 p-4 bg-green-50 rounded-xl border border-green-200 hidden flex items-start gap-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-500 flex-shrink-0 mt-0.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span class="flex-1 text-sm text-green-900 leading-relaxed"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/debug-assets/js/api-client.js"></script>
+    <script src="/debug-assets/js/sso-section.js"></script>
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const tab = this.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('bg-white', 'shadow-sm');
+                    b.classList.add('bg-transparent');
+                });
+                this.classList.add('bg-white', 'shadow-sm');
+                this.classList.remove('bg-transparent');
+                
+                document.querySelectorAll('.login-tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                    content.classList.remove('animate-fade-in');
+                });
+                
+                if (tab === 'password') {
+                    document.getElementById('password-login-tab').classList.remove('hidden');
+                    document.getElementById('password-login-tab').classList.add('animate-fade-in');
+                } else {
+                    document.getElementById('sso-login-tab').classList.remove('hidden');
+                    document.getElementById('sso-login-tab').classList.add('animate-fade-in');
+                }
+            });
+        });
+
+        // Status dot updates
+        function updateStatusDot(type) {
+            const dot = document.getElementById('status-dot');
+            if (!dot) return;
+            dot.className = 'status-dot w-2.5 h-2.5 rounded-full inline-block flex-shrink-0';
+            if (type === 'authenticated') {
+                dot.classList.add('bg-green-500', 'shadow-lg', 'shadow-green-500/50');
+            } else if (type === 'error') {
+                dot.classList.add('bg-red-500', 'shadow-lg', 'shadow-red-500/50');
+            } else {
+                dot.classList.add('bg-white/50', 'animate-pulse-dot');
+            }
+        }
+
+        // Override updateStatus function
+        const originalUpdateStatus = window.updateStatus;
+        if (typeof updateStatus === 'function') {
+            window.updateStatus = function(type, text) {
+                updateStatusDot(type);
+                const statusText = document.getElementById('status-text');
+                if (statusText) statusText.textContent = text;
+            };
+        }
+    </script>
+</body>
+</html>

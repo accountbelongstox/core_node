@@ -15,7 +15,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Welcome;
 
 use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Facades\DB;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1WelcomeController extends BaseController
@@ -30,10 +30,10 @@ class AppQyV1WelcomeController extends BaseController
     public static function getStatus()
     {
         return [
-            'totalWords' => DB::table('app_qy_v1_dictionaries')->count(),
-            'translatedWords' => DB::table('app_qy_v1_dictionaries')->where('isTranslation', true)->count(),
-            'lastUpdated' => DB::table('app_qy_v1_dictionaries')->max('lastUpdateTime'),
-            'totalQueries' => DB::table('app_qy_v1_dictionaries')->sum('queryCount'),
+            'totalWords' => AppQyV1DictionaryModel::count(),
+            'translatedWords' => AppQyV1DictionaryModel::where('isTranslation', true)->count(),
+            'lastUpdated' => AppQyV1DictionaryModel::max('lastUpdateTime'),
+            'totalQueries' => AppQyV1DictionaryModel::sum('queryCount'),
         ];
     }
 }

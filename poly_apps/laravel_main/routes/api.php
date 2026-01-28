@@ -33,6 +33,7 @@ Route::get('/health', function (): JsonResponse {
         ->header('X-Runtime', 'go' . round($responseTime) . 'ms');
 });
 
+
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 require_once __DIR__ . '/api/public_api.php';
@@ -166,6 +167,9 @@ Route::prefix('achat/v1')->group(function () {
 // VipClubV1 Routes
 require_once __DIR__ . '/VipClubV1Router/api.php';
 
+// BankV1 Routes
+require_once __DIR__ . '/BankV1Router/BankV1Router.php';
+
 // AppQyV1 routes - app_qy vocabulary learning app
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
@@ -206,10 +210,18 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
 });
 
 use App\Http\Controllers\PathConfigController;
+use App\Http\Controllers\SystemConfigController;
 
 Route::prefix('config')->group(function () {
     Route::get('paths', [PathConfigController::class, 'getPaths']);
     Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
+    
+    // System configuration (admin only)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('server', [SystemConfigController::class, 'getConfig']);
+        Route::put('server', [SystemConfigController::class, 'updateConfig']);
+        Route::get('environment', [SystemConfigController::class, 'getEnvironment']);
+    });
 });
 
 // Server Manager Routes (localhost only)

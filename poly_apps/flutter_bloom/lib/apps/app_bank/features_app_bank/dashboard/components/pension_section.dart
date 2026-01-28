@@ -11,6 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
+import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
 
 /// Pension Section Component
 ///
@@ -25,17 +27,7 @@ class PensionSection extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: BankConstants.getDashboardCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -54,7 +46,7 @@ class PensionSection extends StatelessWidget {
               const Spacer(),
               GestureDetector(
                 onTap: () {
-                  // Handle "更多" tap
+                  BankLoadingDialog.show(context, title: '更多');
                 },
                 child: const Text(
                   '更多',
@@ -88,7 +80,7 @@ class PensionSection extends StatelessWidget {
                               Color(0xFFF0F8FF),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.05),
@@ -128,7 +120,7 @@ class PensionSection extends StatelessWidget {
                                   horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF4A90E2),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(BankConstants.buttonBorderRadiusMedium),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -166,13 +158,13 @@ class PensionSection extends StatelessWidget {
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                // Handle tap
+                                BankLoadingDialog.show(context, title: '个人养老金');
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.transparent,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,13 +201,13 @@ class PensionSection extends StatelessWidget {
                           Expanded(
                             child: GestureDetector(
                               onTap: () {
-                                // Handle tap
+                                BankLoadingDialog.show(context, title: '养老资讯');
                               },
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.transparent,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(BankConstants.borderRadius),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,

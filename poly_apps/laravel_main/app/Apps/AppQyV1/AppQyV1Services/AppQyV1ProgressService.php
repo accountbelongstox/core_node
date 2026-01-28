@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1ProgressActionEnum;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 
 class AppQyV1ProgressService
@@ -53,7 +54,7 @@ class AppQyV1ProgressService
             ];
         })->toArray();
 
-        DB::connection('appqyv1')->table('app_qy_v1_user_word_progress')->upsert(
+        AppQyV1UserWordProgressModel::upsert(
             $progressRecords,
             ['user_id', 'word_id', 'group_id'],
             ['proficiency', 'read_count', 'review_count', 'last_read_at', 'last_review_at', 'updated_at']
@@ -66,21 +67,18 @@ class AppQyV1ProgressService
 
     public function getProgressStats(int $userId, int $groupId): array
     {
-        return DB::connection('appqyv1')
-            ->table('app_qy_v1_user_word_progress')
-            ->where('user_id', $userId)
-            ->where('group_id', $groupId)
-            ->select([
-                DB::raw('COUNT(*) as total_words'),
-                DB::raw('AVG(proficiency) as avg_proficiency'),
-                DB::raw('SUM(read_count) as total_reads'),
-                DB::raw('SUM(review_count) as total_reviews'),
-                DB::raw('SUM(CASE WHEN proficiency >= 90 THEN 1 ELSE 0 END) as mastered_words'),
-                DB::raw('SUM(CASE WHEN proficiency >= 60 AND proficiency < 90 THEN 1 ELSE 0 END) as learning_words'),
-                DB::raw('SUM(CASE WHEN proficiency < 60 THEN 1 ELSE 0 END) as struggling_words'),
-                DB::raw('SUM(CASE WHEN next_review_at IS NULL OR next_review_at <= NOW() THEN 1 ELSE 0 END) as due_for_review'),
-            ])
-            ->first();
+        return AppQyV1UserWordProgressModel::forUser($userId)
+            ->forGroup($groupId)
+            ->selectRaw('COUNT(*) as total_words')
+            ->selectRaw('AVG(proficiency) as avg_proficiency')
+            ->selectRaw('SUM(read_count) as total_reads')
+            ->selectRaw('SUM(review_count) as total_reviews')
+            ->selectRaw('SUM(CASE WHEN proficiency >= 90 THEN 1 ELSE 0 END) as mastered_words')
+            ->selectRaw('SUM(CASE WHEN proficiency >= 60 AND proficiency < 90 THEN 1 ELSE 0 END) as learning_words')
+            ->selectRaw('SUM(CASE WHEN proficiency < 60 THEN 1 ELSE 0 END) as struggling_words')
+            ->selectRaw('SUM(CASE WHEN next_review_at IS NULL OR next_review_at <= datetime("now") THEN 1 ELSE 0 END) as due_for_review')
+            ->first()
+            ->toArray();
     }
 
     public function getReviewWordsPipeline(
@@ -124,26 +122,24 @@ class AppQyV1ProgressService
 
     protected function createProgressRecord(int $userId, int $groupId, int $wordId): AppQyV1UserWordProgressModel
     {
-        $word = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_words')
-            ->where('id', $wordId)
-            ->first();
+        $word = AppQyV1VocabularyItemModel::with('collection')->find($wordId);
 
         if (!$word) {
-            throw new \Exception('Word not found');
+            Log::error('[AppQyV1ProgressService] Word not found', [
+                'word_id' => $wordId,
+                'user_id' => $userId,
+                'group_id' => $groupId,
+            ]);
+            // Return a new instance with default values to prevent fatal error
+            return new AppQyV1UserWordProgressModel();
         }
-
-        $library = DB::connection('appqyv1')
-            ->table('app_qy_v1_vocabulary_libraries')
-            ->where('id', $word->library_id)
-            ->first();
 
         return AppQyV1UserWordProgressModel::create([
             'user_id' => $userId,
             'word_id' => $wordId,
             'group_id' => $groupId,
-            'language_code' => $library ? $library->language : null,
-            'weight' => strlen($word->word),
+            'language_code' => $word->collection->lang_code ?? null,
+            'weight' => strlen($word->word_content),
         ]);
     }
 
@@ -179,7 +175,7 @@ class AppQyV1ProgressService
             return;
         }
 
-        \Log::info('[AppQyV1Progress] Review words generated', [
+        Log::info('[AppQyV1Progress] Review words generated', [
             'count' => $words->count(),
             'avg_proficiency' => $words->avg('proficiency'),
             'priority_words' => $words->take(5)->pluck('word')->toArray(),

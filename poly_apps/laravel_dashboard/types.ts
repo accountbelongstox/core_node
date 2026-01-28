@@ -18,7 +18,8 @@ export enum ViewType {
   OCTANE_TASKS = 'octane',
   SERVER_MANAGER = 'server',
   AI_TOOLS = 'ai_tools',
-  INVITE_CODE_MANAGER = 'invite_codes'
+  INVITE_CODE_MANAGER = 'invite_codes',
+  BANK_MANAGER = 'bank_manager'
 }
 
 export interface NavItem {

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 
 class AppQyV1WordGroupModel extends Model
@@ -30,8 +32,8 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var string
      */
-    protected $connection = 'appqyv1';
-
+    protected $appKey = AppKeys::APPQYV1;
+    
     /**
      * The table associated with the model.
      *
@@ -40,12 +42,18 @@ class AppQyV1WordGroupModel extends Model
     protected $table;
 
     /**
-     * Constructor to set table name from database bridge
+     * Constructor to set connection and table name
      */
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
-        $this->table = AppQyV1TableMaps::getTableName('app_qy_v1_WORD_GROUPS');
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->table = AppQyV1TableMaps::getTableName('WORD_GROUPS');
+    }
+    
+    public function getConnectionName()
+    {
+        return AppTablePrefixServiceProvider::getConnection($this->appKey);
     }
 
     /**
@@ -111,7 +119,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyItemModel::class,
-            'app_qy_v1_group_words',
+            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words'),
             'group_id',
             'word_id',
             'id',
@@ -128,7 +136,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyLibraryModel::class,
-            'app_qy_v1_group_libraries',
+            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
             'group_id',
             'library_id',
             'id',
@@ -208,10 +216,7 @@ class AppQyV1WordGroupModel extends Model
     {
         $category = AppQyV1CoverImageService::inferCategory($this->gname);
 
-        $wordCount = DB::connection('appqyv1')
-            ->table('app_qy_v1_group_words')
-            ->where('group_id', $this->id)
-            ->count();
+        $wordCount = $this->groupWords()->count();
 
         $result = AppQyV1CoverImageService::generateGroupCover(
             $this->gname,

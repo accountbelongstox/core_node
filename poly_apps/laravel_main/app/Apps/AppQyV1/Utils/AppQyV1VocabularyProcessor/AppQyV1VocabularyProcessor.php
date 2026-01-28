@@ -44,13 +44,19 @@ class AppQyV1VocabularyProcessor
         Log::info('Starting vocabulary processing from metadata directory');
         
         if (!File::exists($this->sourceMetadataPath)) {
-            throw new \Exception("Source metadata directory not found: {$this->sourceMetadataPath}");
+            Log::error('[AppQyV1VocabularyProcessor] Source metadata directory not found', [
+                'path' => $this->sourceMetadataPath,
+            ]);
+            return ['success' => false, 'error' => "Source metadata directory not found: {$this->sourceMetadataPath}"];
         }
 
         $vocabularyPath = $this->sourceMetadataPath . '/vocabulary';
         
         if (!File::exists($vocabularyPath)) {
-            throw new \Exception("Vocabulary directory not found: {$vocabularyPath}");
+            Log::error('[AppQyV1VocabularyProcessor] Vocabulary directory not found', [
+                'path' => $vocabularyPath,
+            ]);
+            return ['success' => false, 'error' => "Vocabulary directory not found: {$vocabularyPath}"];
         }
 
         // Check if vocabulary processing already completed
@@ -214,7 +220,12 @@ class AppQyV1VocabularyProcessor
             
         } catch (\Exception $e) {
             DB::rollback();
-            throw new \Exception("Failed to insert words to database: " . $e->getMessage());
+            Log::error('[AppQyV1VocabularyProcessor] Failed to insert words to database', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Throw exception instead of returning (void method cannot return)
+            throw $e;
         }
     }
 

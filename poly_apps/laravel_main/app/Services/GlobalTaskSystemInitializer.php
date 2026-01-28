@@ -4,6 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use App\Models\GlobalTask;
+use App\Models\Worker;
 
 class GlobalTaskSystemInitializer
 {
@@ -169,22 +171,32 @@ class GlobalTaskSystemInitializer
 
             // Global tasks stats
             if (Schema::connection($connection)->hasTable('global_tasks')) {
+                // Use model connection for query builder (Laravel best practice)
+                $taskModel = new GlobalTask();
+                $taskModel->setConnection($connection);
+                $dbConnection = $taskModel->getConnection();
+                
                 $stats['global_tasks'] = [
-                    'total' => DB::connection($connection)->table('global_tasks')->count(),
-                    'pending' => DB::connection($connection)->table('global_tasks')->where('status', 'pending')->count(),
-                    'processing' => DB::connection($connection)->table('global_tasks')->where('status', 'processing')->count(),
-                    'completed' => DB::connection($connection)->table('global_tasks')->where('status', 'completed')->count(),
-                    'failed' => DB::connection($connection)->table('global_tasks')->where('status', 'failed')->count(),
+                    'total' => $dbConnection->table('global_tasks')->count(),
+                    'pending' => $dbConnection->table('global_tasks')->where('status', 'pending')->count(),
+                    'processing' => $dbConnection->table('global_tasks')->where('status', 'processing')->count(),
+                    'completed' => $dbConnection->table('global_tasks')->where('status', 'completed')->count(),
+                    'failed' => $dbConnection->table('global_tasks')->where('status', 'failed')->count(),
                 ];
             }
 
             // Workers stats
             if (Schema::connection($connection)->hasTable('workers')) {
+                // Use model connection for query builder (Laravel best practice)
+                $workerModel = new Worker();
+                $workerModel->setConnection($connection);
+                $dbConnection = $workerModel->getConnection();
+                
                 $stats['workers'] = [
-                    'total' => DB::connection($connection)->table('workers')->count(),
-                    'online' => DB::connection($connection)->table('workers')->where('status', 'online')->count(),
-                    'busy' => DB::connection($connection)->table('workers')->where('status', 'busy')->count(),
-                    'offline' => DB::connection($connection)->table('workers')->where('status', 'offline')->count(),
+                    'total' => $dbConnection->table('workers')->count(),
+                    'online' => $dbConnection->table('workers')->where('status', 'online')->count(),
+                    'busy' => $dbConnection->table('workers')->where('status', 'busy')->count(),
+                    'offline' => $dbConnection->table('workers')->where('status', 'offline')->count(),
                 ];
             }
 

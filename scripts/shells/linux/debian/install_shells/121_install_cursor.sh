@@ -2,10 +2,7 @@
 # Cursor IDE Installation Script
 #
 # Usage:
-#   ./121_install_cursor.sh                    # Normal installation (root mode with pkexec)
-#   ./121_install_cursor.sh --force           # Force reinstallation
-#   ./121_install_cursor.sh --cleanup         # Remove Cursor installation
-#   ./121_install_cursor.sh --no-root         # Install in normal mode (no pkexec)
+#   ./121_install_cursor.sh   # Normal installation (no arguments)
 #
 # This script installs Cursor IDE using installer files stored in ~/Downloads or /home/*/Downloads
 # If no installer is found, it opens the Cursor download page and waits for the user to download manually
@@ -35,14 +32,13 @@ source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
-USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
-# Cursor version configuration
-CURSOR_VERSION="2.1"
-CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/$CURSOR_VERSION"
+# Cursor API configuration
+# NOTE: Do NOT hardcode a specific version here.
+# The API endpoint will redirect to the latest available Cursor build,
+# and the actual version is detected dynamically via redirects.
+CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/"
 
 # Cursor installation directories using map_web_path
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
@@ -68,31 +64,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parse command line arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                USE_ROOT_MODE_SPECIFIED=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No arguments supported (removed parameter parsing)
 
 # Extract version from filename (use full filename without extension as version)
 # Example: "Cursor-2.1.41-x86_64.AppImage" -> "Cursor-2.1.41-x86_64"
@@ -165,11 +137,204 @@ get_installed_type() {
     fi
 }
 
+# Get installed package size (in bytes) from saved metadata
+get_installed_package_size() {
+    if [[ -f "$CURSOR_INSTALLED_FLAG" ]]; then
+        grep "^SIZE=" "$CURSOR_INSTALLED_FLAG" 2>/dev/null | cut -d= -f2
+    fi
+}
+
+# Clean up old Cursor installer files from Downloads directories
+cleanup_old_downloads() {
+    print_step_from_common_functions "Cleaning up old Cursor installer files..."
+    find_and_remove_old_installers "cursor*.AppImage"
+    find_and_remove_old_installers "cursor*.deb"
+}
+
+# Detect installation type from file extension
+detect_install_type() {
+    local file_path="$1"
+    local file_ext="${file_path##*.}"
+    if [[ "$file_ext" == "AppImage" ]]; then
+        echo "appimage"
+    elif [[ "$file_ext" == "deb" ]]; then
+        echo "deb"
+    else
+        echo ""
+    fi
+}
+
+# Download and rename Cursor installer with timestamp
+# Uses file search verification instead of exit codes
+# Shows all progress details including download, search, verification, and rename
+download_and_rename_cursor() {
+    local download_dir="$1"
+    local remote_version="$2"
+    
+    print_step_from_common_functions "Step 1: Downloading Cursor from API..."
+    print_info_from_common_functions "API URL: $CURSOR_API_URL"
+    print_info_from_common_functions "Download directory: $download_dir"
+    
+    # Start download (show all progress)
+    print_info_from_common_functions "Starting download process..."
+    download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3
+    
+    # Wait a moment for file system to sync
+    print_info_from_common_functions "Waiting for file system sync (2 seconds)..."
+    sleep 2
+    
+    # Step 2: Search for downloaded file
+    print_step_from_common_functions "Step 2: Searching for downloaded file..."
+    local downloaded_file=""
+    local search_patterns=("cursor*.AppImage" "Cursor*.AppImage" "cursor*.deb" "Cursor*.deb")
+    
+    # Search in download directory first
+    print_info_from_common_functions "Searching in download directory: $download_dir"
+    for pattern in "${search_patterns[@]}"; do
+        print_info_from_common_functions "  Searching pattern: $pattern"
+        local found_file=$(find "$download_dir" -maxdepth 1 -type f -iname "$pattern" 2>/dev/null | head -1)
+        
+        if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+            local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
+            print_info_from_common_functions "  Found file: $(basename "$found_file") (size: $file_size bytes)"
+            
+            if [[ "$file_size" -gt 52428800 ]]; then
+                downloaded_file="$found_file"
+                print_success_from_common_functions "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
+                break
+            else
+                print_info_from_common_functions "  File too small ($file_size bytes), continuing search..."
+            fi
+        else
+            print_info_from_common_functions "  No file found matching: $pattern"
+        fi
+    done
+    
+    # If not found in download_dir, search all Downloads directories
+    if [[ -z "$downloaded_file" ]]; then
+        print_info_from_common_functions "Not found in download directory, searching all Downloads directories..."
+        for pattern in "${search_patterns[@]}"; do
+            print_info_from_common_functions "  Searching pattern: $pattern (all Downloads)"
+            local found_file=$(find_file_in_downloads_from_common_functions "$pattern" "newest")
+            
+            if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+                local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
+                print_info_from_common_functions "  Found file: $found_file (size: $file_size bytes)"
+                
+                if [[ "$file_size" -gt 52428800 ]]; then
+                    downloaded_file="$found_file"
+                    print_success_from_common_functions "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
+                    break
+                else
+                    print_info_from_common_functions "  File too small ($file_size bytes), continuing search..."
+                fi
+            else
+                print_info_from_common_functions "  No file found matching: $pattern"
+            fi
+        done
+    fi
+    
+    # Debug: List all files in download directory if not found
+    if [[ -z "$downloaded_file" ]]; then
+        print_info_from_common_functions "File not found. Listing all files in download directory:"
+        if [[ -d "$download_dir" ]]; then
+            ls -lh "$download_dir" 2>/dev/null | head -20 | while read -r line; do
+                print_info_from_common_functions "  $line"
+            done
+        fi
+        return 1
+    fi
+    
+    # Step 3: Verify file
+    print_step_from_common_functions "Step 3: Verifying downloaded file..."
+    print_info_from_common_functions "File path: $downloaded_file"
+    local file_size=$(stat -c%s "$downloaded_file" 2>/dev/null || stat -f%z "$downloaded_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
+    
+    if [[ "$file_size" -lt 52428800 ]]; then
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 52428800 bytes (50MB)"
+        return 1
+    fi
+    print_success_from_common_functions "File size validation passed: $file_size bytes"
+    
+    # Step 4: Rename with timestamp
+    print_step_from_common_functions "Step 4: Renaming file with timestamp..."
+    local file_dir=$(dirname "$downloaded_file")
+    local file_name=$(basename "$downloaded_file")
+    local file_ext="${file_name##*.}"
+    local timestamp=$(date '+%Y%m%d_%H%M%S')
+    
+    print_info_from_common_functions "Original filename: $file_name"
+    print_info_from_common_functions "File extension: $file_ext"
+    print_info_from_common_functions "Timestamp: $timestamp"
+    
+    # Build base name: prefer remote_version, fallback to original name
+    local base_name="cursor"
+    if [[ -n "$remote_version" ]]; then
+        base_name="cursor-${remote_version}"
+    else
+        local name_no_ext="${file_name%.*}"
+        base_name="cursor-${name_no_ext}"
+    fi
+    
+    local new_filename="${base_name}-${timestamp}"
+    if [[ -n "$file_ext" ]]; then
+        new_filename="${new_filename}.${file_ext}"
+    fi
+    
+    local renamed_file="$file_dir/$new_filename"
+    print_info_from_common_functions "New filename: $new_filename"
+    print_info_from_common_functions "Renaming: $file_name -> $new_filename"
+    
+    if ! mv -f "$downloaded_file" "$renamed_file" 2>/dev/null; then
+        print_info_from_common_functions "Rename operation failed"
+        return 1
+    fi
+    print_success_from_common_functions "File renamed successfully"
+    
+    # Step 5: Final verification
+    print_step_from_common_functions "Step 5: Final verification of renamed file..."
+    if [[ ! -f "$renamed_file" ]]; then
+        print_info_from_common_functions "Renamed file not found: $renamed_file"
+        return 1
+    fi
+    
+    local final_size=$(stat -c%s "$renamed_file" 2>/dev/null || stat -f%z "$renamed_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "Final file size: $final_size bytes ($(numfmt --to=iec-i --suffix=B "$final_size" 2>/dev/null || echo "$final_size bytes"))"
+    
+    if [[ "$final_size" -lt 52428800 ]]; then
+        print_info_from_common_functions "Final size validation failed: $final_size bytes < 52428800 bytes (50MB)"
+        return 1
+    fi
+    
+    print_success_from_common_functions "File verified and renamed: $(basename "$renamed_file") ($final_size bytes)"
+    echo "$renamed_file"
+    return 0
+}
+
+# Get download directory (prioritize user Downloads)
+get_download_directory() {
+    local download_dir="$PRIMARY_DOWNLOAD_DIR"
+    if [[ ! -d "$download_dir" ]]; then
+        download_dir=$(find /home -maxdepth 2 -type d -name "Downloads" 2>/dev/null | head -1)
+    fi
+    if [[ -z "$download_dir" ]] || [[ ! -d "$download_dir" ]]; then
+        download_dir="/tmp"
+    fi
+    echo "$download_dir"
+}
+
 # Save installation info
 save_installation_info() {
     local version="$1"
     local package_file="$2"
     local install_type="$3"
+    local file_size=""
+
+    # Get package file size for future comparisons (if file exists)
+    if [[ -f "$package_file" ]]; then
+        file_size=$(stat -c%s "$package_file" 2>/dev/null || stat -f%z "$package_file" 2>/dev/null || echo "")
+    fi
 
     # Create app versions directory if it doesn't exist
     $USE_SUDO mkdir -p "$APP_VERSIONS_DIR"
@@ -181,6 +346,7 @@ VERSION=$version
 TYPE=$install_type
 PACKAGE=$(basename "$package_file")
 PATH=$package_file
+SIZE=$file_size
 EOF
 }
 
@@ -528,29 +694,35 @@ cursor_manual_download_deprecated() {
 check_deb_integrity() {
     local deb_file="$1"
 
-    print_step_from_common_functions "Checking .deb file integrity..."
+    print_info_from_common_functions "Checking .deb file integrity..."
 
     if [[ ! -f "$deb_file" ]]; then
-        print_error_from_common_functions ".deb file not found: $deb_file"
+        print_info_from_common_functions ".deb file not found: $deb_file"
         return 1
     fi
 
     local file_size=$(stat -c%s "$deb_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
 
     if [[ "$file_size" -lt 50000000 ]]; then
-        print_warning_from_common_functions ".deb file too small ($file_size bytes), expected > 50MB"
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 50000000 bytes (50MB)"
         return 1
     fi
+    print_info_from_common_functions "File size check: PASSED"
 
+    print_info_from_common_functions "Running dpkg-deb --info check..."
     if ! dpkg-deb --info "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (dpkg-deb check failed)"
+        print_info_from_common_functions "dpkg-deb check: FAILED"
         return 1
     fi
+    print_info_from_common_functions "dpkg-deb check: PASSED"
 
+    print_info_from_common_functions "Running ar archive check..."
     if ! ar t "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (ar archive check failed)"
+        print_info_from_common_functions "ar archive check: FAILED"
         return 1
     fi
+    print_info_from_common_functions "ar archive check: PASSED"
 
     print_success_from_common_functions ".deb file integrity check passed"
     return 0
@@ -560,40 +732,55 @@ check_deb_integrity() {
 install_deb_package() {
     local deb_file="$1"
 
-    print_step_from_common_functions "Installing Cursor from .deb package..."
+    print_step_from_common_functions "=== .deb Package Installation Phase ==="
+    print_info_from_common_functions "Package file: $deb_file"
 
+    # Step 1: Check integrity
+    print_step_from_common_functions "Step 1: Checking .deb file integrity..."
     if ! check_deb_integrity "$deb_file"; then
-        print_error_from_common_functions ".deb file integrity check failed"
-        print_step_from_common_functions "Removing corrupted file: $deb_file"
+        print_info_from_common_functions ".deb file integrity check failed"
+        print_info_from_common_functions "Removing corrupted file: $deb_file"
         rm -f "$deb_file"
         return 2
     fi
+    print_success_from_common_functions "File integrity check passed"
 
-    # Create directories for tracking
+    # Step 2: Create directories
+    print_step_from_common_functions "Step 2: Creating installation directories..."
+    print_info_from_common_functions "Package directory: $CURSOR_PACKAGE_DIR"
+    print_info_from_common_functions "Bin directory: $CURSOR_BIN_DIR"
     $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_BIN_DIR"
+    print_success_from_common_functions "Directories created"
 
-    # Copy deb file to installation directory for backup
-    print_step_from_common_functions "Backing up .deb file to $CURSOR_PACKAGE_DIR"
+    # Step 3: Backup .deb file
+    print_step_from_common_functions "Step 3: Backing up .deb file..."
+    print_info_from_common_functions "Backup location: $CURSOR_PACKAGE_DIR"
     $USE_SUDO cp "$deb_file" "$CURSOR_PACKAGE_DIR/"
+    print_success_from_common_functions ".deb file backed up"
 
-    # Install the .deb package
-    print_step_from_common_functions "Installing Cursor via dpkg..."
+    # Step 4: Install the .deb package
+    print_step_from_common_functions "Step 4: Installing Cursor via dpkg..."
+    print_info_from_common_functions "Running: dpkg -i $deb_file"
     if $USE_SUDO dpkg -i "$deb_file"; then
-        print_success_from_common_functions "Cursor .deb package installed successfully"
+        print_success_from_common_functions "dpkg installation completed"
     else
-        print_warning_from_common_functions "dpkg installation had issues, attempting to fix dependencies..."
+        print_info_from_common_functions "dpkg installation had issues, fixing dependencies..."
+        print_info_from_common_functions "Running: apt-get install -f -y"
         $USE_SUDO apt-get install -f -y
+        print_success_from_common_functions "Dependencies fixed"
     fi
 
-    # Verify installation
+    # Step 5: Verify installation
+    print_step_from_common_functions "Step 5: Verifying installation..."
     if ! dpkg -l | grep -q "^ii.*cursor"; then
-        print_error_from_common_functions "Cursor package installation failed"
-        print_step_from_common_functions "Removing corrupted backup file..."
+        print_info_from_common_functions "Cursor package not found in dpkg list"
+        print_info_from_common_functions "Removing corrupted backup file..."
         $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
         return 1
     fi
-
-    print_success_from_common_functions "Cursor installed successfully via dpkg"
+    
+    local installed_version=$(dpkg -l | grep "^ii.*cursor" | awk '{print $3}')
+    print_success_from_common_functions "Cursor installed successfully via dpkg (version: $installed_version)"
     return 0
 }
 
@@ -601,52 +788,74 @@ install_deb_package() {
 extract_appimage() {
     local appimage_file="$1"
 
-    print_step_from_common_functions "Extracting Cursor AppImage..."
+    print_step_from_common_functions "=== AppImage Extraction Phase ==="
+    print_info_from_common_functions "AppImage file: $appimage_file"
 
-    # Check file integrity before extraction
+    # Step 1: Check file integrity before extraction
+    print_step_from_common_functions "Step 1: Checking file integrity..."
     if [[ ! -f "$appimage_file" ]]; then
-        print_error_from_common_functions "AppImage file not found: $appimage_file"
+        print_info_from_common_functions "AppImage file not found: $appimage_file"
         return 2
     fi
 
     local file_size=$(stat -c%s "$appimage_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
+    
     if [[ "$file_size" -lt 50000000 ]]; then
-        print_error_from_common_functions "AppImage file too small ($file_size bytes), expected > 50MB"
-        print_error_from_common_functions "File appears to be corrupted"
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 50000000 bytes (50MB)"
         return 2
     fi
+    print_success_from_common_functions "File integrity check passed"
 
-    # Create directories
+    # Step 2: Create directories
+    print_step_from_common_functions "Step 2: Creating installation directories..."
+    print_info_from_common_functions "Package directory: $CURSOR_PACKAGE_DIR"
+    print_info_from_common_functions "Extracted directory: $CURSOR_EXTRACTED_DIR"
+    print_info_from_common_functions "Bin directory: $CURSOR_BIN_DIR"
     $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_EXTRACTED_DIR" "$CURSOR_BIN_DIR"
+    print_success_from_common_functions "Directories created"
 
-    # Copy AppImage to installation directory
-    print_step_from_common_functions "Copying AppImage to $CURSOR_PACKAGE_DIR"
+    # Step 3: Copy AppImage to installation directory
+    print_step_from_common_functions "Step 3: Copying AppImage to installation directory..."
+    print_info_from_common_functions "Source: $appimage_file"
+    print_info_from_common_functions "Destination: $CURSOR_PACKAGE_DIR"
     if ! $USE_SUDO cp "$appimage_file" "$CURSOR_PACKAGE_DIR/"; then
-        print_error_from_common_functions "Failed to copy AppImage file (file may be corrupted)"
+        print_info_from_common_functions "Failed to copy AppImage file"
         return 2
     fi
+    print_success_from_common_functions "AppImage copied successfully"
 
     local appimage_name=$(basename "$appimage_file")
     local installed_appimage="$CURSOR_PACKAGE_DIR/$appimage_name"
+    print_info_from_common_functions "Installed AppImage path: $installed_appimage"
 
-    # Make AppImage executable
+    # Step 4: Make AppImage executable
+    print_step_from_common_functions "Step 4: Making AppImage executable..."
     $USE_SUDO chmod +x "$installed_appimage"
+    print_success_from_common_functions "AppImage is now executable"
 
-    # Extract AppImage
-    print_step_from_common_functions "Extracting AppImage contents..."
+    # Step 5: Extract AppImage
+    print_step_from_common_functions "Step 5: Extracting AppImage contents..."
+    print_info_from_common_functions "Extraction directory: $CURSOR_EXTRACTED_DIR"
+    print_info_from_common_functions "This may take a few minutes..."
     cd "$CURSOR_EXTRACTED_DIR"
-    if ! $USE_SUDO "$installed_appimage" --appimage-extract >/dev/null 2>&1; then
-        print_error_from_common_functions "Failed to extract AppImage (file may be corrupted)"
+    if ! $USE_SUDO "$installed_appimage" --appimage-extract 2>&1 | while IFS= read -r line; do
+        print_info_from_common_functions "  $line"
+    done; then
+        print_info_from_common_functions "AppImage extraction failed"
         return 2
     fi
 
     if [[ ! -d "$CURSOR_EXTRACTED_DIR/squashfs-root" ]]; then
-        print_error_from_common_functions "Failed to extract AppImage (extraction incomplete)"
+        print_info_from_common_functions "Extraction incomplete: squashfs-root directory not found"
         return 2
     fi
+    
+    local extracted_size=$(du -sh "$CURSOR_EXTRACTED_DIR/squashfs-root" 2>/dev/null | cut -f1)
+    print_success_from_common_functions "AppImage extracted successfully (size: $extracted_size)"
 
-    # Fix chrome-sandbox permissions (critical for Cursor to work)
-    # Find chrome-sandbox in various possible locations
+    # Step 6: Fix chrome-sandbox permissions (critical for Cursor to work)
+    print_step_from_common_functions "Step 6: Fixing chrome-sandbox permissions..."
     local chrome_sandbox=""
     local possible_paths=(
         "$CURSOR_EXTRACTED_DIR/squashfs-root/chrome-sandbox"
@@ -654,14 +863,16 @@ extract_appimage() {
     )
 
     for path in "${possible_paths[@]}"; do
+        print_info_from_common_functions "  Checking: $path"
         if [[ -f "$path" ]]; then
             chrome_sandbox="$path"
+            print_info_from_common_functions "  Found chrome-sandbox at: $chrome_sandbox"
             break
         fi
     done
 
     if [[ -n "$chrome_sandbox" ]]; then
-        print_step_from_common_functions "Fixing chrome-sandbox permissions at: $chrome_sandbox"
+        print_info_from_common_functions "Setting permissions: chmod 4755, chown root:root"
         # Use sudo directly for chrome-sandbox permissions (required for security)
         if command -v sudo >/dev/null 2>&1; then
             sudo chmod 4755 "$chrome_sandbox"
@@ -670,10 +881,12 @@ extract_appimage() {
             chmod 4755 "$chrome_sandbox"
             chown root:root "$chrome_sandbox"
         fi
+        print_success_from_common_functions "chrome-sandbox permissions fixed"
     else
-        print_warning_from_common_functions "chrome-sandbox not found, Cursor may not work properly"
+        print_info_from_common_functions "chrome-sandbox not found in expected locations"
     fi
 
+    print_success_from_common_functions "AppImage extraction completed"
     return 0
 }
 
@@ -977,382 +1190,83 @@ cleanup_cursor() {
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
-    # Track if this is an upgrade operation
-    local is_upgrade_operation=false
-    local remote_version=""
-
-    # Always get remote version from API (for both first install and upgrade)
+    # Get remote version from API
     print_step_from_common_functions "Checking for latest version from Cursor API..."
-    remote_version=$(get_remote_cursor_version)
-
+    local remote_version=$(get_remote_cursor_version)
     if [[ -n "$remote_version" ]]; then
         print_info_from_common_functions "Latest version available: $remote_version"
-    else
-        print_warning_from_common_functions "Unable to retrieve remote version from API"
-        print_info_from_common_functions "Will proceed with version detection from installer files"
-        remote_version=""
     fi
 
-    # Prompt for root mode if not already specified via command line
-    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
-        echo ""
-        echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
-        read -r response
-        case "$response" in
-            [nN]|[nN][oO])
-                USE_ROOT_MODE=false
-                print_info_from_common_functions "Installing in normal mode (no root)"
-                ;;
-            *)
-                USE_ROOT_MODE=true
-                print_info_from_common_functions "Installing in root mode (with pkexec)"
-                ;;
-        esac
-        echo ""
-    fi
+    # Prompt for root mode
+    echo ""
+    echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
+    read -r response
+    case "$response" in
+        [nN]|[nN][oO])
+            USE_ROOT_MODE=false
+            print_info_from_common_functions "Installing in normal mode (no root)"
+            ;;
+        *)
+            USE_ROOT_MODE=true
+            print_info_from_common_functions "Installing in root mode (with pkexec)"
+            ;;
+    esac
+    echo ""
 
-    # Check if already installed and prompt for upgrade/reinstall
+    # Check if already installed - simple upgrade prompt
     if is_cursor_installed; then
-        print_warning_from_common_functions "Cursor is already installed"
-
         local installed_version=$(get_installed_version)
-        local installed_type=$(get_installed_type)
-
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
-        else
-            print_info_from_common_functions "No version metadata found for current installation"
         fi
-
-        if [[ -n "$installed_type" ]]; then
-            print_info_from_common_functions "Installation type: $installed_type"
-        fi
-
-        # Compare versions (remote_version already fetched above)
-        if [[ -n "$remote_version" ]] && [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Cursor is already up to date (version $installed_version)"
-            print_info_from_common_functions "No upgrade needed"
-            return 0
-        fi
-
-        # Compare versions and prompt for upgrade
-        local prompt_message=""
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            prompt_message="Cursor $installed_version is installed. Upgrade to $remote_version? (Y/n): "
-        else
-            prompt_message="Do you want to remove the existing installation and reinstall? (y/N): "
-        fi
-
-        echo -n "$prompt_message"
+        
+        echo -n "Upgrade? (y/N): "
         read -r response
-
-        # Handle upgrade prompt (Y is default for upgrade, N is default for reinstall)
-        local should_proceed=false
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            # Upgrade prompt - Y is default
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Upgrade cancelled - keeping existing installation"
-                    return 0
-                    ;;
-                *)
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with upgrade to $remote_version..."
-                    ;;
-            esac
-        else
-            # Reinstall prompt - N is default
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with reinstallation..."
-                    ;;
-                *)
-                    print_info_from_common_functions "Installation cancelled - keeping existing installation"
-                    return 0
-                    ;;
-            esac
-        fi
-
-        if [[ "$should_proceed" == true ]]; then
-            print_info_from_common_functions "Cleaning up existing installation..."
-            cleanup_cursor
-
-            # Mark as upgrade operation
-            is_upgrade_operation=true
-
-            # NOTE: Do NOT delete old installer files yet!
-            # Keep them as fallback in case download fails
-            print_info_from_common_functions "Old installer files in Downloads will be kept as fallback"
-
-            # For upgrades, open download page immediately to prepare user
-            if [[ -n "$remote_version" ]]; then
-                print_step_from_common_functions "Opening Cursor download page..."
-                print_info_from_common_functions "Please download Cursor version $remote_version"
-                open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
-                print_info_from_common_functions "The script will try to auto-download, but manual download may be needed"
-                sleep 2  # Give browser time to open
-            fi
-        fi
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation and old downloads..."
+                cleanup_cursor
+                cleanup_old_downloads
+                ;;
+            *)
+                print_info_from_common_functions "Installation cancelled"
+                return 0
+                ;;
+        esac
     fi
 
     # Install dependencies
     install_dependencies
 
-    print_step_from_common_functions "Scanning /home/*/Downloads for Cursor installer..."
-
-    # Find available Cursor files using global function
-    local appimage_file=$(find_file_in_downloads_from_common_functions "cursor*.AppImage" "newest")
-    local deb_file=$(find_file_in_downloads_from_common_functions "cursor*.deb" "newest")
-
-    local cursor_file=""
-    local install_type=""
-    local installed_type=$(get_installed_type)
-    local existing_file_version=""
-
-    if [[ -n "$appimage_file" ]] && [[ -n "$deb_file" ]]; then
-        # Both AppImage and .deb found
-        print_info_from_common_functions "Found both AppImage and .deb installers:"
-        print_info_from_common_functions "  AppImage: $(basename "$appimage_file")"
-        print_info_from_common_functions "  .deb: $(basename "$deb_file")"
-        echo ""
-        echo "Which installer would you like to use?"
-        echo "  1) AppImage (recommended, portable)"
-        echo "  2) .deb (system package)"
-        echo -n "Enter choice [1]: "
-        read -r choice
-
-        case "$choice" in
-            2)
-                cursor_file="$deb_file"
-                install_type="deb"
-                print_info_from_common_functions "Selected .deb installer"
-                ;;
-            *)
-                cursor_file="$appimage_file"
-                install_type="appimage"
-                print_info_from_common_functions "Selected AppImage installer (default)"
-                ;;
-        esac
-
-    elif [[ -n "$appimage_file" ]]; then
-        cursor_file="$appimage_file"
-        install_type="appimage"
-        print_info_from_common_functions "Found AppImage installer: $(basename "$cursor_file")"
-
-    elif [[ -n "$deb_file" ]]; then
-        cursor_file="$deb_file"
-        install_type="deb"
-        print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
+    # Download Cursor installer
+    print_step_from_common_functions "=== Download Phase ==="
+    local download_dir=$(get_download_directory)
+    print_info_from_common_functions "Download directory: $download_dir"
+    local cursor_file=$(download_and_rename_cursor "$download_dir" "$remote_version")
+    
+    # Verify file exists and has valid size (file-based verification, not exit code)
+    print_step_from_common_functions "Verifying downloaded file..."
+    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+        print_info_from_common_functions "File verification failed: file not found"
+        return 1
     fi
-
-    # If we found an existing file, check its version
-    if [[ -n "$cursor_file" ]]; then
-        existing_file_version=$(extract_version_from_filename "$cursor_file")
-        print_info_from_common_functions "Found installer version: $existing_file_version"
-
-        # Check if existing file matches the target version
-        if [[ -n "$remote_version" ]] && [[ "$existing_file_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Found installer already matches target version: $remote_version"
-            print_info_from_common_functions "No download needed - using existing file"
-        elif [[ -n "$remote_version" ]] && [[ "$existing_file_version" != "$remote_version" ]]; then
-            print_warning_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
-            print_info_from_common_functions "Will attempt to download newer version..."
-
-            # Keep the old file path for fallback
-            local fallback_file="$cursor_file"
-            local fallback_type="$install_type"
-
-            # Clear cursor_file to trigger download attempt
-            cursor_file=""
-            install_type=""
-        fi
-
-        # Check for installation type conflict
-        if [[ -n "$cursor_file" ]] && [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
-            print_warning_from_common_functions "Installation type conflict detected!"
-            print_warning_from_common_functions "  Currently installed: $installed_type"
-            print_warning_from_common_functions "  About to install: $install_type"
-            print_step_from_common_functions "Cleaning up old installation to prevent conflicts..."
-            cleanup_cursor
-        fi
+    
+    print_info_from_common_functions "File path: $cursor_file"
+    local file_size=$(stat -c%s "$cursor_file" 2>/dev/null || stat -f%z "$cursor_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
+    
+    if [[ "$file_size" -lt 52428800 ]]; then
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 52428800 bytes (50MB)"
+        return 1
     fi
+    print_success_from_common_functions "File verification passed"
 
-    # If no matching file found, try to download
-    if [[ -z "$cursor_file" ]]; then
-        print_step_from_common_functions "Attempting automatic download from Cursor API..."
-        print_info_from_common_functions "API URL: $CURSOR_API_URL"
-
-        # Try auto-download using enhanced function with browser headers
-        local download_dir="$PRIMARY_DOWNLOAD_DIR"
-        if [[ ! -d "$download_dir" ]]; then
-            download_dir=$(find /home -maxdepth 2 -type d -name "Downloads" 2>/dev/null | head -1)
-        fi
-        if [[ -z "$download_dir" ]] || [[ ! -d "$download_dir" ]]; then
-            download_dir="/tmp"
-        fi
-
-        print_info_from_common_functions "Download directory: $download_dir"
-
-        local downloaded_file=$(download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3)
-
-        # If function returned a path, verify it exists
-        if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
-            cursor_file="$downloaded_file"
-
-            # Detect type from downloaded file
-            local file_ext="${cursor_file##*.}"
-            if [[ "$file_ext" == "AppImage" ]]; then
-                install_type="appimage"
-            elif [[ "$file_ext" == "deb" ]]; then
-                install_type="deb"
-            fi
-
-            # Download succeeded - now safe to remove old files if they exist
-            if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
-                print_step_from_common_functions "Removing outdated installer files..."
-                rm -f "$fallback_file" 2>/dev/null || true
-                print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
-            fi
-        else
-            # Function failed to return path, try scanning Downloads directory
-            print_warning_from_common_functions "Download function did not return file path, scanning Downloads..."
-
-            sleep 2  # Wait for file system to sync
-
-            local appimage_file=$(find_file_in_downloads_from_common_functions "cursor*.AppImage" "newest")
-            if [[ -n "$appimage_file" ]] && [[ -f "$appimage_file" ]]; then
-                local scanned_version=$(extract_version_from_filename "$appimage_file")
-
-                # Check if this is a newly downloaded file (matches target version)
-                if [[ -n "$remote_version" ]] && [[ "$scanned_version" == "$remote_version" ]]; then
-                    print_success_from_common_functions "Found downloaded AppImage: $(basename "$appimage_file")"
-                    cursor_file="$appimage_file"
-                    install_type="appimage"
-
-                    # Download succeeded - remove old files
-                    if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
-                        print_step_from_common_functions "Removing outdated installer files..."
-                        rm -f "$fallback_file" 2>/dev/null || true
-                        print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
-                    fi
-                else
-                    # This is the old file, download failed
-                    print_warning_from_common_functions "Auto-download failed"
-
-                    # Check if we have a fallback file
-                    if [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
-                        print_warning_from_common_functions "Download of version $remote_version failed"
-                        print_info_from_common_functions "Fallback option available: $(basename "$fallback_file") (version: $existing_file_version)"
-
-                        if [[ "$is_upgrade_operation" == true ]]; then
-                            echo ""
-                            echo -n "Download failed. Use older version from Downloads? (y/N): "
-                            read -r use_fallback
-
-                            case "$use_fallback" in
-                                [yY]|[yY][eE][sS])
-                                    print_info_from_common_functions "Using fallback file: $(basename "$fallback_file")"
-                                    cursor_file="$fallback_file"
-                                    install_type="$fallback_type"
-                                    ;;
-                                *)
-                                    print_info_from_common_functions "Fallback declined, switching to manual download..."
-                                    cursor_file=""
-                                    ;;
-                            esac
-                        else
-                            # First-time install - use fallback automatically
-                            print_info_from_common_functions "Using available installer: $(basename "$fallback_file")"
-                            cursor_file="$fallback_file"
-                            install_type="$fallback_type"
-                        fi
-                    fi
-
-                    # If still no file, try manual download
-                    if [[ -z "$cursor_file" ]]; then
-                        print_warning_from_common_functions "Switching to manual download mode"
-                        print_step_from_common_functions "Opening Cursor download page for manual download..."
-                        open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
-
-                        # Use global function for manual download prompt
-                        cursor_file=$(prompt_and_wait_for_download_from_common_functions \
-                            "$CURSOR_DOWNLOAD_URL" \
-                            "cursor*.AppImage" \
-                            0)
-
-                        if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-                            print_error_from_common_functions "Manual download is required before installation can continue"
-                            return 1
-                        fi
-
-                        # Detect type from manual download
-                        local file_ext="${cursor_file##*.}"
-                        if [[ "$file_ext" == "AppImage" ]]; then
-                            install_type="appimage"
-                        elif [[ "$file_ext" == "deb" ]]; then
-                            install_type="deb"
-                        fi
-                    fi
-                fi
-            else
-                # No files found at all - check for fallback
-                if [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
-                    print_warning_from_common_functions "Download failed, but fallback file is available"
-                    print_info_from_common_functions "Fallback: $(basename "$fallback_file") (version: $existing_file_version)"
-
-                    if [[ "$is_upgrade_operation" == true ]]; then
-                        echo ""
-                        echo -n "Download failed. Use older version from Downloads? (y/N): "
-                        read -r use_fallback
-
-                        case "$use_fallback" in
-                            [yY]|[yY][eE][sS])
-                                print_info_from_common_functions "Using fallback file: $(basename "$fallback_file")"
-                                cursor_file="$fallback_file"
-                                install_type="$fallback_type"
-                                ;;
-                            *)
-                                print_info_from_common_functions "Fallback declined"
-                                cursor_file=""
-                                ;;
-                        esac
-                    else
-                        # First-time install - use fallback automatically
-                        print_info_from_common_functions "Using available installer: $(basename "$fallback_file")"
-                        cursor_file="$fallback_file"
-                        install_type="$fallback_type"
-                    fi
-                fi
-
-                # If still no file, manual download required
-                if [[ -z "$cursor_file" ]]; then
-                    print_warning_from_common_functions "Auto-download failed, switching to manual download mode"
-                    print_step_from_common_functions "Opening Cursor download page for manual download..."
-                    open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
-
-                    # Use global function for manual download prompt
-                    cursor_file=$(prompt_and_wait_for_download_from_common_functions \
-                        "$CURSOR_DOWNLOAD_URL" \
-                        "cursor*.AppImage" \
-                        0)
-
-                    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-                        print_error_from_common_functions "Manual download is required before installation can continue"
-                        return 1
-                    fi
-
-                    # Detect type from manual download
-                    local file_ext="${cursor_file##*.}"
-                    if [[ "$file_ext" == "AppImage" ]]; then
-                        install_type="appimage"
-                    elif [[ "$file_ext" == "deb" ]]; then
-                        install_type="deb"
-                    fi
-                fi
-            fi
-        fi
+    # Detect installation type
+    print_step_from_common_functions "Detecting installation type..."
+    local install_type=$(detect_install_type "$cursor_file")
+    if [[ -z "$install_type" ]]; then
+        print_info_from_common_functions "Installation type detection failed"
+        return 1
     fi
 
     print_success_from_common_functions "Using Cursor file: $(basename "$cursor_file")"
@@ -1361,8 +1275,11 @@ install_cursor() {
     # Install based on type
     local file_extension="${cursor_file##*.}"
 
+    # Install based on type
+    print_step_from_common_functions "=== Installation Phase ==="
     if [[ "$file_extension" == "deb" ]]; then
         print_info_from_common_functions "Detected .deb package, using dpkg installation..."
+        print_info_from_common_functions "Package file: $(basename "$cursor_file")"
 
         # Install .deb package with automatic retry on corruption
         local install_result
@@ -1370,16 +1287,15 @@ install_cursor() {
         local retry_count=0
 
         while [[ $retry_count -lt $max_retries ]]; do
+            print_info_from_common_functions "Installation attempt: $((retry_count + 1))/$max_retries"
             install_deb_package "$cursor_file"
             install_result=$?
 
             if [[ $install_result -eq 0 ]]; then
+                print_success_from_common_functions ".deb package installation completed"
                 break
             elif [[ $install_result -eq 2 ]]; then
-                print_warning_from_common_functions "Corrupted .deb detected (attempt $((retry_count + 1))/$max_retries)"
-                print_error_from_common_functions "File corruption detected: $cursor_file"
-                print_step_from_common_functions "Removing corrupted file and restarting installation..."
-
+                print_info_from_common_functions "File corruption detected, removing and restarting..."
                 # Remove corrupted file
                 rm -f "$cursor_file" 2>/dev/null || true
                 $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1388,30 +1304,28 @@ install_cursor() {
                 sleep 2
 
                 # Restart the script with the same arguments
-                print_info_from_common_functions "Restarting script: $0 $@"
                 exec "$0" "$@"
             else
-                print_error_from_common_functions "Failed to install Cursor .deb package"
+                print_info_from_common_functions "Installation failed with exit code: $install_result"
                 return 1
             fi
         done
 
         if [[ $install_result -ne 0 ]]; then
-            print_error_from_common_functions "Failed to install Cursor after $max_retries attempts"
+            print_info_from_common_functions "Installation failed after $max_retries attempts"
             return 1
         fi
 
     elif [[ "$file_extension" == "AppImage" ]]; then
         print_info_from_common_functions "Detected AppImage, using extraction method..."
+        print_info_from_common_functions "AppImage file: $(basename "$cursor_file")"
 
+        print_step_from_common_functions "Extracting AppImage..."
         extract_appimage "$cursor_file"
         local extract_result=$?
 
         if [[ $extract_result -eq 2 ]]; then
-            # File corruption detected
-            print_error_from_common_functions "File corruption detected: $cursor_file"
-            print_step_from_common_functions "Removing corrupted file and restarting installation..."
-
+            print_info_from_common_functions "File corruption detected during extraction, removing and restarting..."
             # Remove corrupted file
             rm -f "$cursor_file" 2>/dev/null || true
             $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1421,33 +1335,36 @@ install_cursor() {
             sleep 2
 
             # Restart the script with the same arguments
-            print_info_from_common_functions "Restarting script: $0 $@"
             exec "$0" "$@"
         elif [[ $extract_result -ne 0 ]]; then
-            print_error_from_common_functions "Failed to extract Cursor AppImage"
+            print_info_from_common_functions "AppImage extraction failed with exit code: $extract_result"
             return 1
+        else
+            print_success_from_common_functions "AppImage extraction completed"
         fi
 
     else
-        print_error_from_common_functions "Unknown file type: $file_extension"
-        print_error_from_common_functions "Expected .deb or .AppImage"
+        print_info_from_common_functions "Unknown file extension: $file_extension"
         return 1
     fi
 
     # Create desktop entry
+    print_step_from_common_functions "=== Desktop Entry Creation Phase ==="
     if ! create_desktop_entry; then
-        print_error_from_common_functions "Failed to create desktop entry"
+        print_info_from_common_functions "Desktop entry creation failed"
         return 1
     fi
+    print_success_from_common_functions "Desktop entry created"
 
     # Save installation info with version and type
-    print_step_from_common_functions "Saving installation info..."
+    print_step_from_common_functions "=== Saving Installation Info ==="
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
+        print_info_from_common_functions "Extracted version: $installed_version"
         save_installation_info "$installed_version" "$cursor_file" "$install_type"
-        print_info_from_common_functions "Installed version: $installed_version"
+        print_info_from_common_functions "Installation info saved"
     else
-        # Fallback if version extraction fails
+        print_info_from_common_functions "Version extraction failed, using 'unknown'"
         save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
@@ -1475,15 +1392,6 @@ prompt_cleanup_reinstall() {
 
 # Main script execution
 main() {
-    # Parse arguments
-    parse_arguments "$@"
-
-    # Handle cleanup mode
-    if [[ "$CLEANUP_MODE" == true ]]; then
-        cleanup_cursor
-        exit $?
-    fi
-
     # Check if we have a desktop environment (Cursor is a GUI application)
     # Only skip if we're on a pure server without any desktop environment
     if [[ "$HAS_DESKTOP_ENVIRONMENT" != true ]] && [[ "$IS_WSL" != true ]] && [[ "$IS_PRODUCTION" == true ]]; then
@@ -1495,18 +1403,10 @@ main() {
     print_header_from_common_functions "Cursor IDE Installation Script"
     print_info_from_common_functions "Installation Directory: $CURSOR_INSTALL_DIR"
 
-    # Force cleanup if --force flag is specified
-    if [[ "$FORCE_INSTALL" == true ]]; then
-        if is_cursor_installed; then
-            print_info_from_common_functions "Force install specified - cleaning up existing installation..."
-            cleanup_cursor
-        fi
-    fi
-
-    # Run installation (will prompt for cleanup if already installed and not forced)
+    # Run installation (will prompt for cleanup if already installed)
     install_cursor
     exit $?
 }
 
-# Run main function with all arguments
-main "$@"
+# Run main function (no arguments supported)
+main

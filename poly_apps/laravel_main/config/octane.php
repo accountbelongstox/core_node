@@ -262,7 +262,7 @@ return [
 
     'swoole' => [
         'options' => [
-            'log_level' => SWOOLE_LOG_WARNING,
+            'log_level' => defined('SWOOLE_LOG_WARNING') ? SWOOLE_LOG_WARNING : 4,
             'log_file' => storage_path('logs/swoole_http.log'),
             'enable_coroutine' => true,
             'task_enable_coroutine' => true,

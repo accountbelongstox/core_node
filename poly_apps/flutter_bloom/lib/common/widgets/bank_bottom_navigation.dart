@@ -104,9 +104,10 @@ class BankBottomNavigation extends StatelessWidget {
 
   Widget _buildNavigationItem(BuildContext context, BankNavigationItem item, int index, bool isDark) {
     final isActive = currentIndex == index;
-    final selectedColor = selectedItemColor ?? ThemeColors.primaryColor;
-    final unselectedColor = unselectedItemColor ?? 
-                           (isDark ? ThemeColors.grey400 : ThemeColors.grey600);
+    final itemSelectedColor = item.selectedColor ?? (selectedItemColor ?? ThemeColors.primaryColor);
+    final itemUnselectedColor = item.unselectedColor ?? (unselectedItemColor ?? 
+                           (isDark ? ThemeColors.grey400 : ThemeColors.grey600));
+    final iconColor = isActive ? itemSelectedColor : itemUnselectedColor;
 
     return Expanded(
       child: Material(
@@ -114,6 +115,9 @@ class BankBottomNavigation extends StatelessWidget {
         child: InkWell(
           onTap: () => _handleItemTap(context, item, index),
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               vertical: ThemeDimensions.paddingSmall,
@@ -124,7 +128,7 @@ class BankBottomNavigation extends StatelessWidget {
               children: [
                 Icon(
                   isActive ? (item.activeIcon ?? item.icon) : item.icon,
-                  color: isActive ? selectedColor : unselectedColor,
+                  color: iconColor,
                   size: 28, // Increased from ThemeDimensions.iconSizeMedium
                 ),
                 if (showLabels) ...[
@@ -132,7 +136,7 @@ class BankBottomNavigation extends StatelessWidget {
                   Text(
                     item.label,
                     style: ThemeTextStyles.bodySmall.copyWith(
-                      color: isActive ? selectedColor : unselectedColor,
+                      color: isActive ? itemSelectedColor : itemUnselectedColor,
                       fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                       fontSize: 16, // Increased from 12
                     ),
@@ -166,30 +170,47 @@ class BankBottomNavigation extends StatelessWidget {
         activeIcon: Icons.home,
         label: '首页',
         route: '/bank/dashboard',
+        selectedColor: const Color(0xFF1890FF),
+        unselectedColor: const Color(0xFF8C8C8C),
       ),
       BankNavigationItem(
         icon: Icons.credit_card_outlined,
         activeIcon: Icons.credit_card,
         label: '信用卡',
         route: '/bank/card_management',
+        selectedColor: const Color(0xFF1AA5CE),
+        unselectedColor: const Color(0xFF8C8C8C),
       ),
       BankNavigationItem(
         icon: Icons.account_balance_wallet_outlined,
         activeIcon: Icons.account_balance_wallet,
         label: '财富',
         route: '/bank/investment',
+        selectedColor: const Color(0xFFD68915),
+        unselectedColor: const Color(0xFF8C8C8C),
       ),
       BankNavigationItem(
         icon: Icons.local_cafe_outlined,
         activeIcon: Icons.local_cafe,
         label: '生活',
         route: '/bank/life',
+        selectedColor: const Color(0xFFFF6B35),
+        unselectedColor: const Color(0xFF8C8C8C),
       ),
       BankNavigationItem(
-        icon: Icons.person_outline,
-        activeIcon: Icons.person,
+        // Primary: Smile face icon (emoji_emotions)
+        // Alternative options:
+        // - Icons.mood / Icons.mood_outlined (happy mood icon)
+        // - Icons.sentiment_satisfied / Icons.sentiment_satisfied_outlined (satisfied face)
+        // - Icons.sentiment_very_satisfied / Icons.sentiment_very_satisfied_outlined (very satisfied face)
+        // - Icons.face / Icons.face_outlined (generic face icon)
+        // - Icons.account_circle / Icons.account_circle_outlined (circle with person, more traditional)
+        icon: Icons.emoji_emotions_outlined,
+        activeIcon: Icons.emoji_emotions,
         label: '我的',
         route: '/bank/profile',
+        selectedColor: const Color(0xFF879ADF),
+        unselectedColor: const Color(0xFF8C8C8C),
       ),
     ];
   }
@@ -206,6 +227,10 @@ class BankNavigationItem {
   final String label;
   final String route;
   final VoidCallback? onTap;
+  final Color? selectedColor;
+  final Color? unselectedColor;
+  final Color? backgroundColor;
+  final double? backgroundRadius;
 
   const BankNavigationItem({
     this.icon,
@@ -215,6 +240,10 @@ class BankNavigationItem {
     required this.label,
     required this.route,
     this.onTap,
+    this.selectedColor,
+    this.unselectedColor,
+    this.backgroundColor,
+    this.backgroundRadius,
   }) : assert(
           (icon != null || imagePath != null),
           'Either icon or imagePath must be provided',
@@ -302,6 +331,9 @@ class CustomBankBottomNavigation extends StatelessWidget {
         child: InkWell(
           onTap: () => _handleItemTap(context, item, index),
           borderRadius: BorderRadius.circular(ThemeDimensions.radiusSmall),
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               vertical: 3.0,

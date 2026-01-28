@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../widgets_app_bank/bank_loading_dialog.dart';
 
 /// Card Features Grid Component
 ///
@@ -47,7 +48,7 @@ class CardFeaturesGrid extends StatelessWidget {
             children: features
                 .take(5)
                 .map((feature) => Expanded(
-                      child: _buildFeatureItem(feature),
+                      child: _buildFeatureItem(context, feature),
                     ))
                 .toList(),
           ),
@@ -59,7 +60,7 @@ class CardFeaturesGrid extends StatelessWidget {
                 .skip(5)
                 .take(5)
                 .map((feature) => Expanded(
-                      child: _buildFeatureItem(feature),
+                      child: _buildFeatureItem(context, feature),
                     ))
                 .toList(),
           ),
@@ -68,33 +69,38 @@ class CardFeaturesGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureItem(_FeatureItem feature) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 37.44, // 62.4 * 0.6 = 37.44 (40% smaller)
-          height: 37.44, // 62.4 * 0.6 = 37.44 (40% smaller)
-          padding: EdgeInsets.zero, // Remove padding to fill container
-          child: Image.asset(
-            feature.iconPath,
-            width: 37.44,
-            height: 37.44,
-            fit: BoxFit.contain, // Maintain aspect ratio, no stretching
+  Widget _buildFeatureItem(BuildContext context, _FeatureItem feature) {
+    return GestureDetector(
+      onTap: () {
+        BankLoadingDialog.show(context, title: feature.label);
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 37.44, // 62.4 * 0.6 = 37.44 (40% smaller)
+            height: 37.44, // 62.4 * 0.6 = 37.44 (40% smaller)
+            padding: EdgeInsets.zero, // Remove padding to fill container
+            child: Image.asset(
+              feature.iconPath,
+              width: 37.44,
+              height: 37.44,
+              fit: BoxFit.contain, // Maintain aspect ratio, no stretching
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          feature.label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.black87,
+          const SizedBox(height: 8),
+          Text(
+            feature.label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

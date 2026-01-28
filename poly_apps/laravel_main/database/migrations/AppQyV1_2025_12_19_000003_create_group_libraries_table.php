@@ -1,30 +1,86 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
+    protected $connection;
+    protected $appKey;
+    protected $tableName;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries');
+    }
+
     public function up(): void
     {
-        if (!Schema::connection('appqyv1')->hasTable('app_qy_v1_group_libraries')) {
-            Schema::connection('appqyv1')->create('app_qy_v1_group_libraries', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('group_id')->comment('Group ID from word_groups table');
-                $table->unsignedBigInteger('library_id')->comment('Library ID from vocabulary_libraries');
-                $table->timestamp('added_at')->useCurrent()->comment('When library was added to group');
-                $table->timestamps();
-
-                $table->unique(['group_id', 'library_id'], 'unique_group_library');
-                $table->index('group_id', 'idx_group_lib_group');
-                $table->index('library_id', 'idx_group_lib_library');
-            });
-        }
+        $tableStructure = [
+            'columns' => [
+                'id' => [
+                    'type' => 'bigIncrements',
+                ],
+                'group_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'comment' => 'Group ID from word_groups table',
+                ],
+                'library_id' => [
+                    'type' => 'unsignedBigInteger',
+                    'nullable' => false,
+                    'comment' => 'Library ID from vocabulary_libraries',
+                ],
+                'added_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                    'useCurrent' => true,
+                    'comment' => 'When library was added to group',
+                ],
+                'created_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'updated_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                [
+                    'columns' => ['group_id', 'library_id'],
+                    'name' => 'unique_group_library',
+                    'unique' => true,
+                ],
+                [
+                    'columns' => ['group_id'],
+                    'name' => 'idx_group_lib_group',
+                ],
+                [
+                    'columns' => ['library_id'],
+                    'name' => 'idx_group_lib_library',
+                ],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        Schema::connection('appqyv1')->dropIfExists('app_qy_v1_group_libraries');
+        \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

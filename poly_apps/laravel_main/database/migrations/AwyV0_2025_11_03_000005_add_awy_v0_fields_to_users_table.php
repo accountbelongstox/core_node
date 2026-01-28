@@ -1,152 +1,149 @@
 <?php
 
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never create or update documentation (*.md).
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
+    protected $connection = 'sqlite';
+    protected $tableName = 'users';
+
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'bio')) {
-                $table->string('bio')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'location')) {
-                $table->string('location')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'avatar')) {
-                $table->string('avatar')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'last_login_at')) {
-                $table->timestamp('last_login_at')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'phone_verified_at')) {
-                $table->timestamp('phone_verified_at')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'email_verified_at')) {
-                $table->timestamp('email_verified_at')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'password_reset_token')) {
-                $table->string('password_reset_token')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'password_reset_expires_at')) {
-                $table->timestamp('password_reset_expires_at')->nullable();
-            }
-            if (!Schema::hasColumn('users', 'status')) {
-                $table->string('status')->default('active');
-            }
-            if (!Schema::hasColumn('users', 'is_online')) {
-                $table->boolean('is_online')->default(false);
-            }
-            if (!Schema::hasColumn('users', 'last_seen_at')) {
-                $table->timestamp('last_seen_at')->nullable();
-            }
-        });
+        $tableStructure = [
+            'columns' => [
+                'bio' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                ],
+                'location' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                ],
+                'avatar' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                ],
+                'last_login_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'phone_verified_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'email_verified_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'password_reset_token' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                ],
+                'password_reset_expires_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+                'status' => [
+                    'type' => 'string',
+                    'nullable' => false,
+                    'default' => 'active',
+                ],
+                'is_online' => [
+                    'type' => 'boolean',
+                    'nullable' => false,
+                    'default' => false,
+                ],
+                'last_seen_at' => [
+                    'type' => 'timestamp',
+                    'nullable' => true,
+                ],
+            ],
+            'indexes' => [
+                ['columns' => ['status'], 'name' => 'users_status'],
+                ['columns' => ['is_online'], 'name' => 'users_online'],
+                ['columns' => ['last_seen_at'], 'name' => 'users_last_seen'],
+            ],
+        ];
 
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->index('status', 'users_status');
-            });
-        } catch (\Exception $e) {
-        }
-
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->index('is_online', 'users_online');
-            });
-        } catch (\Exception $e) {
-        }
-
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->index('last_seen_at', 'users_last_seen');
-            });
-        } catch (\Exception $e) {
-        }
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropIndex('users_status');
+        $connection = $this->connection;
+        if (Schema::connection($connection)->hasTable($this->tableName)) {
+            try {
+                Schema::connection($connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->dropIndex('users_status');
+                });
+            } catch (\Exception $e) {
+            }
+
+            try {
+                Schema::connection($connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->dropIndex('users_online');
+                });
+            } catch (\Exception $e) {
+            }
+
+            try {
+                Schema::connection($connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->dropIndex('users_last_seen');
+                });
+            } catch (\Exception $e) {
+            }
+
+            Schema::connection($connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
+                $columnsToRemove = [];
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'bio')) {
+                    $columnsToRemove[] = 'bio';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'location')) {
+                    $columnsToRemove[] = 'location';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'avatar')) {
+                    $columnsToRemove[] = 'avatar';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'last_login_at')) {
+                    $columnsToRemove[] = 'last_login_at';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'phone_verified_at')) {
+                    $columnsToRemove[] = 'phone_verified_at';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'email_verified_at')) {
+                    $columnsToRemove[] = 'email_verified_at';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'password_reset_token')) {
+                    $columnsToRemove[] = 'password_reset_token';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'password_reset_expires_at')) {
+                    $columnsToRemove[] = 'password_reset_expires_at';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'status')) {
+                    $columnsToRemove[] = 'status';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'is_online')) {
+                    $columnsToRemove[] = 'is_online';
+                }
+                if (Schema::connection($connection)->hasColumn($this->tableName, 'last_seen_at')) {
+                    $columnsToRemove[] = 'last_seen_at';
+                }
+
+                if (!empty($columnsToRemove)) {
+                    $table->dropColumn($columnsToRemove);
+                }
             });
-        } catch (\Exception $e) {
         }
-
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropIndex('users_online');
-            });
-        } catch (\Exception $e) {
-        }
-
-        try {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropIndex('users_last_seen');
-            });
-        } catch (\Exception $e) {
-        }
-
-        Schema::table('users', function (Blueprint $table) {
-            $columnsToRemove = [];
-
-            if (Schema::hasColumn('users', 'bio')) {
-                $columnsToRemove[] = 'bio';
-            }
-            if (Schema::hasColumn('users', 'location')) {
-                $columnsToRemove[] = 'location';
-            }
-            if (Schema::hasColumn('users', 'avatar')) {
-                $columnsToRemove[] = 'avatar';
-            }
-            if (Schema::hasColumn('users', 'last_login_at')) {
-                $columnsToRemove[] = 'last_login_at';
-            }
-            if (Schema::hasColumn('users', 'phone_verified_at')) {
-                $columnsToRemove[] = 'phone_verified_at';
-            }
-            if (Schema::hasColumn('users', 'email_verified_at')) {
-                $columnsToRemove[] = 'email_verified_at';
-            }
-            if (Schema::hasColumn('users', 'password_reset_token')) {
-                $columnsToRemove[] = 'password_reset_token';
-            }
-            if (Schema::hasColumn('users', 'password_reset_expires_at')) {
-                $columnsToRemove[] = 'password_reset_expires_at';
-            }
-            if (Schema::hasColumn('users', 'status')) {
-                $columnsToRemove[] = 'status';
-            }
-            if (Schema::hasColumn('users', 'is_online')) {
-                $columnsToRemove[] = 'is_online';
-            }
-            if (Schema::hasColumn('users', 'last_seen_at')) {
-                $columnsToRemove[] = 'last_seen_at';
-            }
-
-            if (!empty($columnsToRemove)) {
-                $table->dropColumn($columnsToRemove);
-            }
-        });
     }
 };

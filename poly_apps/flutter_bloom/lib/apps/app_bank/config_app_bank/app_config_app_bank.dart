@@ -47,7 +47,7 @@ class BankAppConfig {
 
   // UI configurations
   static const int animationDurationMs = 300;
-  static const double borderRadius = 12.0;
+  static const double borderRadius = 4.0;
   static const double cardElevation = 4.0;
 
   /// Get app configuration map

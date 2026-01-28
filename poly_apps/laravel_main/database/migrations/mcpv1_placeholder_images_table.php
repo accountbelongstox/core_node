@@ -1,32 +1,51 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Builder;
 use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
+    protected $connection = 'sqlite';
+    protected $tableName = 'placeholder_images';
+
     public function up(): void
     {
-        Schema::create('placeholder_images', function ($table) {
-            $table->id();
-            $table->string('uuid', 36)->unique()->index();
-            $table->string('filename');
-            $table->integer('width');
-            $table->integer('height');
-            $table->text('text')->nullable();
-            $table->string('type', 50)->default('simple');
-            $table->string('file_path');
-            $table->integer('file_size')->default(0);
-            $table->boolean('downloaded')->default(false);
-            $table->timestamp('downloaded_at')->nullable();
-            $table->timestamps();
-            $table->index(['downloaded', 'created_at']);
-        });
+        $tableStructure = [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'uuid' => ['type' => 'string', 'length' => 36, 'nullable' => false, 'unique' => true, 'index' => true],
+                'filename' => ['type' => 'string', 'nullable' => false],
+                'width' => ['type' => 'integer', 'nullable' => false],
+                'height' => ['type' => 'integer', 'nullable' => false],
+                'text' => ['type' => 'text', 'nullable' => true],
+                'type' => ['type' => 'string', 'length' => 50, 'nullable' => false, 'default' => 'simple'],
+                'file_path' => ['type' => 'string', 'nullable' => false],
+                'file_size' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'downloaded' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'downloaded_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['downloaded', 'created_at']],
+            ],
+        ];
+        
+        SafeMigrationHelper::alignTableStructureFromArray(
+            $this->connection,
+            $this->tableName,
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('placeholder_images');
+        Schema::connection($this->connection)->dropIfExists($this->tableName);
     }
 };

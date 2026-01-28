@@ -1,8 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use App\Services\SafeMigrationHelper;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 
 return new class extends Migration
 {
@@ -17,58 +18,168 @@ return new class extends Migration
         'te', 'th', 'tr', 'uk', 'ur', 'uz', 'vi', 'wuu', 'yue', 'zh', 'zu'
     ];
 
-    public function up()
+    protected $connection;
+    protected $appKey;
+    
+    public function __construct()
+    {
+        $this->appKey = AppKeys::APPQYV1;
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+    }
+
+    public function up(): void
     {
         foreach ($this->languages as $langCode) {
-            $tableName = "app_qy_v1_{$langCode}_dictionaries";
-
-            if (!Schema::connection('appqyv1')->hasTable($tableName)) {
-                Schema::connection('appqyv1')->create($tableName, function (Blueprint $table) use ($langCode) {
-                $table->id();
-                
-                $table->text('content')->nullable(false);
-                $table->string('md5', 32)->nullable(false)->index();
-                
-                $table->json('translations')->nullable()->comment('Multi-language translations JSON array');
-                $table->boolean('has_translation')->default(false)->nullable();
-                $table->string('translation_provider', 100)->nullable()->comment('AI model identifier');
-                
-                $table->text('phonetic')->nullable()->comment('IPA phonetic or language-specific phonetic');
-                $table->text('us_phonetic')->nullable()->comment('US English phonetic');
-                $table->text('uk_phonetic')->nullable()->comment('UK English phonetic');
-                
-                $table->json('tts_files')->nullable()->comment('TTS audio files paths and metadata');
-                $table->string('tts_provider', 100)->nullable()->comment('TTS service provider');
-                
-                $table->json('image_files')->nullable()->comment('Associated image files');
-                $table->string('image_provider', 100)->nullable();
-                
-                $table->json('word_details')->nullable()->comment('Additional word metadata: part of speech, examples, etc');
-                
-                $table->boolean('is_exist_local')->default(false)->nullable();
-                $table->boolean('has_operations')->default(true)->nullable();
-                
-                $table->integer('query_count')->default(0)->unsigned()->nullable();
-                $table->dateTime('last_modified')->nullable();
-                $table->dateTime('last_query_time')->nullable();
-                
-                $table->timestamps();
-                
-                $table->unique(['content', 'md5'], "unique_{$langCode}_content_md5");
-                $table->index('content', "idx_{$langCode}_content");
-                $table->index('query_count', "idx_{$langCode}_query_count");
-                $table->index('has_translation', "idx_{$langCode}_has_translation");
-                $table->index('last_query_time', "idx_{$langCode}_last_query_time");
-            });
-            }
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$langCode}_dictionaries");
+            
+            $tableStructure = [
+                'columns' => [
+                    'id' => [
+                        'type' => 'bigIncrements',
+                    ],
+                    'content' => [
+                        'type' => 'text',
+                        'nullable' => false,
+                    ],
+                    'md5' => [
+                        'type' => 'string',
+                        'length' => 32,
+                        'nullable' => false,
+                        'index' => true,
+                    ],
+                    'translations' => [
+                        'type' => 'json',
+                        'nullable' => true,
+                        'comment' => 'Multi-language translations JSON array',
+                    ],
+                    'has_translation' => [
+                        'type' => 'boolean',
+                        'nullable' => true,
+                        'default' => false,
+                    ],
+                    'translation_provider' => [
+                        'type' => 'string',
+                        'length' => 100,
+                        'nullable' => true,
+                        'comment' => 'AI model identifier',
+                    ],
+                    'phonetic' => [
+                        'type' => 'text',
+                        'nullable' => true,
+                        'comment' => 'IPA phonetic or language-specific phonetic',
+                    ],
+                    'us_phonetic' => [
+                        'type' => 'text',
+                        'nullable' => true,
+                        'comment' => 'US English phonetic',
+                    ],
+                    'uk_phonetic' => [
+                        'type' => 'text',
+                        'nullable' => true,
+                        'comment' => 'UK English phonetic',
+                    ],
+                    'tts_files' => [
+                        'type' => 'json',
+                        'nullable' => true,
+                        'comment' => 'TTS audio files paths and metadata',
+                    ],
+                    'tts_provider' => [
+                        'type' => 'string',
+                        'length' => 100,
+                        'nullable' => true,
+                        'comment' => 'TTS service provider',
+                    ],
+                    'image_files' => [
+                        'type' => 'json',
+                        'nullable' => true,
+                        'comment' => 'Associated image files',
+                    ],
+                    'image_provider' => [
+                        'type' => 'string',
+                        'length' => 100,
+                        'nullable' => true,
+                    ],
+                    'word_details' => [
+                        'type' => 'json',
+                        'nullable' => true,
+                        'comment' => 'Additional word metadata: part of speech, examples, etc',
+                    ],
+                    'is_exist_local' => [
+                        'type' => 'boolean',
+                        'nullable' => true,
+                        'default' => false,
+                    ],
+                    'has_operations' => [
+                        'type' => 'boolean',
+                        'nullable' => true,
+                        'default' => true,
+                    ],
+                    'query_count' => [
+                        'type' => 'integer',
+                        'nullable' => true,
+                        'default' => 0,
+                        'unsigned' => true,
+                    ],
+                    'last_modified' => [
+                        'type' => 'dateTime',
+                        'nullable' => true,
+                    ],
+                    'last_query_time' => [
+                        'type' => 'dateTime',
+                        'nullable' => true,
+                    ],
+                    'created_at' => [
+                        'type' => 'timestamp',
+                        'nullable' => true,
+                    ],
+                    'updated_at' => [
+                        'type' => 'timestamp',
+                        'nullable' => true,
+                    ],
+                ],
+                'indexes' => [
+                    [
+                        'columns' => ['content', 'md5'],
+                        'name' => "unique_{$langCode}_content_md5",
+                        'unique' => true,
+                    ],
+                    [
+                        'columns' => ['content'],
+                        'name' => "idx_{$langCode}_content",
+                    ],
+                    [
+                        'columns' => ['query_count'],
+                        'name' => "idx_{$langCode}_query_count",
+                    ],
+                    [
+                        'columns' => ['has_translation'],
+                        'name' => "idx_{$langCode}_has_translation",
+                    ],
+                    [
+                        'columns' => ['last_query_time'],
+                        'name' => "idx_{$langCode}_last_query_time",
+                    ],
+                ],
+            ];
+            
+            SafeMigrationHelper::alignTableStructureFromArray(
+                $this->connection,
+                $tableName,
+                $tableStructure,
+                [
+                    'shrink_columns' => false,
+                    'modify_columns' => true,
+                    'add_indexes' => true,
+                ]
+            );
         }
     }
 
-    public function down()
+    public function down(): void
     {
         foreach ($this->languages as $langCode) {
-            $tableName = "app_qy_v1_{$langCode}_dictionaries";
-            Schema::connection('appqyv1')->dropIfExists($tableName);
+            $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$langCode}_dictionaries");
+            \Illuminate\Support\Facades\Schema::connection($this->connection)->dropIfExists($tableName);
         }
     }
 };
