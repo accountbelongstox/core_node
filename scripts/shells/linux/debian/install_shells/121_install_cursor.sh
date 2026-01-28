@@ -164,6 +164,11 @@ detect_install_type() {
     fi
 }
 
+# Log to stderr (so $(...) won't swallow progress output)
+log_step_stderr() { print_step_from_common_functions "$1" >&2; }
+log_info_stderr() { print_info_from_common_functions "$1" >&2; }
+log_success_stderr() { print_success_from_common_functions "$1" >&2; }
+
 # Download and rename Cursor installer with timestamp
 # Uses file search verification instead of exit codes
 # Shows all progress details including download, search, verification, and rename
@@ -171,102 +176,102 @@ download_and_rename_cursor() {
     local download_dir="$1"
     local remote_version="$2"
     
-    print_step_from_common_functions "Step 1: Downloading Cursor from API..."
-    print_info_from_common_functions "API URL: $CURSOR_API_URL"
-    print_info_from_common_functions "Download directory: $download_dir"
+    log_step_stderr "Step 1: Downloading Cursor from API..."
+    log_info_stderr "API URL: $CURSOR_API_URL"
+    log_info_stderr "Download directory: $download_dir"
     
     # Start download (show all progress)
-    print_info_from_common_functions "Starting download process..."
-    download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3
+    log_info_stderr "Starting download process..."
+    download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3 >&2
     
     # Wait a moment for file system to sync
-    print_info_from_common_functions "Waiting for file system sync (2 seconds)..."
+    log_info_stderr "Waiting for file system sync (2 seconds)..."
     sleep 2
     
     # Step 2: Search for downloaded file
-    print_step_from_common_functions "Step 2: Searching for downloaded file..."
+    log_step_stderr "Step 2: Searching for downloaded file..."
     local downloaded_file=""
     local search_patterns=("cursor*.AppImage" "Cursor*.AppImage" "cursor*.deb" "Cursor*.deb")
     
     # Search in download directory first
-    print_info_from_common_functions "Searching in download directory: $download_dir"
+    log_info_stderr "Searching in download directory: $download_dir"
     for pattern in "${search_patterns[@]}"; do
-        print_info_from_common_functions "  Searching pattern: $pattern"
+        log_info_stderr "  Searching pattern: $pattern"
         local found_file=$(find "$download_dir" -maxdepth 1 -type f -iname "$pattern" 2>/dev/null | head -1)
         
         if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
             local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
-            print_info_from_common_functions "  Found file: $(basename "$found_file") (size: $file_size bytes)"
+            log_info_stderr "  Found file: $(basename "$found_file") (size: $file_size bytes)"
             
             if [[ "$file_size" -gt 52428800 ]]; then
                 downloaded_file="$found_file"
-                print_success_from_common_functions "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
+                log_success_stderr "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
                 break
             else
-                print_info_from_common_functions "  File too small ($file_size bytes), continuing search..."
+                log_info_stderr "  File too small ($file_size bytes), continuing search..."
             fi
         else
-            print_info_from_common_functions "  No file found matching: $pattern"
+            log_info_stderr "  No file found matching: $pattern"
         fi
     done
     
     # If not found in download_dir, search all Downloads directories
     if [[ -z "$downloaded_file" ]]; then
-        print_info_from_common_functions "Not found in download directory, searching all Downloads directories..."
+        log_info_stderr "Not found in download directory, searching all Downloads directories..."
         for pattern in "${search_patterns[@]}"; do
-            print_info_from_common_functions "  Searching pattern: $pattern (all Downloads)"
+            log_info_stderr "  Searching pattern: $pattern (all Downloads)"
             local found_file=$(find_file_in_downloads_from_common_functions "$pattern" "newest")
             
             if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
                 local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
-                print_info_from_common_functions "  Found file: $found_file (size: $file_size bytes)"
+                log_info_stderr "  Found file: $found_file (size: $file_size bytes)"
                 
                 if [[ "$file_size" -gt 52428800 ]]; then
                     downloaded_file="$found_file"
-                    print_success_from_common_functions "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
+                    log_success_stderr "Valid file found: $(basename "$downloaded_file") ($file_size bytes)"
                     break
                 else
-                    print_info_from_common_functions "  File too small ($file_size bytes), continuing search..."
+                    log_info_stderr "  File too small ($file_size bytes), continuing search..."
                 fi
             else
-                print_info_from_common_functions "  No file found matching: $pattern"
+                log_info_stderr "  No file found matching: $pattern"
             fi
         done
     fi
     
     # Debug: List all files in download directory if not found
     if [[ -z "$downloaded_file" ]]; then
-        print_info_from_common_functions "File not found. Listing all files in download directory:"
+        log_info_stderr "File not found. Listing all files in download directory:"
         if [[ -d "$download_dir" ]]; then
             ls -lh "$download_dir" 2>/dev/null | head -20 | while read -r line; do
-                print_info_from_common_functions "  $line"
+                log_info_stderr "  $line"
             done
         fi
         return 1
     fi
     
     # Step 3: Verify file
-    print_step_from_common_functions "Step 3: Verifying downloaded file..."
-    print_info_from_common_functions "File path: $downloaded_file"
+    log_step_stderr "Step 3: Verifying downloaded file..."
+    log_info_stderr "File path: $downloaded_file"
     local file_size=$(stat -c%s "$downloaded_file" 2>/dev/null || stat -f%z "$downloaded_file" 2>/dev/null || echo "0")
-    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
+    log_info_stderr "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
     
     if [[ "$file_size" -lt 52428800 ]]; then
-        print_info_from_common_functions "File size validation failed: $file_size bytes < 52428800 bytes (50MB)"
+        log_info_stderr "File size validation failed: $file_size bytes < 52428800 bytes (50MB)"
         return 1
     fi
-    print_success_from_common_functions "File size validation passed: $file_size bytes"
+    log_success_stderr "File size validation passed: $file_size bytes"
     
     # Step 4: Rename with timestamp
-    print_step_from_common_functions "Step 4: Renaming file with timestamp..."
+    log_step_stderr "Step 4: Renaming file with timestamp..."
     local file_dir=$(dirname "$downloaded_file")
     local file_name=$(basename "$downloaded_file")
     local file_ext="${file_name##*.}"
     local timestamp=$(date '+%Y%m%d_%H%M%S')
     
-    print_info_from_common_functions "Original filename: $file_name"
-    print_info_from_common_functions "File extension: $file_ext"
-    print_info_from_common_functions "Timestamp: $timestamp"
+    log_info_stderr "Original filename: $file_name"
+    log_info_stderr "File extension: $file_ext"
+    log_info_stderr "Timestamp: $timestamp"
     
     # Build base name: prefer remote_version, fallback to original name
     local base_name="cursor"
@@ -283,31 +288,31 @@ download_and_rename_cursor() {
     fi
     
     local renamed_file="$file_dir/$new_filename"
-    print_info_from_common_functions "New filename: $new_filename"
-    print_info_from_common_functions "Renaming: $file_name -> $new_filename"
+    log_info_stderr "New filename: $new_filename"
+    log_info_stderr "Renaming: $file_name -> $new_filename"
     
     if ! mv -f "$downloaded_file" "$renamed_file" 2>/dev/null; then
-        print_info_from_common_functions "Rename operation failed"
+        log_info_stderr "Rename operation failed"
         return 1
     fi
-    print_success_from_common_functions "File renamed successfully"
+    log_success_stderr "File renamed successfully"
     
     # Step 5: Final verification
-    print_step_from_common_functions "Step 5: Final verification of renamed file..."
+    log_step_stderr "Step 5: Final verification of renamed file..."
     if [[ ! -f "$renamed_file" ]]; then
-        print_info_from_common_functions "Renamed file not found: $renamed_file"
+        log_info_stderr "Renamed file not found: $renamed_file"
         return 1
     fi
     
     local final_size=$(stat -c%s "$renamed_file" 2>/dev/null || stat -f%z "$renamed_file" 2>/dev/null || echo "0")
-    print_info_from_common_functions "Final file size: $final_size bytes ($(numfmt --to=iec-i --suffix=B "$final_size" 2>/dev/null || echo "$final_size bytes"))"
+    log_info_stderr "Final file size: $final_size bytes ($(numfmt --to=iec-i --suffix=B "$final_size" 2>/dev/null || echo "$final_size bytes"))"
     
     if [[ "$final_size" -lt 52428800 ]]; then
-        print_info_from_common_functions "Final size validation failed: $final_size bytes < 52428800 bytes (50MB)"
+        log_info_stderr "Final size validation failed: $final_size bytes < 52428800 bytes (50MB)"
         return 1
     fi
     
-    print_success_from_common_functions "File verified and renamed: $(basename "$renamed_file") ($final_size bytes)"
+    log_success_stderr "File verified and renamed: $(basename "$renamed_file") ($final_size bytes)"
     echo "$renamed_file"
     return 0
 }
