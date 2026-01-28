@@ -2,10 +2,7 @@
 # Cursor IDE Installation Script
 #
 # Usage:
-#   ./121_install_cursor.sh                    # Normal installation (root mode with pkexec)
-#   ./121_install_cursor.sh --force           # Force reinstallation
-#   ./121_install_cursor.sh --cleanup         # Remove Cursor installation
-#   ./121_install_cursor.sh --no-root         # Install in normal mode (no pkexec)
+#   ./121_install_cursor.sh   # Interactive install (no arguments)
 #
 # This script installs Cursor IDE using installer files stored in ~/Downloads or /home/*/Downloads
 # If no installer is found, it opens the Cursor download page and waits for the user to download manually
@@ -35,14 +32,10 @@ source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-FORCE_INSTALL=false
-CLEANUP_MODE=false
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
-USE_ROOT_MODE_SPECIFIED=false  # Track if mode was specified via CLI
 
-# Cursor version configuration
-CURSOR_VERSION="2.1"
-CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/$CURSOR_VERSION"
+# Cursor API configuration (follow redirects for latest)
+CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/"
 
 # Cursor installation directories using map_web_path
 APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
@@ -68,31 +61,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parse command line arguments
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --force)
-                FORCE_INSTALL=true
-                shift
-                ;;
-            --cleanup)
-                CLEANUP_MODE=true
-                shift
-                ;;
-            --no-root)
-                USE_ROOT_MODE=false
-                USE_ROOT_MODE_SPECIFIED=true
-                shift
-                ;;
-            *)
-                echo "Unknown option: $1"
-                echo "Usage: $0 [--force] [--cleanup] [--no-root]"
-                exit 1
-                ;;
-        esac
-    done
-}
+# No script arguments. Everything is interactive prompts.
 
 # Extract version from filename (use full filename without extension as version)
 # Example: "Cursor-2.1.41-x86_64.AppImage" -> "Cursor-2.1.41-x86_64"
@@ -993,23 +962,21 @@ install_cursor() {
         remote_version=""
     fi
 
-    # Prompt for root mode if not already specified via command line
-    if [[ "$FORCE_INSTALL" != true ]] && [[ "${USE_ROOT_MODE_SPECIFIED:-false}" != true ]]; then
-        echo ""
-        echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
-        read -r response
-        case "$response" in
-            [nN]|[nN][oO])
-                USE_ROOT_MODE=false
-                print_info_from_common_functions "Installing in normal mode (no root)"
-                ;;
-            *)
-                USE_ROOT_MODE=true
-                print_info_from_common_functions "Installing in root mode (with pkexec)"
-                ;;
-        esac
-        echo ""
-    fi
+    # Prompt for root mode (interactive, no CLI args)
+    echo ""
+    echo -n "Do you want to install Cursor with root privileges (pkexec)? (Y/n): "
+    read -r response
+    case "$response" in
+        [nN]|[nN][oO])
+            USE_ROOT_MODE=false
+            print_info_from_common_functions "Installing in normal mode (no root)"
+            ;;
+        *)
+            USE_ROOT_MODE=true
+            print_info_from_common_functions "Installing in root mode (with pkexec)"
+            ;;
+    esac
+    echo ""
 
     # Check if already installed and prompt for upgrade/reinstall
     if is_cursor_installed; then
