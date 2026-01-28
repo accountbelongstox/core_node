@@ -1095,19 +1095,6 @@ install_cursor() {
 
     # Track if this is an upgrade operation
     local is_upgrade_operation=false
-    local remote_version=""
-
-    # Always get remote version from API (for both first install and upgrade)
-    print_step_from_common_functions "Checking for latest version from Cursor API..."
-    remote_version=$(get_remote_cursor_version)
-
-    if [[ -n "$remote_version" ]]; then
-        print_info_from_common_functions "Latest version available: $remote_version"
-    else
-        print_warning_from_common_functions "Unable to retrieve remote version from API"
-        print_info_from_common_functions "Will proceed with version detection from installer files"
-        remote_version=""
-    fi
 
     # Prompt for root mode (interactive, no CLI args)
     echo ""
