@@ -1194,10 +1194,6 @@ install_cursor() {
             if [[ $install_result -eq 0 ]]; then
                 break
             elif [[ $install_result -eq 2 ]]; then
-                print_warning_from_common_functions "Corrupted .deb detected (attempt $((retry_count + 1))/$max_retries)"
-                print_error_from_common_functions "File corruption detected: $cursor_file"
-                print_step_from_common_functions "Removing corrupted file and restarting installation..."
-
                 # Remove corrupted file
                 rm -f "$cursor_file" 2>/dev/null || true
                 $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1206,16 +1202,13 @@ install_cursor() {
                 sleep 2
 
                 # Restart the script with the same arguments
-                print_info_from_common_functions "Restarting script: $0 $@"
                 exec "$0" "$@"
             else
-                print_error_from_common_functions "Failed to install Cursor .deb package"
                 return 1
             fi
         done
 
         if [[ $install_result -ne 0 ]]; then
-            print_error_from_common_functions "Failed to install Cursor after $max_retries attempts"
             return 1
         fi
 
@@ -1226,10 +1219,6 @@ install_cursor() {
         local extract_result=$?
 
         if [[ $extract_result -eq 2 ]]; then
-            # File corruption detected
-            print_error_from_common_functions "File corruption detected: $cursor_file"
-            print_step_from_common_functions "Removing corrupted file and restarting installation..."
-
             # Remove corrupted file
             rm -f "$cursor_file" 2>/dev/null || true
             $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1239,22 +1228,17 @@ install_cursor() {
             sleep 2
 
             # Restart the script with the same arguments
-            print_info_from_common_functions "Restarting script: $0 $@"
             exec "$0" "$@"
         elif [[ $extract_result -ne 0 ]]; then
-            print_error_from_common_functions "Failed to extract Cursor AppImage"
             return 1
         fi
 
     else
-        print_error_from_common_functions "Unknown file type: $file_extension"
-        print_error_from_common_functions "Expected .deb or .AppImage"
         return 1
     fi
 
     # Create desktop entry
     if ! create_desktop_entry; then
-        print_error_from_common_functions "Failed to create desktop entry"
         return 1
     fi
 
