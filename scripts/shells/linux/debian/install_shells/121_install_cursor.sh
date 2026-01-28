@@ -1228,8 +1228,11 @@ install_cursor() {
     # Install based on type
     local file_extension="${cursor_file##*.}"
 
+    # Install based on type
+    print_step_from_common_functions "=== Installation Phase ==="
     if [[ "$file_extension" == "deb" ]]; then
         print_info_from_common_functions "Detected .deb package, using dpkg installation..."
+        print_info_from_common_functions "Package file: $(basename "$cursor_file")"
 
         # Install .deb package with automatic retry on corruption
         local install_result
@@ -1237,12 +1240,15 @@ install_cursor() {
         local retry_count=0
 
         while [[ $retry_count -lt $max_retries ]]; do
+            print_info_from_common_functions "Installation attempt: $((retry_count + 1))/$max_retries"
             install_deb_package "$cursor_file"
             install_result=$?
 
             if [[ $install_result -eq 0 ]]; then
+                print_success_from_common_functions ".deb package installation completed"
                 break
             elif [[ $install_result -eq 2 ]]; then
+                print_info_from_common_functions "File corruption detected, removing and restarting..."
                 # Remove corrupted file
                 rm -f "$cursor_file" 2>/dev/null || true
                 $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1253,21 +1259,26 @@ install_cursor() {
                 # Restart the script with the same arguments
                 exec "$0" "$@"
             else
+                print_info_from_common_functions "Installation failed with exit code: $install_result"
                 return 1
             fi
         done
 
         if [[ $install_result -ne 0 ]]; then
+            print_info_from_common_functions "Installation failed after $max_retries attempts"
             return 1
         fi
 
     elif [[ "$file_extension" == "AppImage" ]]; then
         print_info_from_common_functions "Detected AppImage, using extraction method..."
+        print_info_from_common_functions "AppImage file: $(basename "$cursor_file")"
 
+        print_step_from_common_functions "Extracting AppImage..."
         extract_appimage "$cursor_file"
         local extract_result=$?
 
         if [[ $extract_result -eq 2 ]]; then
+            print_info_from_common_functions "File corruption detected during extraction, removing and restarting..."
             # Remove corrupted file
             rm -f "$cursor_file" 2>/dev/null || true
             $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
@@ -1279,10 +1290,14 @@ install_cursor() {
             # Restart the script with the same arguments
             exec "$0" "$@"
         elif [[ $extract_result -ne 0 ]]; then
+            print_info_from_common_functions "AppImage extraction failed with exit code: $extract_result"
             return 1
+        else
+            print_success_from_common_functions "AppImage extraction completed"
         fi
 
     else
+        print_info_from_common_functions "Unknown file extension: $file_extension"
         return 1
     fi
 
