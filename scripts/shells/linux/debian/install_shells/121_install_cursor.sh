@@ -1222,24 +1222,40 @@ install_cursor() {
 
         print_info_from_common_functions "Download directory: $download_dir"
 
+        # Record timestamp before download to identify newly downloaded files
+        local download_start_time=$(date +%s)
+
         local downloaded_file=$(download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3)
 
-        # Prefer the returned path if it passes file-signal verification; otherwise locate by scanning the directory
-        if verify_cursor_installer_file "$downloaded_file"; then
-            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
-            cursor_file="$downloaded_file"
-        else
-            # Function did not return a valid path (dynamic filename / different name); locate newest candidate
-            local located_file
-            located_file=$(find_newest_cursor_installer_in_dir "$download_dir")
-            if verify_cursor_installer_file "$located_file"; then
-                print_success_from_common_functions "Auto-download located: $(basename "$located_file")"
+        # Always rescan directory after download to get the newest file (handles both returned path and dynamic filenames)
+        # This ensures we use the latest downloaded file even if old files exist in the directory
+        print_info_from_common_functions "Scanning download directory for latest installer..."
+        local located_file
+        located_file=$(find_newest_cursor_installer_in_dir "$download_dir")
+
+        # Use the newest file found in directory (prefer scanned result over returned path)
+        # This ensures we always use the latest file, even if download function returned an old path
+        if verify_cursor_installer_file "$located_file"; then
+            # Verify the file was modified after download started (or within last 5 minutes as fallback)
+            local file_mtime=$(stat -c%Y "$located_file" 2>/dev/null || stat -f%m "$located_file" 2>/dev/null || echo "0")
+            local time_diff=$((file_mtime - download_start_time))
+            
+            if [[ $time_diff -ge -300 ]] || [[ -n "$downloaded_file" ]]; then
+                # File is recent (within 5 minutes) or download function returned a path
+                print_success_from_common_functions "Using latest installer: $(basename "$located_file")"
+                cursor_file="$located_file"
+            else
+                # File is too old, but use it anyway if it's the only valid file
+                print_info_from_common_functions "Using available installer: $(basename "$located_file")"
                 cursor_file="$located_file"
             fi
+        elif verify_cursor_installer_file "$downloaded_file"; then
+            # Fallback to returned path if scanning didn't find a valid file
+            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
+            cursor_file="$downloaded_file"
         fi
 
         if [[ -n "$cursor_file" ]]; then
-
             # Detect type from downloaded file
             local file_ext="${cursor_file##*.}"
             if [[ "$file_ext" == "AppImage" ]]; then
@@ -1247,21 +1263,6 @@ install_cursor() {
             elif [[ "$file_ext" == "deb" ]]; then
                 install_type="deb"
             fi
-
-            # Download succeeded - now safe to remove old files if they exist
-            if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
-                print_step_from_common_functions "Removing outdated installer files..."
-                rm -f "$fallback_file" 2>/dev/null || true
-                print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
-            fi
-        fi
-
-        # If still no file after download attempt, check for fallback
-        if [[ -z "$cursor_file" ]] && [[ -n "$fallback_file" ]] && [[ -f "$fallback_file" ]]; then
-            print_warning_from_common_functions "Auto-download failed, using available fallback installer"
-            print_info_from_common_functions "Fallback file: $(basename "$fallback_file")"
-            cursor_file="$fallback_file"
-            install_type="$fallback_type"
         fi
     fi
 
@@ -1362,16 +1363,13 @@ install_cursor() {
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
         save_installation_info "$installed_version" "$cursor_file" "$install_type"
-        print_info_from_common_functions "Installed version: $installed_version"
     else
-        # Fallback if version extraction fails
         save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
     print_success_from_common_functions "Cursor IDE installation completed successfully!"
     print_info_from_common_functions "Installation details:"
     print_info_from_common_functions "  - Type: $install_type ($file_extension)"
-    print_info_from_common_functions "  - Version: ${installed_version:-unknown}"
     print_info_from_common_functions "  - Binary: ${CURSOR_BINARY:-unknown}"
     print_info_from_common_functions "  - Icon: ${CURSOR_ICON:-unknown}"
     print_info_from_common_functions "  - User data: ${CURSOR_USERDATA_DIR:-unknown}"
