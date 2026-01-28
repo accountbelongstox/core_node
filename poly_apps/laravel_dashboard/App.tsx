@@ -13,7 +13,7 @@ import Settings from './components/views/Settings';
 import BankManager from './components/views/BankManager';
 import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
-import { HtmlErrorModal } from './components/debug/HtmlErrorModal';
+import { HtmlErrorModal } from './components/HtmlErrorModal';
 import { ApiConfigProvider, useApiConfig } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import { ToastProvider, InviteCodeManager } from './components/admin';
