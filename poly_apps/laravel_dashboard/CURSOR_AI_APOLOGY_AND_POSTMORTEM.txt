@@ -734,5 +734,59 @@ then the minimal change set should be:
 - Add a size check and optionally ELF magic check
 - Do not touch anything else
 
+35) Why an AI assistant can “make code worse over time” (technical summary)
+---------------------------------------------------------------------------
+This section answers the practical question: “why does it feel like the AI keeps writing worse code?”
+It’s not a moral issue; it is usually a process+constraints issue.
+
+35.1) Goal drift (requirements expand mid-flight)
+- When requirements change rapidly (silent vs verbose, no exit codes, full progress, refactor for brevity),
+  a naive approach keeps layering new behavior on top of old behavior without a stable target.
+Result:
+- inconsistent UX
+- duplicated logic
+- larger surface area for bugs
+
+35.2) Overfitting to the most recent failure message
+- If the only signal is “it failed here”, the AI may patch around that symptom (add retries, add scans),
+  rather than locating the true invariant (where the file is, and how to reliably locate it).
+Result:
+- complex workaround code
+- fragile edge-case branches
+
+35.3) Re-implementing existing utilities instead of reusing them
+- In this repo, common_functions.sh already provides Downloads scanning helpers.
+- Re-implementing scanning in the install script duplicates behavior and makes future maintenance harder.
+Result:
+- two sources of truth
+- divergence and regressions
+
+35.4) Output/return-value mixing in shell scripts
+- Shell has a sharp edge: stdout is both “user output” and “function return channel” (via $(...)).
+- If logs are printed to stdout, they can corrupt captured values.
+Result:
+- “it printed nothing” (logs got captured)
+- “file not found” (because the variable got polluted)
+
+35.5) Refactoring plus behavior change in one patch
+- Combining “make it cleaner” with “change what it does” makes it hard to see what broke what.
+Result:
+- long diffs
+- difficult rollbacks
+
+35.6) Lack of a strict change budget
+- Without a hard limit like “touch only 20 lines”, an AI may do broad edits to satisfy multiple objectives.
+Result:
+- file bloat
+- higher risk of breaking unrelated logic
+
+35.7) The correct countermeasures
+- Enforce a change budget per fix (small diffs first).
+- Keep behavior changes separate from refactors.
+- Reuse shared helpers from common_functions.sh.
+- In shell: stdout for return values, stderr for progress logs.
+- Prefer “locate-after-download” using a stable, minimal candidate selection rule.
+
+
 
 
