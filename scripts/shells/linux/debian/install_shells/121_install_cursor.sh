@@ -1129,72 +1129,21 @@ install_cursor() {
             print_info_from_common_functions "Installation type: $installed_type"
         fi
 
-        # Compare versions (remote_version already fetched above)
-        if [[ -n "$remote_version" ]] && [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Cursor is already up to date (version $installed_version)"
-            print_info_from_common_functions "No upgrade needed"
-            return 0
-        fi
-
-        # Compare versions and prompt for upgrade
-        local prompt_message=""
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            prompt_message="Cursor $installed_version is installed. Upgrade to $remote_version? (Y/n): "
-        else
-            prompt_message="Do you want to remove the existing installation and reinstall? (y/N): "
-        fi
-
-        echo -n "$prompt_message"
+        # Prompt for reinstall
+        echo -n "Do you want to remove the existing installation and reinstall? (y/N): "
         read -r response
 
-        # Handle upgrade prompt (Y is default for upgrade, N is default for reinstall)
-        local should_proceed=false
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            # Upgrade prompt - Y is default
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Upgrade cancelled - keeping existing installation"
-                    return 0
-                    ;;
-                *)
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with upgrade to $remote_version..."
-                    ;;
-            esac
-        else
-            # Reinstall prompt - N is default
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with reinstallation..."
-                    ;;
-                *)
-                    print_info_from_common_functions "Installation cancelled - keeping existing installation"
-                    return 0
-                    ;;
-            esac
-        fi
-
-        if [[ "$should_proceed" == true ]]; then
-            print_info_from_common_functions "Cleaning up existing installation..."
-            cleanup_cursor
-
-            # Mark as upgrade operation
-            is_upgrade_operation=true
-
-            # NOTE: Do NOT delete old installer files yet!
-            # Keep them as fallback in case download fails
-            print_info_from_common_functions "Old installer files in Downloads will be kept as fallback"
-
-            # For upgrades, open download page immediately to prepare user
-            if [[ -n "$remote_version" ]]; then
-                print_step_from_common_functions "Opening Cursor download page..."
-                print_info_from_common_functions "Please download Cursor version $remote_version"
-                open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
-                print_info_from_common_functions "The script will try to auto-download, but manual download may be needed"
-                sleep 2  # Give browser time to open
-            fi
-        fi
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation..."
+                cleanup_cursor
+                is_upgrade_operation=true
+                ;;
+            *)
+                print_info_from_common_functions "Installation cancelled - keeping existing installation"
+                return 0
+                ;;
+        esac
     fi
 
     # Install dependencies
@@ -1247,27 +1196,10 @@ install_cursor() {
         print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
     fi
 
-    # If we found an existing file, check its version
+    # If we found an existing file, use it directly (no version checking)
     if [[ -n "$cursor_file" ]]; then
-        existing_file_version=$(extract_version_from_filename "$cursor_file")
-        print_info_from_common_functions "Found installer version: $existing_file_version"
-
-        # Check if existing file matches the target version
-        if [[ -n "$remote_version" ]] && [[ "$existing_file_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Found installer already matches target version: $remote_version"
-            print_info_from_common_functions "No download needed - using existing file"
-        elif [[ -n "$remote_version" ]] && [[ "$existing_file_version" != "$remote_version" ]]; then
-            print_info_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
-            print_info_from_common_functions "Will attempt to download newer version..."
-
-            # Keep the old file path for fallback
-            local fallback_file="$cursor_file"
-            local fallback_type="$install_type"
-
-            # Clear cursor_file to trigger download attempt
-            cursor_file=""
-            install_type=""
-        fi
+        print_success_from_common_functions "Found installer: $(basename "$cursor_file")"
+        print_info_from_common_functions "Using existing installer file"
 
         # Check for installation type conflict
         if [[ -n "$cursor_file" ]] && [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
