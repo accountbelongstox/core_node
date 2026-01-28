@@ -481,5 +481,258 @@ If you want me to re-fix the restored script:
 - I will not touch unrelated CLI parsing, install flow, desktop entry logic.
 - I will keep logs minimal and consistent.
 
+29) Difference checklist (exactly what changed)
+----------------------------------------------
+This incident touched only one tracked file for the script itself:
+- scripts/shells/linux/debian/install_shells/121_install_cursor.sh
+
+However, within that file, the “before restore” version (the one that ballooned) diverged from the “3 days ago” version in these categories:
+
+29.1) CLI / interface differences
+- Removed or altered argument parsing and flags (e.g., --force / --cleanup / --no-root) in some rewrites.
+- Shifted behavior from “flag-driven” to “prompt-driven” in some paths.
+
+29.2) Cursor download URL / version discovery differences
+- Changed from “fixed version path segment” to “redirect-to-latest endpoint”.
+- Introduced or removed “version variable” in different iterations.
+
+29.3) Download validation differences
+- Moved from trusting tool exit code to file-based validation (exists/size).
+- Added additional checks and multiple fallback scans.
+- Added thresholds and repeated checks in multiple places.
+
+29.4) Downloads directory scanning differences
+- Changed from a previously existing scanning helper approach to an in-script scanning implementation.
+- Introduced scanning across multiple directories and multiple patterns.
+- Added directory listing debug output.
+
+29.5) Logging differences
+- Switched between:
+  - generic error prints,
+  - silent failures,
+  - and very verbose progress logs.
+- Introduced the stdout-vs-stderr discipline (logs to stderr, return values to stdout).
+
+29.6) Installation path differences (.deb vs AppImage)
+- Added or modified:
+  - .deb integrity checks,
+  - retry behavior on “corruption” detection,
+  - extraction steps for AppImage,
+  - and permission fixes for chrome-sandbox.
+
+29.7) Desktop entry differences
+- Expanded logging and checks around desktop entry creation.
+- In some revisions, changed disable/enable logic for system desktop entries.
+
+29.8) Metadata tracking differences
+- Expanded installation info file to store additional metadata (e.g., size).
+
+30) Minimal “backfill” plan (回补方案) on top of the restored script
+------------------------------------------------------------------
+Goal:
+- Restore “3 days ago” behavior as baseline
+- Add ONLY what is required to fix the real bug: “downloaded file exists but script can’t find it”
+
+Constraints:
+- Do not refactor
+- Do not change CLI UX
+- Do not add large new functions
+- Use file-based verification
+- Keep logs minimal and stable
+
+30.1) Backfill Step A — Determine the real download destination
+- Resolve download_dir once:
+  - Prefer $HOME/Downloads if exists
+  - Else fall back to /home/*/Downloads (first match)
+  - Else /tmp
+
+30.2) Backfill Step B — Locate “the newest candidate” after download
+Approach (minimal, safe):
+- Scan only the chosen download_dir (not the entire system) first:
+  - Pattern set:
+    - Cursor*.AppImage
+    - cursor*.AppImage
+    - Cursor*.deb
+    - cursor*.deb
+- Pick newest by mtime.
+
+If not found:
+- Then scan all downloads dirs using existing helper:
+  - find_file_in_downloads_from_common_functions(pattern, newest)
+
+30.3) Backfill Step C — Verify the chosen file by file signals
+Minimum:
+- exists, is regular file
+- size >= 50MB
+
+Optional (stronger without bloat):
+- ELF magic bytes check for AppImage:
+  - first bytes: 0x7F 45 4C 46
+
+30.4) Backfill Step D — Proceed to existing install/extract code path
+- Do not alter install logic beyond replacing the “source file path” with the located candidate.
+
+30.5) Backfill Step E — Minimal observability
+Print only:
+- resolved download_dir
+- selected candidate path
+- candidate size
+
+30.6) Backfill Step F — Output discipline
+If code uses:
+  path="$(locate...)"
+Then:
+- locate() prints ONLY the path to stdout
+- logs go to stderr
+
+31) Verification strategy (not “tests”, just operational verification)
+---------------------------------------------------------------------
+You requested file-based verification, so the verification strategy focuses on file observations and deterministic steps.
+
+31.1) Verification matrix
+- Case 1: Successful download with expected filename:
+  - Expect: locate finds it in download_dir
+- Case 2: Successful download with different case/prefix (Cursor vs cursor):
+  - Expect: locate finds it via case-insensitive scan
+- Case 3: Download saved to different user’s Downloads dir:
+  - Expect: primary scan fails; global scan finds it
+- Case 4: Partial download (too small):
+  - Expect: size check rejects it
+- Case 5: HTML error page saved as .AppImage:
+  - Expect: size check rejects it; optional ELF magic check rejects it
+
+31.2) Verification signals to print (minimal)
+- download_dir: absolute path
+- candidate: absolute path
+- candidate size bytes (and optional human readable)
+- chosen install type: deb/appimage
+
+31.3) Verification guardrails
+- Never delete a candidate unless we can prove it is corrupt (size threshold + optional header check).
+- If corruption is suspected, keep the file and ask the operator to inspect it manually (avoid auto-delete loops).
+
+32) Script structure refactor plan (only AFTER bug fix is proven)
+----------------------------------------------------------------
+This is a plan, not an immediate change. The point is to keep the script shorter and safer.
+
+32.1) Target structure (functions)
+- resolve_download_dir()
+- locate_installer(download_dir)   # stdout path only, stderr logs
+- verify_installer(path)           # returns 0/1, no side effects
+- install_from_deb(path)
+- install_from_appimage(path)
+- setup_desktop_entry()
+- persist_install_metadata(path, type, version)
+
+32.2) Deduplication opportunities
+- One place for “size threshold”
+- One place for “case-insensitive pattern list”
+- One place for “candidate selection newest by mtime”
+- One place for “stderr logging helpers”
+
+32.3) Keep common logic in common_functions.sh
+- If there is already a helper for “find newest in downloads”, use it.
+- Do not duplicate download scanning logic in each install script.
+
+32.4) Minimize risk when refactoring
+- Move logic into helpers without changing behavior first (mechanical extraction).
+- Then do behavior changes separately (one PR/commit per behavior).
+
+33) Risk analysis by section (逐段代码风险点说明)
+-------------------------------------------------
+This section describes typical risk points in each major area of the Cursor installer script.
+
+33.1) Version discovery
+Risks:
+- API endpoints change / redirect behavior changes
+- network timeouts
+- partial header fetch leading to wrong filename parsing
+Mitigations:
+- keep a fallback (manual download path)
+- do not hardcode a version unless required
+
+33.2) Download invocation
+Risks:
+- downloader writes to a different dir than expected
+- downloader succeeds but returns empty/incorrect “output path”
+- proxy/CDN returns HTML on 200 OK
+Mitigations:
+- always locate by scanning the directory after download
+- always validate file size and (optionally) ELF magic bytes
+
+33.3) Candidate selection / scanning
+Risks:
+- pattern mismatch due to capitalization
+- scanning too broadly returns wrong file (old installer)
+- race condition: scanning before file is fully written
+Mitigations:
+- case-insensitive scan
+- choose newest by mtime and/or “not present before download”
+- optionally wait for size stability over short interval
+
+33.4) File validation
+Risks:
+- size threshold too low rejects nothing
+- size threshold too high rejects valid smaller releases (unlikely but possible)
+- relying on file extension only
+Mitigations:
+- keep threshold conservative (50MB)
+- optionally add ELF magic check for AppImage
+
+33.5) AppImage extraction
+Risks:
+- extraction requires exec permission
+- missing FUSE on some systems
+- squashfs-root missing after extraction
+Mitigations:
+- chmod +x before extract
+- verify squashfs-root exists after extract
+- print extraction location
+
+33.6) chrome-sandbox permissions
+Risks:
+- incorrect permissions break launch
+- setting setuid in wrong location is a security concern
+Mitigations:
+- locate chrome-sandbox precisely
+- apply permissions only to that file
+- document why it is needed
+
+33.7) .deb installation
+Risks:
+- dpkg fails due to dependencies
+- apt-get fix introduces unrelated package changes
+Mitigations:
+- print dpkg errors clearly
+- prefer minimal dependency fixes
+
+33.8) Desktop entry creation
+Risks:
+- wrong user context (root vs desktop user)
+- wrong icon path or missing icon
+- duplicate desktop entries
+Mitigations:
+- detect desktop user deterministically
+- verify binary exists and is executable
+- disable duplicates carefully
+
+33.9) Metadata persistence
+Risks:
+- saving stale path to a file that later moves
+- permission issues writing to GLOBAL_VAR_DIR
+Mitigations:
+- save only stable paths
+- include version and size
+
+34) “If I had to do it again”: the exact minimal code change set
+---------------------------------------------------------------
+If the restored script still reproduces:
+  “download succeeded but installer not found”
+then the minimal change set should be:
+- Add (or reuse) one helper to locate the newest matching installer
+- Replace only the “install file path” assignment with that helper result
+- Add a size check and optionally ELF magic check
+- Do not touch anything else
+
 
 
