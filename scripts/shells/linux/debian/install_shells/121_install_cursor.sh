@@ -694,29 +694,35 @@ cursor_manual_download_deprecated() {
 check_deb_integrity() {
     local deb_file="$1"
 
-    print_step_from_common_functions "Checking .deb file integrity..."
+    print_info_from_common_functions "Checking .deb file integrity..."
 
     if [[ ! -f "$deb_file" ]]; then
-        print_error_from_common_functions ".deb file not found: $deb_file"
+        print_info_from_common_functions ".deb file not found: $deb_file"
         return 1
     fi
 
     local file_size=$(stat -c%s "$deb_file" 2>/dev/null || echo "0")
+    print_info_from_common_functions "File size: $file_size bytes ($(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes"))"
 
     if [[ "$file_size" -lt 50000000 ]]; then
-        print_warning_from_common_functions ".deb file too small ($file_size bytes), expected > 50MB"
+        print_info_from_common_functions "File size validation failed: $file_size bytes < 50000000 bytes (50MB)"
         return 1
     fi
+    print_info_from_common_functions "File size check: PASSED"
 
+    print_info_from_common_functions "Running dpkg-deb --info check..."
     if ! dpkg-deb --info "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (dpkg-deb check failed)"
+        print_info_from_common_functions "dpkg-deb check: FAILED"
         return 1
     fi
+    print_info_from_common_functions "dpkg-deb check: PASSED"
 
+    print_info_from_common_functions "Running ar archive check..."
     if ! ar t "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (ar archive check failed)"
+        print_info_from_common_functions "ar archive check: FAILED"
         return 1
     fi
+    print_info_from_common_functions "ar archive check: PASSED"
 
     print_success_from_common_functions ".deb file integrity check passed"
     return 0
@@ -726,40 +732,55 @@ check_deb_integrity() {
 install_deb_package() {
     local deb_file="$1"
 
-    print_step_from_common_functions "Installing Cursor from .deb package..."
+    print_step_from_common_functions "=== .deb Package Installation Phase ==="
+    print_info_from_common_functions "Package file: $deb_file"
 
+    # Step 1: Check integrity
+    print_step_from_common_functions "Step 1: Checking .deb file integrity..."
     if ! check_deb_integrity "$deb_file"; then
-        print_error_from_common_functions ".deb file integrity check failed"
-        print_step_from_common_functions "Removing corrupted file: $deb_file"
+        print_info_from_common_functions ".deb file integrity check failed"
+        print_info_from_common_functions "Removing corrupted file: $deb_file"
         rm -f "$deb_file"
         return 2
     fi
+    print_success_from_common_functions "File integrity check passed"
 
-    # Create directories for tracking
+    # Step 2: Create directories
+    print_step_from_common_functions "Step 2: Creating installation directories..."
+    print_info_from_common_functions "Package directory: $CURSOR_PACKAGE_DIR"
+    print_info_from_common_functions "Bin directory: $CURSOR_BIN_DIR"
     $USE_SUDO mkdir -p "$CURSOR_PACKAGE_DIR" "$CURSOR_BIN_DIR"
+    print_success_from_common_functions "Directories created"
 
-    # Copy deb file to installation directory for backup
-    print_step_from_common_functions "Backing up .deb file to $CURSOR_PACKAGE_DIR"
+    # Step 3: Backup .deb file
+    print_step_from_common_functions "Step 3: Backing up .deb file..."
+    print_info_from_common_functions "Backup location: $CURSOR_PACKAGE_DIR"
     $USE_SUDO cp "$deb_file" "$CURSOR_PACKAGE_DIR/"
+    print_success_from_common_functions ".deb file backed up"
 
-    # Install the .deb package
-    print_step_from_common_functions "Installing Cursor via dpkg..."
+    # Step 4: Install the .deb package
+    print_step_from_common_functions "Step 4: Installing Cursor via dpkg..."
+    print_info_from_common_functions "Running: dpkg -i $deb_file"
     if $USE_SUDO dpkg -i "$deb_file"; then
-        print_success_from_common_functions "Cursor .deb package installed successfully"
+        print_success_from_common_functions "dpkg installation completed"
     else
-        print_warning_from_common_functions "dpkg installation had issues, attempting to fix dependencies..."
+        print_info_from_common_functions "dpkg installation had issues, fixing dependencies..."
+        print_info_from_common_functions "Running: apt-get install -f -y"
         $USE_SUDO apt-get install -f -y
+        print_success_from_common_functions "Dependencies fixed"
     fi
 
-    # Verify installation
+    # Step 5: Verify installation
+    print_step_from_common_functions "Step 5: Verifying installation..."
     if ! dpkg -l | grep -q "^ii.*cursor"; then
-        print_error_from_common_functions "Cursor package installation failed"
-        print_step_from_common_functions "Removing corrupted backup file..."
+        print_info_from_common_functions "Cursor package not found in dpkg list"
+        print_info_from_common_functions "Removing corrupted backup file..."
         $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$deb_file")" 2>/dev/null || true
         return 1
     fi
-
-    print_success_from_common_functions "Cursor installed successfully via dpkg"
+    
+    local installed_version=$(dpkg -l | grep "^ii.*cursor" | awk '{print $3}')
+    print_success_from_common_functions "Cursor installed successfully via dpkg (version: $installed_version)"
     return 0
 }
 
@@ -1328,18 +1349,22 @@ install_cursor() {
     fi
 
     # Create desktop entry
+    print_step_from_common_functions "=== Desktop Entry Creation Phase ==="
     if ! create_desktop_entry; then
+        print_info_from_common_functions "Desktop entry creation failed"
         return 1
     fi
+    print_success_from_common_functions "Desktop entry created"
 
     # Save installation info with version and type
-    print_step_from_common_functions "Saving installation info..."
+    print_step_from_common_functions "=== Saving Installation Info ==="
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
+        print_info_from_common_functions "Extracted version: $installed_version"
         save_installation_info "$installed_version" "$cursor_file" "$install_type"
-        print_info_from_common_functions "Installed version: $installed_version"
+        print_info_from_common_functions "Installation info saved"
     else
-        # Fallback if version extraction fails
+        print_info_from_common_functions "Version extraction failed, using 'unknown'"
         save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
