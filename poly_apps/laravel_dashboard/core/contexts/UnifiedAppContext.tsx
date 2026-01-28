@@ -17,7 +17,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { ViewType, Language, Theme } from '../../types';
 import { User, UserPreferences } from '../types';
-import { StorageManager, StorageKeys } from '../storage';
+import { StorageManager, StorageKeys } from '../persistence';
 import { userModel } from '../models';
 
 /**
