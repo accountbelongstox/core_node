@@ -1442,14 +1442,18 @@ prompt_cleanup_reinstall() {
 
 # Main script execution
 main() {
-    # Parse arguments
-    parse_arguments "$@"
-
-    # Handle cleanup mode
-    if [[ "$CLEANUP_MODE" == true ]]; then
-        cleanup_cursor
-        exit $?
-    fi
+    # Interactive cleanup prompt (no CLI args)
+    echo ""
+    echo -n "Do you want to run cleanup only (remove Cursor) and exit? (y/N): "
+    read -r response
+    case "$response" in
+        [yY]|[yY][eE][sS])
+            cleanup_cursor
+            exit $?
+            ;;
+        *)
+            ;;
+    esac
 
     # Check if we have a desktop environment (Cursor is a GUI application)
     # Only skip if we're on a pure server without any desktop environment
@@ -1462,18 +1466,10 @@ main() {
     print_header_from_common_functions "Cursor IDE Installation Script"
     print_info_from_common_functions "Installation Directory: $CURSOR_INSTALL_DIR"
 
-    # Force cleanup if --force flag is specified
-    if [[ "$FORCE_INSTALL" == true ]]; then
-        if is_cursor_installed; then
-            print_info_from_common_functions "Force install specified - cleaning up existing installation..."
-            cleanup_cursor
-        fi
-    fi
-
-    # Run installation (will prompt for cleanup if already installed and not forced)
+    # Run installation (will prompt for upgrade/reinstall inside install_cursor)
     install_cursor
     exit $?
 }
 
-# Run main function with all arguments
-main "$@"
+# Run main function (no arguments supported)
+main
