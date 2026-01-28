@@ -1,5 +1,5 @@
 import { Language } from '../../types';
-import { StorageManager, StorageKeys } from '../storage';
+import { StorageManager, StorageKeys } from '../persistence';
 
 /**
  * LanguageModel

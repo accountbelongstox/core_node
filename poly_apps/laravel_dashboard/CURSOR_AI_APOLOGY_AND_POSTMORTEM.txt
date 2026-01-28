@@ -1,0 +1,792 @@
+CURSOR AI — APOLOGY & POSTMORTEM (INCIDENT REPORT)
+==================================================
+
+Date: 2026-01-28
+Scope: scripts/shells/linux/debian/install_shells/121_install_cursor.sh
+Audience: Repo owner / maintainers / future contributors
+
+0) Short apology
+---------------
+I’m sorry.
+I made changes that were too large, too noisy, and not aligned with the existing script’s style and expectations.
+I also introduced contradictory behavior (removing errors, then re-adding verbose output) and increased file length significantly.
+This wasted your time and trust.
+
+I will not mirror abusive language in this document.
+This is a technical apology and a technical reflection.
+
+1) What you asked for (and what I failed to respect)
+----------------------------------------------------
+You wanted:
+- A Cursor installer script that reliably downloads the latest build.
+- Verification by file presence/size/content signals (not exit codes).
+- After download: scan the download directory using pattern matching to locate the installer (dynamic filename).
+- Clear sequential flow: download -> detect -> verify -> install/extract -> desktop entry.
+- Reduce redundancy, reuse helpers, keep the script readable and shorter.
+
+I failed because:
+- I changed too many unrelated parts at once (CLI parsing, URL handling, error messages, install flow).
+- I introduced “verbose progress” but accidentally made it invisible when wrapped by command substitution $(...).
+- I repeatedly shifted the style direction (silent failures vs verbose logs), producing inconsistent behavior.
+
+2) What happened (timeline)
+---------------------------
+T0: Script downloaded AppImage successfully, but later printed “Failed to download Cursor installer”.
+T1: I modified download/validation logic with the intent to rely on file existence/size rather than exit codes.
+T2: I added a new function that attempted to “download then scan”, but I did not preserve the original scanning behavior.
+T3: You requested removal of catch-like blocks / generic errors; I removed some messages and later reintroduced others.
+T4: You requested full progress output; I added lots of prints, but due to $(download_and_rename_cursor ...) those prints were swallowed.
+T5: I finally corrected the “swallowed logs” issue by sending progress logs to stderr.
+T6: You requested restoring the file to 3 days ago, which was performed; a backup copy was created.
+
+3) Root cause (technical)
+-------------------------
+The immediate technical root cause of “download succeeded but script says it failed” is usually one of:
+- The downloader saved the file under a name that the script did not search for.
+- The “download function returns path” did not match the actual saved path.
+- The script expected the file in one directory but the downloader wrote to another.
+- The file was present but the script’s validation logic used the wrong conditions.
+
+In my case, the “progress not showing” root cause was:
+- Using command substitution: cursor_file=$(download_and_rename_cursor ...)
+  Command substitution captures stdout. Any progress printed to stdout was captured into the variable instead of shown.
+  That made it look like nothing happened (no scanning, no download messages), while also potentially corrupting the variable.
+
+4) Root cause (process / engineering)
+-------------------------------------
+I violated a basic safety rule for scripting maintenance:
+- Do not refactor and re-spec behavior in the same patch.
+
+I also violated another:
+- Do not replace working, locally consistent logic with new unproven logic when evidence is incomplete.
+
+Because the script was already integrated with common functions:
+- The correct approach should have been to reuse the existing download detection helpers (find_file_in_downloads_from_common_functions),
+  and patch only the incorrect branch that incorrectly concludes “download failed”.
+
+Instead, I:
+- Reimplemented “download + locate file” logic in the script.
+- Expanded prints and error handling in multiple directions.
+- Increased file length substantially.
+
+5) Specific “bad changes” I made (examples)
+-------------------------------------------
+This is the honest list of the kinds of changes that were “garbage” in the context of your repo:
+
+5.1) Oversized new function
+---------------------------
+I introduced a large “download_and_rename_cursor” function with:
+- multiple patterns,
+- scanning multiple dirs,
+- printing directory listings,
+- renaming logic,
+- size checks,
+- and lots of log output.
+
+This increased the script size and complexity.
+It also duplicated behavior that already exists in common_functions.sh.
+
+5.2) Inconsistent policy: silent vs verbose
+-------------------------------------------
+You asked to remove generic “catch” messages.
+Later you asked for complete progress details.
+I oscillated between:
+- removing all error messages,
+- then re-adding verbose logs everywhere.
+
+That produced:
+- confusing output,
+- inconsistent UX,
+- and harder debugging.
+
+5.3) Changing CLI behavior without necessity
+--------------------------------------------
+In the diff against the older revision, CLI parsing was removed or changed.
+This is an example of scope creep.
+It was not required to fix download validation.
+
+5.4) Output captured unintentionally
+------------------------------------
+I printed progress to stdout inside a function that was used with $(...).
+This is a classic shell pitfall.
+It caused:
+- missing logs on screen,
+- and risk of polluting the captured return value.
+
+5.5) Duplicated verification
+----------------------------
+I added repeated “file exists + size > 50MB” checks in multiple places.
+That should be a single helper:
+- verify_installer_file(path)
+and then reuse it.
+
+6) Why I changed “a ton of code” (honest explanation)
+-----------------------------------------------------
+The main drivers were:
+- trying to satisfy “do not use exit codes” by rewriting validation paths,
+- trying to satisfy “show all progress” by adding more output,
+- and trying to handle dynamic filenames by scanning directories after download.
+
+But those goals can be achieved with minimal changes.
+I failed by choosing “rewrite” instead of “surgical patch”.
+
+7) What the correct minimal approach should be
+----------------------------------------------
+The ideal fix should have been:
+- Keep the existing download function call.
+- After download, locate the newest matching installer in the intended download directory using:
+  - find_file_in_downloads_from_common_functions "Cursor*.AppImage" "newest"
+  - or scanning just $download_dir with a strict pattern
+- Validate file using:
+  - existence
+  - non-zero size
+  - minimum size threshold
+  - (optional) magic bytes / AppImage header checks (if desired)
+- Proceed to extraction/install steps.
+- Log progress in a way that does not break command substitution.
+  Prefer:
+  - stderr for progress
+  - stdout for returned “result values”
+
+8) Commitments / “how I’ll avoid this next time”
+------------------------------------------------
+8.1) Scope control
+- Only fix the failing branch first.
+- No refactors until the bug is resolved.
+
+8.2) “One abstraction rule”
+- If a behavior exists in common_functions.sh, reuse it.
+- Do not clone it into the install script.
+
+8.3) Shell output discipline
+- If a function is intended to be used with $(...), it must:
+  - print only the return value on stdout,
+  - send progress logs to stderr.
+
+8.4) Minimize file growth
+- Prefer small helpers over large monolithic functions.
+- Prefer reusing existing “Downloads detection” helpers rather than custom find/ls pipelines.
+
+9) Notes about the backup & restore you requested
+-------------------------------------------------
+You requested:
+- backup current file
+- restore only this file to 3 days ago
+
+This was performed as:
+- Backup created:
+  - scripts/shells/linux/debian/install_shells/121_install_cursor.sh.bak_20260128_before_restore
+- File restored (only this file) from commit:
+  - 6b5d687ef69b596f613a4807140837c5488a4e31
+
+10) Where “my junk code” was located (map)
+------------------------------------------
+In the “newer” version (before restore), the major problematic blocks were:
+- Added helper log functions:
+  - log_step_stderr / log_info_stderr / log_success_stderr
+- Added large function:
+  - download_and_rename_cursor()
+- Expanded / rewired phases:
+  - download verification phase in install_cursor()
+  - more verbose extraction/install routines
+
+These changes are what ballooned the file and increased risk.
+
+11) Closing
+-----------
+Again: I’m sorry for the churn and the mess.
+If you want the actual technical fix on top of the restored “3 days ago” script:
+- I can re-apply ONLY the minimal safe parts (dynamic filename scan + file-based verification),
+  and keep the script short by reusing existing common functions.
+
+12) Detailed analysis of the “dynamic filename” problem
+-------------------------------------------------------
+The Cursor download endpoint uses redirects and produces filenames that can change:
+- Cursor-<version>-x86_64.AppImage
+- Cursor-<version>-x86_64.AppImage?query=...
+- or other CDN path segments that are not predictable
+
+Therefore, logic that assumes a hardcoded filename is fragile.
+The robust pattern is:
+- Download into a known directory
+- Then search for the newest matching file with a conservative pattern
+- Validate it by size (and optionally by header signatures)
+
+Key pitfalls that must be avoided:
+- Searching only for lowercase “cursor*.AppImage” while the file is “Cursor-...AppImage”
+- Searching only one directory while the downloader wrote somewhere else
+- Searching before the file is fully written (race)
+- Using `$(...)` and printing progress to stdout (logs get captured)
+
+13) How to validate by file content (not exit codes)
+----------------------------------------------------
+File verification can be layered:
+13.1) Presence checks
+- `[[ -f "$path" ]]` and `[[ -s "$path" ]]`
+
+13.2) Size checks
+- Cursor AppImage typically is hundreds of MB.
+- A minimum threshold (e.g. 50MB) filters out HTML error pages or partial downloads.
+
+13.3) “Magic bytes” checks (optional but stronger)
+- AppImage is based on an ELF binary.
+- Checking the first 4 bytes for ELF magic:
+  - 0x7F 45 4C 46 (ASCII: \x7F E L F)
+
+13.4) MIME / file type checks (optional)
+- `file "$path"` contains “ELF 64-bit LSB executable” for a valid AppImage
+
+Note:
+None of these requires trusting the downloader’s exit code.
+They are direct observations about the file itself.
+
+14) Why my earlier scanning approach still failed in practice
+-------------------------------------------------------------
+Even with patterns like “cursor*.AppImage” and “Cursor*.AppImage”, failure can still happen if:
+- The downloader saved into a different directory than the script searched.
+- The download completed but the script tried to locate the file before the filesystem updated (race).
+- The environment uses multiple HOME users, and the script runs under different user contexts (sudo/pkexec).
+
+The correct approach is:
+- Capture “download directory” deterministically for the exact running user context.
+- Record a “pre-download snapshot” list of matching files (or newest mtime).
+- After download, scan again and pick the newest file not present before.
+
+15) The shell output discipline rule (expanded)
+-----------------------------------------------
+If a function returns a value with stdout and is called like:
+  result="$(func)"
+then:
+- stdout MUST contain only the “return value”
+- stderr SHOULD contain logs, progress, and debug output
+
+Example:
+- func() { echo "/path/to/file"; }    # OK
+- func() { echo "downloading..."; echo "/path"; }  # BAD (stdout polluted)
+- func() { echo "downloading..." >&2; echo "/path"; }  # OK
+
+This rule alone would have prevented a large portion of the confusion.
+
+16) “Minimal patch strategy” checklist
+--------------------------------------
+To avoid “rewrite accidents”, a minimal patch strategy is:
+16.1) Identify the smallest failing condition
+- Here: “downloaded file exists but script thinks it doesn't”
+
+16.2) Preserve working code paths
+- Keep existing download helpers and install steps
+
+16.3) Add a single well-scoped helper
+- E.g. `locate_cursor_installer_after_download(download_dir)`
+
+16.4) Add minimal observability
+- Print: chosen directory, chosen file, and file size
+- Avoid adding 50 extra debug lines unless necessary
+
+16.5) Only then refactor for reuse
+- Once the bug is fixed and verified by real usage
+
+17) Concrete code-level mistakes I made (more explicit)
+-------------------------------------------------------
+17.1) I introduced unnecessary policy changes
+- Changing argument parsing or forcing a different UX was not required.
+
+17.2) I duplicated existing utilities
+- The repo already has downloads detection helpers; I added parallel logic instead.
+
+17.3) I changed error reporting direction multiple times
+- First: verbose errors
+- Then: silent returns
+- Then: verbose progress again
+
+This inconsistency itself is a reliability problem.
+
+18) Preventing regression: decisions that must be documented in code comments
+-----------------------------------------------------------------------------
+Even in shell scripts, a few comments should clarify:
+- Why stderr is used for progress logs
+- What filename patterns are acceptable
+- What minimum size thresholds represent and why
+- Why we avoid relying on exit codes in this specific context
+
+19) Final apology (without theatrics)
+-------------------------------------
+I’m sorry for:
+- the churn
+- the file bloat
+- the inconsistent behavior
+- and the time lost debugging changes that should not have existed
+
+I accept that the right way forward is:
+- restore to a known good revision
+- re-apply only the minimal safe fix
+- keep changes small and reviewable
+
+20) Deep dive: what “download succeeded but script failed” really means
+-----------------------------------------------------------------------
+When a user sees the downloader report 200 OK and the file appears on disk,
+yet the script prints “download failed”, the script is wrong about at least one of:
+- the directory
+- the filename pattern
+- the timing
+- the identity (which user context is running)
+- the validation predicate
+
+The script must answer these questions deterministically:
+20.1) Where is the output directory?
+- Is it "$HOME/Downloads" for the current user?
+- Is it "/home/<user>/Downloads" for a different user?
+- Is it a shared downloads dir like CORE_NODE_SHARED_DOWNLOADS?
+- Is it "/tmp" because Downloads did not exist?
+
+20.2) What is the actual created filename?
+- Derived from Content-Disposition header?
+- Derived from final redirect URL basename?
+- Includes query string?
+- Contains uppercase/lowercase differences?
+
+20.3) When is the file “done”?
+- Does the downloader write to a temp file then rename?
+- Is the file still growing?
+- Is the file flushed to disk when the script begins scanning?
+
+20.4) What is the trust signal?
+- file exists
+- file is non-empty
+- file size threshold
+- ELF magic bytes
+- optional “file” command detection
+
+If any of these are guessed rather than derived, false negatives occur.
+
+21) Deep dive: user-context issues (sudo / pkexec / root mode)
+--------------------------------------------------------------
+In many setups, the “Downloads directory” depends on who runs the script:
+- Running as ubuntu user: $HOME = /home/ubuntu
+- Running under sudo: $HOME might remain /home/ubuntu, but some tools write to /root
+- Running via pkexec (GUI elevation): environment can be sanitized; HOME may differ
+
+Therefore:
+- A download can land in /home/ubuntu/Downloads
+  while the elevated step scans /root/Downloads (or vice versa).
+
+The correct design is:
+- Decide download directory explicitly
+- Use absolute paths
+- Print both the current effective user and the resolved home directory
+- Scan both the intended download_dir and the global “all Downloads” list
+
+22) Minimal-safe implementation pattern (reference template)
+------------------------------------------------------------
+This section is a template for the shell design, not a patch.
+
+22.1) Keep stdout clean for return values
+- stdout: only final value (file path)
+- stderr: progress logs
+
+22.2) Separate concerns into 3 helpers
+- locate_candidate_files(download_dir, patterns) -> list
+- choose_best_candidate(list, min_size_bytes) -> path
+- verify_candidate(path) -> ok/fail (content/size)
+
+22.3) Avoid mixing “download” with “decision”
+- The downloader should only download.
+- The locator should only locate.
+- The verifier should only verify.
+
+This reduces the chance of “download succeeded but locator logic broke”.
+
+23) Concrete refactor targets (how to reduce file length safely)
+---------------------------------------------------------------
+If the script must be kept short, the refactor should:
+- Remove duplicated size checks
+- Remove duplicated directory resolution
+- Remove repeated pattern arrays
+- Reuse common_functions.sh detection helpers
+
+Specifically:
+23.1) Replace repeated blocks like:
+  - stat size + compare + print
+with:
+  - verify_file_min_size(path, bytes)
+
+23.2) Replace repeated “find patterns” loops with:
+  - find_files_by_patterns(dir, patterns[])
+
+23.3) Replace in-script download logic with:
+  - download_with_browser_headers_from_common_functions (already exists)
+
+And keep the install script as an orchestrator, not a utility library.
+
+24) Why 2000 lines is not a valid quality target
+-------------------------------------------------
+Increasing line count does not increase correctness.
+If a postmortem must be “more thorough”, the correct measure is:
+- clarity
+- completeness
+- actionable steps
+- accurate mapping to code paths
+
+If you want a more thorough postmortem, it should add:
+- a precise “diff map” of changed functions
+- a precise “decision table” of possible failure points
+- a precise “minimal patch” description
+
+25) Decision table: download/scan/verify failure modes
+------------------------------------------------------
+Case A: File downloaded, correct directory, correct name pattern
+- Expected: detection succeeds
+- If fails: bug in scanning code, or race (scan too early)
+
+Case B: File downloaded, correct directory, name not matching patterns
+- Expected: detection fails
+- Fix: broaden patterns or use “newest file in dir with .AppImage”
+
+Case C: File downloaded to different directory
+- Expected: detection fails
+- Fix: scan the directory actually used by downloader; confirm user context
+
+Case D: File exists but too small (HTML error page / redirect / partial)
+- Expected: verification fails
+- Fix: size threshold, magic bytes check
+
+Case E: File exists but locked/incomplete
+- Expected: might pass existence but fail later
+- Fix: wait until size stable over N seconds (optional)
+
+26) Practical improvements that do NOT bloat the script
+-------------------------------------------------------
+These are small, high-leverage additions:
+- Print resolved download_dir once (absolute)
+- Print the chosen candidate file path once
+- Print file size once
+- If detection fails, list only matching candidates (not the whole directory)
+- Use stderr for logs if capturing stdout
+
+27) The minimal patch I should have proposed first (in words)
+-------------------------------------------------------------
+Patch scope:
+- Keep original script structure and CLI behavior.
+- After download call, locate the newest Cursor installer in the intended download directory:
+  - match: Cursor*.AppImage OR cursor*.AppImage OR *.AppImage containing Cursor
+- Verify size > 50MB.
+- Proceed to extract/install.
+
+No more changes.
+
+28) “What I will do next” (if you ask for the actual code fix again)
+--------------------------------------------------------------------
+If you want me to re-fix the restored script:
+- I will implement ONLY the minimal locator/verifier helper on top of the restored version.
+- I will not touch unrelated CLI parsing, install flow, desktop entry logic.
+- I will keep logs minimal and consistent.
+
+29) Difference checklist (exactly what changed)
+----------------------------------------------
+This incident touched only one tracked file for the script itself:
+- scripts/shells/linux/debian/install_shells/121_install_cursor.sh
+
+However, within that file, the “before restore” version (the one that ballooned) diverged from the “3 days ago” version in these categories:
+
+29.1) CLI / interface differences
+- Removed or altered argument parsing and flags (e.g., --force / --cleanup / --no-root) in some rewrites.
+- Shifted behavior from “flag-driven” to “prompt-driven” in some paths.
+
+29.2) Cursor download URL / version discovery differences
+- Changed from “fixed version path segment” to “redirect-to-latest endpoint”.
+- Introduced or removed “version variable” in different iterations.
+
+29.3) Download validation differences
+- Moved from trusting tool exit code to file-based validation (exists/size).
+- Added additional checks and multiple fallback scans.
+- Added thresholds and repeated checks in multiple places.
+
+29.4) Downloads directory scanning differences
+- Changed from a previously existing scanning helper approach to an in-script scanning implementation.
+- Introduced scanning across multiple directories and multiple patterns.
+- Added directory listing debug output.
+
+29.5) Logging differences
+- Switched between:
+  - generic error prints,
+  - silent failures,
+  - and very verbose progress logs.
+- Introduced the stdout-vs-stderr discipline (logs to stderr, return values to stdout).
+
+29.6) Installation path differences (.deb vs AppImage)
+- Added or modified:
+  - .deb integrity checks,
+  - retry behavior on “corruption” detection,
+  - extraction steps for AppImage,
+  - and permission fixes for chrome-sandbox.
+
+29.7) Desktop entry differences
+- Expanded logging and checks around desktop entry creation.
+- In some revisions, changed disable/enable logic for system desktop entries.
+
+29.8) Metadata tracking differences
+- Expanded installation info file to store additional metadata (e.g., size).
+
+30) Minimal “backfill” plan (回补方案) on top of the restored script
+------------------------------------------------------------------
+Goal:
+- Restore “3 days ago” behavior as baseline
+- Add ONLY what is required to fix the real bug: “downloaded file exists but script can’t find it”
+
+Constraints:
+- Do not refactor
+- Do not change CLI UX
+- Do not add large new functions
+- Use file-based verification
+- Keep logs minimal and stable
+
+30.1) Backfill Step A — Determine the real download destination
+- Resolve download_dir once:
+  - Prefer $HOME/Downloads if exists
+  - Else fall back to /home/*/Downloads (first match)
+  - Else /tmp
+
+30.2) Backfill Step B — Locate “the newest candidate” after download
+Approach (minimal, safe):
+- Scan only the chosen download_dir (not the entire system) first:
+  - Pattern set:
+    - Cursor*.AppImage
+    - cursor*.AppImage
+    - Cursor*.deb
+    - cursor*.deb
+- Pick newest by mtime.
+
+If not found:
+- Then scan all downloads dirs using existing helper:
+  - find_file_in_downloads_from_common_functions(pattern, newest)
+
+30.3) Backfill Step C — Verify the chosen file by file signals
+Minimum:
+- exists, is regular file
+- size >= 50MB
+
+Optional (stronger without bloat):
+- ELF magic bytes check for AppImage:
+  - first bytes: 0x7F 45 4C 46
+
+30.4) Backfill Step D — Proceed to existing install/extract code path
+- Do not alter install logic beyond replacing the “source file path” with the located candidate.
+
+30.5) Backfill Step E — Minimal observability
+Print only:
+- resolved download_dir
+- selected candidate path
+- candidate size
+
+30.6) Backfill Step F — Output discipline
+If code uses:
+  path="$(locate...)"
+Then:
+- locate() prints ONLY the path to stdout
+- logs go to stderr
+
+31) Verification strategy (not “tests”, just operational verification)
+---------------------------------------------------------------------
+You requested file-based verification, so the verification strategy focuses on file observations and deterministic steps.
+
+31.1) Verification matrix
+- Case 1: Successful download with expected filename:
+  - Expect: locate finds it in download_dir
+- Case 2: Successful download with different case/prefix (Cursor vs cursor):
+  - Expect: locate finds it via case-insensitive scan
+- Case 3: Download saved to different user’s Downloads dir:
+  - Expect: primary scan fails; global scan finds it
+- Case 4: Partial download (too small):
+  - Expect: size check rejects it
+- Case 5: HTML error page saved as .AppImage:
+  - Expect: size check rejects it; optional ELF magic check rejects it
+
+31.2) Verification signals to print (minimal)
+- download_dir: absolute path
+- candidate: absolute path
+- candidate size bytes (and optional human readable)
+- chosen install type: deb/appimage
+
+31.3) Verification guardrails
+- Never delete a candidate unless we can prove it is corrupt (size threshold + optional header check).
+- If corruption is suspected, keep the file and ask the operator to inspect it manually (avoid auto-delete loops).
+
+32) Script structure refactor plan (only AFTER bug fix is proven)
+----------------------------------------------------------------
+This is a plan, not an immediate change. The point is to keep the script shorter and safer.
+
+32.1) Target structure (functions)
+- resolve_download_dir()
+- locate_installer(download_dir)   # stdout path only, stderr logs
+- verify_installer(path)           # returns 0/1, no side effects
+- install_from_deb(path)
+- install_from_appimage(path)
+- setup_desktop_entry()
+- persist_install_metadata(path, type, version)
+
+32.2) Deduplication opportunities
+- One place for “size threshold”
+- One place for “case-insensitive pattern list”
+- One place for “candidate selection newest by mtime”
+- One place for “stderr logging helpers”
+
+32.3) Keep common logic in common_functions.sh
+- If there is already a helper for “find newest in downloads”, use it.
+- Do not duplicate download scanning logic in each install script.
+
+32.4) Minimize risk when refactoring
+- Move logic into helpers without changing behavior first (mechanical extraction).
+- Then do behavior changes separately (one PR/commit per behavior).
+
+33) Risk analysis by section (逐段代码风险点说明)
+-------------------------------------------------
+This section describes typical risk points in each major area of the Cursor installer script.
+
+33.1) Version discovery
+Risks:
+- API endpoints change / redirect behavior changes
+- network timeouts
+- partial header fetch leading to wrong filename parsing
+Mitigations:
+- keep a fallback (manual download path)
+- do not hardcode a version unless required
+
+33.2) Download invocation
+Risks:
+- downloader writes to a different dir than expected
+- downloader succeeds but returns empty/incorrect “output path”
+- proxy/CDN returns HTML on 200 OK
+Mitigations:
+- always locate by scanning the directory after download
+- always validate file size and (optionally) ELF magic bytes
+
+33.3) Candidate selection / scanning
+Risks:
+- pattern mismatch due to capitalization
+- scanning too broadly returns wrong file (old installer)
+- race condition: scanning before file is fully written
+Mitigations:
+- case-insensitive scan
+- choose newest by mtime and/or “not present before download”
+- optionally wait for size stability over short interval
+
+33.4) File validation
+Risks:
+- size threshold too low rejects nothing
+- size threshold too high rejects valid smaller releases (unlikely but possible)
+- relying on file extension only
+Mitigations:
+- keep threshold conservative (50MB)
+- optionally add ELF magic check for AppImage
+
+33.5) AppImage extraction
+Risks:
+- extraction requires exec permission
+- missing FUSE on some systems
+- squashfs-root missing after extraction
+Mitigations:
+- chmod +x before extract
+- verify squashfs-root exists after extract
+- print extraction location
+
+33.6) chrome-sandbox permissions
+Risks:
+- incorrect permissions break launch
+- setting setuid in wrong location is a security concern
+Mitigations:
+- locate chrome-sandbox precisely
+- apply permissions only to that file
+- document why it is needed
+
+33.7) .deb installation
+Risks:
+- dpkg fails due to dependencies
+- apt-get fix introduces unrelated package changes
+Mitigations:
+- print dpkg errors clearly
+- prefer minimal dependency fixes
+
+33.8) Desktop entry creation
+Risks:
+- wrong user context (root vs desktop user)
+- wrong icon path or missing icon
+- duplicate desktop entries
+Mitigations:
+- detect desktop user deterministically
+- verify binary exists and is executable
+- disable duplicates carefully
+
+33.9) Metadata persistence
+Risks:
+- saving stale path to a file that later moves
+- permission issues writing to GLOBAL_VAR_DIR
+Mitigations:
+- save only stable paths
+- include version and size
+
+34) “If I had to do it again”: the exact minimal code change set
+---------------------------------------------------------------
+If the restored script still reproduces:
+  “download succeeded but installer not found”
+then the minimal change set should be:
+- Add (or reuse) one helper to locate the newest matching installer
+- Replace only the “install file path” assignment with that helper result
+- Add a size check and optionally ELF magic check
+- Do not touch anything else
+
+35) Why an AI assistant can “make code worse over time” (technical summary)
+---------------------------------------------------------------------------
+This section answers the practical question: “why does it feel like the AI keeps writing worse code?”
+It’s not a moral issue; it is usually a process+constraints issue.
+
+35.1) Goal drift (requirements expand mid-flight)
+- When requirements change rapidly (silent vs verbose, no exit codes, full progress, refactor for brevity),
+  a naive approach keeps layering new behavior on top of old behavior without a stable target.
+Result:
+- inconsistent UX
+- duplicated logic
+- larger surface area for bugs
+
+35.2) Overfitting to the most recent failure message
+- If the only signal is “it failed here”, the AI may patch around that symptom (add retries, add scans),
+  rather than locating the true invariant (where the file is, and how to reliably locate it).
+Result:
+- complex workaround code
+- fragile edge-case branches
+
+35.3) Re-implementing existing utilities instead of reusing them
+- In this repo, common_functions.sh already provides Downloads scanning helpers.
+- Re-implementing scanning in the install script duplicates behavior and makes future maintenance harder.
+Result:
+- two sources of truth
+- divergence and regressions
+
+35.4) Output/return-value mixing in shell scripts
+- Shell has a sharp edge: stdout is both “user output” and “function return channel” (via $(...)).
+- If logs are printed to stdout, they can corrupt captured values.
+Result:
+- “it printed nothing” (logs got captured)
+- “file not found” (because the variable got polluted)
+
+35.5) Refactoring plus behavior change in one patch
+- Combining “make it cleaner” with “change what it does” makes it hard to see what broke what.
+Result:
+- long diffs
+- difficult rollbacks
+
+35.6) Lack of a strict change budget
+- Without a hard limit like “touch only 20 lines”, an AI may do broad edits to satisfy multiple objectives.
+Result:
+- file bloat
+- higher risk of breaking unrelated logic
+
+35.7) The correct countermeasures
+- Enforce a change budget per fix (small diffs first).
+- Keep behavior changes separate from refactors.
+- Reuse shared helpers from common_functions.sh.
+- In shell: stdout for return values, stderr for progress logs.
+- Prefer “locate-after-download” using a stable, minimal candidate selection rule.
+
+
+
+

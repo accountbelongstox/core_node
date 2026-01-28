@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { StorageManager, StorageKeys } from '../storage';
+import { StorageManager, StorageKeys } from '../persistence';
 import {
   NginxSite,
   SSLCertificate,
