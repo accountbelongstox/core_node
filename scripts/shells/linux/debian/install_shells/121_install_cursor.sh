@@ -1160,8 +1160,17 @@ install_cursor() {
     local download_dir=$(get_download_directory)
     local cursor_file=$(download_and_rename_cursor "$download_dir" "$remote_version")
     
+    # Verify file exists and has valid size (file-based verification, not exit code)
     if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
-        print_error_from_common_functions "Failed to download Cursor installer"
+        print_error_from_common_functions "Failed to download Cursor installer (file not found)"
+        return 1
+    fi
+    
+    # Verify file size (must be > 50MB)
+    local file_size=$(stat -c%s "$cursor_file" 2>/dev/null || stat -f%z "$cursor_file" 2>/dev/null || echo "0")
+    if [[ "$file_size" -lt 52428800 ]]; then
+        print_error_from_common_functions "Downloaded file too small ($file_size bytes), expected > 50MB"
+        print_error_from_common_functions "File may be corrupted: $cursor_file"
         return 1
     fi
 
