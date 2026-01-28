@@ -196,8 +196,6 @@ download_and_rename_cursor() {
                 downloaded_file="$found_file"
                 print_info_from_common_functions "Found downloaded file: $(basename "$downloaded_file") ($file_size bytes)"
                 break
-            else
-                print_warning_from_common_functions "File too small ($file_size bytes), continuing search..."
             fi
         fi
     done
@@ -1169,7 +1167,6 @@ install_cursor() {
     # Detect installation type
     local install_type=$(detect_install_type "$cursor_file")
     if [[ -z "$install_type" ]]; then
-        print_error_from_common_functions "Unknown file type: $(basename "$cursor_file")"
         return 1
     fi
 
