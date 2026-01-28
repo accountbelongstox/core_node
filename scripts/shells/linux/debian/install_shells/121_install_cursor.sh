@@ -165,6 +165,7 @@ detect_install_type() {
 }
 
 # Download and rename Cursor installer with timestamp
+# Uses file search verification instead of exit codes
 download_and_rename_cursor() {
     local download_dir="$1"
     local remote_version="$2"
@@ -173,9 +174,63 @@ download_and_rename_cursor() {
     print_info_from_common_functions "API URL: $CURSOR_API_URL"
     print_info_from_common_functions "Download directory: $download_dir"
     
-    local downloaded_file=$(download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3)
+    # Start download (don't rely on return value)
+    download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3 >/dev/null 2>&1
     
+    # Wait a moment for file system to sync
+    sleep 2
+    
+    # Search for downloaded file in download directory using file pattern matching
+    # Search for both AppImage and deb files
+    local downloaded_file=""
+    local search_patterns=("cursor*.AppImage" "Cursor*.AppImage" "cursor*.deb" "Cursor*.deb")
+    
+    for pattern in "${search_patterns[@]}"; do
+        # Search in the download directory first
+        local found_file=$(find "$download_dir" -maxdepth 1 -type f -iname "$pattern" 2>/dev/null | head -1)
+        
+        if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+            # Verify file size (must be > 50MB for Cursor)
+            local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
+            if [[ "$file_size" -gt 52428800 ]]; then
+                downloaded_file="$found_file"
+                print_info_from_common_functions "Found downloaded file: $(basename "$downloaded_file") ($file_size bytes)"
+                break
+            else
+                print_warning_from_common_functions "File too small ($file_size bytes), continuing search..."
+            fi
+        fi
+    done
+    
+    # If not found in download_dir, search all Downloads directories
+    if [[ -z "$downloaded_file" ]]; then
+        for pattern in "${search_patterns[@]}"; do
+            local found_file=$(find_file_in_downloads_from_common_functions "$pattern" "newest")
+            
+            if [[ -n "$found_file" ]] && [[ -f "$found_file" ]]; then
+                # Verify file size (must be > 50MB for Cursor)
+                local file_size=$(stat -c%s "$found_file" 2>/dev/null || stat -f%z "$found_file" 2>/dev/null || echo "0")
+                if [[ "$file_size" -gt 52428800 ]]; then
+                    downloaded_file="$found_file"
+                    print_info_from_common_functions "Found downloaded file: $(basename "$downloaded_file") ($file_size bytes)"
+                    break
+                else
+                    print_warning_from_common_functions "File too small ($file_size bytes), continuing search..."
+                fi
+            fi
+        done
+    fi
+    
+    # Final verification: file must exist and have valid size
     if [[ -z "$downloaded_file" ]] || [[ ! -f "$downloaded_file" ]]; then
+        print_error_from_common_functions "Downloaded file not found or invalid in download directory"
+        return 1
+    fi
+    
+    # Verify file is not empty and has minimum size
+    local file_size=$(stat -c%s "$downloaded_file" 2>/dev/null || stat -f%z "$downloaded_file" 2>/dev/null || echo "0")
+    if [[ "$file_size" -lt 52428800 ]]; then
+        print_error_from_common_functions "Downloaded file too small ($file_size bytes), expected > 50MB"
         return 1
     fi
     
@@ -200,8 +255,24 @@ download_and_rename_cursor() {
     fi
     
     local renamed_file="$file_dir/$new_filename"
-    mv -f "$downloaded_file" "$renamed_file" || return 1
+    if ! mv -f "$downloaded_file" "$renamed_file" 2>/dev/null; then
+        print_error_from_common_functions "Failed to rename file: $downloaded_file"
+        return 1
+    fi
     
+    # Final verification: renamed file must exist and have valid size
+    if [[ ! -f "$renamed_file" ]]; then
+        print_error_from_common_functions "Renamed file not found: $renamed_file"
+        return 1
+    fi
+    
+    local final_size=$(stat -c%s "$renamed_file" 2>/dev/null || stat -f%z "$renamed_file" 2>/dev/null || echo "0")
+    if [[ "$final_size" -lt 52428800 ]]; then
+        print_error_from_common_functions "Renamed file size invalid ($final_size bytes)"
+        return 1
+    fi
+    
+    print_success_from_common_functions "File verified and renamed: $(basename "$renamed_file") ($final_size bytes)"
     echo "$renamed_file"
     return 0
 }
