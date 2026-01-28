@@ -26,6 +26,12 @@ source "$SCRIPT_PATH/utils/global_variables.sh"
 UNIFIED_SERVICE_MANAGER="$ROOT_DIR/scripts/unified_manager/modules/service_manager.sh"
 LARAVEL_MAIN_PATH="$ROOT_DIR/poly_apps/laravel_main"
 
+# Detect sudo command
+USE_SUDO=""
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+fi
+
 # Service name patterns (for mutual exclusion checks)
 declare -a NORMAL_SERVICE_PATTERNS=("webapp" "nuxt" "laravel" "flutter" "app")
 declare -a BUILD_SERVICE_PATTERNS=("webapp" "nuxt" "laravel" "flutter" "app")
@@ -525,11 +531,16 @@ main() {
 
                         for domain in "${domains_array[@]}"; do
                             log_info "Processing domain: $domain"
-                            if php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto; then
+                            log_info "Command: $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
+                            
+                            if $USE_SUDO php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto 2>&1; then
                                 log_success "✓ Nginx proxy configured for: $domain"
                                 ((success_count++))
                             else
                                 log_error "✗ Failed to configure proxy for: $domain"
+                                log_info "Manual configuration command:"
+                                log_info "  cd $LARAVEL_MAIN_PATH"
+                                log_info "  $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
                             fi
                             echo ""
                         done
@@ -726,16 +737,16 @@ main() {
 
                         for domain in "${domains_array[@]}"; do
                             log_info "Processing domain: $domain"
-                            log_info "Command: php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
+                            log_info "Command: $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
 
-                            if php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto; then
+                            if $USE_SUDO php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto 2>&1; then
                                 log_success "✓ Nginx proxy configured for: $domain"
                                 ((success_count++))
                             else
                                 log_error "✗ Failed to configure proxy for: $domain"
                                 log_info "Manual configuration command:"
                                 log_info "  cd $LARAVEL_MAIN_PATH"
-                                log_info "  php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
+                                log_info "  $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
                             fi
                             echo ""
                         done

@@ -1294,6 +1294,108 @@ If any of these happen during development of the installer script, stop and roll
 - The installer begins deleting files by wildcard patterns.
 - Restart loops are added (exec $0) without a hard cap.
 
+63) Minimal backfill: block-level diff checklist (what to touch, what NOT to touch)
+----------------------------------------------------------------------------------
+This section is a practical checklist for making the smallest safe change.
+
+63.1) Allowed edit blocks (only)
+- The “auto-download” branch: immediately after the downloader returns
+  - Add: directory-scan fallback if returned path is empty/invalid
+  - Add: file-signal verification gate (exists + size threshold)
+
+63.2) Disallowed edit blocks (do not touch in the minimal backfill)
+- Upgrade prompts and branching logic
+- Cleanup/uninstall functions
+- Desktop entry logic
+- AppImage extraction logic (unless the extractor itself is broken)
+- Any CLI flags / argument parsing (if present)
+- Any unrelated formatting/renaming
+
+63.3) What “success” means for this diff
+- The script no longer prints “download failed” when a valid installer file exists in the download directory.
+- The installer path used for installation is the same path you can see on disk.
+
+64) Diagnostic output policy (what to print, what to avoid)
+----------------------------------------------------------
+The goal is to debug without adding noise and without breaking stdout return channels.
+
+64.1) Print (high-signal, minimal)
+- Resolved download directory (absolute path)
+- Selected candidate path (absolute path)
+- Candidate size in bytes
+- Selected install type (appimage/deb)
+
+64.2) Avoid printing
+- Full directory listings (unless in explicit debug mode)
+- Large downloader headers/body dumps
+- Any sensitive environment variables or tokens
+
+64.3) stdout/stderr rule
+- If a function is used with $(...), then:
+  - stdout = only the return value (path)
+  - stderr = logs/progress
+
+65) Version consistency strategy (remote vs local installer vs installed)
+-----------------------------------------------------------------------
+This section clarifies how to decide “what to install”.
+
+Definitions:
+- remote_version: latest version detected via redirect URL filename
+- installer_version: version parsed from the installer filename
+- installed_version: version stored in the metadata file (or unknown)
+
+65.1) First-time install
+- If a valid installer exists in download_dir:
+  - use it (prefer AppImage unless policy says otherwise)
+- Else:
+  - attempt auto-download
+  - if still no valid installer, enter manual download flow
+
+65.2) Upgrade install
+- If installed_version == remote_version:
+  - do nothing
+- If installed_version != remote_version:
+  - prefer installing an installer whose installer_version == remote_version
+  - if only an older installer is available, treat as fallback and require confirmation
+
+65.3) Why file-signal verification comes before version checks
+- A corrupted or partial file must be rejected regardless of version strings.
+- Version comparisons only matter after a file is proven plausible.
+
+66) Safe deletion strategy (no wildcards)
+-----------------------------------------
+Deletion is the highest-risk operation in an installer script.
+
+66.1) Allowed delete
+- Deleting a single, explicitly identified “fallback file” after a verified newer candidate is selected.
+- Deleting a single, explicitly identified corrupted file when corruption is proven by file signals.
+
+66.2) Disallowed delete
+- Any wildcard delete in Downloads (e.g., rm -f ~/Downloads/cursor*.AppImage) unless operator explicitly confirms.
+- Any recursive delete that touches user directories.
+
+66.3) Principle
+- “Keep old installers until the new one is verified and installed.”
+
+67) Human interaction policy (when to auto, when to ask)
+--------------------------------------------------------
+Installer scripts should not surprise operators.
+
+67.1) Auto actions (safe defaults)
+- Auto-select the newest verified candidate in the resolved download directory.
+- Auto-fallback from “returned path invalid” to “directory scan” (no prompt needed).
+
+67.2) Actions requiring confirmation
+- Installing an older version as a fallback during an upgrade path.
+- Removing any installer file from Downloads.
+- Running dependency repair steps that can modify many packages.
+
+67.3) Manual mode entry criteria
+Enter manual download mode when:
+- auto-download fails to produce a verified installer file
+- directory scan yields no verified candidate
+
+
 
 
 

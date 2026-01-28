@@ -732,6 +732,50 @@ create_unified_service() {
     echo -e "\033[33mDomain:\033[0m $domain"
     echo -e "\033[33mMode:\033[0m $([ "$debug_mode" = "true" ] && echo "Debug (source)" || echo "Production (build)")"
 
+    # Special handling for Laravel - use poly app deployment method
+    # IMPORTANT: Laravel has ONLY ONE instance (laravel_main) with FIXED port 9000
+    if [ "$framework_type" = "laravelStart" ]; then
+        echo ""
+        echo -e "\033[36m=== Laravel Service (Poly App Method) ===\033[0m"
+        echo -e "\033[33mUsing unified Laravel service manager (poly app deployment)\033[0m"
+        echo -e "\033[33mNOTE: Laravel has ONLY ONE instance (laravel_main) with FIXED port 9000\033[0m"
+        
+        local laravel_service_manager="$SERVICE_MANAGER_ROOT_DIR/scripts/unified_manager/modules/laravel_service_manager.sh"
+        
+        if [ ! -f "$laravel_service_manager" ]; then
+            echo -e "\033[31mError: Laravel service manager not found: $laravel_service_manager\033[0m"
+            return 1
+        fi
+        
+        # Source the Laravel service manager (pass USE_SUDO if available)
+        if [ -n "${USE_SUDO:-}" ]; then
+            export USE_SUDO
+        fi
+        source "$laravel_service_manager"
+        
+        # Install Laravel service using poly app method
+        if install_laravel_service "$app_name"; then
+            echo -e "\033[32m✓ Laravel service installed successfully (poly app method)\033[0m"
+            echo -e "\033[32m✓ Service name: octane-poly-9000 (FIXED port 9000)\033[0m"
+            
+            # If domain is provided, also add website configuration
+            if [ -n "$domain" ]; then
+                echo ""
+                echo -e "\033[36m=== Adding Laravel Website Configuration ===\033[0m"
+                if add_laravel_website "$domain" "auto"; then
+                    echo -e "\033[32m✓ Laravel website added successfully: $domain\033[0m"
+                else
+                    echo -e "\033[33m⚠ Laravel website addition failed (service is still installed)\033[0m"
+                fi
+            fi
+            
+            return 0
+        else
+            echo -e "\033[31m✗ Laravel service installation failed\033[0m"
+            return 1
+        fi
+    fi
+
     # Check if service already exists
     local service_name=""
     case "$framework_type" in

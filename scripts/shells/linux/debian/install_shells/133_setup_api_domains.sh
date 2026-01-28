@@ -31,6 +31,12 @@ SCRIPT_INDEX="133"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
+# Source unified Laravel service manager
+LARAVEL_SERVICE_MANAGER="$CORE_NODE_DIR/scripts/unified_manager/modules/laravel_service_manager.sh"
+if [ -f "$LARAVEL_SERVICE_MANAGER" ]; then
+    source "$LARAVEL_SERVICE_MANAGER"
+fi
+
 # All variable declarations (must be at the top after sourcing)
 laravel_dir=""
 SELECTED_PREFIXES=""
@@ -247,11 +253,22 @@ add_api_website() {
     # If domain exists: Laravel will update configuration (e.g., switch from FPM to Swoole)
     # If domain doesn't exist: Laravel will create new configuration
     # SSL certificates are reused if valid (not regenerated)
-    echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-mode=swoole"
-
-    local output
-    output=$($USE_SUDO php artisan servermanager:website add "$api_domain" --type=poly --ssl=auto --php-mode=swoole 2>&1)
-    local result=$?
+    
+    # Use unified Laravel service manager if available
+    if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v add_laravel_website >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX]   Using unified Laravel service manager (poly app method)"
+        echo "[$SCRIPT_INDEX]   Executing: add_laravel_website \"$api_domain\" \"auto\""
+        
+        local output
+        output=$(add_laravel_website "$api_domain" "auto" 2>&1)
+        local result=$?
+    else
+        echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-mode=swoole"
+        
+        local output
+        output=$($USE_SUDO php artisan servermanager:website add "$api_domain" --type=poly --ssl=auto --php-mode=swoole 2>&1)
+        local result=$?
+    fi
 
     echo "[$SCRIPT_INDEX]   Result:"
     echo "$output" | while IFS= read -r line; do
@@ -516,10 +533,10 @@ if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
 
         if [ $? -eq 0 ]; then
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installed successfully"
+            echo "[$SCRIPT_INDEX] ??Octane File Watcher installed successfully"
         else
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ï¿?Octane File Watcher installation failed"
+            echo "[$SCRIPT_INDEX] ??Octane File Watcher installation failed"
         fi
     else
         echo "[$SCRIPT_INDEX] Error: Watcher installation script not found"
