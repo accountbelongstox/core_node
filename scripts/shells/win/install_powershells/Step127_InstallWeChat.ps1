@@ -74,19 +74,19 @@ function Install-WeChatFromWeb {
     if (-not (Test-Path $downloadDir)) {
         $downloadDir = Join-Path $env:USERPROFILE "Downloads"
     }
+    if (-not (Test-Path $downloadDir)) {
+        New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
+    }
     $fileName = [System.IO.Path]::GetFileName((New-Object System.Uri $downloadUrl).LocalPath)
     if (-not $fileName -or $fileName -notmatch "\.exe$") {
         $fileName = "WeChatWin_latest.exe"
     }
     $localPath = Join-Path $downloadDir $fileName
 
-    Write-Host "       [$SCRIPT_INDEX] Downloading: $downloadUrl" -ForegroundColor Cyan
     Write-Host "       [$SCRIPT_INDEX] Save to: $localPath" -ForegroundColor Cyan
-    try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $localPath -UseBasicParsing -MaximumRedirection 5 -ErrorAction Stop
-    }
-    catch {
-        Write-Host "       [$SCRIPT_INDEX] Download failed: $($_.Exception.Message)" -ForegroundColor Red
+    $downloadOk = Get-FileWithSizeCheck -localPath $localPath -remoteUrl $downloadUrl -description "WeChat"
+    if (-not $downloadOk) {
+        Write-Host "       [$SCRIPT_INDEX] Download failed." -ForegroundColor Red
         return $false
     }
     if (-not (Test-Path $localPath)) {
