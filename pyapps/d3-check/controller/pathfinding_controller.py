@@ -14,10 +14,11 @@ from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
 # Third-party imports
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw, ImageFont
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 # Add paths
 

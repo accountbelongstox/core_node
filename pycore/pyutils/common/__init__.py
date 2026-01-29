@@ -67,6 +67,14 @@ from pycore.pyutils.common.speech_switch import (
 # Window Finder exports
 from pycore.pyutils.common.window_finder import WindowFinder
 
+# Browser Window Detector (exe-based, auxiliary)
+from pycore.pyutils.common.browser_window_detector import (
+    BrowserWindowDetector,
+    get_default_skip_browser_callable,
+    get_process_exe_path,
+    is_browser_process_by_path,
+)
+
 __all__ = [
     # TTS Switch
     'TTSProvider',
@@ -101,6 +109,11 @@ __all__ = [
     'get_speech_switch',
     'initialize_speech_switch',
     # Window Finder
-    'WindowFinder'
+    'WindowFinder',
+    # Browser Window Detector
+    'BrowserWindowDetector',
+    'get_default_skip_browser_callable',
+    'get_process_exe_path',
+    'is_browser_process_by_path',
 ]
 

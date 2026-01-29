@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional, Union
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 numpy = get_third_package_numpy()
+np = numpy
 cv2 = get_third_package_cv2()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

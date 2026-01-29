@@ -11,10 +11,9 @@ import os
 import sys
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

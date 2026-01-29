@@ -9,11 +9,11 @@ import sys
 from pathlib import Path
 from typing import Union, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 numpy = get_third_package_numpy()
-from PIL import Image
+np = numpy
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = Path(__file__).parent.parent

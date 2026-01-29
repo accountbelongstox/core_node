@@ -15,25 +15,35 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api, get_third_package_PIL, get_third_package_pyautogui, get_third_package_pygetwindow, get_third_package_uiautomation
+from pycore.pyfoundations.third_party import (
+    get_third_package_psutil,
+    get_third_package_win32gui,
+    get_third_package_win32con,
+    get_third_package_win32api,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_pyautogui,
+    get_third_package_pygetwindow,
+    get_third_package_uiautomation,
+)
 
 psutil = get_third_package_psutil()
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 win32api = get_third_package_win32api()
-PIL = get_third_package_PIL()
 pyautogui = get_third_package_pyautogui()
 pygetwindow = get_third_package_pygetwindow()
 uiautomation = get_third_package_uiautomation()
 import win32process
 
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
-ImageFont = PIL.ImageFont
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 gw = pygetwindow
 auto = uiautomation
 
-from pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class ClickHandler:

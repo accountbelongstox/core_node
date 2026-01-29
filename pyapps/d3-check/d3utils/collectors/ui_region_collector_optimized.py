@@ -20,10 +20,9 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 # Third-party imports
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 from providor.common_imports import ColorPrint, ImageAnnotator
 
 # Local imports
@@ -99,7 +98,7 @@ class UIRegionCollectorOptimized:
         # Step 2: Get window position from encyclopedia cache
         ColorPrint.blue("[Step 2/3] Getting window position from cache...")
 
-        from pyfoundations.encyclopedia import ENCYCLOPEDIA
+        from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
         window_info = None
         for title in DIABLO_III_WINDOW_TITLES:

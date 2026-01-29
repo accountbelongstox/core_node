@@ -6,7 +6,7 @@ Provides centralized window searching with encyclopedia caching
 Used by window_screenshot, window_activator, and window_analyzer
 """
 
-from typing import List, Dict
+from typing import List, Dict, Callable, Optional
 
 from pycore.pyfoundations.third_party import get_third_package_win32gui
 
@@ -27,7 +27,8 @@ class WindowFinder:
     def find_windows_by_titles(
         titles: List[str],
         match_mode: str = "endswith",
-        use_cache: bool = True
+        use_cache: bool = True,
+        skip_browser_if: Optional[Callable[[int, str], bool]] = None
     ) -> List[Dict]:
         """
         Find windows by titles with encyclopedia caching
@@ -39,6 +40,7 @@ class WindowFinder:
             titles: List of window titles to search for
             match_mode: Window title matching mode - "in", "startswith", "endswith", or "exact"
             use_cache: Whether to use encyclopedia cache (default: True)
+            skip_browser_if: Optional callable(hwnd, window_title) -> bool; when True, window is skipped (e.g. exe-based browser detection). Core does not implement browser logic; pass from auxiliary (e.g. BrowserWindowDetector).
 
         Returns:
             List of window information dictionaries:
@@ -116,9 +118,8 @@ class WindowFinder:
                             elif match_mode == "endswith":
                                 match_found = window_title.endswith(target_title)
 
-                            # Additional validation: avoid browser windows
-                            if match_found and WindowFinder._is_browser_window(window_title):
-                                ColorPrint.print_min_interval(f"[WindowFinder] Skipping browser window: '{window_title}'", "1min", "yellow")
+                            # Optional: skip when caller-provided filter says so (e.g. exe-based browser detection)
+                            if match_found and skip_browser_if is not None and skip_browser_if(hwnd, window_title):
                                 match_found = False
 
                             if match_found:
@@ -166,37 +167,6 @@ class WindowFinder:
         if found_windows:
             ColorPrint.print_min_interval(f"[WindowFinder] Found {len(found_windows)} window(s)", "1min", "green")
         else:
-            ColorPrint.print_min_interval(f"[WindowFinder] No windows found matching: {titles}", "1min", "yellow")
+            ColorPrint.yellow(f"[WindowFinder] No windows found matching: {titles}")
 
         return found_windows
-
-    @staticmethod
-    def _is_browser_window(window_title: str) -> bool:
-        """
-        Check if window title indicates a browser window
-
-        Args:
-            window_title: Window title to check
-
-        Returns:
-            True if window appears to be a browser window
-        """
-        import re
-
-        browser_indicators = [
-            "Chrome", "Firefox", "Edge", "Safari", "Opera", "Brave",
-            "Google Chrome", "Mozilla Firefox", "Microsoft Edge",
-            "- Google Chrome", "- Mozilla Firefox", "- Microsoft Edge"
-        ]
-
-        # Check for browser indicators
-        for indicator in browser_indicators:
-            if indicator.lower() in window_title.lower():
-                return True
-
-        # Check for website pattern (xxx.xxx format)
-        website_pattern = r'\b[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.([a-zA-Z]{2,})\b'
-        if re.search(website_pattern, window_title):
-            return True
-
-        return False

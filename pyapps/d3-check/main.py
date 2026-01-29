@@ -5,7 +5,8 @@ D3Check - Diablo III Bot Auto Control System
 Main entry point for the application
 
 Usage:
-    python main.py              # Start UI mode
+    python main.py              # Native TK GUI (default)
+    python main.py --tray       # Tray + HTTP bridge only
     python main.py --train      # Start training mode
     python main.py --help       # Show help
 """
@@ -37,9 +38,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py                      # Start UI mode (default)
+  python main.py                      # Native TK GUI (default)
+  python main.py --tray                # Tray + HTTP bridge only
+  python main.py --bridge              # HTTP bridge only (no tray)
   python main.py --train              # Train YOLO model
-  python main.py --train --help       # Show training options
+  python main.py --train --help        # Show training options
 """
     )
 
@@ -53,6 +56,8 @@ Examples:
                             help="Export trained model")
     mode_group.add_argument("--bridge", action="store_true",
                             help="Run HTTP bridge mode (for web GUI)")
+    mode_group.add_argument("--tray", action="store_true",
+                            help="Run tray + HTTP bridge only (no main window)")
 
     # Bridge mode options
     parser.add_argument("--host", default="127.0.0.1",
@@ -125,25 +130,19 @@ Examples:
         else:
             sys.argv.insert(1, "--action=train")
         return train_main()
-    else:
-        # Default: Universal GUI mode (Tray + HTTP Bridge + optional web frontend)
+    elif args.tray:
+        # Tray + HTTP bridge only (no main window)
         ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("D3Check - Universal GUI Mode")
+        ColorPrint.blue("D3Check - Tray + HTTP Bridge Mode")
         ColorPrint.blue("=" * 80)
 
         try:
-            # Get system initializer
             sys_init = get_system_initializer()
-
-            # Initialize the system
             if not sys_init.initialize_system():
                 ColorPrint.red("[MAIN] System initialization failed, exiting...")
                 return 1
 
-            # Load i18n settings
             i18n_manager.load_language_from_config()
-
-            # Set menu labels for i18n support
             menu_labels = {
                 'open_web': i18n_manager.get_ui_text("gui_menu.open_web", "Open Web UI"),
                 'restart': i18n_manager.get_ui_text("gui_menu.restart", "Restart"),
@@ -151,50 +150,24 @@ Examples:
             }
             set_menu_labels(menu_labels)
 
-            # Create HTTP bridge controller
             bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765)
-
-            # Create custom menu items with callbacks
             menu_items = [
-                {
-                    'key': 'open_web',
-                    'label': menu_labels['open_web'],
-                    'callback': lambda: None  # Will use default _open_web_ui
-                },
-                {
-                    'key': 'restart',
-                    'label': menu_labels['restart'],
-                    'callback': lambda: None  # Will use default _restart_application
-                },
-                {
-                    'key': 'exit',
-                    'label': menu_labels['exit'],
-                    'callback': lambda: None  # Will use default _exit_application
-                }
+                {'key': 'open_web', 'label': menu_labels['open_web'], 'callback': lambda: None},
+                {'key': 'restart', 'label': menu_labels['restart'], 'callback': lambda: None},
+                {'key': 'exit', 'label': menu_labels['exit'], 'callback': lambda: None}
             ]
-
-            # Create universal GUI launcher
             gui_launcher = UniversalGUILauncher(
                 app_name='D3Check',
                 bridge_host='127.0.0.1',
                 bridge_port=8765,
                 menu_items=menu_items
             )
-
-            # Register bridge handlers via bridge controller
-            # Bridge controller already registers handlers in __init__
-
-            # Start GUI launcher (tray + bridge)
             ColorPrint.green("[MAIN] Starting universal GUI launcher...")
             gui_launcher.start()
-
             ColorPrint.green("[MAIN] D3Check started successfully")
             ColorPrint.green("[MAIN] Access web UI at: http://127.0.0.1:8765")
             ColorPrint.green("[MAIN] Press Ctrl+C to stop")
-
-            # Run forever (blocks until interrupted)
             gui_launcher.run_forever()
-
             return 0
 
         except KeyboardInterrupt:
@@ -202,10 +175,45 @@ Examples:
             if 'gui_launcher' in locals():
                 gui_launcher.stop()
             return 0
-
         except Exception as e:
             ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
             traceback.print_exc()
+            return 1
+
+    else:
+        # Default: 全部启动 - TK GUI + HTTP bridge + tray
+        ColorPrint.blue("\n" + "=" * 80)
+        ColorPrint.blue("D3Check - GUI Mode (TK + HTTP Bridge)")
+        ColorPrint.blue("=" * 80)
+
+        try:
+            sys_init = get_system_initializer()
+            if not sys_init.initialize_system():
+                ColorPrint.red("[MAIN] System initialization failed, exiting...")
+                return 1
+
+            i18n_manager.load_language_from_config()
+
+            # Start HTTP bridge in background (same port as web UI)
+            bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765)
+            bridge_controller.start()
+            ColorPrint.green("[MAIN] HTTP bridge started on http://127.0.0.1:8765")
+
+            from controller.d3_macro_controller import D3MacroController
+            controller = D3MacroController()
+            controller.run()
+            return 0
+
+        except KeyboardInterrupt:
+            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
+            if 'bridge_controller' in locals():
+                bridge_controller.stop()
+            return 0
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
+            traceback.print_exc()
+            if 'bridge_controller' in locals():
+                bridge_controller.stop()
             return 1
 
 

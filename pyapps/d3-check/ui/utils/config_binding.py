@@ -12,6 +12,7 @@ from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, save_config
 from providor.common_imports import ColorPrint
 from d3utils.i18n_manager import i18n_manager
+from .tk_variables import var_str, var_bool
 
 
 class ConfigBinding:
@@ -138,8 +139,8 @@ class ConfigBinding:
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
+        # 创建变量 (use factory so master is always set)
+        var = var_str(parent, str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -174,8 +175,8 @@ class ConfigBinding:
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
-        # 创建变量
-        var = tk.BooleanVar(master=parent, value=bool(current_value))
+        # 创建变量 (use factory so master is always set)
+        var = var_bool(parent, bool(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -211,8 +212,8 @@ class ConfigBinding:
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
+        # 创建变量 (use factory so master is always set)
+        var = var_str(parent, str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)
@@ -253,8 +254,8 @@ class ConfigBinding:
         # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
 
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
+        # 创建变量 (use factory so master is always set)
+        var = var_str(parent, str(current_value))
 
         # Register binding for two-way sync
         ConfigBinding._register_binding(key_path, var)

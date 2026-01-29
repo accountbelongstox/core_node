@@ -678,6 +678,46 @@ def get_third_package_PIL_ImageTk():
     return _PACKAGE_CACHE['PIL_ImageTk']
 
 
+def get_third_package_PIL_ImageGrab():
+    """Get PIL.ImageGrab module (lazy load)"""
+    if 'PIL_ImageGrab' not in _PACKAGE_CACHE:
+        from PIL import ImageGrab as PIL_ImageGrab
+        _PACKAGE_CACHE['PIL_ImageGrab'] = PIL_ImageGrab
+    return _PACKAGE_CACHE['PIL_ImageGrab']
+
+
+def get_third_package_PIL_ImageEnhance():
+    """Get PIL.ImageEnhance module (lazy load)"""
+    if 'PIL_ImageEnhance' not in _PACKAGE_CACHE:
+        from PIL import ImageEnhance as PIL_ImageEnhance
+        _PACKAGE_CACHE['PIL_ImageEnhance'] = PIL_ImageEnhance
+    return _PACKAGE_CACHE['PIL_ImageEnhance']
+
+
+def get_third_package_PIL_ImageFilter():
+    """Get PIL.ImageFilter module (lazy load)"""
+    if 'PIL_ImageFilter' not in _PACKAGE_CACHE:
+        from PIL import ImageFilter as PIL_ImageFilter
+        _PACKAGE_CACHE['PIL_ImageFilter'] = PIL_ImageFilter
+    return _PACKAGE_CACHE['PIL_ImageFilter']
+
+
+def get_third_package_PIL_ImageOps():
+    """Get PIL.ImageOps module (lazy load)"""
+    if 'PIL_ImageOps' not in _PACKAGE_CACHE:
+        from PIL import ImageOps as PIL_ImageOps
+        _PACKAGE_CACHE['PIL_ImageOps'] = PIL_ImageOps
+    return _PACKAGE_CACHE['PIL_ImageOps']
+
+
+def get_third_package_PIL_ImageStat():
+    """Get PIL.ImageStat module (lazy load)"""
+    if 'PIL_ImageStat' not in _PACKAGE_CACHE:
+        from PIL import ImageStat as PIL_ImageStat
+        _PACKAGE_CACHE['PIL_ImageStat'] = PIL_ImageStat
+    return _PACKAGE_CACHE['PIL_ImageStat']
+
+
 # Computer vision and automation packages
 def get_third_package_cv2():
     """Get cv2 (OpenCV) package (lazy load)"""
@@ -1185,6 +1225,11 @@ __all__ = [
     'get_third_package_PIL_ImageDraw',
     'get_third_package_PIL_ImageFont',
     'get_third_package_PIL_ImageTk',
+    'get_third_package_PIL_ImageGrab',
+    'get_third_package_PIL_ImageEnhance',
+    'get_third_package_PIL_ImageFilter',
+    'get_third_package_PIL_ImageOps',
+    'get_third_package_PIL_ImageStat',
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',

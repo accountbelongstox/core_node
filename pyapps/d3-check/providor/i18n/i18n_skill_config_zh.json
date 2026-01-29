@@ -58,6 +58,16 @@
       "config3": "配置3",
       "config4": "配置4"
     },
+    "main_functions_sub_tabs": {
+      "function_1": "功能一",
+      "function_2": "待扩展",
+      "function_3": "待扩展"
+    },
+    "main_functions_sub_tabs": {
+      "function_1": "功能一",
+      "function_2": "待扩展",
+      "function_3": "待扩展"
+    },
     "main_functions_panel": {
       "current_config": "当前配置",
       "config_file_path": "配置文件路径",

@@ -19,11 +19,11 @@ from providor.common_imports import ColorPrint
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
-from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
 pystray = get_third_package_pystray()
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 TRAY_AVAILABLE = True
 

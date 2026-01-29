@@ -77,8 +77,8 @@ from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
 from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
 
 # PyWeb - HTTP Bridge for web GUI communication (from pycore)
-from pycore.pyweb.http_bridge import HTTPBridgeServer, get_http_bridge, create_http_bridge  # noqa: E402
-from pycore.pyweb.universal_gui_launcher import (  # noqa: E402
+from pycore.pyutils.web.http_bridge import HTTPBridgeServer, get_http_bridge, create_http_bridge  # noqa: E402
+from pycore.pyutils.web.universal_gui_launcher import (  # noqa: E402
     UniversalGUILauncher,
     SystemTrayManager,
     get_universal_gui_launcher,

@@ -12,21 +12,42 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_PIL, get_third_package_pyautogui, get_third_package_mss
+from pycore.pyfoundations.third_party import (
+    get_third_package_win32gui,
+    get_third_package_win32con,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageGrab,
+    get_third_package_pyautogui,
+    get_third_package_mss,
+)
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
-PIL = get_third_package_PIL()
 pyautogui = get_third_package_pyautogui()  # May be None on Linux without X11 display access
 mss = get_third_package_mss()
 
-ImageGrab = PIL.ImageGrab
-Image = PIL.Image
+ImageGrab = get_third_package_PIL_ImageGrab()
+Image = get_third_package_PIL_Image()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window_activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+
+# Exe-based browser skip filter for WindowFinder (no app-specific logic in core)
+_skip_browser_if = get_default_skip_browser_callable()
+
+# Off-screen rect threshold (Windows uses ~-32000 for minimized windows)
+_OFFSCREEN_THRESHOLD = -30000
+
+
+def _is_rect_minimized_or_offscreen(rect: Tuple[int, int, int, int]) -> bool:
+    """True if rect is off-screen (e.g. minimized window)."""
+    if not rect or len(rect) < 4:
+        return True
+    left, top = rect[0], rect[1]
+    return left < _OFFSCREEN_THRESHOLD or top < _OFFSCREEN_THRESHOLD
 
 
 class WindowScreenshot:
@@ -217,21 +238,33 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
                 if not windows:
-                    ColorPrint.print_min_interval(f"[FAST_SINGLE] No windows found matching: {titles}", "1min", "yellow")
+                    ColorPrint.yellow(f"[FAST_SINGLE] No windows found matching: {titles}")
                     return None
 
                 # Take FIRST match only
                 window_info = windows[0]
                 ColorPrint.print_min_interval(f"[FAST_SINGLE] Found window: '{window_info['title']}'", "1min", "green")
 
-            # Step 3: Capture fullscreen + crop (fast method)
+            # Step 3: If window is minimized or off-screen, activate and refresh rect before capture
             hwnd = window_info["hwnd"]
             title = window_info["title"]
             rect = window_info["rect"]
+            if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                ColorPrint.print_min_interval(f"[FAST_SINGLE] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                if not self.activate_window(hwnd, title):
+                    ColorPrint.print_min_interval(f"[FAST_SINGLE] Proceeding after activation attempt", "1min", "yellow")
+                time.sleep(1)
+                try:
+                    rect = win32gui.GetWindowRect(hwnd)
+                    window_info["rect"] = rect
+                except Exception as e:
+                    ColorPrint.print_min_interval(f"[FAST_SINGLE] Could not refresh rect after activate: {e}", "1min", "yellow")
+
             left, top, right, bottom = rect
             window_width = right - left
             window_height = bottom - top
@@ -287,7 +320,7 @@ class WindowScreenshot:
             return result
 
         except Exception as e:
-            ColorPrint.print_min_interval(f"[FAST_SINGLE] Error in single window capture: {e}", "1min", "red")
+            ColorPrint.red(f"[FAST_SINGLE] Error in single window capture: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -346,11 +379,12 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
             if titles and not windows:
-                ColorPrint.print_min_interval(f"[FAST] No windows found matching: {titles}", "1min", "yellow")
+                ColorPrint.yellow(f"[FAST] No windows found matching: {titles}")
                 return None
 
             # Get window info if available
@@ -359,6 +393,16 @@ class WindowScreenshot:
                 hwnd = window_info["hwnd"]
                 title = window_info["title"]
                 rect = window_info["rect"]
+                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                    ColorPrint.print_min_interval(f"[FAST] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                    if not self.activate_window(hwnd, title):
+                        ColorPrint.print_min_interval(f"[FAST] Proceeding after activation attempt", "1min", "yellow")
+                    time.sleep(1)
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        window_info["rect"] = rect
+                    except Exception as e:
+                        ColorPrint.print_min_interval(f"[FAST] Could not refresh rect after activate: {e}", "1min", "yellow")
                 ColorPrint.print_min_interval(f"[FAST] Found window: '{title}' (Handle: {hwnd})", "1min", "green")
                 ColorPrint.print_min_interval(f"[FAST] Window rect: {rect}", "1min", "blue")
             else:
@@ -473,7 +517,7 @@ class WindowScreenshot:
             return result
 
         except Exception as e:
-            ColorPrint.print_min_interval(f"[FAST] Error in fast capture: {e}", "1min", "red")
+            ColorPrint.red(f"[FAST] Error in fast capture: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -568,7 +612,8 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
                 if not windows:
@@ -576,11 +621,22 @@ class WindowScreenshot:
                     return None
 
                 window_info = windows[0]
+                hwnd = window_info["hwnd"]
+                title = window_info["title"]
                 rect = window_info["rect"]
+                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                    ColorPrint.print_min_interval(f"[WindowRegion] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                    if not self.activate_window(hwnd, title):
+                        ColorPrint.print_min_interval(f"[WindowRegion] Proceeding after activation attempt", "1min", "yellow")
+                    time.sleep(1)
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        window_info["rect"] = rect
+                    except Exception as e:
+                        ColorPrint.print_min_interval(f"[WindowRegion] Could not refresh rect: {e}", "1min", "yellow")
                 left, top, right, bottom = rect
                 width = right - left
                 height = bottom - top
-                title = window_info["title"]
                 ColorPrint.print_min_interval(f"[WindowRegion] Found window: '{title}' ({width}x{height})", "1min", "gray")
                 return (left, top, width, height, title)
             else:

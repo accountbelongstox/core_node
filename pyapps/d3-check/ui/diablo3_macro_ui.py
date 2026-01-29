@@ -323,20 +323,27 @@ class Diablo3MacroUI:
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0)
 
-        # Configure tab style - BASE colors for unselected tabs
-        # configure() sets DEFAULT appearance, map() overrides for specific states
+        # Tab style: unselected = high contrast (tab_unselected_bg/fg)
         style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('bg_light'),     # BASE: Light bg for unselected
-                       foreground=UITheme.get_color('text_dark'),    # BASE: Dark text for unselected
+                       background=UITheme.get_color('tab_unselected_bg'),
+                       foreground=UITheme.get_color('tab_unselected_fg'),
                        padding=[12, 6],
-                       borderwidth=0)
+                       borderwidth=0,
+                       lightcolor=UITheme.get_color('tab_unselected_bg'),
+                       darkcolor=UITheme.get_color('tab_unselected_bg'))
 
-        # Map ONLY specific states, let configure() handle default
+        # map(): !selected forces unselected contrast; selected/active override
         style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('bg_secondary')),   # Override: selected
-                           ('active', UITheme.get_color('state_hover'))],       # Override: hover
-                 foreground=[('selected', UITheme.get_color('text_primary')),   # Override: selected
-                           ('active', UITheme.get_color('text_primary'))])
+                 background=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('active', UITheme.get_color('state_hover')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
+                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                          ('!selected', UITheme.get_color('tab_unselected_bg'))])
         
         # Apply style to notebook
         self.main_notebook.configure(style='Dark.TNotebook')
@@ -345,22 +352,28 @@ class Diablo3MacroUI:
         self.root.after(100, self._force_style_update)
 
     def _force_style_update(self):
-        """Force style update for all notebook tabs"""
+        """Force style update for all notebook tabs (unselected = high contrast)"""
         style = ttk.Style()
 
-        # Re-apply BASE configuration for default/unselected state
         style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('bg_light'),
-                       foreground=UITheme.get_color('text_dark'),
+                       background=UITheme.get_color('tab_unselected_bg'),
+                       foreground=UITheme.get_color('tab_unselected_fg'),
                        padding=[12, 6],
-                       borderwidth=0)
+                       borderwidth=0,
+                       lightcolor=UITheme.get_color('tab_unselected_bg'),
+                       darkcolor=UITheme.get_color('tab_unselected_bg'))
 
-        # Re-apply state overrides ONLY for specific states
         style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('bg_secondary')),
-                           ('active', UITheme.get_color('state_hover'))],
-                 foreground=[('selected', UITheme.get_color('text_primary')),
-                           ('active', UITheme.get_color('text_primary'))])
+                 background=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('active', UITheme.get_color('state_hover')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
+                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                          ('!selected', UITheme.get_color('tab_unselected_bg'))])
 
         # Force widget update
         self.main_notebook.update_idletasks()

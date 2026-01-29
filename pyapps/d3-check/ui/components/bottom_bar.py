@@ -9,6 +9,7 @@ import tkinter as tk
 import winsound
 from typing import Optional
 from ..theme import UITheme
+from ..utils.tk_variables import var_bool, var_str
 from ..widgets import ThemedFrame, ThemedLabel, ThemedCheckbutton, ThemedEntry
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
@@ -27,13 +28,13 @@ class BottomBar:
         """
         self.parent = parent
 
-        # Variables
-        self.sound_var = tk.BooleanVar(value=True)
-        self.smart_pause_var = tk.BooleanVar(value=True)
-        self.custom_stand_var = tk.BooleanVar(value=False)
-        self.custom_stand_key_var = tk.StringVar(value='Shift')
-        self.game_status = tk.StringVar(value=i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-        self.window_size = tk.StringVar(value="0x0")
+        # Variables (use factory so master is always set)
+        self.sound_var = var_bool(parent, True)
+        self.smart_pause_var = var_bool(parent, True)
+        self.custom_stand_var = var_bool(parent, False)
+        self.custom_stand_key_var = var_str(parent, 'Shift')
+        self.game_status = var_str(parent, i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+        self.window_size = var_str(parent, "0x0")
 
         # Create bottom bar frame
         self.frame = tk.Frame(

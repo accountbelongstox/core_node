@@ -19,10 +19,11 @@ sys.path.insert(0, project_root)
 from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-from PIL import Image
+numpy = get_third_package_numpy()
+np = numpy
+Image = get_third_package_PIL_Image()
 
 # Import TMP_DIR from providor_index (unified source)
 project_root_for_import = os.path.dirname(os.path.dirname(current_dir))

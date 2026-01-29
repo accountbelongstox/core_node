@@ -25,7 +25,11 @@ from d3utils.i18n_manager import i18n_manager
 
 # Import CONFIG and ConfigBinding
 from providor.providor_index import CONFIG, CONFIG_USER_PATH, save_config
+from ..utils.tk_variables import var_str, var_int
 from ui.utils.config_binding import ConfigBinding
+
+# i18n key prefix for main functions sub-tabs (aligned with providor/i18n and providor/i18n_config.json)
+MAIN_FUNCTIONS_SUB_TABS_KEY = "main_functions_sub_tabs"
 
 class MainFunctionsPanel:
     """
@@ -113,8 +117,8 @@ class MainFunctionsPanel:
     def _create_function1_tab(self):
         """Create Function 1 sub-tab with original content"""
         func1_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
-        self.sub_notebook.add(func1_frame,
-                             text=i18n_manager.get_ui_text("main_functions_sub_tabs.function_1"))
+        tab_text = i18n_manager.get_ui_text(f"{MAIN_FUNCTIONS_SUB_TABS_KEY}.function_1")
+        self.sub_notebook.add(func1_frame, text=tab_text)
 
         # Configure grid weights for the frame
         func1_frame.grid_columnconfigure(0, weight=1)
@@ -127,16 +131,15 @@ class MainFunctionsPanel:
 
     def _create_placeholder_tab(self, tab_key):
         """Create placeholder tab for future expansion"""
+        tab_text = i18n_manager.get_ui_text(f"{MAIN_FUNCTIONS_SUB_TABS_KEY}.{tab_key}")
         placeholder_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
-        self.sub_notebook.add(placeholder_frame,
-                             text=i18n_manager.get_ui_text(f"main_functions_sub_tabs.{tab_key}"))
+        self.sub_notebook.add(placeholder_frame, text=tab_text)
 
-        # Add centered placeholder text
         placeholder_label = tk.Label(placeholder_frame,
-                                    text=i18n_manager.get_ui_text(f"main_functions_sub_tabs.{tab_key}"),
-                                    bg=UnifiedStyles.COLORS['bg_primary'],
-                                    fg=UnifiedStyles.COLORS['text_secondary'],
-                                    font=('Arial', 16))
+                                     text=tab_text,
+                                     bg=UnifiedStyles.COLORS['bg_primary'],
+                                     fg=UnifiedStyles.COLORS['text_secondary'],
+                                     font=('Arial', 16))
         placeholder_label.place(relx=0.5, rely=0.5, anchor='center')
 
     def _create_skill_panel_in_frame(self, parent_frame):
@@ -298,7 +301,7 @@ class MainFunctionsPanel:
         # Save: Fixed English key (e.g., "continuous")
         strategy_en = skill_data.get('strategy', 'continuous')
         strategy_zh = self.strategy_en_to_zh.get(strategy_en, strategy_en)
-        strategy_var = tk.StringVar(value=strategy_zh)
+        strategy_var = var_str(parent, strategy_zh)
 
         # Get i18n strategy values for display
         strategy_values_zh = list(self.strategy_en_to_zh.values())
@@ -311,7 +314,7 @@ class MainFunctionsPanel:
                           lambda e: self._on_strategy_changed(skill_key, strategy_var.get()))
 
         # Interval spinbox
-        interval_var = tk.IntVar(value=skill_data.get('interval', 100))
+        interval_var = var_int(parent, skill_data.get('interval', 100))
         interval_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
                                   textvariable=interval_var, width=8,
                                   bg=UnifiedStyles.COLORS['input_bg'],
@@ -322,7 +325,7 @@ class MainFunctionsPanel:
         interval_var.trace_add('write', lambda *_: self._on_skill_param_changed(skill_key, 'interval', interval_var.get()))
 
         # Delay spinbox
-        delay_var = tk.IntVar(value=skill_data.get('delay', 0))
+        delay_var = var_int(parent, skill_data.get('delay', 0))
         delay_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
                                textvariable=delay_var, width=8,
                                bg=UnifiedStyles.COLORS['input_bg'],
@@ -333,7 +336,7 @@ class MainFunctionsPanel:
         delay_var.trace_add('write', lambda *_: self._on_skill_param_changed(skill_key, 'delay', delay_var.get()))
 
         # Random delay spinbox
-        random_delay_var = tk.IntVar(value=skill_data.get('random_delay', 0))
+        random_delay_var = var_int(parent, skill_data.get('random_delay', 0))
         random_delay_spin = tk.Spinbox(parent, from_=0, to=10000, increment=10,
                                        textvariable=random_delay_var, width=8,
                                        bg=UnifiedStyles.COLORS['input_bg'],
@@ -478,7 +481,7 @@ class MainFunctionsPanel:
                                   padx=UnifiedStyles.SPACING['sm'],
                                   pady=UnifiedStyles.SPACING['xs'])
 
-        potion_interval_var = tk.IntVar(value=current_config.get('potion_interval', 500))
+        potion_interval_var = var_int(additional_frame, current_config.get('potion_interval', 500))
         potion_interval_spin = tk.Spinbox(additional_frame, from_=0, to=10000, increment=100,
                                          textvariable=potion_interval_var, width=10,
                                          bg=UnifiedStyles.COLORS['input_bg'],
@@ -576,7 +579,7 @@ class MainFunctionsPanel:
                   pady=UnifiedStyles.SPACING['xs'])
         
         # Combobox
-        var = tk.StringVar(value=default_value)
+        var = var_str(parent, default_value)
         combo = ttk.Combobox(parent, textvariable=var, values=values, 
                             state='readonly', width=10)
         combo.grid(row=row, column=1, sticky="w", 

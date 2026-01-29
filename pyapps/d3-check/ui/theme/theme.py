@@ -62,6 +62,12 @@ class UITheme:
         'border_subtle': '#2a2a3e',     # Subtle border
         'separator': '#2a2a3e',         # Separator line
 
+        # ============ Tab (Notebook) - high contrast unselected ============
+        'tab_unselected_bg': '#4C566A',     # Unselected tab bg (distinct from content)
+        'tab_unselected_fg': '#ECEFF4',    # Unselected tab text (high contrast)
+        'tab_selected_bg': '#16213e',      # Selected tab bg
+        'tab_selected_fg': '#e0e0e0',      # Selected tab text
+
         # ============ Accent Colors ============
         'accent_blue': '#2196F3',       # Blue accent
         'accent_cyan': '#00d4ff',       # Cyan accent
@@ -169,31 +175,33 @@ class UITheme:
                        borderwidth=0,
                        tabmargins=[1, 3, 1, 0])  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
 
-        # Configure Tab style with explicit colors
-        # CRITICAL: configure() sets the DEFAULT/BASE colors for unselected tabs
-        # map() only overrides for SPECIFIC states (selected, active)
+        # Configure Tab style - unselected: high contrast (tab_unselected_bg/fg)
         style.configure('TNotebook.Tab',
-                       background=cls.get_color('bg_light'),        # BASE: Light bg for unselected
-                       foreground=cls.get_color('text_dark'),       # BASE: Dark text for unselected
-                       bordercolor=cls.get_color('bg_light'),
-                       lightcolor=cls.get_color('bg_light'),
-                       darkcolor=cls.get_color('bg_light'),
+                       background=cls.get_color('tab_unselected_bg'),
+                       foreground=cls.get_color('tab_unselected_fg'),
+                       bordercolor=cls.get_color('tab_unselected_bg'),
+                       lightcolor=cls.get_color('tab_unselected_bg'),
+                       darkcolor=cls.get_color('tab_unselected_bg'),
                        padding=[12, 6],
                        font=cls.get_font('button'))
 
-        # Map ONLY specific states - DO NOT include default state tuple
-        # Let configure() handle the default/unselected appearance
+        # map(): selected/active override; !selected forces unselected contrast on all platforms
         style.map('TNotebook.Tab',
-                 background=[('selected', cls.get_color('bg_secondary')),     # Override: selected
-                           ('active', cls.get_color('state_hover'))],         # Override: hover
-                 foreground=[('selected', cls.get_color('text_primary')),     # Override: selected
-                           ('active', cls.get_color('text_primary'))],        # Override: hover
-                 bordercolor=[('selected', cls.get_color('bg_secondary')),
-                            ('active', cls.get_color('state_hover'))],
-                 lightcolor=[('selected', cls.get_color('bg_secondary')),
-                           ('active', cls.get_color('state_hover'))],
-                 darkcolor=[('selected', cls.get_color('bg_secondary')),
-                          ('active', cls.get_color('state_hover'))])
+                 background=[('selected', cls.get_color('tab_selected_bg')),
+                           ('active', cls.get_color('state_hover')),
+                           ('!selected', cls.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', cls.get_color('tab_selected_fg')),
+                           ('active', cls.get_color('text_primary')),
+                           ('!selected', cls.get_color('tab_unselected_fg'))],
+                 bordercolor=[('selected', cls.get_color('tab_selected_bg')),
+                            ('active', cls.get_color('state_hover')),
+                            ('!selected', cls.get_color('tab_unselected_bg'))],
+                 lightcolor=[('selected', cls.get_color('tab_selected_bg')),
+                           ('active', cls.get_color('state_hover')),
+                           ('!selected', cls.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', cls.get_color('tab_selected_bg')),
+                          ('active', cls.get_color('state_hover')),
+                          ('!selected', cls.get_color('tab_unselected_bg'))])
 
         # Configure Frame style
         style.configure('TFrame', background=cls.get_color('bg_primary'))

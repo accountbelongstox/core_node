@@ -19,12 +19,13 @@ from typing import Optional, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
 
-PIL = get_third_package_PIL()
 numpy = get_third_package_numpy()
+np = numpy
 cv2 = get_third_package_cv2()
-from PIL import Image
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -231,7 +232,10 @@ class ScreenshotProvider:
                 )
 
             if result is None:
-                ColorPrint.red("[Provider] Failed to capture screenshot")
+                ColorPrint.red(
+                    "[Provider] Screenshot capture returned None. "
+                    "Reason above: no window matching titles, or exception in capture."
+                )
                 return None
 
             fullscreen_path = result["screenshot_path"]
@@ -267,7 +271,7 @@ class ScreenshotProvider:
                 fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
 
                 # Get window offset from cache
-                from pyfoundations.encyclopedia import ENCYCLOPEDIA
+                from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
                 window_offset = (0, 0)
                 for title in window_titles:
                     cache_key = f"window_cache_{title.lower()}"

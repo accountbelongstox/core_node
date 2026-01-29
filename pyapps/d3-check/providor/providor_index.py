@@ -5,10 +5,11 @@ from datetime import datetime, time as dt_time
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw, ImageFont
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
@@ -54,6 +55,11 @@ STANDARD_RESOLUTION_HEIGHT = 1301
 # D4 Standard Resolution
 D4_STANDARD_RESOLUTION_WIDTH = 1763
 D4_STANDARD_RESOLUTION_HEIGHT = 1126
+
+# Battle.net Standard Resolution - reference window size for template scaling (same rule as D3/D4)
+# When actual window size differs, template is scaled by (actual/standard) before matching
+BATTLENET_STANDARD_RESOLUTION_WIDTH = 960
+BATTLENET_STANDARD_RESOLUTION_HEIGHT = 540
 
 # ============================================================================
 # GLOBAL RESOLUTION SCALE - Moved to d3utils.share.game_interface_data
@@ -837,10 +843,32 @@ PLAY_BUTTON_AUTOMATION_IDS = [
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
+# D3 small map: rename ScreenShot_2026-01-29_225845_569.png to d3_small_map.png under images/battlenet/
 BATTLENET_TEMPLATE_CONFIGS = {
-    # Placeholder for Battle.net-specific templates
-    # Will contain templates specific to the Battle.net client UI
-    # Add templates here as needed for Battle.net screenshot analysis
+    "battlenet_d3_small_map": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "d3_small_map.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "TM_CCOEFF_NORMED",
+        "note": "D3 small map icon on Battle.net - found means login success, click then click Play"
+    },
+    "battlenet_play_button_zh": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_zh.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "TM_CCOEFF_NORMED",
+        "note": "开始游戏 button (Chinese) on Battle.net - from ScreenShot_2026-01-29_231157_269.png"
+    },
+    "battlenet_play_button_en": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_en.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "TM_CCOEFF_NORMED",
+        "note": "Play button (English) on Battle.net - from ScreenShot_2026-01-29_231236_887.png"
+    },
 }
 
 # ============================================================================

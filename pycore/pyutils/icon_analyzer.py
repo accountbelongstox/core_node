@@ -16,12 +16,10 @@ import hashlib
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageStat
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
-ImageStat = PIL.ImageStat
+Image = get_third_package_PIL_Image()
+ImageStat = get_third_package_PIL_ImageStat()
 
 logger = logging.getLogger(__name__)
 

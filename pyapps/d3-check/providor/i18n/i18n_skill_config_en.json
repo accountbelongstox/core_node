@@ -58,6 +58,16 @@
       "config3": "Config 3",
       "config4": "Config 4"
     },
+    "main_functions_sub_tabs": {
+      "function_1": "Function 1",
+      "function_2": "To be Extended",
+      "function_3": "To be Extended"
+    },
+    "main_functions_sub_tabs": {
+      "function_1": "Function 1",
+      "function_2": "To be Extended",
+      "function_3": "To be Extended"
+    },
     "main_functions_panel": {
       "current_config": "Current Config",
       "config_file_path": "Config File Path",

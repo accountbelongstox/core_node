@@ -29,12 +29,12 @@ import sys
 from typing import Optional, Union, Dict, List, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
-from PIL import Image
+np = numpy
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

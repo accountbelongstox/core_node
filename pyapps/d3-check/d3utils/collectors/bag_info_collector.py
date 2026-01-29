@@ -17,6 +17,7 @@ from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_pa
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
+np = numpy
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))

@@ -11,15 +11,16 @@ import sys
 import os
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageTk
+Image = get_third_package_PIL_Image()
+ImageTk = get_third_package_PIL_ImageTk()
 
 # Add project paths
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
 from ui.unified_styles import UnifiedStyles
+from ui.utils.app_root import get_app_root
 from providor.common_imports import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 
@@ -37,8 +38,9 @@ class DebugWindow:
         self.parent = parent
         self.d4_data = get_d4_interface_data()
 
-        # Create window
-        self.window = tk.Toplevel(parent) if parent else tk.Tk()
+        # Create window (reuse app root to avoid extra blank "Tk" window)
+        root = parent or get_app_root()
+        self.window = tk.Toplevel(root) if root else tk.Tk()
         self.window.title("D4 Debug - Region Detection")
         self.window.geometry("680x1000+50+50")  # 680x1000px, positioned at left side
         self.window.resizable(False, False)

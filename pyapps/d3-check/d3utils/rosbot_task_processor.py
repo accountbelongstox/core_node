@@ -13,10 +13,6 @@ from d3utils.log_monitor import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
 
-# DEBUG 开关：设置为 False 关闭所有 debug 弹窗
-DEBUG_MESSAGEBOX = False
-
-
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
 
@@ -39,27 +35,27 @@ class RosbotTaskProcessor:
     def start_rosbot(self):
         """Start ROSBOT monitoring"""
         try:
-            ColorPrint.debug_messagebox("DEBUG #12", "[RosbotTaskProcessor] Enter start_rosbot", DEBUG_MESSAGEBOX)
+            ColorPrint.debug_messagebox("DEBUG #12", "[RosbotTaskProcessor] Enter start_rosbot")
 
             if not self.initialized:
-                ColorPrint.debug_messagebox("DEBUG #13", "[RosbotTaskProcessor] Need initialization", DEBUG_MESSAGEBOX)
+                ColorPrint.debug_messagebox("DEBUG #13", "[RosbotTaskProcessor] Need initialization")
                 self.initialize()
-                ColorPrint.debug_messagebox("DEBUG #14", "[RosbotTaskProcessor] Initialization completed", DEBUG_MESSAGEBOX)
+                ColorPrint.debug_messagebox("DEBUG #14", "[RosbotTaskProcessor] Initialization completed")
 
             # Enable full-speed monitoring
-            ColorPrint.debug_messagebox("DEBUG #15", "[RosbotTaskProcessor] Preparing to call set_rosbot_running(True)", DEBUG_MESSAGEBOX)
+            ColorPrint.debug_messagebox("DEBUG #15", "[RosbotTaskProcessor] Preparing to call set_rosbot_running(True)")
             set_rosbot_running(True)
-            ColorPrint.debug_messagebox("DEBUG #16", "[RosbotTaskProcessor] set_rosbot_running returned", DEBUG_MESSAGEBOX)
+            ColorPrint.debug_messagebox("DEBUG #16", "[RosbotTaskProcessor] set_rosbot_running returned")
 
             # Update game state
-            ColorPrint.debug_messagebox("DEBUG #17", "[RosbotTaskProcessor] Preparing to update game_state", DEBUG_MESSAGEBOX)
+            ColorPrint.debug_messagebox("DEBUG #17", "[RosbotTaskProcessor] Preparing to update game_state")
             self.game_state.set_rosbot_status(True)
-            ColorPrint.debug_messagebox("DEBUG #18", "[RosbotTaskProcessor] game_state.set_rosbot_status returned", DEBUG_MESSAGEBOX)
+            ColorPrint.debug_messagebox("DEBUG #18", "[RosbotTaskProcessor] game_state.set_rosbot_status returned")
 
             ColorPrint.green("[RosbotTaskProcessor] ROSBOT monitoring started")
 
         except Exception as e:
-            ColorPrint.debug_messagebox("ERROR", f"[RosbotTaskProcessor] Exception: {e}", DEBUG_MESSAGEBOX, "error")
+            ColorPrint.debug_messagebox("ERROR", f"[RosbotTaskProcessor] Exception: {e}", "error")
             ColorPrint.red(f"[RosbotTaskProcessor] Error starting ROSBOT: {e}")
             # Update game state to reflect error
             self.game_state.set_rosbot_status(False)
@@ -101,16 +97,16 @@ def get_rosbot_processor() -> RosbotTaskProcessor:
 def start_rosbot_task():
     """Start ROSBOT task"""
     try:
-        ColorPrint.debug_messagebox("DEBUG #9", "[start_rosbot_task] Enter function", DEBUG_MESSAGEBOX)
+        ColorPrint.debug_messagebox("DEBUG #9", "[start_rosbot_task] Enter function")
 
         processor = get_rosbot_processor()
-        ColorPrint.debug_messagebox("DEBUG #10", "[start_rosbot_task] Got processor instance successfully", DEBUG_MESSAGEBOX)
+        ColorPrint.debug_messagebox("DEBUG #10", "[start_rosbot_task] Got processor instance successfully")
 
         processor.start_rosbot()
-        ColorPrint.debug_messagebox("DEBUG #11", "[start_rosbot_task] processor.start_rosbot() returned", DEBUG_MESSAGEBOX)
+        ColorPrint.debug_messagebox("DEBUG #11", "[start_rosbot_task] processor.start_rosbot() returned")
 
     except Exception as e:
-        ColorPrint.debug_messagebox("ERROR", f"[start_rosbot_task] Exception: {e}", DEBUG_MESSAGEBOX, "error")
+        ColorPrint.debug_messagebox("ERROR", f"[start_rosbot_task] Exception: {e}", "error")
         ColorPrint.red(f"[start_rosbot_task] Error: {e}")
 
 

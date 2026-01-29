@@ -12,6 +12,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_
 sys.path.insert(0, project_root)
 
 from ui.theme.theme import UITheme
+from ui.utils.tk_variables import var_str
 from d3utils.i18n_manager import I18nManager
 i18n_manager = I18nManager()
 from providor.providor_index import CONFIG, save_config
@@ -38,8 +39,8 @@ class ThemedCombobox:
         self.values = values
         self.on_change = on_change
         
-        # Create the combobox
-        self.var = tk.StringVar(value=default_value)
+        # Create the combobox (use factory so master is always set)
+        self.var = var_str(parent, default_value)
         self.combobox = ttk.Combobox(
             parent,
             textvariable=self.var,

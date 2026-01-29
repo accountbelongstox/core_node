@@ -11,16 +11,19 @@ from typing import Optional, Callable, List, Dict
 from pathlib import Path
 import sys
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageTk, ImageDraw
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageTk = get_third_package_PIL_ImageTk()
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from providor.common_imports import ColorPrint, ImageAnnotator
 from d3utils.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
+from ..utils.tk_variables import var_str, var_int, var_bool
+from ..utils.app_root import get_app_root
 
 
 class CoordinatePicker:
@@ -45,7 +48,8 @@ class CoordinatePicker:
         from .template_matcher_helper import TemplateMatcherHelper
         self.template_matcher = TemplateMatcherHelper()
 
-        self.window = tk.Toplevel(parent) if parent else tk.Tk()
+        root = parent or get_app_root()
+        self.window = tk.Toplevel(root) if root else tk.Tk()
 
         # Set window title with screenshot size info
         width, height = screenshot.size if screenshot else (0, 0)
@@ -103,8 +107,8 @@ class CoordinatePicker:
         )
         mode_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
 
-        # Pick type buttons
-        self.pick_type_var = tk.StringVar(value='point')
+        # Pick type buttons (use factory so master is always set)
+        self.pick_type_var = var_str(self.window, 'point')
 
         for pick_type, label_key in [('point', 'ui.coord_picker.pick_type_point'),
                                       ('rect', 'ui.coord_picker.pick_type_rect'),
@@ -153,7 +157,7 @@ class CoordinatePicker:
         )
         width_label.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.width_var = tk.IntVar(value=50)
+        self.width_var = var_int(self.window, 50)
         width_spin = tk.Spinbox(
             width_frame,
             from_=10,
@@ -179,7 +183,7 @@ class CoordinatePicker:
         )
         height_label.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.height_var = tk.IntVar(value=50)
+        self.height_var = var_int(self.window, 50)
         height_spin = tk.Spinbox(
             height_frame,
             from_=10,
@@ -205,7 +209,7 @@ class CoordinatePicker:
         )
         radius_label.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.radius_var = tk.IntVar(value=30)
+        self.radius_var = var_int(self.window, 30)
         radius_spin = tk.Spinbox(
             radius_frame,
             from_=5,
@@ -248,7 +252,7 @@ class CoordinatePicker:
         )
         client_label.pack(side=tk.LEFT, padx=(0, 5))
 
-        self.client_var = tk.StringVar(value='game')
+        self.client_var = var_str(self.window, 'game')
         for mode in ['game', 'battlenet']:
             rb = tk.Radiobutton(
                 client_frame,
@@ -650,7 +654,7 @@ class CoordinatePicker:
             cat_label.pack(anchor=tk.W, padx=10, pady=(5, 3))
 
             for template in templates:
-                var = tk.BooleanVar(value=False)
+                var = var_bool(dialog, False)
                 selected_templates[template] = var
 
                 cb = tk.Checkbutton(
@@ -682,7 +686,7 @@ class CoordinatePicker:
 
         match_modes = {}
         for mode_name, mode_key in [('point', 'Point'), ('rect', 'Rectangle'), ('circle', 'Circle')]:
-            var = tk.BooleanVar(value=False)
+            var = var_bool(dialog, False)
             match_modes[mode_name] = var
 
             cb = tk.Checkbutton(

@@ -7,11 +7,9 @@ import base64
 import io
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
+Image = get_third_package_PIL_Image()
 
 
 # Application logo (PNG, 24x24)

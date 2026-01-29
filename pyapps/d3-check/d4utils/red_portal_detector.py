@@ -27,12 +27,12 @@ import sys
 from pathlib import Path
 from typing import Union, Optional, Tuple, List
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
-from PIL import Image
+np = numpy
+Image = get_third_package_PIL_Image()
 
 # Add parent directory to path for imports
 current_dir = Path(__file__).resolve().parent.parent

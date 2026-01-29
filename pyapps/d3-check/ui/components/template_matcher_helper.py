@@ -11,10 +11,10 @@ from pathlib import Path
 import sys
 import copy
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

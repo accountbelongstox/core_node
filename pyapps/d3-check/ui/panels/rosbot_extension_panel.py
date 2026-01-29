@@ -6,15 +6,17 @@ Contains ROSBOT configuration and management features with unified styling
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 import sys
 import os
+import threading
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles
 
 # Import from common_imports
 from providor.common_imports import ColorPrint
+from ..utils.tk_variables import var_str
 
 # Import CONFIG from providor
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
@@ -28,10 +30,8 @@ from ui.utils.config_binding import ConfigBinding
 from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
-
-# DEBUG 开关：设置为 False 关闭所有 debug 弹窗
-DEBUG_MESSAGEBOX = False
-
+from d3utils.path_scanner import scan_for_paths
+from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 
 class RosbotExtensionPanel:
     """ROSBOT Extension panel with unified styling"""
@@ -58,11 +58,11 @@ class RosbotExtensionPanel:
                            padx=UnifiedStyles.SPACING['md'],
                            pady=UnifiedStyles.SPACING['md'])
 
-        # Configure grid - 2 rows, 2 columns in first row, 1 column in second row
+        # Configure grid - row 0: config/control (no vertical stretch), row 1: log (expand, min height for log area)
         self.container.grid_columnconfigure(0, weight=1)
         self.container.grid_columnconfigure(1, weight=1)
         self.container.grid_rowconfigure(0, weight=0)
-        self.container.grid_rowconfigure(1, weight=1)
+        self.container.grid_rowconfigure(1, weight=1, minsize=160)
 
         # Create content
         self.create_content()
@@ -73,6 +73,10 @@ class RosbotExtensionPanel:
         # Note: State callback already registered in __init__
 
         # Note: Language change is handled by main UI, not individual panels
+
+    def _debug_messagebox(self, title, message, icon="info"):
+        """All output via ColorPrint only (no popup)."""
+        ColorPrint.debug_messagebox(title, message, icon)
 
     def create_content(self):
         """Create panel content"""
@@ -88,8 +92,8 @@ class RosbotExtensionPanel:
     def _create_config_panel(self):
         """Create ROSBOT configuration panel"""
         config_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("rosbot.configuration"), style='TLabelframe')
-        config_frame.grid(row=0, column=0, sticky="nsew", 
-                         padx=(0, UnifiedStyles.SPACING['sm']), 
+        config_frame.grid(row=0, column=0, sticky="new",
+                         padx=(0, UnifiedStyles.SPACING['sm']),
                          pady=UnifiedStyles.SPACING['xs'])
         
         # Configure grid
@@ -168,17 +172,97 @@ class RosbotExtensionPanel:
         battlenet_browse_btn.grid(row=1, column=2, padx=(0, UnifiedStyles.SPACING['sm']),
                                  pady=UnifiedStyles.SPACING['xs'])
 
+        # One-click scan row
+        scan_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.scan_one_click"),
+                             bg=UnifiedStyles.COLORS['btn_secondary'],
+                             fg=UnifiedStyles.COLORS['text_primary'],
+                             font=UnifiedStyles.FONTS['button'],
+                             command=self._run_one_click_scan)
+        scan_btn.grid(row=2, column=0, columnspan=3, pady=UnifiedStyles.SPACING['xs'])
+        self._path_scan_btn = scan_btn
+
+    def _run_one_click_scan(self):
+        """Run path scan in background thread, then apply results on main thread."""
+        self._path_scan_btn.config(state=tk.DISABLED, text=i18n_manager.get_ui_text("rosbot.scan_searching"))
+        def do_scan():
+            try:
+                bn, ros = scan_for_paths()
+                self.container.after(0, lambda: self._apply_scan_results(bn, ros))
+            except Exception as e:
+                self.container.after(0, lambda: self._apply_scan_results(None, [], str(e)))
+        threading.Thread(target=do_scan, daemon=True).start()
+
+    def _apply_scan_results(self, battlenet_path, rosbot_dirs, error_msg=None):
+        """Apply scan results: set config and optionally show choice dialog for multiple ROSBOT."""
+        self._path_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
+        if error_msg:
+            messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
+            return
+        if battlenet_path:
+            ConfigBinding.set_config_value("battlenet.battlenet_path", battlenet_path)
+        if len(rosbot_dirs) == 1:
+            ConfigBinding.set_config_value("ros_settings.ros_directory", rosbot_dirs[0])
+        elif len(rosbot_dirs) > 1:
+            chosen = self._ask_choose_rosbot_directory(rosbot_dirs)
+            if chosen:
+                ConfigBinding.set_config_value("ros_settings.ros_directory", chosen)
+        if not battlenet_path and not rosbot_dirs:
+            msg = []
+            if not battlenet_path:
+                msg.append(i18n_manager.get_ui_text("rosbot.scan_not_found_battlenet"))
+            if not rosbot_dirs:
+                msg.append(i18n_manager.get_ui_text("rosbot.scan_not_found_rosbot"))
+            messagebox.showinfo(i18n_manager.get_ui_text("rosbot.scan_done"), "\n".join(msg))
+
+    def _ask_choose_rosbot_directory(self, dirs):
+        """Show dialog to choose one ROSBOT directory from list. Returns chosen path or None."""
+        top = tk.Toplevel(self.container)
+        top.title(i18n_manager.get_ui_text("rosbot.scan_choose_one"))
+        top.transient(self.container)
+        top.grab_set()
+        result = [None]
+        lb = tk.Listbox(top, height=min(10, len(dirs)), width=70,
+                        bg=UnifiedStyles.COLORS.get('input_bg', '#2d2d2d'),
+                        fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0'))
+        lb.pack(padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['sm'], fill=tk.BOTH, expand=True)
+        for d in dirs:
+            lb.insert(tk.END, d)
+        lb.selection_set(0)
+
+        def on_ok():
+            sel = lb.curselection()
+            if sel:
+                result[0] = dirs[sel[0]]
+            top.destroy()
+
+        def on_cancel():
+            top.destroy()
+
+        btn_frame = tk.Frame(top, bg=UnifiedStyles.COLORS.get('bg_secondary', '#252525'))
+        btn_frame.pack(pady=(0, UnifiedStyles.SPACING['sm']))
+        tk.Button(btn_frame, text="OK", command=on_ok,
+                  bg=UnifiedStyles.COLORS.get('btn_secondary', '#404040'),
+                  fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0')).pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+        tk.Button(btn_frame, text=i18n_manager.get_ui_text("rosbot.cancel"), command=on_cancel,
+                  bg=UnifiedStyles.COLORS.get('btn_secondary', '#404040'),
+                  fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0')).pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+        top.wait_window()
+        return result[0]
+
     def _create_bot_settings(self, parent):
         """Create bot settings section"""
         settings_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.bot_settings"),
                                       bg=UnifiedStyles.COLORS['bg_secondary'],
                                       fg=UnifiedStyles.COLORS['text_primary'],
                                       font=UnifiedStyles.FONTS['subheading'])
-        settings_frame.grid(row=1, column=0, columnspan=2, sticky="ew", 
-                           padx=UnifiedStyles.SPACING['sm'], 
-                           pady=UnifiedStyles.SPACING['sm'])
-        
-        # Bot settings checkboxes using ConfigBinding
+        settings_frame.grid(row=1, column=0, columnspan=2, sticky="ew",
+                           padx=UnifiedStyles.SPACING['sm'],
+                           pady=UnifiedStyles.SPACING['xs'])
+        settings_frame.grid_columnconfigure(0, weight=1)
+        settings_frame.grid_columnconfigure(1, weight=1)
+        settings_frame.grid_columnconfigure(2, weight=1)
+
+        # Bot settings checkboxes using ConfigBinding (3 columns to reduce height)
         bot_settings = [
             ("rosbot.auto_enable_latest_ros", "ros_settings.auto_enable_latest_ros", True),
             ("rosbot.auto_start_rosbot", "ros_settings.auto_start_rosbot", True),
@@ -209,14 +293,14 @@ class RosbotExtensionPanel:
                       pady=UnifiedStyles.SPACING['xs'])
 
             col += 1
-            if col > 1:
+            if col > 2:
                 col = 0
                 row += 1
 
     def _create_control_panel(self):
         """Create ROSBOT control and status panel"""
         control_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("rosbot.control_panel"), style='TLabelframe')
-        control_frame.grid(row=0, column=1, sticky="nsew",
+        control_frame.grid(row=0, column=1, sticky="new",
                           padx=(UnifiedStyles.SPACING['sm'], 0),
                           pady=UnifiedStyles.SPACING['xs'])
 
@@ -275,7 +359,7 @@ class RosbotExtensionPanel:
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
 
-        self.ros_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.not_running"))
+        self.ros_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.not_running"))
         self.ros_status_label = tk.Label(status_frame, textvariable=self.ros_status_var,
                                         bg=UnifiedStyles.COLORS['bg_secondary'],
                                         fg=UnifiedStyles.COLORS['error'],
@@ -293,7 +377,7 @@ class RosbotExtensionPanel:
                      padx=UnifiedStyles.SPACING['sm'],
                      pady=UnifiedStyles.SPACING['xs'])
 
-        self.d3_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.not_running"))
+        self.d3_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.not_running"))
         self.d3_status_label = tk.Label(status_frame, textvariable=self.d3_status_var,
                                        bg=UnifiedStyles.COLORS['bg_secondary'],
                                        fg=UnifiedStyles.COLORS['error'],
@@ -311,7 +395,7 @@ class RosbotExtensionPanel:
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
 
-        self.map_status_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.map_unknown"))
+        self.map_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.map_unknown"))
         self.map_status_label = tk.Label(status_frame, textvariable=self.map_status_var,
                                         bg=UnifiedStyles.COLORS['bg_secondary'],
                                         fg=UnifiedStyles.COLORS['text_muted'],
@@ -329,7 +413,7 @@ class RosbotExtensionPanel:
                         padx=UnifiedStyles.SPACING['sm'],
                         pady=UnifiedStyles.SPACING['xs'])
 
-        self.stage_var = tk.StringVar(value=i18n_manager.get_ui_text("rosbot.stage_unknown"))
+        self.stage_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.stage_unknown"))
         self.stage_label = tk.Label(status_frame, textvariable=self.stage_var,
                                    bg=UnifiedStyles.COLORS['bg_secondary'],
                                    fg=UnifiedStyles.COLORS['text_muted'],
@@ -347,13 +431,12 @@ class RosbotExtensionPanel:
         log_frame.grid_columnconfigure(0, weight=1)
         log_frame.grid_rowconfigure(0, weight=1)
 
-        # Log text widget
+        # Log text widget (no fixed height so it expands with row weight=1)
         self.log_text = tk.Text(log_frame,
                                bg=UnifiedStyles.COLORS['bg_primary'],
                                fg=UnifiedStyles.COLORS['text_primary'],
                                font=UnifiedStyles.FONTS['code'],
                                wrap=tk.WORD,
-                               height=8,
                                state=tk.DISABLED)
 
         # Scrollbar
@@ -369,11 +452,22 @@ class RosbotExtensionPanel:
                       pady=UnifiedStyles.SPACING['sm'])
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Add a log message to the rosbot log display"""
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
-        self.log_text.configure(state=tk.DISABLED)
+        """Add a log message to the rosbot log display. Thread-safe: schedules UI update on main thread if needed."""
+        def _append():
+            try:
+                if not self.log_text.winfo_exists():
+                    return
+                self.log_text.configure(state=tk.NORMAL)
+                self.log_text.insert(tk.END, f"{message}\n")
+                self.log_text.see(tk.END)
+                self.log_text.configure(state=tk.DISABLED)
+            except tk.TclError:
+                pass
+        try:
+            if self.container.winfo_exists():
+                self.container.after(0, _append)
+        except tk.TclError:
+            pass
 
     def _browse_rosbot_path(self):
         """Browse for ROSBOT executable"""
@@ -404,30 +498,34 @@ class RosbotExtensionPanel:
         """Start ROSBOT"""
         if not self.rosbot_running:
             try:
+                # Step 0: Ensure Battle.net started, activate UI (tray click), screenshot, check login text
+                self._debug_messagebox("DEBUG #0", "[RosbotPanel] Step 0: Ensure Battle.net and login check")
+                get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+
                 # Step 1: Update UI state immediately to provide feedback
-                ColorPrint.debug_messagebox("DEBUG #1", "[RosbotPanel] Step 1: Start updating UI state", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #1", "[RosbotPanel] Step 1: Start updating UI state")
                 self.rosbot_running = True
-                ColorPrint.debug_messagebox("DEBUG #2", "[RosbotPanel] Step 1: rosbot_running set to True", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #2", "[RosbotPanel] Step 1: rosbot_running set to True")
 
                 self._update_control_button()
-                ColorPrint.debug_messagebox("DEBUG #3", "[RosbotPanel] Step 1: _update_control_button completed", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #3", "[RosbotPanel] Step 1: _update_control_button completed")
 
                 # Step 2: Enable ROSBOT task thread
-                ColorPrint.debug_messagebox("DEBUG #4", "[RosbotPanel] Step 2: Preparing to set task status", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #4", "[RosbotPanel] Step 2: Preparing to set task status")
                 set_task_status('rosbot_task', TaskStatus.ENABLED)
-                ColorPrint.debug_messagebox("DEBUG #5", "[RosbotPanel] Step 2: set_task_status completed", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #5", "[RosbotPanel] Step 2: set_task_status completed")
 
                 # Step 3: Start ROSBOT operations in task thread
-                ColorPrint.debug_messagebox("DEBUG #6", "[RosbotPanel] Step 3: Preparing to start ROSBOT task", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #6", "[RosbotPanel] Step 3: Preparing to start ROSBOT task")
                 rosbot_processor.start_rosbot_task()
-                ColorPrint.debug_messagebox("DEBUG #7", "[RosbotPanel] Step 3: start_rosbot_task returned", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #7", "[RosbotPanel] Step 3: start_rosbot_task returned")
 
                 # Step 4: Final confirmation
-                ColorPrint.debug_messagebox("DEBUG #8", "[RosbotPanel] Step 4: All steps completed", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #8", "[RosbotPanel] Step 4: All steps completed")
                 ColorPrint.green("[ROSBOT] Started monitoring")
 
             except Exception as e:
-                ColorPrint.debug_messagebox("ERROR", f"[RosbotPanel] Exception: {e}", DEBUG_MESSAGEBOX, "error")
+                self._debug_messagebox("ERROR", f"[RosbotPanel] Exception: {e}", "error")
                 ColorPrint.red(f"[RosbotPanel] Error in _start_rosbot: {e}")
                 # Revert UI state on error
                 self.rosbot_running = False
@@ -471,59 +569,59 @@ class RosbotExtensionPanel:
 
     def _on_game_state_changed(self, state):
         """Handle game state changes (called from background thread)"""
-        ColorPrint.debug_messagebox("DEBUG #30", f"[RosbotPanel] Enter _on_game_state_changed, state={state}", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #30", f"[RosbotPanel] Enter _on_game_state_changed, state={state}")
 
         # Check if container still exists (not destroyed during shutdown)
         try:
             if not self.container.winfo_exists():
-                ColorPrint.debug_messagebox("DEBUG #31-SKIP", "[RosbotPanel] Container destroyed, skipping", DEBUG_MESSAGEBOX)
+                self._debug_messagebox("DEBUG #31-SKIP", "[RosbotPanel] Container destroyed, skipping")
                 return
         except:
             # Container is destroyed or not accessible
             return
 
         # Schedule UI update on main thread to avoid tkinter thread safety issues
-        ColorPrint.debug_messagebox("DEBUG #31", "[RosbotPanel] Preparing to call container.after", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #31", "[RosbotPanel] Preparing to call container.after")
         try:
             self.container.after(0, lambda: self._update_ui_from_state(state))
-            ColorPrint.debug_messagebox("DEBUG #32", "[RosbotPanel] container.after returned", DEBUG_MESSAGEBOX)
+            self._debug_messagebox("DEBUG #32", "[RosbotPanel] container.after returned")
         except:
             # Main loop may have stopped
-            ColorPrint.debug_messagebox("DEBUG #32-ERROR", "[RosbotPanel] container.after failed (main loop stopped)", DEBUG_MESSAGEBOX)
+            self._debug_messagebox("DEBUG #32-ERROR", "[RosbotPanel] container.after failed (main loop stopped)")
 
     def _update_ui_from_state(self, state):
         """Update UI elements from game state (called on main thread)"""
-        ColorPrint.debug_messagebox("DEBUG #33", f"[RosbotPanel] Enter _update_ui_from_state, state={state}", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #33", f"[RosbotPanel] Enter _update_ui_from_state, state={state}")
 
         # Check if UI elements exist before updating
         if not hasattr(self, 'ros_status_var') or not hasattr(self, 'd3_status_var'):
-            ColorPrint.debug_messagebox("DEBUG #34-SKIP", "[RosbotPanel] UI not fully initialized, skipping", DEBUG_MESSAGEBOX)
+            self._debug_messagebox("DEBUG #34-SKIP", "[RosbotPanel] UI not fully initialized, skipping")
             return  # UI not fully initialized yet
 
-        ColorPrint.debug_messagebox("DEBUG #34", "[RosbotPanel] Start updating UI elements", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #34", "[RosbotPanel] Start updating UI elements")
 
         # Update ROS status
         ros_text = i18n_manager.get_ui_text("rosbot.running" if state['rosbot_running'] else "rosbot.not_running")
         self.ros_status_var.set(ros_text)
         self.ros_status_label.config(fg=UnifiedStyles.COLORS['success' if state['rosbot_running'] else 'error'])
-        ColorPrint.debug_messagebox("DEBUG #35", "[RosbotPanel] ROS status updated", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #35", "[RosbotPanel] ROS status updated")
 
         # Update D3 status
         d3_text = i18n_manager.get_ui_text("rosbot.running" if state['d3_running'] else "rosbot.not_running")
         self.d3_status_var.set(d3_text)
         self.d3_status_label.config(fg=UnifiedStyles.COLORS['success' if state['d3_running'] else 'error'])
-        ColorPrint.debug_messagebox("DEBUG #36", "[RosbotPanel] D3 status updated", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #36", "[RosbotPanel] D3 status updated")
 
         # Update map status
         map_key = f"rosbot.map_{state['map_type']}"
         map_text = i18n_manager.get_ui_text(map_key)
         self.map_status_var.set(map_text)
-        ColorPrint.debug_messagebox("DEBUG #37", "[RosbotPanel] Map status updated", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #37", "[RosbotPanel] Map status updated")
 
         # Update stage status
         stage_key = f"rosbot.stage_{state['game_stage']}"
         stage_text = i18n_manager.get_ui_text(stage_key)
         self.stage_var.set(stage_text)
-        ColorPrint.debug_messagebox("DEBUG #38", "[RosbotPanel] Stage status updated", DEBUG_MESSAGEBOX)
-        ColorPrint.debug_messagebox("DEBUG #39", "[RosbotPanel] _update_ui_from_state completed", DEBUG_MESSAGEBOX)
+        self._debug_messagebox("DEBUG #38", "[RosbotPanel] Stage status updated")
+        self._debug_messagebox("DEBUG #39", "[RosbotPanel] _update_ui_from_state completed")
 

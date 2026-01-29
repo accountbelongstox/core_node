@@ -235,12 +235,13 @@ class I18nManager:
             ColorPrint.red(f"[I18nManager] Translation error for key '{key}': {e}")
             return default if default is not None else key
     
-    def get_ui_text(self, ui_key: str) -> str:
-        """Get UI text"""
+    def get_ui_text(self, ui_key: str, default: Optional[str] = None) -> str:
+        """Get UI text, with optional fallback when key is missing."""
         # Only add "ui." prefix if the key doesn't already have it
         if not ui_key.startswith("ui."):
             ui_key = f"ui.{ui_key}"
-        return self.translate(ui_key, ui_key)
+        fallback = default if default is not None else ui_key
+        return self.translate(ui_key, fallback)
     
     def _save_language_to_config(self):
         """Save language setting to template_config.json"""

@@ -23,6 +23,7 @@ from ..widgets import HotkeyInput
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
+from ..utils.tk_variables import var_str
 from ui.utils.config_binding import ConfigBinding
 
 class AuxiliaryFunctionsPanel:
@@ -228,8 +229,8 @@ class AuxiliaryFunctionsPanel:
                     current_display = display_texts[0] if display_texts else ""
                     ColorPrint.yellow(f"[ConfigBinding-KV] No cache found for {menu_config['menu_config_key']}, using default: '{current_display}'")
 
-                # Create StringVar for the combobox
-                menu_var = tk.StringVar(value=current_display)
+                # Create StringVar for the combobox (master for correct root binding)
+                menu_var = var_str(auto_frame, current_display)
                 menu = ttk.Combobox(auto_frame, textvariable=menu_var,
                                    values=display_texts, state='readonly', width=18)
                 menu.grid(row=row, column=1, sticky='w',
@@ -325,7 +326,7 @@ class AuxiliaryFunctionsPanel:
             current_display = blood_type_display[0] if blood_type_display else ""
             ColorPrint.yellow(f"[ConfigBinding-KV] No cache for blood shard type, using default: '{current_display}'")
 
-        blood_type_var = tk.StringVar(value=current_display)
+        blood_type_var = var_str(blood_frame, current_display)
         blood_type = ttk.Combobox(blood_frame, textvariable=blood_type_var,
                                   values=blood_type_display, state='readonly', width=10)
         blood_type.pack(side=tk.LEFT, padx=(UnifiedStyles.SPACING['sm'], 0))

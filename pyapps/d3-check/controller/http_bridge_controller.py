@@ -16,7 +16,7 @@ sys.path.insert(0, str(current_dir))
 
 from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, load_config
-from pycore.pyweb.http_bridge import HTTPBridgeServer
+from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 
 

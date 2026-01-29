@@ -15,12 +15,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 numpy = get_third_package_numpy()
+np = numpy
 cv2 = get_third_package_cv2()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 
 # Add project path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -45,16 +45,32 @@ GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
 # Screen resolution cache (get once, use many times)
 _screen_resolution = None
 
+def _get_screen_resolution_win32() -> tuple[int, int]:
+    """Get primary monitor resolution on Windows without creating any Tk window."""
+    import ctypes
+    user32 = ctypes.windll.user32
+    return (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))  # SM_CXSCREEN, SM_CYSCREEN
+
 def get_screen_resolution() -> tuple[int, int]:
-    """Get screen resolution with caching"""
+    """Get screen resolution with caching. Does not create tk.Tk() to avoid extra blank window."""
     global _screen_resolution
     if _screen_resolution is None:
-        root = tk.Tk()
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
-        root.destroy()
-        _screen_resolution = (screen_width, screen_height)
-        print(f"[GameInterfaceData] Screen resolution cached: {screen_width}x{screen_height}")
+        if sys.platform == "win32":
+            _screen_resolution = _get_screen_resolution_win32()
+        else:
+            try:
+                from providor.common_imports import ENCYCLOPEDIA
+                ui = ENCYCLOPEDIA.get("ui")
+                if ui is not None and hasattr(ui, "root") and ui.root.winfo_exists():
+                    _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
+                else:
+                    root = tk.Tk()
+                    root.withdraw()
+                    _screen_resolution = (root.winfo_screenwidth(), root.winfo_screenheight())
+                    root.destroy()
+            except Exception:
+                _screen_resolution = (1920, 1080)
+        ColorPrint.blue(f"[GameInterfaceData] Screen resolution cached: {_screen_resolution[0]}x{_screen_resolution[1]}")
     return _screen_resolution
 
 # ============================================================================

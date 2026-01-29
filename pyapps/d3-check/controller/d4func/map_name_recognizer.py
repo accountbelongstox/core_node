@@ -11,10 +11,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import io
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 
 # Add project paths
 current_dir = Path(__file__).parent.parent.parent

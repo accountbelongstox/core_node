@@ -113,7 +113,15 @@
       "stage_back_town": "Back Town",
       "stage_in_greater_rift": "In Greater Rift",
       "stage_in_rift": "In Rift",
-      "stage_unknown": "Unknown"
+      "stage_unknown": "Unknown",
+      "scan_one_click": "One-Click Scan",
+      "scan_searching": "Scanning...",
+      "scan_done": "Scan complete",
+      "scan_found_multiple_rosbot": "Multiple ROSBOT directories found. Please choose one.",
+      "scan_choose_one": "Choose ROSBOT directory",
+      "scan_not_found_battlenet": "Battle.net.exe not found",
+      "scan_not_found_rosbot": "No ROSBOT executable found",
+      "cancel": "Cancel"
     }
   }
 }

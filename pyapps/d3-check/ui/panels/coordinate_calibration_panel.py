@@ -30,6 +30,7 @@ from providor.providor_index import (
     DIABLO_IV_WINDOW_TITLES
 )
 from ..unified_styles import UnifiedStyles
+from ..utils.tk_variables import var_str, var_bool
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
@@ -101,7 +102,7 @@ class CoordinateCalibrationPanel:
         )
         client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
 
-        client_var = tk.StringVar(value=CLIENT_TYPE_BATTLENET)  # Use constant
+        client_var = var_str(client_frame, CLIENT_TYPE_BATTLENET)  # Use constant
         self.vars['client_type'] = client_var
 
         def on_client_type_change(*args):
@@ -137,7 +138,7 @@ class CoordinateCalibrationPanel:
         options_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         options_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
 
-        save_var = tk.BooleanVar(value=True)
+        save_var = var_bool(options_frame, True)
         self.vars['save_screenshot'] = save_var
         save_cb = tk.Checkbutton(
             options_frame,
@@ -152,7 +153,7 @@ class CoordinateCalibrationPanel:
         )
         save_cb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['sm'])
 
-        compress_var = tk.BooleanVar(value=False)
+        compress_var = var_bool(options_frame, False)
         self.vars['compress_screenshot'] = compress_var
         compress_cb = tk.Checkbutton(
             options_frame,

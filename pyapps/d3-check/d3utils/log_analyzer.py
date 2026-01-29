@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Log Analyzer
-Analyzes ROSBOT log lines and updates game state
+Analyzes ROSBOT log lines and updates game state.
+On "Login try" in log, triggers full-screen screenshot via LoginTryScreenshotController.
 """
 import os
 import sys
@@ -10,7 +11,14 @@ import time
 import re
 from typing import Dict, Any, Optional
 from providor.common_imports import ColorPrint
+from providor.providor_index import CONFIG
 from share.game_interface_data import get_game_interface_data
+from config.constants import LOGIN_TRY_TRIGGER_DEFAULT
+
+
+def _get_login_try_trigger() -> str:
+    """Trigger string for login-try screenshot (from config, else default constant)."""
+    return CONFIG.get("log_detection", {}).get("login_try", LOGIN_TRY_TRIGGER_DEFAULT)
 
 
 class LogAnalyzer:
@@ -95,6 +103,16 @@ class LogAnalyzer:
             updated = True
         elif self.patterns['stage_in_rift'].search(line):
             self.game_state.set_game_stage("in_rift")
+            updated = True
+
+        # On "Login try" in log: Battle.net window screenshot, OCR for Retry/重试; if disconnect, restart Battle.net
+        login_try_trigger = _get_login_try_trigger()
+        if login_try_trigger and login_try_trigger in line:
+            try:
+                from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
+                get_login_try_screenshot_controller().handle_login_try()
+            except Exception as e:
+                ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")
             updated = True
         
         if updated:

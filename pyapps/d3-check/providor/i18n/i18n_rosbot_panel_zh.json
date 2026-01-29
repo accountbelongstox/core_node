@@ -111,7 +111,15 @@
       "stage_back_town": "回城",
       "stage_in_greater_rift": "大秘中",
       "stage_in_rift": "小秘中",
-      "stage_unknown": "未知"
+      "stage_unknown": "未知",
+      "scan_one_click": "一键扫描",
+      "scan_searching": "正在扫描...",
+      "scan_done": "扫描完成",
+      "scan_found_multiple_rosbot": "找到多个ROSBOT目录，请选择一个",
+      "scan_choose_one": "选择ROSBOT目录",
+      "scan_not_found_battlenet": "未找到 Battle.net.exe",
+      "scan_not_found_rosbot": "未找到 ROSBOT 可执行文件",
+      "cancel": "取消"
     }
   }
 }

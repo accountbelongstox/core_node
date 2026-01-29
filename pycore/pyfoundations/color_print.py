@@ -108,7 +108,6 @@ class ColorPrintCallback:
 # Global callback handler instance
 _color_print_callback = ColorPrintCallback()
 
-
 class ColorPrint:
     """Base class for colored console output"""
     GREEN = '\033[92m'
@@ -190,7 +189,18 @@ class ColorPrint:
     def get_callback_count():
         """Get number of registered callbacks"""
         return _color_print_callback.get_callback_count()
-    
+
+    @staticmethod
+    def debug_messagebox(title: str, message: str, icon: str = "info"):
+        """Log via ColorPrint only (no popup). Format: [title] message by icon (error=red, warning=yellow, else debug)."""
+        text = f"[{title}] {message}"
+        if icon == "error":
+            ColorPrint.red(text)
+        elif icon == "warning":
+            ColorPrint.yellow(text)
+        else:
+            ColorPrint.debug(text)
+
     @staticmethod
     def _log_to_callback(message, color_type="white", log_level=None):
         """Send message to all registered callbacks"""

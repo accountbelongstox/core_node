@@ -11,6 +11,7 @@ from typing import Optional, Callable
 import time
 from ..theme import UITheme
 from ..unified_styles import UnifiedStyles
+from ..utils.tk_variables import var_str
 from d3utils.i18n_manager import I18nManager
 import sys
 import os
@@ -32,9 +33,9 @@ class StatusBar:
         """
         self.parent = parent
 
-        # Status variables
-        self.game_status = tk.StringVar(value=i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-        self.window_size = tk.StringVar(value="0x0")
+        # Status variables (use factory so master is always set)
+        self.game_status = var_str(parent, i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+        self.window_size = var_str(parent, "0x0")
         
         # Create main frame
         self.frame = tk.Frame(
