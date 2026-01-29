@@ -149,6 +149,24 @@ function Show-WindowsManagementSubMenu {
                 Read-Host "Press Enter to continue"
             }
         },
+        @{
+            Text = "APP Install";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $appInstallMenuScript = Join-Path $script:PS_CURRENT_DIR "AppInstallMenu.ps1"
+                if (Test-Path $appInstallMenuScript) {
+                    Write-ColorMessage -Message "Launching APP Install Menu..." -Type "Info"
+                    Write-Host ""
+                    & $appInstallMenuScript
+                } else {
+                    Write-ColorMessage -Message "AppInstallMenu.ps1 not found: $appInstallMenuScript" -Type "Error"
+                }
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+            }
+        },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
         @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
     )

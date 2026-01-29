@@ -1509,22 +1509,23 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
             }
         )
     }
-    WeChat         = @{
-        PackageId           = "Tencent.WeChat"
-        Exec               = "WeChat.exe"
-        Name               = "WeChat"
-        DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
-        Description        = "Popular instant messaging and social media app"
-        InstallType        = "winget"
-        ForceToInstallDir  = $true
-        VerifySuffix       = ""
-        AdditionalKeywords = @($Global:CHINESE_WEIXIN, "WeChat", "Weixin")
-        DesktopShortcuts   = @(
-            @{
-                CreateDesktopShortcut = $true
-            }
-        )
-    }
+    # WeChat: use Step127_InstallWeChat.ps1 (official page download) instead of winget
+    # WeChat         = @{
+    #     PackageId           = "Tencent.WeChat"
+    #     Exec               = "WeChat.exe"
+    #     Name               = "WeChat"
+    #     DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
+    #     Description        = "Popular instant messaging and social media app"
+    #     InstallType        = "winget"
+    #     ForceToInstallDir  = $true
+    #     VerifySuffix       = ""
+    #     AdditionalKeywords = @($Global:CHINESE_WEIXIN, "WeChat", "Weixin")
+    #     DesktopShortcuts   = @(
+    #         @{
+    #             CreateDesktopShortcut = $true
+    #         }
+    #     )
+    # }
     OneTwoThreePan = @{
         PackageId           = "123.123pan"
         Exec               = "123pan.exe"
