@@ -990,25 +990,111 @@ cleanup_cursor() {
     return 0
 }
 
+# Ensure Cursor Agent is installed (pre-check before main installation)
+ensure_cursor_agent_installed() {
+    # Check if agent command exists
+    if command -v agent >/dev/null 2>&1; then
+        local agent_path=$(command -v agent)
+        print_info_from_common_functions "Cursor Agent already installed: $agent_path"
+        echo "$agent_path"
+        return 0
+    fi
+
+    print_step_from_common_functions "Cursor Agent not found, installing..."
+    
+    # Ensure curl is installed
+    if ! command -v curl >/dev/null 2>&1; then
+        print_step_from_common_functions "Installing curl..."
+        $USE_SUDO apt-get update -qq
+        $USE_SUDO apt-get install -y curl
+    fi
+
+    # Detect actual user for agent installation (works in root mode)
+    local agent_user="${SUDO_USER:-$USER}"
+    if [[ "$agent_user" == "root" ]] || [[ -z "$agent_user" ]]; then
+        # Find first non-root user
+        agent_user=$(detect_system_user)
+    fi
+    local agent_home=$(getent passwd "$agent_user" 2>/dev/null | cut -d: -f6)
+    if [[ -z "$agent_home" ]] || [[ ! -d "$agent_home" ]]; then
+        agent_home="$HOME"
+        agent_user="$USER"
+    fi
+
+    print_info_from_common_functions "Installing Cursor Agent for user: $agent_user ($agent_home)"
+
+    # Install agent using official installer
+    if curl -fsS https://cursor.com/install | bash; then
+        print_success_from_common_functions "Cursor Agent installed successfully"
+    else
+        print_warning_from_common_functions "Cursor Agent installation may have failed"
+    fi
+
+    # Add ~/.local/bin to PATH for the detected user
+    local local_bin_dir="$agent_home/.local/bin"
+    if [[ -d "$local_bin_dir" ]]; then
+        # Add to user's .bashrc
+        local bashrc_file="$agent_home/.bashrc"
+        if [[ -f "$bashrc_file" ]] && ! grep -q "export PATH=.*$local_bin_dir" "$bashrc_file" 2>/dev/null; then
+            echo "" >> "$bashrc_file"
+            echo "# Added by Cursor installer" >> "$bashrc_file"
+            echo "export PATH=\"$local_bin_dir:\$PATH\"" >> "$bashrc_file"
+        fi
+
+        # Add to /etc/environment for system-wide access (works in root mode)
+        if ! grep -q "PATH.*$local_bin_dir" /etc/environment 2>/dev/null; then
+            $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
+            local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "/usr/local/bin:/usr/bin:/bin")
+            echo "PATH=\"$local_bin_dir:$current_path\"" | $USE_SUDO tee -a /etc/environment > /dev/null
+        fi
+
+        # Refresh environment variables
+        set -a
+        source /etc/environment 2>/dev/null || true
+        set +a
+        export PATH="$local_bin_dir:$PATH"
+    fi
+
+    # Find agent binary
+    local agent_path=""
+    if [[ -f "$local_bin_dir/agent" ]]; then
+        agent_path="$local_bin_dir/agent"
+    elif command -v agent >/dev/null 2>&1; then
+        agent_path=$(command -v agent)
+    else
+        # Search in common locations
+        for search_dir in "$agent_home/.local/bin" "/usr/local/bin" "/usr/bin"; do
+            if [[ -f "$search_dir/agent" ]]; then
+                agent_path="$search_dir/agent"
+                break
+            fi
+        done
+    fi
+
+    if [[ -n "$agent_path" ]] && [[ -f "$agent_path" ]]; then
+        print_success_from_common_functions "Cursor Agent installed at: $agent_path"
+        echo "$agent_path"
+        return 0
+    else
+        print_warning_from_common_functions "Cursor Agent installation completed but binary not found"
+        return 1
+    fi
+}
+
 # Main installation function
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
+    # Pre-check: Ensure Cursor Agent is installed (independent of main installation)
+    print_step_from_common_functions "Pre-check: Ensuring Cursor Agent is installed..."
+    local agent_path=$(ensure_cursor_agent_installed)
+    if [[ -n "$agent_path" ]]; then
+        print_info_from_common_functions "Cursor Agent absolute path: $agent_path"
+    fi
+    echo ""
+
     # Track if this is an upgrade operation
     local is_upgrade_operation=false
-    local remote_version=""
-
-    # Always get remote version from API (for both first install and upgrade)
-    print_step_from_common_functions "Checking for latest version from Cursor API..."
-    remote_version=$(get_remote_cursor_version)
-
-    if [[ -n "$remote_version" ]]; then
-        print_info_from_common_functions "Latest version available: $remote_version"
-    else
-        print_warning_from_common_functions "Unable to retrieve remote version from API"
-        print_info_from_common_functions "Will proceed with version detection from installer files"
-        remote_version=""
-    fi
 
     # Prompt for root mode (interactive, no CLI args)
     echo ""
@@ -1043,72 +1129,21 @@ install_cursor() {
             print_info_from_common_functions "Installation type: $installed_type"
         fi
 
-        # Compare versions (remote_version already fetched above)
-        if [[ -n "$remote_version" ]] && [[ -n "$installed_version" ]] && [[ "$installed_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Cursor is already up to date (version $installed_version)"
-            print_info_from_common_functions "No upgrade needed"
-            return 0
-        fi
-
-        # Compare versions and prompt for upgrade
-        local prompt_message=""
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            prompt_message="Cursor $installed_version is installed. Upgrade to $remote_version? (Y/n): "
-        else
-            prompt_message="Do you want to remove the existing installation and reinstall? (y/N): "
-        fi
-
-        echo -n "$prompt_message"
+        # Prompt for reinstall
+        echo -n "Do you want to remove the existing installation and reinstall? (y/N): "
         read -r response
 
-        # Handle upgrade prompt (Y is default for upgrade, N is default for reinstall)
-        local should_proceed=false
-        if [[ -n "$installed_version" ]] && [[ -n "$remote_version" ]] && [[ "$installed_version" != "$remote_version" ]]; then
-            # Upgrade prompt - Y is default
-            case "$response" in
-                [nN]|[nN][oO])
-                    print_info_from_common_functions "Upgrade cancelled - keeping existing installation"
-                    return 0
-                    ;;
-                *)
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with upgrade to $remote_version..."
-                    ;;
-            esac
-        else
-            # Reinstall prompt - N is default
-            case "$response" in
-                [yY]|[yY][eE][sS])
-                    should_proceed=true
-                    print_info_from_common_functions "Proceeding with reinstallation..."
-                    ;;
-                *)
-                    print_info_from_common_functions "Installation cancelled - keeping existing installation"
-                    return 0
-                    ;;
-            esac
-        fi
-
-        if [[ "$should_proceed" == true ]]; then
-            print_info_from_common_functions "Cleaning up existing installation..."
-            cleanup_cursor
-
-            # Mark as upgrade operation
-            is_upgrade_operation=true
-
-            # NOTE: Do NOT delete old installer files yet!
-            # Keep them as fallback in case download fails
-            print_info_from_common_functions "Old installer files in Downloads will be kept as fallback"
-
-            # For upgrades, open download page immediately to prepare user
-            if [[ -n "$remote_version" ]]; then
-                print_step_from_common_functions "Opening Cursor download page..."
-                print_info_from_common_functions "Please download Cursor version $remote_version"
-                open_cursor_download_page "$CURSOR_DOWNLOAD_URL"
-                print_info_from_common_functions "The script will try to auto-download, but manual download may be needed"
-                sleep 2  # Give browser time to open
-            fi
-        fi
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info_from_common_functions "Cleaning up existing installation..."
+                cleanup_cursor
+                is_upgrade_operation=true
+                ;;
+            *)
+                print_info_from_common_functions "Installation cancelled - keeping existing installation"
+                return 0
+                ;;
+        esac
     fi
 
     # Install dependencies
@@ -1161,27 +1196,10 @@ install_cursor() {
         print_info_from_common_functions "Found .deb installer: $(basename "$cursor_file")"
     fi
 
-    # If we found an existing file, check its version
+    # If we found an existing file, use it directly (no version checking)
     if [[ -n "$cursor_file" ]]; then
-        existing_file_version=$(extract_version_from_filename "$cursor_file")
-        print_info_from_common_functions "Found installer version: $existing_file_version"
-
-        # Check if existing file matches the target version
-        if [[ -n "$remote_version" ]] && [[ "$existing_file_version" == "$remote_version" ]]; then
-            print_success_from_common_functions "Found installer already matches target version: $remote_version"
-            print_info_from_common_functions "No download needed - using existing file"
-        elif [[ -n "$remote_version" ]] && [[ "$existing_file_version" != "$remote_version" ]]; then
-            print_warning_from_common_functions "Found installer version ($existing_file_version) differs from target ($remote_version)"
-            print_info_from_common_functions "Will attempt to download newer version..."
-
-            # Keep the old file path for fallback
-            local fallback_file="$cursor_file"
-            local fallback_type="$install_type"
-
-            # Clear cursor_file to trigger download attempt
-            cursor_file=""
-            install_type=""
-        fi
+        print_success_from_common_functions "Found installer: $(basename "$cursor_file")"
+        print_info_from_common_functions "Using existing installer file"
 
         # Check for installation type conflict
         if [[ -n "$cursor_file" ]] && [[ -n "$installed_type" ]] && [[ "$installed_type" != "$install_type" ]]; then
@@ -1204,24 +1222,40 @@ install_cursor() {
 
         print_info_from_common_functions "Download directory: $download_dir"
 
+        # Record timestamp before download to identify newly downloaded files
+        local download_start_time=$(date +%s)
+
         local downloaded_file=$(download_with_browser_headers_from_common_functions "$CURSOR_API_URL" "$download_dir" 3)
 
-        # Prefer the returned path if it passes file-signal verification; otherwise locate by scanning the directory
-        if verify_cursor_installer_file "$downloaded_file"; then
-            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
-            cursor_file="$downloaded_file"
-        else
-            # Function did not return a valid path (dynamic filename / different name); locate newest candidate
-            local located_file
-            located_file=$(find_newest_cursor_installer_in_dir "$download_dir")
-            if verify_cursor_installer_file "$located_file"; then
-                print_success_from_common_functions "Auto-download located: $(basename "$located_file")"
+        # Always rescan directory after download to get the newest file (handles both returned path and dynamic filenames)
+        # This ensures we use the latest downloaded file even if old files exist in the directory
+        print_info_from_common_functions "Scanning download directory for latest installer..."
+        local located_file
+        located_file=$(find_newest_cursor_installer_in_dir "$download_dir")
+
+        # Use the newest file found in directory (prefer scanned result over returned path)
+        # This ensures we always use the latest file, even if download function returned an old path
+        if verify_cursor_installer_file "$located_file"; then
+            # Verify the file was modified after download started (or within last 5 minutes as fallback)
+            local file_mtime=$(stat -c%Y "$located_file" 2>/dev/null || stat -f%m "$located_file" 2>/dev/null || echo "0")
+            local time_diff=$((file_mtime - download_start_time))
+            
+            if [[ $time_diff -ge -300 ]] || [[ -n "$downloaded_file" ]]; then
+                # File is recent (within 5 minutes) or download function returned a path
+                print_success_from_common_functions "Using latest installer: $(basename "$located_file")"
+                cursor_file="$located_file"
+            else
+                # File is too old, but use it anyway if it's the only valid file
+                print_info_from_common_functions "Using available installer: $(basename "$located_file")"
                 cursor_file="$located_file"
             fi
+        elif verify_cursor_installer_file "$downloaded_file"; then
+            # Fallback to returned path if scanning didn't find a valid file
+            print_success_from_common_functions "Auto-download successful: $(basename "$downloaded_file")"
+            cursor_file="$downloaded_file"
         fi
 
         if [[ -n "$cursor_file" ]]; then
-
             # Detect type from downloaded file
             local file_ext="${cursor_file##*.}"
             if [[ "$file_ext" == "AppImage" ]]; then
@@ -1229,16 +1263,14 @@ install_cursor() {
             elif [[ "$file_ext" == "deb" ]]; then
                 install_type="deb"
             fi
-
-            # Download succeeded - now safe to remove old files if they exist
-            if [[ -n "$fallback_file" ]] && [[ "$fallback_file" != "$cursor_file" ]]; then
-                print_step_from_common_functions "Removing outdated installer files..."
-                rm -f "$fallback_file" 2>/dev/null || true
-                print_success_from_common_functions "Removed old version: $(basename "$fallback_file")"
-            fi
         fi
+    fi
 
-        # If still no file, fallback and manual-download logic below remains unchanged
+    # Final check: cursor_file must exist
+    if [[ -z "$cursor_file" ]] || [[ ! -f "$cursor_file" ]]; then
+        print_error_from_common_functions "No valid Cursor installer found"
+        print_info_from_common_functions "Please download Cursor installer manually and save it to any /home/*/Downloads directory"
+        return 1
     fi
 
     print_success_from_common_functions "Using Cursor file: $(basename "$cursor_file")"
@@ -1331,16 +1363,13 @@ install_cursor() {
     local installed_version=$(extract_version_from_filename "$cursor_file")
     if [[ -n "$installed_version" ]]; then
         save_installation_info "$installed_version" "$cursor_file" "$install_type"
-        print_info_from_common_functions "Installed version: $installed_version"
     else
-        # Fallback if version extraction fails
         save_installation_info "unknown" "$cursor_file" "$install_type"
     fi
 
     print_success_from_common_functions "Cursor IDE installation completed successfully!"
     print_info_from_common_functions "Installation details:"
     print_info_from_common_functions "  - Type: $install_type ($file_extension)"
-    print_info_from_common_functions "  - Version: ${installed_version:-unknown}"
     print_info_from_common_functions "  - Binary: ${CURSOR_BINARY:-unknown}"
     print_info_from_common_functions "  - Icon: ${CURSOR_ICON:-unknown}"
     print_info_from_common_functions "  - User data: ${CURSOR_USERDATA_DIR:-unknown}"

@@ -41,78 +41,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Function to ensure agent command is available
-ensure_agent_command() {
-    if command -v agent >/dev/null 2>&1; then
-        local agent_path=$(command -v agent)
-        echo -e "${GREEN}[AGENT] Agent command found: $agent_path${NC}" >&2
-        echo "$agent_path"
-        return 0
-    fi
-
-    echo -e "${YELLOW}[AGENT] Agent command not found, installing...${NC}" >&2
-
-    # Ensure curl is installed
-    if ! command -v curl >/dev/null 2>&1; then
-        echo -e "${BLUE}[AGENT] Installing curl...${NC}" >&2
-        $USE_SUDO apt-get update -qq >/dev/null 2>&1
-        $USE_SUDO apt-get install -y curl >/dev/null 2>&1
-    fi
-
-    # Install agent using official installer
-    echo -e "${BLUE}[AGENT] Running Cursor Agent installer...${NC}" >&2
-    if curl https://cursor.com/install -fsS | bash >/dev/null 2>&1; then
-        echo -e "${GREEN}[AGENT] Agent installed successfully${NC}" >&2
-    else
-        echo -e "${RED}[AGENT] Agent installation failed${NC}" >&2
-        return 1
-    fi
-
-    # Ensure ~/.local/bin is in PATH for root user
-    local agent_bin_dir="$HOME/.local/bin"
-    if [[ "$USER" == "root" ]] && [[ -d "$agent_bin_dir" ]]; then
-        if ! echo "$PATH" | grep -q "$agent_bin_dir"; then
-            export PATH="$agent_bin_dir:$PATH"
-            # Also add to /etc/environment for persistence
-            if ! grep -q "PATH.*$agent_bin_dir" /etc/environment 2>/dev/null; then
-                $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-                local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2- | tr -d '"' || echo "/usr/local/bin:/usr/bin:/bin")
-                echo "PATH=\"$agent_bin_dir:$current_path\"" | $USE_SUDO tee -a /etc/environment >/dev/null
-            fi
-        fi
-    fi
-
-    # Refresh environment variables
-    set -a
-    source /etc/environment 2>/dev/null || true
-    set +a
-
-    # Verify agent is now available
-    if command -v agent >/dev/null 2>&1; then
-        local agent_path=$(command -v agent)
-        echo -e "${GREEN}[AGENT] Agent command available: $agent_path${NC}" >&2
-        echo "$agent_path"
-        return 0
-    else
-        # Try to find agent in common locations
-        local possible_paths=(
-            "$HOME/.local/bin/agent"
-            "/root/.local/bin/agent"
-            "/usr/local/bin/agent"
-        )
-        for path in "${possible_paths[@]}"; do
-            if [[ -f "$path" ]] && [[ -x "$path" ]]; then
-                echo -e "${GREEN}[AGENT] Agent found at: $path${NC}" >&2
-                echo "$path"
-                return 0
-            fi
-        done
-
-        echo -e "${RED}[AGENT] Agent installation completed but command not found in PATH${NC}" >&2
-        return 1
-    fi
-}
-
 # Function to check if Laravel main exists
 check_laravel_main() {
     if [[ ! -d "$LARAVEL_MAIN_PATH" ]]; then
@@ -237,13 +165,6 @@ check_laravel_service_status() {
 
 # Main function - route commands
 main() {
-    # Ensure agent command is available (pre-check, independent of other operations)
-    local agent_path
-    agent_path=$(ensure_agent_command 2>&1)
-    if [[ -n "$agent_path" ]]; then
-        echo -e "${CYAN}[AGENT] Agent absolute path: $agent_path${NC}" >&2
-    fi
-
     local command="${1:-help}"
     
     case "$command" in

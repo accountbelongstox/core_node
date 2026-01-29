@@ -1226,6 +1226,62 @@ Pseudo-structure:
 - Keep logs consistent (info/warn/error), but do not mix logs into stdout return channels.
 - Avoid broad deletes and avoid restart loops.
 
+69) Another mistake: adding version checking when user explicitly said "use whatever is downloaded"
+------------------------------------------------------------------------------------------------
+Date: 2026-01-28 (same day, later)
+
+What happened:
+- User explicitly stated: "download whatever is available and use it, do not check versions"
+- I added version comparison logic that:
+  - Fetched remote version from API
+  - Compared installed version vs remote version
+  - Compared existing installer file version vs remote version
+  - Triggered "Download of version X failed" warnings when versions didn't match
+  - Created fallback logic based on version mismatches
+
+Why this was wrong:
+- User's requirement was clear: "download to whatever is available, use the latest downloaded file"
+- Version checking adds complexity and failure modes
+- Version checking can reject valid installers if API version detection fails or differs
+- The script should trust the download result, not compare versions
+
+What I should have done:
+- Remove all version comparison logic
+- Use the downloaded file directly if it passes file-signal verification
+- Use existing installer files directly if found, without version checks
+- Only check installation type conflicts (appimage vs deb), not version strings
+
+Fix applied:
+- Removed remote_version fetching and comparison
+- Removed version-based upgrade prompts
+- Removed version-based fallback logic
+- Simplified to: find file -> verify file -> use file
+
+70) Optimization: ensure always using latest downloaded file
+----------------------------------------------------------------
+Date: 2026-01-28 (same day, later)
+
+What happened:
+- User reported: "Download function did not return file path, scanning Downloads..."
+- Issue: When directory contains both old and newly downloaded files, script might use old file
+- Problem: Script trusted download function's returned path, but didn't verify it's the newest file
+
+Why this was wrong:
+- Download function might return path to an old file if it exists
+- Directory scan might find old files before new download completes
+- Need to always use the newest file by modification time, not just any valid file
+
+What I should have done:
+- Always rescan directory after download to find newest file by timestamp
+- Prefer scanned result (newest by time) over download function's returned path
+- Ensure we use the file that was just downloaded, not old files in directory
+
+Fix applied:
+- Record timestamp before download
+- After download, always rescan directory to find newest file
+- Use newest file found (by modification time) instead of trusting returned path
+- This ensures we always use the latest downloaded file, even if old files exist
+
 59) Concrete minimal patch design (implementation-level)
 --------------------------------------------------------
 This section describes an implementation-level design that stays small and avoids re-architecting the script.
