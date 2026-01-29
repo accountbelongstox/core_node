@@ -34,7 +34,8 @@
 param(
     [string]$Region = "Global", # This parameter is now largely superseded by Get-GlobalVar
     [string]$PackageName = "", # Filter packages by name (supports partial matching with wildcards)
-    [string]$PackageGroup = "" # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages - supports partial matching)
+    [string]$PackageGroup = "", # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages - supports partial matching)
+    [string]$ExactPackageName = "" # When set, only the package whose key equals this value is installed (used by APP Install menu)
 )
 
 <#
@@ -92,12 +93,18 @@ if ([string]::IsNullOrWhiteSpace($installType)) { $installType = "base" }
 # Store filters at script level
 $script:PackageNameFilter = $PackageName
 $script:PackageGroupFilter = $PackageGroup
+$script:ExactPackageNameFilter = $ExactPackageName
 
 # Track installed packages' desktop categories for final organization
 $script:InstalledDesktopCategories = @()
 
 # Check if filters are provided
-if (-not [string]::IsNullOrWhiteSpace($PackageName)) {
+if (-not [string]::IsNullOrWhiteSpace($ExactPackageName)) {
+    Write-Host "$SCRIPT_INDEX Exact package name specified: $ExactPackageName (single package)" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Overriding install type to 'full' due to exact package filter" -ForegroundColor Yellow
+    $installType = "full"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PackageName)) {
     Write-Host "$SCRIPT_INDEX Package name filter specified: $PackageName (partial matching)" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX Overriding install type to 'full' due to package name filter" -ForegroundColor Yellow
     $installType = "full"
@@ -117,6 +124,11 @@ function Test-PackageFilter {
         [string]$PackageName,
         [hashtable]$PackageMeta
     )
+
+    # Exact package name takes precedence (used by APP Install menu)
+    if (-not [string]::IsNullOrWhiteSpace($script:ExactPackageNameFilter)) {
+        return ($PackageName -eq $script:ExactPackageNameFilter)
+    }
 
     # If no filter is specified, install all packages
     if ([string]::IsNullOrWhiteSpace($script:PackageNameFilter)) {

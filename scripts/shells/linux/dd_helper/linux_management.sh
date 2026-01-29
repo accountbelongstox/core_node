@@ -271,10 +271,24 @@ EOF
     read
 }
 
+# Function to show APP Install menu (single-package install from 120 list)
+show_app_install_menu() {
+    local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
+    echo "APP Install Menu"
+    echo ""
+    if [ -s "$app_install_script" ]; then
+        bash "$app_install_script"
+    else
+        echo "Error: app_install_menu.sh not found at $app_install_script"
+    fi
+    echo ""
+    read -r -p "Press Enter to continue..."
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=7
+    local total=8
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -286,6 +300,7 @@ show_linux_management_submenu() {
         "Restart GNOME Remote Desktop (Fix RDP Connection)"
         "Clear and Re-decrypt Secret Keys"
         "Show System Information"
+        "APP Install"
         "Back to Main Menu"
     )
     
@@ -347,6 +362,9 @@ show_linux_management_submenu() {
                         show_system_information
                         ;;
                     6)
+                        show_app_install_menu
+                        ;;
+                    7)
                         return 0
                         ;;
                 esac
