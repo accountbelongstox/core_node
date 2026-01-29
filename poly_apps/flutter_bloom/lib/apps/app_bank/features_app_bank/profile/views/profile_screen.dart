@@ -23,10 +23,11 @@ import '../../../widgets_app_bank/bank_nav_icon.dart';
 import '../../../widgets_app_bank/bank_stat_item.dart';
 import '../../../widgets_app_bank/bank_loading_dialog.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
+import '../../../widgets_app_bank/bank_user_masked_name_text.dart';
 
 class BankProfileScreen extends StatelessWidget {
   final bool forceOriginalView;
-  
+
   const BankProfileScreen({
     super.key,
     this.forceOriginalView = false,
@@ -37,7 +38,9 @@ class BankProfileScreen extends StatelessWidget {
     return Consumer<BankUserProvider>(
       builder: (context, provider, child) {
         final user = provider.user;
-        final isLoggedIn = provider.isAuthenticated || provider.user != null || provider.globalData?.fullName != null;
+        final isLoggedIn = provider.isAuthenticated ||
+            provider.user != null ||
+            provider.globalData?.fullName != null;
 
         if (forceOriginalView) {
           return _buildOriginalProfileView(context, isLoggedIn, provider, user);
@@ -52,7 +55,8 @@ class BankProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOriginalProfileView(BuildContext context, bool isLoggedIn, BankUserProvider provider, dynamic user) {
+  Widget _buildOriginalProfileView(BuildContext context, bool isLoggedIn,
+      BankUserProvider provider, dynamic user) {
     return BankScaffold(
       currentBottomNavIndex: 4,
       backgroundColor: Colors.transparent,
@@ -135,8 +139,10 @@ class BankProfileScreen extends StatelessWidget {
       BankUserProvider provider, dynamic user) {
     return Consumer<BankUserProvider>(
       builder: (context, provider, child) {
-        final actualIsLoggedIn = provider.isAuthenticated || provider.user != null || provider.globalData?.fullName != null;
-        
+        final actualIsLoggedIn = provider.isAuthenticated ||
+            provider.user != null ||
+            provider.globalData?.fullName != null;
+
         return Container(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
           child: Column(
@@ -176,19 +182,24 @@ class BankProfileScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            actualIsLoggedIn
-                                ? (provider.globalData?.fullName ??
-                                    provider.user?.maskedName ??
-                                    provider.user?.name ??
-                                    '*志刚')
-                                : '登录/开通',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+                          if (actualIsLoggedIn)
+                            const BankUserMaskedNameText(
+                              fallbackText: '*志刚',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            )
+                          else
+                            const Text(
+                              '登录/开通',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 4),
                           Text(
                             actualIsLoggedIn
@@ -357,7 +368,7 @@ class BankProfileScreen extends StatelessWidget {
     return Consumer<BankUserProvider>(
       builder: (context, provider, child) {
         final isAuthenticated = provider.isAuthenticated;
-        
+
         return Container(
           padding: const EdgeInsets.fromLTRB(13, 10, 13, 16),
           color: const Color(0xFFFAFBFF),
@@ -413,7 +424,8 @@ class BankProfileScreen extends StatelessWidget {
                               GestureDetector(
                                 onTap: () {
                                   if (!isAuthenticated) {
-                                    context.push(BankConstants.routeAuthentication);
+                                    context.push(
+                                        BankConstants.routeAuthentication);
                                   } else {
                                     provider.toggleProfileBalanceVisibility();
                                   }
@@ -544,7 +556,8 @@ class BankProfileScreen extends StatelessWidget {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     '信用卡',
@@ -946,7 +959,8 @@ class BankProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
           SizedBox(
             height: 28,
-            child: _buildOrderItem(context, BankImages.iconOrderPayment, '缴费订单'),
+            child:
+                _buildOrderItem(context, BankImages.iconOrderPayment, '缴费订单'),
           ),
           const SizedBox(height: 8),
           SizedBox(
@@ -956,7 +970,8 @@ class BankProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
           SizedBox(
             height: 28,
-            child: _buildOrderItem(context, BankImages.iconOrderShanrong, '善融订单'),
+            child:
+                _buildOrderItem(context, BankImages.iconOrderShanrong, '善融订单'),
           ),
         ],
       ),
@@ -969,35 +984,35 @@ class BankProfileScreen extends StatelessWidget {
         BankLoadingDialog.show(context, title: label);
       },
       child: Row(
-      children: [
-        Image.asset(
-          imagePath,
-          height: 14,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            return const Icon(Icons.receipt, size: 14, color: Colors.grey);
-          },
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-              height: 1.4,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        children: [
+          Image.asset(
+            imagePath,
+            height: 14,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(Icons.receipt, size: 14, color: Colors.grey);
+            },
           ),
-        ),
-        const Icon(
-          Icons.arrow_forward_ios,
-          size: 10,
-          color: Colors.grey,
-        ),
-      ],
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+                height: 1.4,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios,
+            size: 10,
+            color: Colors.grey,
+          ),
+        ],
       ),
     );
   }
@@ -1074,7 +1089,10 @@ class BankProfileScreen extends StatelessWidget {
   }
 
   Widget _buildGridItem(
-      {IconData? icon, String? imagePath, required String label, BuildContext? context}) {
+      {IconData? icon,
+      String? imagePath,
+      required String label,
+      BuildContext? context}) {
     Widget content = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1104,7 +1122,7 @@ class BankProfileScreen extends StatelessWidget {
         ),
       ],
     );
-    
+
     if (context != null) {
       return GestureDetector(
         onTap: () {
@@ -1113,7 +1131,7 @@ class BankProfileScreen extends StatelessWidget {
         child: content,
       );
     }
-    
+
     return content;
   }
 
@@ -1176,14 +1194,21 @@ class BankProfileScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildSettingItem(
-                  imagePath: BankImages.iconSettingFingerprint, label: '指纹', context: context),
+                  imagePath: BankImages.iconSettingFingerprint,
+                  label: '指纹',
+                  context: context),
               _buildSettingItem(
                   imagePath: BankImages.iconSettingTransferLimit,
-                  label: '转账限额', context: context),
+                  label: '转账限额',
+                  context: context),
               _buildSettingItem(
-                  imagePath: BankImages.iconSettingChangePhone, label: '修改手机号', context: context),
+                  imagePath: BankImages.iconSettingChangePhone,
+                  label: '修改手机号',
+                  context: context),
               _buildSettingItem(
-                  imagePath: BankImages.iconSettingBindDevice, label: '绑定设备', context: context),
+                  imagePath: BankImages.iconSettingBindDevice,
+                  label: '绑定设备',
+                  context: context),
             ],
           ),
         ],
@@ -1192,7 +1217,10 @@ class BankProfileScreen extends StatelessWidget {
   }
 
   Widget _buildSettingItem(
-      {IconData? icon, String? imagePath, required String label, BuildContext? context}) {
+      {IconData? icon,
+      String? imagePath,
+      required String label,
+      BuildContext? context}) {
     final Widget content = Column(
       children: [
         imagePath != null
@@ -1220,7 +1248,7 @@ class BankProfileScreen extends StatelessWidget {
         ),
       ],
     );
-    
+
     if (context != null) {
       return GestureDetector(
         onTap: () {
@@ -1229,7 +1257,7 @@ class BankProfileScreen extends StatelessWidget {
         child: content,
       );
     }
-    
+
     return content;
   }
 }
