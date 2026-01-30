@@ -203,34 +203,31 @@ class WindowScreenshot:
             window_info = None
             found_from_cache = False
 
-            # Step 1: Try to get from encyclopedia cache first
-            if use_cache:
+            # Step 1: Try to get from encyclopedia cache first (same canonical key as WindowFinder)
+            canonical_label = titles[0] if titles else ""
+            cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
+            if use_cache and cache_key:
                 ColorPrint.print_min_interval("[FAST_SINGLE] Checking encyclopedia cache...", "1min", "blue")
+                cached_info = ENCYCLOPEDIA.get(cache_key)
 
-                for title in titles:
-                    cache_key = f"window_cache_{title.lower()}"
-                    cached_info = ENCYCLOPEDIA.get(cache_key)
-
-                    if cached_info:
-                        hwnd = cached_info.get("hwnd")
-                        # Validate cached window
-                        if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                            # Update rect from current window state
-                            try:
-                                rect = win32gui.GetWindowRect(hwnd)
-                                window_info = {
-                                    "hwnd": hwnd,
-                                    "title": cached_info.get("title"),
-                                    "rect": rect,
-                                    "class_name": cached_info.get("class_name")
-                                }
-                                found_from_cache = True
-                                ColorPrint.print_min_interval(f"[CACHE] Found cached window: '{window_info['title']}'", "1min", "green")
-                                break
-                            except Exception as e:
-                                ColorPrint.print_min_interval(f"[CACHE] Error reading cached window rect: {e}", "1min", "yellow")
-                        else:
-                            ColorPrint.print_min_interval(f"[CACHE] Cached window invalid for '{title}'", "1min", "yellow")
+                if cached_info:
+                    hwnd = cached_info.get("hwnd")
+                    if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                        try:
+                            rect = win32gui.GetWindowRect(hwnd)
+                            window_info = {
+                                "hwnd": hwnd,
+                                "title": cached_info.get("title"),
+                                "rect": rect,
+                                "class_name": cached_info.get("class_name")
+                            }
+                            found_from_cache = True
+                            ColorPrint.print_min_interval(f"[CACHE] Found cached window: '{canonical_label}'", "1min", "green")
+                        except Exception as e:
+                            ColorPrint.print_min_interval(f"[CACHE] Error reading cached window rect: {e}", "1min", "yellow")
+                    else:
+                        ENCYCLOPEDIA.remove(cache_key)
+                        ColorPrint.print_min_interval(f"[CACHE] Cached window invalid for '{canonical_label}', removed", "1min", "yellow")
 
             # Step 2: If not found in cache, search for window using WindowFinder
             if not window_info:

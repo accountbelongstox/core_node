@@ -186,29 +186,24 @@ class TitleBar:
             self.title_label.configure(text=new_title)
     
     def _minimize_window(self):
-        """Minimize window"""
-        # For override-redirect windows, use withdraw/deiconify instead of iconify
-        self.parent.root.withdraw()
-    
+        """Minimize window; runs on main thread via event center."""
+        from d3utils import event_center
+        event_center.trigger_window_minimize()
+
     def _toggle_maximize(self):
-        """Toggle maximize/restore window"""
-        root = self.parent.root
-        if root.state() == 'zoomed':
-            root.state('normal')
-            self.maximize_btn.configure(text="□")
-        else:
-            root.state('zoomed')
-            self.maximize_btn.configure(text="❐")
-    
+        """Toggle maximize/restore; runs on main thread via event center."""
+        from d3utils import event_center
+        event_center.trigger_window_maximize()
+
     def _restart_application(self):
-        """Restart application - send restart signal to main thread"""
-        from d3utils.shutdown_manager import request_restart
-        request_restart()
+        """Restart application; dispatched to main thread via event center."""
+        from d3utils import event_center
+        event_center.trigger_app_restart()
 
     def _close_window(self):
-        """Close window - send shutdown signal to main thread"""
-        from d3utils.shutdown_manager import request_shutdown
-        request_shutdown()
+        """Close window; dispatched to main thread via event center."""
+        from d3utils import event_center
+        event_center.trigger_app_exit()
     
     def _bind_drag_events(self):
         """Bind drag events for window dragging"""

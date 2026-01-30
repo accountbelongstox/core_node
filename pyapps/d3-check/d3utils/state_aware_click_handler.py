@@ -47,57 +47,63 @@ class StateAwareClickHandler:
             return False
         return True
 
-    def click(self, x: int, y: int, button: str = 'left', duration: float = 0.1) -> bool:
-        """
-        Click at position with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            button: Mouse button ('left' or 'right')
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def click(
+        self,
+        x: int,
+        y: int,
+        button: str = 'left',
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Click at position with state check. Pass return_to_original/direct_click/pause_after_move to inner ClickHandler."""
         if not self._check_state(f"click at ({x}, {y})"):
             return False
+        return self.click_handler.click(
+            x, y, button=button, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
-        return self.click_handler.click(x, y, button, duration)
-
-    def left_click(self, x: int, y: int, duration: float = 0.1) -> bool:
-        """
-        Left click with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def left_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Left click with state check."""
         if not self._check_state(f"left click at ({x}, {y})"):
             return False
+        return self.click_handler.left_click(
+            x, y, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
-        return self.click_handler.left_click(x, y, duration)
-
-    def right_click(self, x: int, y: int, duration: float = 0.1) -> bool:
-        """
-        Right click with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def right_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Right click with state check."""
         if not self._check_state(f"right click at ({x}, {y})"):
             return False
-
-        return self.click_handler.right_click(x, y, duration)
+        return self.click_handler.right_click(
+            x, y, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
     def double_click(self, x: int, y: int, duration: float = 0.1) -> bool:
         """

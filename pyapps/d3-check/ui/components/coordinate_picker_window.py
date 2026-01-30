@@ -56,7 +56,7 @@ class CoordinatePicker:
         title = i18n_manager.get_ui_text("ui.coord_picker.window_title")
         self.window.title(f"{title} - {width}x{height}")
 
-        self.window.geometry("1400x800")
+        self.window.geometry("1400x800")  # Picker window size; D3 outer = 1316x839 when client 1300x800
         self.window.resizable(True, True)
 
         self._create_ui()

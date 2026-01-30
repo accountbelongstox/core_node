@@ -1,9 +1,13 @@
 import json
 import os
 import sys
+import threading
 from datetime import datetime, time as dt_time
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
+
+# Lock for thread-safe CONFIG read/write (main thread + D3 extension thread)
+CONFIG_LOCK = threading.RLock()
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
@@ -48,9 +52,9 @@ KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20  # 20% from right edge (adjustable)
 # ============================================================================
 # STANDARD RESOLUTION - Reference resolution for template matching
 # ============================================================================
-# D3 Standard Resolution
-STANDARD_RESOLUTION_WIDTH = 1826
-STANDARD_RESOLUTION_HEIGHT = 1301
+# D3 Standard Resolution (1080P-friendly; was 1826x1301)
+STANDARD_RESOLUTION_WIDTH = 1300   # was 1826
+STANDARD_RESOLUTION_HEIGHT = 800   # was 1301
 
 # D4 Standard Resolution
 D4_STANDARD_RESOLUTION_WIDTH = 1763
@@ -217,7 +221,7 @@ D3_TEMPLATE_CONFIGS = {
         "match_method": "ORB",
         "note": "Detects if Kanai's Cube left panel is opened - indicates kanai_cube interface is active"
     },
-    # DEPRECATED: kanai_right_panel_toggle_icon - Now using coordinate system (514, 997) in game_interface_data.py
+    # DEPRECATED: kanai_right_panel_toggle_icon - Now using (366, 613) in game_interface_data.py; was (514, 997) at 1826x1301
     # Use get_scaled_kanai_right_panel_toggle() instead of image detection
     "kanai_right_panel_toggle_icon": {
         "path": os.path.join(TEMPLATE_DIR, "kanai_right_panel_toggle_icon.png"),
@@ -233,6 +237,36 @@ D3_TEMPLATE_CONFIGS = {
         "category": "icon",
         "use_alpha": False,
         "match_method": "ORB"  # Use SIFT for accurate icon detection
+    },
+
+    # D3 in-game "Start Game" button (after Battle.net Play + D3 resize); poll then SIFT match, click, wait 2s then start ROSBOT
+    "d3_start_game_button": {
+        "path": os.path.join(TEMPLATE_DIR, "d3_start_game_button.png"),
+        "threshold": 0.75,
+        "category": "button",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Start Game button inside D3 client; match every 2s after resize, click then wait 2s before starting ROSBOT"
+    },
+
+    # D3 in-game "Game tool" indicator (after Start Game); wait every 2s until found, then send M key and click (602,94) scaled
+    "d3_game_tool": {
+        "path": os.path.join(TEMPLATE_DIR, "d3_game_tool.png"),
+        "threshold": 0.75,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Game tool UI; after found send M key to D3 window then click D3_GAME_TOOL_CLICK_STANDARD (602,94) scaled by base 1300x800"
+    },
+
+    # D3 in-game bounty progress UI (悬赏任务进度图); Fragment2: after M twice, two screenshots; both missing = timeout.
+    "d3_bounty_progress": {
+        "path": os.path.join(TEMPLATE_DIR, "d3_bounty_progress.png"),
+        "threshold": 0.75,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Bounty progress UI (d3_bounty_progress.png); Fragment2 checks after press M twice; if both of two captures lack this, timeout"
     },
 
     # Item quality templates
@@ -525,6 +559,7 @@ DIABLO_III_TAB_AUTO_ID = "game-nav-btn-D3"
 # Battle.net Launcher window title constants
 BATTLE_NET_WINDOW_TITLES = [
     "Battle.net",                    # EN standard
+    "Battle.net Login",              # EN login window
     "Battle.net Launcher",           # EN with Launcher suffix
     "Blizzard Launcher",             # Alternative EN name
     "战网",                          # CN short form
@@ -584,6 +619,13 @@ DIABLO_IV_WINDOW_TITLES = [
     "暗黑破壞神4",                    # TW alternative
     "《暗黑破坏神 IV》",               # CN alternative with book title marks
     "《暗黑破壞神 IV》"                # TW alternative with book title marks
+]
+
+# ROSBOT (RoS-BoT) window title constants (for UI automation after start)
+ROSBOT_WINDOW_TITLES = [
+    "RoS-BoT",
+    "RoS-BoT.exe",
+    "ROSBOT",
 ]
 
 # Battle.net server region constants
@@ -727,6 +769,34 @@ def fix_config_with_template():
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
 
+
+def get_config_value_safe(key_path: str, default: Any = None) -> Any:
+    """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
+    with CONFIG_LOCK:
+        keys = key_path.split(".")
+        value = CONFIG
+        for key in keys:
+            if isinstance(value, dict) and key in value:
+                value = value[key]
+            else:
+                return default
+        return value
+
+
+def set_config_value_safe(key_path: str, value: Any) -> bool:
+    """Thread-safe set CONFIG value by dot path and save. Caller may be main or D3 thread."""
+    with CONFIG_LOCK:
+        keys = key_path.split(".")
+        config_ref = CONFIG
+        for key in keys[:-1]:
+            if key not in config_ref:
+                config_ref[key] = {}
+            config_ref = config_ref[key]
+        config_ref[keys[-1]] = value
+        save_config()
+        return True
+
+
 def save_config():
     """Save current CONFIG to user config file after fixing with template"""
     try:
@@ -850,8 +920,8 @@ BATTLENET_TEMPLATE_CONFIGS = {
         "threshold": 0.75,
         "category": "battlenet_login",
         "use_alpha": False,
-        "match_method": "TM_CCOEFF_NORMED",
-        "note": "D3 small map icon on Battle.net - found means login success, click then click Play"
+        "match_method": "SIFT",
+        "note": "D3 small map icon on Battle.net - SIFT feature match; found means login success"
     },
     "battlenet_play_button_zh": {
         "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_zh.png"),

@@ -147,6 +147,8 @@ def _update_game_data(window_info: Optional[dict]):
 
     try:
         if window_info:
+            # D3 window found: set d3_running so UI state is accurate
+            _game_data.set_d3_status(True)
             # Extract window information
             rect = window_info['rect']
             width = window_info['width']
@@ -167,7 +169,8 @@ def _update_game_data(window_info: Optional[dict]):
                 _game_data._window_title = window_info['title']
 
         else:
-            # Window not found - reset window data
+            # Window not found - reset window data and D3 status
+            _game_data.set_d3_status(False)
             _game_data.fullscreen_size = (0, 0)
             _game_data.window_offset = (0, 0)
 

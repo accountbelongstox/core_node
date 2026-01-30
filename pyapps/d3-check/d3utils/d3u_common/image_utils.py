@@ -7,7 +7,7 @@ Shared image format conversion and processing functions
 
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
@@ -125,20 +125,23 @@ def ensure_rgb_mode(image: Image.Image) -> Image.Image:
     return image
 
 
-def convert_pil_to_bgr(image: Image.Image) -> np.ndarray:
+def convert_pil_to_bgr(image: Image.Image) -> Optional[np.ndarray]:
     """
-    Convert PIL Image to BGR numpy array
+    Convert PIL Image to BGR numpy array. Handles RGB and RGBA (uses first 3 channels).
 
     Args:
-        image: PIL Image
+        image: PIL Image (RGB or RGBA)
 
     Returns:
-        BGR numpy array
+        BGR numpy array, or None if image is None or invalid
     """
+    if image is None:
+        return None
     image_array = np.array(image)
-    if len(image_array.shape) == 3 and image.mode == 'RGB':
-        return cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-    return image_array
+    if len(image_array.shape) != 3 or image_array.shape[2] < 3:
+        return None
+    rgb = image_array[:, :, :3]
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
 
 def convert_bgr_to_pil(image_bgr: np.ndarray) -> Image.Image:

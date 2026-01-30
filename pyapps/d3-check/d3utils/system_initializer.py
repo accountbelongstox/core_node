@@ -21,11 +21,12 @@ from providor.providor_index import initialize_config
 # Import static global modules
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
-from d3utils.shutdown_manager import request_shutdown, is_shutdown_requested, register_hotkey_listener
+from d3utils.shutdown_manager import is_shutdown_requested, register_hotkey_listener
+from d3utils import event_center
 import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, register_task, start_all_tasks, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
-from controller.d4_controller import get_d4_controller
+from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -37,9 +38,10 @@ class SystemInitializer:
         self.timer_initialized = False
 
     def _signal_handler(self, signum, frame):
-        """Handle system signals (Ctrl+C, etc.) - Request shutdown only"""
-        ColorPrint.yellow(f"[SYSTEM] Received signal {signum}, requesting shutdown...")
-        request_shutdown()
+        """Handle system signals (Ctrl+C, etc.); dispatched to main thread via event center."""
+        if not is_shutdown_requested():
+            ColorPrint.yellow(f"[SYSTEM] Received signal {signum}, requesting shutdown...")
+        event_center.trigger_app_exit()
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -92,9 +94,10 @@ class SystemInitializer:
             return False
 
     def _on_ctrl_c_pressed(self):
-        """Handle Ctrl+C hotkey press - Request shutdown only"""
-        ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
-        request_shutdown()
+        """Handle Ctrl+C hotkey press: forward via event center to main thread."""
+        if not is_shutdown_requested():
+            ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
+        event_center.trigger_app_exit()
 
     def initialize_configuration(self):
         """Initialize system configuration"""
@@ -145,18 +148,7 @@ class SystemInitializer:
             # Set default interceptor (10-second throttling when ROSBOT not running)
             timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
 
-            # Register D4 controller with timer manager (static global, always enabled with interceptor)
-            d4_controller = get_d4_controller()
-            timer_manager.register_task(
-                name='d4_controller',
-                interval=3.0,  # Every 3 seconds
-                callback=d4_controller.process,
-                enabled=True  # Always enabled, controlled by state interceptor
-            )
-            
-            # Set interceptor for D4 controller (checks EXP farming state)
-            timer_manager.set_task_interceptor('d4_controller', d4_controller.get_interceptor())
-            ColorPrint.green("[INIT] D4 controller registered to timer (3s interval) with interceptor")
+            # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
 
             # Start timer manager (static global)
             timer_manager.start()
@@ -210,8 +202,7 @@ class SystemInitializer:
             if not self.initialize_configuration():
                 return False
 
-            # Initialize hotkeys (imported from hotkey_registry)
-            from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
+            # Initialize hotkeys
             if not initialize_hotkeys():
                 ColorPrint.yellow("[INIT] Hotkey initialization had issues, but continuing...")
 
@@ -228,8 +219,8 @@ class SystemInitializer:
             return False
 
     def request_shutdown(self):
-        """Request application shutdown - delegates to shutdown manager"""
-        request_shutdown()
+        """Request application shutdown; dispatched to main thread via event center."""
+        event_center.trigger_app_exit()
 
     def is_shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""

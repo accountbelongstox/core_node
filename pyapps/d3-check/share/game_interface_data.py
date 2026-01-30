@@ -29,7 +29,7 @@ sys.path.insert(0, project_root)
 
 # Import D3/D4 specific resolution constants
 from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,    # D3: 1826x1301
+    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,    # D3: 1300x800 (was 1826x1301)
     STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
     D4_STANDARD_RESOLUTION_WIDTH,                                  # D4: 1763x1126
     D4_STANDARD_RESOLUTION_HEIGHT,
@@ -76,33 +76,37 @@ def get_screen_resolution() -> tuple[int, int]:
 # ============================================================================
 # Window Border and Title Bar Constants
 # ============================================================================
-# These constants define the window frame dimensions for coordinate calculations
-# All coordinate conversion functions MUST use these constants
+# These constants define the window frame dimensions for coordinate calculations.
+# All coordinate conversion functions MUST use these constants.
 #
-# Measured from actual D4 window:
-# - Window reported by GetWindowRect: offset (731, 17), size 1826x1031
+# Relationship: D3 client area = 1300x800 (STANDARD_RESOLUTION). Screenshot/GetWindowRect
+# returns OUTER window (includes title bar + left/right/bottom borders). When client is
+# 1300x800, outer = 1316x839. Removing left blank (9) + right blank (7), title (31) and
+# bottom (8) yields client 1300x800:
+#   outer_width  = 1300 + 9 + 7 = 1316
+#   outer_height = 800 + 31 + 8 = 839
+#
+# Measured from actual D4 window (same frame logic):
+# - Window reported by GetWindowRect: offset (731, 17), size (example 1826x1031; D3 now 1316x839)
 # - Actual title bar clickable range: (740, 16) to (2550, 47)
-#
-# Calculated values:
-# - LEFT_BORDER: 740 - 731 = 9px
-# - RIGHT_BORDER: 731 + 1826 - 2550 = 7px
-# - TOP_OFFSET: 16 - 17 = -1px (title bar starts 1px above window rect)
-# - TITLE_BAR_HEIGHT: 47 - 16 = 31px
-# - BOTTOM_BORDER: Same as standard Windows window (8px)
-#
+# - LEFT_BORDER: 9px, RIGHT_BORDER: 7px, TITLE_BAR_HEIGHT: 31px, BOTTOM: 8px
 # ============================================================================
 
 # Title bar dimensions
 TITLE_BAR_HEIGHT = 31  # Title bar height in pixels (measured)
 TITLE_BAR_TOP_OFFSET = -1  # Title bar starts 1px above window rect top
 
-# Window border widths
+# Window border widths (left/right blanks + bottom)
 WINDOW_BORDER_LEFT = 9  # Left border width in pixels
 WINDOW_BORDER_RIGHT = 7  # Right border width in pixels
 WINDOW_BORDER_BOTTOM = 8  # Bottom border width in pixels
 
 # Legacy constant for backward compatibility (uses left border as standard)
 WINDOW_BORDER_WIDTH = 8  # DEPRECATED: Use specific border constants instead
+
+# D3 standard OUTER window size when client is 1300x800 (screenshot returns this)
+D3_STANDARD_OUTER_WIDTH = D3_STANDARD_RESOLUTION_WIDTH + WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT   # 1316
+D3_STANDARD_OUTER_HEIGHT = D3_STANDARD_RESOLUTION_HEIGHT + TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM  # 839
 
 # Click safety margins
 CLICK_MARGIN_DEFAULT = 10  # Default safety margin for click operations (pixels)
@@ -112,9 +116,9 @@ CLICK_MARGIN_REGION = 5  # Margin for region-based clicks (pixels)
 D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
 D4_ANNOTATED_DIR = TMP_DIR / "d4_annotated"
 
-# Optimized image processing constants
-OPTIMIZED_IMAGE_WIDTH = 800   # Target width for optimized images
-OPTIMIZED_IMAGE_HEIGHT = 600  # Target height for optimized images
+# Optimized image processing constants (scaled from 800x600 at old base 1826x1301)
+OPTIMIZED_IMAGE_WIDTH = 570   # was 800
+OPTIMIZED_IMAGE_HEIGHT = 369  # was 600
 
 # D4 Event State Keys
 # These keys are used to trigger events when states change
@@ -157,8 +161,9 @@ def calculate_unified_scaled_coordinate(
     Unified coordinate calculation for both D3 and D4
     
     Algorithm Description:
-    1. Percentage calculation: 
-       - Window mode: subtract 31+8 from height, 8+8 from width, then calculate percentage
+    1. Percentage calculation:
+       - Window mode: subtract title+bottom (31+8) from height, left+right (8+8) from width.
+       - When actual window is 1316x839 (D3_STANDARD_OUTER_*), effective content is 1300x800.
        - All values use constants (TITLE_BAR_HEIGHT, WINDOW_BORDER_WIDTH)
     
     2. Offset calculation:
@@ -269,28 +274,29 @@ def calculate_unified_scaled_coordinate(
 @dataclass
 class StandardCoordinates:
     """
-    Standard coordinates for UI elements at base resolution (1826x1301)
+    Standard coordinates for UI elements at base resolution (1300x800).
+    Scaled from old base 1826x1301 by (1300/1826, 800/1301).
 
     All coordinates are relative to game window top-left corner.
     When actual window size differs, coordinates are scaled proportionally.
     """
 
-    # Blacksmith interface
-    blacksmith_salvage_button: Tuple[int, int] = (202, 368)
+    # Blacksmith interface (was (202, 368) at 1826x1301)
+    blacksmith_salvage_button: Tuple[int, int] = (144, 226)
 
-    # Kanai's Cube interface
-    kanai_put_material_button: Tuple[int, int] = (848, 1012)
-    kanai_right_panel_toggle: Tuple[int, int] = (514, 997)
-    kanai_conversion_button: Tuple[int, int] = (290, 1005)
-    kanai_next_page_button: Tuple[int, int] = (1005, 1015)
+    # Kanai's Cube interface (was (848,1012), (514,997), (290,1005), (1005,1015))
+    kanai_put_material_button: Tuple[int, int] = (604, 622)
+    kanai_right_panel_toggle: Tuple[int, int] = (366, 613)
+    kanai_conversion_button: Tuple[int, int] = (207, 618)
+    kanai_next_page_button: Tuple[int, int] = (716, 624)
 
-    # Reforge region (vertical line - same X coordinate)
-    reforge_region_start: Tuple[int, int] = (368, 470)  # (x, y) - vertical line start
-    reforge_region_end: Tuple[int, int] = (368, 723)    # (x, y) - vertical line end
+    # Reforge region (was (368,470), (368,723))
+    reforge_region_start: Tuple[int, int] = (262, 289)  # (x, y) - vertical line start
+    reforge_region_end: Tuple[int, int] = (262, 445)    # (x, y) - vertical line end
 
-    # Bag region
-    bag_top_left: Tuple[int, int] = (1213, 686)
-    bag_bottom_right: Tuple[int, int] = (1805, 1036)
+    # Bag region (was (1213,686), (1805,1036))
+    bag_top_left: Tuple[int, int] = (864, 422)
+    bag_bottom_right: Tuple[int, int] = (1286, 637)
 
 
 # Global standard coordinates instance
@@ -461,7 +467,7 @@ def d3_scale_single_coord(coord: Tuple[int, int]) -> Tuple[int, int]:
     """
     Scale D3 single coordinate using shared D3InterfaceData.
     Direct property access to shared_data fields.
-    Uses D3-specific standard resolution (1826x1301).
+    Uses D3-specific standard resolution (1300x800; was 1826x1301).
     """
     shared_data = get_game_interface_data()
     return calculate_unified_scaled_coordinate(
@@ -1164,8 +1170,8 @@ def update_global_scale(actual_width: int, actual_height: int):
         # Windowed mode: use actual dimensions (with title bar)
         effective_actual_width = actual_width
         effective_actual_height = actual_height
-        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH   # D3: 1826
-        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT # D3: 1301
+        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH   # D3: 1300 (was 1826)
+        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT # D3: 800 (was 1301)
     else:
         # Fullscreen mode: add threshold to both dimensions (no title bar)
         effective_actual_width = actual_width + shared_data.WINDOW_HEIGHT_THRESHOLD
@@ -1280,8 +1286,8 @@ def optimize_image_for_processing(image: Image.Image, target_width: int = OPTIMI
     
     Args:
         image: Original PIL Image
-        target_width: Target width for optimization (default: 800)
-        target_height: Target height for optimization (default: 600)
+        target_width: Target width for optimization (default 570; was 800 at 1826x1301)
+        target_height: Target height for optimization (default 369; was 600 at 1826x1301)
         
     Returns:
         OptimizedImageData with both original and optimized images

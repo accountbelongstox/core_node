@@ -34,8 +34,8 @@ from .theme import UITheme
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
-# Import shutdown manager
-from d3utils.shutdown_manager import request_shutdown
+# Import event center (all exit/restart/show/min/max go through THREAD_BUS -> main thread)
+from d3utils import event_center
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
@@ -88,6 +88,9 @@ class Diablo3MacroUI:
 
         # Create system tray
         self._create_system_tray()
+
+        # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
+        event_center.register_main_thread_handlers(self)
 
     def _add_resize_borders(self):
         """Add resize borders for frameless window"""
@@ -251,8 +254,8 @@ class Diablo3MacroUI:
             ColorPrint.yellow("[UI] System tray failed to start")
     
     def _tray_show_window(self):
-        """Show window from tray"""
-        self.root.after(0, self._do_show_window)
+        """Show window from tray; dispatched to main thread via event center."""
+        event_center.trigger_window_show()
         ColorPrint.blue("[UI] Window show requested from tray")
     
     def _do_show_window(self):
@@ -263,14 +266,14 @@ class Diablo3MacroUI:
         ColorPrint.blue("[UI] Window shown from tray")
 
     def _tray_exit_application(self):
-        """Exit application from tray - send shutdown request to main thread"""
+        """Exit application from tray; dispatched to main thread via event center."""
         ColorPrint.blue("[UI] Exit requested from tray - sending shutdown request")
-        request_shutdown()
+        event_center.trigger_app_exit()
 
     def _on_window_close(self):
-        """Handle window close event - send shutdown request to main thread"""
+        """Handle window close event; dispatched to main thread via event center."""
         ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
-        request_shutdown()
+        event_center.trigger_app_exit()
     
     def _create_main_tabs(self):
         """Create main tabbed interface"""
@@ -297,6 +300,9 @@ class Diablo3MacroUI:
         
         # Set initial tab
         self.main_notebook.select(self.last_selected_tab)
+
+        # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
+        self._reregister_log_callback()
     
     def _apply_notebook_theme(self):
         """Apply dark theme to notebook with multiple methods"""
@@ -614,20 +620,28 @@ class Diablo3MacroUI:
         if hasattr(self, 'macro_controls') and self.macro_controls:
             self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
+        try:
+            self.main_notebook.select(self.last_selected_tab)
+        except tk.TclError:
+            pass
         self._reregister_log_callback()
 
     def _reregister_log_callback(self):
-        """Re-register ColorPrint callback for log panel after UI rebuild"""
-        old_count = ColorPrint.get_callback_count()
+        """Register only the current tab's panel as ColorPrint callback (D3/ROSBOT log -> ROSBOT tab, D4 log -> D4 tab)."""
         ColorPrint.clear_all_callbacks()
-        ColorPrint.blue(f"[UI] Cleared {old_count} old ColorPrint callbacks")
-
-        for i in range(self.main_notebook.index("end")):
-            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
+        try:
+            sel = self.main_notebook.select()
+            idx = self.main_notebook.index(sel)
+        except tk.TclError:
+            idx = 0
+        n = self.main_notebook.index("end")
+        # Prefer current tab's panel; fallback to first tab that has add_log_message (Main/Auxiliary have none)
+        for i in range(n):
+            tab_idx = (idx + i) % n
+            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[tab_idx])
             for child in tab_frame.winfo_children():
                 if hasattr(child, 'add_log_message'):
                     ColorPrint.register_callback(child.add_log_message)
-                    ColorPrint.blue("[UI] Re-registered log panel callback")
                     return
 
     def _register_panel_language_listeners(self):
@@ -659,6 +673,7 @@ class Diablo3MacroUI:
         CONFIG['ui_settings']['last_selected_tab'] = selected_tab
         save_config()
 
+        self._reregister_log_callback()
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):

@@ -10,6 +10,7 @@ from tkinter import ttk, filedialog, messagebox
 import sys
 import os
 import threading
+from typing import Optional
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles
@@ -32,6 +33,8 @@ from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskS
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.path_scanner import scan_for_paths
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
+from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
+from d3utils.event_center import trigger_extension_rosbot_start, trigger_extension_rosbot_stop
 
 class RosbotExtensionPanel:
     """ROSBOT Extension panel with unified styling"""
@@ -45,6 +48,9 @@ class RosbotExtensionPanel:
 
         # ROSBOT running state
         self.rosbot_running = False
+
+        # D3 extension thread (set after UI is ready; commands sent via put_command)
+        self._d3_extension_thread: Optional[D3ExtensionThread] = None
 
         # Get game state instance
         self.game_state = get_game_interface_data()
@@ -452,7 +458,7 @@ class RosbotExtensionPanel:
                       pady=UnifiedStyles.SPACING['sm'])
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Add a log message to the rosbot log display. Thread-safe: schedules UI update on main thread if needed."""
+        """Add a log message to the rosbot log display. Schedules UI update on main thread via after(0)."""
         def _append():
             try:
                 if not self.log_text.winfo_exists():
@@ -494,56 +500,83 @@ class RosbotExtensionPanel:
         else:
             self._start_rosbot()
 
+    def set_d3_extension_thread(self, thread: Optional[D3ExtensionThread]) -> None:
+        """Set the D3 extension thread (called after UI is ready). Commands sent via put_command."""
+        self._d3_extension_thread = thread
+
     def _start_rosbot(self):
-        """Start ROSBOT"""
+        """Start ROSBOT: signal via event center to D3 extension thread if set, else fallback to ad-hoc thread."""
         if not self.rosbot_running:
-            try:
-                # Step 0: Ensure Battle.net started, activate UI (tray click), screenshot, check login text
-                self._debug_messagebox("DEBUG #0", "[RosbotPanel] Step 0: Ensure Battle.net and login check")
-                get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+            self._control_btn_set_busy(True)
+            if get_d3_extension_thread():
+                trigger_extension_rosbot_start()
+            else:
+                def run_login_check():
+                    result = False
+                    err = None
+                    try:
+                        result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+                    except Exception as e:
+                        err = e
+                    try:
+                        self.container.after(0, lambda: self._on_login_check_done(result, err))
+                    except Exception:
+                        pass
+                threading.Thread(target=run_login_check, daemon=True).start()
 
-                # Step 1: Update UI state immediately to provide feedback
-                self._debug_messagebox("DEBUG #1", "[RosbotPanel] Step 1: Start updating UI state")
-                self.rosbot_running = True
-                self._debug_messagebox("DEBUG #2", "[RosbotPanel] Step 1: rosbot_running set to True")
+    def _control_btn_set_busy(self, busy):
+        """Set control button to busy (disabled) or normal."""
+        try:
+            if hasattr(self, 'control_btn') and self.control_btn.winfo_exists():
+                if busy:
+                    self.control_btn.config(state=tk.DISABLED)
+                else:
+                    self.control_btn.config(state=tk.NORMAL)
+        except Exception:
+            pass
 
-                self._update_control_button()
-                self._debug_messagebox("DEBUG #3", "[RosbotPanel] Step 1: _update_control_button completed")
-
-                # Step 2: Enable ROSBOT task thread
-                self._debug_messagebox("DEBUG #4", "[RosbotPanel] Step 2: Preparing to set task status")
-                set_task_status('rosbot_task', TaskStatus.ENABLED)
-                self._debug_messagebox("DEBUG #5", "[RosbotPanel] Step 2: set_task_status completed")
-
-                # Step 3: Start ROSBOT operations in task thread
-                self._debug_messagebox("DEBUG #6", "[RosbotPanel] Step 3: Preparing to start ROSBOT task")
-                rosbot_processor.start_rosbot_task()
-                self._debug_messagebox("DEBUG #7", "[RosbotPanel] Step 3: start_rosbot_task returned")
-
-                # Step 4: Final confirmation
-                self._debug_messagebox("DEBUG #8", "[RosbotPanel] Step 4: All steps completed")
-                ColorPrint.green("[ROSBOT] Started monitoring")
-
-            except Exception as e:
-                self._debug_messagebox("ERROR", f"[RosbotPanel] Exception: {e}", "error")
-                ColorPrint.red(f"[RosbotPanel] Error in _start_rosbot: {e}")
-                # Revert UI state on error
-                self.rosbot_running = False
-                self._update_control_button()
-
-    def _stop_rosbot(self):
-        """Stop ROSBOT"""
-        if self.rosbot_running:
-            # Disable ROSBOT task thread
-            set_task_status('rosbot_task', TaskStatus.DISABLED)
-            
-            # Stop ROSBOT operations in task thread
-            rosbot_processor.stop_rosbot_task()
-            
-            # Update UI state
+    def _on_login_check_done(self, success, error=None):
+        """Called on main thread after ensure_battlenet_started_and_login_check() finishes (in worker thread)."""
+        self._control_btn_set_busy(False)
+        if error is not None:
+            ColorPrint.red(f"[RosbotPanel] Login check error: {error}")
             self.rosbot_running = False
             self._update_control_button()
-            
+            return
+        if not success:
+            self.rosbot_running = False
+            self._update_control_button()
+            return
+        try:
+            self.rosbot_running = True
+            self._update_control_button()
+            set_task_status('rosbot_task', TaskStatus.ENABLED)
+            rosbot_processor.start_rosbot_task()
+            ColorPrint.green("[ROSBOT] Started monitoring")
+        except Exception as e:
+            ColorPrint.red(f"[RosbotPanel] Error after login check: {e}")
+            self.rosbot_running = False
+            self._update_control_button()
+
+    def _on_rosbot_stop_done(self) -> None:
+        """Called on main thread after D3 extension thread has executed stop (task disabled, processor stopped)."""
+        self._control_btn_set_busy(False)
+        self.rosbot_running = False
+        self._update_control_button()
+        ColorPrint.yellow("[ROSBOT] Stopped monitoring")
+
+    def _stop_rosbot(self):
+        """Stop ROSBOT: signal via event center to D3 extension thread if set, else run stop on main thread."""
+        if not self.rosbot_running:
+            return
+        if get_d3_extension_thread():
+            self._control_btn_set_busy(True)
+            trigger_extension_rosbot_stop()
+        else:
+            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            rosbot_processor.stop_rosbot_task()
+            self.rosbot_running = False
+            self._update_control_button()
             ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _update_control_button(self):

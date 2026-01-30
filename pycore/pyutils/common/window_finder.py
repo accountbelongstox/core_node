@@ -61,38 +61,35 @@ class WindowFinder:
 
         found_windows = []
 
-        # Step 1: Try to get from encyclopedia cache first
-        if use_cache:
+        # Single canonical cache key per search list so all callers share one entry (e.g. D3 window)
+        canonical_label = titles[0] if titles else ""
+        cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
+
+        # Step 1: Try to get from encyclopedia cache first (one key per title list)
+        if use_cache and cache_key:
             ColorPrint.print_min_interval("[WindowFinder] Checking encyclopedia cache...", "1min", "blue")
+            cached_info = ENCYCLOPEDIA.get(cache_key)
 
-            for title in titles:
-                cache_key = f"window_cache_{title.lower()}"
-                cached_info = ENCYCLOPEDIA.get(cache_key)
-
-                if cached_info:
-                    hwnd = cached_info.get("hwnd")
-                    # Validate cached window
-                    if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                        try:
-                            # Update rect from current window state
-                            rect = win32gui.GetWindowRect(hwnd)
-                            window_info = {
-                                "hwnd": hwnd,
-                                "title": cached_info.get("title"),
-                                "class_name": cached_info.get("class_name"),
-                                "rect": rect,
-                                "width": rect[2] - rect[0],
-                                "height": rect[3] - rect[1]
-                            }
-                            found_windows.append(window_info)
-                            ColorPrint.print_min_interval(f"[Cache] Found cached window: '{window_info['title']}'", "1min", "green")
-
-                            # Found at least one - can return early if only need first match
-                            # But continue to check all titles for completeness
-                        except Exception as e:
-                            ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
-                    else:
-                        ColorPrint.print_min_interval(f"[Cache] Cached window invalid for '{title}'", "1min", "yellow")
+            if cached_info:
+                hwnd = cached_info.get("hwnd")
+                if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        window_info = {
+                            "hwnd": hwnd,
+                            "title": cached_info.get("title"),
+                            "class_name": cached_info.get("class_name"),
+                            "rect": rect,
+                            "width": rect[2] - rect[0],
+                            "height": rect[3] - rect[1]
+                        }
+                        found_windows.append(window_info)
+                        ColorPrint.print_min_interval(f"[Cache] Found cached window: '{canonical_label}'", "1min", "green")
+                    except Exception as e:
+                        ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
+                else:
+                    ENCYCLOPEDIA.remove(cache_key)
+                    ColorPrint.print_min_interval(f"[Cache] Cached window invalid for '{canonical_label}', removed", "1min", "yellow")
 
         # Step 2: If not found in cache (or cache disabled), search all windows
         if not found_windows:
@@ -135,9 +132,8 @@ class WindowFinder:
                                 found_windows.append(window_info)
                                 ColorPrint.print_min_interval(f"[Found] Window: '{window_title}'", "1min", "green")
 
-                                # Cache the found window
-                                if use_cache:
-                                    cache_key = f"window_cache_{target_title.lower()}"
+                                # Cache under canonical key (titles[0]) so all callers share one entry
+                                if use_cache and cache_key and len(found_windows) == 1:
                                     cache_data = {
                                         "hwnd": hwnd,
                                         "title": window_title,
@@ -151,9 +147,8 @@ class WindowFinder:
                                         "class_name": win32gui.GetClassName(hwnd)
                                     }
                                     ENCYCLOPEDIA.add(cache_key, cache_data)
-                                    ColorPrint.print_min_interval(f"[Cache] Cached window info for '{target_title}'", "1min", "blue")
+                                    ColorPrint.print_min_interval(f"[Cache] Cached window info for '{canonical_label}'", "1min", "blue")
 
-                                # Don't break - continue searching for other matching windows
                                 break
                     except Exception as e:
                         ColorPrint.print_min_interval(f"[WindowFinder] Error checking window: {e}", "1min", "yellow")
@@ -170,3 +165,29 @@ class WindowFinder:
             ColorPrint.yellow(f"[WindowFinder] No windows found matching: {titles}")
 
         return found_windows
+
+    @staticmethod
+    def invalidate_window_cache(titles: List[str]) -> bool:
+        """
+        Remove encyclopedia cache entry for the given title list so the next
+        find_windows_by_titles(use_cache=True) or screenshot capture gets fresh window rect.
+        Call this after window resize so window_offset is recalculated from current position.
+
+        Args:
+            titles: Same list as used for find_windows_by_titles (e.g. DIABLO_III_WINDOW_TITLES).
+
+        Returns:
+            True if a cache key was removed, False if no key existed.
+        """
+        canonical_label = titles[0] if titles else ""
+        cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
+        if not cache_key:
+            return False
+        try:
+            if ENCYCLOPEDIA.get(cache_key) is not None:
+                ENCYCLOPEDIA.remove(cache_key)
+                ColorPrint.blue(f"[WindowFinder] Invalidated cache for '{canonical_label}' (use fresh offset after resize)")
+                return True
+        except Exception:
+            pass
+        return False

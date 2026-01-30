@@ -10,6 +10,7 @@ import sys
 import time
 import re
 from typing import Dict, Any, Optional
+
 from providor.common_imports import ColorPrint
 from providor.providor_index import CONFIG
 from share.game_interface_data import get_game_interface_data
@@ -27,12 +28,10 @@ class LogAnalyzer:
     def __init__(self):
         self.game_state = get_game_interface_data()
         
-        # Regex patterns for log analysis
+        # Regex patterns for log analysis. D3 running is NOT from log; only WindowMonitor/controller set d3_running by window detection.
         self.patterns = {
             'rosbot_start': re.compile(r'ROSBOT.*started|ROSBOT.*running', re.IGNORECASE),
             'rosbot_stop': re.compile(r'ROSBOT.*stopped|ROSBOT.*exit', re.IGNORECASE),
-            'd3_detected': re.compile(r'Diablo.*detected|D3.*found', re.IGNORECASE),
-            'd3_lost': re.compile(r'Diablo.*lost|D3.*not.*found', re.IGNORECASE),
             'map_town': re.compile(r'town|city|base', re.IGNORECASE),
             'map_greater_rift': re.compile(r'greater.*rift|gr\d+|大秘境', re.IGNORECASE),
             'map_rift': re.compile(r'rift|nephalem.*rift|小秘境', re.IGNORECASE),
@@ -69,13 +68,7 @@ class LogAnalyzer:
             self.game_state.set_rosbot_status(False)
             updated = True
         
-        # Check D3 status
-        if self.patterns['d3_detected'].search(line):
-            self.game_state.set_d3_status(True)
-            updated = True
-        elif self.patterns['d3_lost'].search(line):
-            self.game_state.set_d3_status(False)
-            updated = True
+        # D3 running: only from WindowMonitor and controller (window detection), not from log.
         
         # Check map type
         if self.patterns['map_greater_rift'].search(line):
@@ -105,10 +98,11 @@ class LogAnalyzer:
             self.game_state.set_game_stage("in_rift")
             updated = True
 
-        # On "Login try" in log: Battle.net window screenshot, OCR for Retry/重试; if disconnect, restart Battle.net
+        # On "Login try" in log: Battle.net window screenshot, OCR for disconnect; if found, restart Battle.net
         login_try_trigger = _get_login_try_trigger()
         if login_try_trigger and login_try_trigger in line:
             try:
+                # Lazy import to avoid circular: controller -> rosbot_task_processor -> log_monitor -> log_analyzer -> controller
                 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
                 get_login_try_screenshot_controller().handle_login_try()
             except Exception as e:

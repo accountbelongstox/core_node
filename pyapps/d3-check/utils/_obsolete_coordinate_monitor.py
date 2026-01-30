@@ -357,8 +357,8 @@ class CoordinateMonitor:
             except Exception as e:
                 print(f"Error setting warning window icon: {e}")
             
-            # Fixed dimensions as requested
-            img_width, img_height = 568, 167
+            # Fixed dimensions (scaled from 568x167 at 1826x1301 to 1300x800 base)
+            img_width, img_height = 405, 103  # was 568, 167
             
             # Set window size to fixed dimensions
             warning_window.geometry(f"{img_width}x{img_height}")

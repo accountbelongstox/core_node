@@ -129,7 +129,7 @@ def get_title_bar_random_point() -> Optional[Tuple[int, int]]:
     game_window_size is the OUTER window size (includes borders and title bar)
 
     Window structure (measured from actual D4 window):
-    - Window GetWindowRect: offset (731, 17), size 1826x1031
+    - Window GetWindowRect: offset (731, 17), size (example 1826x1031; D3 outer 1316x839 when client 1300x800)
     - Title bar clickable range: (740, 16) to (2550, 47)
     - Left border: 9px, Right border: 7px
     - Top offset: -1px (title bar starts above window rect)
@@ -237,7 +237,7 @@ Expected Range (from measurement):
   Height: 31px
 
 Measurement Source:
-  Window GetWindowRect: offset (731, 17), size 1826x1031
+  Window GetWindowRect: offset (731, 17), size (example 1826x1031; D3 outer 1316x839 when client 1300x800)
   Actual clickable title bar: (740, 16) to (2550, 47)
 """
 
