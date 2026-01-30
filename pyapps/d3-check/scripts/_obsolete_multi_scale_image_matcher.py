@@ -14,9 +14,9 @@ from typing import List, Tuple, Dict, Optional
 class MultiScaleImageMatcher:
     """Multi-scale image matcher with adaptive scaling"""
 
-    # Reference resolution (base scale = 1.0)
-    REFERENCE_WIDTH = 1826
-    REFERENCE_HEIGHT = 1301
+    # Reference resolution (base scale = 1.0); was 1826x1301, now 1300x800
+    REFERENCE_WIDTH = 1300   # was 1826
+    REFERENCE_HEIGHT = 800   # was 1301
 
     def __init__(self, base_image_path: str, template_paths: List[str], output_dir: str):
         """

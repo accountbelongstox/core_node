@@ -270,16 +270,15 @@ class ScreenshotProvider:
                 game_window_rect = (0, 0, captured_size[0], captured_size[1])
                 fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
 
-                # Get window offset from cache
+                # Get window offset from cache (same canonical key as WindowFinder)
                 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
                 window_offset = (0, 0)
-                for title in window_titles:
-                    cache_key = f"window_cache_{title.lower()}"
+                if window_titles:
+                    cache_key = f"window_cache_{window_titles[0].lower()}"
                     cached_info = ENCYCLOPEDIA.get(cache_key)
                     if cached_info:
                         window_offset = (cached_info.get('left', 0), cached_info.get('top', 0))
                         ColorPrint.blue(f"[Provider] Got window offset from cache: {window_offset}")
-                        break
 
                 # Clean up temporary file
                 try:

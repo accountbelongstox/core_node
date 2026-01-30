@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import threading
+import traceback
 from typing import Optional
 
 # Import from common_imports
@@ -17,6 +18,11 @@ from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 # Import static global modules
 import timers.timer_manager as timer_manager
 from providor.common_imports import HotkeyListener
+from d3utils.event_center import trigger_extension_shutdown
+from d3utils.main_function_thread import get_main_function_thread
+from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
+from d3utils.d3_extension_thread import get_d3_extension_thread
+from d3utils.d4_extension_thread import get_d4_extension_thread
 
 # Global hotkey listener reference
 _hotkey_listener: Optional[HotkeyListener] = None
@@ -117,10 +123,28 @@ def execute_shutdown():
         ColorPrint.yellow("[ShutdownManager] ========================================")
 
         try:
+            # Step 0: Signal extension shutdown via event center, then join all 4 threads
+            trigger_extension_shutdown()
+            for name, getter, label in [
+                ("main", get_main_function_thread, "Main function"),
+                ("auxiliary", get_auxiliary_function_thread, "Auxiliary"),
+                ("d3", get_d3_extension_thread, "D3/ROSBOT"),
+                ("d4", get_d4_extension_thread, "D4"),
+            ]:
+                try:
+                    th = getter()
+                    if th and th.is_alive():
+                        ColorPrint.blue(f"[ShutdownManager] [0/4] Joining {label} thread...")
+                        th.request_shutdown()
+                        th.join(timeout=3.0)
+                        ColorPrint.green(f"[ShutdownManager] [OK] {label} thread stopped")
+                except Exception as e:
+                    ColorPrint.red(f"[ShutdownManager] [ERROR] {label} thread error: {e}")
+
             # Step 1: Stop hotkey listener (prevent new input)
             if _hotkey_listener:
                 try:
-                    ColorPrint.blue("[ShutdownManager] [1/3] Stopping hotkey listener...")
+                    ColorPrint.blue("[ShutdownManager] [1/4] Stopping hotkey listener...")
                     _hotkey_listener.stop_listening()
                     ColorPrint.green("[ShutdownManager] [OK] Hotkey listener stopped")
                 except Exception as e:
@@ -128,7 +152,7 @@ def execute_shutdown():
 
             # Step 2: Stop timer manager (stop periodic tasks)
             try:
-                ColorPrint.blue("[ShutdownManager] [2/3] Stopping timer manager...")
+                ColorPrint.blue("[ShutdownManager] [2/4] Stopping timer manager...")
                 timer_manager.stop()
                 ColorPrint.green("[ShutdownManager] [OK] Timer manager stopped")
             except Exception as e:
@@ -138,7 +162,7 @@ def execute_shutdown():
             ui = ENCYCLOPEDIA.get('ui')
             if ui:
                 try:
-                    ColorPrint.blue("[ShutdownManager] [3/3] Destroying UI...")
+                    ColorPrint.blue("[ShutdownManager] [3/4] Destroying UI...")
                     # Stop system tray first
                     if hasattr(ui, 'system_tray') and ui.system_tray:
                         try:
@@ -180,7 +204,6 @@ def execute_shutdown():
 
         except Exception as e:
             ColorPrint.red(f"[ShutdownManager] [ERROR] Critical error: {e}")
-            import traceback
             traceback.print_exc()
             os._exit(1)
 

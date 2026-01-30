@@ -253,81 +253,125 @@ class ClickHandler:
             ColorPrint.red(f"[ClickHandler] Error moving mouse straight to ({target_x}, {target_y}): {e}")
             return False
 
-    def click(self, x: int, y: int, button: str = 'left', duration: float = 0.3) -> bool:
+    def click(
+        self,
+        x: int,
+        y: int,
+        button: str = 'left',
+        duration: float = 0.3,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
         """
-        Click at specified position with visible mouse movement
+        Click at specified position (screen coordinates).
 
         Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-            button: Mouse button ('left' or 'right')
-            duration: Movement duration in seconds
+            x: Target X coordinate (screen).
+            y: Target Y coordinate (screen).
+            button: Mouse button ('left' or 'right').
+            duration: Movement duration in seconds (ignored if direct_click=True).
+            return_to_original: If True, move mouse back to position before click after clicking.
+            direct_click: If True, move to (x,y) with duration=0 (no visible trajectory), then click.
+            pause_after_move: Seconds to sleep after move before click (default 0.05 if direct_click else 0.1).
+                             Use a smaller value (e.g. 0.02) from config for faster click.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         try:
-            # Move mouse to position
-            pyautogui.moveTo(x, y, duration=duration)
-            time.sleep(0.1)
+            move_duration = 0.0 if direct_click else duration
+            pause = pause_after_move if pause_after_move is not None else (0.05 if direct_click else 0.1)
+            original_pos = pyautogui.position() if return_to_original else None
 
-            # Click with specified button
+            pyautogui.moveTo(x, y, duration=move_duration)
+            if pause > 0:
+                time.sleep(pause)
             pyautogui.click(x, y, button=button)
+
+            if return_to_original and original_pos is not None:
+                pyautogui.moveTo(original_pos[0], original_pos[1], duration=0.0)
             return True
         except Exception as e:
             ColorPrint.red(f"Error clicking at ({x}, {y}) with {button} button: {e}")
             return False
 
-    def left_click(self, x: int, y: int, duration: float = 0.3) -> bool:
+    def left_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.3,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Left click at (x,y). See click() for return_to_original, direct_click, pause_after_move."""
+        return self.click(
+            x, y, button='left', duration=duration,
+            return_to_original=return_to_original, direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
+
+    def right_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.3,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Right click at (x,y). See click() for return_to_original, direct_click, pause_after_move."""
+        return self.click(
+            x, y, button='right', duration=duration,
+            return_to_original=return_to_original, direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
+
+    def click_at_game_coord(
+        self,
+        game_x: int,
+        game_y: int,
+        window_offset: Tuple[int, int],
+        return_to_original: bool = False,
+        direct_click: bool = True,
+        button: str = 'left',
+        duration: float = 0.3,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
         """
-        Left click at specified position with visible mouse movement
+        Click at game-window-relative coordinates by converting to screen coords using current window_offset.
+        Use this after resize so callers can pass fresh window_offset from the latest screenshot.
 
         Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-            duration: Movement duration in seconds
+            game_x: X relative to game window client area.
+            game_y: Y relative to game window client area.
+            window_offset: (offset_x, offset_y) of window client area on screen (from current screenshot).
+            return_to_original: If True, move mouse back after click.
+            direct_click: If True, no movement trajectory (instant move then click).
+            button: Mouse button.
+            duration: Movement duration when direct_click=False.
+            pause_after_move: Seconds to sleep after move before click (see click()).
 
         Returns:
-            True if successful, False otherwise
+            True if successful.
         """
-        try:
-            # Move mouse to position
-            pyautogui.moveTo(x, y, duration=duration)
-            time.sleep(0.1)
+        screen_x = window_offset[0] + game_x
+        screen_y = window_offset[1] + game_y
+        return self.click(
+            screen_x, screen_y,
+            button=button, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
-            # Left click
-            pyautogui.click(x, y, button='left')
-            return True
-        except Exception as e:
-            ColorPrint.red(f"Error left clicking at ({x}, {y}): {e}")
-            return False
-
-    def right_click(self, x: int, y: int, duration: float = 0.3) -> bool:
+    def find_and_click_tray_icon(self, instant: bool = True, interval_after: float = 1.0) -> bool:
         """
-        Right click at specified position with visible mouse movement
-
-        Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-            duration: Movement duration in seconds
-
-        Returns:
-            True if successful, False otherwise
+        Find and click Battle.net tray icon.
+        instant: if True, move mouse with duration=0 (teleport) then click; if False, move then click.
+        interval_after: seconds to sleep after click (default 1.0).
         """
-        try:
-            # Move mouse to position
-            pyautogui.moveTo(x, y, duration=duration)
-            time.sleep(0.1)
-
-            # Right click
-            pyautogui.click(x, y, button='right')
-            return True
-        except Exception as e:
-            ColorPrint.red(f"Error right clicking at ({x}, {y}): {e}")
-            return False
-
-    def find_and_click_tray_icon(self) -> bool:
-        """Find and click Battle.net tray icon"""
         ColorPrint.yellow("🔍 Looking for Battle.net tray icon...")
         
         try:
@@ -376,13 +420,15 @@ class ClickHandler:
             win32gui.EnumChildWindows(tray_hwnd, enum_child_windows_callback, None)
             
             if battle_net_icon_pos:
-                # Calculate center position of the icon
                 center_x = (battle_net_icon_pos[0] + battle_net_icon_pos[2]) // 2
                 center_y = (battle_net_icon_pos[1] + battle_net_icon_pos[3]) // 2
-                
                 ColorPrint.green(f"🖱️  Clicking Battle.net tray icon at ({center_x}, {center_y})")
-                pyautogui.click(center_x, center_y)
-                time.sleep(3)  # Wait for window to appear
+                if instant:
+                    pyautogui.moveTo(center_x, center_y, duration=0)
+                    pyautogui.click(center_x, center_y)
+                else:
+                    pyautogui.click(center_x, center_y)
+                time.sleep(interval_after)
                 return True
             else:
                 ColorPrint.yellow("⚠️  Battle.net tray icon not found")

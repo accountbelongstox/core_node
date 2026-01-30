@@ -5,6 +5,7 @@ D4 Functions Panel - Unified Style Version
 Contains D4-specific automation features with unified styling
 """
 
+import queue
 import tkinter as tk
 from tkinter import ttk
 import sys
@@ -64,11 +65,17 @@ class D4Panel:
         self.container.grid_columnconfigure(1, weight=1)  # Content column (expandable)
         self.container.grid_rowconfigure(0, weight=1)
 
+        # Log queue for D4 messages (enqueue from any thread, drain on main thread)
+        self._log_queue = queue.Queue(maxsize=500)
+
         # Create content
         self.create_content()
 
         # Register as ColorPrint callback for D4-specific logs
         ColorPrint.register_callback(self.add_log_message)
+
+        # Start draining log queue on main thread
+        self.container.after(100, self._drain_log_queue)
 
     def create_content(self):
         """Create panel content"""
@@ -356,17 +363,38 @@ class D4Panel:
             self.exp_farming_log.configure(state=tk.DISABLED)
 
     def add_log_message(self, message, level="INFO", color=None):
-        """
-        Add a log message to the appropriate log display
+        """Enqueue only D4-related messages; no Tk access. Main thread _drain_log_queue updates exp_farming_log."""
+        if "[D4]" not in message and "D4" not in message:
+            return
+        log_queue = getattr(self, "_log_queue", None)
+        if log_queue is None:
+            return
+        try:
+            log_queue.put_nowait(message)
+        except queue.Full:
+            pass
 
-        Args:
-            message: Log message
-            level: Log level
-            color: Color hint (optional)
-        """
-        # Filter D4-related messages to this panel's log
-        if "[D4]" in message or "D4" in message:
-            self._add_exp_farming_log(message)
+    def _drain_log_queue(self):
+        """Drain log queue on main thread and write to exp_farming_log."""
+        log_queue = getattr(self, "_log_queue", None)
+        if log_queue is None:
+            return
+        try:
+            if not self.container.winfo_exists():
+                return
+            while True:
+                try:
+                    message = log_queue.get_nowait()
+                except queue.Empty:
+                    break
+                self._add_exp_farming_log(message)
+        except Exception:
+            pass
+        try:
+            if self.container.winfo_exists():
+                self.container.after(100, self._drain_log_queue)
+        except tk.TclError:
+            pass
 
     def _on_log_message(self, message: str, level: str = "INFO"):
         """

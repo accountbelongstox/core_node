@@ -100,14 +100,12 @@ class UIRegionCollectorOptimized:
 
         from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
-        window_info = None
-        for title in DIABLO_III_WINDOW_TITLES:
-            cache_key = f"window_cache_{title.lower()}"
-            cached_info = ENCYCLOPEDIA.get(cache_key)
-            if cached_info:
-                window_info = cached_info
-                ColorPrint.green(f"[Cache] Found window info for '{title}'")
-                break
+        # Same canonical cache key as WindowFinder (first title only)
+        canonical_label = DIABLO_III_WINDOW_TITLES[0] if DIABLO_III_WINDOW_TITLES else ""
+        cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
+        window_info = ENCYCLOPEDIA.get(cache_key) if cache_key else None
+        if window_info:
+            ColorPrint.green(f"[Cache] Found window info for '{canonical_label}'")
 
         if not window_info:
             ColorPrint.red("[ERROR] Window not found in cache")

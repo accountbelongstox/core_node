@@ -19,11 +19,12 @@ sys.path.insert(0, project_root)
 from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
 numpy = get_third_package_numpy()
 np = numpy
 Image = get_third_package_PIL_Image()
+cv2 = get_third_package_cv2()
 
 # Import TMP_DIR from providor_index (unified source)
 project_root_for_import = os.path.dirname(os.path.dirname(current_dir))
@@ -365,7 +366,7 @@ def draw_match_result(
                 template_img = cv2.imread(str(template_path))
                 if template_img is not None:
                     # Use provided position or default to top-left
-                    pos = template_position if template_position else (10, 300)
+                    pos = template_position if template_position else (10, 184)  # was (10, 300) at 1826x1301
 
                     annotator.draw_image(
                         image=template_img,
@@ -389,6 +390,132 @@ def draw_match_result(
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match result: {e}")
         import traceback
         traceback.print_exc()
+
+
+def save_match_debug_image(
+    image_source,
+    match: Dict,
+    label: str,
+    output_dir: Path,
+    template_path: Optional[str] = None,
+    color: Optional[Tuple[int, int, int]] = None,
+    filename_prefix: str = "match_debug",
+) -> Optional[Path]:
+    """
+    Draw match result on image and save to output_dir. Generic for any template match debug.
+    Returns saved path or None.
+    """
+    if image_source is None or not match:
+        return None
+    if color is None:
+        color = (0, 255, 0)
+    try:
+        annotator = create_annotator(image_source)
+        draw_match_result(
+            annotator,
+            match_result=match,
+            name=label,
+            color=color,
+            template_path=template_path,
+            draw_template=True,
+            template_position=(10, 10),
+        )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{label}_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Debug image save error: {e}")
+        return None
+
+
+def save_no_match_debug_image(
+    image_source,
+    method_name: str,
+    output_dir: Path,
+    template_path: Optional[str] = None,
+    filename_prefix: str = "no_match_debug",
+) -> Optional[Path]:
+    """
+    Draw template icon and "METHOD: no match" text, save to output_dir. Generic for feature-method failures.
+    Returns saved path or None.
+    """
+    if image_source is None:
+        return None
+    try:
+        annotator = create_annotator(image_source)
+        pos = (10, 10)
+        if template_path and Path(template_path).exists():
+            template_img = cv2.imread(str(template_path))
+            if template_img is not None:
+                annotator.draw_image(image=template_img, position=pos)
+                pos = (pos[0], pos[1] + template_img.shape[0] + 8)
+        annotator.draw_text(
+            text=f"{method_name}: no match",
+            position=pos,
+            color=(255, 255, 255),
+            font_scale=0.6,
+            thickness=2,
+            background_color=(0, 0, 255),
+        )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{method_name}_no_match_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Debug image save error: {e}")
+        return None
+
+
+def save_click_debug_image(
+    image_source,
+    click_points: List[Tuple],
+    output_dir: Path,
+    filename_prefix: str = "click_debug",
+    radius: int = 12,
+) -> Optional[Path]:
+    """
+    Draw click points on screenshot and save as debug image.
+    click_points: list of (x, y) in image coords, or (x, y, label_str). Labels drawn above point.
+    Returns saved path or None.
+    """
+    if image_source is None or not click_points:
+        return None
+    try:
+        annotator = create_annotator(image_source)
+        colors = [get_annotation_color(name) for name in COLOR_SEQUENCE[: len(click_points)]]
+        for i, pt in enumerate(click_points):
+            if len(pt) >= 3:
+                x, y, label = int(pt[0]), int(pt[1]), str(pt[2])
+            else:
+                x, y, label = int(pt[0]), int(pt[1]), str(i + 1)
+            color = colors[i] if i < len(colors) else get_annotation_color("green")
+            annotator.draw_circle((x, y), radius, color=color, thickness=2, filled=False)
+            annotator.draw_text(
+                text=label,
+                position=(max(0, x - 10), max(0, y - radius - 4)),
+                color=color,
+                font_scale=0.5,
+                thickness=1,
+                background_color=(0, 0, 0),
+            )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Click debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Click debug save error: {e}")
+        return None
+
 
 def draw_match_results(
     annotator: ImageAnnotator,
@@ -448,8 +575,9 @@ def draw_match_results(
             else:
                 not_found_items.append((idx, result_info))
 
-        # Draw found items
-        template_y_offset = 300
+        # Draw found items (layout scaled from 300/100 at 1826x1301)
+        template_y_offset = 184   # was 300 at 1826x1301
+        template_row_step = 61   # was 100 at 1826x1301
         for list_idx, (original_idx, result_info) in enumerate(found_items):
             match_result = result_info.get("match_result")
             name = result_info.get("name", f"Match_{list_idx}")
@@ -470,7 +598,7 @@ def draw_match_results(
                 color = get_annotation_color("green")
 
             # Calculate template position
-            template_pos = (10, template_y_offset + list_idx * 100)
+            template_pos = (10, template_y_offset + list_idx * template_row_step)
 
             draw_match_result(
                 annotator=annotator,
@@ -571,7 +699,7 @@ def save_anchor_detection_result(
         # Draw each anchor search attempt
         info_y = 60  # Start position for info text
         template_x_offset = 10  # X position for template images
-        template_y_offset = 300  # Y position to start drawing templates
+        template_y_offset = 184  # was 300 at 1826x1301
 
         for idx, anchor in enumerate(anchor_results):
             # Determine color based on found status
@@ -620,7 +748,7 @@ def save_anchor_detection_result(
                     template_img = cv2.imread(str(template_path))
                     if template_img is not None:
                         # Calculate position for this template
-                        current_y = template_y_offset + idx * 100
+                        current_y = template_y_offset + idx * 61  # was 100 at 1826x1301
 
                         # Draw template image on annotation
                         annotator.draw_image(
@@ -767,7 +895,7 @@ def save_bag_detection_result(
             color=get_annotation_color("green"),
             template_path=template_path,
             draw_template=True,
-            template_position=(10, 300)
+            template_position=(10, 184)  # was (10, 300) at 1826x1301
         )
 
         # Draw final bag rectangle (after offset applied)

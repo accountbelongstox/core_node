@@ -219,8 +219,8 @@ class BagInfoCollector:
         """
         Get bag region using standard coordinates with resolution scaling
 
-        Uses fixed standard coordinates (1209, 680) to (1801, 1036) at base resolution
-        and scales them based on actual game window size.
+        Uses fixed standard coordinates (864, 422) to (1286, 637) at base 1300x800;
+        was (1209, 680)-(1801, 1036) at 1826x1301. Scales by actual game window size.
 
         Args:
             game_window_image: PIL Image (not used, kept for compatibility)
@@ -559,9 +559,9 @@ class BagInfoCollector:
                     background_color=(128, 64, 128)
                 )
 
-            # Draw bag_buttom match result
+            # Draw bag_buttom match result (annotation layout: scaled from 300 at 1826x1301)
             template_x_offset = 10
-            template_y_offset = 300
+            template_y_offset = 184   # was 300 at 1826x1301
             if bag_buttom_match:
                 bag_buttom_path = get_template_path("bag_buttom")
                 draw_match_result(
@@ -573,7 +573,7 @@ class BagInfoCollector:
                     draw_template=True,
                     template_position=(template_x_offset, template_y_offset)
                 )
-                template_x_offset += 300  # Move to right for next template
+                template_x_offset += 213  # was 300 at 1826x1301
             else:
                 # Draw "NOT FOUND" text
                 annotator.draw_text(
@@ -1031,7 +1031,7 @@ class BagInfoCollector:
         - interface_type: "blacksmith", "kanai_cube", or None
         - button_detections: Dict[str, DetectionResult]
 
-        Note: Conversion button now uses fixed coordinate system (290, 1005) via get_scaled_conversion_button()
+        Note: Conversion button uses get_scaled_conversion_button() (standard (207,618); was (290,1005) at 1826x1301)
 
         Args:
             game_window_image: PIL Image for template matching

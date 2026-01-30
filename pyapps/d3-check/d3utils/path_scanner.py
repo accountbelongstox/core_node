@@ -73,36 +73,36 @@ def scan_for_paths() -> Tuple[Optional[str], List[str]]:
     seen_rosbot = set()
     drives = get_fixed_drive_roots_for_scan()
 
-    # 扫描前检查：已配置且存在的 Battle.net 则不再扫
+    # Pre-scan: skip Battle.net scan if already configured and path exists
     configured_bn = _get_configured_battlenet_path()
     if configured_bn:
         battlenet_path = configured_bn
-        ColorPrint.blue(f"{_PATHSCAN_TAG} Battle.net 已配置且存在，跳过扫描: {configured_bn}")
+        ColorPrint.blue(f"{_PATHSCAN_TAG} Battle.net configured and exists, skip scan: {configured_bn}")
 
-    # 扫描条件：输出到日志并传递到 UI
-    ColorPrint.blue(f"{_PATHSCAN_TAG} === 扫描条件 ===")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} 盘符顺序: D 盘优先，C 盘最后（仅固定盘，已跳过 U 盘/光驱/网络盘）")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} 参与盘符: {', '.join(drives) or '(无)'}")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} 最大深度: {PATH_SCAN_MAX_DEPTH} 级目录")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} Battle.net: {'已配置，本次不扫描' if battlenet_path else '未配置或不存在，本次扫描'}")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} --- ROSBOT 扫描条件 ---")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT 每次均扫描，查找目标: {', '.join(ROSBOT_EXE_PATTERNS)}")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT 参与盘符: {', '.join(drives) or '(无)'}")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT 最大深度: {PATH_SCAN_MAX_DEPTH} 级目录")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} === 开始扫描 ===")
+    # Scan criteria: log and pass to UI
+    ColorPrint.blue(f"{_PATHSCAN_TAG} === Scan criteria ===")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} Drive order: D first, C last (fixed drives only, skip removable/CD/network)")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} Drives: {', '.join(drives) or '(none)'}")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} Max depth: {PATH_SCAN_MAX_DEPTH} levels")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} Battle.net: {'configured, skip' if battlenet_path else 'not configured or missing, will scan'}")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} --- ROSBOT scan criteria ---")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT always scanned, patterns: {', '.join(ROSBOT_EXE_PATTERNS)}")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT drives: {', '.join(drives) or '(none)'}")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} ROSBOT max depth: {PATH_SCAN_MAX_DEPTH} levels")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} === Start scan ===")
 
     for drive_root in drives:
-        ColorPrint.blue(f"{_PATHSCAN_TAG} 正在扫描 {drive_root} ...")
+        ColorPrint.blue(f"{_PATHSCAN_TAG} Scanning {drive_root} ...")
         bn, ros = _scan_dir(drive_root, 1)
         if bn and battlenet_path is None:
             battlenet_path = bn
-            ColorPrint.green(f"{_PATHSCAN_TAG} 找到 Battle.net.exe: {bn}")
+            ColorPrint.green(f"{_PATHSCAN_TAG} Found Battle.net.exe: {bn}")
         for d in ros:
             norm = os.path.normpath(d)
             if norm not in seen_rosbot:
                 seen_rosbot.add(norm)
                 rosbot_dirs.append(d)
-                ColorPrint.green(f"{_PATHSCAN_TAG} 找到 ROSBOT: {d}")
+                ColorPrint.green(f"{_PATHSCAN_TAG} Found ROSBOT: {d}")
 
-    ColorPrint.blue(f"{_PATHSCAN_TAG} === 扫描结束 === Battle.net: {1 if battlenet_path else 0} 个, ROSBOT 目录: {len(rosbot_dirs)} 个")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} === Scan done === Battle.net: {1 if battlenet_path else 0}, ROSBOT dirs: {len(rosbot_dirs)}")
     return battlenet_path, rosbot_dirs

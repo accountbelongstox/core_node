@@ -13,6 +13,8 @@ from ..utils.tk_variables import var_bool, var_str
 from ..widgets import ThemedFrame, ThemedLabel, ThemedCheckbutton, ThemedEntry
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
+from d3utils.shutdown_manager import is_shutdown_requested
+
 i18n_manager = I18nManager()
 
 
@@ -202,16 +204,28 @@ class BottomBar:
         return None
 
     def on_window_status_update(self, window_info):
-        """Callback for window monitor timer updates"""
-        if window_info:
-            width = window_info.get('width', 0)
-            height = window_info.get('height', 0)
-            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
-            self.game_status_label.config(fg=UnifiedStyles.COLORS['success'])
-            size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
-            self.window_size.set(size_text)
-        else:
-            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-            self.game_status_label.config(fg=UnifiedStyles.COLORS['error'])
-            self.window_size.set("0x0")
+        """Callback for window monitor timer updates. Schedules UI update on main thread."""
+        if is_shutdown_requested():
+            return
+        try:
+            self.parent.after(0, lambda w=window_info: self._do_window_status_ui_update(w))
+        except tk.TclError:
+            pass
+
+    def _do_window_status_ui_update(self, window_info):
+        """Update status widgets on main thread (called via after(0, ...))."""
+        try:
+            if window_info:
+                width = window_info.get('width', 0)
+                height = window_info.get('height', 0)
+                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
+                self.game_status_label.config(fg=UnifiedStyles.COLORS['success'])
+                size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
+                self.window_size.set(size_text)
+            else:
+                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+                self.game_status_label.config(fg=UnifiedStyles.COLORS['error'])
+                self.window_size.set("0x0")
+        except Exception:
+            pass
 

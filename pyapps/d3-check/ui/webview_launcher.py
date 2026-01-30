@@ -28,7 +28,7 @@ from pycore.pyutils.native_ui import (
 from providor.common_imports import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config
 from d3utils.i18n_manager import i18n_manager
-from d3utils.shutdown_manager import request_shutdown
+from d3utils import event_center
 
 
 class D3MacroWebViewAPI:

@@ -189,11 +189,11 @@ class PaddleOCREngine:
 
             process.wait()
 
-            if process.return_code == 0:
+            if process.returncode == 0:
                 ColorPrint.green(f"[SUCCESS] {package_name} installed successfully")
                 return True
             else:
-                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.return_code}")
+                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.returncode}")
                 return False
 
         except Exception as e:

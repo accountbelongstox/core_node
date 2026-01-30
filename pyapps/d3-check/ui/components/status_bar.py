@@ -18,6 +18,7 @@ import os
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
+from d3utils.shutdown_manager import is_shutdown_requested
 
 i18n_manager = I18nManager()
 
@@ -153,16 +154,12 @@ class StatusBar:
         # Note: Removed multiple logs note to save space for log display
 
     def _setup_log_callback(self):
-        """Setup ColorPrint callback to capture log messages"""
+        """Setup ColorPrint callback; schedule UI update on main thread via after(0)."""
         def log_callback(message, level="INFO"):
-            """Callback function for ColorPrint"""
             try:
-                # Schedule on main thread
                 self.parent.after(0, lambda: self._add_log_message(message, level))
-            except:
-                pass  # Ignore if main thread is not available
-        
-        # Register callback with ColorPrint
+            except Exception:
+                pass
         ColorPrint.register_callback(log_callback)
 
     def _add_log_message(self, message, level="INFO"):
@@ -209,30 +206,25 @@ class StatusBar:
 
     def on_window_status_update(self, window_info):
         """
-        Callback for window monitor timer updates
-
-        Args:
-            window_info: Window information dict or None if not found
+        Callback for window monitor timer updates. Schedules UI update on main thread.
+        Skips scheduling when shutdown requested to avoid "main thread is not in main loop".
         """
+        if is_shutdown_requested():
+            return
         try:
             if window_info:
-                # Window found - update status
                 width = window_info.get('width', 0)
                 height = window_info.get('height', 0)
-
-                # Update game status
-                self.parent.after(0, self._update_game_status, True)
-
-                # Update window size
                 size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(
                     width=width, height=height
                 )
+                self.parent.after(0, self._update_game_status, True)
                 self.parent.after(0, self._update_window_size, size_text)
             else:
-                # Window not found - update status
                 self.parent.after(0, self._update_game_status, False)
                 self.parent.after(0, self._update_window_size, "0x0")
-
+        except tk.TclError:
+            pass
         except Exception as e:
             ColorPrint.red(f"[StatusBar] Error in window status update callback: {e}")
 
@@ -259,7 +251,7 @@ class StatusBar:
     def _update_ui_text(self):
         """Update all UI text elements"""
         try:
-            # Update status text if not running
+            # Update status text; match both EN and localized (e.g. zh) status strings
             if "not running" in self.game_status.get() or "未运行" in self.game_status.get():
                 self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
             elif "running" in self.game_status.get() or "运行中" in self.game_status.get():

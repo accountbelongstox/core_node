@@ -857,6 +857,28 @@ def get_third_package_cnocr():
     return _lazy_import('cnocr', 'import cnocr')
 
 
+def get_third_package_CnOCREngine():
+    """
+    Get CnOCR engine singleton (lazy load, init once).
+    Tries db_shufflenet_v2_small then ch_PP-OCRv5_det then naive_det; first successful init is cached.
+    """
+    if 'CnOCREngine_instance' not in _PACKAGE_CACHE:
+        from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
+        _DET_MODELS = ("db_shufflenet_v2_small", "ch_PP-OCRv5_det")
+        eng = None
+        for det_name in _DET_MODELS:
+            eng = CnOCREngine(det_model_name=det_name)
+            if eng.init():
+                break
+            ColorPrint.yellow(f"[OCR] Det model {det_name} init failed, try next.")
+        if eng is None or not eng._initialized:
+            ColorPrint.yellow("[OCR] All det models failed, trying naive_det (no position/boxes).")
+            eng = CnOCREngine()
+            eng.init()
+        _PACKAGE_CACHE['CnOCREngine_instance'] = eng
+    return _PACKAGE_CACHE['CnOCREngine_instance']
+
+
 def get_third_package_pynput():
     """Get pynput package (lazy load)"""
     return _lazy_import('pynput', 'import pynput')

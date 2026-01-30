@@ -1,20 +1,25 @@
 """
 OCR CnOCR Engine Module
-Supports auto-dependency installation, 9-grid region recognition, and offset calculation
-Uses CnOCR engine for Chinese OCR recognition
+Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, get_third_package_numpy.
+Supports 9-grid region recognition and offset calculation.
 """
 import sys
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
-import importlib.util
-import subprocess
 
 # Add parent directory to path for ColorPrint
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import (
+    get_third_package_cnocr,
+    get_third_package_PIL_Image,
+    get_third_package_numpy,
+)
+
+Image = get_third_package_PIL_Image()
+np = get_third_package_numpy()
 
 
 class CnOCREngine:
@@ -22,7 +27,7 @@ class CnOCREngine:
     OCR Recognition Tool Class
 
     Features:
-    1. Auto-detect and install cnocr dependencies
+    1. Uses pycore third_party package manager for cnocr/Pillow/numpy
     2. Support 9-grid region recognition (1-9)
     3. Return recognition results and coordinate offsets
     4. Default support for Chinese, Traditional Chinese, English, and numbers
@@ -51,79 +56,10 @@ class CnOCREngine:
         self._ocr_instance = None
         self._initialized = False
 
-    def _check_package_installed(self, package_name: str) -> bool:
-        """
-        Check if package is installed
-
-        Args:
-            package_name: Package name
-
-        Returns:
-            bool: Whether installed
-        """
-        try:
-            importlib.import_module(package_name)
-            return True
-        except ImportError:
-            return False
-
-    def _install_package(self, package_spec: str) -> bool:
-        """
-        Install package using python -m pip with real-time output
-
-        Args:
-            package_spec: Package specification, e.g., 'cnocr[ort-cpu]'
-
-        Returns:
-            bool: Whether installation succeeded
-        """
-        try:
-            ColorPrint.yellow(f"\n{'=' * 60}")
-            ColorPrint.yellow(f"Installing package: {package_spec}")
-            ColorPrint.blue(f"Command: {sys.executable} -m pip install {package_spec}")
-            ColorPrint.yellow(f"{'=' * 60}\n")
-
-            # Use Popen for real-time output
-            process = subprocess.Popen(
-                [sys.executable, '-m', 'pip', 'install', package_spec],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
-
-            # Print output in real-time
-            for line in iter(process.stdout.readline, ''):
-                if line:
-                    ColorPrint.gray(line.rstrip())
-
-            process.wait()
-
-            if process.return_code == 0:
-                ColorPrint.green(f"\n{'=' * 60}")
-                ColorPrint.green(f"Package {package_spec} installed successfully!")
-                ColorPrint.green(f"{'=' * 60}\n")
-                return True
-            else:
-                ColorPrint.red(f"\n{'=' * 60}")
-                ColorPrint.red(f"Package {package_spec} installation failed with code {process.return_code}")
-                ColorPrint.red(f"{'=' * 60}\n")
-                return False
-
-        except Exception as e:
-            ColorPrint.red(f"\n{'=' * 60}")
-            ColorPrint.red(f"Failed to install {package_spec}: {e}")
-            ColorPrint.red(f"{'=' * 60}\n")
-            return False
-
     def init(self) -> bool:
         """
-        Initialize CnOCR engine
-        Auto-detect and install necessary dependencies
-
-        Returns:
-            bool: Whether initialization succeeded
+        Initialize CnOCR engine.
+        Uses pycore third_party get_third_package_cnocr (DEPENDENCY_MAP: cnocr, PIL, numpy).
         """
         if self._initialized:
             ColorPrint.blue("[CnOCREngine] OCR already initialized, skipping re-initialization")
@@ -133,46 +69,16 @@ class CnOCREngine:
         ColorPrint.yellow("[CnOCREngine] Initializing CnOCR Engine")
         ColorPrint.yellow(f"{'=' * 60}\n")
 
-        # Check if cnocr is installed
-        ColorPrint.blue("[CnOCREngine] Checking cnocr package...")
-        if not self._check_package_installed('cnocr'):
-            ColorPrint.yellow("[CnOCREngine] cnocr not detected, installing cnocr[ort-cpu]...")
-            if not self._install_package('cnocr[ort-cpu]'):
-                ColorPrint.red("[CnOCREngine] cnocr installation failed, please install manually: pip install cnocr[ort-cpu]")
-                return False
-            ColorPrint.green("[CnOCREngine] cnocr installed successfully")
-        else:
-            ColorPrint.green("[CnOCREngine] cnocr already installed, skipping installation")
-
-        # Check PIL/Pillow
-        ColorPrint.blue("[CnOCREngine] Checking Pillow package...")
-        if not self._check_package_installed('PIL'):
-            ColorPrint.yellow("[CnOCREngine] Pillow not detected, installing...")
-            if not self._install_package('Pillow'):
-                ColorPrint.red("[CnOCREngine] Pillow installation failed")
-                return False
-            ColorPrint.green("[CnOCREngine] Pillow installed successfully")
-        else:
-            ColorPrint.green("[CnOCREngine] Pillow already installed")
-
-        # Check numpy
-        ColorPrint.blue("[CnOCREngine] Checking numpy package...")
-        if not self._check_package_installed('numpy'):
-            ColorPrint.yellow("[CnOCREngine] numpy not detected, installing...")
-            if not self._install_package('numpy'):
-                ColorPrint.red("[CnOCREngine] numpy installation failed")
-                return False
-            ColorPrint.green("[CnOCREngine] numpy installed successfully")
-        else:
-            ColorPrint.green("[CnOCREngine] numpy already installed")
-
-        # Import and initialize CnOcr
         try:
+            cnocr_module = get_third_package_cnocr()
+            if cnocr_module is None:
+                ColorPrint.red("[CnOCREngine] cnocr not available (install via third_party DEPENDENCY_MAP)")
+                return False
             ColorPrint.blue(f"\n[CnOCREngine] Loading CnOCR models...")
             ColorPrint.blue(f"[CnOCREngine] Detection model: {self.det_model_name}")
             ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
 
-            from cnocr import CnOcr
+            CnOcr = cnocr_module.CnOcr
             self._ocr_instance = CnOcr(
                 det_model_name=self.det_model_name,
                 rec_model_name=self.rec_model_name
@@ -256,9 +162,6 @@ class CnOCREngine:
         if not self._initialized:
             raise RuntimeError("OCR not initialized, please call init() first")
 
-        from PIL import Image
-        import numpy as np
-
         # Load image
         img = Image.open(img_path)
         img_width, img_height = img.size
@@ -325,9 +228,6 @@ class CnOCREngine:
         """
         if not self._initialized:
             raise RuntimeError("OCR not initialized, please call init() first")
-
-        from PIL import Image
-        import numpy as np
 
         # Load image
         img = Image.open(img_path)

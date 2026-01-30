@@ -190,24 +190,18 @@ class LogPanel:
         self.log_text.tag_configure("CYAN", foreground=UnifiedStyles.COLORS['accent'])
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Add a log message to the display"""
+        """Add a log message to the display."""
         try:
-            # Add to buffer
             log_entry = {
                 'message': message,
-                'level': level.upper(),
+                'level': (level or "INFO").upper(),
                 'color': color
             }
             self.log_buffer.append(log_entry)
-            
-            # Limit buffer size
             if len(self.log_buffer) > self.max_log_lines:
                 self.log_buffer = self.log_buffer[-self.max_log_lines:]
-            
-            # Check if message should be displayed based on filter
             if self._should_display_message(log_entry):
                 self._display_message(log_entry)
-                
         except Exception as e:
             print(f"Error adding log message: {e}")
 

@@ -47,9 +47,9 @@ class TemplateMatchingTester:
     # Output directory
     OUTPUT_DIR = USER_HOME / ".core_node" / "pytools" / "tmp" / "multi_scale_result"
 
-    # Reference resolutions
-    D3_REFERENCE_WIDTH = 1826
-    D3_REFERENCE_HEIGHT = 1301
+    # Reference resolutions (D3 was 1826x1301, now 1300x800)
+    D3_REFERENCE_WIDTH = 1300   # was 1826
+    D3_REFERENCE_HEIGHT = 800   # was 1301
     D4_REFERENCE_WIDTH = 1763
     D4_REFERENCE_HEIGHT = 1126
 
