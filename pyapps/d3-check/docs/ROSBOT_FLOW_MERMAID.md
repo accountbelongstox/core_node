@@ -24,9 +24,9 @@ flowchart TB
         BN_FirstQ1 -->|是| BN_Exit["[B5] 退出战网"]
         BN_FirstQ1 -->|否| BN_FirstQ2{"[B4'] 首界面：等待浏览器返回页？"}
         BN_FirstQ2 -->|是| BN_Exit
-        BN_FirstQ2 -->|否| BN_Act["[B6] 激活战网窗口；轮询"]
-        BN_Start --> BN_Wait["[B7] wait 直到出现确切元素（战网刚启动时正在转圈）"]
-        BN_Wait --> BN_WaitResult{"[B8] 找到元素？"}
+        BN_FirstQ2 -->|否| BN_Act["[B6] 激活战网窗口；轮询 UI（说明：由 B13 每 tick 查控件树）"]
+        BN_Start --> BN_Wait["[B7] 轮询 UI 直到出现确切元素（说明：战网刚启动时转圈则继续等）"]
+        BN_Wait --> BN_WaitResult{"[B8] 轮询 UI 找到元素？"}
         BN_WaitResult -->|超时未找到| BN_Exit
         BN_WaitResult -->|找到| BN_UI{"[B9] 当前界面是？"}
         BN_UI -->|登录界面| BN_Login1["[B10] 步骤1：点同意、确认"]
@@ -36,11 +36,11 @@ flowchart TB
         BN_Exit --> BN_ExitWait["[B5w] 等待战网退出完成（wait 后回到入口）"]
         BN_ExitWait --> BN_Entry
         BN_Login2 -->|返回| BN_Ok1
-        BN_Act --> BN_Poll{"[B13] 轮询结果（确切状态）？"}
+        BN_Act --> BN_Poll{"[B13] 轮询 UI 结果？（说明：确切状态）"}
         BN_Poll -->|已登录| BN_PollOk["[B14] 继续"]
         BN_Poll --> BN_ExitD["[B15a] 掉线"]
-        BN_Poll --> BN_ExitT["[B15b] 超时未找到元素"]
-        BN_Poll --> BN_ExitO["[B15c] 其他未知状态"]
+        BN_Poll --> BN_ExitT["[B15b] 轮询 UI 超时未找到元素"]
+        BN_Poll --> BN_ExitO["[B15c] 轮询 UI 其他未知状态"]
         BN_ExitD --> BN_Exit
         BN_ExitT --> BN_Exit
         BN_ExitO --> BN_Exit
@@ -110,7 +110,7 @@ flowchart TB
 | 字母 | 图中标记 | 说明 |
 |------|----------|------|
 | **A** | A1～A9 | 入口、定时器、D3 在线、是否有 D3、成功、收尾 |
-| **B** | B1～B16（B4/B4' 首界面两判；B5w 为退出后等待；B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、**B4 首界面：登陆页？**、**B4' 首界面：等待浏览器返回页？**（是→B5 否→B6）、退出、轮询、登录两步、确切状态、继续 |
+| **B** | B1～B16（B4/B4' 首界面两判；B5w 为退出后等待；B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、**B4/B4' 首界面两判**（是→B5 否→B6）、退出、**B6/B7/B8/B13 轮询 UI**（激活/等元素/找元素/结果）、登录两步、确切状态、继续 |
 | **C** | C1～C12 | 缩放、检测、片段1/2、结束 D3 落 D |
 | **D** | D1～D18 | 找窗口、D3 tab、Play、开始游戏、ROSBOT 启动后自动化 |
 
@@ -174,7 +174,7 @@ B2 有战网窗口时，当前界面即**首次启动的首界面**。流程图�
 | **登陆页** | 客户端内同意条款、网易账号登录页（UI 含「需要登陆」「您同意」「使用网易账号登录或注册」等） | 视为「当前是否为登陆界面」**是** → B5 退出战网 |
 | **等待浏览器返回页** | 弹窗「使用浏览器完成登录。/取消」 | 视为**是** → B5 退出战网 |
 
-上述两种状态**任一**为真则 B4 走 **是 → B5 退出战网**；否则为**否 → B6 激活战网窗口、轮询**。点同意/确认（B10/B11）仅在本流程自己启动战网后经 B7→B8→B9 判定为登录界面时执行。
+上述两种状态**任一**为真则 B4 走 **是 → B5 退出战网**；否则为**否 → B6 激活战网窗口、轮询 UI**（由 B13 每 tick 轮询 UI 控件树）。点同意/确认（B10/B11）仅在本流程自己启动战网后经 B7→B8→B9 判定为登录界面时执行。
 
 ---
 
@@ -186,6 +186,7 @@ B2 有战网窗口时，当前界面即**首次启动的首界面**。流程图�
 - **D3 界面判定与在线检测**：开始界面 = scale match **d3_start_game_button.png**。只有当出现 **d3_game_tool** 时才按 M 键；未出现时标记 **wait**。D3 是否在线 = 仅当已出现 d3_game_tool 时按约定五步（先截图→按 M→再截图→对比相似度，高度相似则掉线→再按 M 恢复地图）。掉线模板图命名为 **d3_disconnected.png**。
 - **B11 油猴等待超时**：步骤2 等待油猴返回超时时间为 **2 分钟**（120 秒），由 `BN_FLOW_OAUTH_WAIT_SEC` 配置。
 - **B4 首次启动首界面两种状态**：见上节「首次启动首界面（B4 判定）」；实现时用 `is_on_login_screen()` 判登陆页、`is_on_browser_login_wait_screen()` 判等待浏览器返回页，任一为真则 B4→B5。
+- **B6/B7/B8/B13 轮询 UI**：流程中「轮询」均指**轮询战网 UI**（每 tick 查控件树/枚举控件），非轮询网络或其它。B6 激活窗口后由 B13 轮询 UI；B7 轮询 UI 直到出现确切元素（战网刚启动转圈则继续等）；B8 为 B7 轮询 UI 结果；B13 轮询 UI 得确切状态（已登录/掉线/超时/其他）。节点上已写说明。
 - **登录失败状态**：在 B4、B7、B9、B11、B13 任一节点，若战网 UI 中出现「Continue Offline」或「Cancel」任一元素（网页登陆后战网显示的弹窗），则判定为登录失败，退出战网并回到 B1 入口（B5→B5w→B1）。常量 `BATTLE_NET_LOGIN_FAILED_KEYWORDS`。
 - **每步 UI 快照**：每步使用固定流程名（如 B2_has_window、B7_poll_elements、B11_wait_oauth 等）保存战网当前 UI 元素到 `battlenet_ui_analyze/bn_flow_snapshots/`，便于对照调试。
 - **Mermaid 图**：全部流程合并为一张图，按「Mermaid 使用规范」编写，规范见 [`MERMAID_SPEC.md`](MERMAID_SPEC.md)；审阅或修改本 Mermaid 版时须遵守该规范。

@@ -7,7 +7,7 @@ Each tick: if current node is wait, return without transition; else execute one 
 首次启动首界面（B2 有窗口时当前界面，B4 判定）仅区分两种状态：
 1. 登陆页：客户端内同意条款、网易账号登录页（UI 含「需要登陆」「您同意」「使用网易账号登录或注册」等）。
 2. 等待浏览器返回页：弹窗「使用浏览器完成登录。/取消」。
-B4「当前是否为登陆界面？」：上述两种任一为真 → 是 → B5 退出战网；否则 → 否 → B6 激活轮询。
+B4「当前是否为登陆界面？」：上述两种任一为真 → 是 → B5 退出战网；否则 → 否 → B6 激活、轮询 UI（B13 每 tick 查控件树）。
 """
 
 import time
@@ -250,7 +250,7 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
             ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (flowchart: 是→退出战网), exit then B1→B3→B7→B9→B10")
             _current_node = BNNode.BN_Exit
             return False, ""
-        ColorPrint.blue("[BNFlow] flow B4→B6 | reason: current not login page (flowchart: 否→激活轮询)")
+        ColorPrint.blue("[BNFlow] flow B4→B6 | reason: current not login page (flowchart: 否→激活、轮询 UI)")
         _current_node = BNNode.BN_Act
         return False, ""
 
