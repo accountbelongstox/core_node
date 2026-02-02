@@ -26,15 +26,10 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import (
-    D4_TEMPLATE_CONFIGS,
-    D4_STANDARD_RESOLUTION_WIDTH,
-    D4_STANDARD_RESOLUTION_HEIGHT,
-    DEBUG,
-    TMP_DIR,
-)
-from share import get_global_scale
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT, DEBUG, TMP_DIR
+from providor.providor_index import D4_TEMPLATE_CONFIGS
+from share.game_interface_data import get_global_scale
 from share.game_interface_data import get_d4_interface_data
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
 

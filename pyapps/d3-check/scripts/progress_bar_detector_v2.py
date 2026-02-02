@@ -31,7 +31,7 @@ sys.path.insert(0, str(current_dir))
 
 # Import ColorPrint directly to avoid dependency issues
 try:
-    from providor.common_imports import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 except (ImportError, ModuleNotFoundError):
     # Fallback: simple ColorPrint implementation
     class ColorPrint:

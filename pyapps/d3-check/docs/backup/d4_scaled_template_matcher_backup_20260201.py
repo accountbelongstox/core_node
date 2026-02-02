@@ -42,7 +42,8 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint, ImageMatcher
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_matcher import ImageMatcher
 from providor.providor_index import (
     D4_TEMPLATE_CONFIGS,
     D4_STANDARD_RESOLUTION_WIDTH,

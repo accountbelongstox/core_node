@@ -29,10 +29,14 @@ controller_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, controller_path)
 
 # Project imports
-from providor.common_imports import ColorPrint, ImageAnnotator, ImageCrop, CnOCREngine
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_crop import ImageCrop
+from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
 from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.providor_index import TMP_DIR, DIABLO_III_WINDOW_TITLES
+from providor.app_constants import TMP_DIR
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from config.grid_config import GRID_ROWS, GRID_COLS, TOTAL_GRID_CELLS
 
 class PathfindingController:

@@ -13,8 +13,8 @@ import time
 import threading
 from typing import Optional, Callable
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
@@ -30,28 +30,28 @@ TRAY_AVAILABLE = True
 from share.thread_registry import get_thread_registry
 
 
-class SystemTray:
-    """System tray component for Windows 10/11"""
-    
+class SystemTray(threading.Thread):
+    """System tray component (native thread: this class extends Thread, no wrapper)."""
+
     def __init__(self, parent_ui):
-        """
-        Initialize system tray
-        
-        Args:
-            parent_ui: Parent UI instance (Diablo3MacroUI)
-        """
+        super().__init__(daemon=True, name="TrayRunner")
         self.parent_ui = parent_ui
         self.tray_icon = None
         self.is_running = False
-        
-        # Callbacks
         self.on_show_window: Optional[Callable] = None
         self.on_exit: Optional[Callable] = None
-        
         if TRAY_AVAILABLE:
             self._create_tray_icon()
         else:
             ColorPrint.yellow("[TRAY] System tray not available - install pystray and PIL")
+
+    def run(self) -> None:
+        """Thread entry: run tray icon loop (native, no delegation to wrapper)."""
+        try:
+            if self.tray_icon:
+                self.tray_icon.run()
+        except Exception as e:
+            ColorPrint.red(f"[TRAY] Error running tray icon: {e}")
     
     def _create_tray_icon(self):
         """Create system tray icon"""
@@ -153,15 +153,7 @@ class SystemTray:
                 ColorPrint.blue("[TRAY] System tray stopped")
         except Exception as e:
             ColorPrint.red(f"[TRAY] Failed to stop system tray: {e}")
-    
-    def _run_tray(self):
-        """Run the tray icon in a separate thread"""
-        try:
-            if self.tray_icon:
-                self.tray_icon.run()
-        except Exception as e:
-            ColorPrint.red(f"[TRAY] Error running tray icon: {e}")
-    
+
     def _show_window(self, icon=None, item=None):
         """Show the main window"""
         try:

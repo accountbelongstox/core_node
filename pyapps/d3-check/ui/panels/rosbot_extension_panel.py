@@ -15,8 +15,8 @@ from typing import Optional, Callable
 # Import unified styles
 from ..unified_styles import UnifiedStyles
 
-# Import from common_imports
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 from ..utils.tk_variables import var_str
 
 # Import CONFIG from providor
@@ -29,8 +29,9 @@ from ui.utils.config_binding import ConfigBinding
 
 # Import game state and task thread manager (timer/UI are sibling modules; controller wires status UI and refresh fn)
 from share.game_interface_data import get_game_interface_data
-from share.thread_registry import get_thread_registry
-from d3utils.task_thread_manager import get_task_manager, set_task_status, TaskStatus
+from share.threads import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze
+from d3utils.task_thread_manager import get_task_manager, TaskStatus
+import timers.timer_manager as timer_manager
 import d3utils.rosbot_task_processor as rosbot_processor
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
@@ -199,7 +200,7 @@ class RosbotExtensionPanel:
     def _run_one_click_scan(self):
         """Run path scan in background thread, then apply results on main thread."""
         self._path_scan_btn.config(state=tk.DISABLED, text=i18n_manager.get_ui_text("rosbot.scan_searching"))
-        get_thread_registry().run_path_scan(self)
+        timer_manager.submit_one_shot(lambda: do_path_scan(self))
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, error_msg=None):
         """Apply scan results: set config and optionally show choice dialog for multiple ROSBOT."""
@@ -596,14 +597,14 @@ class RosbotExtensionPanel:
         if self.rosbot_running:
             return
         self.game_state.set_rosbot_flow_master_enabled(True)
-        set_task_status("rosbot_task", TaskStatus.ENABLED)
+        get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
         self.rosbot_running = True
         self._update_control_button()
         self._control_btn_set_busy(False)
         if get_d3_extension_thread():
             return
         self._control_btn_set_busy(True)
-        get_thread_registry().run_login_check(self)
+        timer_manager.submit_one_shot(lambda: do_login_check(self, self.get_login_check_callable()))
 
     def _control_btn_set_busy(self, busy):
         """Set control button to busy (disabled) or normal."""
@@ -631,11 +632,11 @@ class RosbotExtensionPanel:
             ColorPrint.yellow("[Refresh] No refresh fn set (controller may not have wired window_monitor)")
             return
         ColorPrint.blue("[Refresh] Refreshing status (manual) -> running check_window in background...")
-        get_thread_registry().run_refresh_status(fn)
+        timer_manager.submit_one_shot(lambda: do_refresh_status(fn))
 
     def _debug_battlenet_ui_json(self):
         """Export Battle.net UI to JSON via UI Automation (Chrome/Chromium accessibility tree). CoInitialize in worker thread then call WindowAnalyzer."""
-        get_thread_registry().run_battlenet_ui_analyze(self)
+        timer_manager.submit_one_shot(lambda: do_battlenet_ui_analyze(self))
 
     def get_login_check_callable(self):
         """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Used by ThreadRegistry."""
@@ -654,21 +655,21 @@ class RosbotExtensionPanel:
             ColorPrint.red(f"[RosbotPanel] Login check error: {error}")
             self.game_state.set_rosbot_flow_master_enabled(False)
             reset_battlenet_flow_state()
-            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
             return
         if not success:
             self.game_state.set_rosbot_flow_master_enabled(False)
             reset_battlenet_flow_state()
-            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
             return
         try:
             if not self.game_state.rosbot_flow_master_enabled:
                 reset_battlenet_flow_state()
-                set_task_status("rosbot_task", TaskStatus.DISABLED)
+                get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
                 self.rosbot_running = False
                 self._update_control_button()
                 return
@@ -680,7 +681,7 @@ class RosbotExtensionPanel:
             ColorPrint.red(f"[RosbotPanel] Error after login check: {e}")
             self.game_state.set_rosbot_flow_master_enabled(False)
             reset_battlenet_flow_state()
-            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
 
@@ -703,7 +704,7 @@ class RosbotExtensionPanel:
             self._control_btn_set_busy(True)
             trigger_extension_rosbot_stop()
         else:
-            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             rosbot_processor.stop_rosbot_task()
             self.rosbot_running = False
             self._update_control_button()

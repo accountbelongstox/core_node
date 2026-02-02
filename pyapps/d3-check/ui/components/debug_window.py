@@ -21,7 +21,7 @@ ensure_d3_check_in_sys_path()
 
 from ui.unified_styles import UnifiedStyles
 from ui.utils.app_root import get_app_root
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from d3utils.i18n_manager import i18n_manager
 

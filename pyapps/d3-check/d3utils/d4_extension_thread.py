@@ -10,7 +10,7 @@ import threading
 import time
 from typing import Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from controller.d4_controller import get_d4_controller
 from share.game_interface_data import get_d4_interface_data
 

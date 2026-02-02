@@ -16,9 +16,9 @@ from typing import Callable, Dict, List, Optional
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import (
-    ColorPrint,
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.hotkey_listener import (
     get_global_hotkey_listener,
     register_global_hotkey,
     unregister_global_hotkey,

@@ -12,14 +12,15 @@ import threading
 import traceback
 from typing import Optional
 
-# Import from common_imports
-from providor.common_imports import ColorPrint, ENCYCLOPEDIA
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 # Import static global modules
 import timers.timer_manager as timer_manager
-from d3utils.task_thread_manager import stop_all_tasks
+from d3utils.task_thread_manager import get_task_manager
 from d3utils.rosbot_flow_battlenet import reset_battlenet_flow_state
-from providor.common_imports import HotkeyListener
+from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
@@ -157,7 +158,7 @@ def execute_shutdown():
         try:
             ColorPrint.blue("[ShutdownManager] [2/5] Stopping task thread manager...")
             reset_battlenet_flow_state()
-            stop_all_tasks()
+            get_task_manager().stop_all()
             ColorPrint.green("[ShutdownManager] [OK] Task thread manager stopped")
         except Exception as e:
             ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")

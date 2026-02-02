@@ -30,7 +30,8 @@ from controller.http_bridge_controller import HTTPBridgeController
 from d3utils.system_initializer import get_system_initializer
 from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
 from d3utils.i18n_manager import i18n_manager
-from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.web.universal_gui_launcher import UniversalGUILauncher, set_menu_labels
 from train import main as train_main
 
 

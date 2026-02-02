@@ -18,7 +18,7 @@ sys.path.insert(0, current_dir)
 # Add ncore path
 
 from providor.providor_second import CONFIG, load_config
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from utils.game_process_detector import GameProcessDetector
 from utils.rosbot_manager import RoSBotManager
 

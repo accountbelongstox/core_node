@@ -14,7 +14,7 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.interface_manager import D3InterfaceManager
 from share.game_interface_data import get_game_interface_data
 from providor.providor_index import (

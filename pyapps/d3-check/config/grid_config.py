@@ -56,7 +56,7 @@ def update_grid_config(rows: int, cols: int):
 
 
 if __name__ == '__main__':
-    from providor.common_imports import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 
     # Display current configuration
     ColorPrint.blue("=== Grid Configuration ===")

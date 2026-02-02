@@ -18,18 +18,18 @@ Image = get_third_package_PIL_Image()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
+from providor.app_constants import D4_ANNOTATED_DIR
 from share.game_interface_data import (
     D4_STANDARD_COORDS,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
     calculate_unified_scaled_coordinate,
     get_d4_interface_data,
-    D4_ANNOTATED_DIR,
-    D4RegionInfo,  # Import shared data class
-    D4PointInfo    # Import shared data class
+    D4RegionInfo,
+    D4PointInfo,
 )
-from providor.common_imports import ColorPrint
-from providor.providor_index import DEBUG
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import DEBUG
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_image_pil, ANNOTATION_COLORS
 
 

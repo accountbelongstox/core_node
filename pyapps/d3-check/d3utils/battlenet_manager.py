@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 
 from providor.app_constants import BATTLE_NET_EXE_NAME
-from providor.common_imports import ColorPrint, WindowActivator
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.window_activator import WindowActivator
 from providor.providor_index import CONFIG, get_config_value_safe, BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable

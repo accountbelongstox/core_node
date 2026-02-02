@@ -18,8 +18,8 @@ from typing import Optional, Callable
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG, load_config
 from controller.game_interface_controller import GameInterfaceController
 

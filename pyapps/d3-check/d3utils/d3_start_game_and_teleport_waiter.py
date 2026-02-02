@@ -8,12 +8,11 @@ D3 开始游戏并传送地图。
 import time
 from typing import Optional, Tuple
 
-from providor.common_imports import ColorPrint, ClickHandler, WindowActivator
-from providor.providor_index import (
-    DIABLO_III_WINDOW_TITLES,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
-)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.window_activator import WindowActivator
+from providor.app_constants import STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_ops import send_key as window_send_key
 from share.game_interface_data import calculate_unified_scaled_coordinate, get_game_interface_data

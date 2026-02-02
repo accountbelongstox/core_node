@@ -16,8 +16,8 @@ Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 ImageFont = get_third_package_PIL_ImageFont()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.app_constants import (
     ROOT_DIR,
     TMP_DIR,

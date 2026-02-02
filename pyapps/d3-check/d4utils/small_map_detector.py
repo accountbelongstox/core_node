@@ -23,8 +23,9 @@ Image = get_third_package_PIL_Image()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import DEBUG, TMP_DIR, D4_TEMPLATE_CONFIGS
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import DEBUG, TMP_DIR
+from providor.providor_index import D4_TEMPLATE_CONFIGS
 from d3utils.i18n_manager import I18nManager
 from d4utils.d4_scaled_template_matcher import get_d4_scaled_template_matcher
 # D4State functionality now integrated into D4InterfaceData

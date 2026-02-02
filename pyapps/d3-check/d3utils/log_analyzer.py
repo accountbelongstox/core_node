@@ -11,7 +11,7 @@ import time
 import re
 from typing import Dict, Any, Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
 from share.game_interface_data import get_game_interface_data
 from providor.app_constants import LOGIN_TRY_TRIGGER_DEFAULT

@@ -16,15 +16,10 @@ from typing import Optional, Dict
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint, ClickHandler
-from providor.providor_index import (
-    BATTLENET_TEMPLATE_CONFIGS,
-    TEMPLATE_DIR,
-    CONFIG,
-    DIABLO_III_WINDOW_TITLES,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
-)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.click_handler import ClickHandler
+from providor.app_constants import TEMPLATE_DIR, STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS, CONFIG, DIABLO_III_WINDOW_TITLES
 from pycore.pyutils.common.window_finder import WindowFinder
 from providor.app_constants import (
     LOGIN_TRY_SCREENSHOT_DIR,

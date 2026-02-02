@@ -23,8 +23,9 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Project imports
-from providor.common_imports import ColorPrint, ImageAnnotator
-from share import get_game_interface_data, BagCoordinates, BagLayout, DetectionResult, get_scaled_bag_region, get_global_scale
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from share.game_interface_data import get_game_interface_data, BagCoordinates, BagLayout, DetectionResult, get_scaled_bag_region, get_global_scale
 from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
 from d3utils.d3u_common import draw_match_result
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp

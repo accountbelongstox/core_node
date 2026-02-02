@@ -17,7 +17,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from providor.providor_index import CONFIG, load_config, save_config, CONFIG_USER_PATH
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController
 from d3utils.i18n_manager import i18n_manager
@@ -34,6 +34,35 @@ from d3utils.event_center import (
 from d3utils.shutdown_manager import execute_shutdown
 import timers.window_monitor_timer as window_monitor
 from share.thread_registry import get_thread_registry
+
+
+class MacroLoopThread(threading.Thread):
+    """Fallback macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_fallback_thread()."""
+
+    def __init__(self, controller: "D3MacroController"):
+        super().__init__(daemon=True, name="MacroLoopFallback")
+        self._controller = controller
+
+    def run(self) -> None:
+        c = self._controller
+        while c.macro_running:
+            try:
+                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(c.current_skill_config, {})
+                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+                config = {**skill_config, **auxiliary_config}
+                skills = config.get('skills', {})
+
+                for skill_name, sk_cfg in skills.items():
+                    if not c.macro_running:
+                        break
+                    if sk_cfg.get('strategy') == '禁用':
+                        continue
+                    c._execute_skill(skill_name, sk_cfg)
+                    time.sleep(0.01)
+                time.sleep(0.1)
+            except Exception as e:
+                c.logger.error("Macro error: %s", e)
+                time.sleep(1)
 
 
 class D3MacroController:
@@ -100,26 +129,9 @@ class D3MacroController:
         if self.on_macro_stop:
             self.on_macro_stop()
 
-    def _macro_loop_fallback(self):
-        """Fallback macro loop when MainFunctionThread not used."""
-        while self.macro_running:
-            try:
-                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(self.current_skill_config, {})
-                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
-                config = {**skill_config, **auxiliary_config}
-                skills = config.get('skills', {})
-
-                for skill_name, skill_config in skills.items():
-                    if not self.macro_running:
-                        break
-                    if skill_config.get('strategy') == '禁用':
-                        continue
-                    self._execute_skill(skill_name, skill_config)
-                    time.sleep(0.01)
-                time.sleep(0.1)
-            except Exception as e:
-                self.logger.error("Macro error: %s", e)
-                time.sleep(1)
+    def create_macro_fallback_thread(self) -> MacroLoopThread:
+        """Create the fallback macro thread instance. ThreadRegistry calls this."""
+        return MacroLoopThread(self)
 
     def _execute_skill(self, skill_name: str, skill_config: dict):
         """Execute a single skill (placeholder)."""

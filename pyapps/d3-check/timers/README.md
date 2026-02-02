@@ -20,14 +20,15 @@ Components:
 
 ## Thread Registry and THREAD_BUS
 
-- **Thread lifecycle**: All thread instances are created and held only in **ThreadRegistry** (`share/thread_registry.py`). The main thread references threads only via `get_thread_registry()` (e.g. `create_extension_threads`, `run_path_scan`, `start_timer_loop_after_ui_ready`). No component uses `self.xxx_thread` to own a thread.
+- **Thread lifecycle**: All thread instances are created and held only in **ThreadRegistry** (`share/thread_registry.py`). **No dynamic thread creation**—all threads start together with UI; execution is driven by global state and tick. The main thread references threads only via `get_thread_registry()` (e.g. `create_extension_threads`, `run_path_scan`, `start_timer_loop_after_ui_ready`). No component uses `self.xxx_thread` to own a thread.
+- **One-shot work**: Path scan, login check, refresh status, Battle.net UI analyze, and window monitor initial check are submitted to the **timer thread** via `timer_manager.submit_one_shot(callback)`; no new thread is ever created for these. See `docs/THREAD_BUS_AND_REGISTRY.md`.
 - **Communication**: All inter-thread communication goes through **pycore THREAD_BUS** / **event_center** (signals, events, queues). Threads do not reference each other. See `d3utils/event_center.py` and pycore `pyfoundations/thread_bus.py`.
 
 ## Architecture
 
 ### Static Global Design
 
-All timer components are static global modules. They are initialized on module import and shared across the entire application. Timer loop and one-shot window check are started via **ThreadRegistry** after UI is ready.
+All timer components are static global modules. They are initialized on module import and shared across the entire application. The timer loop is started via **ThreadRegistry** after UI is ready; one-shot work (path scan, login check, refresh, Battle.net UI analyze, initial window check) is submitted via **timer_manager.submit_one_shot()**—no new threads are created.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

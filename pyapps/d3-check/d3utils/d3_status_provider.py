@@ -8,7 +8,7 @@ Disconnected: SIFT match of d3_disconnected template (providor.app_constants.D3_
 
 from typing import Optional, List, Dict, Any, Tuple
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data, get_screen_resolution
 from pycore.pyutils.common.window_finder import WindowFinder

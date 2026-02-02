@@ -12,7 +12,7 @@ from ..theme.theme import UITheme
 from ..utils.config_binding import ConfigBinding
 from d3utils import event_center
 from d3utils.i18n_manager import i18n_manager
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class TitleBar:

@@ -15,7 +15,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 from timers.timer_manager import register_task
 from d3utils.d3_status_provider import refresh_d3_status, get_current_d3_window

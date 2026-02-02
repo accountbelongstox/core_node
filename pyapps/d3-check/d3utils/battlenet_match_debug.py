@@ -8,7 +8,7 @@ Controller only calls debug_all_match_methods().
 from pathlib import Path
 from typing import Optional, List, Any
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.battlenet_manager import get_battlenet_window_titles
 from providor.app_constants import BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME

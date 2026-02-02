@@ -11,8 +11,8 @@ import sys
 import os
 from typing import Optional, Callable, Dict, Any, List
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles

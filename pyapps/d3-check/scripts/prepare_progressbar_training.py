@@ -17,7 +17,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 d3_check_dir = Path(current_dir).parent
 sys.path.insert(0, str(d3_check_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class ProgressBarDataPreparator:

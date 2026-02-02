@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 @dataclass
@@ -131,6 +131,21 @@ def _drain_cmd_queue():
                 _tasks[name].interceptor = interceptor
                 ColorPrint.blue(f"[TimerManager] Updated task '{name}' interceptor")
                 result_q.put(True)
+        elif cmd == "one_shot":
+            cb, = args
+            try:
+                cb()
+            except Exception as e:
+                ColorPrint.red(f"[TimerManager] One-shot task error: {e}")
+
+
+def submit_one_shot(callback: Callable[[], None]) -> None:
+    """Submit a one-shot task to the timer thread. No new thread is created. Call from main thread."""
+    global _running, _cmd_queue
+    if not _running:
+        ColorPrint.yellow("[TimerManager] submit_one_shot ignored: timer not started yet")
+        return
+    _cmd_queue.put(("one_shot", (callback,), None))
 
 
 def register_task(

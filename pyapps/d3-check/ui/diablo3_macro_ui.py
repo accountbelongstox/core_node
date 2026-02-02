@@ -13,8 +13,9 @@ import time
 from typing import Optional, Callable
 from pathlib import Path
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint, ENCYCLOPEDIA
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
 from providor.app_constants import UI_SETTINGS_WINDOW_GEOMETRY
 
@@ -259,7 +260,7 @@ class Diablo3MacroUI:
         self.system_tray.set_show_callback(self._tray_show_window)
         self.system_tray.set_exit_callback(self._tray_exit_application)
 
-        if self.system_tray.start():
+        if self.system_tray.start_tray():
             ColorPrint.green("[UI] System tray started successfully")
             self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
         else:

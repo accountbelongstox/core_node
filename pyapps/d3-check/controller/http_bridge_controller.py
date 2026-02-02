@@ -14,7 +14,8 @@ from typing import Dict, Any
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint, ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController

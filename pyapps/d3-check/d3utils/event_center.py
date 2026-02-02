@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.event_signals import (
     EXTENSION_ROSBOT_STARTED,
     EXTENSION_ROSBOT_STOPPED,

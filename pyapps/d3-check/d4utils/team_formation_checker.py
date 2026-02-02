@@ -13,7 +13,7 @@ from share.project_path import ensure_d3_check_in_sys_path, get_project_root
 ensure_d3_check_in_sys_path()
 
 from d4utils.d4_operation_base import D4OperationBase
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from controller.d4func.ocr_config import get_ocr_config_for_task
 

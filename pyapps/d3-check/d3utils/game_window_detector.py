@@ -15,7 +15,7 @@ import numpy as np
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.scaled_template_matcher import get_scaled_template_matcher
 from providor.providor_index import (
     get_template_path,

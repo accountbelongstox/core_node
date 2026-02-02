@@ -19,7 +19,8 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from providor.common_imports import ColorPrint, WindowScreenshot
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.window_screenshot import WindowScreenshot
 
 # Local imports
 from providor.providor_index import DIABLO_III_WINDOW_TITLES

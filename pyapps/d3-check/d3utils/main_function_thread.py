@@ -12,7 +12,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe
 from providor.app_constants import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
 

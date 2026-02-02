@@ -15,12 +15,39 @@ from pathlib import Path
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from providor.providor_index import CONFIG
 from controller.game_assistant_controller import GameAssistantController
 from share.thread_registry import get_thread_registry
+
+
+class GameInterfaceMacroThread(threading.Thread):
+    """Game interface macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_thread()."""
+
+    def __init__(self, controller: "GameInterfaceController", skill_config: Dict):
+        super().__init__(daemon=True, name="GameInterfaceMacro")
+        self._controller = controller
+        self._skill_config = skill_config
+
+    def run(self) -> None:
+        c = self._controller
+        cfg = self._skill_config
+        try:
+            ColorPrint.blue("[MACRO] Macro loop started")
+            while c.macro_running:
+                if not c._is_diablo_running():
+                    ColorPrint.yellow("[MACRO] Diablo III not running, pausing...")
+                    time.sleep(1.0)
+                    continue
+                c._execute_skill_sequence(cfg)
+                time.sleep(0.1)
+            ColorPrint.blue("[MACRO] Macro loop ended")
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Macro loop error: {e}")
+        finally:
+            c.macro_running = False
 
 
 class GameInterfaceController:
@@ -216,39 +243,10 @@ class GameInterfaceController:
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to stop macro: {e}")
             return False
-    
-    def _macro_loop(self, skill_config: Dict):
-        """
-        Main macro execution loop
-        
-        Args:
-            skill_config: Skill configuration dictionary
-        """
-        try:
-            ColorPrint.blue("[MACRO] Macro loop started")
-            
-            while self.macro_running:
-                # TODO: Implement actual macro logic
-                # This is a placeholder implementation
-                
-                # Check if Diablo III is running
-                if not self._is_diablo_running():
-                    ColorPrint.yellow("[MACRO] Diablo III not running, pausing...")
-                    time.sleep(1.0)
-                    continue
-                
-                # Execute skill sequence
-                self._execute_skill_sequence(skill_config)
-                
-                # Wait before next iteration
-                time.sleep(0.1)
-            
-            ColorPrint.blue("[MACRO] Macro loop ended")
-            
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Macro loop error: {e}")
-        finally:
-            self.macro_running = False
+
+    def create_macro_thread(self, skill_config: Dict) -> GameInterfaceMacroThread:
+        """Create the macro thread instance. ThreadRegistry calls this."""
+        return GameInterfaceMacroThread(self, skill_config)
     
     def _is_diablo_running(self) -> bool:
         """

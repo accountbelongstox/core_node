@@ -14,8 +14,8 @@ import os
 # Import unified styles
 from ..unified_styles import UnifiedStyles
 
-# Import from common_imports
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Import CONFIG from providor
 from share.project_path import ensure_d3_check_in_sys_path

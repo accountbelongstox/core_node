@@ -8,7 +8,6 @@ Shared across all controllers and UI components
 
 import os
 import sys
-import queue
 import tkinter as tk
 import threading
 from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, Callable
@@ -23,39 +22,28 @@ np = numpy
 cv2 = get_third_package_cv2()
 Image = get_third_package_PIL_Image()
 
-from share.project_path import ensure_d3_check_in_sys_path
-ensure_d3_check_in_sys_path()
+# Add project path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+sys.path.insert(0, project_root)
 
-from providor.providor_index import get_template_path
+# Import D3/D4 specific resolution constants (direct from app_constants; no re-export)
 from providor.app_constants import (
-    TMP_DIR,
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
+    STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
-    GLOBAL_SCALE_X,
-    GLOBAL_SCALE_Y,
-    TITLE_BAR_HEIGHT,
-    TITLE_BAR_TOP_OFFSET,
-    WINDOW_BORDER_LEFT,
-    WINDOW_BORDER_RIGHT,
-    WINDOW_BORDER_BOTTOM,
-    WINDOW_BORDER_WIDTH,
-    D3_STANDARD_OUTER_WIDTH,
-    D3_STANDARD_OUTER_HEIGHT,
-    CLICK_MARGIN_DEFAULT,
-    CLICK_MARGIN_REGION,
-    D4_SCREENSHOT_DIR,
-    D4_ANNOTATED_DIR,
-    OPTIMIZED_IMAGE_WIDTH,
-    OPTIMIZED_IMAGE_HEIGHT,
-    D4_EVENT_KEYS,
-    SEPARATOR_COLOR_TOLERANCE,
-    SEPARATOR_SCAN_HEIGHT_PERCENT,
-    SEPARATOR_SCAN_WIDTH_PERCENT,
-    HARDCODED_INTERFERENCE_COLORS,
+    TMP_DIR,
 )
-from providor.common_imports import ColorPrint
+from providor.providor_index import get_template_path
+
+D3_STANDARD_RESOLUTION_WIDTH = STANDARD_RESOLUTION_WIDTH
+D3_STANDARD_RESOLUTION_HEIGHT = STANDARD_RESOLUTION_HEIGHT
+from pycore.pyfoundations.color_print import ColorPrint
+
+# Global scale variables (moved from providor_index.py to avoid circular imports)
+GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
+GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
 
 # Screen resolution cache (get once, use many times)
 _screen_resolution = None
@@ -74,7 +62,7 @@ def get_screen_resolution() -> tuple[int, int]:
             _screen_resolution = _get_screen_resolution_win32()
         else:
             try:
-                from providor.common_imports import ENCYCLOPEDIA
+                from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
                 ui = ENCYCLOPEDIA.get("ui")
                 if ui is not None and hasattr(ui, "root") and ui.root.winfo_exists():
                     _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
@@ -88,7 +76,77 @@ def get_screen_resolution() -> tuple[int, int]:
         ColorPrint.blue(f"[GameInterfaceData] Screen resolution cached: {_screen_resolution[0]}x{_screen_resolution[1]}")
     return _screen_resolution
 
-# Window/UI constants imported from providor.app_constants
+# ============================================================================
+# Window Border and Title Bar Constants
+# ============================================================================
+# These constants define the window frame dimensions for coordinate calculations.
+# All coordinate conversion functions MUST use these constants.
+#
+# Relationship: D3 client area = 1300x800 (STANDARD_RESOLUTION). Screenshot/GetWindowRect
+# returns OUTER window (includes title bar + left/right/bottom borders). When client is
+# 1300x800, outer = 1316x839. Removing left blank (9) + right blank (7), title (31) and
+# bottom (8) yields client 1300x800:
+#   outer_width  = 1300 + 9 + 7 = 1316
+#   outer_height = 800 + 31 + 8 = 839
+#
+# Measured from actual D4 window (same frame logic):
+# - Window reported by GetWindowRect: offset (731, 17), size (example 1826x1031; D3 now 1316x839)
+# - Actual title bar clickable range: (740, 16) to (2550, 47)
+# - LEFT_BORDER: 9px, RIGHT_BORDER: 7px, TITLE_BAR_HEIGHT: 31px, BOTTOM: 8px
+# ============================================================================
+
+# Title bar dimensions
+TITLE_BAR_HEIGHT = 31  # Title bar height in pixels (measured)
+TITLE_BAR_TOP_OFFSET = -1  # Title bar starts 1px above window rect top
+
+# Window border widths (left/right blanks + bottom)
+WINDOW_BORDER_LEFT = 9  # Left border width in pixels
+WINDOW_BORDER_RIGHT = 7  # Right border width in pixels
+WINDOW_BORDER_BOTTOM = 8  # Bottom border width in pixels
+
+# Legacy constant for backward compatibility (uses left border as standard)
+WINDOW_BORDER_WIDTH = 8  # DEPRECATED: Use specific border constants instead
+
+# D3 standard OUTER window size when client is 1300x800 (screenshot returns this)
+D3_STANDARD_OUTER_WIDTH = D3_STANDARD_RESOLUTION_WIDTH + WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT   # 1316
+D3_STANDARD_OUTER_HEIGHT = D3_STANDARD_RESOLUTION_HEIGHT + TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM  # 839
+
+# Click safety margins
+CLICK_MARGIN_DEFAULT = 10  # Default safety margin for click operations (pixels)
+CLICK_MARGIN_REGION = 5  # Margin for region-based clicks (pixels)
+
+# D4 Directory constants (from app_constants; no re-export)
+from providor.app_constants import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
+
+# Optimized image processing constants (scaled from 800x600 at old base 1826x1301)
+OPTIMIZED_IMAGE_WIDTH = 570   # was 800
+OPTIMIZED_IMAGE_HEIGHT = 369  # was 600
+
+# D4 Event State Keys
+# These keys are used to trigger events when states change
+# Shared between share data and events package
+D4_EVENT_KEYS = {
+    # EXP Farming Events
+    'EXP_FARMING_STARTED': 'exp_farming_started',
+    'EXP_FARMING_STOPPED': 'exp_farming_stopped', 
+    'EXP_FARMING_TICK_COMPLETED': 'exp_farming_tick_completed',
+    
+    # Team Health Events
+    'TEAM_HEALTH_DETECTED': 'team_health_detected',
+    'TEAM_MEMBER_JOINED': 'team_member_joined',
+    'TEAM_MEMBER_LEFT': 'team_member_left',
+    'TEAM_HEALTH_CHANGED': 'team_health_changed',
+    
+    # Screen Events
+    'SCREEN_SIZE_CHANGED': 'screen_size_changed',
+    'SCREEN_COORDINATES_CHANGED': 'screen_coordinates_changed',
+    'DISPLAY_MODE_CHANGED': 'display_mode_changed',
+    
+    # Game State Events
+    'GAME_STATE_CHANGED': 'game_state_changed',
+    'CURRENT_MAP_CHANGED': 'current_map_changed',
+    'DUNGEON_PROGRESS_CHANGED': 'dungeon_progress_changed',
+}
 
 
 # ============================================================================
@@ -216,9 +274,9 @@ def calculate_unified_scaled_coordinate(
 # ============================================================================
 
 @dataclass
-class D3_StandardCoordinates:
+class StandardCoordinates:
     """
-    D3 standard coordinates for UI elements at base resolution (1300x800).
+    Standard coordinates for UI elements at base resolution (1300x800).
     Scaled from old base 1826x1301 by (1300/1826, 800/1301).
 
     All coordinates are relative to game window top-left corner.
@@ -243,8 +301,8 @@ class D3_StandardCoordinates:
     bag_bottom_right: Tuple[int, int] = (1286, 637)
 
 
-# Global D3 standard coordinates instance
-D3_STANDARD_COORDS = D3_StandardCoordinates()
+# Global standard coordinates instance
+STANDARD_COORDS = StandardCoordinates()
 
 
 # ============================================================================
@@ -413,7 +471,7 @@ def d3_scale_single_coord(coord: Tuple[int, int]) -> Tuple[int, int]:
     Direct property access to shared_data fields.
     Uses D3-specific standard resolution (1300x800; was 1826x1301).
     """
-    shared_data = get_d3_interface_data()
+    shared_data = get_game_interface_data()
     return calculate_unified_scaled_coordinate(
         coord,
         shared_data.game_window_size,  # Direct property access
@@ -432,25 +490,25 @@ def d3_scale_region(start_coord: Tuple[int, int], end_coord: Tuple[int, int]) ->
 
 # Backward compatibility wrappers (minimal - all use d3_scale_* helpers)
 def get_scaled_bag_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    return d3_scale_region(D3_STANDARD_COORDS.bag_top_left, D3_STANDARD_COORDS.bag_bottom_right)
+    return d3_scale_region(STANDARD_COORDS.bag_top_left, STANDARD_COORDS.bag_bottom_right)
 
 def get_scaled_blacksmith_salvage_button() -> Tuple[int, int]:
-    return d3_scale_single_coord(D3_STANDARD_COORDS.blacksmith_salvage_button)
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_button)
 
 def get_scaled_reforge_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    return d3_scale_region(D3_STANDARD_COORDS.reforge_region_start, D3_STANDARD_COORDS.reforge_region_end)
+    return d3_scale_region(STANDARD_COORDS.reforge_region_start, STANDARD_COORDS.reforge_region_end)
 
 def get_scaled_kanai_put_material_button() -> Tuple[int, int]:
-    return d3_scale_single_coord(D3_STANDARD_COORDS.kanai_put_material_button)
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_put_material_button)
 
 def get_scaled_conversion_button() -> Tuple[int, int]:
-    return d3_scale_single_coord(D3_STANDARD_COORDS.kanai_conversion_button)
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_conversion_button)
 
 def get_scaled_kanai_right_panel_toggle() -> Tuple[int, int]:
-    return d3_scale_single_coord(D3_STANDARD_COORDS.kanai_right_panel_toggle)
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_right_panel_toggle)
 
 def get_scaled_kanai_next_page_button() -> Tuple[int, int]:
-    return d3_scale_single_coord(D3_STANDARD_COORDS.kanai_next_page_button)
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_next_page_button)
 
 
 # ============================================================================
@@ -591,8 +649,6 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_running: bool = False
-    # Flow master: True after user clicks Start ROSBOT, False after Stop; global timer skips flow when False (ROSBOT_FLOW.md)
-    rosbot_flow_master_enabled: bool = False
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
@@ -607,10 +663,9 @@ class D3InterfaceData(InterfaceDataBase):
     battlenet_disconnected: bool = False
     battlenet_normal_available: bool = False
 
-    # Callbacks and state updates: serialized via queue, no lock
-    _callbacks_queue: Any = field(default_factory=queue.Queue)
-    _callbacks_list: List[Callable] = field(default_factory=list)
-    _update_queue: Any = field(default_factory=queue.Queue)
+    # State change callbacks (merged from GameState)
+    _callbacks: List[Callable] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def clear(self):
         """Clear all data"""
@@ -633,7 +688,6 @@ class D3InterfaceData(InterfaceDataBase):
         self.button_detections = None
         self.battlenet_window_found = False
         self.rosbot_running = False
-        self.rosbot_flow_master_enabled = False
         self.d3_running = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
@@ -663,7 +717,6 @@ class D3InterfaceData(InterfaceDataBase):
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
             "rosbot_running": self.rosbot_running,
-            "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
             "map_type": self.map_type,
             "game_stage": self.game_stage,
@@ -680,26 +733,36 @@ class D3InterfaceData(InterfaceDataBase):
 
     def set_battlenet_status(self, window_found: bool):
         """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks."""
-        self._update_queue.put(("battlenet_window_found", window_found))
-        ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if self.battlenet_window_found != window_found:
+                self.battlenet_window_found = window_found
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
+        if should_notify:
+            self._notify_callbacks()
 
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
-        self._update_queue.put(("rosbot_running", running))
-        ColorPrint.blue(f"[D3State] ROSBOT: {'Running' if running else 'Stopped'}")
-        self._notify_callbacks()
-
-    def set_rosbot_flow_master_enabled(self, enabled: bool):
-        """Set flow master (master switch). True when user clicks Start, False when Stop; timer skips flow when False."""
-        self.rosbot_flow_master_enabled = enabled
-        ColorPrint.blue(f"[D3State] ROSBOT flow master: {'on' if enabled else 'off'}")
+        should_notify = False
+        with self._lock:
+            if self.rosbot_running != running:
+                self.rosbot_running = running
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
 
     def set_d3_status(self, running: bool):
         """Set D3 running status and notify callbacks."""
-        self._update_queue.put(("d3_running", running))
-        ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if self.d3_running != running:
+                self.d3_running = running
+                should_notify = True
+                ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
 
     def set_d3_dynamic_status(
         self,
@@ -708,10 +771,19 @@ class D3InterfaceData(InterfaceDataBase):
         in_game: bool = False,
     ):
         """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks."""
-        self._update_queue.put(("d3_on_login_screen", on_login_screen))
-        self._update_queue.put(("d3_disconnected", disconnected))
-        self._update_queue.put(("d3_in_game", in_game))
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if (
+                self.d3_on_login_screen != on_login_screen
+                or self.d3_disconnected != disconnected
+                or self.d3_in_game != in_game
+            ):
+                self.d3_on_login_screen = on_login_screen
+                self.d3_disconnected = disconnected
+                self.d3_in_game = in_game
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
 
     def set_battlenet_dynamic_status(
         self,
@@ -720,62 +792,72 @@ class D3InterfaceData(InterfaceDataBase):
         normal_available: bool = False,
     ):
         """Set Battle.net dynamic state (same priority as D3). Notify callbacks."""
-        self._update_queue.put(("battlenet_on_login_screen", on_login_screen))
-        self._update_queue.put(("battlenet_disconnected", disconnected))
-        self._update_queue.put(("battlenet_normal_available", normal_available))
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if (
+                self.battlenet_on_login_screen != on_login_screen
+                or self.battlenet_disconnected != disconnected
+                or self.battlenet_normal_available != normal_available
+            ):
+                self.battlenet_on_login_screen = on_login_screen
+                self.battlenet_disconnected = disconnected
+                self.battlenet_normal_available = normal_available
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
 
     def set_map_type(self, map_type: str):
         """Set map type and notify callbacks"""
-        self._update_queue.put(("map_type", map_type))
-        ColorPrint.blue(f"[D3State] Map: {map_type}")
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if self.map_type != map_type:
+                self.map_type = map_type
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Map: {map_type}")
+        if should_notify:
+            self._notify_callbacks()
 
     def set_game_stage(self, stage: str):
         """Set game stage and notify callbacks"""
-        self._update_queue.put(("game_stage", stage))
-        ColorPrint.blue(f"[D3State] Stage: {stage}")
-        self._notify_callbacks()
+        should_notify = False
+        with self._lock:
+            if self.game_stage != stage:
+                self.game_stage = stage
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Stage: {stage}")
+        if should_notify:
+            self._notify_callbacks()
 
     def register_callback(self, callback: Callable):
-        """Register state change callback（入队，在 _notify_callbacks 中合并）"""
-        self._callbacks_queue.put(callback)
-        ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
+        """Register state change callback"""
+        with self._lock:
+            self._callbacks.append(callback)
+            ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
 
     def notify_state_sync(self):
         """Push current state to all registered callbacks (e.g. after timer refresh). Use when UI must reflect latest state even if no field changed (avoids race where first callback ran before status widgets existed)."""
         self._notify_callbacks()
 
     def _notify_callbacks(self):
-        """Drain 队列后构建 state 并通知所有回调（无锁，队列串行化）"""
+        """Notify all registered callbacks"""
         try:
-            while True:
-                try:
-                    self._callbacks_list.append(self._callbacks_queue.get_nowait())
-                except queue.Empty:
-                    break
-            while True:
-                try:
-                    attr, value = self._update_queue.get_nowait()
-                    setattr(self, attr, value)
-                except queue.Empty:
-                    break
-            from share.oauth_callback import get_oauth_script_connected
-            state = {
-                "battlenet_window_found": self.battlenet_window_found,
-                "rosbot_running": self.rosbot_running,
-                "d3_running": self.d3_running,
-                "map_type": self.map_type,
-                "game_stage": self.game_stage,
-                "d3_on_login_screen": self.d3_on_login_screen,
-                "d3_disconnected": self.d3_disconnected,
-                "d3_in_game": self.d3_in_game,
-                "battlenet_on_login_screen": self.battlenet_on_login_screen,
-                "battlenet_disconnected": self.battlenet_disconnected,
-                "battlenet_normal_available": self.battlenet_normal_available,
-                "oauth_script_connected": get_oauth_script_connected(),
-            }
-            for callback in self._callbacks_list:
+            callbacks = []
+            with self._lock:
+                callbacks = self._callbacks.copy()
+                state = {
+                    "battlenet_window_found": self.battlenet_window_found,
+                    "rosbot_running": self.rosbot_running,
+                    "d3_running": self.d3_running,
+                    "map_type": self.map_type,
+                    "game_stage": self.game_stage,
+                    "d3_on_login_screen": self.d3_on_login_screen,
+                    "d3_disconnected": self.d3_disconnected,
+                    "d3_in_game": self.d3_in_game,
+                    "battlenet_on_login_screen": self.battlenet_on_login_screen,
+                    "battlenet_disconnected": self.battlenet_disconnected,
+                    "battlenet_normal_available": self.battlenet_normal_available,
+                }
+            for callback in callbacks:
                 try:
                     callback(state)
                 except Exception as e:
@@ -924,6 +1006,22 @@ _d4_interface_data = None
 
 # Color sets cache (initialized once per color type)
 _color_cache: Dict[str, Set[Tuple[int, int, int]]] = {}
+
+# Separator line detection constants
+SEPARATOR_COLOR_TOLERANCE = 0.02  # 2% tolerance for color similarity
+SEPARATOR_SCAN_HEIGHT_PERCENT = 0.20  # 20% height range in the middle
+SEPARATOR_SCAN_WIDTH_PERCENT = 0.80  # 80% width range in the middle
+
+# Hardcoded interference colors (exact match, no tolerance)
+HARDCODED_INTERFERENCE_COLORS = {
+    (0x09, 0x10, 0x11),  # 111009
+    (0x08, 0x0d, 0x0d),  # 0d0d08
+    (0x01, 0x05, 0x09),  # 090501
+    (0x00, 0x04, 0x08),  # 080400
+    (0x00, 0x05, 0x09),  # 090500
+    (0x04, 0x10, 0x1c),  # 1c1004
+}
+
 
 def _load_colors_from_image(template_name: str) -> Set[Tuple[int, int, int]]:
     """
@@ -1149,7 +1247,7 @@ def get_color_references() -> Dict[str, Set[Tuple[int, int, int]]]:
 
 def update_global_scale(actual_width: int, actual_height: int):
     """
-    Update global resolution scale factors (D3)
+    Update global resolution scale factors
 
     Called by ScreenshotProvider after each screenshot capture
     to calculate the scale ratio between actual resolution and standard resolution
@@ -1159,7 +1257,7 @@ def update_global_scale(actual_width: int, actual_height: int):
         actual_height: Actual screenshot height
     """
     # Get shared data to check window mode
-    shared_data = get_d3_interface_data()
+    shared_data = get_game_interface_data()
     is_windowed = shared_data.is_windowed_mode()
     
     if is_windowed:
@@ -1196,9 +1294,9 @@ def get_global_scale() -> tuple:
     return (GLOBAL_SCALE_X, GLOBAL_SCALE_Y)
 
 
-def get_d3_interface_data() -> D3InterfaceData:
+def get_game_interface_data() -> D3InterfaceData:
     """
-    Get global D3 interface data instance (singleton)
+    Get global shared game interface data instance (singleton)
 
     Returns:
         Global D3InterfaceData instance
@@ -1209,11 +1307,6 @@ def get_d3_interface_data() -> D3InterfaceData:
         _game_interface_data = D3InterfaceData()
 
     return _game_interface_data
-
-
-def get_game_interface_data() -> D3InterfaceData:
-    """Backward compatibility alias for get_d3_interface_data()."""
-    return get_d3_interface_data()
 
 
 def clear_game_interface_data():

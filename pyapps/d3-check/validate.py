@@ -22,7 +22,7 @@ yaml = get_third_package_yaml()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class UnifiedValidator:

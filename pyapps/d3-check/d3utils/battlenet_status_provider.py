@@ -7,7 +7,7 @@ Uses shared refresh flow from status_provider_common; owns Battle.net-specific f
 
 from typing import Optional, List, Dict, Any, Tuple
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 
 from d3utils.battlenet_manager import get_battlenet_manager

@@ -9,7 +9,7 @@ import time
 from enum import Enum
 from typing import Optional, Tuple
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.app_constants import (
     BN_FLOW_WAIT_AFTER_START_SEC,
     BN_FLOW_WAIT_ELEMENT_MAX_TICKS,

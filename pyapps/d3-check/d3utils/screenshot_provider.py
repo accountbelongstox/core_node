@@ -30,10 +30,11 @@ Image = get_third_package_PIL_Image()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint, WindowScreenshot
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.window_screenshot import WindowScreenshot
 from d3utils.game_window_detector import GameWindowDetector
-from providor.providor_index import TMP_DIR, TEMPLATE_DIR
-from share import get_game_interface_data, update_global_scale, get_screen_resolution
+from providor.app_constants import TMP_DIR, TEMPLATE_DIR
+from share.game_interface_data import get_game_interface_data, update_global_scale, get_screen_resolution
 DEBUG = False
 
 

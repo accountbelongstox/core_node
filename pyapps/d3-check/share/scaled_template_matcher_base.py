@@ -49,7 +49,8 @@ def load_template_and_scale_by_resolution(
 
 def _ensure_provider_imports():
     """Lazy import to avoid circular imports when share is loaded first."""
-    from providor.common_imports import ColorPrint, ImageMatcher
+    from pycore.pyfoundations.color_print import ColorPrint
+    from pycore.pyutils.image_matcher import ImageMatcher
     return ColorPrint, ImageMatcher
 
 

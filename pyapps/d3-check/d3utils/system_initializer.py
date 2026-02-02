@@ -14,8 +14,9 @@ from typing import Optional
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint, HotkeyListener
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.hotkey_listener import HotkeyListener
 from providor.providor_index import initialize_config
 
 # Import static global modules
@@ -24,7 +25,7 @@ import timers.window_monitor_timer as window_monitor
 from d3utils.shutdown_manager import is_shutdown_requested, register_hotkey_listener
 from d3utils import event_center
 import d3utils.log_monitor as log_monitor_module
-from d3utils.task_thread_manager import get_task_manager, register_task, start_all_tasks, TaskStatus
+from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
 
@@ -170,14 +171,14 @@ class SystemInitializer:
             ColorPrint.blue("[INIT] Initializing task thread manager...")
             
             # ROSBOT flow driver: 1s tick (task_thread_manager); process_rosbot_task uses % for 2s flow tick when flow master on (ROSBOT_FLOW.md)
-            register_task(
+            get_task_manager().register_task(
                 name='rosbot_task',
                 task_func=rosbot_processor.process_rosbot_task,
                 interval=1.0
             )
             
             # Start all task threads
-            start_all_tasks()
+            get_task_manager().start_all()
             
             ColorPrint.green("[INIT] Task thread manager initialized successfully")
             

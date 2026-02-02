@@ -13,8 +13,8 @@ from typing import Optional, Dict, Any
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import DEBUG
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import DEBUG
 from d3utils.i18n_manager import I18nManager
 from share.game_interface_data import get_d4_interface_data
 from .map_name_utils import get_current_map_name_from_shared_data

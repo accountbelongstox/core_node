@@ -17,7 +17,11 @@ from datetime import datetime
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint, WindowScreenshot, ClickHandler, ImageAnnotator, ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.window_screenshot import WindowScreenshot
+from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.image_annotator import ImageAnnotator
 from providor.providor_index import (
     CONFIG,
     save_config,

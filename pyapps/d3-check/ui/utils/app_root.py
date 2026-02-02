@@ -8,7 +8,7 @@ Get main window root for Toplevel reuse; avoid creating multiple tk.Tk() which c
 import tkinter as tk
 from typing import Optional
 
-from providor.common_imports import ENCYCLOPEDIA
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 
 def get_app_root() -> Optional[tk.Tk]:

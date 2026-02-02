@@ -16,7 +16,7 @@ np = get_third_package_numpy()
 Image = get_third_package_PIL_Image()
 
 try:
-    from providor.common_imports import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 except Exception:
     ColorPrint = None
 

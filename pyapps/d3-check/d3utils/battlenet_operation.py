@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
-from providor.common_imports import ColorPrint, ClickHandler
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.click_handler import ClickHandler
 from pycore.pyfoundations.third_party import get_third_package_uiautomation, get_third_package_win32gui
 from d3utils.battlenet_manager import get_battlenet_manager, get_battlenet_window_titles
 from providor.app_constants import (

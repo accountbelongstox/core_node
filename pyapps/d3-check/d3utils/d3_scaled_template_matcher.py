@@ -14,16 +14,10 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    get_template_path,
-    get_template_threshold,
-    get_template_use_alpha,
-    get_template_match_method,
-)
-from share import get_global_scale
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha, get_template_match_method
+from share.game_interface_data import get_global_scale
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
 
 

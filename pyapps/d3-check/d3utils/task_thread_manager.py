@@ -11,7 +11,7 @@ import threading
 import queue
 from typing import Dict, Any, Callable, Optional
 from enum import Enum
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class TaskStatus(Enum):
@@ -202,43 +202,3 @@ def get_task_manager() -> TaskThreadManager:
     if _task_manager is None:
         _task_manager = TaskThreadManager()
     return _task_manager
-
-
-def register_task(name: str, task_func: Callable, interval: float = 1.0) -> bool:
-    """Register a new task thread"""
-    return get_task_manager().register_task(name, task_func, interval)
-
-
-def start_task(name: str) -> bool:
-    """Start a specific task thread"""
-    return get_task_manager().start_task(name)
-
-
-def stop_task(name: str) -> bool:
-    """Stop a specific task thread"""
-    return get_task_manager().stop_task(name)
-
-
-def set_task_status(name: str, status: TaskStatus) -> bool:
-    """Set task status"""
-    return get_task_manager().set_task_status(name, status)
-
-
-def set_task_interval(name: str, interval: float) -> bool:
-    """Set task interval"""
-    return get_task_manager().set_task_interval(name, interval)
-
-
-def start_all_tasks():
-    """Start all registered task threads"""
-    get_task_manager().start_all()
-
-
-def stop_all_tasks():
-    """Stop all task threads"""
-    get_task_manager().stop_all()
-
-
-def get_task_status(name: str) -> Optional[TaskStatus]:
-    """Get task status"""
-    return get_task_manager().get_task_status(name)

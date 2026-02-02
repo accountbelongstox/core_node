@@ -14,7 +14,7 @@ from providor.app_constants import (
     ROSBOT_EXE_PATTERNS,
     PATH_SCAN_MAX_DEPTH,
 )
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
 from d3utils.drive_order import get_fixed_drive_roots_for_scan
 

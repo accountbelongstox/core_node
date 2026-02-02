@@ -8,7 +8,7 @@ Ensures window stays within primary monitor bounds (four edges not exceeding scr
 import time
 from typing import List, Tuple
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 
 try:

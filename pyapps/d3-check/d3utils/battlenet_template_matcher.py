@@ -9,12 +9,10 @@ Shared by LoginTryScreenshotController and battlenet_match_debug.
 from typing import Optional, Dict, Any, Tuple
 
 from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, cv2, np
-from providor.common_imports import ColorPrint, ImageMatcher
-from providor.providor_index import (
-    BATTLENET_TEMPLATE_CONFIGS,
-    BATTLENET_STANDARD_RESOLUTION_WIDTH,
-    BATTLENET_STANDARD_RESOLUTION_HEIGHT,
-)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_matcher import ImageMatcher
+from providor.app_constants import BATTLENET_STANDARD_RESOLUTION_WIDTH, BATTLENET_STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.d3u_common.image_utils import convert_pil_to_bgr
 
 TM_MAP = {

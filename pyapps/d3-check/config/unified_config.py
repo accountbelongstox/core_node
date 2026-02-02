@@ -13,8 +13,8 @@ from typing import Dict, List, Optional, Any, Union, Callable
 from enum import Enum
 from pathlib import Path
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 # =============================================================================
 # CONSTANTS AND ENUMS

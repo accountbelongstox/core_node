@@ -12,7 +12,7 @@ from pycore.pyfoundations.third_party import (
     get_third_package_win32gui,
     get_third_package_win32con,
 )
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from providor.app_constants import (
     ROSBOT_UI_DEBUG_DIR,
     TAB_MAIN_PROFILE_NAMES,

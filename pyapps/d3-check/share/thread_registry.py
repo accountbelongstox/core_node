@@ -3,32 +3,26 @@
 """
 Thread Registry - Central owner of all threads (THREAD BUS lifecycle side).
 
-- All thread instances are created and held only here. Main thread references threads
-  only via this registry (get_xxx_thread / run_xxx). No component holds self.xxx_thread.
-- All inter-thread communication goes through pycore THREAD_BUS / event_center (signals,
-  events, queues). Threads do not reference each other.
-- One-shot tasks (path scan, login check, refresh status, battlenet UI analyze,
-  window monitor initial check): registry creates thread and starts it; no storage.
+- All thread instances are created and held only here; no dynamic thread creation.
+  Main thread references threads only via this registry (get_xxx_thread, start_xxx, etc.).
+  No component holds self.xxx_thread.
+- All threads start together with UI; execution is driven by global state and tick
+  (timer_manager loop). One-shot work (path scan, login check, refresh, battlenet UI
+  analyze, window monitor initial check) is submitted to the timer thread via
+  timer_manager.submit_one_shot(); no new thread is ever created for these.
 - Long-lived threads (extension threads, macro fallback, tray, game_interface_macro):
-  registry creates once, stores, and provides getters for main thread / event_center.
+  registry creates once at startup, stores, and provides getters.
+- Inter-thread communication: pycore THREAD_BUS / event_center only; threads do not
+  reference each other.
 """
 
 from typing import Any, Callable, Optional
 
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
-from share.threads import (
-    BattlenetUiAnalyzeThread,
-    GameInterfaceMacroThread,
-    LoginCheckThread,
-    MacroLoopThread,
-    PathScanThread,
-    RefreshStatusThread,
-    TrayRunnerThread,
-    WindowMonitorInitialCheckThread,
-)
+from share.threads import do_window_monitor_initial_check
 from d3utils.main_function_thread import MainFunctionThread, set_main_function_thread
 from d3utils.auxiliary_function_thread import AuxiliaryFunctionThread, set_auxiliary_function_thread
 from d3utils.d3_extension_thread import D3ExtensionThread, set_d3_extension_thread
@@ -91,10 +85,10 @@ class ThreadRegistry:
         return self._d4_extension_thread
 
     def start_macro_fallback(self, controller: Any) -> None:
-        """Start macro fallback thread (when MainFunctionThread not used)."""
+        """Start macro fallback thread (when MainFunctionThread not used). Thread class lives in controller module."""
         if self._macro_loop_thread is not None and self._macro_loop_thread.is_alive():
             return
-        self._macro_loop_thread = MacroLoopThread(controller)
+        self._macro_loop_thread = controller.create_macro_fallback_thread()
         self._macro_loop_thread.start()
 
     def stop_macro_fallback(self) -> None:
@@ -104,18 +98,18 @@ class ThreadRegistry:
         self._macro_loop_thread = None
 
     def start_tray(self, tray: Any) -> bool:
-        """Start tray runner thread. Returns True if started."""
+        """Start tray (tray is the thread; native class extends Thread). Returns True if started."""
         if self._tray_thread is not None and self._tray_thread.is_alive():
             return True
-        self._tray_thread = TrayRunnerThread(tray)
-        self._tray_thread.start()
+        self._tray_thread = tray
+        tray.start()
         return True
 
     def start_game_interface_macro(self, controller: Any, skill_config: Any) -> None:
-        """Start game interface macro thread."""
+        """Start game interface macro thread. Thread class lives in controller module."""
         if self._game_interface_macro_thread is not None and self._game_interface_macro_thread.is_alive():
             return
-        self._game_interface_macro_thread = GameInterfaceMacroThread(controller, skill_config)
+        self._game_interface_macro_thread = controller.create_macro_thread(skill_config)
         self._game_interface_macro_thread.start()
 
     def stop_game_interface_macro(self) -> None:
@@ -124,28 +118,12 @@ class ThreadRegistry:
             self._game_interface_macro_thread.join(timeout=2.0)
         self._game_interface_macro_thread = None
 
-    def run_path_scan(self, panel: Any) -> None:
-        """One-shot: run path scan in a thread (registry creates and starts; no storage)."""
-        PathScanThread(panel).start()
-
-    def run_login_check(self, panel: Any) -> None:
-        """One-shot: run login check in a thread. Panel must provide get_login_check_callable()."""
-        LoginCheckThread(panel, panel.get_login_check_callable()).start()
-
-    def run_refresh_status(self, refresh_fn: Callable[[], None]) -> None:
-        """One-shot: run refresh status in a thread."""
-        RefreshStatusThread(refresh_fn).start()
-
-    def run_battlenet_ui_analyze(self, panel: Any) -> None:
-        """One-shot: run Battle.net UI analyze in a thread."""
-        BattlenetUiAnalyzeThread(panel).start()
-
     def start_timer_loop_after_ui_ready(self) -> None:
         """Start timer manager loop and run one window monitor check. Call from main thread once after UI ready."""
         if not timer_manager.is_running():
             timer_manager.start()
             ColorPrint.green("[ThreadRegistry] Timer loop started (UI ready)")
-        WindowMonitorInitialCheckThread().start()
+        timer_manager.submit_one_shot(do_window_monitor_initial_check)
 
 
 _registry: Optional[ThreadRegistry] = None
