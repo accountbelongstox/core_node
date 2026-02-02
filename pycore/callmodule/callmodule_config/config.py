@@ -65,7 +65,7 @@ class Config:
     UI_APP_NAME = "Voice Subtitle"
     UI_APP_ID = "voice_subtitle_ui"
     UI_WINDOW_SIZE = (1000, 180)
-    UI_SHOW_ON_START = True
+    UI_SHOW_ON_START = False  # Only show tk debug window on start; open main window from tray
     UI_FRAMELESS = False
     UI_ENABLE_TRAY = False
     UI_SHOW_STARTUP = True

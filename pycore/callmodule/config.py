@@ -135,7 +135,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'enable_dev_tools': debug,
             'debug': debug,
             'show_startup': CallmoduleConfig.UI_SHOW_STARTUP,
-            'auto_close_startup': CallmoduleConfig.UI_AUTO_CLOSE_STARTUP
+            'auto_close_startup': CallmoduleConfig.UI_AUTO_CLOSE_STARTUP,
+            'cache_window_state': False,
         }
 
     # Add Windows-specific tray service - from callmodule_config/settings.yaml

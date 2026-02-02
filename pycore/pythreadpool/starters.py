@@ -260,6 +260,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     # Startup window configuration (tk debug window)
     show_startup = config.get('show_startup', True)
     auto_close_startup = config.get('auto_close_startup', True)
+    cache_window_state = config.get('cache_window_state', True)
 
     ColorPrint.blue("[ui] Configuration parsed:")
     ColorPrint.blue(f"[ui]   - app_name: {app_name}")
@@ -295,7 +296,8 @@ def start_ui(config: Dict[str, Any]) -> Any:
         enable_webview=enable_webview,
         webview_url=webview_url,
         enable_dev_tools=enable_dev_tools,
-        debug=debug
+        debug=debug,
+        cache_window_state=cache_window_state,
     )
     ColorPrint.green("[ui] PySide6UIConfig created")
 

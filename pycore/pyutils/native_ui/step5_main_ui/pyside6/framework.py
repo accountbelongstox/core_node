@@ -93,11 +93,17 @@ class TickTimer(QObject):
     def _run(self):
         """Tick timer thread main loop."""
         while self._running:
-            # Emit tick signal
-            self.tick.emit()
-
-            # Sleep
-            time.sleep(self.interval)
+            try:
+                self.tick.emit()
+            except RuntimeError as e:
+                if "Signal source has been deleted" in str(e) or "wrapped C/C++ object" in str(e):
+                    break
+                raise
+            # Sleep in small steps so we can exit promptly when _running becomes False
+            for _ in range(int(self.interval / 0.1) or 1):
+                if not self._running:
+                    return
+                time.sleep(0.1)
 
 
 class PySide6Framework(QObject):
@@ -383,28 +389,21 @@ class PySide6Framework(QObject):
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
 
-            # Install signal handler for Ctrl+C (SIGINT)
-            # This allows KeyboardInterrupt to properly close the application
-            def signal_handler(signum, frame):
-                """Handle Ctrl+C - trigger app.close event and quit Qt"""
-                ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
-                # Trigger app.close event for cleanup
-                THREAD_BUS.trigger_event('app.close', {
-                    'source': 'signal_interrupt',
-                    'signal': signum
-                }, async_mode=False)
-                # Quit Qt application
-                self.qt_app.quit()
-
-            signal.signal(signal.SIGINT, signal_handler)
-
-            # Use a timer to allow Python signal handlers to run periodically
-            # Qt event loop needs to yield control for Python signal handling
-            timer = QTimer()
-            timer.timeout.connect(lambda: None)  # Empty slot to process signals
-            timer.start(500)  # Check every 500ms
-
-            ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
+            # Install signal handler for Ctrl+C (SIGINT) only in main thread
+            # signal.signal() raises ValueError if called from a non-main thread (e.g. PySide6UIThread)
+            if threading.current_thread() is threading.main_thread():
+                def signal_handler(signum, frame):
+                    """Handle Ctrl+C - trigger app.close event and quit Qt"""
+                    ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
+                    THREAD_BUS.trigger_event('app.close', {
+                        'source': 'signal_interrupt',
+                        'signal': signum
+                    }, async_mode=False)
+                    self.qt_app.quit()
+                signal.signal(signal.SIGINT, signal_handler)
+                ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
+            else:
+                ColorPrint.blue("[PySide6Framework] Running in worker thread, SIGINT handled by main process")
 
             sys.exit(self.qt_app.exec())
 

@@ -129,7 +129,7 @@ class PySide6UIThread(threading.Thread):
             # Trigger close event (thread-safe via Qt signals)
             THREAD_BUS.trigger_event(f'{app_id}.close', {})
 
-    def get_framework(self) -> Optional[PySide6Framework]:
+    def get_framework(self) -> Optional["PySide6Framework"]:
         """
         DEPRECATED: Direct access to framework instance violates threading standards
 
