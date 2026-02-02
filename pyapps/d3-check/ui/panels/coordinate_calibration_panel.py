@@ -33,7 +33,7 @@ from providor.providor_index import (
     DIABLO_III_WINDOW_TITLES,
     DIABLO_IV_WINDOW_TITLES
 )
-from d3utils.battlenet_manager import get_battlenet_window_titles
+from providor.providor_index import BATTLE_NET_WINDOW_TITLES
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_bool
 from d3utils.i18n_manager import i18n_manager
@@ -48,7 +48,7 @@ class CoordinateCalibrationPanel:
 
     # Window title mappings for different client types (Battle.net list from battlenet_manager)
     WINDOW_TITLES_MAP = {
-        CLIENT_TYPE_BATTLENET: get_battlenet_window_titles(),
+        CLIENT_TYPE_BATTLENET: list(BATTLE_NET_WINDOW_TITLES),
         CLIENT_TYPE_D3_GAME: DIABLO_III_WINDOW_TITLES,
         CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES
     }

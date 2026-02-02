@@ -14,7 +14,7 @@ from share.game_interface_data import get_game_interface_data, get_screen_resolu
 from pycore.pyutils.common.window_finder import WindowFinder
 
 from providor.app_constants import D3_DISCONNECTED_TEMPLATE_NAME
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.status_provider_common import refresh_window_state
 

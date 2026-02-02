@@ -10,7 +10,7 @@ from tkinter import ttk
 from typing import Optional, Callable
 from ..theme.theme import UITheme
 from ..utils.config_binding import ConfigBinding
-from d3utils import event_center
+from runtime import trigger_window_minimize, trigger_window_maximize, trigger_app_restart, trigger_app_exit
 from d3utils.i18n_manager import i18n_manager
 from pycore.pyfoundations.color_print import ColorPrint
 
@@ -186,19 +186,19 @@ class TitleBar:
     
     def _minimize_window(self):
         """Minimize window; runs on main thread via event center."""
-        event_center.trigger_window_minimize()
+        trigger_window_minimize()
 
     def _toggle_maximize(self):
         """Toggle maximize/restore; runs on main thread via event center."""
-        event_center.trigger_window_maximize()
+        trigger_window_maximize()
 
     def _restart_application(self):
         """Restart application; dispatched to main thread via event center."""
-        event_center.trigger_app_restart()
+        trigger_app_restart()
 
     def _close_window(self):
         """Close window; dispatched to main thread via event center."""
-        event_center.trigger_app_exit()
+        trigger_app_exit()
     
     def _bind_drag_events(self):
         """Bind drag events for window dragging"""

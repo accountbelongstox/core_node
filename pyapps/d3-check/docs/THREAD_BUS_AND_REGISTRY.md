@@ -3,32 +3,44 @@
 ## 1. THREAD_BUS（pycore）
 
 - **位置**：`pycore.pyfoundations.thread_bus`，全局单例 `THREAD_BUS`。
-- **用途**：线程间通信唯一通道。所有事务通知通过全局 queue/信号/事件完成；线程间**禁止**直接传参或互相引用。
-- **d3-check 封装**：`d3utils.event_center` 基于 THREAD_BUS 注册事件与触发器（如 `trigger_app_exit`、`trigger_extension_rosbot_start`），扩展线程通过 event_center 接收命令、上报完成。
+- **用途**：线程间通信**唯一通道**。所有事务通知通过全局 queue/信号/事件完成；线程间**禁止**直接传参、互相引用或**互相卡住**（禁止 `queue.get()`、`join()` 等等待另一线程）。
+- **d3-check 封装**：`d3utils.event_center` 基于 THREAD_BUS 注册事件与触发器（如 `trigger_app_exit`、`trigger_extension_rosbot_start`）；扩展线程通过 event_center 接收命令、上报完成；主线程通过 `root.after(0, ...)` 调度 UI 更新。
 
-## 2. 线程注册中心（ThreadRegistry）
+## 2. 禁止线程互相卡住
+
+- **正常运行时**：任意线程不得通过 `queue.get()`、`join()` 等等待另一线程的返回或结束；否则会导致主线程/UI **卡住**。
+- **关闭阶段**：主线程可对工作线程 `join(timeout)` 做收尾（如 ShutdownManager、ThreadRegistry.stop_macro_fallback / stop_game_interface_macro）；除此以外禁止跨线程卡住。
+- **通信方式**：通过**事件中心**（event_center / THREAD_BUS）发事件；目标线程或主线程在自身 tick/循环中处理事件或通过注册的 handler 响应。
+- **命令/状态更新**：对任务线程、Timer、扩展线程等的「启停/状态设置」一律**不卡住入队**（fire-and-forget），由对应 worker 在自身循环中处理；需要「当前状态」时从**共享状态**（如 `D3InterfaceData.rosbot_flow_master_enabled`）读取，不从另一线程同步等待返回值。
+
+## 3. 线程注册中心（ThreadRegistry）
 
 - **位置**：`share/thread_registry.py`，单例 `get_thread_registry()`。
 - **职责**：
-  - **唯一**创建并持有所有线程实例；**禁止在运行中动态创建线程**（防止卡住）。主线程只通过 ThreadRegistry 引用线程（如 `create_extension_threads`、`run_path_scan`、`start_timer_loop_after_ui_ready`）。
-  - 禁止在任意组件内使用 `self.xxx_thread` 创建或持有线程；禁止线程互相引用。
-- **启动与驱动**：**所有线程随 UI 同步启动**；执行仅由**全局状态与 tick**（timer_manager 周期 + 命令队列）驱动。
-- **长生命周期线程**：四路扩展线程（Main/Aux/D3/D4）、宏 fallback、托盘、game_interface_macro 由 registry 在启动时创建并存储，对外通过 getter 或模块级 set/get 供 event_center 等使用。
-- **线程实现为原生类**：禁止使用一个类对另一个类做简单封装（如 A 的 run() 仅调用 B.xxx()）。须满足其一：(1) 需在后台运行的组件**直接继承 threading.Thread**（如 `SystemTray(threading.Thread)`，其 `run()` 内实现托盘循环；无单独 TrayRunnerThread 包装类）；(2) 线程类的 **run() 内直接实现循环/逻辑**，仅将控制器等作为数据或回调使用，不单纯转发到另一对象的一个方法。例如：`MacroLoopThread.run()`、`GameInterfaceMacroThread.run()` 内直接写宏循环；Registry 通过 controller.create_macro_fallback_thread()、controller.create_macro_thread() 获取实例，托盘则 tray 自身为 Thread 由 registry.start_tray(tray) 直接 start。
-- **一次性工作**：路径扫描、登录检查、刷新状态、战网 UI 分析、窗口监控首次检测等，通过 **timer_manager.submit_one_shot(callback)** 投递到定时器线程执行，**不新建线程**。
+  - **唯一**创建并持有所有线程实例；**禁止在运行中动态创建线程**。
+  - **启动时初始化所有线程**：所有后台线程（TaskThreadManager 及 rosbot_task、TimerManager、扩展线程 Main/Aux/D3/D4、托盘、宏线程等）在 UI 就绪后**一次性创建并启动**。
+  - 禁止在任意组件内使用 `self.xxx_thread` 创建或持有线程；禁止线程互相引用、互相卡住。
+- **启动与驱动**：**所有线程随 UI 同步启动**；执行仅由**全局状态与 tick**（timer_manager 周期、任务线程 1s tick、rosbot_flow_master_enabled 等）驱动。
+- **每线程管理自身状态**：每个线程/任务只维护自己的状态（如 TaskThread 的 status、D3InterfaceData 的 rosbot_flow_master_enabled）；状态更新通过事件或不卡住入队，禁止卡住等待另一线程返回。
+- **长生命周期线程**：四路扩展线程（Main/Aux/D3/D4）、宏 fallback、托盘、game_interface_macro、TaskThreadManager 的 worker 与任务线程，由 registry / system_initializer 在启动时创建并启动。
+- **线程实现为原生类**：禁止 A 的 run() 仅调用 B.xxx()。组件直接继承 `threading.Thread` 且 `run()` 内实现循环/逻辑。
+- **一次性工作**：路径扫描、登录检查、刷新状态、战网 UI 分析、窗口监控首次检测等，通过 **timer_manager.submit_one_shot(callback)** 投递到定时器线程执行，不新建线程。
 
-## 3. 规范小结
+## 4. 规范小结
 
 | 项 | 要求 |
 |----|------|
-| 线程创建/持有 | 仅 ThreadRegistry；禁止 `self.xxx_thread`；**禁止动态创建线程** |
-| 启动与驱动 | 所有线程随 UI 同步启动；仅由全局状态与 tick 驱动 |
-| 一次性工作 | 通过 timer_manager.submit_one_shot 投递到定时器线程，不新建线程 |
-| 线程引用 | 仅主线程通过 `get_thread_registry()` 获取并操作 |
-| 线程间通信 | 仅通过 THREAD_BUS / event_center（信号、事件、队列） |
-| 线程实现 | 原生类：禁止 A 仅包装 B；组件直接继承 Thread 或线程 run() 内直接实现逻辑，不单纯调用另一对象单方法 |
+| 线程互相卡住 | **正常运行时禁止**；一律通过事件中心通信；状态从共享状态读取；**关闭时**主线程可 join(timeout) 收尾 |
+| 线程创建/持有 | 仅 ThreadRegistry / system_initializer；禁止动态创建线程 |
+| 启动 | 启动时**初始化所有线程**，随 UI 就绪一次性启动 |
+| 驱动 | tick 驱动；每线程管理自身状态 |
+| 一次性工作 | timer_manager.submit_one_shot 投递到定时器线程，不新建线程 |
+| 线程间通信 | 仅通过 THREAD_BUS / event_center（信号、事件、不卡住队列） |
+| 线程实现 | 原生类：直接继承 Thread，run() 内直接实现逻辑 |
 
-## 4. 相关文件
+**TaskThreadManager**：对外 API 均为 fire-and-forget（_fire 不传 result_q）；需要任务状态时通过 `get_task_status(name)` 读 `_status_snapshot`，不跨线程等待。其内部 worker 的 `_cmd_queue.get()` 仅 worker 自身会卡住，调用方不会卡住。
+
+## 5. 相关文件
 
 - 事件中心：`d3utils/event_center.py`
 - 线程注册：`share/thread_registry.py`

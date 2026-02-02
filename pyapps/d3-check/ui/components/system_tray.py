@@ -27,7 +27,7 @@ ImageDraw = get_third_package_PIL_ImageDraw()
 
 TRAY_AVAILABLE = True
 
-from share.thread_registry import get_thread_registry
+from runtime import get_thread_registry
 
 
 class SystemTray(threading.Thread):

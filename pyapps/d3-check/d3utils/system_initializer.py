@@ -28,6 +28,7 @@ import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
+from share.thread_registry import get_thread_registry
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -118,8 +119,8 @@ class SystemInitializer:
         Initialize timer system.
 
         Two drivers:
-        - timer_manager: single-thread loop; task: log_monitor (1.5s). State detection (window_monitor)
-          is NOT registered here; when UI "开始" is used, status is updated by tick-driven flow (rosbot_task).
+        - timer_manager: single-thread loop; task log_monitor (1.5s). State detection (window_monitor)
+          is NOT registered here; when UI Start is used, status is updated by tick-driven flow (rosbot_task).
           Loop started after UI ready (start_timer_loop_after_ui_ready).
         - task_thread_manager: one thread per task; rosbot_task (1s) drives ROSBOT flow (ROSBOT_FLOW.md)
           and, when flow master on, refreshes D3/Battle.net state every 2s for status UI.
@@ -140,7 +141,7 @@ class SystemInitializer:
             # Initialize task thread manager
             self._init_task_thread_manager()
 
-            # State detection (window_monitor) is NOT registered with timer; UI "开始" uses tick-driven flow for status updates (rosbot_task 2s tick).
+            # State detection (window_monitor) is NOT registered with timer; UI Start uses tick-driven flow for status updates (rosbot_task 2s tick).
 
             # Register log monitor with timer manager (static global, always enabled with interceptor)
             timer_manager.register_task(

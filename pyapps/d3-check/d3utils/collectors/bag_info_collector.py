@@ -29,7 +29,7 @@ from share.game_interface_data import get_game_interface_data, BagCoordinates, B
 from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
 from d3utils.d3u_common import draw_match_result
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from providor.providor_index import (
     CONFIG,
     get_template_path

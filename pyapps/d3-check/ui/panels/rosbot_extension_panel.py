@@ -30,15 +30,15 @@ from ui.utils.config_binding import ConfigBinding
 # Import game state and task thread manager (timer/UI are sibling modules; controller wires status UI and refresh fn)
 from share.game_interface_data import get_game_interface_data
 from share.threads import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze
-from d3utils.task_thread_manager import get_task_manager, TaskStatus
+from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_file_with_notepad
+from providor.app_constants import TAMPERMONKEY_SCRIPT_PATH
+from runtime import get_task_manager, TaskStatus, trigger_extension_rosbot_start, trigger_extension_rosbot_stop, is_shutdown_requested
 import timers.timer_manager as timer_manager
 import d3utils.rosbot_task_processor as rosbot_processor
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
-from d3utils.event_center import trigger_extension_rosbot_start, trigger_extension_rosbot_stop
 from d3utils.rosbot_flow_battlenet import reset_battlenet_flow_state
 from d3utils.battlenet_manager import get_battlenet_manager
-from d3utils.shutdown_manager import is_shutdown_requested
 
 
 class RosbotExtensionPanel:
@@ -352,6 +352,17 @@ class RosbotExtensionPanel:
                                         padx=UnifiedStyles.SPACING['xs'],
                                         pady=(UnifiedStyles.SPACING['xs'], 0))
 
+        # Open Tampermonkey script in Notepad for easy copy
+        self.open_tampermonkey_script_btn = tk.Button(button_frame,
+                                                      text=i18n_manager.get_ui_text("rosbot.open_tampermonkey_script"),
+                                                      bg=UnifiedStyles.COLORS['bg_primary'],
+                                                      fg=UnifiedStyles.COLORS['text_primary'],
+                                                      font=UnifiedStyles.FONTS['button'],
+                                                      command=self._open_tampermonkey_script)
+        self.open_tampermonkey_script_btn.grid(row=2, column=0, sticky="ew",
+                                              padx=UnifiedStyles.SPACING['xs'],
+                                              pady=(UnifiedStyles.SPACING['xs'], 0))
+
         # Refresh status button: immediate call of same check_window() that the timer calls periodically
         self.refresh_status_btn = tk.Button(button_frame,
                                            text=i18n_manager.get_ui_text("rosbot.refresh_status"),
@@ -359,7 +370,7 @@ class RosbotExtensionPanel:
                                            fg=UnifiedStyles.COLORS['text_primary'],
                                            font=UnifiedStyles.FONTS['button'],
                                            command=self._refresh_status_now)
-        self.refresh_status_btn.grid(row=2, column=0, sticky="ew",
+        self.refresh_status_btn.grid(row=3, column=0, sticky="ew",
                                     padx=UnifiedStyles.SPACING['xs'],
                                     pady=(UnifiedStyles.SPACING['xs'], 0))
         
@@ -638,6 +649,15 @@ class RosbotExtensionPanel:
         """Export Battle.net UI to JSON via UI Automation (Chrome/Chromium accessibility tree). CoInitialize in worker thread then call WindowAnalyzer."""
         timer_manager.submit_one_shot(lambda: do_battlenet_ui_analyze(self))
 
+    def _open_tampermonkey_script(self):
+        """Open Tampermonkey script file in Notepad for easy copy."""
+        result = open_file_with_notepad(TAMPERMONKEY_SCRIPT_PATH)
+        if not result.get("success"):
+            messagebox.showwarning(
+                i18n_manager.get_ui_text("rosbot.warning"),
+                result.get("error", "Unknown error") + "\n" + str(TAMPERMONKEY_SCRIPT_PATH),
+            )
+
     def get_login_check_callable(self):
         """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Used by ThreadRegistry."""
         def _run():
@@ -675,6 +695,9 @@ class RosbotExtensionPanel:
                 return
             self.rosbot_running = True
             self._update_control_button()
+            # [A9] 主线程收尾：面板状态「运行中」；启用 rosbot_task 周期任务；再次执行 ROSBOT 任务初始化；打日志（ROSBOT_FLOW_MERMAID.md）
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
+            rosbot_processor.get_rosbot_processor().initialize()
             rosbot_processor.start_rosbot_task()
             ColorPrint.green("[ROSBOT] Started monitoring")
         except Exception as e:

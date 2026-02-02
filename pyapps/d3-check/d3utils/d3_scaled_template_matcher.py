@@ -80,7 +80,7 @@ _d3_scaled_matcher_instance: Optional[D3ScaledTemplateMatcher] = None
 
 
 def get_d3_scaled_template_matcher() -> D3ScaledTemplateMatcher:
-    """D3 专用 scale matcher 单例。"""
+    """Return D3-specific scaled template matcher singleton."""
     global _d3_scaled_matcher_instance
     if _d3_scaled_matcher_instance is None:
         _d3_scaled_matcher_instance = D3ScaledTemplateMatcher()

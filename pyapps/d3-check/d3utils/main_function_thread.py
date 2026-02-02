@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Main Function Thread (主要功能)
+Main Function Thread (main function / macro).
 Dedicated thread for macro loop: skill execution when started.
 Commands: start_macro, stop_macro, shutdown. Config read via get_config_value_safe (queue).
 """

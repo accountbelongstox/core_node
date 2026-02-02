@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CACHE_DIR
 from d3utils.path_scanner import scan_for_paths
-from d3utils.battlenet_manager import get_battlenet_window_titles
+from providor.providor_index import BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.window_analyzer import WindowAnalyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
 
@@ -76,7 +76,7 @@ def do_battlenet_ui_analyze(panel: Any) -> None:
     analyzer = WindowAnalyzer()
     analyzer.debug_dir = str(output_dir)
     result = analyzer.analyze_window(
-        window_titles=get_battlenet_window_titles(),
+        window_titles=list(BATTLE_NET_WINDOW_TITLES),
         program_name="battlenet",
     )
     if result and result.get("success"):

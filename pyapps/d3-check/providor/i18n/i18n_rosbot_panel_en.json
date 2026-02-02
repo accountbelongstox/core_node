@@ -87,6 +87,7 @@
       "control_panel": "Control Panel",
       "start_rosbot": "Start ROSBOT",
       "debug_battlenet_ui": "Debug (Battle.net UI JSON)",
+      "open_tampermonkey_script": "Open Tampermonkey script",
       "stop_rosbot": "Stop ROSBOT",
       "rosbot_log": "ROSBOT Log",
       "start_functionality": "ROSBOT Start Functionality",

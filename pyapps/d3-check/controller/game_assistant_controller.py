@@ -23,7 +23,8 @@ from providor.providor_index import (
     should_stop_assistant,
     reset_assistant_state
 )
-from controller.ctl_func import get_blacksmith_handler, get_kanai_cube_handler
+from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
+from controller.ctl_func.kanai_cube_handler import get_kanai_cube_handler
 
 class GameAssistantController:
     """

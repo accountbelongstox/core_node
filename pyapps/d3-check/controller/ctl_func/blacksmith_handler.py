@@ -18,7 +18,7 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
 from providor.app_constants import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR

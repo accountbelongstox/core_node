@@ -16,7 +16,7 @@ When editing or adding code under **pyapps/d3-check** (Diablo III/IV macro, Batt
 
 Do not add new literal constants in feature modules; add to `providor.app_constants` or the appropriate config module and import.
 
-3. **Threads.** No dynamic thread creation (prevents freezing). All threads start with UI; execution is driven by global state and tick. One-shot work must use **timer_manager.submit_one_shot(callback)**; do not create new threads. **No simple wrapper of one class by another**: thread classes must be native—either (1) the component extends `threading.Thread` (e.g. `SystemTray(threading.Thread)` with `run()` implementing the tray loop), or (2) the thread class’s `run()` implements the loop/logic directly and does not merely call another object’s single method. See `docs/THREAD_BUS_AND_REGISTRY.md`.
+3. **Threads.** No mutual blocking at runtime; all inter-thread communication via **event center** (THREAD_BUS / `d3utils.event_center`) only; at shutdown main thread may `join(timeout)` workers. Init all threads at startup (no dynamic creation). Tick-driven; each thread manages its own state; one-shot work via **timer_manager.submit_one_shot(callback)**. No simple wrapper: thread classes must be native (component extends `threading.Thread`, run() implements loop). See `docs/THREAD_BUS_AND_REGISTRY.md`.
 
 4. **No secondary encapsulation (禁止二次封装).** No wrapper methods or re-export modules; use direct calls and direct imports only.
 

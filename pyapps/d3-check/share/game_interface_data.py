@@ -649,6 +649,7 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_running: bool = False
+    rosbot_flow_master_enabled: bool = False  # 总状态：用户点击「启动 ROSBOT」为 True，点击「停止」为 False（ROSBOT_FLOW_MERMAID A1）
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
@@ -688,6 +689,7 @@ class D3InterfaceData(InterfaceDataBase):
         self.button_detections = None
         self.battlenet_window_found = False
         self.rosbot_running = False
+        self.rosbot_flow_master_enabled = False
         self.d3_running = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
@@ -717,6 +719,7 @@ class D3InterfaceData(InterfaceDataBase):
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
             "rosbot_running": self.rosbot_running,
+            "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
             "map_type": self.map_type,
             "game_stage": self.game_stage,
@@ -750,6 +753,17 @@ class D3InterfaceData(InterfaceDataBase):
                 self.rosbot_running = running
                 should_notify = True
                 ColorPrint.blue(f"[D3State] ROSBOT: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_rosbot_flow_master_enabled(self, enabled: bool):
+        """Set 总状态 (ROSBOT flow master): True = 用户点击「启动 ROSBOT」，False = 点击「停止」。Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_flow_master_enabled != enabled:
+                self.rosbot_flow_master_enabled = enabled
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT flow master: {'enabled' if enabled else 'disabled'}")
         if should_notify:
             self._notify_callbacks()
 

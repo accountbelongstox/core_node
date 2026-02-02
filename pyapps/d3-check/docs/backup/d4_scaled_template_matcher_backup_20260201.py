@@ -52,7 +52,7 @@ from providor.providor_index import (
     DEBUG,
     TMP_DIR
 )
-from share import get_global_scale
+from share.game_interface_data import get_global_scale
 from share.game_interface_data import get_d4_interface_data
 
 

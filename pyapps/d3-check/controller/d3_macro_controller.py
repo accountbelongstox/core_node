@@ -25,15 +25,14 @@ from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
 from d3utils.d3_extension_thread import get_d3_extension_thread
 from d3utils.d4_extension_thread import get_d4_extension_thread
-from share.thread_registry import get_thread_registry
-from d3utils.event_center import (
+from runtime import (
+    get_thread_registry,
     register_extension_handlers,
     trigger_extension_main_start_macro,
     trigger_extension_main_stop_macro,
+    execute_shutdown,
 )
-from d3utils.shutdown_manager import execute_shutdown
 import timers.window_monitor_timer as window_monitor
-from share.thread_registry import get_thread_registry
 
 
 class MacroLoopThread(threading.Thread):

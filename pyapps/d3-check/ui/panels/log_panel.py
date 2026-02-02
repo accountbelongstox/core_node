@@ -13,7 +13,7 @@ from typing import Optional, Callable
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.shutdown_manager import is_shutdown_requested
+from runtime import is_shutdown_requested
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles

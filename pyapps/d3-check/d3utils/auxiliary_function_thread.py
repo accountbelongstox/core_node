@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Auxiliary Function Thread (辅助功能)
+Auxiliary Function Thread (auxiliary function).
 Dedicated thread for auxiliary tasks. Command queue: shutdown.
 Placeholder loop; can run periodic lightweight tasks later.
 """

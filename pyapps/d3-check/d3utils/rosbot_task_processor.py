@@ -14,7 +14,7 @@ from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.battlenet_status_provider import refresh_battlenet_status
-from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed
+from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -85,15 +85,16 @@ class RosbotTaskProcessor:
         if _flow_tick_count[0] % 2 != 0:
             return
         try:
-            refresh_d3_status()
             refresh_battlenet_status()
+            if get_bn_flow_ever_confirmed():
+                refresh_d3_status()
             self.game_state.notify_state_sync()
         except Exception:
             pass
         done, result = tick_battlenet_ready_flow()
+        # Gate: D3/extension only after BN_Confirmed (rosbot_flow_battlenet.tick_battlenet_ready_flow)
         if done and result == "confirmed":
             set_battlenet_tick_confirmed()
-            # BN_Confirmed -> D3_Online/HasD3/A/B run in extension thread (ROSBOT_FLOW_MERMAID.md); lazy import to avoid circular import with event_center
             from d3utils.event_center import trigger_extension_rosbot_start
             trigger_extension_rosbot_start()
 

@@ -460,5 +460,5 @@ execute_shutdown()
 - Tasks are checked every 100ms for execution
 - Tasks with 5 consecutive errors are automatically disabled
 - All operations are thread-safe
-- Timer tasks should not perform blocking operations
+- Timer tasks should not perform operations that 卡住 (get stuck)
 - For UI updates, use `parent.after(0, update_function, args)` to ensure thread safety

@@ -17,7 +17,7 @@ from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_ops import send_key as window_send_key
 from share.game_interface_data import calculate_unified_scaled_coordinate, get_game_interface_data
 from d3utils.screenshot_provider import get_screenshot_provider
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from d3utils.d3u_common.image_annotator_helper import save_click_debug_image
 from config.screenshot_categories import MATCH_DEBUG_DIR
 from providor.app_constants import (
@@ -33,11 +33,15 @@ from providor.app_constants import (
     D3_GAME_TOOL_MAX_ATTEMPTS,
     D3_FRAGMENT1_WAIT_GAME_TOOL_ATTEMPTS,
     D3_FRAGMENT2_DISAPPEAR_ATTEMPTS,
+    D3_ONLINE_SIMILARITY_THRESHOLD,
+    D3_ONLINE_SIMILARITY_RESIZE,
     CLICK_MOVE_DURATION_SEC,
     CLICK_PAUSE_AFTER_MOVE_SEC,
     VK_M,
     ACTIVATE_BEFORE_CAPTURE_DELAY_SEC,
 )
+from d3utils.d3u_common.image_utils import normalize_image_to_bgr
+from pycore.pyfoundations.third_party import get_third_package_numpy
 
 
 def _do_teleport_three_clicks(
@@ -181,11 +185,12 @@ def _capture_and_match_bounty_progress(provider, matcher, titles: Tuple[str, ...
 
 def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = None) -> Optional[str]:
     """
-    One capture to detect whether D3 client has disconnected (掉线检测). Not a separate flow.
+    [C3] 检测当前 D3 界面状态（开始界面= scale match d3_start_game_button）；D3 是否在线见约定。
+    [C4] 检测结果？start / game_tool / 其他或无。
     Returns:
-        "start" = not disconnected, at 开始游戏 screen; caller continues state-1 flow from middle (fragment1 + send_m_then_teleport_three_clicks).
-        "game_tool" = not disconnected, already in game; caller continues state-1 flow from middle (fragment2).
-        None = likely disconnected; caller should kill D3 and fall back to Battle.net flow.
+        "start" = 开始界面; caller runs fragment1 (C5).
+        "game_tool" = 已出现 d3_game_tool; caller runs fragment2 (C9).
+        None = 其他/无; caller should kill D3 and fall to D (C12).
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
@@ -211,6 +216,65 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
     if has_game_tool:
         return "game_tool"
     return None
+
+
+def _image_similarity_0_1(img_a, img_b) -> float:
+    """Compare two PIL/numpy images: resize to D3_ONLINE_SIMILARITY_RESIZE, grayscale, return 1 - mean_abs_diff/255 (1 = identical)."""
+    np_mod = get_third_package_numpy()
+    if np_mod is None:
+        return 0.0
+    try:
+        bgr_a = normalize_image_to_bgr(img_a)
+        bgr_b = normalize_image_to_bgr(img_b)
+        from pycore.pyfoundations.third_party import get_third_package_cv2
+        cv2 = get_third_package_cv2()
+        if cv2 is None:
+            return 0.0
+        gray_a = cv2.cvtColor(cv2.resize(bgr_a, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
+        gray_b = cv2.cvtColor(cv2.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
+        diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
+        return 1.0 - min(diff / 255.0, 1.0)
+    except Exception:
+        return 0.0
+
+
+def check_d3_online_by_m_similarity(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
+    """
+    [A5] D3 是否在线（ROSBOT_FLOW_MERMAID.md）：仅当已出现 d3_game_tool 时调用。
+    五步：1. 先截图（图 A） 2. 按 M 键 3. 再截图（图 B） 4. 对比相似度（高度相似则掉线） 5. 再按 M 键恢复。
+    Returns True if online (M had effect), False if 掉线 (high similarity = M had no effect).
+    """
+    titles = window_titles or DIABLO_III_WINDOW_TITLES
+    provider = get_screenshot_provider()
+    _activate_d3_window(window_titles=titles)
+    sd_a = provider.gen(use_optimized_capture=True, window_titles=list(titles))
+    if not sd_a or not sd_a.game_window_image:
+        return False
+    img_a = sd_a.game_window_image
+    windows = WindowFinder.find_windows_by_titles(titles=list(titles), match_mode="in", use_cache=False)
+    if not windows or not windows[0].get("hwnd"):
+        return False
+    hwnd = windows[0]["hwnd"]
+    window_send_key(hwnd, VK_M, press=True)
+    time.sleep(0.05)
+    window_send_key(hwnd, VK_M, press=False)
+    time.sleep(D3_GAME_TOOL_AFTER_M_DELAY_SEC)
+    sd_b = provider.gen(use_optimized_capture=True, window_titles=list(titles))
+    if not sd_b or not sd_b.game_window_image:
+        window_send_key(hwnd, VK_M, press=True)
+        time.sleep(0.05)
+        window_send_key(hwnd, VK_M, press=False)
+        return False
+    img_b = sd_b.game_window_image
+    sim = _image_similarity_0_1(img_a, img_b)
+    window_send_key(hwnd, VK_M, press=True)
+    time.sleep(0.05)
+    window_send_key(hwnd, VK_M, press=False)
+    if sim >= D3_ONLINE_SIMILARITY_THRESHOLD:
+        ColorPrint.yellow(f"[D3StartGameWaiter][A5] D3 online check: similarity={sim:.3f} >= {D3_ONLINE_SIMILARITY_THRESHOLD}, 掉线")
+        return False
+    ColorPrint.green(f"[D3StartGameWaiter][A5] D3 online check: similarity={sim:.3f}, 在线")
+    return True
 
 
 def send_m_then_teleport_three_clicks(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
@@ -287,8 +351,9 @@ def try_fragment1_click_start_game_wait_game_tool(
     window_titles: Optional[Tuple[str, ...]] = None,
 ) -> Optional[bool]:
     """
-    D3-already-running fragment 1: if d3_start_game_button visible, click it then wait 5x2s for d3_game_tool.
-    Returns True if game_tool appeared; False if start clicked but game_tool timeout (caller should close D3);
+    [C5] 片段 1：若有 d3_start_game_button（scale match）→ 点击；每 2 秒截图检测 d3_game_tool，最多 5×2 秒。
+    [C6] 出现 d3_game_tool？[C7] 仅当出现 d3_game_tool 时才按 M；按 M 后间隔 2 秒，传送三连点。[C8] 结果？
+    Returns True if game_tool appeared; False if start clicked but game_tool timeout (caller should close D3 → C12);
     None if start button not found (caller should try fragment 2).
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
@@ -373,6 +438,8 @@ def open_map_verify_bounty_then_teleport_three_clicks(
     sd = sd1 if sd1 else sd2
     if not sd or not sd.game_window_image:
         return False
+    # [C7/C11] 按 M 后间隔 2 秒 / 等待 2 秒后执行传送三连点（ROSBOT_FLOW_MERMAID.md）
+    time.sleep(D3_START_GAME_WAIT_INTERVAL_SEC)
     window_offset = sd.window_offset or (0, 0)
     game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
     shared_data = get_game_interface_data()
@@ -387,9 +454,9 @@ def try_fragment2_game_tool_press_m_then_clicks(
     window_titles: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     """
-    D3-already-running fragment 2: if d3_game_tool visible, press M twice; take two screenshots and check for bounty progress (悬赏任务进度图).
-    Only when both screenshots lack bounty progress → timeout, caller should close D3. If either has bounty progress, do 2s delay + three teleport clicks and return True.
-    Returns False if game_tool not found, or both captures lack bounty progress.
+    [C9] 片段 2：仅当出现 d3_game_tool 时才按 M；连按两次 M；截两次图检测悬赏任务进度。
+    [C10] 两次都未出现悬赏进度？→ 结束 D3（C12）。[C11] 等待 2 秒后执行传送三连点。
+    Returns False if game_tool not found, or both captures lack bounty progress (caller should close D3 → C12).
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()

@@ -21,11 +21,6 @@ from pycore.pyutils.common.browser_window_detector import get_default_skip_brows
 from d3utils.process_helper import kill_process_by_exe
 
 
-def get_battlenet_window_titles() -> List[str]:
-    """Return the canonical list of Battle.net window titles. Use this everywhere instead of importing BATTLE_NET_WINDOW_TITLES."""
-    return list(BATTLE_NET_WINDOW_TITLES)
-
-
 class BattleNetManager:
     """
     Battle.net process and window management.

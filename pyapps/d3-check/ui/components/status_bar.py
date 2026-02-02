@@ -18,7 +18,7 @@ import os
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.shutdown_manager import is_shutdown_requested
+from runtime import is_shutdown_requested
 
 i18n_manager = I18nManager()
 

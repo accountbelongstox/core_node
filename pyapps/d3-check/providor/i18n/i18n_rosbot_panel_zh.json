@@ -60,6 +60,7 @@
       "control_panel": "控制面板",
       "start_rosbot": "启动ROSBOT",
       "debug_battlenet_ui": "调试(战网UI JSON)",
+      "open_tampermonkey_script": "一键打开油猴脚本",
       "stop_rosbot": "停止ROSBOT",
       "rosbot_log": "ROSBOT日志",
       "start_functionality": "ROSBOT启动功能",

@@ -7,13 +7,14 @@ Control names reference docs/登陆后的战网元素.json (exported via debug b
 import time
 import json
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Set
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
 from pycore.pyfoundations.third_party import get_third_package_uiautomation, get_third_package_win32gui
-from d3utils.battlenet_manager import get_battlenet_manager, get_battlenet_window_titles
+from d3utils.battlenet_manager import get_battlenet_manager
 from providor.app_constants import (
+    BN_FLOW_SNAPSHOTS_DIR,
     CLICK_MOVE_DURATION_SEC,
     CLICK_PAUSE_AFTER_MOVE_SEC,
     BATTLE_NET_DISCONNECT_KEYWORDS,
@@ -21,8 +22,9 @@ from providor.app_constants import (
     BATTLE_NET_CN_AGREE_KEYWORDS,
     BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS,
     BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS,
-    BATTLE_NET_CN_AFTER_NETEASE_CLICK_WAIT_SEC,
+    BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC,
     BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS,
+    BATTLE_NET_LOGIN_FAILED_KEYWORDS,
     LOGIN_SCREEN_UI_KEYWORDS,
     LOGIN_WINDOW_AUTOMATION_ID_MARKERS,
     D3_TAB_AUTOMATION_IDS,
@@ -32,6 +34,48 @@ from providor.app_constants import (
 )
 
 win32gui = get_third_package_win32gui()
+
+# Login-failed features loaded from bn_flow_*.json snapshots (EN/CN dynamic UI)
+_login_failed_names: Optional[Set[str]] = None
+_login_failed_ids: Optional[Set[str]] = None
+_login_failed_loaded: bool = False
+
+
+def _load_login_failed_features_from_snapshots() -> Tuple[Set[str], Set[str]]:
+    """Load bn_flow_*.json from bn_flow_snapshots; extract control name/automation_id that contain any BATTLE_NET_LOGIN_FAILED_KEYWORDS. Returns (names_set, automation_ids_set)."""
+    global _login_failed_names, _login_failed_ids, _login_failed_loaded
+    if _login_failed_loaded:
+        return (_login_failed_names or set(), _login_failed_ids or set())
+    _login_failed_loaded = True
+    names: Set[str] = set()
+    ids: Set[str] = set()
+    base = BN_FLOW_SNAPSHOTS_DIR
+    if not base.is_dir():
+        _login_failed_names = names
+        _login_failed_ids = ids
+        return (names, ids)
+    for path in sorted(base.glob("bn_flow_*.json"), reverse=True):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        controls = data.get("controls") if isinstance(data, dict) else []
+        if not controls:
+            continue
+        for c in controls:
+            name = (c.get("name") or "").strip()
+            aid = (c.get("automation_id") or "").strip()
+            for kw in BATTLE_NET_LOGIN_FAILED_KEYWORDS:
+                if kw and kw in name:
+                    names.add(name)
+                if kw and kw in aid:
+                    ids.add(aid)
+    _login_failed_names = names
+    _login_failed_ids = ids
+    if names or ids:
+        ColorPrint.gray("[BattlenetOperation] login-failed features from snapshots: %d names, %d automation_ids" % (len(names), len(ids)))
+    return (names, ids)
 
 
 def _ensure_com() -> None:
@@ -188,6 +232,34 @@ class BattlenetOperation:
         walk(root)
         return found[0]
 
+    def _find_raw_control_by_name_and_type(
+        self, name_substrings: Tuple[str, ...], control_type_name: str = "CheckBoxControl"
+    ):
+        """Traverse from root, return first raw control whose Name contains any substring and ControlTypeName matches."""
+        root = self._get_root_control()
+        if not root or not name_substrings:
+            return None
+        found = [None]
+
+        def walk(control, depth: int = 0):
+            if depth > 25 or found[0] is not None:
+                return
+            try:
+                name = (control.Name or "").strip()
+                ctype = (control.ControlTypeName or "").strip()
+                if control_type_name.lower() in ctype.lower():
+                    for sub in name_substrings:
+                        if sub and sub in name:
+                            found[0] = control
+                            return
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+        return found[0]
+
     def find_control_by_name(self, name_substrings: tuple, controls: Optional[List[Dict]] = None) -> Optional[Dict[str, Any]]:
         """Find control by name containing any of the given substrings. If controls is None, enumerate live."""
         if controls is None:
@@ -276,46 +348,76 @@ class BattlenetOperation:
             return not bool(is_enabled)
         return False
 
+    def _get_checkbox_toggle_state(self, raw_control) -> Optional[int]:
+        """
+        Read checkbox ToggleState: 1 = On (checked), 0 = Off. Returns None if not readable.
+        Tries TogglePattern first, then GetCurrentPropertyValue(30096) (UIA ToggleStateProperty).
+        """
+        try:
+            toggle_pattern = raw_control.GetPattern(10014)
+            if toggle_pattern is not None:
+                if hasattr(toggle_pattern, "ToggleState"):
+                    return int(toggle_pattern.ToggleState)
+                if hasattr(toggle_pattern, "GetToggleState"):
+                    return int(toggle_pattern.GetToggleState())
+        except Exception:
+            pass
+        try:
+            if hasattr(raw_control, "GetCurrentPropertyValue"):
+                val = raw_control.GetCurrentPropertyValue(30096)
+                if val is not None:
+                    return int(val)
+        except Exception:
+            pass
+        return None
+
+    def _ensure_checkbox_checked_by_state(self, raw_control) -> bool:
+        """
+        Confirm checkbox is checked: read state, only click when Off (0). Single click when state unknown.
+        Use when TogglePattern is not available; avoids double-click (which could uncheck).
+        """
+        state = self._get_checkbox_toggle_state(raw_control)
+        if state == 1:
+            ColorPrint.blue("[BattlenetOperation] Agree checkbox already checked (confirm by state)")
+            return True
+        try:
+            raw_control.Click()
+            time.sleep(0.2)
+            if state is None:
+                ColorPrint.blue("[BattlenetOperation] Agree checkbox clicked once (fallback; state unknown)")
+            else:
+                ColorPrint.blue("[BattlenetOperation] Agree checkbox confirmed checked (was Off, clicked once)")
+            return True
+        except Exception as e:
+            ColorPrint.red(f"[BattlenetOperation] Agree checkbox click failed: {e}")
+            return False
+
     def _ensure_agree_checkbox_checked(self) -> bool:
         """
-        Ensure the "您同意..." checkbox is checked (not just click once).
-        Find control by automation_id legalAcceptance; use TogglePattern to set On, or Click() fallback.
+        Ensure the "您同意..." checkbox is checked (confirm state, not double-click).
+        Find by automation_id legalAcceptance first; fallback: name containing BATTLE_NET_CN_AGREE_KEYWORDS + type CheckBox.
         """
         raw = self._find_raw_control_by_automation_id("legalAcceptance")
         if not raw:
-            ColorPrint.yellow("[BattlenetOperation] legalAcceptance checkbox not found")
+            raw = self._find_raw_control_by_name_and_type(BATTLE_NET_CN_AGREE_KEYWORDS, "CheckBoxControl")
+            if raw:
+                ColorPrint.blue("[BattlenetOperation] Agree checkbox found by name (fallback)")
+        if not raw:
+            ColorPrint.yellow("[BattlenetOperation] legalAcceptance checkbox not found (automation_id and name fallback)")
             return False
         try:
             # UIA TogglePatternId = 10014; ToggleState 1 = On (checked), 0 = Off
             toggle_pattern = raw.GetPattern(10014)
             if toggle_pattern is not None:
-                def _get_state(p):
-                    if hasattr(p, "ToggleState"):
-                        return p.ToggleState
-                    if hasattr(p, "GetToggleState"):
-                        return p.GetToggleState()
-                    return None
-                state = _get_state(toggle_pattern)
+                state = self._get_checkbox_toggle_state(raw)
                 if state is not None and state != 1:
                     toggle_pattern.Toggle()
                     time.sleep(0.2)
-                    if _get_state(toggle_pattern) != 1:
-                        toggle_pattern.Toggle()
-                        time.sleep(0.2)
                 ColorPrint.blue("[BattlenetOperation] Agree checkbox ensured checked (TogglePattern)")
                 return True
         except Exception as e:
             ColorPrint.gray(f"[BattlenetOperation] TogglePattern not used: {e}")
-        try:
-            raw.Click()
-            time.sleep(0.3)
-            raw.Click()
-            time.sleep(0.2)
-            ColorPrint.blue("[BattlenetOperation] Agree checkbox clicked (fallback)")
-            return True
-        except Exception as e:
-            ColorPrint.red(f"[BattlenetOperation] Agree checkbox click failed: {e}")
-            return False
+        return self._ensure_checkbox_checked_by_state(raw)
 
     def _click_netease_login_button(self) -> bool:
         """Click '使用网易账号登录或注册' (automation_id ntes or name)."""
@@ -330,10 +432,10 @@ class BattlenetOperation:
         ColorPrint.yellow("[BattlenetOperation] 使用网易账号登录或注册 button not found")
         return False
 
-    def perform_cn_login_flow(self, wait_after_netease_sec: float = BATTLE_NET_CN_AFTER_NETEASE_CLICK_WAIT_SEC) -> bool:
+    def perform_cn_login_flow(self, wait_after_netease_sec: float = BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC) -> bool:
         """
-        CN login flow on login screen: ensure "您同意..." checkbox checked, then click "使用网易账号登录或注册", then wait for web page.
-        Call when on login screen (e.g. before starting ROSBOT). Returns True if both steps succeeded.
+        CN login flow on login screen: ensure "您同意..." checkbox checked, then click "使用网易账号登录或注册".
+        Web agreement is not waited here; BN_Login2 polls is_oauth_done() each 2s tick until 30s timeout.
         """
         self.activate_window()
         time.sleep(0.2)
@@ -342,7 +444,7 @@ class BattlenetOperation:
         time.sleep(0.2)
         if not self._click_netease_login_button():
             return False
-        ColorPrint.blue(f"[BattlenetOperation] Waiting {wait_after_netease_sec}s for web agreement...")
+        ColorPrint.blue("[BattlenetOperation] Web agreement: polled each 2s tick, 30s timeout (BN_Login2)")
         time.sleep(wait_after_netease_sec)
         return True
 
@@ -364,6 +466,24 @@ class BattlenetOperation:
         """Click confirm login (CN flow final step). Uses UI only."""
         return self.click_cn_login_button()
 
+    def is_login_screen_ready(self) -> bool:
+        """
+        True when login screen is ready for interaction (agree checkbox or NetEase button visible).
+        Used in B7: 转圈时仅有 login-wrapper 等，不应判为「找到确切元素」；只有出现 legalAcceptance/ntes 或「您同意」/「使用网易」才判为可操作。
+        """
+        controls = self._enumerate_controls()
+        if not controls:
+            return False
+        if self.find_control_by_automation_id("legalAcceptance", controls) is not None:
+            return True
+        if self.find_control_by_automation_id("ntes", controls) is not None:
+            return True
+        if self.find_control_by_name(BATTLE_NET_CN_AGREE_KEYWORDS, controls) is not None:
+            return True
+        if self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS, controls) is not None:
+            return True
+        return False
+
     def get_dynamic_state(self) -> Tuple[bool, bool, bool]:
         """
         Enumerate UI once and return (on_login_screen, disconnected, normal_available).
@@ -384,12 +504,54 @@ class BattlenetOperation:
         normal_available = d3_tab is not None and play_ctrl is not None
         return (on_login, disconnected, normal_available)
 
+    def save_ui_elements_snapshot(self, node_name: str, reason: str) -> Optional[Path]:
+        """
+        Save current Battle.net UI elements to JSON under BN_FLOW_SNAPSHOTS_DIR (app_constants).
+        Filename: fixed step name only, bn_flow_{node}.json (no timestamp). Meta: node, reason; body: controls list.
+        """
+        controls = self._enumerate_controls()
+        base = BN_FLOW_SNAPSHOTS_DIR
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            ColorPrint.yellow("[BattlenetOperation] save_ui_elements_snapshot mkdir: %s" % e)
+            return None
+        safe_node = (node_name or "unknown").replace(" ", "_")
+        path = base / ("bn_flow_%s.json" % safe_node)
+        payload = {
+            "meta": {"node": node_name, "reason": reason},
+            "controls": [{"name": c.get("name"), "automation_id": c.get("automation_id"), "type": c.get("type"), "rect": c.get("rect"), "level": c.get("level")} for c in controls],
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            ColorPrint.gray("[BNFlow] UI snapshot saved: %s | reason: %s" % (path.name, reason))
+            return path
+        except Exception as e:
+            ColorPrint.yellow("[BattlenetOperation] save_ui_elements_snapshot write: %s" % e)
+            return None
+
     def is_on_login_screen(self) -> bool:
         """True if Battle.net is on login screen (未登陆). Uses automation_id markers from battlenet_analysis.json or control name keywords."""
         controls = self._enumerate_controls()
         if not controls:
             return False
         return self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS, controls) is not None
+
+    def is_login_failed_screen(self) -> bool:
+        """True if Battle.net shows post-web-login dialog (login failed / user cancelled). Uses seed keywords + features loaded from bn_flow_*.json snapshots so EN/CN dynamic UI is supported."""
+        controls = self._enumerate_controls()
+        if not controls:
+            return False
+        names_set, ids_set = _load_login_failed_features_from_snapshots()
+        for c in controls:
+            name = (c.get("name") or "").strip()
+            aid = (c.get("automation_id") or "").strip()
+            if name and (name in names_set or any(kw in name for kw in BATTLE_NET_LOGIN_FAILED_KEYWORDS if kw)):
+                return True
+            if aid and (aid in ids_set or any(kw in aid for kw in BATTLE_NET_LOGIN_FAILED_KEYWORDS if kw)):
+                return True
+        return False
 
     def is_on_browser_login_wait_screen(self) -> bool:
         """True if current window is the '使用浏览器完成登录。/取消' popup (wait for browser login). If we see this at start, restart BN and go to step 1; in the middle it is normal."""

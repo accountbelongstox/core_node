@@ -21,7 +21,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import save_anchor_detection_result, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data, UIRegion
 from providor.app_constants import (
     STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,

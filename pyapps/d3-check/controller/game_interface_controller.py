@@ -20,7 +20,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from providor.providor_index import CONFIG
 from controller.game_assistant_controller import GameAssistantController
-from share.thread_registry import get_thread_registry
+from runtime import get_thread_registry
 
 
 class GameInterfaceMacroThread(threading.Thread):

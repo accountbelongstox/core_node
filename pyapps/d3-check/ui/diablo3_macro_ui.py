@@ -36,8 +36,8 @@ from .theme import UITheme
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
 
-# Import event center (all exit/restart/show/min/max go through THREAD_BUS -> main thread)
-from d3utils import event_center
+# Lifecycle/event via runtime (THREAD_BUS -> main thread)
+from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
@@ -103,7 +103,7 @@ class Diablo3MacroUI:
         self._create_system_tray()
 
         # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
-        event_center.register_main_thread_handlers(self)
+        register_main_thread_handlers(self)
 
     def _add_resize_borders(self):
         """Add resize borders for frameless window"""
@@ -260,7 +260,7 @@ class Diablo3MacroUI:
         self.system_tray.set_show_callback(self._tray_show_window)
         self.system_tray.set_exit_callback(self._tray_exit_application)
 
-        if self.system_tray.start_tray():
+        if self.system_tray.start():
             ColorPrint.green("[UI] System tray started successfully")
             self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
         else:
@@ -268,7 +268,7 @@ class Diablo3MacroUI:
     
     def _tray_show_window(self):
         """Show window from tray; dispatched to main thread via event center."""
-        event_center.trigger_window_show()
+        trigger_window_show()
         ColorPrint.blue("[UI] Window show requested from tray")
     
     def _do_show_window(self):
@@ -281,13 +281,13 @@ class Diablo3MacroUI:
     def _tray_exit_application(self):
         """Exit application from tray; dispatched to main thread via event center."""
         ColorPrint.blue("[UI] Exit requested from tray - sending shutdown request")
-        event_center.trigger_app_exit()
+        trigger_app_exit()
 
     def _on_window_close(self):
         """Handle window close event; dispatched to main thread via event center."""
         self._save_window_geometry()
         ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
-        event_center.trigger_app_exit()
+        trigger_app_exit()
 
     def _apply_first_run_topmost(self):
         """First run only: lift and briefly topmost (geometry already set at init to avoid 0,0 flash)."""

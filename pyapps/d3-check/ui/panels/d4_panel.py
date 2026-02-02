@@ -28,7 +28,7 @@ from d3utils.i18n_manager import i18n_manager
 
 # Import map name utilities
 from controller.d4func.map_name_utils import get_current_map_name_from_shared_data
-from d3utils.shutdown_manager import is_shutdown_requested
+from runtime import is_shutdown_requested
 
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller

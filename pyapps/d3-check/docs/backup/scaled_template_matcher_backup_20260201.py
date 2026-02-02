@@ -58,7 +58,7 @@ from providor.providor_index import (
     get_template_match_method,
     get_adjusted_threshold
 )
-from share import get_global_scale
+from share.game_interface_data import get_global_scale
 
 class ScaledTemplateMatcher:
     """

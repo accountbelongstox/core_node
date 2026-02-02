@@ -20,18 +20,21 @@ flowchart TB
     subgraph B["B"]
         BN_Entry --> BN_Win{"[B2] 当前是否有战网窗口？"}
         BN_Win -->|无| BN_Start["[B3] 启动战网 → 等待数秒"]
-        BN_Win -->|有| BN_First{"[B4] 首界面是「登录窗」或「等待确认登录」UI？"}
-        BN_First -->|是| BN_Exit["[B5] 退出战网"]
-        BN_First -->|否| BN_Act["[B6] 激活战网窗口；轮询战网 UI 状态（仅当首界面非「登录窗」且非「等待确认登录」时才轮询）"]
+        BN_Win -->|有| BN_FirstQ1{"[B4] 首界面：登陆页？"}
+        BN_FirstQ1 -->|是| BN_Exit["[B5] 退出战网"]
+        BN_FirstQ1 -->|否| BN_FirstQ2{"[B4'] 首界面：等待浏览器返回页？"}
+        BN_FirstQ2 -->|是| BN_Exit
+        BN_FirstQ2 -->|否| BN_Act["[B6] 激活战网窗口；轮询"]
         BN_Start --> BN_Wait["[B7] wait 直到出现确切元素（战网刚启动时正在转圈）"]
         BN_Wait --> BN_WaitResult{"[B8] 找到元素？"}
         BN_WaitResult -->|超时未找到| BN_Exit
         BN_WaitResult -->|找到| BN_UI{"[B9] 当前界面是？"}
         BN_UI -->|登录界面| BN_Login1["[B10] 步骤1：点同意、确认"]
         BN_UI -->|主界面/已登录| BN_Ok1["[B12] 继续"]
-        BN_Login1 --> BN_Login2["[B11] 步骤2：提示并等待油猴返回（30秒超时）"]
+        BN_Login1 --> BN_Login2["[B11] 步骤2：提示并等待油猴返回（2分钟超时）"]
         BN_Login2 -->|超时| BN_Exit
-        BN_Exit --> BN_Entry
+        BN_Exit --> BN_ExitWait["[B5w] 等待战网退出完成（wait 后回到入口）"]
+        BN_ExitWait --> BN_Entry
         BN_Login2 -->|返回| BN_Ok1
         BN_Act --> BN_Poll{"[B13] 轮询结果（确切状态）？"}
         BN_Poll -->|已登录| BN_PollOk["[B14] 继续"]
@@ -107,7 +110,7 @@ flowchart TB
 | 字母 | 图中标记 | 说明 |
 |------|----------|------|
 | **A** | A1～A9 | 入口、定时器、D3 在线、是否有 D3、成功、收尾 |
-| **B** | B1～B16（B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、首界面、退出、轮询、登录两步、确切状态、继续 |
+| **B** | B1～B16（B4/B4' 首界面两判；B5w 为退出后等待；B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、**B4 首界面：登陆页？**、**B4' 首界面：等待浏览器返回页？**（是→B5 否→B6）、退出、轮询、登录两步、确切状态、继续 |
 | **C** | C1～C12 | 缩放、检测、片段1/2、结束 D3 落 D |
 | **D** | D1～D18 | 找窗口、D3 tab、Play、开始游戏、ROSBOT 启动后自动化 |
 
@@ -162,10 +165,81 @@ flowchart TB
 
 ---
 
+## 首次启动首界面（B4 / B4' 判定）
+
+B2 有战网窗口时，当前界面即**首次启动的首界面**。流程图中用两个判定节点写清：**B4 首界面：登陆页？**、**B4' 首界面：等待浏览器返回页？**；任一为是 → B5，均否 → B6。该首界面仅区分两种状态：
+
+| 状态 | 说明 | B4 判定 |
+|------|------|---------|
+| **登陆页** | 客户端内同意条款、网易账号登录页（UI 含「需要登陆」「您同意」「使用网易账号登录或注册」等） | 视为「当前是否为登陆界面」**是** → B5 退出战网 |
+| **等待浏览器返回页** | 弹窗「使用浏览器完成登录。/取消」 | 视为**是** → B5 退出战网 |
+
+上述两种状态**任一**为真则 B4 走 **是 → B5 退出战网**；否则为**否 → B6 激活战网窗口、轮询**。点同意/确认（B10/B11）仅在本流程自己启动战网后经 B7→B8→B9 判定为登录界面时执行。
+
+---
+
 ## 实现说明（给 AI）
 
 - **本文档不指定**：具体文件路径、类名、函数名、常量名、第三方库名。
 - **实现时**：在仓库内根据现有模块与项目规范（如 CONFIG 放置常量、优先使用 pycore 等）自行查找并调用对应能力；流程中涉及的「战网/D3/ROSBOT 管理器」「截图与模板匹配」「OCR」「点击与窗口操作」「任务线程与状态回调」等，均应在代码库中按既有结构接入，保持风格一致。
 - **状态管理与全局定时器**：全局定时器 1 秒一跳，本流程通过 % 方式实现 2 秒一个 tick；总状态关闭时跳过所有分支，总状态开启时按当前分支状态驱动（wait 则本 tick 跳过，有导向则执行并切换）；停止时关闭总状态。各节点需区分为 wait 与有导向。本流程为 tick 驱动，掉线后自动回到流程开始。
 - **D3 界面判定与在线检测**：开始界面 = scale match **d3_start_game_button.png**。只有当出现 **d3_game_tool** 时才按 M 键；未出现时标记 **wait**。D3 是否在线 = 仅当已出现 d3_game_tool 时按约定五步（先截图→按 M→再截图→对比相似度，高度相似则掉线→再按 M 恢复地图）。掉线模板图命名为 **d3_disconnected.png**。
+- **B11 油猴等待超时**：步骤2 等待油猴返回超时时间为 **2 分钟**（120 秒），由 `BN_FLOW_OAUTH_WAIT_SEC` 配置。
+- **B4 首次启动首界面两种状态**：见上节「首次启动首界面（B4 判定）」；实现时用 `is_on_login_screen()` 判登陆页、`is_on_browser_login_wait_screen()` 判等待浏览器返回页，任一为真则 B4→B5。
+- **登录失败状态**：在 B4、B7、B9、B11、B13 任一节点，若战网 UI 中出现「Continue Offline」或「Cancel」任一元素（网页登陆后战网显示的弹窗），则判定为登录失败，退出战网并回到 B1 入口（B5→B5w→B1）。常量 `BATTLE_NET_LOGIN_FAILED_KEYWORDS`。
+- **每步 UI 快照**：每步使用固定流程名（如 B2_has_window、B7_poll_elements、B11_wait_oauth 等）保存战网当前 UI 元素到 `battlenet_ui_analyze/bn_flow_snapshots/`，便于对照调试。
 - **Mermaid 图**：全部流程合并为一张图，按「Mermaid 使用规范」编写，规范见 [`MERMAID_SPEC.md`](MERMAID_SPEC.md)；审阅或修改本 Mermaid 版时须遵守该规范。
+
+---
+
+## 油猴脚本子流程（Tampermonkey）
+
+脚本监听两个 URL，与主流程 **B10/B11** 配合：B10 步骤1 点同意/确认后，浏览器会打开网易登录页（URL1）；油猴在 URL1 完成「wait 按钮 → wait 服务器(30s) → 点击 → wait 5s → 通知 oauth-done」后关标签，后端收到 oauth-done 即 B11「油猴返回」。用户可能被重定向到 URL2，URL2 仅做「查询上一页是否已提交成功」并记录日志。
+
+### 油猴子流程（Mermaid）
+
+```mermaid
+flowchart LR
+    subgraph URL1["URL1 oauth.g.mkey.163.com"]
+        T1_WaitBtn["wait 登录按钮"]
+        T1_WaitSrv["wait 服务器连接\n超时 30s"]
+        T1_Click["点击按钮"]
+        T1_Wait5["wait 5s"]
+        T1_Notify["POST/GET oauth-done\n后端记录 step1"]
+        T1_Close["关标签"]
+        T1_WaitBtn --> T1_WaitSrv
+        T1_WaitSrv -->|连上或超时| T1_Click
+        T1_Click --> T1_Wait5
+        T1_Wait5 --> T1_Notify
+        T1_Notify --> T1_Close
+    end
+
+    subgraph URL2["URL2 account.battlenet.com.cn"]
+        T2_Enter["进入该页\n(点后跳转)"]
+        T2_Query["GET oauth-step1-received"]
+        T2_Log["有则本页记录成功日志"]
+        T2_Enter --> T2_Query
+        T2_Query --> T2_Log
+    end
+
+    T1_Close -.->|可能跳转| T2_Enter
+```
+
+### 分工说明
+
+| URL | 功能 | 备注 |
+|-----|------|------|
+| **URL1** `oauth.g.mkey.163.com` | **wait 按钮 + wait 服务器（超时 30s）+ 点击** | 轮询等「登 录」按钮 → 发现后等 D3 服务器连接（ping），**超时 30s** → 连上则点击 / 超时则直接点击 → wait 5s → POST/GET `oauth-done`（后端记录 step1，对应 B11 油猴返回）→ 关标签。 |
+| **URL2** `account.battlenet.com.cn` | **无任何其它功能** | 点后会跳转到此页。仅：进入后请求「上一页（URL1）是否已提交成功」；后端返回是则本页记录成功日志。不找按钮、不点击。跨域无法读 URL1 的 localStorage，由后端记录 step1 并在本页查询时消费一次。 |
+
+**URL1（网易登录页）**
+
+- **wait 按钮**：轮询查找「登 录」按钮。
+- **wait 服务器（超时 30s）**：发现按钮后，等待 D3 服务器连接成功（ping `oauth-ping`）；**30 秒内连上则点击**，**30 秒未连上则超时直接点击**。
+- 点击后 **wait 5 秒** → POST/GET `oauth-done` → 后端记录 step1（主流程 B11 视为油猴返回）→ 关标签。
+- 定时 ping `oauth-ping`，UI 显示是否已连接 D3。
+
+**URL2（战网 account 页）**
+
+- **无任何其它功能**。仅：进入该页后（通常由 URL1 点击后跳转）请求 GET `oauth-step1-received`，若后端返回「URL1 已提交成功」，则在本页记录成功日志。不找按钮、不点击。
+- UI 同 URL1：右下角面板、连接状态、最近日志（本域 localStorage，最近 100 条）。

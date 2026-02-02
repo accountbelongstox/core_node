@@ -24,11 +24,10 @@ _repo_root = os.path.dirname(os.path.dirname(_project_dir))
 sys.path.insert(0, _project_dir)
 sys.path.insert(0, _repo_root)
 
-# Import application modules
+# Import application modules (lifecycle/thread/event via runtime only)
 from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
-from d3utils.system_initializer import get_system_initializer
-from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
+from runtime import get_system_initializer, execute_shutdown, is_shutdown_requested
 from d3utils.i18n_manager import i18n_manager
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.web.universal_gui_launcher import UniversalGUILauncher, set_menu_labels

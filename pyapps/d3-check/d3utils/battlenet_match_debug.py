@@ -10,7 +10,7 @@ from typing import Optional, List, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
-from d3utils.battlenet_manager import get_battlenet_window_titles
+from providor.providor_index import BATTLE_NET_WINDOW_TITLES
 from providor.app_constants import BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME
 from config.screenshot_categories import get_screenshot_category_manager, MATCH_DEBUG_DIR
 from d3utils.screenshot_provider import get_screenshot_provider
@@ -49,7 +49,7 @@ def debug_all_match_methods(
         provider = get_screenshot_provider()
         screenshot_data = provider.gen(
             use_optimized_capture=True,
-            window_titles=get_battlenet_window_titles(),
+            window_titles=list(BATTLE_NET_WINDOW_TITLES),
         )
         if screenshot_data is None or screenshot_data.game_window_image is None:
             ColorPrint.yellow("[BattlenetMatchDebug] Battle.net window not found")

@@ -13,7 +13,7 @@ from ..theme import UITheme
 from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
-from d3utils.shutdown_manager import is_shutdown_requested
+from runtime import is_shutdown_requested
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 

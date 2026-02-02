@@ -12,6 +12,8 @@ from pathlib import Path
 _ROOT_PATH = Path(__file__).resolve().parent.parent
 ROOT_DIR = str(_ROOT_PATH)
 TMP_DIR = Path.home() / ".core_node" / "pytools" / "tmp"
+# Tampermonkey script for Battle.net OAuth login (open with Notepad for copy)
+TAMPERMONKEY_SCRIPT_PATH = _ROOT_PATH / "scripts" / "d3check_oauth_login_tampermonkey.user.js"
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "images")
 SCALED_TEMPLATES_CACHE_DIR = TMP_DIR / "scaled_templates"
 
@@ -30,6 +32,9 @@ DEBUG_CAPTURE_DIR = TMP_DIR / "debug_capture"
 UI_ANNOTATED_DIR = TMP_DIR / "ui_annotated"
 VALIDATION_DIR = TMP_DIR / "validation"
 ROSBOT_UI_DEBUG_DIR = TMP_DIR / "debug"
+
+# BN flow UI snapshots: pyapps/d3-check/.cache/bn_flow_snapshots (fixed step filenames only)
+BN_FLOW_SNAPSHOTS_DIR = _ROOT_PATH / ".cache" / "bn_flow_snapshots"
 
 DEFAULT_CLEANUP_MAX_AGE_SECONDS = 60
 
@@ -81,6 +86,8 @@ BATTLE_NET_CN_AGREE_KEYWORDS = ("您同意",)
 BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS = ("使用网易账号登录或注册",)
 BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS = ("登陆", "登录")
 BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS = ("使用浏览器完成登录", "取消")
+# After web login: Battle.net shows dialog (EN/CN dynamic). Seed keywords; also load from bn_flow_*.json snapshots.
+BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "Cancel", "继续离线", "取消")
 LOGIN_SCREEN_UI_KEYWORDS = BATTLE_NET_NEED_LOGIN_KEYWORDS + BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
 LOGIN_WINDOW_AUTOMATION_ID_MARKERS = (
     "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper",
@@ -97,7 +104,8 @@ BATTLE_NET_CN_AGREE_CLICK_X = 31
 BATTLE_NET_CN_AGREE_CLICK_Y = 288
 BATTLE_NET_CN_NETEASE_CLICK_X = 137
 BATTLE_NET_CN_NETEASE_CLICK_Y = 378
-BATTLE_NET_CN_AFTER_NETEASE_CLICK_WAIT_SEC = 3.0
+BATTLE_NET_CN_AFTER_NETEASE_CLICK_WAIT_SEC = 3.0  # legacy; web agreement now polled in BN_Login2 (30s timeout)
+BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC = 0.5  # short settle after click; BN_Login2 polls is_oauth_done() each 2s until 30s
 BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME = "ScreenShot_2026-01-29_225845_569.png"
 BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME = "battlenet_d3_small_map"
 BATTLE_NET_PLAY_BUTTON_LEFT_PX = 177
@@ -105,10 +113,10 @@ BATTLE_NET_PLAY_BUTTON_BOTTOM_PX = 97
 BATTLE_NET_EXE_NAME = "Battle.net.exe"
 BATTLE_NET_BUTTON_HEX = "#0074E0"
 BATTLE_NET_BUTTON_RGB = (0, 116, 224)
-# Battle.net ready flow (tick-driven, ROSBOT_FLOW_MERMAID.md)
+# Battle.net ready flow (tick-driven, ROSBOT_FLOW_MERMAID.md). All wait timeouts 2 min.
 BN_FLOW_WAIT_AFTER_START_SEC = 3.0
-BN_FLOW_WAIT_ELEMENT_MAX_TICKS = 10
-BN_FLOW_OAUTH_WAIT_SEC = 30.0
+BN_FLOW_POLL_TIMEOUT_SEC = 120.0   # 2 min: B7 poll elements / no UI found
+BN_FLOW_OAUTH_WAIT_SEC = 120.0    # 2 min: B11 OAuth return
 BN_FLOW_EXIT_WAIT_SEC = 2.0
 DEFAULT_BRIGHTNESS_TOL = 0.01
 DEFAULT_BUTTON_W = 200
@@ -130,6 +138,9 @@ D3_START_GAME_MAX_ATTEMPTS = 10
 D3_GAME_TOOL_MAX_ATTEMPTS = 10
 D3_FRAGMENT1_WAIT_GAME_TOOL_ATTEMPTS = 5
 D3_FRAGMENT2_DISAPPEAR_ATTEMPTS = 5
+# A5 D3 online check (ROSBOT_FLOW_MERMAID.md): screenshot A -> M -> screenshot B -> similarity; >= threshold = 掉线
+D3_ONLINE_SIMILARITY_THRESHOLD = 0.98
+D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 CLICK_MOVE_DURATION_SEC = 0.0
 CLICK_PAUSE_AFTER_MOVE_SEC = 0.02
 VK_M = 0x4D

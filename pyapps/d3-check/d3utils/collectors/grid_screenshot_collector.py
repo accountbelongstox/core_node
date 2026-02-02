@@ -24,7 +24,7 @@ from pycore.pyutils.window_screenshot import WindowScreenshot
 
 # Local imports
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from config.grid_config import GRID_ROWS, GRID_COLS
+from providor.app_constants import GRID_ROWS, GRID_COLS
 
 class GridScreenshotCollector:
     """

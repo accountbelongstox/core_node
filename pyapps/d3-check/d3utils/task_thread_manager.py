@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Task Thread Manager
-Manages background task threads for ROSBOT operations and other tasks
+Task Thread Manager.
+Manages background task threads for ROSBOT and other tasks.
+All public APIs are non-blocking (fire-and-forget). See docs/THREAD_BUS_AND_REGISTRY.md.
 """
-import os
-import sys
 import time
 import threading
 import queue
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Callable, Optional
 from enum import Enum
 from pycore.pyfoundations.color_print import ColorPrint
 
@@ -44,11 +43,9 @@ class TaskThread(threading.Thread):
             ColorPrint.green(f"[TaskThread] Started task thread: {self.name}")
 
     def stop(self):
-        """Stop the task thread."""
+        """Stop the task thread without blocking: set stop_event only; do not join."""
         self.stop_event.set()
-        if self.is_alive():
-            self.join(timeout=2.0)
-            ColorPrint.yellow(f"[TaskThread] Stopped task thread: {self.name}")
+        ColorPrint.yellow(f"[TaskThread] Stop requested for task thread: {self.name}")
 
     def set_status(self, status: TaskStatus):
         """Set task status (single variable assignment is atomic)."""
@@ -90,15 +87,24 @@ class TaskThread(threading.Thread):
 
 
 class TaskThreadManager:
-    """Manages all task threads; serialized via command queue, no lock."""
+    """
+    Manages all task threads; serialized via command queue.
+    All public APIs are non-blocking (fire-and-forget); status is read from _status_snapshot.
+    """
     
     def __init__(self):
         self.tasks: Dict[str, TaskThread] = {}
         self._cmd_queue: queue.Queue = queue.Queue()
         self._running = False
+        self._status_snapshot: Dict[str, TaskStatus] = {}
         self._worker = threading.Thread(target=self._worker_loop, daemon=True, name="TaskThreadManagerWorker")
         self._worker.start()
         ColorPrint.blue("[TaskThreadManager] Initialized")
+    
+    def _update_snapshot(self):
+        """Update status snapshot from current tasks (worker only)."""
+        for name, task in self.tasks.items():
+            self._status_snapshot[name] = task.status
     
     def _worker_loop(self):
         while True:
@@ -112,7 +118,9 @@ class TaskThreadManager:
                         ColorPrint.blue(f"[TaskThreadManager] Registered task: {name}")
                     else:
                         ColorPrint.yellow(f"[TaskThreadManager] Task '{name}' already exists")
-                    result_q.put(ok)
+                    self._update_snapshot()
+                    if result_q is not None:
+                        result_q.put(ok)
                 elif cmd == "start_task":
                     name, = args
                     ok = name in self.tasks
@@ -120,76 +128,97 @@ class TaskThreadManager:
                         self.tasks[name].start()
                     else:
                         ColorPrint.yellow(f"[TaskThreadManager] Task '{name}' not found")
-                    result_q.put(ok)
+                    self._update_snapshot()
+                    if result_q is not None:
+                        result_q.put(ok)
                 elif cmd == "stop_task":
                     name, = args
                     ok = name in self.tasks
                     if ok:
                         self.tasks[name].stop()
-                    result_q.put(ok)
+                    self._update_snapshot()
+                    if result_q is not None:
+                        result_q.put(ok)
                 elif cmd == "set_status":
                     name, status = args
                     ok = name in self.tasks
                     if ok:
                         self.tasks[name].set_status(status)
-                    result_q.put(ok)
+                    self._update_snapshot()
+                    if result_q is not None:
+                        result_q.put(ok)
                 elif cmd == "set_interval":
                     name, interval = args
                     ok = name in self.tasks
                     if ok:
                         self.tasks[name].interval = interval
-                    result_q.put(ok)
+                    self._update_snapshot()
+                    if result_q is not None:
+                        result_q.put(ok)
                 elif cmd == "start_all":
                     for task in self.tasks.values():
                         task.start()
                     self._running = True
+                    self._update_snapshot()
                     ColorPrint.green("[TaskThreadManager] All task threads started")
-                    result_q.put(None)
+                    if result_q is not None:
+                        result_q.put(None)
                 elif cmd == "stop_all":
                     for task in self.tasks.values():
                         task.stop()
                     self._running = False
+                    self._update_snapshot()
                     ColorPrint.yellow("[TaskThreadManager] All task threads stopped")
-                    result_q.put(None)
+                    if result_q is not None:
+                        result_q.put(None)
                 elif cmd == "get_status":
                     name, = args
                     st = self.tasks[name].status if name in self.tasks else None
-                    result_q.put(st)
+                    if result_q is not None:
+                        result_q.put(st)
             except Exception as e:
                 ColorPrint.red(f"[TaskThreadManager] Worker error: {e}")
-                try:
-                    result_q.put(None)
-                except Exception:
-                    pass
+                if result_q is not None:
+                    try:
+                        result_q.put(None)
+                    except Exception:
+                        pass
     
-    def _cmd(self, cmd: str, args: tuple, expect_result: bool = True):
-        rq = queue.Queue()
-        self._cmd_queue.put((cmd, args, rq))
-        return rq.get() if expect_result else None
-    
-    def register_task(self, name: str, task_func: Callable, interval: float = 1.0) -> bool:
-        return self._cmd("register", (name, task_func, interval))
-    
-    def start_task(self, name: str) -> bool:
-        return self._cmd("start_task", (name,))
-    
-    def stop_task(self, name: str) -> bool:
-        return self._cmd("stop_task", (name,))
-    
-    def set_task_status(self, name: str, status: TaskStatus) -> bool:
-        return self._cmd("set_status", (name, status))
-    
-    def set_task_interval(self, name: str, interval: float) -> bool:
-        return self._cmd("set_interval", (name, interval))
-    
-    def start_all(self):
-        self._cmd("start_all", (), expect_result=False)
-    
-    def stop_all(self):
-        self._cmd("stop_all", (), expect_result=False)
-    
+    def _fire(self, cmd: str, args: tuple) -> None:
+        """Enqueue command without waiting; caller is never blocked."""
+        self._cmd_queue.put((cmd, args, None))
+
+    def register_task(self, name: str, task_func: Callable, interval: float = 1.0) -> None:
+        """Register a task. Non-blocking."""
+        self._fire("register", (name, task_func, interval))
+
+    def start_task(self, name: str) -> None:
+        """Start one task. Non-blocking."""
+        self._fire("start_task", (name,))
+
+    def stop_task(self, name: str) -> None:
+        """Stop one task. Non-blocking."""
+        self._fire("stop_task", (name,))
+
+    def set_task_status(self, name: str, status: TaskStatus) -> None:
+        """Set task status. Non-blocking."""
+        self._fire("set_status", (name, status))
+
+    def set_task_interval(self, name: str, interval: float) -> None:
+        """Set task interval. Non-blocking."""
+        self._fire("set_interval", (name, interval))
+
+    def start_all(self) -> None:
+        """Start all task threads. Non-blocking."""
+        self._fire("start_all", ())
+
+    def stop_all(self) -> None:
+        """Stop all task threads. Non-blocking."""
+        self._fire("stop_all", ())
+
     def get_task_status(self, name: str) -> Optional[TaskStatus]:
-        return self._cmd("get_status", (name,))
+        """Return current task status from snapshot; no cross-thread wait."""
+        return self._status_snapshot.get(name)
 
 
 # Global instance
