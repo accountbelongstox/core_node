@@ -42,7 +42,7 @@ _login_failed_loaded: bool = False
 
 
 def _load_login_failed_features_from_snapshots() -> Tuple[Set[str], Set[str]]:
-    """Load bn_flow_*.json from bn_flow_snapshots; extract control name/automation_id that contain any BATTLE_NET_LOGIN_FAILED_KEYWORDS. Returns (names_set, automation_ids_set)."""
+    """Load bn_flow_*.json; extract control name/automation_id that contain BATTLE_NET_LOGIN_FAILED_KEYWORDS (main button only)."""
     global _login_failed_names, _login_failed_ids, _login_failed_loaded
     if _login_failed_loaded:
         return (_login_failed_names or set(), _login_failed_ids or set())
@@ -539,9 +539,11 @@ class BattlenetOperation:
         return self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS, controls) is not None
 
     def is_login_failed_screen(self) -> bool:
-        """True if Battle.net shows post-web-login dialog (login failed / user cancelled). Uses seed keywords + features loaded from bn_flow_*.json snapshots so EN/CN dynamic UI is supported."""
+        """True if Battle.net shows post-web-login dialog (two buttons: Continue Offline + Cancel / 继续离线 + 取消). Only primary button (Continue Offline / 继续离线) is checked to avoid false positive on 取消 alone. Exclude browser-login-wait screen first."""
         controls = self._enumerate_controls()
         if not controls:
+            return False
+        if self.is_on_browser_login_wait_screen():
             return False
         names_set, ids_set = _load_login_failed_features_from_snapshots()
         for c in controls:

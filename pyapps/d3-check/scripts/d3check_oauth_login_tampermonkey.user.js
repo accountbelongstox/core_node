@@ -116,6 +116,11 @@
         if (entry.type === 'ping_ok') color = '#8f8';
         if (entry.type === 'ping_fail') color = '#f88';
         if (entry.type === 'step1_received') color = '#8f8';
+        if (entry.type === 'timer') color = '#888';
+        if (entry.type === 'close_check') color = '#fa0';
+        if (entry.type === 'close_scheduled') color = '#8f8';
+        if (entry.type === 'close_attempt') color = '#4af';
+        if (entry.type === 'close_failed') color = '#f88';
         line.innerHTML = '<span style="color:#666;">' + time + '</span> <span style="color:' + color + '">[' + entry.type + ']</span> ' + (entry.msg || '');
         logListWrap.appendChild(line);
       });
@@ -150,20 +155,36 @@
   }
 
   function hasAccountPageCloseText() {
-    if (!document.body) return false;
-    var text = (document.body.innerText || document.body.textContent || '') + '';
-    return text.indexOf('现在可以返回战网游戏或应用程序') !== -1 || text.indexOf('请求已超时，请重试') !== -1;
+    var el = document.body || document.documentElement;
+    if (!el) return false;
+    var raw = (el.innerText || el.textContent || '') + '';
+    var text = raw.replace(/\s+/g, ' ');
+    var a = text.indexOf('现在可以返回战网游戏或应用程序') !== -1;
+    var b = text.indexOf('请求已超时，请重试') !== -1;
+    return a || b;
   }
 
-  // ----- URL2 account.battlenet.com.cn：单一定时器一直 wait（body → inject/查询 → 关 tab 文案），两个 URL 都要有定时器 -----
+  // ----- URL2 account.battlenet.com.cn：单一定时器一直 wait（body → inject/查询 → 关 tab 文案），定时器与检测状态写日志 -----
   function runAccountBattlenetPage() {
     var injected = false;
     var closeScheduled = false;
+    var tickCount = 0;
+    var lastLogTick = 0;
+    var lastDetect = false;
     var t = setInterval(function () {
-      if (!document.body) return;
+      tickCount++;
+      if (!document.body) {
+        if (tickCount - lastLogTick >= 6) { addLog('timer', 'URL2 定时器 tick=' + tickCount + ' body=无'); lastLogTick = tickCount; }
+        return;
+      }
+      if (tickCount - lastLogTick >= 6) {
+        addLog('timer', 'URL2 定时器 tick=' + tickCount + ' body=有');
+        lastLogTick = tickCount;
+      }
       if (!injected) {
         injected = true;
         injectUI();
+        addLog('timer', 'URL2 已注入 UI，开始轮询关页文案');
         fetch(OAUTH_STEP1_RECEIVED_URL, { method: 'GET', mode: 'cors' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
@@ -174,11 +195,23 @@
           .then(function (r) { if (window._d3checkSetConnection) window._d3checkSetConnection(r.ok); })
           .catch(function () { if (window._d3checkSetConnection) window._d3checkSetConnection(false); });
       }
+      var detected = hasAccountPageCloseText();
+      if (detected !== lastDetect) {
+        lastDetect = detected;
+        addLog('close_check', detected ? '关页检测: 已发现关页文案' : '关页检测: 未发现');
+      }
       if (closeScheduled) return;
-      if (!hasAccountPageCloseText()) return;
+      if (!detected) return;
       closeScheduled = true;
       clearInterval(t);
-      setTimeout(function () { window.close(); }, ACCOUNT_PAGE_CLOSE_AFTER_SEC * 1000);
+      addLog('close_scheduled', '已发现关页文案，' + ACCOUNT_PAGE_CLOSE_AFTER_SEC + 's 后关 tab');
+      setTimeout(function () {
+        addLog('close_attempt', '10s 到，执行 window.close()');
+        window.close();
+        setTimeout(function () {
+          addLog('close_failed', '关闭被浏览器拒绝，tab 仍存在（仅脚本打开的窗口可关闭）');
+        }, 1000);
+      }, ACCOUNT_PAGE_CLOSE_AFTER_SEC * 1000);
     }, WAIT_POLL_MS);
   }
 

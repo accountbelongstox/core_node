@@ -86,8 +86,8 @@ BATTLE_NET_CN_AGREE_KEYWORDS = ("您同意",)
 BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS = ("使用网易账号登录或注册",)
 BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS = ("登陆", "登录")
 BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS = ("使用浏览器完成登录", "取消")
-# After web login: Battle.net shows dialog (EN/CN dynamic). Seed keywords; also load from bn_flow_*.json snapshots.
-BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "Cancel", "继续离线", "取消")
+# Login-failed dialog: two buttons (EN: Continue Offline + Cancel; CN: 继续离线 + 取消). Detect by main button only.
+BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线")
 LOGIN_SCREEN_UI_KEYWORDS = BATTLE_NET_NEED_LOGIN_KEYWORDS + BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
 LOGIN_WINDOW_AUTOMATION_ID_MARKERS = (
     "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper",
