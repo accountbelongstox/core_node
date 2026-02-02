@@ -14,7 +14,8 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint, WindowScreenshot, ClickHandler, ImageAnnotator, ENCYCLOPEDIA
 from providor.providor_index import (
@@ -25,10 +26,10 @@ from providor.providor_index import (
     CLIENT_TYPE_D3_GAME,
     CLIENT_TYPE_D4_GAME,
     # Window title lists
-    BATTLE_NET_WINDOW_TITLES,
     DIABLO_III_WINDOW_TITLES,
     DIABLO_IV_WINDOW_TITLES
 )
+from d3utils.battlenet_manager import get_battlenet_window_titles
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_bool
 from d3utils.i18n_manager import i18n_manager
@@ -41,12 +42,11 @@ class CoordinateCalibrationPanel:
     Handles coordinate picking and analysis for game windows
     """
 
-    # Window title mappings for different client types
-    # Use centralized window title definitions from providor_index.py
+    # Window title mappings for different client types (Battle.net list from battlenet_manager)
     WINDOW_TITLES_MAP = {
-        CLIENT_TYPE_BATTLENET: BATTLE_NET_WINDOW_TITLES,  # Full list from providor_index.py (13+ variants)
-        CLIENT_TYPE_D3_GAME: DIABLO_III_WINDOW_TITLES,    # Full list from providor_index.py (13+ variants)
-        CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES      # Full list from providor_index.py (20+ variants)
+        CLIENT_TYPE_BATTLENET: get_battlenet_window_titles(),
+        CLIENT_TYPE_D3_GAME: DIABLO_III_WINDOW_TITLES,
+        CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES
     }
 
     def __init__(self, parent):
@@ -80,97 +80,10 @@ class CoordinateCalibrationPanel:
         self._create_history_panel()
 
     def _create_control_panel(self):
-        """Create control panel with settings"""
-        control_frame = ttk.LabelFrame(
-            self.container,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.control_title"),
-            style='TLabelframe'
-        )
-        control_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
-        control_frame.grid_columnconfigure(1, weight=1)
-
-        # Client type selection - Three independent clients
-        client_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        client_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
-
-        client_label = tk.Label(
-            client_frame,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.client_type"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['label']
-        )
-        client_label.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
-
-        client_var = var_str(client_frame, CLIENT_TYPE_BATTLENET)  # Use constant
-        self.vars['client_type'] = client_var
-
-        def on_client_type_change(*args):
-            """Update current_client_type when selection changes"""
-            self.current_client_type = client_var.get()
-            ColorPrint.blue(f"[COORD_CALIBRATION] Client type changed to: {self.current_client_type}")
-
-        client_var.trace('w', on_client_type_change)
-
-        # Three independent client options - Use constants instead of hardcoded strings
-        client_types = [
-            (CLIENT_TYPE_BATTLENET, i18n_manager.get_ui_text("ui.coord_calibration.client_battlenet")),
-            (CLIENT_TYPE_D3_GAME, i18n_manager.get_ui_text("ui.coord_calibration.client_d3_game")),
-            (CLIENT_TYPE_D4_GAME, i18n_manager.get_ui_text("ui.coord_calibration.client_d4_game"))
-        ]
-
-        for type_value, type_label in client_types:
-            rb = tk.Radiobutton(
-                client_frame,
-                text=type_label,
-                variable=client_var,
-                value=type_value,
-                bg=UnifiedStyles.COLORS['bg_secondary'],
-                fg=UnifiedStyles.COLORS['text_primary'],
-                activebackground=UnifiedStyles.COLORS['bg_tertiary'],
-                activeforeground=UnifiedStyles.COLORS['text_primary'],
-                selectcolor=UnifiedStyles.COLORS['accent'],
-                font=UnifiedStyles.FONTS['label']
-            )
-            rb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
-
-        # Options frame
-        options_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        options_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
-
-        save_var = var_bool(options_frame, True)
-        self.vars['save_screenshot'] = save_var
-        save_cb = tk.Checkbutton(
-            options_frame,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.save_screenshot"),
-            variable=save_var,
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            activebackground=UnifiedStyles.COLORS['bg_tertiary'],
-            activeforeground=UnifiedStyles.COLORS['text_primary'],
-            selectcolor=UnifiedStyles.COLORS['accent'],
-            font=UnifiedStyles.FONTS['label']
-        )
-        save_cb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['sm'])
-
-        compress_var = var_bool(options_frame, False)
-        self.vars['compress_screenshot'] = compress_var
-        compress_cb = tk.Checkbutton(
-            options_frame,
-            text=i18n_manager.get_ui_text("ui.coord_calibration.compress_screenshot"),
-            variable=compress_var,
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            activebackground=UnifiedStyles.COLORS['bg_tertiary'],
-            activeforeground=UnifiedStyles.COLORS['text_primary'],
-            selectcolor=UnifiedStyles.COLORS['accent'],
-            font=UnifiedStyles.FONTS['label']
-        )
-        compress_cb.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['sm'])
-
-        # Action buttons
-        button_frame = tk.Frame(control_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        button_frame.grid(row=3, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+        """Create top bar: 拾取坐标, 清除历史, 导出JSON only. Client type and save/compress use defaults (chosen before opening picker, not shown here)."""
+        button_frame = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_primary'])
+        button_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
+        button_frame.grid_columnconfigure(0, weight=1)
 
         capture_btn = tk.Button(
             button_frame,
@@ -333,19 +246,24 @@ class CoordinateCalibrationPanel:
             self.popup_window.destroy()
 
         from ..components.coordinate_picker_window import CoordinatePicker
+        game_mode = self.vars.get('game_mode')
+        game_mode_val = game_mode.get() if game_mode else 'd3'
         self.popup_window = CoordinatePicker(
             screenshot=self.screenshot,
+            game_mode=game_mode_val,
             on_picks_updated=self._on_picks_updated,
             parent=self.parent,
-            client_mode=self.current_client_type,  # Fixed: client_type -> client_mode
-            pick_history_ref=self.pick_history  # Pass reference to main UI's pick history
+            client_mode=self.current_client_type,
+            pick_history_ref=self.pick_history
         )
 
     def _on_picks_updated(self, picks: List[Dict]):
         """Handle updated picks from calibration window"""
+        gm_var = self.vars.get('game_mode')
+        game_mode_val = gm_var.get() if gm_var is not None else 'd3'
         for pick in picks:
             pick['timestamp'] = datetime.now().isoformat()
-            pick['game_mode'] = self.vars['game_mode'].get()
+            pick['game_mode'] = game_mode_val
             self.pick_history.append(pick)
 
         self._update_history_display()

@@ -14,7 +14,7 @@ from providor.common_imports import ColorPrint
 from controller.d4_controller import get_d4_controller
 from share.game_interface_data import get_d4_interface_data
 
-D4_TICK_INTERVAL = 3.0
+from providor.app_constants import D4_TICK_INTERVAL
 
 
 class D4ExtensionThread(threading.Thread):

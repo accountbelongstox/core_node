@@ -10,19 +10,18 @@ import time
 from pathlib import Path
 from typing import Optional
 
-# Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path, get_project_root
+ensure_d3_check_in_sys_path()
 
 # Add pycore path
-pycore_path = Path(current_dir).parent.parent / "pycore"
+pycore_path = get_project_root().parent / "pycore"
 sys.path.insert(0, str(pycore_path))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d4utils.d4_operation_base import D4OperationBase
 
 
-class AutoTeamFormation(D4OperationBase):
+class D4_AutoTeamFormation(D4OperationBase):
     """
     Automatic Team Formation Manager
 
@@ -61,7 +60,7 @@ class AutoTeamFormation(D4OperationBase):
     def __init__(self):
         """Initialize auto team formation manager"""
         super().__init__()
-        ColorPrint.green("[AutoTeamFormation] Initialized")
+        ColorPrint.green("[D4_AutoTeamFormation] Initialized")
 
     def execute(self, panel_already_open: bool = True) -> bool:
         """
@@ -75,57 +74,57 @@ class AutoTeamFormation(D4OperationBase):
         """
         try:
             ColorPrint.blue("\n" + "="*80)
-            ColorPrint.blue("[AutoTeamFormation] Starting auto team formation workflow...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Starting auto team formation workflow...")
             ColorPrint.blue("="*80)
 
             # Step 1: Check if team formation is needed
             if not self._need_team_formation():
-                ColorPrint.green("[AutoTeamFormation] ✓ Team already formed, skipping")
+                ColorPrint.green("[D4_AutoTeamFormation] ✓ Team already formed, skipping")
                 return True
 
-            ColorPrint.blue("[AutoTeamFormation] Team formation needed, starting process...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Team formation needed, starting process...")
 
             # Note: Panel is already open by TeamFormationChecker, no need to press 'O'
 
             # Step 2: Click "Find Team" / "寻找队伍" region
             if not self._click_find_team():
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to click Find Team")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to click Find Team")
                 return False
 
             # Step 3: Set minimum level
             if not self._set_min_level(80):
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to set min level")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to set min level")
                 return False
 
             # Step 4: Set maximum level
             if not self._set_max_level(120):
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to set max level")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to set max level")
                 return False
 
             # Step 5: Select party activity (row 5 of 7 - 倒数第3行)
             if not self._select_party_activity(row=5):
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to select party activity")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to select party activity")
                 return False
 
             # Step 6: Confirm activity levels
             if not self._confirm_activity_levels(80, 120):
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to confirm activity levels")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to confirm activity levels")
                 return False
 
             # Step 7: Submit party
             if not self._submit_party():
-                ColorPrint.red("[AutoTeamFormation] ✗ Failed to submit party")
+                ColorPrint.red("[D4_AutoTeamFormation] ✗ Failed to submit party")
                 return False
 
             # Success!
             print("\n" + "="*80)
-            ColorPrint.green("[AutoTeamFormation] ✓ 自动挂机准备完毕")
+            ColorPrint.green("[D4_AutoTeamFormation] ✓ 自动挂机准备完毕")
             print("="*80 + "\n")
 
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error in execute: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error in execute: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -141,37 +140,37 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if needs team formation
         """
         try:
-            ColorPrint.blue("[AutoTeamFormation] Checking if team formation is needed...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Checking if team formation is needed...")
 
             # Check if detected_regions has OCR data
             if not hasattr(self.d4_data, 'detected_regions') or not self.d4_data.detected_regions:
-                ColorPrint.yellow("[AutoTeamFormation] No detected_regions available, assuming team needed")
+                ColorPrint.yellow("[D4_AutoTeamFormation] No detected_regions available, assuming team needed")
                 return True
 
             if 'ocr_results' not in self.d4_data.detected_regions:
-                ColorPrint.yellow("[AutoTeamFormation] No OCR results available, assuming team needed")
+                ColorPrint.yellow("[D4_AutoTeamFormation] No OCR results available, assuming team needed")
                 return True
 
             ocr_results = self.d4_data.detected_regions['ocr_results']
 
             # Check "Find Team" region OCR result
             if 'Find Team' not in ocr_results:
-                ColorPrint.yellow("[AutoTeamFormation] No 'Find Team' OCR result, assuming team needed")
+                ColorPrint.yellow("[D4_AutoTeamFormation] No 'Find Team' OCR result, assuming team needed")
                 return True
 
             find_team_text = ocr_results['Find Team']
-            ColorPrint.blue(f"[AutoTeamFormation] Find Team OCR result: '{find_team_text}'")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Find Team OCR result: '{find_team_text}'")
 
             # If text starts with "寻找", team formation is needed
             if find_team_text.startswith("寻找"):
-                ColorPrint.blue("[AutoTeamFormation] Detected '寻找' - team formation needed")
+                ColorPrint.blue("[D4_AutoTeamFormation] Detected '寻找' - team formation needed")
                 return True
             else:
-                ColorPrint.blue("[AutoTeamFormation] Team already formed")
+                ColorPrint.blue("[D4_AutoTeamFormation] Team already formed")
                 return False
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error checking team formation need: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error checking team formation need: {e}")
             # On error, assume team is needed to continue the workflow
             return True
 
@@ -183,7 +182,7 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue("[AutoTeamFormation] Step 2: Clicking Find Team region...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Step 2: Clicking Find Team region...")
 
             # Click region center with random offset
             result = self.click_region_center_random(
@@ -193,12 +192,12 @@ class AutoTeamFormation(D4OperationBase):
             )
 
             if result:
-                ColorPrint.green("[AutoTeamFormation] ✓ Find Team clicked")
+                ColorPrint.green("[D4_AutoTeamFormation] ✓ Find Team clicked")
 
             return result
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error clicking Find Team: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error clicking Find Team: {e}")
             return False
 
     def _set_min_level(self, level: int) -> bool:
@@ -212,7 +211,7 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue(f"[AutoTeamFormation] Step 3: Setting min level to {level}...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Step 3: Setting min level to {level}...")
 
             # Click min level input point (410, 550)
             min_level_point = self.REGION_COORDS['Min Level Input']
@@ -226,11 +225,11 @@ class AutoTeamFormation(D4OperationBase):
             if not self.type_number(level, char_delay_ms=(50, 100)):
                 return False
 
-            ColorPrint.green(f"[AutoTeamFormation] ✓ Min level set to {level}")
+            ColorPrint.green(f"[D4_AutoTeamFormation] ✓ Min level set to {level}")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error setting min level: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error setting min level: {e}")
             return False
 
     def _set_max_level(self, level: int) -> bool:
@@ -244,7 +243,7 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue(f"[AutoTeamFormation] Step 4: Setting max level to {level}...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Step 4: Setting max level to {level}...")
 
             # Click max level input point (805, 550)
             max_level_point = self.REGION_COORDS['Max Level Input']
@@ -258,11 +257,11 @@ class AutoTeamFormation(D4OperationBase):
             if not self.type_number(level, char_delay_ms=(50, 100)):
                 return False
 
-            ColorPrint.green(f"[AutoTeamFormation] ✓ Max level set to {level}")
+            ColorPrint.green(f"[D4_AutoTeamFormation] ✓ Max level set to {level}")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error setting max level: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error setting max level: {e}")
             return False
 
     def _select_party_activity(self, row: int) -> bool:
@@ -276,20 +275,20 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue(f"[AutoTeamFormation] Step 5: Selecting party activity (row {row}/7)...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Step 5: Selecting party activity (row {row}/7)...")
 
             # Step 5a: Click dropdown point (375, 456) to open menu
-            ColorPrint.blue("[AutoTeamFormation] Clicking Activity Dropdown...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Clicking Activity Dropdown...")
             activity_dropdown_point = self.REGION_COORDS['Activity Dropdown']
             if not self._click_point(activity_dropdown_point, use_standard_resolution=True, duration=0.2):
                 return False
 
             # Wait for dropdown to expand
-            ColorPrint.blue("[AutoTeamFormation] Waiting for dropdown to expand...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Waiting for dropdown to expand...")
             time.sleep(0.3)
 
             # Step 5b: Calculate and click target row in Activity Selection Area
-            ColorPrint.blue(f"[AutoTeamFormation] Calculating row {row} position...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Calculating row {row} position...")
 
             # Use Activity Selection Area coordinates: (315, 445, 640, 700)
             x1, y1, x2, y2 = self.REGION_COORDS['Activity Selection Area']
@@ -310,7 +309,7 @@ class AutoTeamFormation(D4OperationBase):
             click_x = int(center_x + offset_x)
             click_y = int(target_y + offset_y)
 
-            ColorPrint.blue(f"[AutoTeamFormation] Clicking row {row} at ({click_x}, {click_y})...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Clicking row {row} at ({click_x}, {click_y})...")
 
             # Click the calculated point
             point = (click_x, click_y)
@@ -321,11 +320,11 @@ class AutoTeamFormation(D4OperationBase):
             delay_seconds = random.uniform(100, 200) / 1000.0
             time.sleep(delay_seconds)
 
-            ColorPrint.green(f"[AutoTeamFormation] ✓ Party activity row {row} selected")
+            ColorPrint.green(f"[D4_AutoTeamFormation] ✓ Party activity row {row} selected")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error selecting party activity: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error selecting party activity: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -346,10 +345,10 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue(f"[AutoTeamFormation] Step 6: Confirming activity levels ({min_level}-{max_level})...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Step 6: Confirming activity levels ({min_level}-{max_level})...")
 
             # Set activity min level (reuse Min Level Input: 410, 550)
-            ColorPrint.blue(f"[AutoTeamFormation] Setting activity min level to {min_level}...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Setting activity min level to {min_level}...")
             min_level_point = self.REGION_COORDS['Min Level Input']
             if not self._click_point(min_level_point, use_standard_resolution=True, duration=0.2):
                 return False
@@ -360,7 +359,7 @@ class AutoTeamFormation(D4OperationBase):
                 return False
 
             # Set activity max level (reuse Max Level Input: 805, 550)
-            ColorPrint.blue(f"[AutoTeamFormation] Setting activity max level to {max_level}...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Setting activity max level to {max_level}...")
             max_level_point = self.REGION_COORDS['Max Level Input']
             if not self._click_point(max_level_point, use_standard_resolution=True, duration=0.2):
                 return False
@@ -370,11 +369,11 @@ class AutoTeamFormation(D4OperationBase):
             if not self.type_number(max_level, char_delay_ms=(50, 100)):
                 return False
 
-            ColorPrint.green(f"[AutoTeamFormation] ✓ Activity levels confirmed ({min_level}-{max_level})")
+            ColorPrint.green(f"[D4_AutoTeamFormation] ✓ Activity levels confirmed ({min_level}-{max_level})")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error confirming activity levels: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error confirming activity levels: {e}")
             return False
 
     def _submit_party(self) -> bool:
@@ -387,7 +386,7 @@ class AutoTeamFormation(D4OperationBase):
             bool: True if successful
         """
         try:
-            ColorPrint.blue("[AutoTeamFormation] Step 7: Submitting party...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Step 7: Submitting party...")
 
             # Get Confirm Team Button region
             x1, y1, x2, y2 = self.REGION_COORDS['Confirm Team Button']
@@ -403,21 +402,21 @@ class AutoTeamFormation(D4OperationBase):
 
             click_point = (center_x + offset_x, center_y + offset_y)
 
-            ColorPrint.blue(f"[AutoTeamFormation] Clicking submit button at {click_point}...")
+            ColorPrint.blue(f"[D4_AutoTeamFormation] Clicking submit button at {click_point}...")
 
             # Click submit button
             if not self._click_point(click_point, use_standard_resolution=True, duration=0.2):
                 return False
 
             # Wait for submission to complete
-            ColorPrint.blue("[AutoTeamFormation] Waiting for submission to complete...")
+            ColorPrint.blue("[D4_AutoTeamFormation] Waiting for submission to complete...")
             time.sleep(0.5)
 
-            ColorPrint.green("[AutoTeamFormation] ✓ Party submitted")
+            ColorPrint.green("[D4_AutoTeamFormation] ✓ Party submitted")
             return True
 
         except Exception as e:
-            ColorPrint.red(f"[AutoTeamFormation] Error submitting party: {e}")
+            ColorPrint.red(f"[D4_AutoTeamFormation] Error submitting party: {e}")
             return False
 
 
@@ -425,17 +424,17 @@ class AutoTeamFormation(D4OperationBase):
 _auto_team_formation = None
 
 
-def get_auto_team_formation() -> AutoTeamFormation:
+def get_d4_auto_team_formation() -> D4_AutoTeamFormation:
     """
-    Get global AutoTeamFormation instance (singleton)
+    Get global D4_AutoTeamFormation instance (singleton)
 
     Returns:
-        Global AutoTeamFormation instance
+        Global D4_AutoTeamFormation instance
     """
     global _auto_team_formation
 
     if _auto_team_formation is None:
-        _auto_team_formation = AutoTeamFormation()
+        _auto_team_formation = D4_AutoTeamFormation()
         ColorPrint.green("[Global] Auto team formation initialized")
 
     return _auto_team_formation
@@ -444,7 +443,7 @@ def get_auto_team_formation() -> AutoTeamFormation:
 # Example usage
 if __name__ == "__main__":
     # Get instance
-    team_formation = get_auto_team_formation()
+    team_formation = get_d4_auto_team_formation()
 
     # Run team formation
     print("\nTesting auto team formation...")

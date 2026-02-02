@@ -14,11 +14,8 @@ from pathlib import Path
 from datetime import datetime
 import tempfile
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint, ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import save_anchor_detection_result, get_tmp_dir, generate_timestamp
@@ -32,8 +29,7 @@ from providor.providor_index import (
     DEBUG, TMP_DIR
 )
 
-# Border line detection constants
-BORDER_LINE_COLOR_TOLERANCE_PERCENT = 0.02  # 2% tolerance for color matching
+from providor.app_constants import BORDER_LINE_COLOR_TOLERANCE_PERCENT
 
 class UIRegionCollectorAnchor:
     """

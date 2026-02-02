@@ -8,11 +8,11 @@ Handles system-wide initialization including configuration, hotkeys, and signal 
 import sys
 import os
 import signal
+import threading
 from typing import Optional
 
-# Add project paths
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint, HotkeyListener
@@ -94,9 +94,10 @@ class SystemInitializer:
             return False
 
     def _on_ctrl_c_pressed(self):
-        """Handle Ctrl+C hotkey press: forward via event center to main thread."""
-        if not is_shutdown_requested():
-            ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
+        """Handle Ctrl+C hotkey press: forward via event center to main thread only once."""
+        if is_shutdown_requested():
+            return
+        ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
         event_center.trigger_app_exit()
 
     def initialize_configuration(self):
@@ -150,11 +151,10 @@ class SystemInitializer:
 
             # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
 
-            # Start timer manager (static global)
-            timer_manager.start()
+            # Do NOT start timer loop here: start after UI is ready so status UI receives updates only when widgets exist (see start_timer_loop_after_ui_ready).
 
             self.timer_initialized = True
-            ColorPrint.green("[INIT] Timer system initialized successfully")
+            ColorPrint.green("[INIT] Timer system initialized (loop will start after UI ready)")
             return True
 
         except Exception as e:
@@ -225,6 +225,10 @@ class SystemInitializer:
     def is_shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""
         return is_shutdown_requested()
+
+    def start_timer_loop_after_ui_ready(self):
+        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner)."""
+        get_thread_registry().start_timer_loop_after_ui_ready()
 
     def register_ui_instance(self, ui_instance):
         """

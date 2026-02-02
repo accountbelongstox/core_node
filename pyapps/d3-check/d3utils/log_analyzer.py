@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 from providor.common_imports import ColorPrint
 from providor.providor_index import CONFIG
 from share.game_interface_data import get_game_interface_data
-from config.constants import LOGIN_TRY_TRIGGER_DEFAULT
+from providor.app_constants import LOGIN_TRY_TRIGGER_DEFAULT
 
 
 def _get_login_try_trigger() -> str:

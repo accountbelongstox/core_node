@@ -15,9 +15,8 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 
-# Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from share.game_interface_data import (
     D4_STANDARD_COORDS,

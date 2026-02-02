@@ -27,18 +27,11 @@ cv2 = get_third_package_cv2()
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 Image = get_third_package_PIL_Image()
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint, WindowScreenshot
 from d3utils.game_window_detector import GameWindowDetector
-
-# Import path constants from providor
-project_root_for_import = os.path.dirname(current_dir)
-sys.path.insert(0, project_root_for_import)
 from providor.providor_index import TMP_DIR, TEMPLATE_DIR
 from share import get_game_interface_data, update_global_scale, get_screen_resolution
 DEBUG = False

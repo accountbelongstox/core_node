@@ -18,10 +18,10 @@ from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_ops import send_key as window_send_key
 from share.game_interface_data import calculate_unified_scaled_coordinate, get_game_interface_data
 from d3utils.screenshot_provider import get_screenshot_provider
-from d3utils.scaled_template_matcher import ScaledTemplateMatcher
+from d3utils.scaled_template_matcher import get_scaled_template_matcher
 from d3utils.d3u_common.image_annotator_helper import save_click_debug_image
 from config.screenshot_categories import MATCH_DEBUG_DIR
-from config.constants import (
+from providor.app_constants import (
     D3_START_GAME_BUTTON_TEMPLATE_NAME,
     D3_GAME_TOOL_TEMPLATE_NAME,
     D3_BOUNTY_PROGRESS_TEMPLATE_NAME,
@@ -36,10 +36,9 @@ from config.constants import (
     D3_FRAGMENT2_DISAPPEAR_ATTEMPTS,
     CLICK_MOVE_DURATION_SEC,
     CLICK_PAUSE_AFTER_MOVE_SEC,
+    VK_M,
+    ACTIVATE_BEFORE_CAPTURE_DELAY_SEC,
 )
-
-VK_M = 0x4D
-ACTIVATE_BEFORE_CAPTURE_DELAY_SEC = 0.3
 
 
 def _do_teleport_three_clicks(
@@ -191,7 +190,7 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     _activate_d3_window(window_titles=titles)
     sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
     if not sd or not sd.game_window_image:
@@ -248,7 +247,7 @@ def wait_for_game_tool_then_send_m_and_click(
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     coord_std = click_standard or D3_GAME_TOOL_CLICK_STANDARD
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     clicker = ClickHandler()
     standard_resolution = (STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT)
     deadline = time.monotonic() + timeout_sec
@@ -295,7 +294,7 @@ def try_fragment1_click_start_game_wait_game_tool(
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     clicker = ClickHandler()
     screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
     if center is None:
@@ -363,7 +362,7 @@ def open_map_verify_bounty_then_teleport_three_clicks(
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     ColorPrint.green("[D3StartGameWaiter] Common final step: open map (M), two rounds verify bounty progress, then three clicks")
     _send_m_once_then_wait_for_capture(titles)
     sd1, bounty1 = _capture_and_match_bounty_progress(provider, matcher, titles)
@@ -395,7 +394,7 @@ def try_fragment2_game_tool_press_m_then_clicks(
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     _, found = _capture_and_match_game_tool(provider, matcher, titles)
     if not found:
         return False
@@ -428,7 +427,7 @@ def wait_for_and_click_start_game(
     n_start = max_attempts_start if max_attempts_start is not None else D3_START_GAME_MAX_ATTEMPTS
     timeout_start = n_start * interval_sec
     provider = get_screenshot_provider()
-    matcher = ScaledTemplateMatcher(use_d4_templates=False)
+    matcher = get_scaled_template_matcher()
     clicker = ClickHandler()
     deadline = time.monotonic() + timeout_start
     attempt = 0

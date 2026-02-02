@@ -5,12 +5,16 @@ Shared Data Structures Package
 Centralized data structures shared across D3 application
 """
 
+from .project_path import get_project_root, ensure_d3_check_in_sys_path
 from .game_interface_data import (
     D3InterfaceData,
+    D3_StandardCoordinates,
+    D3_STANDARD_COORDS,
     UIRegion,
     BagCoordinates,
     BagLayout,
     DetectionResult,
+    get_d3_interface_data,
     get_game_interface_data,
     clear_game_interface_data,
     get_scaled_bag_region,
@@ -28,11 +32,16 @@ from .game_interface_data import (
 )
 
 __all__ = [
+    'get_project_root',
+    'ensure_d3_check_in_sys_path',
     'D3InterfaceData',
+    'D3_StandardCoordinates',
+    'D3_STANDARD_COORDS',
     'UIRegion',
     'BagCoordinates',
     'BagLayout',
     'DetectionResult',
+    'get_d3_interface_data',
     'get_game_interface_data',
     'clear_game_interface_data',
     'get_scaled_bag_region',
@@ -46,5 +55,5 @@ __all__ = [
     'get_global_scale',
     'get_screen_resolution',
     'GLOBAL_SCALE_X',
-    'GLOBAL_SCALE_Y'
+    'GLOBAL_SCALE_Y',
 ]

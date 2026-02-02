@@ -18,7 +18,9 @@ from ..unified_styles import UnifiedStyles
 from providor.common_imports import ColorPrint
 
 # Import CONFIG from providor
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
+
 from providor.providor_index import CONFIG, save_config
 
 # Import i18n manager (global singleton instance)
@@ -26,6 +28,7 @@ from d3utils.i18n_manager import i18n_manager
 
 # Import map name utilities
 from controller.d4func.map_name_utils import get_current_map_name_from_shared_data
+from d3utils.shutdown_manager import is_shutdown_requested
 
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
@@ -283,8 +286,8 @@ class D4Panel:
             ColorPrint.green(f"[D4] Window data initialized: fullscreen={d4_data.fullscreen_size}, window={d4_data.game_window_size}, windowed={d4_data.is_windowed_mode()}")
 
         # Check team formation status
-        from d4utils.team_formation_checker import get_team_formation_checker
-        team_checker = get_team_formation_checker()
+        from d4utils.team_formation_checker import get_d4_team_formation_checker
+        team_checker = get_d4_team_formation_checker()
 
         # Run team check
         if team_checker.run():
@@ -364,6 +367,8 @@ class D4Panel:
 
     def add_log_message(self, message, level="INFO", color=None):
         """Enqueue only D4-related messages; no Tk access. Main thread _drain_log_queue updates exp_farming_log."""
+        if is_shutdown_requested():
+            return
         if "[D4]" not in message and "D4" not in message:
             return
         log_queue = getattr(self, "_log_queue", None)

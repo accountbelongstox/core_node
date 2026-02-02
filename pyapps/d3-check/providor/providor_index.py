@@ -1,13 +1,14 @@
 import json
 import os
+import queue
 import sys
 import threading
 from datetime import datetime, time as dt_time
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
 
-# Lock for thread-safe CONFIG read/write (main thread + D3 extension thread)
-CONFIG_LOCK = threading.RLock()
+# Config worker: single thread owns CONFIG read/write (main thread + D3 extension thread use queue)
+CONFIG_QUEUE = queue.Queue()
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
@@ -17,59 +18,22 @@ ImageFont = get_third_package_PIL_ImageFont()
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
-
-# Root directory (../../ from current file)
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-
-# Template directory
-TEMPLATE_DIR = os.path.join(ROOT_DIR, "images")
-
-# Temporary directory for screenshots and processing (pytools tmp)
-TMP_DIR = Path.home() / ".core_node" / "pytools" / "tmp"
-
-# Scaled templates cache directory
-SCALED_TEMPLATES_CACHE_DIR = TMP_DIR / "scaled_templates"
-
-# ============================================================================
-# DEBUG MODE - Controls temporary file saving for debugging
-# ============================================================================
-# When DEBUG = True:
-#   - All screenshots (fullscreen, game window, UI region) will be saved as temporary files
-#   - Useful for debugging and verifying data flow
-# When DEBUG = False:
-#   - Only necessary files are saved (template matching input, final annotated results)
-#   - All intermediate data is passed in memory (PIL Image objects)
-DEBUG = True
-
-# ============================================================================
-# KANAI CUBE BUTTON OFFSET CONSTANTS
-# ============================================================================
-# Next page button position relative to material button
-# The next page button is located at the right edge of the material button
-# This ratio defines how far right from the button's right edge (0.0 = left edge, 1.0 = right edge)
-KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20  # 20% from right edge (adjustable)
-
-# ============================================================================
-# STANDARD RESOLUTION - Reference resolution for template matching
-# ============================================================================
-# D3 Standard Resolution (1080P-friendly; was 1826x1301)
-STANDARD_RESOLUTION_WIDTH = 1300   # was 1826
-STANDARD_RESOLUTION_HEIGHT = 800   # was 1301
-
-# D4 Standard Resolution
-D4_STANDARD_RESOLUTION_WIDTH = 1763
-D4_STANDARD_RESOLUTION_HEIGHT = 1126
-
-# Battle.net Standard Resolution - reference window size for template scaling (same rule as D3/D4)
-# When actual window size differs, template is scaled by (actual/standard) before matching
-BATTLENET_STANDARD_RESOLUTION_WIDTH = 960
-BATTLENET_STANDARD_RESOLUTION_HEIGHT = 540
-
-# ============================================================================
-# GLOBAL RESOLUTION SCALE - Moved to d3utils.share.game_interface_data
-# ============================================================================
-# These values are now managed in game_interface_data.py to avoid circular imports
-
+from providor.app_constants import (
+    ROOT_DIR,
+    TMP_DIR,
+    TEMPLATE_DIR,
+    SCALED_TEMPLATES_CACHE_DIR,
+    DEBUG,
+    KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO,
+    STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT,
+    D4_STANDARD_RESOLUTION_WIDTH,
+    D4_STANDARD_RESOLUTION_HEIGHT,
+    BATTLENET_STANDARD_RESOLUTION_WIDTH,
+    BATTLENET_STANDARD_RESOLUTION_HEIGHT,
+    START_GAME_AUTOMATION_IDS,
+    D3_TAB_AUTOMATION_IDS,
+)
 
 # ============================================================================
 # ASSISTANT EXECUTION STATE - Controls auto_use_interface_function execution
@@ -267,6 +231,16 @@ D3_TEMPLATE_CONFIGS = {
         "use_alpha": False,
         "match_method": "SIFT",
         "note": "Bounty progress UI (d3_bounty_progress.png); Fragment2 checks after press M twice; if both of two captures lack this, timeout"
+    },
+
+    # D3 status: disconnected overlay (掉线界面); SIFT match in D3 window; found => d3_disconnected (d3_status_provider)
+    "d3_disconnected": {
+        "path": os.path.join(TEMPLATE_DIR, "d3_disconnected.png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "D3 disconnected overlay; SIFT match in D3 window during refresh_d3_status; found => set d3_disconnected for status UI"
     },
 
     # Item quality templates
@@ -553,8 +527,8 @@ VALID_CLIENT_TYPES = [
     CLIENT_TYPE_D4_GAME
 ]
 
-# Game tab auto_id constants
-DIABLO_III_TAB_AUTO_ID = "game-nav-btn-D3"
+# Game tab auto_id (single source: app_constants.D3_TAB_AUTOMATION_IDS)
+DIABLO_III_TAB_AUTO_ID = D3_TAB_AUTOMATION_IDS[1]  # "game-nav-btn-D3"
 
 # Battle.net Launcher window title constants
 BATTLE_NET_WINDOW_TITLES = [
@@ -770,31 +744,56 @@ def fix_config_with_template():
         return False
 
 
+def _config_get_by_path(key_path: str, default: Any = None) -> Any:
+    """Get CONFIG value by dot path. Only called from config worker."""
+    keys = key_path.split(".")
+    value = CONFIG
+    for key in keys:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return default
+    return value
+
+
+def _config_set_by_path(key_path: str, value: Any) -> None:
+    """Set CONFIG value by dot path. Only called from config worker."""
+    keys = key_path.split(".")
+    config_ref = CONFIG
+    for key in keys[:-1]:
+        if key not in config_ref:
+            config_ref[key] = {}
+        config_ref = config_ref[key]
+    config_ref[keys[-1]] = value
+
+
+def _config_worker() -> None:
+    """Single thread that owns CONFIG read/write; get/set via queue."""
+    while True:
+        item = CONFIG_QUEUE.get()
+        if item is None:
+            break
+        op, key_path, val, result_q = item
+        if op == "get":
+            result_q.put(_config_get_by_path(key_path, val))
+        elif op == "set":
+            _config_set_by_path(key_path, val)
+            save_config()
+            result_q.put(True)
+
+
 def get_config_value_safe(key_path: str, default: Any = None) -> Any:
     """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
-    with CONFIG_LOCK:
-        keys = key_path.split(".")
-        value = CONFIG
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                return default
-        return value
+    result_q: queue.Queue = queue.Queue()
+    CONFIG_QUEUE.put(("get", key_path, default, result_q))
+    return result_q.get()
 
 
 def set_config_value_safe(key_path: str, value: Any) -> bool:
     """Thread-safe set CONFIG value by dot path and save. Caller may be main or D3 thread."""
-    with CONFIG_LOCK:
-        keys = key_path.split(".")
-        config_ref = CONFIG
-        for key in keys[:-1]:
-            if key not in config_ref:
-                config_ref[key] = {}
-            config_ref = config_ref[key]
-        config_ref[keys[-1]] = value
-        save_config()
-        return True
+    result_q: queue.Queue = queue.Queue()
+    CONFIG_QUEUE.put(("set", key_path, value, result_q))
+    return result_q.get()
 
 
 def save_config():
@@ -884,6 +883,10 @@ def get_dynamic_paths():
 # Load configuration on import
 load_config()
 
+# Start config worker (single thread owns CONFIG; get/set via CONFIG_QUEUE)
+_config_worker_thread = threading.Thread(target=_config_worker, daemon=True)
+_config_worker_thread.start()
+
 # Export dynamic paths
 _dynamic_paths = get_dynamic_paths()
 ROSBOT_PATH = _dynamic_paths['ROSBOT_PATH']
@@ -895,20 +898,10 @@ HISTORY_FILE_PATH = _dynamic_paths['HISTORY_FILE_PATH']
 
 # Static values available through CONFIG object
 
-# Play button automation IDs
-PLAY_BUTTON_AUTO_ID = "play-btn"
-PLAY_BUTTON_MAIN_AUTO_ID = "play-btn-main"
-
-# Play button automation IDs array for iteration
-PLAY_BUTTON_AUTOMATION_IDS = [
-    "play-btn",
-    "play-btn-main",
-    "play-button",
-    "playButton",
-    "start-game-btn",
-    "launch-game-btn",
-    "game-launch-btn"
-]
+# Play button automation IDs (single source: app_constants.START_GAME_AUTOMATION_IDS)
+PLAY_BUTTON_AUTOMATION_IDS = list(START_GAME_AUTOMATION_IDS)
+PLAY_BUTTON_MAIN_AUTO_ID = START_GAME_AUTOMATION_IDS[0]  # "play-btn-main"
+PLAY_BUTTON_AUTO_ID = START_GAME_AUTOMATION_IDS[1]        # "play-btn"
 
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds

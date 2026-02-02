@@ -25,8 +25,8 @@ from share.game_interface_data import (
     D4_ANNOTATED_DIR
 )
 from d4utils.window_region_detector import get_d4_window_region_detector
-from d4utils.team_health_detector import get_team_health_detector
-from d4utils.small_map_detector import get_small_map_detector
+from d4utils.team_health_detector import get_d4_team_health_detector
+from d4utils.small_map_detector import get_d4_small_map_detector
 from pycore.pyutils.image_crop import ImageCrop
 
 
@@ -44,8 +44,8 @@ class RegionDetector:
         """Initialize region detector"""
         self.d4_data = get_d4_interface_data()
         self.region_detector = get_d4_window_region_detector()
-        self.team_health_detector = get_team_health_detector()
-        self.small_map_detector = get_small_map_detector()
+        self.team_health_detector = get_d4_team_health_detector()
+        self.small_map_detector = get_d4_small_map_detector()
         self.i18n = I18nManager()
         # D4State functionality now integrated into D4InterfaceData
         ColorPrint.blue("[RegionDetector] Initialized")

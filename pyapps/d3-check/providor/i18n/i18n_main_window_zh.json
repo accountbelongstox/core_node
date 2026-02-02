@@ -14,10 +14,10 @@
       }
     },
     "tabs": {
-      "main_functions": "主要功能",
-      "auxiliary_functions": "辅助功能",
+      "main_functions": "D3 主要功能",
+      "auxiliary_functions": "D3 辅助功能",
       "log": "日志",
-      "rosbot_extension": "Rosbot扩展",
+      "rosbot_extension": "D3 Rosbot扩展",
       "d4_functions": "D4功能",
       "coordinate_calibration": "坐标效准"
     },
@@ -26,6 +26,14 @@
       "stop_macro": "停止宏",
       "running": "运行中",
       "stopped": "已停止"
+    },
+    "bottom_bar": {
+      "tab_main": "技能配置与宏选项",
+      "tab_auxiliary": "辅助功能",
+      "tab_rosbot": "ROSBOT 扩展",
+      "tab_d4": "D4 功能",
+      "tab_calibration": "坐标校准",
+      "tab_log": "主日志"
     },
     "status_bar": {
       "game_status": "游戏状态",

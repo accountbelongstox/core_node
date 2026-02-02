@@ -12,15 +12,16 @@ import threading
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
 
-# Add project root directory to Python path
-current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, current_dir)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from providor.providor_index import CONFIG
 from controller.game_assistant_controller import GameAssistantController
+from share.thread_registry import get_thread_registry
+
 
 class GameInterfaceController:
     """
@@ -33,7 +34,7 @@ class GameInterfaceController:
         self.registered_hotkeys: Dict[str, str] = {}  # hotkey -> description mapping
         self.initialized = False
         self.macro_running = False
-        self.macro_thread: Optional[threading.Thread] = None
+        # Macro thread owned by ThreadRegistry; no self.macro_thread
 
         # Initialize game assistant controller
         self.assistant_controller: Optional[GameAssistantController] = None
@@ -182,15 +183,9 @@ class GameInterfaceController:
             current_config_name = 'config1'  # Default config
             skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(current_config_name, {})
             
-            # Start macro thread
-            self.macro_thread = threading.Thread(
-                target=self._macro_loop,
-                args=(skill_config,),
-                daemon=True
-            )
             self.macro_running = True
-            self.macro_thread.start()
-            
+            get_thread_registry().start_game_interface_macro(self, skill_config)
+
             ColorPrint.green("[SUCCESS] Macro started")
             return True
             
@@ -213,10 +208,7 @@ class GameInterfaceController:
             ColorPrint.blue("[MACRO] Stopping macro execution...")
             
             self.macro_running = False
-            
-            # Wait for macro thread to finish
-            if self.macro_thread and self.macro_thread.is_alive():
-                self.macro_thread.join(timeout=2.0)
+            get_thread_registry().stop_game_interface_macro()
             
             ColorPrint.green("[SUCCESS] Macro stopped")
             return True

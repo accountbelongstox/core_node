@@ -8,6 +8,7 @@
       "progress": "Progress",
       "start_all_tests": "Start All Tests",
       "stop_all_tests": "Stop All Tests",
+      "copy": "Copy",
       "clear_logs": "Clear Logs",
       "log_output": "Log Output",
       "clear": "Clear",

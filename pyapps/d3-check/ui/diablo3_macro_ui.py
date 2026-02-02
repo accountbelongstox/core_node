@@ -16,6 +16,7 @@ from pathlib import Path
 # Import from common_imports (unified public library imports)
 from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
+from providor.app_constants import UI_SETTINGS_WINDOW_GEOMETRY
 
 # Import UI components
 from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray
@@ -57,15 +58,20 @@ class Diablo3MacroUI:
 
         # Note: Language change listener is registered at controller level
 
-        # Set window title
+        # Set window title and initial geometry (saved position/size or default) so window never flashes at 0,0
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        self.root.geometry("670x550")
+        initial_geos = CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY) or "670x550"
+        self.root.geometry(initial_geos)
         self.root.minsize(670, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
 
         # Apply theme
         UITheme.apply_to_root(self.root)
+
+        # Window geometry: debounced save on move/resize (id cleared after save)
+        self._geometry_save_after_id = None
+        self._had_saved_geometry = bool(CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY))
 
         # Current configuration
         self.current_config = initial_config
@@ -85,6 +91,12 @@ class Diablo3MacroUI:
 
         # Create UI
         self._create_ui()
+
+        # First run only: bring window to top (geometry already set at init)
+        self._apply_first_run_topmost()
+
+        # Bind Configure to save geometry when user moves/resizes (debounced)
+        self.root.bind("<Configure>", self._on_window_configure)
 
         # Create system tray
         self._create_system_tray()
@@ -226,7 +238,7 @@ class Diablo3MacroUI:
             on_start=self._on_start_macro,
             on_stop=self._on_stop_macro
         )
-        self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
     def get_window_status_callback(self):
         """
@@ -272,13 +284,51 @@ class Diablo3MacroUI:
 
     def _on_window_close(self):
         """Handle window close event; dispatched to main thread via event center."""
+        self._save_window_geometry()
         ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
         event_center.trigger_app_exit()
-    
+
+    def _apply_first_run_topmost(self):
+        """First run only: lift and briefly topmost (geometry already set at init to avoid 0,0 flash)."""
+        if not self._had_saved_geometry:
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.root.after(500, lambda: self.root.attributes("-topmost", False))
+
+    def _save_window_geometry(self):
+        """Persist current window position and size to config."""
+        try:
+            w = self.root.winfo_width()
+            h = self.root.winfo_height()
+            x = self.root.winfo_rootx()
+            y = self.root.winfo_rooty()
+            if w > 1 and h > 1:
+                geos = f"{w}x{h}+{x}+{y}"
+                if "ui_settings" not in CONFIG:
+                    CONFIG["ui_settings"] = {}
+                CONFIG["ui_settings"][UI_SETTINGS_WINDOW_GEOMETRY] = geos
+                save_config()
+        except (tk.TclError, Exception):
+            pass
+
+    def _on_window_configure(self, event=None):
+        """Debounce geometry save on move/resize (Configure fires for root and children)."""
+        if event is not None and event.widget != self.root:
+            return
+        if self._geometry_save_after_id:
+            self.root.after_cancel(self._geometry_save_after_id)
+        self._geometry_save_after_id = self.root.after(800, self._debounced_save_geometry)
+
+    def _debounced_save_geometry(self):
+        """Run after idle: save geometry and clear after id."""
+        self._geometry_save_after_id = None
+        self._save_window_geometry()
+
     def _create_main_tabs(self):
         """Create main tabbed interface"""
-        # Create notebook for main tabs
+        # Create notebook for main tabs (takeFocus=0 to avoid dotted focus ring on selected tab)
         self.main_notebook = ttk.Notebook(self.root, height=370)
+        self.main_notebook.configure(takefocus=0)
         self.main_notebook.pack(fill=tk.X, padx=8, pady=3)
         
         # Apply dark theme to notebook
@@ -300,6 +350,7 @@ class Diablo3MacroUI:
         
         # Set initial tab
         self.main_notebook.select(self.last_selected_tab)
+        self.bottom_bar.show_tab_content(self.last_selected_tab)
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
         self._reregister_log_callback()
@@ -317,8 +368,11 @@ class Diablo3MacroUI:
         if current_theme in ('vista', 'xpnative', 'winnative'):
             ColorPrint.yellow(f"[UI] Switching from native theme '{current_theme}' to 'clam' for custom styling")
         style.theme_use('clam')
-        
-        # Configure notebook style
+
+        # Tab layout: no Notebook.focus wrapper. Clam default adds focus for selected only -> shrinks selected height.
+        self._apply_tab_layout(style)
+
+        # tabmargins [L,T,R,B]: bottom=0 so no gap under tab bar (avoids white line).
         style.configure('Dark.TNotebook',
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0,
@@ -329,16 +383,21 @@ class Diablo3MacroUI:
                        background=UITheme.get_color('bg_primary'),
                        borderwidth=0)
 
-        # Tab style: unselected = high contrast (tab_unselected_bg/fg)
+        # Tab style: padding [L,T,R,B] equal top/bottom; focusthickness=0 / shiftrelief=0 / relief=flat
         style.configure('Dark.TNotebook.Tab',
                        background=UITheme.get_color('tab_unselected_bg'),
                        foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 6],
+                       padding=[12, 8, 12, 8],
                        borderwidth=0,
                        lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'))
+                       darkcolor=UITheme.get_color('tab_unselected_bg'),
+                       bordercolor=UITheme.get_color('tab_unselected_bg'),
+                       focusthickness=0,
+                       focuscolor=UITheme.get_color('tab_unselected_bg'),
+                       shiftrelief=0,
+                       relief='flat')
 
-        # map(): !selected forces unselected contrast; selected/active override
+        # map(): same padding for selected/!selected (no extra wrap); selected expand [0,0,0,2] so height matches unselected.
         style.map('Dark.TNotebook.Tab',
                  background=[('selected', UITheme.get_color('tab_selected_bg')),
                            ('active', UITheme.get_color('state_hover')),
@@ -349,7 +408,11 @@ class Diablo3MacroUI:
                  lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
                            ('!selected', UITheme.get_color('tab_unselected_bg'))],
                  darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))])
+                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         
         # Apply style to notebook
         self.main_notebook.configure(style='Dark.TNotebook')
@@ -357,18 +420,49 @@ class Diablo3MacroUI:
         # Force style update after a short delay to ensure it takes effect
         self.root.after(100, self._force_style_update)
 
-    def _force_style_update(self):
-        """Force style update for all notebook tabs (unselected = high contrast)"""
-        style = ttk.Style()
+    def _apply_tab_layout(self, style):
+        """Apply Tab layout without Notebook.focus so selected and unselected have same structure (no extra wrapper)."""
+        style.layout(
+            'Dark.TNotebook.Tab',
+            [
+                (
+                    'Notebook.tab',
+                    {
+                        'sticky': 'nswe',
+                        'children': [
+                            (
+                                'Notebook.padding',
+                                {
+                                    'side': 'top',
+                                    'sticky': 'nswe',
+                                    'children': [
+                                        ('Notebook.label', {'side': 'top', 'sticky': ''}),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                ),
+            ],
+        )
 
+    def _force_style_update(self):
+        """Force style update: re-apply Tab layout (no focus wrapper) and same padding/expand for selected and !selected."""
+        style = ttk.Style()
+        self._apply_tab_layout(style)
+        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
         style.configure('Dark.TNotebook.Tab',
                        background=UITheme.get_color('tab_unselected_bg'),
                        foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 6],
+                       padding=[12, 8, 12, 8],
                        borderwidth=0,
                        lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'))
-
+                       darkcolor=UITheme.get_color('tab_unselected_bg'),
+                       bordercolor=UITheme.get_color('tab_unselected_bg'),
+                       focusthickness=0,
+                       focuscolor=UITheme.get_color('tab_unselected_bg'),
+                       shiftrelief=0,
+                       relief='flat')
         style.map('Dark.TNotebook.Tab',
                  background=[('selected', UITheme.get_color('tab_selected_bg')),
                            ('active', UITheme.get_color('state_hover')),
@@ -379,59 +473,84 @@ class Diablo3MacroUI:
                  lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
                            ('!selected', UITheme.get_color('tab_unselected_bg'))],
                  darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))])
-
-        # Force widget update
+                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
         ColorPrint.green("[UI] Forced notebook style update")
 
     def _apply_all_tab_styles(self):
-        """Apply styles to all tabs using ttk.Style only"""
+        """Apply styles to all tabs (same line height and underline)"""
         style = ttk.Style()
-
+        self._apply_tab_layout(style)
+        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
         for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
             style.configure(style_name,
                            background=UITheme.get_color('tab_unselected_bg'),
                            foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 6],
-                           borderwidth=1,
-                           focuscolor='none',
+                           padding=[12, 8, 12, 8],
+                           borderwidth=0,
                            lightcolor=UITheme.get_color('tab_unselected_bg'),
                            darkcolor=UITheme.get_color('tab_unselected_bg'),
+                           bordercolor=UITheme.get_color('tab_unselected_bg'),
+                           focusthickness=0,
+                           focuscolor=UITheme.get_color('tab_unselected_bg'),
+                           shiftrelief=0,
                            relief='flat')
-
+        style.map('Dark.TNotebook.Tab',
+                 background=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('active', UITheme.get_color('state_hover')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
+                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
         ColorPrint.green("[UI] Applied styles to all tabs")
 
     def _apply_tab_style(self, tab_id):
-        """Apply style to a specific tab using ttk.Style only"""
+        """Apply style to a specific tab (same line height and underline)"""
         style = ttk.Style()
-
+        self._apply_tab_layout(style)
+        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
         for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
             style.configure(style_name,
                            background=UITheme.get_color('tab_unselected_bg'),
                            foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 6],
-                           borderwidth=1,
-                           focuscolor='none',
+                           padding=[12, 8, 12, 8],
+                           borderwidth=0,
                            lightcolor=UITheme.get_color('tab_unselected_bg'),
-                           darkcolor=UITheme.get_color('tab_unselected_bg'))
-
+                           darkcolor=UITheme.get_color('tab_unselected_bg'),
+                           bordercolor=UITheme.get_color('tab_unselected_bg'),
+                           focusthickness=0,
+                           focuscolor=UITheme.get_color('tab_unselected_bg'),
+                           shiftrelief=0,
+                           relief='flat')
             style.map(style_name,
-                     background=[('selected', UITheme.get_color('bg_secondary')),
-                               ('active', UITheme.get_color('tab_active_bg')),
+                     background=[('selected', UITheme.get_color('tab_selected_bg')),
+                               ('active', UITheme.get_color('state_hover')),
                                ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     foreground=[('selected', UITheme.get_color('text_primary')),
-                               ('active', UITheme.get_color('tab_active_fg')),
+                     foreground=[('selected', UITheme.get_color('tab_selected_fg')),
+                               ('active', UITheme.get_color('text_primary')),
                                ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                     lightcolor=[('selected', UITheme.get_color('bg_secondary')),
-                               ('active', UITheme.get_color('tab_active_bg')),
+                     lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
                                ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     darkcolor=[('selected', UITheme.get_color('bg_secondary')),
-                              ('active', UITheme.get_color('tab_active_bg')),
-                              ('!selected', UITheme.get_color('tab_unselected_bg'))])
-
+                     darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                              ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                     bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
+                                 ('!selected', UITheme.get_color('tab_unselected_bg'))],
+                     padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                     expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
         ColorPrint.green(f"[UI] Applied style to tab: {tab_id}")
@@ -596,7 +715,7 @@ class Diablo3MacroUI:
         self._register_panel_language_listeners()
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+            self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
@@ -618,7 +737,7 @@ class Diablo3MacroUI:
             )
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=2, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+            self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
 
         try:
             self.main_notebook.select(self.last_selected_tab)
@@ -627,22 +746,23 @@ class Diablo3MacroUI:
         self._reregister_log_callback()
 
     def _reregister_log_callback(self):
-        """Register only the current tab's panel as ColorPrint callback (D3/ROSBOT log -> ROSBOT tab, D4 log -> D4 tab)."""
+        """Register only the current tab's panel as ColorPrint callback. Tab order: 0=table1, 1=table2, 2=rosbot, 3=d4, 4=calibration, 5=log."""
         ColorPrint.clear_all_callbacks()
         try:
             sel = self.main_notebook.select()
             idx = self.main_notebook.index(sel)
         except tk.TclError:
             idx = 0
-        n = self.main_notebook.index("end")
-        # Prefer current tab's panel; fallback to first tab that has add_log_message (Main/Auxiliary have none)
-        for i in range(n):
-            tab_idx = (idx + i) % n
-            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[tab_idx])
-            for child in tab_frame.winfo_children():
-                if hasattr(child, 'add_log_message'):
-                    ColorPrint.register_callback(child.add_log_message)
-                    return
+        # Panels live on self; tab frame's winfo_children() are container Frames, not panel objects
+        panel = None
+        if idx == 2 and hasattr(self, 'rosbot_extension_panel'):
+            panel = self.rosbot_extension_panel
+        elif idx == 3 and hasattr(self, 'd4_panel'):
+            panel = self.d4_panel
+        elif idx == 5 and hasattr(self, 'log_panel'):
+            panel = self.log_panel
+        if panel is not None and hasattr(panel, 'add_log_message'):
+            ColorPrint.register_callback(panel.add_log_message)
 
     def _register_panel_language_listeners(self):
         """Register language change listeners for all panels"""
@@ -673,6 +793,7 @@ class Diablo3MacroUI:
         CONFIG['ui_settings']['last_selected_tab'] = selected_tab
         save_config()
 
+        self.bottom_bar.show_tab_content(selected_tab)
         self._reregister_log_callback()
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
@@ -778,6 +899,13 @@ class Diablo3MacroUI:
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""
+        if self._geometry_save_after_id:
+            try:
+                self.root.after_cancel(self._geometry_save_after_id)
+            except (tk.TclError, Exception):
+                pass
+            self._geometry_save_after_id = None
+        self._save_window_geometry()
         ColorPrint.blue("[UI] Starting UI destruction...")
 
         if hasattr(self, 'system_tray') and self.system_tray:

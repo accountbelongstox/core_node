@@ -18,7 +18,6 @@ sys.path.insert(0, str(current_dir))
 
 from providor.common_imports import ColorPrint, ClickHandler
 from providor.providor_index import (
-    BATTLE_NET_WINDOW_TITLES,
     BATTLENET_TEMPLATE_CONFIGS,
     TEMPLATE_DIR,
     CONFIG,
@@ -27,14 +26,13 @@ from providor.providor_index import (
     STANDARD_RESOLUTION_HEIGHT,
 )
 from pycore.pyutils.common.window_finder import WindowFinder
-from config.constants import (
+from providor.app_constants import (
     LOGIN_TRY_SCREENSHOT_DIR,
     LOGIN_TRY_SCREENSHOT_PREFIX,
     BATTLE_NET_DISCONNECT_KEYWORDS,
     BATTLE_NET_NEED_LOGIN_KEYWORDS,
     BATTLE_NET_CN_AGREE_KEYWORDS,
     BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS,
-    BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS,
     BATTLE_NET_CN_LOGIN_BASE_W,
     BATTLE_NET_CN_LOGIN_BASE_H,
     BATTLE_NET_CN_AGREE_CLICK_X,
@@ -49,7 +47,7 @@ from config.constants import (
     CLICK_PAUSE_AFTER_MOVE_SEC,
 )
 from share.game_interface_data import get_game_interface_data
-from d3utils.battlenet_manager import get_battlenet_manager
+from d3utils.battlenet_manager import get_battlenet_manager, get_battlenet_window_titles
 from d3utils.d3_manager import get_d3_manager
 from d3utils.window_resizer import resize_window_by_titles_to_client_size
 from d3utils.d3_start_game_and_teleport_waiter import (
@@ -73,8 +71,8 @@ from d3utils.ocr_helper import (
     bbox_left_center,
 )
 from d3utils.battlenet_capture import capture_battlenet_and_save_to_category
+from d3utils.battlenet_operation import get_battlenet_operation
 from d3utils.battlenet_template_matcher import match_battlenet_template
-from d3utils.battlenet_button_detector import find_battlenet_blue_button
 from d3utils.battlenet_match_debug import debug_all_match_methods as run_battlenet_match_debug
 from d3utils.d3u_common.image_annotator_helper import save_match_debug_image, save_no_match_debug_image, save_click_debug_image
 
@@ -151,7 +149,7 @@ class LoginTryScreenshotController:
         """
         On "Login try" in log: capture Battle.net window, OCR for disconnect keywords;
         if found, treat as disconnect and restart Battle.net.exe (taskkill + explorer).
-        Uses config battlenet.battlenet_path and BATTLE_NET_WINDOW_TITLES; no Python threading.
+        Uses config battlenet.battlenet_path and get_battlenet_window_titles(); no Python threading.
         """
         bn_path = get_battlenet_manager().get_path()
         if not bn_path:
@@ -207,13 +205,20 @@ class LoginTryScreenshotController:
         img_path: Optional[Path] = None,
     ) -> None:
         """
-        CN region Battle.net login flow: use same ocr_result (no second OCR). Click first char of agree ->
-        click NetEase login/register -> wait 5s -> fullscreen capture + OCR, click Login button.
-        If raw_result yields no boxes, fallback to ocr_find_keyword_boxes(img_path) so clicks still run.
+        CN region Battle.net login flow: when on login screen (UI), use BattlenetOperation.perform_cn_login_flow()
+        (ensure "您同意" checkbox checked, click "使用网易账号登录或注册", wait for web). Then fullscreen capture + OCR/blue, click Login.
+        If UI flow not available, fallback to OCR/ratio for agree + NetEase.
         """
+        cn_log = "[LoginTryScreenshotController][CN]"
+        op = get_battlenet_operation()
+        if op.is_on_login_screen():
+            if op.perform_cn_login_flow():
+                ColorPrint.blue(f"{cn_log} UI login flow done (agree checked + NetEase clicked + wait), proceeding to Login button")
+                self._run_cn_login_flow_click_login_button(clicker)
+                return
+            ColorPrint.yellow(f"{cn_log} perform_cn_login_flow failed, fallback to OCR/ratio")
         raw = (ocr_result or {}).get("raw_result") or []
         ox, oy = screenshot_data.window_offset
-        cn_log = "[LoginTryScreenshotController][CN]"
         w = (screenshot_data.game_window_size or (0, 0))[0] or (screenshot_data.game_window_image and screenshot_data.game_window_image.width) or 0
         h = (screenshot_data.game_window_size or (0, 0))[1] or (screenshot_data.game_window_image and screenshot_data.game_window_image.height) or 0
         base_w, base_h = BATTLE_NET_CN_LOGIN_BASE_W, BATTLE_NET_CN_LOGIN_BASE_H
@@ -263,56 +268,69 @@ class LoginTryScreenshotController:
             ColorPrint.yellow(f"{cn_log} No NetEase login box and no window size, skip click")
 
         time.sleep(5)
-        # 3) Every 5s fullscreen, detect blue button (#0074E0) up to 2 attempts; else OCR Login
-        login_clicked = False
-        fullscreen_data = None
-        for attempt in range(2):
-            fullscreen_data = self.screenshot_provider.gen(use_optimized_capture=False, window_titles=None)
-            if not fullscreen_data or not fullscreen_data.fullscreen_image:
-                ColorPrint.yellow(f"{cn_log} Fullscreen capture failed (attempt {attempt + 1})")
-                break
-            btn = find_battlenet_blue_button(
-                fullscreen_data.fullscreen_image,
-                color_hex="#0074E0",
-                brightness_tol=0.01,
-                button_w=200,
-                button_h=20,
-                log_prefix=cn_log,
-            )
-            if btn:
-                cx, cy = btn["center"]
-                sx, sy = int(cx), int(cy)
-                ColorPrint.blue(f"{cn_log} Click Login (blue button) at screen ({sx}, {sy})")
-                clicker.click(sx, sy, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-                login_clicked = True
-                break
-            if attempt < 1:
-                time.sleep(5)
-        if not login_clicked and fullscreen_data and fullscreen_data.fullscreen_image:
-            try:
-                saved = fullscreen_data.save(output_dir=LOGIN_TRY_SCREENSHOT_DIR, prefix=LOGIN_TRY_SCREENSHOT_PREFIX)
-            except Exception as e:
-                ColorPrint.yellow(f"{cn_log} Save fullscreen failed: {e}")
-            else:
-                if saved and saved.get("fullscreen_path"):
-                    full_path = saved["fullscreen_path"]
-                    login_boxes = ocr_find_keyword_boxes(
-                        full_path, BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS, log_prefix=cn_log,
-                    )
-                    if login_boxes:
-                        bbox = login_boxes[0]["bbox"]
-                        cx, cy = bbox_center(bbox)
-                        sx, sy = int(cx), int(cy)
-                        ColorPrint.blue(f"{cn_log} Click Login (OCR) at screen ({sx}, {sy})")
-                        clicker.click(sx, sy, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-                    else:
-                        ColorPrint.yellow(f"{cn_log} No Login button (blue or OCR) found on fullscreen")
+        self._run_cn_login_flow_click_login_button(clicker)
+
+    def _run_cn_login_flow_click_login_button(self, clicker: ClickHandler) -> None:
+        """After agree + NetEase + wait: click Login button via UI Automation only (no fullscreen/OCR)."""
+        cn_log = "[LoginTryScreenshotController][CN]"
+        op = get_battlenet_operation()
+        if op.click_cn_login_button():
+            ColorPrint.blue(f"{cn_log} Login button clicked (UI)")
+        else:
+            ColorPrint.yellow(f"{cn_log} Login button not found (UI), skip")
 
     def _restart_battlenet_and_retry_from_step1(self, bn_path: Path) -> None:
         """Reusable: restart Battle.net and wait 5s so caller can retry from step 1 (Battle.net capture)."""
         ColorPrint.yellow("[LoginTryScreenshotController] Start Game / Game tool not found in time; restart Battle.net and retry from step 1...")
         get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
         time.sleep(5)
+
+    def _ensure_battlenet_logged_in_first(self, bn_path: Path, clicker: ClickHandler) -> bool:
+        """
+        Ensure Battle.net is logged in (normal_available) before any D3 operation.
+        If on login screen: run CN login flow or restart; if disconnected: restart.
+        Does not kill D3. Returns True only when Battle.net is confirmed logged in (UI normal_available).
+        Caller must only run the D3-already-running branch when this returns True.
+        """
+        op = get_battlenet_operation()
+        windows = WindowFinder.find_windows_by_titles(
+            titles=get_battlenet_window_titles(),
+            match_mode="in",
+            use_cache=False,
+        )
+        if not windows:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net window not found, starting Battle.net...")
+            get_battlenet_manager().start(bn_path)
+            time.sleep(3)
+        get_battlenet_manager().activate_window()
+        time.sleep(0.5)
+        max_login_rounds = 5
+        for _ in range(max_login_rounds):
+            on_login, disconnected, normal_available = op.get_dynamic_state()
+            if normal_available:
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed logged in (UI), now allow D3 check")
+                return True
+            if disconnected:
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net disconnected (UI), restarting...")
+                get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                time.sleep(5)
+                continue
+            if on_login:
+                if op.is_on_browser_login_wait_screen():
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on '使用浏览器完成登录/取消' (initial), restart and go to step 1...")
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), running login flow first...")
+                screenshot_data, img_path = capture_battlenet_and_save_to_category("login_try")
+                if screenshot_data and img_path:
+                    ocr_result = ocr_get_result(img_path) or {}
+                    self._run_cn_login_flow(screenshot_data, ocr_result, clicker, img_path=img_path)
+                time.sleep(3)
+                continue
+            time.sleep(2)
+        ColorPrint.yellow("[LoginTryScreenshotController] Battle.net not confirmed logged in; skip D3 branch, run Battle.net flow only")
+        return False
 
     def ensure_battlenet_started_and_login_check(self) -> bool:
         """
@@ -335,7 +353,12 @@ class LoginTryScreenshotController:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path in config, skip step 1")
             return False
 
-        if get_d3_manager().is_running():
+        clicker = ClickHandler()
+        battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+        if not battlenet_confirmed:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
+
+        if battlenet_confirmed and get_d3_manager().is_running():
             ColorPrint.blue("[LoginTryScreenshotController] D3 already running; detect disconnect, then continue state-1 flow from middle if not disconnected")
             resize_window_by_titles_to_client_size(
                 DIABLO_III_WINDOW_TITLES,
@@ -372,7 +395,6 @@ class LoginTryScreenshotController:
             else:
                 get_d3_manager().kill_if_running()
 
-        clicker = ClickHandler()
         max_rounds = 3
         max_outer_retries = 3
         for outer_round in range(max_outer_retries):
@@ -462,7 +484,7 @@ class LoginTryScreenshotController:
             time.sleep(0.3)
             moment_data = self.screenshot_provider.gen(
                 use_optimized_capture=True,
-                window_titles=BATTLE_NET_WINDOW_TITLES,
+                window_titles=get_battlenet_window_titles(),
             )
             if moment_data and moment_data.game_window_image:
                 ox, oy = moment_data.window_offset
@@ -487,7 +509,7 @@ class LoginTryScreenshotController:
             time.sleep(0.3)
             screenshot_data2 = self.screenshot_provider.gen(
                 use_optimized_capture=True,
-                window_titles=BATTLE_NET_WINDOW_TITLES,
+                window_titles=get_battlenet_window_titles(),
             )
             if screenshot_data2 and screenshot_data2.game_window_image:
                 img2 = screenshot_data2.game_window_image

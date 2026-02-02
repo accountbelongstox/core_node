@@ -15,11 +15,8 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Third-party imports
 from providor.common_imports import ColorPrint, WindowScreenshot

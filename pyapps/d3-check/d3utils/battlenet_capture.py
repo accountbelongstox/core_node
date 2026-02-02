@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Optional, Tuple, Any
 
 from providor.common_imports import ColorPrint
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
+from d3utils.battlenet_manager import get_battlenet_window_titles
 
-from config.constants import LOGIN_TRY_SCREENSHOT_PREFIX
+from providor.app_constants import LOGIN_TRY_SCREENSHOT_PREFIX
 from config.screenshot_categories import get_screenshot_category_manager
 from d3utils.screenshot_provider import get_screenshot_provider
 
@@ -25,7 +25,7 @@ def capture_battlenet_and_save_to_category(
     provider = get_screenshot_provider()
     screenshot_data = provider.gen(
         use_optimized_capture=True,
-        window_titles=BATTLE_NET_WINDOW_TITLES,
+        window_titles=get_battlenet_window_titles(),
     )
     if screenshot_data is None or screenshot_data.game_window_image is None:
         ColorPrint.yellow("[BattlenetCapture] Battle.net window not found")

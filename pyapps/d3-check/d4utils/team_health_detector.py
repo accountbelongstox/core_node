@@ -20,8 +20,8 @@ cv2 = get_third_package_cv2()
 Image = get_third_package_PIL_Image()
 
 # Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint
 from providor.providor_index import DEBUG, TMP_DIR
@@ -43,7 +43,7 @@ from share.game_interface_data import (
 )
 
 
-class TeamHealthDetector:
+class D4_TeamHealthDetector:
     """
     Team Health Detector for Diablo 4
     
@@ -83,7 +83,7 @@ class TeamHealthDetector:
         # Minimum pixels per row to consider as health bar
         self.min_pixels_per_row = 20
         
-        ColorPrint.blue("[TeamHealthDetector] Initialized")
+        ColorPrint.blue("[D4_TeamHealthDetector] Initialized")
 
     def detect_team_health(self, image_input: Union[str, Image.Image, np.ndarray]) -> Dict[str, Any]:
         """
@@ -96,7 +96,7 @@ class TeamHealthDetector:
             Dictionary with team health detection results
         """
         try:
-            ColorPrint.print_min_interval("[TeamHealthDetector] Starting team health detection...")
+            ColorPrint.print_min_interval("[D4_TeamHealthDetector] Starting team health detection...")
             
             # Normalize input to BGR numpy array
             image_bgr = self._normalize_input_to_bgr(image_input)
@@ -119,7 +119,7 @@ class TeamHealthDetector:
                 self.d4_data.is_windowed_mode()
             )
             
-            ColorPrint.green(f"[TeamHealthDetector] Team count region: {team_count_start} -> {team_count_end}")
+            ColorPrint.green(f"[D4_TeamHealthDetector] Team count region: {team_count_start} -> {team_count_end}")
             
             # Extract team count region from image
             x1, y1 = team_count_start
@@ -132,12 +132,12 @@ class TeamHealthDetector:
             y2 = max(0, min(y2, current_height))
             
             if x1 >= x2 or y1 >= y2:
-                ColorPrint.yellow("[TeamHealthDetector] Invalid region coordinates")
+                ColorPrint.yellow("[D4_TeamHealthDetector] Invalid region coordinates")
                 return {"error": "Invalid region coordinates"}
             
             # Extract region (in memory operation)
             team_region = image_bgr[y1:y2, x1:x2]
-            ColorPrint.green(f"[TeamHealthDetector] Extracted region size: {team_region.shape}")
+            ColorPrint.green(f"[D4_TeamHealthDetector] Extracted region size: {team_region.shape}")
             
             # Scan region for health bars
             health_detection_result = self._scan_health_bars(team_region, (x1, y1))
@@ -157,18 +157,18 @@ class TeamHealthDetector:
 
                 if annotated_image:
                     annotated_image.save(annotated_path)
-                    ColorPrint.green(f"[TeamHealthDetector] Annotated image saved: {annotated_path}")
+                    ColorPrint.green(f"[D4_TeamHealthDetector] Annotated image saved: {annotated_path}")
             
             # Update D4 interface data
             self.d4_data.team_health_info = health_detection_result
             self.d4_data.team_health_detection_timestamp = datetime.now().isoformat()
             
-            ColorPrint.green("[TeamHealthDetector] Team health detection completed")
+            ColorPrint.green("[D4_TeamHealthDetector] Team health detection completed")
             
             return health_detection_result
             
         except Exception as e:
-            ColorPrint.red(f"[TeamHealthDetector] Error in team health detection: {e}")
+            ColorPrint.red(f"[D4_TeamHealthDetector] Error in team health detection: {e}")
             import traceback
             traceback.print_exc()
             return {"error": str(e)}
@@ -620,7 +620,7 @@ class TeamHealthDetector:
             return get_image_pil(annotator)
 
         except Exception as e:
-            ColorPrint.red(f"[TeamHealthDetector] Error creating annotated image: {e}")
+            ColorPrint.red(f"[D4_TeamHealthDetector] Error creating annotated image: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -630,17 +630,17 @@ class TeamHealthDetector:
 _team_health_detector = None
 
 
-def get_team_health_detector() -> TeamHealthDetector:
+def get_d4_team_health_detector() -> D4_TeamHealthDetector:
     """
     Get global team health detector instance (singleton)
     
     Returns:
-        Global TeamHealthDetector instance
+        Global D4_TeamHealthDetector instance
     """
     global _team_health_detector
-    
+
     if _team_health_detector is None:
-        _team_health_detector = TeamHealthDetector()
+        _team_health_detector = D4_TeamHealthDetector()
         ColorPrint.green("[Global] Team health detector initialized")
     
     return _team_health_detector
@@ -649,7 +649,7 @@ def get_team_health_detector() -> TeamHealthDetector:
 # Example usage
 if __name__ == "__main__":
     # Get detector instance
-    detector = get_team_health_detector()
+    detector = get_d4_team_health_detector()
     
     # Test with a sample image (if provided)
     import sys

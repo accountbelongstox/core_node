@@ -15,12 +15,10 @@ from providor.common_imports import ColorPrint
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 from d3utils.task_thread_manager import set_task_status, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
-from d3utils.event_center import trigger_extension_rosbot_started, trigger_extension_rosbot_stopped
+from d3utils.event_signals import trigger_extension_rosbot_started, trigger_extension_rosbot_stopped
 
 
-CMD_START_ROSBOT = "start_rosbot"
-CMD_STOP_ROSBOT = "stop_rosbot"
-CMD_SHUTDOWN = "shutdown"
+from providor.app_constants import CMD_START_ROSBOT, CMD_STOP_ROSBOT, CMD_SHUTDOWN
 
 
 class D3ExtensionThread(threading.Thread):

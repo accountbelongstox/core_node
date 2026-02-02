@@ -156,9 +156,11 @@ class StatusBar:
     def _setup_log_callback(self):
         """Setup ColorPrint callback; schedule UI update on main thread via after(0)."""
         def log_callback(message, level="INFO"):
+            if is_shutdown_requested():
+                return
             try:
                 self.parent.after(0, lambda: self._add_log_message(message, level))
-            except Exception:
+            except (RuntimeError, Exception):
                 pass
         ColorPrint.register_callback(log_callback)
 

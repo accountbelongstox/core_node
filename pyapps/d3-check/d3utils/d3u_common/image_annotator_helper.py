@@ -10,26 +10,14 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
-
-numpy = get_third_package_numpy()
-np = numpy
-Image = get_third_package_PIL_Image()
-cv2 = get_third_package_cv2()
-
-# Import TMP_DIR from providor_index (unified source)
-project_root_for_import = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root_for_import)
+from providor.common_imports import ColorPrint, ImageAnnotator
 from providor.providor_index import TMP_DIR
+from share.scaled_template_matcher_base import cv2, np, Image
 
 # Built-in color palette for annotations (BGR format for OpenCV)
 ANNOTATION_COLORS = {

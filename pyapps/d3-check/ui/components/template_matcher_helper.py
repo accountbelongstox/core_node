@@ -16,7 +16,8 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_th
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint, ImageMatcher
 from providor.providor_index import (

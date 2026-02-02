@@ -18,16 +18,20 @@ import signal
 import time
 import traceback
 
-# Add project root to path for imports
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+# Add repo root and app root to path so pycore and d3-check imports resolve
+_project_dir = os.path.dirname(os.path.abspath(__file__))
+_repo_root = os.path.dirname(os.path.dirname(_project_dir))
+sys.path.insert(0, _project_dir)
+sys.path.insert(0, _repo_root)
 
 # Import application modules
+from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
 from d3utils.system_initializer import get_system_initializer
 from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
 from d3utils.i18n_manager import i18n_manager
 from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
+from train import main as train_main
 
 
 def main():
@@ -120,7 +124,6 @@ Examples:
 
     elif args.train or args.validate or args.export:
         # Training/validation/export mode - delegate to train module
-        from train import main as train_main
         # Reconstruct argv for train module
         sys.argv = [sys.argv[0]] + unknown
         if args.validate:
@@ -194,13 +197,12 @@ Examples:
 
             i18n_manager.load_language_from_config()
 
-            # Start HTTP bridge in background (same port as web UI)
-            bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765)
+            # Single controller for both GUI and HTTP API (avoid duplicate state)
+            controller = D3MacroController()
+            bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765, macro_controller=controller)
             bridge_controller.start()
             ColorPrint.green("[MAIN] HTTP bridge started on http://127.0.0.1:8765")
 
-            from controller.d3_macro_controller import D3MacroController
-            controller = D3MacroController()
             controller.run()
             return 0
 

@@ -3,7 +3,7 @@
 """
 Windows drive order for path scan.
 Dynamically gets fixed (local) drive letters, skips removable/USB/CD-ROM/network,
-caches the result, and returns roots in preferred order (D first, C last).
+caches the result, and returns roots in dynamic order: C last, others alphabetical.
 
 Documentation (Windows API):
 - GetLogicalDrives: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives
@@ -17,16 +17,15 @@ import os
 import string
 from typing import List, Optional
 
-from config.constants import PATH_SCAN_PREFERRED_ORDER
+from providor.app_constants import (
+    DRIVE_FIXED,
+    DRIVE_REMOTE,
+    DRIVE_REMOVABLE,
+    DRIVE_CDROM,
+)
 
 # Module-level cache: list of "X:\\" for fixed drives in scan order
 _cached_fixed_roots: Optional[List[str]] = None
-
-# Windows drive type (fileapi.h)
-DRIVE_REMOVABLE = 2
-DRIVE_FIXED = 3
-DRIVE_REMOTE = 4
-DRIVE_CDROM = 5
 
 
 def invalidate_cache() -> None:
@@ -37,7 +36,7 @@ def invalidate_cache() -> None:
 
 def get_fixed_drive_roots_for_scan(use_cache: bool = True) -> List[str]:
     """
-    Return drive roots to scan: fixed (local) drives only, in preferred order (D first, C last).
+    Return drive roots to scan: fixed (local) drives only, C last, others alphabetical.
     Skips removable/USB (DRIVE_REMOVABLE), CD-ROM (DRIVE_CDROM), network (DRIVE_REMOTE).
     Result is cached; pass use_cache=False to refresh, or call invalidate_cache().
     """
@@ -70,15 +69,10 @@ def get_fixed_drive_roots_for_scan(use_cache: bool = True) -> List[str]:
             if os.path.exists(root):
                 fixed_letters.append(letter)
 
-    # Order: preferred (D, E, F, G, H, C) then any remaining
-    ordered: List[str] = []
-    for p in PATH_SCAN_PREFERRED_ORDER:
-        if p in fixed_letters:
-            ordered.append(f"{p}:\\")
-    for letter in fixed_letters:
-        root = f"{letter}:\\"
-        if root not in ordered:
-            ordered.append(root)
-
-    _cached_fixed_roots = ordered
+    # Order: all fixed drives, C last, others alphabetical (dynamic, no hardcoded preferred order)
+    ordered = sorted(
+        fixed_letters,
+        key=lambda letter: (1 if letter == "C" else 0, letter),
+    )
+    _cached_fixed_roots = [f"{letter}:\\" for letter in ordered]
     return ordered

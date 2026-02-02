@@ -9,7 +9,7 @@ import os
 import glob
 from typing import List, Tuple, Optional
 
-from config.constants import (
+from providor.app_constants import (
     BATTLE_NET_EXE_NAME,
     ROSBOT_EXE_PATTERNS,
     PATH_SCAN_MAX_DEPTH,
@@ -81,7 +81,7 @@ def scan_for_paths() -> Tuple[Optional[str], List[str]]:
 
     # Scan criteria: log and pass to UI
     ColorPrint.blue(f"{_PATHSCAN_TAG} === Scan criteria ===")
-    ColorPrint.blue(f"{_PATHSCAN_TAG} Drive order: D first, C last (fixed drives only, skip removable/CD/network)")
+    ColorPrint.blue(f"{_PATHSCAN_TAG} Drive order: dynamic (C last, others alphabetical; fixed drives only, skip removable/CD/network)")
     ColorPrint.blue(f"{_PATHSCAN_TAG} Drives: {', '.join(drives) or '(none)'}")
     ColorPrint.blue(f"{_PATHSCAN_TAG} Max depth: {PATH_SCAN_MAX_DEPTH} levels")
     ColorPrint.blue(f"{_PATHSCAN_TAG} Battle.net: {'configured, skip' if battlenet_path else 'not configured or missing, will scan'}")

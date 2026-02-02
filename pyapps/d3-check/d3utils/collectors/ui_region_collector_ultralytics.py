@@ -12,11 +12,8 @@ from pathlib import Path
 from datetime import datetime
 import numpy as np
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path, get_project_root
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint, ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
@@ -75,7 +72,7 @@ class UIRegionCollectorUltralytics:
         # Set default model path if not provided
         if self._model_path is None:
             # Default path: config/models/d3_ui_detector.pt
-            config_dir = Path(project_root) / "config" / "models"
+            config_dir = get_project_root() / "config" / "models"
             self._model_path = config_dir / "d3_ui_detector.pt"
 
         # Load model if exists

@@ -20,8 +20,8 @@ cv2 = get_third_package_cv2()
 Image = get_third_package_PIL_Image()
 
 # Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint
 from providor.providor_index import DEBUG, TMP_DIR, D4_TEMPLATE_CONFIGS
@@ -37,7 +37,7 @@ from share.game_interface_data import (
 )
 
 
-class SmallMapDetector:
+class D4_SmallMapDetector:
     """
     D4 Small Map Detector
     
@@ -338,17 +338,17 @@ class SmallMapDetector:
 _small_map_detector = None
 
 
-def get_small_map_detector() -> SmallMapDetector:
+def get_d4_small_map_detector() -> D4_SmallMapDetector:
     """
     Get global small map detector instance (singleton)
-    
+
     Returns:
-        Global SmallMapDetector instance
+        Global D4_SmallMapDetector instance
     """
     global _small_map_detector
-    
+
     if _small_map_detector is None:
-        _small_map_detector = SmallMapDetector()
+        _small_map_detector = D4_SmallMapDetector()
         ColorPrint.green("[Global] Small map detector initialized")
     
     return _small_map_detector

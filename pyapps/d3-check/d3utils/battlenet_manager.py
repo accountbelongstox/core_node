@@ -11,13 +11,18 @@ import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 
-from config.constants import BATTLE_NET_EXE_NAME
+from providor.app_constants import BATTLE_NET_EXE_NAME
 from providor.common_imports import ColorPrint, WindowActivator
 from providor.providor_index import CONFIG, get_config_value_safe, BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 
 from d3utils.process_helper import kill_process_by_exe
+
+
+def get_battlenet_window_titles() -> List[str]:
+    """Return the canonical list of Battle.net window titles. Use this everywhere instead of importing BATTLE_NET_WINDOW_TITLES."""
+    return list(BATTLE_NET_WINDOW_TITLES)
 
 
 class BattleNetManager:
@@ -80,10 +85,10 @@ class BattleNetManager:
 
     def find_windows(
         self,
-        match_mode: str = "endswith",
+        match_mode: str = "in",
         use_cache: bool = True,
     ) -> List[Dict[str, Any]]:
-        """Find Battle.net windows. Returns list of window dicts (hwnd, title, etc.)."""
+        """Find Battle.net windows. Returns list of window dicts (hwnd, title, etc.). match_mode='in' finds any title containing a list item."""
         return WindowFinder.find_windows_by_titles(
             titles=self._window_titles,
             match_mode=match_mode,
@@ -91,7 +96,12 @@ class BattleNetManager:
             skip_browser_if=self._skip_browser,
         )
 
-    def activate_window(self, match_mode: str = "endswith") -> bool:
+    def find_battlenet_window(self, match_mode: str = "in", use_cache: bool = True) -> Optional[Dict[str, Any]]:
+        """Find first Battle.net window. Returns window dict or None. Prefer this over manual find_windows when only one window is needed."""
+        windows = self.find_windows(match_mode=match_mode, use_cache=use_cache)
+        return windows[0] if windows else None
+
+    def activate_window(self, match_mode: str = "in") -> bool:
         """Bring first found Battle.net window to front. Returns True if activated."""
         windows = self.find_windows(match_mode=match_mode)
         if not windows:

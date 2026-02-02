@@ -12,7 +12,7 @@ from typing import Optional
 
 from providor.common_imports import ColorPrint
 
-CMD_SHUTDOWN = "shutdown"
+from providor.app_constants import CMD_SHUTDOWN
 
 
 class AuxiliaryFunctionThread(threading.Thread):

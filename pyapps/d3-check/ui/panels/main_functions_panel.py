@@ -17,8 +17,9 @@ from providor.common_imports import ColorPrint
 # Import unified styles
 from ..unified_styles import UnifiedStyles
 
-# Import widgets
-from ..widgets import HotkeyInput
+# Import widgets and theme
+from ..widgets import HotkeyInput, ThemedCheckbutton, ThemedEntry, ThemedLabel
+from ..theme import UITheme
 
 # Import i18n (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
@@ -29,7 +30,6 @@ from ..utils.tk_variables import var_str, var_int
 from ui.utils.config_binding import ConfigBinding
 
 # i18n key prefix for main functions sub-tabs (aligned with providor/i18n and providor/i18n_config.json)
-MAIN_FUNCTIONS_SUB_TABS_KEY = "main_functions_sub_tabs"
 
 class MainFunctionsPanel:
     """
@@ -95,73 +95,30 @@ class MainFunctionsPanel:
         # Note: Language change is handled by main UI, not individual panels
 
     def create_content(self):
-        """Create panel content with sub-tabs"""
-        # Create sub-tab notebook for main functions
-        self._create_sub_tab_notebook()
+        """Create panel content: skill config (left) + other settings & basic info (right)."""
+        content_frame = ttk.Frame(self.container, style='Dark.TFrame')
+        content_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=0, pady=0)
+        content_frame.grid_columnconfigure(0, weight=1)
+        content_frame.grid_columnconfigure(1, weight=1)
+        content_frame.grid_rowconfigure(0, weight=1)
 
-    def _create_sub_tab_notebook(self):
-        """Create sub-tab notebook inside main functions panel"""
-        # Create notebook for sub-tabs
-        self.sub_notebook = ttk.Notebook(self.container, style='Dark.TNotebook')
-        self.sub_notebook.grid(row=0, column=0, columnspan=2, sticky="nsew",
-                              padx=0, pady=0)
-
-        # Configure notebook style - reuse existing UnifiedStyles colors
-        # No need to reconfigure - it will inherit from parent's Dark.TNotebook.Tab style
-
-        # Create sub-tab frames
-        self._create_function1_tab()
-        self._create_placeholder_tab("function_2")
-        self._create_placeholder_tab("function_3")
-
-    def _create_function1_tab(self):
-        """Create Function 1 sub-tab with original content"""
-        func1_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
-        tab_text = i18n_manager.get_ui_text(f"{MAIN_FUNCTIONS_SUB_TABS_KEY}.function_1")
-        self.sub_notebook.add(func1_frame, text=tab_text)
-
-        # Configure grid weights for the frame
-        func1_frame.grid_columnconfigure(0, weight=1)
-        func1_frame.grid_columnconfigure(1, weight=1)
-        func1_frame.grid_rowconfigure(0, weight=1)
-
-        # Create original content in this sub-tab
-        self._create_skill_panel_in_frame(func1_frame)
-        self._create_basic_info_panel_in_frame(func1_frame)
-
-    def _create_placeholder_tab(self, tab_key):
-        """Create placeholder tab for future expansion"""
-        tab_text = i18n_manager.get_ui_text(f"{MAIN_FUNCTIONS_SUB_TABS_KEY}.{tab_key}")
-        placeholder_frame = ttk.Frame(self.sub_notebook, style='Dark.TFrame')
-        self.sub_notebook.add(placeholder_frame, text=tab_text)
-
-        placeholder_label = tk.Label(placeholder_frame,
-                                     text=tab_text,
-                                     bg=UnifiedStyles.COLORS['bg_primary'],
-                                     fg=UnifiedStyles.COLORS['text_secondary'],
-                                     font=('Arial', 16))
-        placeholder_label.place(relx=0.5, rely=0.5, anchor='center')
+        self._create_skill_panel_in_frame(content_frame)
+        self._create_basic_info_panel_in_frame(content_frame)
 
     def _create_skill_panel_in_frame(self, parent_frame):
-        """Create skill configuration panel in specified frame"""
-        # Create left frame for skill configuration
+        """Create skill configuration panel (left column)."""
         skill_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
         skill_frame.grid(row=0, column=0, sticky="nsew",
                         padx=(0, UnifiedStyles.SPACING['sm']),
                         pady=UnifiedStyles.SPACING['xs'])
 
-        # Configure skill frame grid
         skill_frame.grid_columnconfigure(0, weight=1)
         skill_frame.grid_rowconfigure(1, weight=1)
 
-        # Configuration selection
+        self._func1_skill_frame = skill_frame
+
         self._create_config_selection(skill_frame)
-
-        # Skill configuration tabs
         self._create_skill_tabs(skill_frame)
-
-        # Additional settings
-        self._create_additional_settings(skill_frame)
 
     def _create_skill_panel(self):
         """Create skill configuration panel (deprecated - use _create_skill_panel_in_frame)"""
@@ -498,6 +455,32 @@ class MainFunctionsPanel:
         self.skill_vars['potion'] = potion_input  # Store widget instead of var
         self.skill_vars['potion_interval'] = potion_interval_var
 
+        # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar
+        if self.bottom_bar:
+            bb = self.bottom_bar
+            ThemedCheckbutton.create(
+                additional_frame, text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
+                variable=bb.sound_var, bg_color='bg_secondary', select_color='text_secondary'
+            ).grid(row=2, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+            ThemedCheckbutton.create(
+                additional_frame, text=i18n_manager.get_ui_text("options.smart_pause"),
+                variable=bb.smart_pause_var, bg_color='bg_secondary', select_color='text_secondary'
+            ).grid(row=2, column=2, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            custom_f.grid(row=3, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+            ThemedCheckbutton.create(
+                custom_f, text=i18n_manager.get_ui_text("options.use_custom_stand_key") + ":",
+                variable=bb.custom_stand_var, bg_color='bg_secondary', select_color='text_secondary'
+            ).pack(side=tk.LEFT)
+            ThemedEntry.create(custom_f, textvariable=bb.custom_stand_key_var, width=8).pack(side=tk.LEFT, padx=5)
+            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            right_f.grid(row=3, column=2, columnspan=2, sticky="e", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+            tk.Label(right_f, text=i18n_manager.get_ui_text("options.current_active_config") + " ",
+                     bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['success'],
+                     font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT)
+            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_secondary'],
+                     fg=UnifiedStyles.COLORS['success'], font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT, padx=(0, 5))
+
     def _get_skill_key(self, skill_name):
         """Convert internationalized skill name to English key"""
         skill_mapping = {
@@ -523,49 +506,37 @@ class MainFunctionsPanel:
         }
         return setting_mapping.get(label_text, label_text.lower().replace(" ", "_"))
 
-    def _create_additional_settings(self, parent):
-        """Create additional settings section using ConfigBinding
-
-        WARNING: These comboboxes currently use i18n text as values (legacy pattern)
-        TODO: Convert to KEY-VALUE pattern in future refactoring
-        - Display: i18n text
-        - Value: Fixed English keys
-        """
-        settings_frame = ttk.LabelFrame(parent, text=i18n_manager.get_ui_text("additional_settings.title"), style='TLabelframe')
-        settings_frame.grid(row=2, column=0, sticky="ew",
-                           padx=UnifiedStyles.SPACING['sm'],
-                           pady=UnifiedStyles.SPACING['sm'])
-        settings_frame.grid_columnconfigure(1, weight=1)
-
-        # Animation speed setting
-        # TODO: Convert to KEY-VALUE pattern
+    def _build_other_settings_rows(self, parent):
+        """Build other-settings rows: animation speed, game language, macro stop hotkey. Used by right panel."""
+        parent.grid_columnconfigure(1, weight=1)
         animation_speed_values = [
             i18n_manager.get_ui_text("main_functions_panel.animation_speed_slow"),
             i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"),
             i18n_manager.get_ui_text("main_functions_panel.animation_speed_fast")
         ]
-        self._create_config_setting_row(settings_frame, i18n_manager.get_ui_text("main_functions_panel.animation_speed_label"),
+        self._create_config_setting_row(parent, i18n_manager.get_ui_text("main_functions_panel.animation_speed_label"),
                                        "macro_configs.auxiliary_config.animation_speed",
                                        animation_speed_values, i18n_manager.get_ui_text("main_functions_panel.animation_speed_medium"), 0)
-
-        # Game language setting
-        # TODO: Convert to KEY-VALUE pattern
         game_language_values = [
             i18n_manager.get_ui_text("main_functions_panel.game_language_simplified"),
             i18n_manager.get_ui_text("main_functions_panel.game_language_traditional"),
             i18n_manager.get_ui_text("main_functions_panel.game_language_english")
         ]
-        self._create_config_setting_row(settings_frame, i18n_manager.get_ui_text("main_functions_panel.game_language_label"),
+        self._create_config_setting_row(parent, i18n_manager.get_ui_text("main_functions_panel.game_language_label"),
                                        "macro_configs.auxiliary_config.game_language",
                                        game_language_values, i18n_manager.get_ui_text("main_functions_panel.game_language_traditional"), 1)
-
-        # Combat macro hotkey - use HotkeyInput with ConfigBinding
-        self._create_hotkey_input_row(settings_frame,
+        self._create_hotkey_input_row(parent,
                                       i18n_manager.get_ui_text("main_functions_panel.macro_start_hotkey_label"),
                                       "macro_configs.auxiliary_config.macro_start_hotkey", 2)
 
-        # Note: Auxiliary macro hotkey has been moved to Auxiliary Functions Panel (TABLE2)
-        # for better logical grouping with automation functions
+    def _create_additional_settings(self, parent):
+        """Create additional settings section (legacy; other settings now merged to right panel)."""
+        settings_frame = ttk.LabelFrame(parent, text=i18n_manager.get_ui_text("additional_settings.title"), style='TLabelframe')
+        settings_frame.grid(row=2, column=0, sticky="ew",
+                           padx=UnifiedStyles.SPACING['sm'],
+                           pady=UnifiedStyles.SPACING['sm'])
+        settings_frame.grid_columnconfigure(1, weight=1)
+        self._build_other_settings_rows(settings_frame)
 
     def _create_setting_row(self, parent, label_text, default_value, values, row):
         """Create a setting row with label and combobox"""
@@ -684,13 +655,26 @@ class MainFunctionsPanel:
                          pady=UnifiedStyles.SPACING['xs'])
 
     def _create_basic_info_panel_in_frame(self, parent_frame):
-        """Create basic info display panel in specified frame"""
-        info_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("basic_info.title"), style='TLabelframe')
-        info_frame.grid(row=0, column=1, sticky="nsew",
-                       padx=(UnifiedStyles.SPACING['sm'], 0),
-                       pady=UnifiedStyles.SPACING['xs'])
+        """Create right panel: other settings (animation/language/hotkey) + basic info (Text), merged into one column."""
+        right_column = tk.Frame(parent_frame, bg=UnifiedStyles.COLORS['bg_primary'])
+        right_column.grid(row=0, column=1, sticky="nsew",
+                         padx=(UnifiedStyles.SPACING['sm'], 0),
+                         pady=UnifiedStyles.SPACING['xs'])
+        right_column.grid_columnconfigure(0, weight=1)
+        right_column.grid_rowconfigure(0, weight=0)
+        right_column.grid_rowconfigure(1, weight=1)
 
-        # Create text widget for info display
+        # Other settings: animation speed, game language, macro stop hotkey
+        other_frame = ttk.LabelFrame(right_column, text=i18n_manager.get_ui_text("additional_settings.title"), style='TLabelframe')
+        other_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['sm']))
+        other_frame.grid_columnconfigure(1, weight=1)
+        self._build_other_settings_rows(other_frame)
+
+        # Basic info: current config, path, skills, additional settings, status
+        info_frame = ttk.LabelFrame(right_column, text=i18n_manager.get_ui_text("basic_info.title"), style='TLabelframe')
+        info_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        info_frame.grid_columnconfigure(0, weight=1)
+        info_frame.grid_rowconfigure(0, weight=1)
         self.info_text = tk.Text(info_frame,
                                 bg=UnifiedStyles.COLORS['bg_secondary'],
                                 fg=UnifiedStyles.COLORS['text_primary'],
@@ -698,9 +682,9 @@ class MainFunctionsPanel:
                                 wrap=tk.WORD,
                                 height=15,
                                 width=35)
-        self.info_text.pack(fill=tk.BOTH, expand=True,
-                           padx=UnifiedStyles.SPACING['sm'],
-                           pady=UnifiedStyles.SPACING['sm'])
+        self.info_text.grid(row=0, column=0, sticky="nsew",
+                            padx=UnifiedStyles.SPACING['sm'],
+                            pady=UnifiedStyles.SPACING['sm'])
 
     def _create_basic_info_panel(self):
         """Create basic info display panel (deprecated - use _create_basic_info_panel_in_frame)"""
@@ -823,10 +807,11 @@ class MainFunctionsPanel:
             # Clear skill variables to avoid conflicts
             self.skill_vars.clear()
 
-            # Recreate the skills configuration frame
-            # Find the parent frame (should be the skill_frame in _create_skill_panel)
-            # We need to get the parent from the original container
-            parent = self.container.grid_slaves(row=0, column=0)[0]  # Get the skill_frame
+            # Parent must be the skill_frame inside func1 sub-tab (not notebook)
+            parent = getattr(self, '_func1_skill_frame', None)
+            if parent is None:
+                ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
+                return
 
             # Recreate skill configuration
             self._create_skill_tabs(parent)

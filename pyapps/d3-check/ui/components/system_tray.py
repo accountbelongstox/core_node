@@ -27,6 +27,9 @@ ImageDraw = get_third_package_PIL_ImageDraw()
 
 TRAY_AVAILABLE = True
 
+from share.thread_registry import get_thread_registry
+
+
 class SystemTray:
     """System tray component for Windows 10/11"""
     
@@ -39,7 +42,6 @@ class SystemTray:
         """
         self.parent_ui = parent_ui
         self.tray_icon = None
-        self.tray_thread = None
         self.is_running = False
         
         # Callbacks
@@ -126,8 +128,7 @@ class SystemTray:
         try:
             if not self.is_running:
                 self.is_running = True
-                self.tray_thread = threading.Thread(target=self._run_tray, daemon=True)
-                self.tray_thread.start()
+                get_thread_registry().start_tray(self)
                 ColorPrint.green("[TRAY] System tray started")
                 return True
         except Exception as e:

@@ -111,22 +111,27 @@ class UnifiedStyles:
         """Configure TTK styles for consistent appearance"""
         style = ttk.Style()
         
-        # Configure Notebook (Tab) styles
-        style.configure('TNotebook', 
+        # Configure Notebook (Tab) styles - padding [L,T,R,B] equal top/bottom for same height
+        style.configure('TNotebook',
                        background=cls.COLORS['bg_primary'],
                        borderwidth=0)
         
         style.configure('TNotebook.Tab',
                        background=cls.COLORS['tab_bg'],
                        foreground=cls.COLORS['text_primary'],
-                       padding=[12, 8],
+                       padding=[12, 8, 12, 8],
+                       borderwidth=0,
+                       focusthickness=0,
+                       shiftrelief=0,
+                       relief='flat',
                        font=cls.FONTS['button'])
         
         style.map('TNotebook.Tab',
                  background=[('selected', cls.COLORS['tab_active']),
                            ('active', cls.COLORS['tab_hover'])],
                  foreground=[('selected', cls.COLORS['text_primary']),
-                           ('active', cls.COLORS['text_primary'])])
+                           ('active', cls.COLORS['text_primary'])],
+                 expand=[('selected', [0, 0, 0, 6]), ('!selected', [0, 0, 0, 0])])
         
         # Configure Frame styles
         style.configure('TFrame',

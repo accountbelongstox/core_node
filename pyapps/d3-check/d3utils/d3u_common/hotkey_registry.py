@@ -10,9 +10,8 @@ import sys
 from typing import Dict, Callable, Optional, Any
 
 # Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.common_imports import ColorPrint
 from providor.providor_index import CONFIG
