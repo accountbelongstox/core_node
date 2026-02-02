@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 D4 Controller
-Main controller for Diablo IV operations
+Main controller for Diablo IV operations.
 
-Registered to timer_manager for periodic execution
-Uses interceptor pattern to control task execution without starting/stopping timers
+Driven by D4ExtensionThread (every D4_TICK_INTERVAL), not timer_manager.
 """
 
 import os
@@ -32,10 +31,10 @@ from controller.d4func import ExpFarmingManager, get_ui_status_updater, get_even
 
 class D4Controller:
     """
-    D4 Main Controller
+    D4 Main Controller.
 
-    Registered to timer_manager with 3-second interval
-    Uses interceptor pattern: timer always runs but checks state before executing
+    process() is called by D4ExtensionThread every D4_TICK_INTERVAL when
+    exp_farming or debug_window is active.
     """
 
     def __init__(self):
@@ -67,10 +66,8 @@ class D4Controller:
 
     def process(self):
         """
-        Main processing method called by timer
-
-        This method is called every 3 seconds by timer_manager
-        Uses interceptor pattern: timer always runs but checks state before executing
+        Main processing method. Called by D4ExtensionThread every D4_TICK_INTERVAL
+        when exp_farming or debug_window is active.
         """
         try:
             # Check if EXP farming is running

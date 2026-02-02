@@ -1,224 +1,425 @@
-# 启动 ROSBOT 后的逻辑与类库索引
+# ROSBOT 启动流程（流程分支图）
 
-**启动顺序规则**：战网启动并登陆 → 暗黑3启动 → ROSBOT 启动，顺序不可乱。详见 [DESIGN.md 第 4 节：启动顺序与流程](DESIGN.md#4-启动顺序与流程)。
+**约定**：本文档只描述「做什么、在什么条件下走哪条分支」，不指定具体代码、模块名或类库。实现时由 AI 根据仓库内代码与项目规范自行选用合适模块与调用方式。
 
-**D3 稳定后启动 ROSBOT**：在「启动 ROSBOT」第一步 `ensure_battlenet_started_and_login_check()` 内，点击 Play 之后 **先 sleep(5)** 等 D3 稳定，再轮询 D3 窗口最多 10 秒（`WindowFinder.find_windows_by_titles(DIABLO_III_WINDOW_TITLES, use_cache=True)`）；一旦找到则：① `get_game_interface_data().set_d3_status(True)`；② **resize D3 窗口** 到标准 1300x800（`resize_window_by_titles_to_client_size`）；③ **D3 内「开始游戏」等待**：`wait_for_and_click_start_game()` 每 2 秒对 D3 截图、SIFT 查找 `d3_start_game_button`（最多 `D3_START_GAME_MAX_ATTEMPTS` 次，默认 10×2s），找到则点击、wait 2 秒；④ **游戏工具等待**：继续每 2 秒截图直到出现 `d3_game_tool`（最多 `D3_GAME_TOOL_MAX_ATTEMPTS` 次，默认 10×2s），然后对 D3 窗口 **发送 M 键**，再按基准 1300x800 比例计算点击坐标 **（602, 94）**（`D3_GAME_TOOL_CLICK_STANDARD`）并点击；⑤ 若③或④超时未找到，则调用 **`_restart_battlenet_and_retry_from_step1(bn_path)`**（重启战网、等 5s），然后 **continue 外层重试**（最多 `max_outer_retries` 轮）；⑥ 若成功则 `get_rosbot_manager().kill_if_running()`；⑦ sleep(1)；⑧ 若配置 `ros_settings.auto_start_rosbot` 则 `get_rosbot_manager().start()`；⑨ `start_rosbot_task()`；⑩ **`run_after_rosbot_start()`**（等 ROSBOT 窗口、DEBUG 打印、点主档案、点 Start botting!）。
-
----
-
-## 0. 原 ROS 管理类库（已废弃，仅作对照）
-
-**位置**：`utils/_obsolete_rosbot_manager.py`，类名 **`RoSBotManager`**（注意大小写）。
-
-原类负责：RoS-BoT.exe 与**同目录下生成的临时 exe**（other exe）的查找、进程检测、清理、启动与完整启动序列。
-
-| 原接口 / 逻辑 | 说明 |
-|---------------|------|
-| **配置** | `ros_settings.ros_directory`、`rosbot_exe_name`（默认 `RoS-BoT.exe`）、`other_exe_search_patterns`（默认 `['*.exe']`）、`other_exe_exclude_patterns`（`RoS-BoT.exe`、`Uninstall*.exe`、`setup*.exe`）、`auto_start_rosbot`、`auto_start_other_exe`、`startup_delay_seconds`、`process_detection_timeout` |
-| **find_rosbot_exe()** | 在目录下找**固定文件名** `rosbot_exe_name`（如 `RoS-BoT.exe`），非 glob。 |
-| **find_other_exe_files()** | 按 `search_patterns` 在目录下 glob（如 `*.exe`），再按 `exclude_patterns` 排除（子串匹配），得到「同目录生成的临时 exe」列表。 |
-| **find_process_by_exe_name(exe_name)** | psutil 按进程名匹配，再 `find_window_by_pid` 取窗口信息。 |
-| **find_window_by_pid(pid)** | win32 `EnumWindows` + `GetWindowThreadProcessId`。 |
-| **check_process_running(exe_name)** | `find_process_by_exe_name`；若为 `rosbot_exe_name` 则回退到按窗口标题匹配。 |
-| **kill_process_by_pid(pid, exe_name)** | taskkill /F /PID。 |
-| **cleanup_old_other_exe_processes()** | 对每个 other exe：若在跑则先 **send_f7_to_process** 再 kill。 |
-| **wait_for_new_other_exe(timeout)** | 轮询 `find_other_exe_files` + `find_process_by_exe_name`，等待 RoS-BoT 生成新的 other exe 并返回。 |
-| **start_rosbot_sequence(force_cleanup=None)** | 校验目录 → find_rosbot_exe → 若 force_cleanup：cleanup_old_other_exe_processes + 杀旧 RoS-BoT.exe → start_executable(主 exe) → wait_for_process(主 exe) → wait_for_new_other_exe(60) → activate_and_analyze_window（WindowAnalyzer、IntegratedAutomationController）。 |
-
-依赖（已废弃模块）：`utils.window_activator`、`utils.window_analyzer`、`utils.integrated_automation_controller`；`providor.providor_second.CONFIG`、`load_config`。
-
-**当前新类库（d3utils/rosbot_manager.py）已补全的细节点**：配置（rosbot_exe_name、other_exe_search_patterns、other_exe_exclude_patterns、startup_delay、process_detection_timeout）、validate_ros_directory、find_rosbot_exe（先精确名再 pattern）、find_other_exe_files（全路径 + 配置排除）、find_window_by_pid、find_process_by_exe_name、check_process_running（含按标题回退）、start_executable、wait_for_process、send_f7_to_process、cleanup_old_other_exe_processes(send_f7_before_kill)、wait_for_new_other_exe。
-
-**新类库不足（相对原 RoSBotManager）**：
-- **无 activate_and_analyze_window**：原类用 WindowAnalyzer、IntegratedAutomationController 做窗口分析与 UI 自动化；新类不依赖废弃模块（utils.window_analyzer、utils.integrated_automation_controller），故未实现。
-- **无完整 start_rosbot_sequence 编排**：原类内部串联「validate → find_rosbot_exe → cleanup（可选）→ 杀旧主 exe（可选）→ start 主 exe → wait_for_process(主 exe) → wait_for_new_other_exe → activate_and_analyze_window」；新类只提供单步能力（kill_if_running、start、cleanup_old_other_exe_processes、wait_for_process、wait_for_new_other_exe），由调用方（如 controller）编排；若需完整序列可自行调用上述方法组合。
-- **send_f7_before_kill 为可选且依赖 win32**：cleanup_old_other_exe_processes(send_f7_before_kill=True) 需 win32api/win32gui/win32con，若未安装则 send_f7_to_process 直接返回 False，仅做 k。
+**启动顺序**：战网启动并登录 → 暗黑 3 启动 → ROSBOT 启动，顺序不可乱。
 
 ---
 
-## 1. ROSBOT 管理类库（d3utils/rosbot_manager.py，当前使用）
+## 状态管理与全局定时器（流程前提）
 
-| 接口 | 职责 |
-|------|------|
-| **get_ros_directory()** | 从 CONFIG ros_settings.ros_directory 取目录，校验存在后返回。 |
-| **find_rosbot_exe()** | 在目录下按 `ROSBOT_EXE_PATTERNS`（如 `ros-bot*.exe`、`RoS-BoT*.exe`）找主 exe，返回第一个匹配的完整路径。 |
-| **find_same_dir_exe_names()** | 列出同目录下除主程序与 install/uninstall 外的 exe  basename，即「同目录生成的临时 exe」作为进程名时的候选。 |
-| **is_running()** | 用 psutil 判断是否有进程的 exe 路径位于 ros_directory 下（主程序或同目录临时 exe 均在列）。 |
-| **kill_if_running()** | 收集上述进程的 PID，逐个 `process_helper.kill_process_by_pid(pid)`（k）。 |
-| **start()** | 调用 `find_rosbot_exe()` 得到主 exe 路径，`Popen(exe_path, cwd=dir)` 启动。 |
-| **get_rosbot_manager(ros_directory=None)** | 全局单例；可选覆盖 ros_directory。 |
+**总状态**：用户点击「启动 ROSBOT」后修改总状态为开启；停止时关闭总状态。全局定时器根据总状态决定是否驱动流程。
 
-**注意**：进程检测与 k 均基于「exe 路径是否在 ros_directory 下」，不依赖固定 exe 名，故主程序与同目录生成的临时 exe 都会被识别并可在启动前统一 k 掉。
+**全局定时器**：**1 秒** 一跳。本流程通过 **% 方式** 实现 2 秒一个 tick（即每 2 个 1 秒 tick 才驱动一次本流程）。
+- **总状态关闭**：跳过所有分支，本 tick 不执行任何流程逻辑。
+- **总状态开启**：按当前分支状态驱动流程；每个分支节点（在本流程的 2 秒 tick 内）：
+  - **wait**（等待中，如 sleep、轮询未到点）：本 tick **跳过**，不切换流程。
+  - **有导向**（可执行并产生下一跳）：执行本步逻辑并 **切换流程** 到对应下一节点。
 
----
+**停止**：关闭总状态后，全局定时器因总状态关闭而跳过所有分支，流程不再推进。
 
-## 2. 入口：启动 ROSBOT 按钮
-
-| 位置 | 说明 |
-|------|------|
-| `ui/panels/rosbot_extension_panel.py` | 按钮 `control_btn`，文案 `rosbot.start_rosbot`（i18n） |
-| 绑定 | `command=self._toggle_rosbot` |
-
-点击后调用：`_toggle_rosbot()` → 若未运行则 `_start_rosbot()`。
+以下每个分支图均在此状态管理下运行：分支状态为 wait 则本 tick 跳过，为有导向则执行并切换。
 
 ---
 
-## 3. 启动 ROSBOT 的完整逻辑（主线程）
+## D3 界面判定与在线检测（约定）
 
-**文件**：`ui/panels/rosbot_extension_panel.py`
+**开始界面判定**：对 D3 窗口截图后，用 **scale match** 匹配模板 **d3_start_game_button.png**；匹配到则视为处在「开始游戏」界面（即 "start" 状态）。
+
+**按 M 键的前提**：**只有当出现 d3_game_tool 时才按 M 键**。未出现 d3_game_tool 时（游戏可能正在切换地图 UI 或其他 UI）标记为 **wait** 状态，本 tick 跳过，不执行按 M 及后续依赖步骤。
+
+**D3 是否在线检测**（用于 10 秒循环等处判断 D3 是否掉线）：**仅当已出现 d3_game_tool 时**才执行以下五步；未出现则标记 **wait**，本 tick 跳过。按以下顺序执行，不得省略或调序。
+1. **先截图**：对 D3 窗口截图，得到图 A。
+2. **按 M 键**：对 D3 窗口发送 M 键（仅当已出现 d3_game_tool 时执行）。
+3. **再截图**：再对 D3 窗口截图，得到图 B。
+4. **对比相似度**：对比图 A 与图 B 的相似度。**若高度相似，说明按 M 没有效果，判定为游戏掉线**；否则为在线。
+5. **再按 M 键**：再对 D3 窗口发送 M 键，恢复地图打开状态。
+
+**图片命名**：若使用掉线/断线相关模板图，项目约定文件名为 **d3_disconnected.png**。若原图为 ScreenShot_2026-01-30_064009_491.png，则重命名为 d3_disconnected.png（或项目约定名）。
+
+**D3 是否在线检测（流程详图）**：
 
 ```
-_start_rosbot()
-  ├─ Step 1: 更新 UI 状态
-  │    ├─ self.rosbot_running = True
-  │    └─ _update_control_button()  # 按钮改为「停止ROSBOT」红色
-  ├─ Step 2: 启用任务线程里的 rosbot_task
-  │    └─ set_task_status('rosbot_task', TaskStatus.ENABLED)
-  │         → d3utils/task_thread_manager.py
-  ├─ Step 3: 执行 ROSBOT 启动（同步，仍在主线程）
-  │    └─ rosbot_processor.start_rosbot_task()
-  │         → d3utils/rosbot_task_processor.py
-  └─ Step 4: 打日志 [ROSBOT] Started monitoring
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 前置：仅当出现 d3_game_tool 时才执行以下步骤；未出现则标记 wait，本 tick 跳过   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. 先截图：对 D3 窗口截图，得到图 A                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. 按 M 键：对 D3 窗口发送 M 键                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. 再截图：再对 D3 窗口截图，得到图 B                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4. 对比相似度：若图 A 与图 B 高度相似 → 按 M 无效果，判定游戏掉线；否则在线       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 5. 再按 M 键：再对 D3 窗口发送 M 键，恢复地图打开状态                           │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**注意**：`start_rosbot_task()` 是在**主线程**里同步调用的，会阻塞到 `processor.start_rosbot()` 执行完。  
-**第一步**：在调用上述 Step 1～4 之前，先执行 `ensure_battlenet_started_and_login_check()`。**状态1 是完整游戏流程；状态2、3 仅用于检测客户端是否掉线，检测到没掉线则回到 1 的流程、从中间处继续**：  
-- **状态1（完整流程）**：战网流程（点小图→点 Play→sleep(5)→轮询 D3→resize→`wait_for_and_click_start_game`）或从 D3 中间某处继续执行同一套流程。  
-- **状态2、3（掉线检测）**：D3 已运行时先 `detect_d3_already_running_state()` 一次截图，用于**检测是否掉线**（有「开始游戏」或已有 game_tool = 没掉线）。检测到没掉线后**回到状态1的流程、从中间处开始**：检测到 `"start"` 则从「点开始游戏→等 game_tool→M+三连点」继续；检测到 `"game_tool"` 则从「已在游戏中→M+悬赏检测+三连点」继续。检测不到（None）或继续失败则视为掉线，kill D3 后走战网流程。  
-战网流程：点击 Play 后 **sleep(5)**，轮询 D3 最多 10 秒，找到则 set_d3_status(True)、resize、**D3 开始游戏等待**（`wait_for_and_click_start_game`）、成功则 k ROSBOT→start→`start_rosbot_task()`→**`run_after_rosbot_start()`**；见 DESIGN.md 3.8、3.11。
-
 ---
 
-## 3.5 ROSBOT UI 自动化（启动后点击主档案与 Start botting）
-
-**文件**：`d3utils/rosbot_ui_automation.py`
-
-- **依赖**：uiautomation、win32gui、win32con（pycore.pyfoundations.third_party）；WindowFinder；providor_index.ROSBOT_WINDOW_TITLES（如 RoS-BoT、RoS-BoT.exe、ROSBOT）。
-- **入口**：`run_after_rosbot_start(wait_sec=5, do_debug=True, do_tab=True, do_start_botting=True)`。等待 ROSBOT 窗口出现（WindowFinder.find_windows_by_titles(ROSBOT_WINDOW_TITLES)）→ 激活窗口 → uiautomation.ControlFromHandle → **DEBUG 打印可操作元素**（递归遍历控件树，ColorPrint 输出 type、name、automation_id、rect）→ 点击 **主档案** Tab（TabItemControl 名称含 主档案/主檔案/Main Profile）→ 点击 **Start botting!**（ButtonControl automation_id `btnStart` 或名称含 Start botting）。
-- **调用时机**：在 `ensure_battlenet_started_and_login_check()` 内，**D3 开始游戏并传送地图**（`d3_start_game_and_teleport_waiter.wait_for_and_click_start_game`）之后、`get_rosbot_manager().start()` 与 `start_rosbot_task()` 之后调用；异常仅打 Yellow 日志。
-
----
-
-## 3.6 D3 内「开始游戏并传送地图」（d3_start_game_and_teleport_waiter）
-
-**文件**：`d3utils/d3_start_game_and_teleport_waiter.py`
-
-**状态1 = 完整游戏流程（唯一流程）；状态2、3 = 检测客户端是否掉线**，检测到没掉线则**回到 1 的流程、从中间处继续**：  
-1. **状态1（完整流程）**：战网 → 点 Play → sleep(5) → 轮询 D3 → resize → `wait_for_and_click_start_game`；或从 D3 中间某处继续执行同一套流程。  
-2. **状态2、3（掉线检测）**：D3 已运行时 `detect_d3_already_running_state()` 一次截图，用于**检测是否掉线**（有开始游戏界面或已有 game_tool = 没掉线）。没掉线则**从 1 的流程中间处继续**：检测到 `"start"` 从「点开始游戏→等 game_tool→M+三连点」继续；检测到 `"game_tool"` 从「已在游戏中→M+悬赏检测+三连点」继续。None 或失败则 kill D3 后走战网流程。
-
-- **开始游戏**：`config/constants.py` 中 `D3_START_GAME_BUTTON_FILENAME`、`D3_START_GAME_BUTTON_TEMPLATE_NAME`、`D3_START_GAME_WAIT_INTERVAL_SEC`（2.0）、`D3_START_GAME_MAX_ATTEMPTS`（10）；模板 `D3_TEMPLATE_CONFIGS["d3_start_game_button"]`，`match_method": "SIFT"`。入口 `wait_for_and_click_start_game(interval_sec=2.0, wait_after_click_sec=2.0)`：每 **2 秒** 对 D3 截图，SIFT 匹配 `d3_start_game_button`，最多 **10 次**（20 秒）；找到则点击、wait 2 秒；超时返回 False，由调用方重启战网并从头重试。
-- **游戏工具与传送**：常量 `D3_GAME_TOOL_CLICK_STANDARD = (602, 113)`、`D3_GAME_TOOL_CLICK_SECOND = (749, 421)`、`D3_GAME_TOOL_CLICK_THIRD = (715, 608)`、`D3_GAME_TOOL_AFTER_M_DELAY_SEC`（2.0）、`D3_GAME_TOOL_MAX_ATTEMPTS`（10）。入口 `wait_for_game_tool_then_send_m_and_click`：每 **2 秒** 截图直到匹配到 **d3_game_tool**，然后走**共同最后一步**（见下）；超时返回 False。
-- **三个流程的共同最后一步（与前面如何到达无关）**：M 打开地图。用「按一次 M、等 2s、检测一次悬赏进度」两轮方式确认地图已打开（检测到有进度图即说明地图 toggle 开了），再执行三连点 (602,113)、(749,421)、(715,608)。由 `open_map_verify_bounty_then_teleport_three_clicks()` 实现，状态1/2/3 均调用。
-- **掉线检测与从中间继续**：状态2、3 仅用于**检测客户端是否掉线**；检测到没掉线后**回到状态1的流程、从中间处继续**，最后都走上述**共同最后一步**。**D3 已运行入口**：`detect_d3_already_running_state()` 得 `"start"` / `"game_tool"` / None。`"start"`：fragment1 + `send_m_then_teleport_three_clicks`（内部即共同最后一步）。`"game_tool"`：fragment2（内部即共同最后一步）。**片段1** `try_fragment1_click_start_game_wait_game_tool()`：有 `d3_start_game_button` 则点击、等 5×2s 出现 `d3_game_tool`；返回 True/False/None。**片段2** `try_fragment2_game_tool_press_m_then_clicks()`：有 `d3_game_tool` 则调用共同最后一步。
-- **失败时**：若 `wait_for_and_click_start_game()` 返回 False，`ensure_battlenet_started_and_login_check()` 内调用 **`_restart_battlenet_and_retry_from_step1(bn_path)`**（重启 Battle.net、等 5s），然后 **continue 外层循环**（最多 `max_outer_retries` 轮），从战网截图与 D3 小图匹配重新开始。
-- **调用时机**：在 `ensure_battlenet_started_and_login_check()` 内，**resize D3 窗口**之后、**k ROSBOT 再 start ROSBOT** 之前；仅当「开始游戏」+「游戏工具」均成功（或 D3 直连片段成功）才执行 k ROSBOT 与 start ROSBOT，否则重启战网并重试或 kill D3 后走战网。
-- **点击调试图**：类库 `d3utils/d3u_common/image_annotator_helper.py` 提供 **`save_click_debug_image(image_source, click_points, output_dir, filename_prefix)`**：在截图上标出点击坐标（圆+标签）并保存到 `config/screenshot_categories.py` 的 **MATCH_DEBUG_DIR**。流程中在 **点击的那一下** 先截屏、生成该次点击的 debug 图、再执行点击：战网小图点击（`login_try_small_map_click`）、Play 点击（`login_try_play_click`）、开始游戏并传送地图三连点（每次点击前截屏并保存 `start_game_teleport_click_1`、`start_game_teleport_click_2`、`start_game_teleport_click_3`）。
-
----
-
-## 4. ROSBOT 启动实现（rosbot_task_processor）
-
-**文件**：`d3utils/rosbot_task_processor.py`
-
-| 函数/类 | 作用 |
-|---------|------|
-| `start_rosbot_task()` | 模块级入口：取全局 processor，调 `processor.start_rosbot()` |
-| `get_rosbot_processor()` | 返回单例 `RosbotTaskProcessor` |
-| `RosbotTaskProcessor.start_rosbot()` | 实际启动逻辑 |
-
-**start_rosbot() 内部顺序**：
-
-1. 若未初始化：`initialize()` → `set_log_file(~\Documents\RoS-BoT\Logs\logs.txt)`
-2. `set_rosbot_running(True)` → **LogMonitor** 全速监控
-3. `self.game_state.set_rosbot_status(True)` → **D3State** 更新并通知回调
-
----
-
-## 5. 线程：任务线程管理器
-
-**文件**：`d3utils/task_thread_manager.py`
-
-| 类/函数 | 说明 |
-|---------|------|
-| `TaskThreadManager` | 管理所有已注册的 `TaskThread` |
-| `TaskThread` | 单个后台线程：按 `interval` 轮询，当 `status == ENABLED` 时执行 `task_func()` |
-| `set_task_status(name, status)` | 设置任务状态（如 `rosbot_task` → `ENABLED`） |
-| `get_task_manager()` | 全局单例 |
-
-**rosbot_task 的注册**（应用启动时）：
-
-**文件**：`d3utils/system_initializer.py` → `_init_task_thread_manager()`
-
-```python
-register_task(
-    name='rosbot_task',
-    task_func=rosbot_processor.process_rosbot_task,  # 每轮调用的函数
-    interval=1.0
-)
-start_all_tasks()  # 启动所有任务线程
-```
-
-即：**后台线程**每隔 1 秒调用一次 `process_rosbot_task()`；当前 `process_rosbot_task()` 为空（`pass`），真正启动是在主线程的 `start_rosbot_task()` 里完成的。
-
----
-
-## 6. 相关操作类库一览
-
-| 模块/类 | 路径 | 职责 |
-|---------|------|------|
-| **RosbotExtensionPanel** | `ui/panels/rosbot_extension_panel.py` | 启动/停止按钮、配置、日志区；调 set_task_status + start_rosbot_task |
-| **rosbot_task_processor** | `d3utils/rosbot_task_processor.py` | `RosbotTaskProcessor`、`start_rosbot_task()`、`stop_rosbot_task()`、`process_rosbot_task()` |
-| **TaskThreadManager / TaskThread** | `d3utils/task_thread_manager.py` | 任务线程的创建、启停、状态（ENABLED/DISABLED） |
-| **LogMonitor** | `d3utils/log_monitor.py` | 监控 ROSBOT 日志文件；`set_rosbot_running(True/False)` 控制是否全速轮询 |
-| **GameState (D3State)** | `share/game_interface_data.py` | `set_rosbot_status(running)`，通知已注册回调（如面板的 `_on_game_state_changed`） |
-| **SystemInitializer** | `d3utils/system_initializer.py` | 启动时注册 `rosbot_task` 并 `start_all_tasks()` |
-| **ROSBOTManager** | `d3utils/rosbot_manager.py` | 目录配置、find_rosbot_exe、同目录临时 exe、is_running、kill_if_running（按 PID）、start；D3 稳定后由 ensure_battlenet_started_and_login_check 调用 k + start。 |
-| **rosbot_ui_automation** | `d3utils/rosbot_ui_automation.py` | ROSBOT 启动后：用 uiautomation（pycore third_party）找 ROSBOT 窗口（ROSBOT_WINDOW_TITLES），DEBUG 打印可操作元素，点击「主档案」Tab、点击「Start botting!」；入口 `run_after_rosbot_start()`。 |
-
----
-
-## 7. 状态回调与 UI 更新
-
-**文件**：`ui/panels/rosbot_extension_panel.py`
-
-- 面板在 `__init__` 中：`self.game_state.register_callback(self._on_game_state_changed)`
-- `game_state.set_rosbot_status(True)` 被调用后，会 `_notify_callbacks(state)`
-- `_on_game_state_changed(state)` 在**任意线程**被调用，内部用 `self.container.after(0, lambda: self._update_ui_from_state(state))` 把 UI 更新投递到**主线程**
-- `_update_ui_from_state()` 更新 ROS/D3/地图/阶段等状态显示
-
-**状态栏对齐**：ROS / D3 / 阶段 / 地图 四行，i18n 键为 `rosbot.ros_status`、`rosbot.d3_status`、`rosbot.map_status`、`rosbot.stage`（中文为「ROS」「D3」「地图」「阶段」），值为运行中/未运行/未知。
-
----
-
-## 8. 流程简图
+## 整体流程（单一大图）
 
 ```
-[用户点击「启动ROSBOT」]
-       ↓
-RosbotExtensionPanel._toggle_rosbot → _start_rosbot (主线程)
-       ↓
-ensure_battlenet_started_and_login_check()  ← 第一步（外层最多 max_outer_retries 轮，内层每轮最多 max_rounds 次）
-       │  每轮：战网未找到→start；杀 D3→等 5s；托盘→activate_window→截图
-       │  need-login → restart(bn_path) → 等 5 秒 → continue
-       │  无 D3 小图 → 国服？(OCR 您同意/使用网易账号登录或注册) → 是：国服流程(点您同意首字→点网易登录→等 5s→全屏 OCR 点登陆)→continue；否：restart→等 5 秒→continue
-       │  有 D3 小图 → break → 点 D3 小图→点 Play
-       ↓
-sleep(5) → 轮询 D3 窗口（WindowFinder, use_cache=True），最多 10 秒
-       │  若「开始游戏」或「游戏工具」超时 → _restart_battlenet_and_retry_from_step1(bn_path) → continue 外层
-       ↓
-[找到 D3 窗口] → set_d3_status(True) → kill_if_running() → start()（若 auto_start_rosbot）→ start_rosbot_task() → run_after_rosbot_start()（DEBUG 打印可操作元素、点主档案、点 Start botting!）
-       ↓
-set_task_status('rosbot_task', ENABLED)   ← 任务线程之后每 1s 会执行 process_rosbot_task()
-       ↓
-rosbot_processor.start_rosbot_task()     ← 主线程同步执行（若上一步已执行则此处为二次调用；通常由 ensure_* 内已调）
-       ↓
-RosbotTaskProcessor.start_rosbot()
-       ├─ set_log_file(...) 若未初始化
-       ├─ set_rosbot_running(True)        → LogMonitor 全速监控
-       └─ game_state.set_rosbot_status(True)  → D3State 通知回调
-              ↓
-       _on_game_state_changed(state)      → container.after(0, _update_ui_from_state)
-              ↓
-       UI 状态栏更新（ROS/D3/地图/阶段）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 用户点击「启动 ROSBOT」→ 设置总状态（开启）；更新 UI 为「运行中」                │
+│ 用户点击「停止」→ 关闭总状态；此后全局定时器跳过所有分支                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 全局定时器 1 秒一跳；本流程用 % 实现 2 秒一个 tick。总状态关闭 → 跳过所有分支；   │
+│ 总状态开启 → 按当前分支状态驱动（wait → 本 tick 跳过，有导向 → 执行并切换流程）   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                        总状态开启且本 tick 有导向
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 战网就绪检查（先保证战网已登录）— 见下方「战网就绪检查」详图                    │
+│ 要求：战网未启动则启动；已启动但首界面是登录窗或等待确认登录 UI 则重启一次；   │
+│       启动后若为登录界面则走登录流程（两步：步骤1 点同意、确认；步骤2 提示并等待油猴返回，30秒超时则返回步骤1）。 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                    战网已确认登录        │
+                                        ▼
+                    ┌───────────────────┴───────────────────┐
+                    │ 进入 10 秒循环：战网掉线/掉登录 → 重新进入战网就绪检查；                      │
+                    │ D3 是否在线：先截图→按M→再截图→对比相似度得结果→再按M恢复地图（见约定）；     │
+                    │ 同时下一步 → 当前是否已有 D3 进程？                                            │
+                    └───────────────────┬──────────────────┘
+                                        │
+                                        ▼
+                    ┌───────────────────┴───────────────────┐
+                    │ 当前是否已有 D3 进程在运行？            │
+                    └───────────────────┬───────────────────┘
+                         │ 是                              │ 否
+                         ▼                                 ▼
+    ┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐
+    │ 【分支 A：D3 已运行直连】             │    │ 【分支 B：从战网启动 D3】             │
+    │                                     │    │                                     │
+    │ 1. 将 D3 窗口缩放到标准分辨率        │    │ 见下方「分支 B」详细图                 │
+    │ 2. 检测当前 D3 界面状态（开始界面=   │    │                                     │
+    │    scale match d3_start_game_button）│    │                                     │
+    │    D3 是否在线见约定（先截图→M→截图  │    │                                     │
+    │    →相似度→再按M恢复）               │    │                                     │
+    └─────────────────────────────────────┘    └─────────────────────────────────────┘
+                         │
+                         ▼
+    ┌─────────────────────────────────────┐
+    │ 检测结果？（见下方「D3 界面判定」）    │
+    │ • "start"：scale match 匹配           │
+    │   d3_start_game_button.png → 开始界面 │
+    │ • "game_tool"：已出现 d3_game_tool（游戏工具）；仅此时才按 M 键，否则 wait │
+    │ • 其他/无：无法识别，视为需走战网流程 │
+    └─────────────────────────────────────┘
+         │                    │                    │
+     "start"              "game_tool"            其他/无
+         │                    │                    │
+         ▼                    ▼                    ▼
+    ┌──────────┐        ┌──────────┐        ┌──────────┐
+    │ 片段 1   │        │ 片段 2   │        │ 结束 D3  │
+    │ 见下图   │        │ 见下图   │        │ 进程，   │
+    └──────────┘        └──────────┘        │ 落到     │
+         │                    │            │ 分支 B   │
+         │ 成功                │ 成功       └────┬─────┘
+         ▼                    ▼                  │
+    ┌──────────────────────────────────────────┐ │
+    │ 设置 D3 状态为已运行；结束已有 ROSBOT；   │ │
+    │ 若配置为自动启动则启动 ROSBOT；          │ │
+    │ 执行 ROSBOT 任务初始化；                 │ │
+    │ 执行「ROSBOT 启动后自动化」（等窗口、    │ │
+    │ 调试输出、点主档案、点 Start botting）   │ │
+    │ → 返回成功                               │ │
+    └──────────────────────────────────────────┘ │
+         │ 片段1/片段2 失败                       │
+         ▼                                       │
+    ┌──────────┐                                 │
+    │ 结束 D3  │                                 │
+    │ 进程，   │─────────────────────────────────┘
+    │ 落到     │
+    │ 分支 B   │
+    └──────────┘
 ```
+
+---
+
+## 战网就绪检查详图
+
+以下各节点由实现区分为 **wait**（本 tick 跳过）或 **有导向**（执行并切换）；全局定时器 1 秒一跳，本流程用 % 实现 2 秒一个 tick，总状态开启时按此驱动。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 战网就绪检查入口                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌───────────────────┴───────────────────┐
+                    │ 当前是否有战网窗口？                      │
+                    └───────────────────┬───────────────────┘
+                         │ 无                    │ 有
+                         ▼                       ▼
+┌──────────────────────────────┐    ┌─────────────────────────────────────────┐
+│ 启动战网 → 等待数秒            │    │ 首界面是「登录窗」或「等待确认登录」UI？   │
+└──────────────────────────────┘    └───────────────────┬─────────────────────┘
+                         │                    │ 是              │ 否
+                         ▼                    ▼                 ▼
+┌──────────────────────────────┐  ┌──────────────┐  ┌─────────────────────────┐
+│ wait 直到出现确切元素          │  │ 重启战网一次  │  │ 激活战网窗口             │
+│ （战网刚启动时正在转圈）       │  │ 等待后       │  │ 轮询战网 UI 状态          │
+└──────────────────────────────┘  │ 从头开始     │  └───────────┬─────────────┘
+                         │        └──────┬───────┘              │
+                         ▼               │                     ▼
+         ┌───────────────────────┐        │          ┌─────────────────────────┐
+         │ 当前界面是？            │        │          │ 轮询结果？                │
+         └───────────┬────────────┘        │          │ 已登录 / 断线 / 在登录页  │
+              │           │                │          │ / 超时                    │
+        登录界面    主界面/已登录           │          └───────┬─────────────────┘
+              │           │                │                    │
+              ▼           │                │         ┌──────────┼──────────┬──────────┐
+┌──────────────────────────────┐            │         │          │          │          │
+│ 登录流程两步：步骤1 点同意、   │            │         │          │          │          │
+│ 确认；步骤2 提示并等待油猴返回，│            │    已登录    断线    在登录页    超时
+│ 30秒超时则返回步骤1 → 继续     │            │         │          │          │          │
+└──────────────────────────────┘            │         ▼          ▼          ▼          ▼
+              │           │                │  ┌──────────┐ ┌──────────┐ ┌──────┐ ┌──────────┐
+              │           │                │  │ 继续     │ │ 重启战网 │ │ 细分 │ │ 放弃，   │
+              │           │                │  │（见下）  │ │ 等待     │ │ 见下 │ │ 返回失败 │
+              │           │                │  └────┬─────┘ │ 重试     │ └──┬───┘ └──────────┘
+              │           │                  │       │       └────┬─────┘    │
+              │           │                  │       │            │     ┌────┴────┐
+              │           │                  │       │            │     │         │
+              │           │                  │       │            │  使用浏览器  非上述
+              │           │                  │       │            │  完成登录     │
+              │           │                  │       │            │     │         ▼
+              │           │                  │       │            │     │  ┌─────────────────┐
+              │           │                  │       │            │     │  │ 登录流程两步：步骤1│
+              │           │                  │       │            │     │  │ 点同意→网易登录→等│
+              │           │                  │       │            │     │  │ →点登录；步骤2 提示│
+              │           │                  │       │            │     │  │ 并等待油猴返回，  │
+              │           │                  │       │            │     │  │ 30秒超时则返回步骤1│
+              │           │                  │       │            │     │  │ → 重试本轮       │
+              │           │                  │       │            │     │  └────────┬────────┘
+              │           │                  │       │            │     │           │
+              │           │                  │       │            │     ▼           │
+              │           │                  │       │            │  不重启，       │
+              │           │                  │       │            │  按既有方式处理  │
+              │           │                  │       │            │  → 重试         │
+              │           │                  │       │            │     │           │
+              │           │                  │       │            └─────┴───────────┘
+              │           │                  │       └────────────────────────────┐
+              │           │                  │                                      │
+              └───────────┴──────────────────┴────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 战网已确认登录 → 进入 10 秒循环：战网掉线/掉登录 → 重新进入本流程入口；         │
+│ D3 是否在线：先截图→按M→再截图→对比相似度得结果→再按M恢复地图（见 D3 界面判定） │
+│ 同时下一步 → 进入「当前是否已有 D3 进程」判断（见整体流程）                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 分支 A 详图：D3 已运行 — 片段 1（开始游戏 → 游戏工具 → 传送）
+
+各节点区分为 wait / 有导向，由全局定时器（1 秒一跳，本流程 % 实现 2 秒一个 tick、总状态开启）驱动。片段 2 同。
+
+```
+状态 = "start"（对 D3 窗口截图，scale match 匹配 d3_start_game_button.png 则视为在「开始游戏」界面）
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 若有 d3_start_game_button（scale match）→ 点击；然后每 2 秒截图检测是否出现     │
+│ 「d3_game_tool（游戏工具）」界面，最多等待 5×2 秒。未出现则 wait。              │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 超时未出现 d3_game_tool → 判定片段 1 失败（结束 D3，走分支 B）
+         │
+         └─ 出现 d3_game_tool（游戏工具）→ 片段 1 成功
+                          │
+                          ▼
+              ┌─────────────────────────────────────┐
+              │ 仅当出现 d3_game_tool 时才按 M 键；  │
+              │ 未出现则标记 wait，本 tick 跳过。    │
+              │ 按 M 后间隔 2 秒，按标准分辨率比例   │
+              │ 依次点击三个坐标（传送三连点）。     │
+              └─────────────────────────────────────┘
+                          │
+                          ├─ 成功 → 接「设置 D3 状态 → 结束 ROSBOT → 启动 ROSBOT → 任务初始化 → 启动后自动化」→ 返回成功
+                          │
+                          └─ 失败 → 结束 D3，走分支 B
+```
+
+---
+
+## 分支 A 详图：D3 已运行 — 片段 2（已有游戏工具 → 按 M → 悬赏进度 → 传送）
+
+```
+状态 = "game_tool"（当前界面已有 d3_game_tool）
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 仅当出现 d3_game_tool 时才按 M 键；未出现（可能正在切换地图/其他 UI）→ wait。  │
+│ 出现时：对 D3 窗口连按两次 M；然后截两次图，检测是否出现「悬赏任务进度」界面。  │
+│ 两次都未出现则判定超时。                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 超时 → 结束 D3，走分支 B
+         │
+         └─ 任一次出现悬赏进度 → 等待 2 秒后执行传送三连点
+                          │
+                          ▼
+              接「设置 D3 状态 → 结束 ROSBOT → 启动 ROSBOT → 任务初始化 → 启动后自动化」→ 返回成功
+```
+
+---
+
+## 分支 B 详图：从战网启动 D3（外层最多重试 3 轮）
+
+**战网界面识别**：不对战网进行 OCR 截图，使用现有代码中的 Windows Analyzer UI 元素（UI 自动化）识别战网窗口与控件。各节点同样区分为 wait / 有导向，由全局定时器（1 秒一跳，本流程 % 实现 2 秒一个 tick、总状态开启）驱动。
+
+```
+每轮（内层最多 3 次尝试）：
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. 若当前无战网窗口 → 启动战网 → 等待数秒                                     │
+│ 2. 结束当前 D3 进程（若有）→ 等待 5 秒                                       │
+│ 3. 通过托盘/激活方式聚焦战网窗口 → 等待 1 秒                                  │
+│ 4. 通过 UI 自动化（Windows Analyzer / 控件树）识别战网界面，不截图 OCR        │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 找不到战网窗口（多次尝试后仍无）→ 本步失败，返回失败
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 5. 通过 UI 元素查找「战网 D3 tab」与「Play」等可点击控件                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 找到 D3 tab 且可点击 → 跳出内层，进入「点击 D3 tab UI → 点 Play」步骤（见下）
+         │
+         └─ 未找到 / 不可点击
+                    │
+                    ▼
+         ┌─────────────────────────────────────┐
+         │ 根据 UI 元素状态判断当前界面          │
+         │ （登录窗 / 需要登录 / 国服等，不 OCR） │
+         └─────────────────────────────────────┘
+                    │
+        ┌───────────┼───────────┐
+        │           │           │
+   国服相关界面  需要登录界面    其他
+   （同意/网易等）  （UI 状态）
+        │           │           │
+        ▼           ▼           ▼
+   执行登录流程  执行登录流程  重启战网
+   （两步：步骤1  （两步：步骤1 等待 5 秒
+   点同意→网易   点同意、确认； continue
+   登录→等→点登  步骤2 提示并   本轮
+   录；步骤2 提示 等待油猴返回，
+   并等待油猴返回 30秒超时则返
+   ，30秒超时则  回步骤1）
+   返回步骤1）
+        │           │           │
+   continue 本轮  continue 本轮  continue 本轮
+        │           │           │
+        └───────────┴───────────┘
+                    │
+         若内层 3 次都未找到可点击 D3 tab → continue 外层下一轮
+```
+
+**点击战网 D3 tab UI、再点 Play 之后：**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 点击战网 D3 tab 对应 UI（均通过 UI 元素操作）                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ wait 直到 Play 出现（防止战网正在转圈），再点击 Play 按钮                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Play 之后：先 sleep(5)，等 D3 稳定                                            │
+│ 再轮询查找 D3 窗口，最多 10 秒，每秒查一次                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 10 秒内未找到 D3 窗口 → 重启战网、等待 5 秒，continue 外层下一轮
+         │
+         └─ 找到 D3 窗口
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 设置 D3 状态为已运行；将 D3 窗口缩放到标准分辨率；清除窗口缓存                 │
+│ 每 2 秒对 D3 窗口截图，scale match 匹配 d3_start_game_button.png，最多 10 次  │
+│ （约 20 秒）；匹配到则点击并再等 2 秒                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │
+         ├─ 超时未找到/未点击成功 → 重启战网、等待 5 秒，continue 外层下一轮
+         │
+         └─ 成功点击「开始游戏」
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 结束已有 ROSBOT 进程；等待 1 秒；若配置为自动启动则启动 ROSBOT；              │
+│ 执行 ROSBOT 任务初始化；执行「ROSBOT 启动后自动化」                           │
+│ （等 ROSBOT 窗口、调试打印可操作元素、点主档案 Tab、点 Start botting!）        │
+│ → 返回成功                                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**外层**：上述「从战网 UI 识别到返回成功」若在某轮中成功则整体返回成功；若某轮中触发「重启战网并 continue」，则进入下一轮；最多 3 轮。3 轮后仍未能完成则返回失败。
+
+---
+
+## 主线程收尾（「战网就绪并登录检查」返回成功之后）
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 在主线程中：                                                                  │
+│ • 将 ROSBOT 面板状态设为「运行中」并刷新按钮                                   │
+│ • 启用名为 rosbot_task 的周期任务（之后按固定间隔轮询执行）                    │
+│ • 再次执行 ROSBOT 任务初始化（与流程内已执行的一次一致）                      │
+│ • 打日志「ROSBOT Started monitoring」                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+若「战网就绪并登录检查」返回失败或抛错，主线程收尾中会将按钮恢复为未运行并打错误日志。
+
+---
+
+## ROSBOT 启动后自动化（流程内统一调用点）
+
+在「设置 D3 状态 → 结束 ROSBOT → 启动 ROSBOT → 任务初始化」之后、返回成功之前，会执行同一段「启动后自动化」：
+
+1. **等窗口**：等待 ROSBOT 窗口出现（按标题匹配），超时可用配置；激活该窗口。
+2. **调试输出**（可选）：递归遍历该窗口的可操作元素，输出类型、名称、自动化 ID、矩形等，便于排查。
+3. **点主档案**：在窗口内找到名称包含「主档案/主檔案/Main Profile」的 Tab，点击。
+4. **点 Start botting!**：找到 automation_id 或名称对应「Start botting」的按钮并点击。
+
+异常仅记录为黄色日志，不改变流程成功/失败结果。
+
+---
+
+## 实现说明（给 AI）
+
+- **本文档不指定**：具体文件路径、类名、函数名、常量名、第三方库名。
+- **实现时**：在仓库内根据现有模块与项目规范（如 CONFIG 放置常量、优先使用 pycore 等）自行查找并调用对应能力；流程中涉及的「战网/D3/ROSBOT 管理器」「截图与模板匹配」「OCR」「点击与窗口操作」「任务线程与状态回调」等，均应在代码库中按既有结构接入，保持风格一致。
+- **状态管理与全局定时器**：实现须满足「状态管理与全局定时器」一节：全局定时器 1 秒一跳，本流程通过 % 方式实现 2 秒一个 tick；点击启动后设置总状态使流程可被驱动；总状态关闭时跳过所有分支，总状态开启时按当前分支状态驱动（wait 则本 tick 跳过，有导向则执行并切换）；停止时关闭总状态，此后定时器跳过所有分支。各分支图节点需区分为 wait 与有导向，并在实现中体现。
+- **D3 界面判定与在线检测**：开始界面 = 对 D3 窗口截图后用 **scale match** 匹配 **d3_start_game_button.png**，匹配到则视为在「开始游戏」界面。**只有当出现 d3_game_tool 时才按 M 键**；未出现时（游戏可能正在切换地图 UI 或其他 UI）标记为 **wait**，本 tick 跳过。D3 是否在线 = 仅当已出现 d3_game_tool 时按约定五步：先截图（图 A）→ 按 M 键 → 再截图（图 B）→ 对比相似度（**高度相似则按 M 无效果，判定掉线**；否则在线）→ 再按 M 键恢复地图打开状态。若使用掉线模板图，文件命名为 **d3_disconnected.png**；若原图为 ScreenShot_2026-01-30_064009_491.png 则重命名为 d3_disconnected.png。

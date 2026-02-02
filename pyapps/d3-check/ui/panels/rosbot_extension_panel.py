@@ -35,6 +35,7 @@ import d3utils.rosbot_task_processor as rosbot_processor
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
 from d3utils.event_center import trigger_extension_rosbot_start, trigger_extension_rosbot_stop
+from d3utils.rosbot_flow_battlenet import reset_battlenet_flow_state
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.shutdown_manager import is_shutdown_requested
 
@@ -591,13 +592,18 @@ class RosbotExtensionPanel:
         self._d3_extension_thread = thread
 
     def _start_rosbot(self):
-        """Start ROSBOT: signal via event center to D3 extension thread if set, else fallback to ad-hoc thread."""
-        if not self.rosbot_running:
-            self._control_btn_set_busy(True)
-            if get_d3_extension_thread():
-                trigger_extension_rosbot_start()
-            else:
-                get_thread_registry().run_login_check(self)
+        """Start ROSBOT: set flow master on, enable 1s flow driver, update UI to running; BN ready is tick-driven, then D3 part runs (ROSBOT_FLOW_MERMAID.md)."""
+        if self.rosbot_running:
+            return
+        self.game_state.set_rosbot_flow_master_enabled(True)
+        set_task_status("rosbot_task", TaskStatus.ENABLED)
+        self.rosbot_running = True
+        self._update_control_button()
+        self._control_btn_set_busy(False)
+        if get_d3_extension_thread():
+            return
+        self._control_btn_set_busy(True)
+        get_thread_registry().run_login_check(self)
 
     def _control_btn_set_busy(self, busy):
         """Set control button to busy (disabled) or normal."""
@@ -624,11 +630,11 @@ class RosbotExtensionPanel:
         if not callable(fn):
             ColorPrint.yellow("[Refresh] No refresh fn set (controller may not have wired window_monitor)")
             return
-        ColorPrint.blue("[Refresh] 刷新状态 (manual) -> running check_window in background...")
+        ColorPrint.blue("[Refresh] Refreshing status (manual) -> running check_window in background...")
         get_thread_registry().run_refresh_status(fn)
 
     def _debug_battlenet_ui_json(self):
-        """Export Battle.net UI to JSON via UI Automation (Chrome/Chromium 辅助功能树). 子线程内先 CoInitialize 再调用 WindowAnalyzer."""
+        """Export Battle.net UI to JSON via UI Automation (Chrome/Chromium accessibility tree). CoInitialize in worker thread then call WindowAnalyzer."""
         get_thread_registry().run_battlenet_ui_analyze(self)
 
     def get_login_check_callable(self):
@@ -642,39 +648,57 @@ class RosbotExtensionPanel:
         return _run
 
     def _on_login_check_done(self, success, error=None):
-        """Called on main thread after ensure_battlenet_started_and_login_check() finishes (in worker thread)."""
+        """Main-thread cleanup: on success keep running and enable rosbot_task; on failure clear flow master and reset button (ROSBOT_FLOW.md)."""
         self._control_btn_set_busy(False)
         if error is not None:
             ColorPrint.red(f"[RosbotPanel] Login check error: {error}")
+            self.game_state.set_rosbot_flow_master_enabled(False)
+            reset_battlenet_flow_state()
+            set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
             return
         if not success:
+            self.game_state.set_rosbot_flow_master_enabled(False)
+            reset_battlenet_flow_state()
+            set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
             return
         try:
+            if not self.game_state.rosbot_flow_master_enabled:
+                reset_battlenet_flow_state()
+                set_task_status("rosbot_task", TaskStatus.DISABLED)
+                self.rosbot_running = False
+                self._update_control_button()
+                return
             self.rosbot_running = True
             self._update_control_button()
-            set_task_status('rosbot_task', TaskStatus.ENABLED)
             rosbot_processor.start_rosbot_task()
             ColorPrint.green("[ROSBOT] Started monitoring")
         except Exception as e:
             ColorPrint.red(f"[RosbotPanel] Error after login check: {e}")
+            self.game_state.set_rosbot_flow_master_enabled(False)
+            reset_battlenet_flow_state()
+            set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
 
     def _on_rosbot_stop_done(self) -> None:
-        """Called on main thread after D3 extension thread has executed stop (task disabled, processor stopped)."""
+        """Main-thread cleanup: clear flow master so timer skips all branches; reset button (ROSBOT_FLOW.md)."""
         self._control_btn_set_busy(False)
+        self.game_state.set_rosbot_flow_master_enabled(False)
+        reset_battlenet_flow_state()
         self.rosbot_running = False
         self._update_control_button()
         ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _stop_rosbot(self):
-        """Stop ROSBOT: signal via event center to D3 extension thread if set, else run stop on main thread."""
+        """Stop ROSBOT: clear flow master; notify D3 extension thread or run stop on main thread (ROSBOT_FLOW.md)."""
         if not self.rosbot_running:
             return
+        self.game_state.set_rosbot_flow_master_enabled(False)
+        reset_battlenet_flow_state()
         if get_d3_extension_thread():
             self._control_btn_set_busy(True)
             trigger_extension_rosbot_stop()
@@ -803,4 +827,3 @@ class RosbotExtensionPanel:
             oauth_text = i18n_manager.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
             self.oauth_script_var.set(oauth_text)
             self.oauth_script_label.config(fg=UnifiedStyles.COLORS["success" if oauth_connected else "error"])
-

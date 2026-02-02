@@ -23,7 +23,7 @@ class TaskStatus(Enum):
 
 
 class TaskThread(threading.Thread):
-    """Native thread for a single task loop. start/stop 仅由 TaskThreadManager 工作线程调用；status 单变量读写在 GIL 下原子，无锁。"""
+    """Native thread for a single task loop. start/stop only via TaskThreadManager worker; status read/write is atomic under GIL, no lock."""
 
     def __init__(self, name: str, task_func: Callable, interval: float = 1.0):
         super().__init__(daemon=True, name=name)
@@ -51,7 +51,7 @@ class TaskThread(threading.Thread):
             ColorPrint.yellow(f"[TaskThread] Stopped task thread: {self.name}")
 
     def set_status(self, status: TaskStatus):
-        """Set task status（单变量赋值原子）"""
+        """Set task status (single variable assignment is atomic)."""
         self.status = status
         ColorPrint.blue(f"[TaskThread] Task '{self.name}' status: {status.value}")
 
@@ -90,7 +90,7 @@ class TaskThread(threading.Thread):
 
 
 class TaskThreadManager:
-    """Manages all task threads. 使用命令队列串行化，无锁。"""
+    """Manages all task threads; serialized via command queue, no lock."""
     
     def __init__(self):
         self.tasks: Dict[str, TaskThread] = {}

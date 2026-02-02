@@ -17,6 +17,8 @@ from providor.common_imports import ColorPrint, ENCYCLOPEDIA
 
 # Import static global modules
 import timers.timer_manager as timer_manager
+from d3utils.task_thread_manager import stop_all_tasks
+from d3utils.rosbot_flow_battlenet import reset_battlenet_flow_state
 from providor.common_imports import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 from d3utils.main_function_thread import get_main_function_thread
@@ -114,7 +116,7 @@ def execute_shutdown():
     global _hotkey_listener
 
     if _shutdown_completed.is_set():
-        return  # Already completed（仅主线程调用，无需锁）
+        return  # Already completed (main thread only; no lock needed)
 
     ColorPrint.yellow("[ShutdownManager] ========================================")
     ColorPrint.yellow("[ShutdownManager] Executing shutdown sequence...")
@@ -135,7 +137,7 @@ def execute_shutdown():
             try:
                 th = getter()
                 if th and th.is_alive():
-                    ColorPrint.blue(f"[ShutdownManager] [0/4] Joining {label} thread...")
+                    ColorPrint.blue(f"[ShutdownManager] [0/5] Joining {label} thread...")
                     th.request_shutdown()
                     th.join(timeout=3.0)
                     ColorPrint.green(f"[ShutdownManager] [OK] {label} thread stopped")
@@ -145,25 +147,34 @@ def execute_shutdown():
         # Step 1: Stop hotkey listener (prevent new input)
         if _hotkey_listener:
             try:
-                ColorPrint.blue("[ShutdownManager] [1/4] Stopping hotkey listener...")
+                ColorPrint.blue("[ShutdownManager] [1/5] Stopping hotkey listener...")
                 _hotkey_listener.stop_listening()
                 ColorPrint.green("[ShutdownManager] [OK] Hotkey listener stopped")
             except Exception as e:
                 ColorPrint.red(f"[ShutdownManager] [ERROR] Hotkey listener error: {e}")
 
-        # Step 2: Stop timer manager (stop periodic tasks)
+        # Step 2: Stop task thread manager (rosbot_task etc.) and reset BN flow state
         try:
-            ColorPrint.blue("[ShutdownManager] [2/4] Stopping timer manager...")
+            ColorPrint.blue("[ShutdownManager] [2/5] Stopping task thread manager...")
+            reset_battlenet_flow_state()
+            stop_all_tasks()
+            ColorPrint.green("[ShutdownManager] [OK] Task thread manager stopped")
+        except Exception as e:
+            ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")
+
+        # Step 3: Stop timer manager (log_monitor; state detection uses tick-driven flow when UI Start)
+        try:
+            ColorPrint.blue("[ShutdownManager] [3/5] Stopping timer manager...")
             timer_manager.stop()
             ColorPrint.green("[ShutdownManager] [OK] Timer manager stopped")
         except Exception as e:
             ColorPrint.red(f"[ShutdownManager] [ERROR] Timer manager error: {e}")
 
-        # Step 3: Destroy UI (cleanup window and system tray)
+        # Step 4: Destroy UI (cleanup window and system tray)
         ui = ENCYCLOPEDIA.get('ui')
         if ui:
             try:
-                ColorPrint.blue("[ShutdownManager] [3/4] Destroying UI...")
+                ColorPrint.blue("[ShutdownManager] [4/5] Destroying UI...")
                 # Stop system tray first
                 if hasattr(ui, 'system_tray') and ui.system_tray:
                     try:

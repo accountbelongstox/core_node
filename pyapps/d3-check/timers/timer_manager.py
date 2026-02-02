@@ -42,7 +42,7 @@ class TimerTask:
     interceptor: Optional[Callable[[], bool]] = None
 
 
-# Global task registry（无锁：未启动时直接改，启动后通过命令队列由 timer 线程串行处理）
+# Global task registry (no lock: direct write when not running; when running, serialized via cmd queue in timer thread)
 _tasks: Dict[str, TimerTask] = {}
 _cmd_queue: queue.Queue = queue.Queue()
 _running = False
@@ -77,7 +77,7 @@ def _apply_unregister(name: str) -> bool:
 
 
 def _drain_cmd_queue():
-    """由 timer 线程调用，串行处理命令队列（无锁）"""
+    """Called by timer thread; drain and process cmd queue (serialized, no lock)."""
     global _tasks
     while True:
         try:
@@ -246,7 +246,7 @@ def _execute_task(task: TimerTask):
 
 
 def _timer_loop():
-    """Main timer loop (runs in separate thread)，先 drain 命令队列再执行任务（无锁）"""
+    """Main timer loop (runs in separate thread): drain cmd queue then run due tasks (serialized, no lock)."""
     global _stop_event, _tasks
 
     ColorPrint.blue("[TimerManager] Timer loop started")

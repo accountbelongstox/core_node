@@ -591,6 +591,8 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_running: bool = False
+    # Flow master: True after user clicks Start ROSBOT, False after Stop; global timer skips flow when False (ROSBOT_FLOW.md)
+    rosbot_flow_master_enabled: bool = False
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
@@ -605,7 +607,7 @@ class D3InterfaceData(InterfaceDataBase):
     battlenet_disconnected: bool = False
     battlenet_normal_available: bool = False
 
-    # 回调与状态更新：用队列串行化，避免锁
+    # Callbacks and state updates: serialized via queue, no lock
     _callbacks_queue: Any = field(default_factory=queue.Queue)
     _callbacks_list: List[Callable] = field(default_factory=list)
     _update_queue: Any = field(default_factory=queue.Queue)
@@ -631,6 +633,7 @@ class D3InterfaceData(InterfaceDataBase):
         self.button_detections = None
         self.battlenet_window_found = False
         self.rosbot_running = False
+        self.rosbot_flow_master_enabled = False
         self.d3_running = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
@@ -660,6 +663,7 @@ class D3InterfaceData(InterfaceDataBase):
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
             "rosbot_running": self.rosbot_running,
+            "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
             "map_type": self.map_type,
             "game_stage": self.game_stage,
@@ -685,6 +689,11 @@ class D3InterfaceData(InterfaceDataBase):
         self._update_queue.put(("rosbot_running", running))
         ColorPrint.blue(f"[D3State] ROSBOT: {'Running' if running else 'Stopped'}")
         self._notify_callbacks()
+
+    def set_rosbot_flow_master_enabled(self, enabled: bool):
+        """Set flow master (master switch). True when user clicks Start, False when Stop; timer skips flow when False."""
+        self.rosbot_flow_master_enabled = enabled
+        ColorPrint.blue(f"[D3State] ROSBOT flow master: {'on' if enabled else 'off'}")
 
     def set_d3_status(self, running: bool):
         """Set D3 running status and notify callbacks."""

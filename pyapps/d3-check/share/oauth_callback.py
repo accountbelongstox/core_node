@@ -33,6 +33,11 @@ def notify_oauth_done() -> None:
     _oauth_done.set()
 
 
+def is_oauth_done() -> bool:
+    """Non-blocking: True if Tampermonkey has notified oauth-done (for tick-driven flow)."""
+    return _oauth_done.is_set()
+
+
 def notify_ping() -> None:
     """Called by HTTP bridge when Tampermonkey GETs oauth-ping (health check)."""
     global _last_ping_time

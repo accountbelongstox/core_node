@@ -114,13 +114,20 @@ class SystemInitializer:
 
     def initialize_timer_system(self):
         """
-        Initialize timer system with window monitoring
+        Initialize timer system.
 
-        Note: Timer system can only be initialized once.
-        Multiple calls will be ignored.
+        Two drivers:
+        - timer_manager: single-thread loop; task: log_monitor (1.5s). State detection (window_monitor)
+          is NOT registered here; when UI "开始" is used, status is updated by tick-driven flow (rosbot_task).
+          Loop started after UI ready (start_timer_loop_after_ui_ready).
+        - task_thread_manager: one thread per task; rosbot_task (1s) drives ROSBOT flow (ROSBOT_FLOW.md)
+          and, when flow master on, refreshes D3/Battle.net state every 2s for status UI.
+          Task threads start here; rosbot_task enabled/disabled by flow master (start/stop).
+
+        Note: Timer system can only be initialized once. Multiple calls are ignored.
 
         Returns:
-            True if initialized successfully or already initialized, False on error
+            True if initialized successfully or already initialized, False on error.
         """
         if self.timer_initialized:
             ColorPrint.yellow("[INIT] Timer system already initialized")
@@ -132,11 +139,7 @@ class SystemInitializer:
             # Initialize task thread manager
             self._init_task_thread_manager()
 
-            # Initialize window monitor and register with timer manager (static global)
-            window_monitor.initialize_and_register(
-                interval=10.0,  # Check every 10 seconds
-                enabled=True
-            )
+            # State detection (window_monitor) is NOT registered with timer; UI "开始" uses tick-driven flow for status updates (rosbot_task 2s tick).
 
             # Register log monitor with timer manager (static global, always enabled with interceptor)
             timer_manager.register_task(
@@ -166,11 +169,11 @@ class SystemInitializer:
         try:
             ColorPrint.blue("[INIT] Initializing task thread manager...")
             
-            # Register ROSBOT task
+            # ROSBOT flow driver: 1s tick (task_thread_manager); process_rosbot_task uses % for 2s flow tick when flow master on (ROSBOT_FLOW.md)
             register_task(
                 name='rosbot_task',
                 task_func=rosbot_processor.process_rosbot_task,
-                interval=1.0  # Check every second
+                interval=1.0
             )
             
             # Start all task threads

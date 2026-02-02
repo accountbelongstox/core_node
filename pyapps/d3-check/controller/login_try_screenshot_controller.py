@@ -72,6 +72,7 @@ from d3utils.ocr_helper import (
 )
 from d3utils.battlenet_capture import capture_battlenet_and_save_to_category
 from d3utils.battlenet_operation import get_battlenet_operation
+from d3utils.rosbot_flow_battlenet import get_and_clear_battlenet_tick_confirmed
 from d3utils.battlenet_template_matcher import match_battlenet_template
 from d3utils.battlenet_match_debug import debug_all_match_methods as run_battlenet_match_debug
 from d3utils.d3u_common.image_annotator_helper import save_match_debug_image, save_no_match_debug_image, save_click_debug_image
@@ -354,9 +355,13 @@ class LoginTryScreenshotController:
             return False
 
         clicker = ClickHandler()
-        battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
-        if not battlenet_confirmed:
-            ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
+        if get_and_clear_battlenet_tick_confirmed():
+            battlenet_confirmed = True
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed by tick flow, running D3 part only")
+        else:
+            battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+            if not battlenet_confirmed:
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
 
         if battlenet_confirmed and get_d3_manager().is_running():
             ColorPrint.blue("[LoginTryScreenshotController] D3 already running; detect disconnect, then continue state-1 flow from middle if not disconnected")
