@@ -61,6 +61,7 @@ All `ttk.Notebook` tabs: selected and unselected must be same height. Ref: `ui/d
 | Skill/macro/template config, ConfigManager | `config` (unified_config, grid_config); literals still in app_constants |
 | Shared pycore-style imports used by d3-check | `providor.common_imports` or direct `pycore.*` |
 | New 规范 (standard/rule) | rules → skills → AGENTS.md (by priority above) |
+| 启动 ROSBOT 流程要求 | `.cursor/skills/rosbot-startup/SKILL.md`（ensure_battlenet_started_and_login_check、_start_rosbot、run_after_rosbot_start 等须按该文档执行） |
 | ttk Notebook Tab (equal height) | §4; ref diablo3_macro_ui |
 
 Follow these rules so d3-check stays consistent, favors pycore, and keeps all D3/D4 configuration in CONFIG.
