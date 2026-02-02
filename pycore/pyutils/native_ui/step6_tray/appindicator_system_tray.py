@@ -300,6 +300,22 @@ class AppIndicatorSystemTray:
                 self.indicator.set_icon_full(icon_path, self.app_name)
             ColorPrint.cyan(f"[AppIndicatorSystemTray] Icon updated to: {icon_path}")
 
+    def _register_thread_bus_handlers(self):
+        """Register THREAD_BUS event handlers (tray.request_stop, tray.update_menu)."""
+        def handle_stop_request(event_data):
+            ColorPrint.blue("[AppIndicatorSystemTray] Received stop request via THREAD_BUS")
+            self.stop()
+
+        def handle_update_menu(event_data):
+            items = event_data.get('menu_items')
+            if items is not None:
+                ColorPrint.blue("[AppIndicatorSystemTray] Received menu update via THREAD_BUS")
+                self.update_menu(items)
+
+        THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
+        THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
+        ColorPrint.blue("[AppIndicatorSystemTray] THREAD_BUS event handlers registered")
+
     def run(self):
         """
         Run tray (blocks until stopped).
@@ -319,6 +335,9 @@ class AppIndicatorSystemTray:
 
         # Mark as running
         self._running = True
+
+        # Register THREAD_BUS handlers so shutdown/update_menu work
+        self._register_thread_bus_handlers()
 
         # Signal that tray is ready
         THREAD_BUS.trigger_event('tray.ready', {'app_id': self.app_id})

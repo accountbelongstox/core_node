@@ -40,6 +40,7 @@ from typing import Callable, Optional, Any
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 
 
 def launch_app_with_startup(
@@ -141,9 +142,8 @@ def launch_app_with_startup(
                 time.sleep(1.0)  # Brief delay to show message
                 ColorPrint.unregister_callback(startup_thread._colorprint_callback)
 
-                # Close debug window directly (don't trigger app.close - that would shutdown entire app!)
-                # Use stop() instead of request_close() to ensure _stop_event is set (prevents tray mode)
-                startup_thread.stop()
+                # Close debug window via THREAD_BUS
+                THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'frontend.ready'}, async_mode=False)
 
             close_thread = threading.Thread(target=delayed_close, daemon=True)
             close_thread.start()

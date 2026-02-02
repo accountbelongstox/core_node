@@ -12,6 +12,7 @@ from pathlib import Path
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig
 from pycore.callmodule.tray_menu import build_tray_menu
+from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
 
 # Import management layer routers
 from pycore.callmodule.routers.management import (
@@ -117,56 +118,52 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         },
     }
 
-    # Add UI service (voice subtitle window)
+    # Add UI service (voice subtitle window) - from callmodule_config/config.py
     # Note: Only on Windows for now, can be extended to other platforms
     if IS_WINDOWS:
+        ui_ws = CallmoduleConfig.UI_WINDOW_SIZE
+        window_size_tuple = (int(ui_ws[0]), int(ui_ws[1])) if isinstance(ui_ws, (list, tuple)) and len(ui_ws) >= 2 else (1000, 180)
         services['ui'] = {
-            'app_name': 'Voice Subtitle',
-            'app_id': 'voice_subtitle_ui',
-            'window_size': (1000, 180),
+            'app_name': CallmoduleConfig.UI_APP_NAME,
+            'app_id': CallmoduleConfig.UI_APP_ID,
+            'window_size': window_size_tuple,
             'webview_url': f'http://localhost:{port}/web/subtitle',
-            'show_on_start': True,  # Show window on start (default: True)
-            'frameless': False,
-            'enable_tray': False,  # Use main tray
+            'show_on_start': CallmoduleConfig.UI_SHOW_ON_START,
+            'frameless': CallmoduleConfig.UI_FRAMELESS,
+            'enable_tray': CallmoduleConfig.UI_ENABLE_TRAY,
             'enable_webview': True,
             'enable_dev_tools': debug,
             'debug': debug,
-            # Startup window config (tk debug window)
-            'show_startup': True,  # Show tk startup/debug window
-            'auto_close_startup': False  # Don't auto-close tk window (keep it for debugging)
-            # Note: trigger_shutdown_on_close is built-in to PySide6UIConfig (default: True)
-            # No need to pass it explicitly
+            'show_startup': CallmoduleConfig.UI_SHOW_STARTUP,
+            'auto_close_startup': CallmoduleConfig.UI_AUTO_CLOSE_STARTUP
         }
 
-    # Add Windows-specific tray service
+    # Add Windows-specific tray service - from callmodule_config/settings.yaml
     if IS_WINDOWS:
-        # Get icon path
         PYCORE_ROOT = Path(__file__).parent.parent
-        icon_path = PYCORE_ROOT / "pyutils" / "native_ui" / "step1_config" / "app_icon.png"
+        icon_path = PYCORE_ROOT / CallmoduleConfig.TRAY_ICON_PATH_REL
         if not icon_path.exists():
             icon_path = None
 
-        # Build tray menu (singleton_port will be updated later)
         tray_menu = build_tray_menu(port=port, singleton_port=None)
 
-        # Add tray service
         services['tray'] = {
-            'app_name': 'Pycore RPC Server',
+            'app_name': CallmoduleConfig.TRAY_APP_NAME,
             'icon_path': str(icon_path) if icon_path else None,
             'menu_items': tray_menu,
-            'trigger_shutdown_on_exit': True
+            'trigger_shutdown_on_exit': CallmoduleConfig.TRAY_TRIGGER_SHUTDOWN_ON_EXIT
         }
 
         ColorPrint.blue("[ConfigBuilder] Added Windows tray service")
 
-    # Create launcher configuration
+    # Create launcher configuration - from callmodule_config/config.py
     config = LauncherConfig(
-        app_id="pycore_module_caller",
-        app_name="Pycore Module Caller",
+        app_id=CallmoduleConfig.LAUNCHER_APP_ID,
+        app_name=CallmoduleConfig.LAUNCHER_APP_NAME,
         singleton=True,
         shutdown_existing=True,
-        singleton_port_start=59100,
-        singleton_port_range=100,
+        singleton_port_start=CallmoduleConfig.SINGLETON_PORT_START,
+        singleton_port_range=CallmoduleConfig.SINGLETON_PORT_RANGE,
         services=services
     )
 

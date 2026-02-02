@@ -475,19 +475,20 @@ if ($exitCode -eq 0) {{
             Write-Host "[BUILD]   $apk" -ForegroundColor Gray
         }}
 
-        # Open the directory containing the first APK file
-        $firstApk = $foundApks[0]
-        $apkDirectory = Split-Path -Parent $firstApk
+        # Collect unique APK directories and open each in Explorer
+        $apkDirs = $foundApks | ForEach-Object {{ (Resolve-Path -LiteralPath (Split-Path -Parent $_)).Path }} | Sort-Object -Unique
         Write-Host ""
-        Write-Host "[BUILD] Opening APK directory in Explorer..." -ForegroundColor Cyan
-        Write-Host "[BUILD]   Directory: $apkDirectory" -ForegroundColor Gray
-
-        try {{
-            # Open Windows Explorer to the APK directory
-            Start-Process explorer.exe -ArgumentList $apkDirectory
-            Write-Host "[BUILD] Explorer opened successfully" -ForegroundColor Green
-        }} catch {{
-            Write-Host "[BUILD] Failed to open Explorer: $_" -ForegroundColor Yellow
+        Write-Host "[BUILD] Opening APK directory in Explorer... (count: $($apkDirs.Count))" -ForegroundColor Cyan
+        foreach ($apkDir in $apkDirs) {{
+            Write-Host "[BUILD]   Directory: $apkDir" -ForegroundColor Gray
+            try {{
+                $openCmd = "Invoke-Item -LiteralPath `"$apkDir`""
+                Write-Host "[BUILD] Open command: $openCmd" -ForegroundColor Gray
+                Invoke-Item -LiteralPath $apkDir
+                Write-Host "[BUILD] Explorer opened successfully" -ForegroundColor Green
+            }} catch {{
+                Write-Host "[BUILD] Failed to open Explorer: $_" -ForegroundColor Yellow
+            }}
         }}
     }} else {{
         Write-Host "[BUILD] No APK files found in expected locations" -ForegroundColor Yellow

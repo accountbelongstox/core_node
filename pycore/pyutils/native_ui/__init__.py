@@ -103,8 +103,8 @@ from pycore.pyutils.native_ui.step7_managers.callback_manager import (
     get_callback_manager
 )
 
-# Startup Window and Launcher
-from pycore.pyutils.native_ui.step4_startup.startup_window import StartupWindow, ColorPrintCapture
+# Startup Window and Launcher (single tk build: TkinterStartupThread)
+from pycore.pyutils.native_ui.step4_startup.startup_window import ColorPrintCapture
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 

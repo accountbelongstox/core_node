@@ -61,6 +61,7 @@ from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter, TrayBackend as PlatformTrayBackend
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
 
 Image = get_third_package_PIL_Image()
@@ -148,20 +149,37 @@ class TkinterStartupThread(threading.Thread):
         # 4. Initialize UI (will call _process_logs() which needs _running=True)
         self._initialize_ui()
 
-        # 5. Set running state + send ready signal
+        # 5. Register THREAD_BUS handler for request_close (so singleton/shutdown can close window)
+        def on_request_close(event_data):
+            ColorPrint.print_info("[TkinterStartupThread] Received ui.startup.request_close via THREAD_BUS")
+            self._stop_event.set()
+            self.request_close()
+
+        THREAD_BUS.register_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, on_request_close, priority=20)
+        self._request_close_handler = on_request_close
+
+        # 6. Set running state + send ready signal
         THREAD_BUS.set_thread_state(thread_name, 'running')
         THREAD_BUS.signal('TkinterStartup_ready', {
             'app_name': self.app_name,
             'window_size': (self.width, self.height)
         })
 
-        # 6. Run mainloop (blocks until window closes)
+        # 7. Run mainloop (blocks until window closes)
         self.root.mainloop()
 
-        # 7. Cleanup window resources
+        # 8. Unregister request_close handler
+        if getattr(self, '_request_close_handler', None):
+            try:
+                THREAD_BUS.unregister_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, self._request_close_handler)
+            except Exception:
+                pass
+            self._request_close_handler = None
+
+        # 9. Cleanup window resources
         self._cleanup()
 
-        # 8. Check if tray should be started
+        # 10. Check if tray should be started
         ColorPrint.print_info(f"[{thread_name}] Mainloop ended, checking tray status...")
         ColorPrint.print_info(f"  enable_tray={self.enable_tray}")
         ColorPrint.print_info(f"  stop_event.is_set()={self._stop_event.is_set()}")
@@ -175,11 +193,11 @@ class TkinterStartupThread(threading.Thread):
             if self._stop_event.is_set():
                 ColorPrint.print_warn(f"[{thread_name}] Stop event set, skipping tray mode")
 
-        # 9. Set stopped state + send stopped signal
+        # 11. Set stopped state + send stopped signal
         THREAD_BUS.set_thread_state(thread_name, 'stopped')
         THREAD_BUS.signal('TkinterStartup_stopped', True)
 
-        # 10. Log completion
+        # 12. Log completion
         ColorPrint.print_info(f"[{thread_name}] Thread stopped")
 
     def _initialize_ui(self):
@@ -187,7 +205,7 @@ class TkinterStartupThread(threading.Thread):
         # Create root window
         self.root = tk.Tk()
         initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
-        self.root.title(f"{self.app_name} - {initializing_text}")
+        self.root.title(f"{self.app_name} - {initializing_text} - debug #1")
         self.root.geometry(f"{self.width}x{self.height}")
 
         # Hide window initially
@@ -431,7 +449,7 @@ class TkinterStartupThread(threading.Thread):
             initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
             title_text = i18n.get("window.title.initializing",
                                               default=f"{new_app_name} - {initializing_text}")
-            self.root.title(title_text)
+            self.root.title(f"{title_text} - debug #1")
 
         # Update status label if it exists and current status matches a known key
         if self.status_label:
@@ -505,12 +523,11 @@ class TkinterStartupThread(threading.Thread):
 
     def _run_tray_mode(self):
         """
-        Run tray-only mode (after debug window closes)
+        Run tray-only mode (after debug window closes).
 
-        Gets tray configuration from THREAD_BUS manager and runs system tray.
+        On Ubuntu/GNOME desktop uses AppIndicator when available; otherwise pystray (TkinterSystemTray).
         Blocks until tray.stop() is called.
         """
-        # Get tray configuration from THREAD_BUS manager
         bus_mgr = get_bus_manager()
         tray_config = bus_mgr.get_tray_config()
 
@@ -519,53 +536,81 @@ class TkinterStartupThread(threading.Thread):
             return
 
         ColorPrint.print_success("[TkinterStartupThread] Tray config found in THREAD_BUS")
-
-        # Store original tray_config for language updates
         self._tray_config = tray_config
 
-        # Build initial menu items
-        menu_items = self._build_tray_menu_items(tray_config)
+        adapter = get_platform_adapter()
+        use_appindicator = (
+            adapter.can_use_tray()
+            and adapter.get_recommended_tray_backend() == PlatformTrayBackend.APPINDICATOR
+        )
+        if use_appindicator:
+            try:
+                from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
+                    AppIndicatorSystemTray,
+                    APPINDICATOR_AVAILABLE,
+                )
+                from pycore.pyutils.native_ui.step6_tray.appindicator_thread import build_appindicator_menu_items
+                if APPINDICATOR_AVAILABLE:
+                    self._run_appindicator_tray(tray_config, bus_mgr)
+                    return
+            except Exception as e:
+                ColorPrint.print_warn(f"[TkinterStartupThread] AppIndicator failed ({e}), using pystray")
 
-        # Create tray
+        # Fallback: pystray (TkinterSystemTray)
+        menu_items = self._build_tray_menu_items(tray_config)
         self.tray = TkinterSystemTray(
             app_name=tray_config.app_name,
             icon_path=tray_config.icon_path,
             menu_items=menu_items
         )
+        self._register_tray_handlers_and_run(bus_mgr)
 
-        # Register event handler for TRAY_STOP signal (event-driven architecture)
+    def _run_appindicator_tray(self, tray_config, bus_mgr):
+        """Run AppIndicator tray (Ubuntu/GNOME). Blocks until stopped."""
+        from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import AppIndicatorSystemTray
+        from pycore.pyutils.native_ui.step6_tray.appindicator_thread import build_appindicator_menu_items
+
+        appindicator_items = build_appindicator_menu_items(tray_config.menu_items)
+        self.tray = AppIndicatorSystemTray(
+            app_id="pycore-startup-tray",
+            app_name=tray_config.app_name,
+            icon_path=tray_config.icon_path,
+            trigger_shutdown_on_exit=True
+        )
+        self.tray.set_menu_items(appindicator_items)
+
         def on_tray_stop(event_data):
-            """Handle TRAY_STOP event - stop the tray"""
-            source = event_data.get('source', 'unknown')
-            ColorPrint.print_warn(f"[TkinterStartupThread] Received TRAY_STOP signal (source: {source})")
             if self.tray:
                 self.tray.stop()
-
         THREAD_BUS.register_event_handler(BusSignals.TRAY_STOP, on_tray_stop, priority=20)
-        ColorPrint.print_success("[TkinterStartupThread] Registered TRAY_STOP event handler")
 
-        # Register event handler for UI redraw (language change)
         def on_ui_redraw(event_data):
-            """Handle UI redraw event - update tray menu when language changes"""
-            reason = event_data.get('reason', '')
-            if reason == 'language_changed' and self.tray and self._tray_config:
-                ColorPrint.print_info("[TkinterStartupThread] Language changed, updating tray menu...")
-                # Rebuild menu items with new translations
+            if event_data.get('reason') == 'language_changed' and self.tray and self._tray_config:
+                new_items = build_appindicator_menu_items(self._tray_config.menu_items)
+                self.tray.update_menu(new_items)
+        bus_mgr.on_ui_redraw(on_ui_redraw)
+
+        THREAD_BUS.set_thread_state('TkinterStartupThread', 'tray_running')
+        ColorPrint.print_info("[TkinterStartupThread] Starting AppIndicator tray...")
+        self.tray.run()
+        ColorPrint.print_info("[TkinterStartupThread] Tray stopped")
+
+    def _register_tray_handlers_and_run(self, bus_mgr):
+        """Register TRAY_STOP and ui_redraw for pystray, then run tray. Blocks until stopped."""
+        def on_tray_stop(event_data):
+            if self.tray:
+                self.tray.stop()
+        THREAD_BUS.register_event_handler(BusSignals.TRAY_STOP, on_tray_stop, priority=20)
+
+        def on_ui_redraw(event_data):
+            if event_data.get('reason') == 'language_changed' and self.tray and self._tray_config:
                 new_menu_items = self._build_tray_menu_items(self._tray_config)
                 self.tray.update_menu(new_menu_items)
-                ColorPrint.print_success("[TkinterStartupThread] Tray menu updated with new language")
-
         bus_mgr.on_ui_redraw(on_ui_redraw)
-        ColorPrint.print_success("[TkinterStartupThread] Registered UI redraw event handler")
 
         ColorPrint.print_info("[TkinterStartupThread] Starting system tray...")
-
-        # Signal that tray is starting
         THREAD_BUS.set_thread_state('TkinterStartupThread', 'tray_running')
-
-        # Run tray (blocks until stopped)
         self.tray.run()
-
         ColorPrint.print_info("[TkinterStartupThread] Tray stopped")
 
     def _build_tray_menu_items(self, tray_config):
