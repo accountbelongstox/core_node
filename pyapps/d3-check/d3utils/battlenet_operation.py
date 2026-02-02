@@ -15,8 +15,8 @@ from pycore.pyfoundations.third_party import get_third_package_uiautomation, get
 from d3utils.battlenet_manager import get_battlenet_manager
 from providor.app_constants import (
     BN_FLOW_SNAPSHOTS_DIR,
-    CLICK_MOVE_DURATION_SEC,
-    CLICK_PAUSE_AFTER_MOVE_SEC,
+    BN_CLICK_MOVE_DURATION_SEC,
+    BN_CLICK_PAUSE_AFTER_MOVE_SEC,
     BATTLE_NET_DISCONNECT_KEYWORDS,
     BATTLE_NET_NEED_LOGIN_KEYWORDS,
     BATTLE_NET_CN_AGREE_KEYWORDS,
@@ -294,7 +294,7 @@ class BattlenetOperation:
         return False
 
     def click_control(self, control: Dict[str, Any]) -> bool:
-        """Click at control rect center."""
+        """Click at control rect center. 秒点、不移动鼠标（duration=0）、点击后鼠标复原位."""
         rect = control.get("rect")
         if not rect:
             return False
@@ -302,7 +302,7 @@ class BattlenetOperation:
         self.activate_window()
         time.sleep(0.2)
         self._clicker.click(cx, cy, direct_click=True, return_to_original=True,
-                            duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
+                            duration=BN_CLICK_MOVE_DURATION_SEC, pause_after_move=BN_CLICK_PAUSE_AFTER_MOVE_SEC)
         return True
 
     def click_d3_tab(self) -> bool:
