@@ -20,17 +20,39 @@ function Get-GitHubHostsFilePath {
     return "/etc/hosts"
 }
 
+function Get-ResponseContentAsString {
+    param([object]$Response)
+    $raw = $Response.Content
+    if ($null -eq $raw) { return $null }
+    if ($raw -is [byte[]]) {
+        return [System.Text.Encoding]::UTF8.GetString($raw)
+    }
+    if ($raw -is [string]) {
+        return $raw.TrimEnd()
+    }
+    return $raw.ToString().TrimEnd()
+}
+
 function Get-GitHubHostsContent {
     try {
         $response = Invoke-WebRequest -Uri $GitHub520HostsUrl -UseBasicParsing -TimeoutSec 15
-        if ($response.StatusCode -eq 200 -and $response.Content) {
-            $text = $response.Content.TrimEnd()
-            if ($text -match [regex]::Escape($GitHub520MarkerStart) -and $text -match [regex]::Escape($GitHub520MarkerEnd)) {
-                return $text
-            }
+        if ($response.StatusCode -ne 200) {
+            Write-Warning "GitHub520 fetch failed: StatusCode=$($response.StatusCode)"
+            return $null
         }
+        $text = Get-ResponseContentAsString -Response $response
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            Write-Warning "GitHub520 fetch returned empty content."
+            return $null
+        }
+        $text = $text.TrimEnd()
+        if ($text -match [regex]::Escape($GitHub520MarkerStart) -and $text -match [regex]::Escape($GitHub520MarkerEnd)) {
+            return $text
+        }
+        Write-Warning "GitHub520 content missing expected markers (Start/End)."
+        return $null
     } catch {
-        Write-Warning "Failed to fetch GitHub520 hosts: $_"
+        Write-Warning "Failed to fetch GitHub520 hosts: $($_.Exception.Message)"
     }
     return $null
 }

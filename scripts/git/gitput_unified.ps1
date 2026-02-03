@@ -1048,7 +1048,7 @@ try {
         }
         Write-ColorText "" -ForegroundColor White
 
-        Write-ColorText "是否刷新 GitHub HOST? [y/N]: " -ForegroundColor Yellow -NoNewline
+        Write-ColorText "Refresh GitHub HOST (GitHub520)? [y/N]: " -ForegroundColor Yellow -NoNewline
         $refreshHostChoice = Read-Host
         if ($refreshHostChoice -match '^[Yy]$') {
             if (Get-Command Invoke-GitHubHostRefresh -ErrorAction SilentlyContinue) {

@@ -1573,7 +1573,7 @@ main() {
         fi
         write_color_text "" "White"
 
-        write_color_text "是否刷新 GitHub HOST? [y/N]: " "Yellow"
+        write_color_text "Refresh GitHub HOST (GitHub520)? [y/N]: " "Yellow"
         read -r refresh_host_choice
         if [[ "$refresh_host_choice" =~ ^[Yy]$ ]]; then
             if type invoke_github_host_refresh >/dev/null 2>&1; then
