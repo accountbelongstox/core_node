@@ -357,6 +357,9 @@ def launch_device_sync():
     - Windows: Uses pythonw.exe with DETACHED_PROCESS flags
     - Linux: Uses start_new_session for proper process detachment
     """
+    # DISABLED: Device Sync - code kept below, uncomment return to re-enable
+    return
+    # --- Device Sync implementation (disabled) ---
     print("[Launcher] Starting Device Sync in background...")
 
     # Get project root directory
@@ -425,6 +428,66 @@ def launch_device_sync():
         print(f"[Launcher]   python -m pycore.pyutils.launcher.device_sync")
 
 
+def launch_pycore_module():
+    """
+    Launch Pycore Module Caller in background (subprocess).
+
+    Runs pycore_module_caller.py with pythonw on Windows for no console window.
+    Process is detached so it continues after launcher exits.
+    """
+    print("[Launcher] Starting Pycore Module in background...")
+
+    project_root = Path(__file__).parent.parent.parent.parent
+    caller_script = project_root / 'pycore_module_caller.py'
+
+    if not caller_script.exists():
+        print(f"[Launcher] Failed: pycore_module_caller.py not found at {caller_script}")
+        return
+
+    try:
+        log_dir = Path(tempfile.gettempdir()) / 'pycore_module'
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / 'pycore_module_launcher.log'
+        print(f"[Launcher] Pycore Module log dir: {log_dir}")
+
+        python_exe = sys.executable
+        if platform.system() == 'Windows':
+            python_dir = Path(sys.executable).parent
+            pythonw_exe = python_dir / 'pythonw.exe'
+            if pythonw_exe.exists():
+                python_exe = str(pythonw_exe)
+                print("[Launcher] Using pythonw.exe for no console window")
+            else:
+                print("[Launcher] WARNING: pythonw.exe not found, using python.exe")
+
+        cmd = [python_exe, str(caller_script)]
+        env = os.environ.copy()
+        pythonpath = str(project_root)
+        if 'PYTHONPATH' in env:
+            sep = ';' if platform.system() == 'Windows' else ':'
+            pythonpath = f"{pythonpath}{sep}{env['PYTHONPATH']}"
+        env['PYTHONPATH'] = pythonpath
+
+        print(f"[Launcher] Command: {' '.join(cmd)}")
+
+        proc = run_background(
+            cmd,
+            cwd=str(project_root),
+            env=env,
+            log_file=str(log_file),
+            detached=True
+        )
+
+        print(f"[Launcher] Pycore Module started with PID: {proc.pid}")
+        print("[Launcher] RPC v2 will be available after startup (default port 59000)")
+
+        import time
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"[Launcher] Failed to start Pycore Module: {e}")
+        print("[Launcher] You can start manually: python pycore_module_caller.py")
+
+
 def main():
     """Main entry point"""
     # Check and create desktop shortcut if needed
@@ -473,56 +536,47 @@ def main():
     print("=" * 60)
     print("Options:")
     print("  [1] - Launch Window Layout Only")
-    print("  [2] - Launch Device Sync Only")
-    print("  [3] - Launch Both (Window Layout + Device Sync)")
+    print("  [2] - Launch Pycore Module Only (background)")
+    print("  [3] - Launch Both (Window Layout + Pycore Module)")
     print("  [M] - Configuration Menu")
     print("  [Enter] - Default (Launch Both)")
     print("=" * 60)
     user_input = input("Select option: ").strip().upper()
 
     launch_windows = True
-    launch_sync = False
+    launch_module = False
 
     if user_input == '1':
-        # Launch windows only
         launch_windows = True
-        launch_sync = False
+        launch_module = False
         print("\n[Launcher] Mode: Window Layout Only")
     elif user_input == '2':
-        # Launch device sync only
         launch_windows = False
-        launch_sync = True
-        print("\n[Launcher] Mode: Device Sync Only")
+        launch_module = True
+        print("\n[Launcher] Mode: Pycore Module Only")
     elif user_input == '3' or user_input == '':
-        # Launch both
         launch_windows = True
-        launch_sync = True
-        print("\n[Launcher] Mode: Both (Window Layout + Device Sync)")
+        launch_module = True
+        print("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
     elif user_input == 'M':
-        # Show interactive menu
         menu = InteractiveMenu(config_manager, app_finder)
         menu.run()
         print("\nContinuing with launcher...")
-        # Default to launch both after menu
         launch_windows = True
-        launch_sync = True
+        launch_module = True
     else:
-        # Unknown option, default to both
         print("\n[Launcher] Unknown option, using default (Both)")
         launch_windows = True
-        launch_sync = True
+        launch_module = True
 
-    # Launch device sync if requested
-    if launch_sync:
-        launch_device_sync()
-        print("[Launcher] Device Sync started in background")
+    if launch_module:
+        launch_pycore_module()
         import time
-        time.sleep(0.5)  # Give it time to start
-    
-    # Skip window layout if not requested
+        time.sleep(0.5)
+
     if not launch_windows:
-        print("\n[Launcher] Skipping window layout (Device Sync only mode)")
-        print("[Launcher] Check system tray for Device Sync icon")
+        print("\n[Launcher] Skipping window layout (Pycore Module only mode)")
+        print("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
         print("\n" + "=" * 60)
         input("Press Enter to exit...")
         return

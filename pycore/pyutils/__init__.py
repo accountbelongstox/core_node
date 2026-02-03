@@ -224,7 +224,7 @@ try:
             TaskTimer,
             TimerTask,
             MainThreadExecutor,
-            StartupWindow,
+            TkinterStartupThread,
             ColorPrintCapture,
             launch_app_with_startup,
         )
@@ -239,7 +239,7 @@ try:
         TaskTimer = None
         TimerTask = None
         MainThreadExecutor = None
-        StartupWindow = None
+        TkinterStartupThread = None
         ColorPrintCapture = None
         launch_app_with_startup = None
 except Exception:
@@ -251,7 +251,7 @@ except Exception:
     TaskTimer = None
     TimerTask = None
     MainThreadExecutor = None
-    StartupWindow = None
+    TkinterStartupThread = None
     ColorPrintCapture = None
     launch_app_with_startup = None
     NATIVE_UI_AVAILABLE = False
@@ -390,7 +390,7 @@ __all__ = [
     'TaskTimer',
     'TimerTask',
     'MainThreadExecutor',
-    'StartupWindow',
+    'TkinterStartupThread',
     'ColorPrintCapture',
     'launch_app_with_startup',
     'NATIVE_UI_AVAILABLE',

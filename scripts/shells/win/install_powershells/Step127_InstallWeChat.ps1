@@ -13,8 +13,10 @@
 # WeChat Windows: fetch download URL from https://pc.weixin.qq.com/, download to temp, install. Verify same as ApplicationsList (Find-ExecutableByKeyword). If already installed, prompt Reinstall? y/N.
 
 $PSScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-. (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\GlobalVars.ps1")
-. (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\CommonFunc.ps1")
+$script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
+. (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1")
 
 $SCRIPT_INDEX = "127"
 $WECHAT_PAGE_URL = "https://pc.weixin.qq.com/"
@@ -110,6 +112,16 @@ function Install-WeChatFromWeb {
     $installedExe = Test-WeChatInstalled
     if ($installedExe) {
         Write-Host "       [$SCRIPT_INDEX] WeChat installed successfully: $installedExe" -ForegroundColor Green
+        $wechatScanKeywords = @("WeChat", "Weixin")
+        if ($Global:CHINESE_WEIXIN) {
+            $wechatScanKeywords = @($Global:CHINESE_WEIXIN) + $wechatScanKeywords
+        }
+        $desktopCategory = if ($Global:DESKTOP_CATEGORY_SOCIAL_MEDIA) { $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA } else { "SocialMedia" }
+        Write-Host "       [$SCRIPT_INDEX] Desktop icon cleanup/organize for WeChat..." -ForegroundColor Cyan
+        $cleanupResult = Invoke-DesktopCleanupForPackage -PackageName "WeChat" -ExecutablePath $installedExe -ScanKeywords $wechatScanKeywords -CategoryName $desktopCategory -CreateShortcut $true
+        if ($cleanupResult -and $cleanupResult.Errors -and $cleanupResult.Errors.Count -gt 0) {
+            Write-Host "       [$SCRIPT_INDEX] Desktop cleanup had warnings: $($cleanupResult.Errors -join '; ')" -ForegroundColor Yellow
+        }
         return $true
     }
     Write-Host "       [$SCRIPT_INDEX] Install finished but WeChat.exe was not found. You may need to complete setup manually." -ForegroundColor Yellow

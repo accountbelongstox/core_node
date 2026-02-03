@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import threading
+import time
 import urllib.parse
 import webbrowser
 from pathlib import Path
@@ -15,15 +16,22 @@ from typing import Dict, Any
 from third_party import Flask, render_template_string, jsonify, request, send_file, Response
 from utils.source_scanner import SourceScanner
 
+try:
+    from werkzeug.serving import make_server
+except ImportError:
+    make_server = None
+
 class SourceViewerServer:
     """Web server for viewing Flutter project source resources"""
 
     def __init__(self, port: int = 8081, project_root: Path = None):
         self.port = port
-        self.project_root = project_root or Path.cwd()  # Use provided root or current working directory
+        self.project_root = project_root or Path.cwd()
         self.app = Flask(__name__)
         self.scanner = SourceScanner()
         self.scan_results = None
+        self._werkzeug_server = None
+        self._server_thread = None
         self.setup_routes()
 
     def setup_routes(self):
@@ -54,14 +62,9 @@ class SourceViewerServer:
                 if not file_path:
                     return jsonify({'error': 'No path provided'}), 400
 
-                # Clean the path - remove URL encoding artifacts and whitespace
-                import urllib.parse
                 clean_path = urllib.parse.unquote(file_path).strip()
-
-                # Remove any carriage return or newline characters
                 clean_path = clean_path.replace('\r', '').replace('\n', '')
 
-                # Convert to Path object
                 path_obj = Path(clean_path)
 
                 # If it's a relative path, make it relative to project root
@@ -117,21 +120,13 @@ class SourceViewerServer:
                 if not file_path:
                     return jsonify({'error': 'No path provided'}), 400
 
-                # Clean the path - remove URL encoding artifacts and whitespace
-                import urllib.parse
                 clean_path = urllib.parse.unquote(file_path).strip()
-
-                # Remove any carriage return or newline characters
                 clean_path = clean_path.replace('\r', '').replace('\n', '')
 
-                # Convert to Path object and resolve to absolute path
                 path_obj = Path(clean_path)
-
-                # If it's a relative path, make it relative to project root
                 if not path_obj.is_absolute():
                     path_obj = self.project_root / path_obj
 
-                # Resolve to absolute path
                 absolute_path = path_obj.resolve()
 
                 # Convert to platform-appropriate format
@@ -144,6 +139,20 @@ class SourceViewerServer:
 
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/exit-and-continue', methods=['GET', 'POST'])
+        def api_exit_and_continue():
+            """Exit web server and continue compilation (called from web button or close signal)"""
+            def shutdown_later():
+                time.sleep(0.15)
+                if getattr(self, '_werkzeug_server', None):
+                    try:
+                        self._werkzeug_server.shutdown()
+                        print("[SOURCE-VIEWER] Server shutdown by exit-and-continue request")
+                    except Exception as e:
+                        print(f"[SOURCE-VIEWER] Shutdown error: {e}")
+            threading.Thread(target=shutdown_later, daemon=True).start()
+            return jsonify({'success': True, 'message': 'Exiting and continuing compilation...'})
 
         @self.app.route('/api/download-image')
         def api_download_image():
@@ -833,8 +842,15 @@ class SourceViewerServer:
 </head>
 <body>
     <div class="header">
-        <h1>Flutter Source Viewer</h1>
-        <div class="subtitle">Comprehensive resource scanner for Flutter projects</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+                <h1>Flutter Source Viewer</h1>
+                <div class="subtitle">Comprehensive resource scanner for Flutter projects</div>
+            </div>
+            <button id="exitContinueBtn" class="btn" style="background: #48bb78; flex-shrink: 0;" onclick="exitAndContinueCompilation()" title="Close web and continue build">
+                Exit and Continue Compilation
+            </button>
+        </div>
     </div>
 
     <div class="container">
@@ -1031,6 +1047,12 @@ class SourceViewerServer:
 
     <script>
         let scanResults = null;
+
+        function exitAndContinueCompilation() {
+            const btn = document.getElementById('exitContinueBtn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Exiting...'; }
+            fetch('/api/exit-and-continue').then(function() { document.body.innerHTML = '<div style="padding:2rem;text-align:center;font-family:sans-serif;"><p>Exiting. You can close this tab.</p><p>Build will continue in the terminal.</p></div>'; }).catch(function() { if (btn) btn.textContent = 'Exit and Continue Compilation'; });
+        }
 
         async function startScan() {
             const scanBtn = document.getElementById('scanBtn');
@@ -1761,6 +1783,10 @@ class SourceViewerServer:
             event.target.classList.add('active');
         }
 
+        window.addEventListener('beforeunload', function() {
+            navigator.sendBeacon && navigator.sendBeacon('/api/exit-and-continue');
+        });
+
         // Close popup when clicking outside
         document.addEventListener('click', function(e) {
             const popup = document.getElementById('imagePopup');
@@ -1783,30 +1809,32 @@ class SourceViewerServer:
         """
 
     def start_server(self):
-        """Start the web server"""
+        """Start the web server (uses werkzeug server for fast shutdown on exit-and-continue)"""
         def run_server():
             print(f"[SOURCE-VIEWER] Starting Source Viewer Server on port {self.port}")
-            self.app.run(host='0.0.0.0', port=self.port, debug=False)
+            if make_server:
+                self._werkzeug_server = make_server('0.0.0.0', self.port, self.app)
+                self._server_thread = threading.current_thread()
+                self._werkzeug_server.serve_forever()
+            else:
+                self.app.run(host='0.0.0.0', port=self.port, debug=False)
 
-        # Start server in a separate thread
         server_thread = threading.Thread(target=run_server)
         server_thread.daemon = True
         server_thread.start()
 
-        # Open browser
         browser_thread = threading.Thread(target=self._open_browser)
         browser_thread.daemon = True
         browser_thread.start()
 
         print(f"[SOURCE-VIEWER] Server started at http://localhost:{self.port}")
-        print(f"[SOURCE-VIEWER] Press Ctrl+C to stop the server")
+        print(f"[SOURCE-VIEWER] Press Ctrl+C or use 'Exit and Continue Compilation' button to stop")
 
         return server_thread
 
     def _open_browser(self):
         """Open browser to the web interface"""
-        import time
-        time.sleep(1)  # Wait a bit for server to start
+        time.sleep(1)
         webbrowser.open(f'http://localhost:{self.port}')
 
     def run_standalone(self):

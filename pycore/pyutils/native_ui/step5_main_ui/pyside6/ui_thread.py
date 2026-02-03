@@ -3,23 +3,17 @@
 """
 PySide6 UI Thread
 
-Thread-safe PySide6 UI wrapper following project threading standards:
-- Directly inherits threading.Thread (not using Thread(target=func))
-- Uses THREAD_BUS for all communication
-- No shared mutable state or cross-thread callbacks
+Bootstrap order: show tk window first (no PySide6), wait ready, then load PySide6, then create main window.
 """
 
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pyside6
-
-# Ensure PySide6 is available before importing
-get_third_package_pyside6()
-
-from .framework import PySide6Framework
 from .config import PySide6UIConfig, StartupWindowConfig
+
+if TYPE_CHECKING:
+    from .framework import PySide6Framework
 
 
 class PySide6UIThread(threading.Thread):
@@ -51,30 +45,67 @@ class PySide6UIThread(threading.Thread):
 
         self.ui_config = ui_config
         self.startup_config = startup_config
-        self.framework: Optional[PySide6Framework] = None
+        self.framework: Optional["PySide6Framework"] = None
         self._started_event = threading.Event()
 
         ColorPrint.blue(f"[PySide6UIThread] Initialized - App: {ui_config.app_name}")
 
     def run(self):
-        """Thread main execution - runs Qt event loop"""
-        ColorPrint.green("[PySide6UIThread] Starting Qt event loop...")
+        """Bootstrap: tk first (no PySide6), wait ready, then load PySide6, then create main window."""
+        ColorPrint.green("[PySide6UIThread] Starting (tk bootstrap first, then PySide6)...")
 
-        # Create framework instance
+        existing_startup_thread = None
+        startup_config_for_framework = self.startup_config
+
+        # 1. Show tk bootstrap window first (no PySide6 needed)
+        if self.startup_config and self.startup_config.show_startup:
+            from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
+            ColorPrint.blue("[PySide6UIThread] Step 0: Showing tk bootstrap window (no PySide6 yet)...")
+            existing_startup_thread = TkinterStartupThread(
+                app_name=self.startup_config.app_name,
+                width=getattr(self.startup_config, "width", 500),
+                height=getattr(self.startup_config, "height", 400),
+                icon_path=self.startup_config.icon_path,
+                logo_path=None,
+                enable_language_selector=True,
+                enable_tray=False
+            )
+            existing_startup_thread.start()
+            if THREAD_BUS.wait_signal("TkinterStartup_ready", timeout=10.0):
+                ColorPrint.green("[PySide6UIThread] Tk bootstrap window ready")
+            ColorPrint.register_callback(existing_startup_thread._colorprint_callback)
+            # Framework will use this thread; do not show again
+            startup_config_for_framework = StartupWindowConfig(
+                app_name=self.startup_config.app_name,
+                width=getattr(self.startup_config, "width", 500),
+                height=getattr(self.startup_config, "height", 400),
+                icon_path=self.startup_config.icon_path,
+                show_startup=False,
+                auto_close=self.startup_config.auto_close,
+                daemon=self.startup_config.daemon
+            )
+
+        # 2. Load PySide6 (may install; logs go to tk window)
+        from pycore.pyfoundations.third_party import get_third_package_pyside6
+        ColorPrint.blue("[PySide6UIThread] Checking/installing PySide6...")
+        get_third_package_pyside6()
+        ColorPrint.green("[PySide6UIThread] PySide6 available")
+
+        # 3. Create framework and main window (after tk is visible)
+        from .framework import PySide6Framework
         self.framework = PySide6Framework(
             config=self.ui_config,
-            startup_config=self.startup_config
+            startup_config=startup_config_for_framework,
+            existing_startup_thread=existing_startup_thread
         )
 
-        # Signal that framework is created
         app_id = self.ui_config.app_id or self.ui_config.app_name.lower().replace(' ', '_')
         THREAD_BUS.trigger_event(f'{app_id}.thread.started', {
             'app_name': self.ui_config.app_name,
             'app_id': app_id
         })
 
-        # Start framework (blocks until window closes)
-        ColorPrint.green(f"[PySide6UIThread] Framework starting...")
+        ColorPrint.green("[PySide6UIThread] Framework starting (main window)...")
         self.framework.start()
 
         # Signal that framework has stopped
@@ -98,7 +129,7 @@ class PySide6UIThread(threading.Thread):
             # Trigger close event (thread-safe via Qt signals)
             THREAD_BUS.trigger_event(f'{app_id}.close', {})
 
-    def get_framework(self) -> Optional[PySide6Framework]:
+    def get_framework(self) -> Optional["PySide6Framework"]:
         """
         DEPRECATED: Direct access to framework instance violates threading standards
 

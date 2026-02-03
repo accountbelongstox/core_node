@@ -11,6 +11,7 @@ import signal
 import webbrowser
 import subprocess
 import threading
+import queue
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -185,46 +186,63 @@ class Step19ViewEffectsController:
             print("2. Keep server running - manual browser access")
             print("3. Stop server and continue build process")
             print("4. Stop server and continue to final compilation step (default)")
+            print("   Or use 'Exit and Continue Compilation' button on web / close browser to auto-continue")
             print("=" * 60)
 
-            while True:
+            choice_queue = queue.Queue()
+
+            def input_reader():
                 try:
-                    choice = input("Select option (1-4, or ENTER for default): ").strip()
+                    choice_queue.put(input("Select option (1-4, or ENTER for default): ").strip())
+                except (EOFError, KeyboardInterrupt):
+                    choice_queue.put(None)
 
-                    # Handle empty input (Enter key) as default option 4
-                    if choice == '' or choice == '4':
-                        PrintHelper.info(f"[ACTION] Stopping server and continuing to compilation step...", source=self.step_name)
-                        self._stop_server()
-                        return 'continue_to_compilation'
+            while True:
+                reader = threading.Thread(target=input_reader, daemon=True)
+                reader.start()
+                choice = None
+                while reader.is_alive() or not choice_queue.empty():
+                    try:
+                        choice = choice_queue.get(timeout=0.4)
+                        break
+                    except queue.Empty:
+                        if self.server_thread and not self.server_thread.is_alive():
+                            PrintHelper.info(f"[ACTION] Server stopped from web (exit button or browser closed), continuing to compilation...", source=self.step_name)
+                            return 'continue_to_compilation'
+                        continue
 
-                    elif choice == '1':
-                        PrintHelper.info(f"[ACTION] Opening web browser...", source=self.step_name)
-                        webbrowser.open(web_url)
-                        print("\nBrowser opened. Press ENTER when you're finished viewing...")
-                        input()
-                        self._stop_server()
-                        return 'browser_opened_and_viewed'
-
-                    elif choice == '2':
-                        PrintHelper.info(f"[ACTION] Server running. Access manually at: {web_url}", source=self.step_name)
-                        print(f"\nServer is running at {web_url}")
-                        print("Press ENTER when you're finished viewing...")
-                        input()
-                        self._stop_server()
-                        return 'manual_access_completed'
-
-                    elif choice == '3':
-                        PrintHelper.info(f"[ACTION] Stopping server and continuing build...", source=self.step_name)
-                        self._stop_server()
-                        return 'continue_build'
-
-                    else:
-                        print("Invalid choice. Please select 1-4 or press ENTER for default.")
-
-                except KeyboardInterrupt:
+                if choice is None:
                     PrintHelper.info(f"\n[INTERRUPTED] User interrupted. Stopping server...", source=self.step_name)
                     self._stop_server()
                     return 'interrupted'
+
+                if choice == '' or choice == '4':
+                    PrintHelper.info(f"[ACTION] Stopping server and continuing to compilation step...", source=self.step_name)
+                    self._stop_server()
+                    return 'continue_to_compilation'
+
+                if choice == '1':
+                    PrintHelper.info(f"[ACTION] Opening web browser...", source=self.step_name)
+                    webbrowser.open(web_url)
+                    print("\nBrowser opened. Press ENTER when you're finished viewing...")
+                    input()
+                    self._stop_server()
+                    return 'browser_opened_and_viewed'
+
+                if choice == '2':
+                    PrintHelper.info(f"[ACTION] Server running. Access manually at: {web_url}", source=self.step_name)
+                    print(f"\nServer is running at {web_url}")
+                    print("Press ENTER when you're finished viewing...")
+                    input()
+                    self._stop_server()
+                    return 'manual_access_completed'
+
+                if choice == '3':
+                    PrintHelper.info(f"[ACTION] Stopping server and continuing build...", source=self.step_name)
+                    self._stop_server()
+                    return 'continue_build'
+
+                print("Invalid choice. Please select 1-4 or press ENTER for default.")
 
         except Exception as e:
             PrintHelper.error(f"User interaction menu failed: {e}", source=self.step_name)
@@ -257,28 +275,22 @@ class Step19ViewEffectsController:
 
             killed_count = 0
 
-            # Method 1: Find processes by port using psutil
-            for proc in psutil.process_iter(['pid', 'name', 'connections']):
+            # Method 1: Find processes by port using psutil (call connections() per process; 'connections' not valid attr on Windows)
+            for proc in psutil.process_iter(['pid', 'name']):
                 try:
-                    # Check if process has connections on our port
-                    connections = proc.info['connections']
-                    if connections:
-                        for conn in connections:
-                            if hasattr(conn, 'laddr') and conn.laddr and conn.laddr.port == self.server_port:
-                                pid = proc.info['pid']
-                                name = proc.info['name']
-                                PrintHelper.info(f"[PROCESS-KILLER] Found process: {name} (PID: {pid}) using port {self.server_port}", source=self.step_name)
-
-                                # Kill the process using cross-platform method
-                                if self._kill_process_by_pid(pid):
-                                    killed_count += 1
-                                    PrintHelper.info(f"[PROCESS-KILLER] Successfully killed process {pid}", source=self.step_name)
-
+                    conns = proc.connections()
+                    for conn in conns:
+                        if getattr(conn, 'laddr', None) and getattr(conn.laddr, 'port', None) == self.server_port:
+                            pid = proc.info['pid']
+                            name = proc.info.get('name', '')
+                            PrintHelper.info(f"[PROCESS-KILLER] Found process: {name} (PID: {pid}) using port {self.server_port}", source=self.step_name)
+                            if self._kill_process_by_pid(pid):
+                                killed_count += 1
+                                PrintHelper.info(f"[PROCESS-KILLER] Successfully killed process {pid}", source=self.step_name)
+                            break
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    # Process might have ended or we don't have permission
                     continue
-                except Exception as e:
-                    # Skip any problematic processes
+                except Exception:
                     continue
 
             # Method 2: Platform-specific port killing as fallback

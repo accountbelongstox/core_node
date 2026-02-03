@@ -20,6 +20,8 @@ from typing import Dict, Any, Optional
 
 from pycore import ColorPrint, THREAD_BUS
 from .registry import SERVICE_STARTERS, THREAD_REGISTRY
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter, TrayBackend as PlatformTrayBackend
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import (
     TrayMenuItem,
     PYSTRAY_AVAILABLE
@@ -231,12 +233,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     """
     ColorPrint.blue("[ui] ========== STARTING PYSIDE6 UI SERVICE ==========")
     ColorPrint.blue(f"[ui] Received config keys: {list(config.keys())}")
-
-    # Ensure PySide6 is installed
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
-    ColorPrint.blue("[ui] Checking PySide6 installation...")
-    get_third_package_pyside6()
-    ColorPrint.green("[ui] PySide6 is available")
+    # PySide6 is loaded inside UI thread after tk bootstrap window is shown (bootstrap order: tk first, then PySide6)
 
     from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
         PySide6UIThread,
@@ -263,6 +260,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     # Startup window configuration (tk debug window)
     show_startup = config.get('show_startup', True)
     auto_close_startup = config.get('auto_close_startup', True)
+    cache_window_state = config.get('cache_window_state', True)
 
     ColorPrint.blue("[ui] Configuration parsed:")
     ColorPrint.blue(f"[ui]   - app_name: {app_name}")
@@ -298,7 +296,8 @@ def start_ui(config: Dict[str, Any]) -> Any:
         enable_webview=enable_webview,
         webview_url=webview_url,
         enable_dev_tools=enable_dev_tools,
-        debug=debug
+        debug=debug,
+        cache_window_state=cache_window_state,
     )
     ColorPrint.green("[ui] PySide6UIConfig created")
 
@@ -340,6 +339,19 @@ def start_ui(config: Dict[str, Any]) -> Any:
     )
     ColorPrint.blue(f"[ui] Registered shutdown handler (priority={priority})")
 
+    # When framework shows tk debug window (show_startup), ensure it closes on singleton/shutdown via THREAD_BUS
+    if show_startup:
+        def close_debug_window_via_bus():
+            ColorPrint.blue("[ui] Shutdown: requesting tk debug window close via THREAD_BUS...")
+            THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'shutdown'}, async_mode=False)
+
+        THREAD_BUS.register_shutdown_handler(
+            handler=close_debug_window_via_bus,
+            priority=-1,
+            name="debug_window_close"
+        )
+        ColorPrint.blue("[ui] Registered shutdown handler (priority=-1) for tk debug window close via THREAD_BUS")
+
     ColorPrint.green(f"[ui] ========== PYSIDE6 UI SERVICE STARTED ==========")
     ColorPrint.green(f"[ui] App: {app_name}")
     ColorPrint.green(f"[ui] WebView URL: {webview_url}")
@@ -353,32 +365,67 @@ def start_ui(config: Dict[str, Any]) -> Any:
 
 def start_tray(config: Dict[str, Any]) -> Any:
     """
-    Start system tray service
+    Start system tray service.
+
+    On Ubuntu/GNOME desktop uses AppIndicator when available; otherwise pystray.
+    Linux without X11 has no tray; Windows/macOS use pystray or Qt tray per config.
 
     Args:
         config: Tray configuration
             - app_name: str - Application name
             - icon_path: str - Path to tray icon
-            - menu_items: List[TrayMenuItem] - Menu items
+            - menu_items: List[TrayMenuItem] or list of dicts - Menu items
             - trigger_shutdown_on_exit: bool - Trigger global shutdown on exit (default: True)
 
     Returns:
-        TkinterSystemTrayThread instance or None if unavailable
+        Tray thread instance (AppIndicatorSystemTrayThread or TkinterSystemTrayThread) or None if unavailable
     """
     ColorPrint.blue("[tray] Starting System Tray...")
-
-    # Check if pystray is available
-    if not PYSTRAY_AVAILABLE:
-        ColorPrint.red("[tray] pystray not available, tray service disabled")
-        return None
 
     # Get configuration
     app_name = config.get('app_name', 'Application')
     icon_path = config.get('icon_path')
     menu_items = config.get('menu_items', [])
     trigger_shutdown = config.get('trigger_shutdown_on_exit', True)
+    adapter = get_platform_adapter()
+    recommended = adapter.get_recommended_tray_backend()
 
-    # Create and start tray thread (inherits from threading.Thread)
+    # Ubuntu/GNOME desktop: try AppIndicator first
+    if recommended == PlatformTrayBackend.APPINDICATOR and adapter.can_use_tray():
+        try:
+            from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
+                AppIndicatorSystemTrayThread,
+                build_appindicator_menu_items,
+                APPINDICATOR_AVAILABLE,
+            )
+            if APPINDICATOR_AVAILABLE:
+                appindicator_items = build_appindicator_menu_items(menu_items)
+                app_id = config.get('app_id') or (app_name.lower().replace(' ', '_') + "-tray")
+                tray_thread = AppIndicatorSystemTrayThread(
+                    app_id=app_id,
+                    app_name=app_name,
+                    icon_path=icon_path,
+                    menu_items=appindicator_items,
+                    trigger_shutdown_on_exit=trigger_shutdown,
+                    daemon=True
+                )
+                tray_thread.start()
+                def stop_tray():
+                    ColorPrint.blue("[tray] Stopping System Tray (AppIndicator)...")
+                    THREAD_BUS.trigger_event('tray.request_stop', {})
+                    ColorPrint.green("[tray] System Tray stop signal sent")
+                priority = THREAD_REGISTRY['tray']['shutdown_priority']
+                THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
+                ColorPrint.green(f"[tray] System Tray started (AppIndicator): {app_name}")
+                return tray_thread
+        except Exception as e:
+            ColorPrint.yellow(f"[tray] AppIndicator unavailable ({e}), falling back to pystray")
+
+    # Fallback: pystray (TkinterSystemTrayThread)
+    if not PYSTRAY_AVAILABLE:
+        ColorPrint.red("[tray] pystray not available, tray service disabled")
+        return None
+
     tray_thread = TkinterSystemTrayThread(
         app_name=app_name,
         icon_path=icon_path,
@@ -388,19 +435,13 @@ def start_tray(config: Dict[str, Any]) -> Any:
     )
     tray_thread.start()
 
-    # Register shutdown handler (use THREAD_BUS event)
     def stop_tray():
         ColorPrint.blue("[tray] Stopping System Tray...")
         THREAD_BUS.trigger_event('tray.request_stop', {})
         ColorPrint.green("[tray] System Tray stop signal sent")
 
     priority = THREAD_REGISTRY['tray']['shutdown_priority']
-    THREAD_BUS.register_shutdown_handler(
-        handler=stop_tray,
-        priority=priority,
-        name="tray"
-    )
-
+    THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
     ColorPrint.green(f"[tray] System Tray started: {app_name}")
     return tray_thread
 

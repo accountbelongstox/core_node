@@ -168,11 +168,15 @@ def start(host='0.0.0.0', port=59000, debug=False):
 
     ColorPrint.green("[Callmodule] 20 routers available")
 
-    # Register custom port range for callmodule (matches config.py configuration)
-    # This ensures Native UI uses the correct singleton port range
-    register_port_range(Config.APP_ID, 54000, 100)  # 54000-54099
-    ColorPrint.blue(f"[Callmodule] Registered singleton port range: 54000-54099")
+    # Register singleton port range (callmodule_config/config.py)
+    # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
+    register_port_range(Config.APP_ID, Config.SINGLETON_PORT_START, Config.SINGLETON_PORT_RANGE)
+    ColorPrint.blue(f"[Callmodule] Registered singleton port range: {Config.SINGLETON_PORT_START}-{Config.SINGLETON_PORT_START + Config.SINGLETON_PORT_RANGE - 1} (shared with pylauncher)")
 
+    # Singleton: callmodule_main uses launch_native_app which runs SingletonDetector
+    # with Config.APP_ID and port range 59100-59199 (see register_port_range below).
+    # That matches pylauncher (root pycore_module_caller.py) so only one instance runs
+    # regardless of entry (root script vs python -m pycore.callmodule.callmodule_main).
     # Get platform adapter for cross-platform configuration
     adapter = get_platform_adapter()
     adapter.print_platform_info()
@@ -289,14 +293,12 @@ def start(host='0.0.0.0', port=59000, debug=False):
         enable_tray=IS_WINDOWS,  # Only enable on Windows
         tray_type="pyside6",  # Use PySide6 backend (Windows only)
 
-        # ========== Debug Window Configuration ==========
-        # Windows: Show debug window in desktop mode
-        # Linux: No debug window (background only)
-        show_debug_window=IS_WINDOWS and IS_DESKTOP_MODE,  # Only show on Windows
-        debug_window_width=650,
-        debug_window_height=500,
-        min_display_time=2.0,
-        enable_language_selector=True,
+        # ========== Debug Window Configuration (from settings.yaml) ==========
+        show_debug_window=IS_WINDOWS and IS_DESKTOP_MODE,
+        debug_window_width=Config.DEBUG_WINDOW_WIDTH,
+        debug_window_height=Config.DEBUG_WINDOW_HEIGHT,
+        min_display_time=Config.MIN_DISPLAY_TIME,
+        enable_language_selector=Config.ENABLE_LANGUAGE_SELECTOR,
 
         # ========== Advanced Options ==========
         force=False,
