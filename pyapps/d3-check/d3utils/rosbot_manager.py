@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROSBOT manager: directory from config, find main exe + same-dir generated temp exe, k/start by PID.
-Implements details from original utils/_obsolete_rosbot_manager.py (RoSBotManager) where applicable.
-Uses process_helper.kill_process_by_pid; detects running by process exe under ros_directory.
-
-Limitations vs original RoSBotManager:
-- No activate_and_analyze_window: original used WindowAnalyzer/IntegratedAutomationController; this class does not depend on obsolete modules.
-- No full start_rosbot_sequence: original did cleanup -> start main exe -> wait_for_process -> wait_for_new_other_exe -> activate_and_analyze_window; this class only provides kill_if_running + start and optional cleanup_old_other_exe_processes, wait_for_new_other_exe; caller orchestrates.
-- send_f7_before_kill optional: cleanup_old_other_exe_processes(send_f7_before_kill=True) requires win32api/win32gui; skipped if not installed.
+ROSBOT manager: config directory, find main exe + same-dir other exe (file list), kill/start by exe name -> process -> PID.
+Same-dir = find_other_exe_files() (exe file list); resolve process by exe name (find_process_by_exe_name), then find_window_by_pid.
+get_rosbot_window returns only when window is visible (paused); otherwise running = process, no visible window.
 """
 
 import os
@@ -16,7 +11,7 @@ import glob
 import time
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Set, Dict, Any
+from typing import List, Optional, Dict, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
@@ -60,14 +55,8 @@ class ROSBOTManager:
         ros_settings = CONFIG.get("ros_settings", {})
         self._ros_directory = (ros_directory or ros_settings.get("ros_directory", "")).strip()
         self._ros_dir_norm: Optional[str] = None
-        self._ros_dir_norm_for_pid: Optional[str] = None
         if self._ros_directory:
             self._ros_dir_norm = _normpath(self._ros_directory)
-            base = self._ros_directory
-            if os.path.isfile(base):
-                base = os.path.dirname(base)
-            if base:
-                self._ros_dir_norm_for_pid = _normpath(base)
         self.rosbot_exe_name = ros_settings.get("rosbot_exe_name", "RoS-BoT.exe")
         self.search_patterns = ros_settings.get("other_exe_search_patterns", ["*.exe"])
         self.exclude_patterns = ros_settings.get(
@@ -143,52 +132,68 @@ class ROSBOTManager:
         """List exe basenames in ros_directory excluding main (by pattern) and install/uninstall. Convenience for callers that only need names."""
         return [os.path.basename(p) for p in self.find_other_exe_files()]
 
-    def find_window_by_pid(self, pid: int) -> Optional[Dict[str, Any]]:
-        """Find window by process ID (hwnd, title, pid). Requires win32gui/win32process."""
+    def find_window_by_pid(self, pid: int, visible_only: bool = False) -> Optional[Dict[str, Any]]:
+        """Find window by process ID (hwnd, title, pid). Requires win32gui/win32process.
+        If visible_only=True, return only when IsWindowVisible(hwnd); otherwise prefer visible, then fall back to any window (e.g. minimized).
+        """
         if not win32gui or not win32process or not pid:
             return None
-        found: List[Dict[str, Any]] = []
+        visible_list: List[Dict[str, Any]] = []
+        any_for_pid: List[Dict[str, Any]] = []
 
         def _callback(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                try:
-                    _, wpid = win32process.GetWindowThreadProcessId(hwnd)
-                    if wpid == pid:
-                        title = win32gui.GetWindowText(hwnd)
-                        found.append({"hwnd": hwnd, "title": title or "", "pid": wpid})
-                except Exception:
-                    pass
+            try:
+                _, wpid = win32process.GetWindowThreadProcessId(hwnd)
+                if wpid != pid:
+                    return True
+                title = win32gui.GetWindowText(hwnd)
+                w = {"hwnd": hwnd, "title": title or "", "pid": wpid}
+                any_for_pid.append(w)
+                if win32gui.IsWindowVisible(hwnd):
+                    visible_list.append(w)
+            except Exception:
+                pass
             return True
 
         try:
             win32gui.EnumWindows(_callback, None)
-            if found:
-                for w in found:
+            if visible_only:
+                lst = visible_list
+            else:
+                lst = visible_list if visible_list else any_for_pid
+            if lst:
+                for w in lst:
                     if (w.get("title") or "").strip():
                         return w
-                return found[0]
+                return lst[0]
         except Exception:
             pass
         return None
 
     def find_process_by_exe_name(self, exe_name: str) -> Optional[Dict[str, Any]]:
-        """Find process by exe file name (psutil); attach window info via find_window_by_pid. Same as original."""
+        """Find process by exe file name (psutil); attach window info via find_window_by_pid. Same as original.
+        Match by proc.info['name'] or by basename(proc.info['exe']) so Windows quirks (name vs exe path) are covered.
+        """
         if not psutil or not exe_name:
             return None
+        exe_lower = exe_name.lower()
         try:
             for proc in psutil.process_iter(["pid", "name", "exe"]):
                 try:
                     info = proc.info
-                    if not info.get("name"):
-                        continue
-                    if info["name"].lower() != exe_name.lower():
+                    name_match = info.get("name") and info["name"].lower() == exe_lower
+                    exe_path = info.get("exe") or ""
+                    path_basename_ok = bool(exe_path and os.path.basename(exe_path).lower() == exe_lower)
+                    path_under_ros = bool(self._ros_dir_norm and exe_path and _normpath(exe_path).startswith(self._ros_dir_norm))
+                    path_match = path_basename_ok and (path_under_ros or not self._ros_dir_norm)
+                    if not name_match and not path_match:
                         continue
                     pid = info["pid"]
                     winfo = self.find_window_by_pid(pid)
                     result = {
                         "pid": pid,
-                        "exe_name": info["name"],
-                        "exe_path": info.get("exe") or "",
+                        "exe_name": info.get("name") or os.path.basename(exe_path) or exe_name,
+                        "exe_path": exe_path,
                         "hwnd": winfo["hwnd"] if winfo else 0,
                         "title": winfo["title"] if winfo else f"{exe_name} (No Window)",
                     }
@@ -245,64 +250,101 @@ class ROSBOTManager:
             pass
         return None
 
-    def _pids_with_exe_under_ros_dir(self) -> Set[int]:
-        """Return set of PIDs whose process exe path is under ros_directory (dir of config path if config is exe)."""
-        if not psutil or not self._ros_dir_norm_for_pid:
-            return set()
-        pids: Set[int] = set()
-        sep = os.sep
-        try:
-            for proc in psutil.process_iter(["pid", "exe"]):
-                try:
-                    exe = proc.info.get("exe")
-                    if not exe:
-                        continue
-                    exe_norm = _normpath(exe)
-                    if exe_norm == self._ros_dir_norm_for_pid or exe_norm.startswith(
-                        self._ros_dir_norm_for_pid + sep
-                    ):
-                        pids.add(proc.info["pid"])
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception as e:
-            ColorPrint.red(f"[ROSBOTManager] Error listing processes: {e}")
-        return pids
-
     def get_rosbot_window(self) -> Optional[Dict[str, Any]]:
         """
-        Find ROSBOT window by process: any process whose exe is under ros_directory (main exe or spawned other exe).
-        ROS starts the main exe then spawns another exe in the same dir; the actual UI window may belong to that process,
-        so we find by PID under ros_dir, not by fixed window title.
-        Returns first window with non-empty title, or first window found.
+        Return ROSBOT window only when visible (IsWindowVisible). Same-dir = find_other_exe_files();
+        resolve process by exe name then find_window_by_pid(pid, visible_only=True). Main exe first, then other exe.
         """
-        pids = self._pids_with_exe_under_ros_dir()
-        if not pids:
-            return None
-        with_title: Optional[Dict[str, Any]] = None
-        for pid in pids:
-            winfo = self.find_window_by_pid(pid)
-            if not winfo:
-                continue
-            if (winfo.get("title") or "").strip():
+        ros_dir = self.get_ros_directory()
+        other_files = self.find_other_exe_files()
+        ColorPrint.gray(
+            f"[ROSBOTManager] get_rosbot_window Step 1: same-dir exe list -> ros_directory={ros_dir!r}, count={len(other_files)}, list={[os.path.basename(p) for p in other_files]}"
+        )
+        # Main exe first
+        proc_info = self.check_process_running(self.rosbot_exe_name)
+        if proc_info and proc_info.get("pid"):
+            winfo = self.find_window_by_pid(proc_info["pid"], visible_only=True)
+            if winfo:
+                ColorPrint.gray(
+                    f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} visible window, title={winfo.get('title')!r}"
+                )
                 return winfo
-            if with_title is None:
-                with_title = winfo
-        return with_title
+            ColorPrint.gray(
+                f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} process (PID={proc_info.get('pid')}) but no visible window"
+            )
+        any_process_no_window = bool(proc_info and proc_info.get("pid"))
+        for exe_path in other_files:
+            exe_name = os.path.basename(exe_path)
+            proc_info = self.find_process_by_exe_name(exe_name)
+            if not proc_info or not proc_info.get("pid"):
+                continue
+            winfo = self.find_window_by_pid(proc_info["pid"], visible_only=True)
+            if winfo:
+                ColorPrint.gray(
+                    f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} visible window, title={winfo.get('title')!r}"
+                )
+                return winfo
+            any_process_no_window = True
+            ColorPrint.gray(
+                f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} process (PID={proc_info.get('pid')}) but no visible window"
+            )
+        if any_process_no_window:
+            ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: process(es) found but no visible window")
+        else:
+            ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: no process/window for main or same-dir exe")
+        return None
+
+    def get_rosbot_detection(self) -> Dict[str, Any]:
+        """
+        Extended status: not_found (no process), running (process, no visible window), paused (has visible window).
+        Returns {"status": "not_found"|"running"|"paused", "window_info": dict or None}.
+        """
+        window_info = self.get_rosbot_window()
+        if window_info:
+            return {"status": "paused", "window_info": window_info}
+        if self.is_running():
+            return {"status": "running", "window_info": None}
+        return {"status": "not_found", "window_info": None}
+
+    def get_running_rosbot_processes(self) -> List[Dict[str, Any]]:
+        """Main exe + each same-dir exe find_process_by_exe_name, collect pid/exe_path/exe_name/window_info (window may be non-visible)."""
+        out: List[Dict[str, Any]] = []
+        proc_info = self.check_process_running(self.rosbot_exe_name)
+        if proc_info:
+            winfo = self.find_window_by_pid(proc_info["pid"]) if proc_info.get("pid") else None
+            out.append({"pid": proc_info.get("pid"), "exe_path": proc_info.get("exe_path", ""), "exe_name": proc_info.get("exe_name", ""), "window_info": winfo})
+        for exe_path in self.find_other_exe_files():
+            exe_name = os.path.basename(exe_path)
+            proc_info = self.find_process_by_exe_name(exe_name)
+            if proc_info:
+                winfo = self.find_window_by_pid(proc_info["pid"]) if proc_info.get("pid") else None
+                out.append({"pid": proc_info.get("pid"), "exe_path": proc_info.get("exe_path", ""), "exe_name": proc_info.get("exe_name", ""), "window_info": winfo})
+        return out
 
     def is_running(self) -> bool:
-        """True if any process with exe under ros_directory is running (main or same-dir temp exe)."""
-        return len(self._pids_with_exe_under_ros_dir()) > 0
+        """True if main exe or any same-dir exe has a running process (find_process_by_exe_name)."""
+        if self.check_process_running(self.rosbot_exe_name):
+            return True
+        for exe_path in self.find_other_exe_files():
+            if self.find_process_by_exe_name(os.path.basename(exe_path)):
+                return True
+        return False
 
     def kill_if_running(self) -> bool:
-        """Kill all processes whose exe is under ros_directory by PID. Returns True if all killed or none running."""
-        pids = self._pids_with_exe_under_ros_dir()
-        if not pids:
-            return True
-        ColorPrint.blue(f"[ROSBOTManager] ROSBOT process(es) found, k {len(pids)} by PID...")
+        """Kill main exe and each same-dir exe process (find_process_by_exe_name -> pid -> kill)."""
         ok = True
-        for pid in pids:
-            if not kill_process_by_pid(pid, log_prefix="[ROSBOTManager]"):
+        proc_info = self.find_process_by_exe_name(self.rosbot_exe_name)
+        if proc_info and proc_info.get("pid"):
+            ColorPrint.blue(f"[ROSBOTManager] Killing main exe {self.rosbot_exe_name} (PID: {proc_info['pid']})...")
+            if not kill_process_by_pid(proc_info["pid"], log_prefix="[ROSBOTManager]"):
                 ok = False
+        for exe_path in self.find_other_exe_files():
+            exe_name = os.path.basename(exe_path)
+            proc_info = self.find_process_by_exe_name(exe_name)
+            if proc_info and proc_info.get("pid"):
+                ColorPrint.blue(f"[ROSBOTManager] Killing same-dir {exe_name} (PID: {proc_info['pid']})...")
+                if not kill_process_by_pid(proc_info["pid"], log_prefix="[ROSBOTManager]"):
+                    ok = False
         return ok
 
     def start_executable(self, exe_path: str) -> bool:
@@ -362,7 +404,7 @@ class ROSBOTManager:
             return False
 
     def cleanup_old_other_exe_processes(self, send_f7_before_kill: bool = False) -> bool:
-        """Clean all running 'other exe' processes in directory; optionally send F7 before kill (original behavior)."""
+        """Kill all running same-dir other exe processes; optionally send F7 before kill."""
         other_exe_files = self.find_other_exe_files()
         if not other_exe_files:
             return True
@@ -384,7 +426,7 @@ class ROSBOTManager:
         return True
 
     def wait_for_new_other_exe(self, timeout_seconds: int = 60) -> Optional[Dict[str, Any]]:
-        """Wait for RoS-BoT to spawn a new 'other exe' process (find_other_exe_files + find_process_by_exe_name). Same as original."""
+        """Wait for a same-dir other exe process to appear (find_other_exe_files + find_process_by_exe_name)."""
         deadline = time.time() + timeout_seconds
         while time.time() < deadline:
             for exe_path in self.find_other_exe_files():

@@ -14,7 +14,7 @@ from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.battlenet_status_provider import refresh_battlenet_status
-from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed
+from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed, reset_confirmed_to_poll
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -78,25 +78,29 @@ class RosbotTaskProcessor:
             ColorPrint.red(f"[RosbotTaskProcessor] Error stopping ROSBOT: {e}")
     
     def process_task(self):
-        """Flow driver: 1s tick from task thread; this flow uses % for 2s tick; when flow master off, skip all logic (ROSBOT_FLOW.md). When flow master on, 2s tick also refreshes D3/Battle.net state for status UI (no global timer state detection)."""
-        if not self.game_state.rosbot_flow_master_enabled:
+        """Flow driver: 1s tick; flow uses % for 2s. When flow master on: full flow (BN then D3/ROSBOT). When ensure_battlenet_only on: BN-only, confirmed后每 tick 再轮询（掉线则重登）。"""
+        bn_only = self.game_state.ensure_battlenet_only_master_enabled
+        flow_master = self.game_state.rosbot_flow_master_enabled
+        if not flow_master and not bn_only:
             return
         _flow_tick_count[0] += 1
         if _flow_tick_count[0] % 2 != 0:
             return
         try:
             refresh_battlenet_status()
-            if get_bn_flow_ever_confirmed():
+            if flow_master and get_bn_flow_ever_confirmed():
                 refresh_d3_status()
             self.game_state.notify_state_sync()
         except Exception:
             pass
-        done, result = tick_battlenet_ready_flow()
-        # Gate: D3/extension only after BN_Confirmed (rosbot_flow_battlenet.tick_battlenet_ready_flow)
+        done, result = tick_battlenet_ready_flow(no_activate=bn_only)
         if done and result == "confirmed":
-            set_battlenet_tick_confirmed()
-            from d3utils.event_center import trigger_extension_rosbot_start
-            trigger_extension_rosbot_start()
+            if flow_master:
+                set_battlenet_tick_confirmed()
+                from d3utils.event_center import trigger_extension_rosbot_start
+                trigger_extension_rosbot_start()
+            elif bn_only:
+                reset_confirmed_to_poll()
 
 
 # Global instance

@@ -6,7 +6,7 @@
 
 ## 全流程（单图合并）
 
-下图包含：入口与定时器、战网就绪检查、D3 是否在线、是否有 D3 进程、分支 A（片段 1/片段 2）、分支 B（从战网启动 D3 至启动后自动化）、主线程收尾。本流程为 tick 驱动，掉线后自动回到流程开始。
+下图包含：入口与定时器、战网就绪检查、D3 是否在线、是否有 D3 进程、分支 A（片段 1/片段 2）、分支 B（从战网启动 D3 至启动后自动化）、**E ROSBOT 运行流程**（结束已有 ROSBOT → 若配置则启动进程 → 任务初始化 → 启动后自动化 → 主线程收尾）、主线程收尾。本流程为 tick 驱动，掉线后自动回到流程开始。
 
 ```mermaid
 flowchart TB
@@ -98,7 +98,24 @@ flowchart TB
     end
 
     EndD3 --> BranchB_Entry
-    Success["[A8] 返回成功：设置 D3 状态；结束已有 ROSBOT；若配置则启动 ROSBOT；任务初始化；ROSBOT 启动后自动化"] --> MainEnd["[A9] 主线程收尾：面板状态「运行中」；启用 rosbot_task 周期任务；再次执行 ROSBOT 任务初始化；打日志「ROSBOT Started monitoring」"]
+    Success["[A8] 返回成功：设置 D3 状态；进入 ROSBOT 运行流程 E"] --> E1["[E1] 结束已有 ROSBOT（kill_if_running）"]
+    E1 --> E2["[E2] 等待 1 秒"]
+    E2 --> E3{"[E3] 配置 auto_start_rosbot？"}
+    E3 -->|否| E6
+    E3 -->|是| E4["[E4] 启动 ROSBOT 进程（find_rosbot_exe + start_executable）"]
+    E4 --> E5["[E5] 任务初始化（start_rosbot_task）"]
+    E5 --> E5a["[E5a] 启动后自动化：等窗口 → 激活 → 等服务器连接 → 轮询主 UI 就绪 → 可选调试输出 → 点主档案 Tab → 点 Start botting!"]
+    E5a --> E6["[E6] 主线程收尾 [A9]：面板「运行中」；启用 rosbot_task 周期任务；再次 initialize + start_rosbot_task；打日志「ROSBOT Started monitoring」"]
+    E6 --> MainEnd["[A9] 主线程收尾：面板状态「运行中」；启用 rosbot_task 周期任务；再次执行 ROSBOT 任务初始化；打日志「ROSBOT Started monitoring」"]
+    subgraph E["E ROSBOT 运行流程"]
+        E1
+        E2
+        E3
+        E4
+        E5
+        E5a
+        E6
+    end
 ```
 
 ---
@@ -112,9 +129,10 @@ flowchart TB
 | **A** | A1～A9 | 入口、定时器、D3 在线、是否有 D3、成功、收尾 |
 | **B** | B1～B16（B4/B4' 首界面两判；B5w 为退出后等待；B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、**B4/B4' 首界面两判**（是→B5 否→B6）、退出、**B6/B7/B8/B13 轮询 UI**（激活/等元素/找元素/结果）、登录两步、确切状态、继续 |
 | **C** | C1～C12 | 缩放、检测、片段1/2、结束 D3 落 D |
-| **D** | D1～D18 | 找窗口、D3 tab、Play、开始游戏、ROSBOT 启动后自动化 |
+| **D** | D1～D18 | 找窗口、D3 tab、Play、开始游戏、进入 A8 |
+| **E** | E1～E6（E5a 为启动后自动化） | **ROSBOT 运行流程**：结束已有 ROSBOT → 等待 1 秒 → 若配置则启动进程 → 任务初始化 → 启动后自动化（等窗口、激活、等服务器、轮询主 UI、可选调试、点主档案、点 Start botting!）→ 主线程收尾 [A9] |
 
-**开发引用示例**：「从 B1 开发到 B16」「实现 B」「实现 D 的 D5～D18」「从 C1 做到 C8」。
+**开发引用示例**：「从 B1 开发到 B16」「实现 B」「实现 D 的 D5～D18」「从 C1 做到 C8」「实现 E（ROSBOT 运行流程）」。
 
 ---
 
@@ -152,14 +170,32 @@ flowchart TB
 
 ---
 
-## ROSBOT 启动后自动化（流程内统一调用点）
+## ROSBOT 运行流程（E）与代码对应
 
-在「设置 D3 状态 → 结束 ROSBOT → 启动 ROSBOT → 任务初始化」之后、返回成功之前，会执行同一段「启动后自动化」：
+D3 运行成功后进入 **A8 → E**。代码中由 `login_try_screenshot_controller` 在返回 True 前执行 E1～E5a，主线程 `_on_login_check_done` 执行 E6（A9）。
 
-1. **等窗口**：等待 ROSBOT 窗口出现（按标题匹配），超时可用配置；激活该窗口。
-2. **调试输出**（可选）：递归遍历该窗口的可操作元素，输出类型、名称、自动化 ID、矩形等，便于排查。
-3. **点主档案**：在窗口内找到名称包含「主档案/主檔案/Main Profile」的 Tab，点击。
-4. **点 Start botting!**：找到 automation_id 或名称对应「Start botting」的按钮并点击。
+| 步骤 | 流程说明 | 代码对应 |
+|------|----------|----------|
+| **E1** | 结束已有 ROSBOT | `get_rosbot_manager().kill_if_running()` |
+| **E2** | 等待 1 秒 | `time.sleep(1)` |
+| **E3** | 配置 auto_start_rosbot？ | `CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True)`；否则跳过 E4～E5a，直接主线程收尾 |
+| **E4** | 启动 ROSBOT 进程 | `get_rosbot_manager().start()`（find_rosbot_exe + start_executable） |
+| **E5** | 任务初始化 | `start_rosbot_task()`（启用 rosbot_task 周期任务） |
+| **E5a** | 启动后自动化 | `run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)` |
+| **E6 [A9]** | 主线程收尾 | 面板 `_on_login_check_done`：set_task_status("rosbot_task", ENABLED)、initialize()、start_rosbot_task()、打日志「ROSBOT Started monitoring」 |
+
+---
+
+## ROSBOT 启动后自动化（E5a / 流程内统一调用点）
+
+在 E4 启动进程、E5 任务初始化之后，执行同一段「启动后自动化」（对应 `run_after_rosbot_start`）：
+
+1. **等窗口**：轮询 `get_rosbot_window()` 直到 ROSBOT 窗口出现，超时可用配置（默认 30 秒）；激活该窗口（SetForegroundWindow、ShowWindow）。
+2. **等服务器连接**：等待 `SERVER_WAIT_SECONDS`。
+3. **轮询主 UI 就绪**：轮询直到主档案 Tab 可见（MAIN_UI_POLL_TIMEOUT / MAIN_UI_POLL_INTERVAL）。
+4. **调试输出**（可选）：递归遍历该窗口的可操作元素，输出类型、名称、自动化 ID、矩形等，便于排查。
+5. **点主档案**：在窗口内找到名称包含「主档案/主檔案/Main Profile」的 Tab，点击。
+6. **点 Start botting!**：找到 automation_id 或名称对应「Start botting」的按钮并点击。
 
 异常仅记录为黄色日志，不改变流程成功/失败结果。
 
@@ -187,7 +223,7 @@ B2 有战网窗口时，当前界面即**首次启动的首界面**。流程图�
 - **B11 油猴等待超时**：步骤2 等待油猴返回超时时间为 **2 分钟**（120 秒），由 `BN_FLOW_OAUTH_WAIT_SEC` 配置。
 - **B4 首次启动首界面两种状态**：见上节「首次启动首界面（B4 判定）」；实现时用 `is_on_login_screen()` 判登陆页、`is_on_browser_login_wait_screen()` 判等待浏览器返回页，任一为真则 B4→B5。
 - **B6/B7/B8/B13 轮询 UI**：流程中「轮询」均指**轮询战网 UI**（每 tick 查控件树/枚举控件），非轮询网络或其它。B6 激活窗口后由 B13 轮询 UI；B7 轮询 UI 直到出现确切元素（战网刚启动转圈则继续等）；B8 为 B7 轮询 UI 结果；B13 轮询 UI 得确切状态（已登录/掉线/超时/其他）。节点上已写说明。
-- **登录失败状态**：在 B4、B7、B9、B11、B13 任一节点，若战网 UI 为**网页登陆后**战网显示的弹窗，则判定为登录失败，退出战网并回到 B1。该弹窗有**两个按钮**、支持中英文：主按钮「继续离线」/ Continue Offline、次按钮「取消」/ Cancel。**判定以主按钮为准**（仅当出现「继续离线」或 Continue Offline 时判为登录失败），避免仅因「取消」误判（等待浏览器返回页也有「取消」）。实现时先排除 `is_on_browser_login_wait_screen()`，再检查 `BATTLE_NET_LOGIN_FAILED_KEYWORDS`（主按钮）。
+- **登录失败状态**：在 B4、B7、B9、B11、B13 任一节点，若战网 UI 为**网页登陆后**战网显示的弹窗，则判定为登录失败，退出战网并回到 B1。该弹窗有**两个按钮**、支持中英文：主按钮「继续离线」/ Continue Offline、次按钮「取消」/ Cancel。**判定以主按钮为准**（仅当出现「继续离线」或 Continue Offline 时判为登录失败），避免仅因「取消」误判（等待浏览器返回页也有「取消」）。实现时先排除 `is_on_browser_login_wait_screen()`，再检查 `BATTLE_NET_LOGIN_FAILED_KEYWORDS`（前二为主按钮、后二为次按钮，最大化需两者均存在）。
 - **每步 UI 快照**：每步使用固定流程名（如 B2_has_window、B7_poll_elements、B11_wait_oauth 等）保存战网当前 UI 元素到 `battlenet_ui_analyze/bn_flow_snapshots/`，便于对照调试。
 - **Mermaid 图**：全部流程合并为一张图，按「Mermaid 使用规范」编写，规范见 [`MERMAID_SPEC.md`](MERMAID_SPEC.md)；审阅或修改本 Mermaid 版时须遵守该规范。
 

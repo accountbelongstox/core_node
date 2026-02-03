@@ -290,11 +290,10 @@ class Diablo3MacroUI:
         trigger_app_exit()
 
     def _apply_first_run_topmost(self):
-        """First run only: lift and briefly topmost (geometry already set at init to avoid 0,0 flash)."""
-        if not self._had_saved_geometry:
-            self.root.lift()
-            self.root.attributes("-topmost", True)
-            self.root.after(500, lambda: self.root.attributes("-topmost", False))
+        """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash)."""
+        self.root.lift()
+        self.root.attributes("-topmost", True)
+        self.root.after(500, lambda: self.root.attributes("-topmost", False))
 
     def _save_window_geometry(self):
         """Persist current window position and size to config."""
@@ -612,8 +611,8 @@ class Diablo3MacroUI:
         # Force apply style to this tab
         self._apply_tab_style(tab_id)
 
-        # Create ROSBOT extension panel
-        self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame)
+        # Create ROSBOT extension panel (status merged into bottom bar Game Status row)
+        self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame, bottom_bar=self.bottom_bar)
 
         # Set callbacks
         if hasattr(self.rosbot_extension_panel, 'set_config_change_callback'):

@@ -20,6 +20,7 @@ from share.game_interface_data import get_game_interface_data
 from timers.timer_manager import register_task
 from d3utils.d3_status_provider import refresh_d3_status, get_current_d3_window
 from d3utils.battlenet_status_provider import refresh_battlenet_status
+from d3utils.rosbot_status_provider import refresh_rosbot_status
 
 from providor.app_constants import DEFAULT_INTERVAL
 
@@ -96,22 +97,36 @@ def _notify_callbacks(window_info: Optional[dict]):
 
 def check_window():
     """
-    Timer callback: refresh D3 status then Battle.net status (each provider owns its logic), then notify D3 window info callbacks.
+    Timer callback: refresh Battle.net then D3 then ROSBOT status (flow B1→B16 before A5; each provider owns its logic), then notify D3 window info callbacks.
     Always push current game state to status UI so UI updates even when no field changed (fixes race: first callback may run before status widgets exist).
     """
     global _last_window_found
 
     try:
-        ColorPrint.blue("[Refresh] Refreshing status (D3 + Battle.net)...")
-        d3_info = refresh_d3_status()
         g = get_game_interface_data()
-        d3_running = g.d3_running
-        ColorPrint.blue(f"[Refresh] D3: {'found' if d3_running else 'not found'}")
+        bn_only = g.ensure_battlenet_only_master_enabled
+        flow_master = g.rosbot_flow_master_enabled
+        skip_d3 = bn_only and not flow_master
 
+        ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
         refresh_battlenet_status()
         g = get_game_interface_data()
         bn_found = g.battlenet_window_found
         ColorPrint.blue(f"[Refresh] Battle.net: {'found' if bn_found else 'not found'}")
+
+        d3_info = None
+        if not skip_d3:
+            d3_info = refresh_d3_status()
+            g = get_game_interface_data()
+            d3_running = g.d3_running
+            ColorPrint.blue(f"[Refresh] D3: {'found' if d3_running else 'not found'}")
+        else:
+            ColorPrint.gray("[Refresh] Ensure Battle.net only: skip D3 detection")
+
+        refresh_rosbot_status()
+        g = get_game_interface_data()
+        rosbot_extended = g.rosbot_extended_status
+        ColorPrint.blue(f"[Refresh] ROSBOT extended status: {rosbot_extended}")
 
         g.notify_state_sync()
         ColorPrint.blue("[Refresh] State pushed to UI")

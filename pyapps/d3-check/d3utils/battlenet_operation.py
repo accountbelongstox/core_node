@@ -2,7 +2,7 @@
 """
 Battle.net operation: start, close, restart, click D3 tab, start game, detect game state.
 Reuses BattleNetManager for process/window; UI Automation for control find/click (Chromium Battle.net).
-Control names reference docs/登陆后的战网元素.json (exported via debug button).
+Control names reference docs JSON (exported via debug button).
 """
 import time
 import json
@@ -23,8 +23,9 @@ from providor.app_constants import (
     BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS,
     BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS,
     BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC,
-    BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS,
+    BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS,
     BATTLE_NET_LOGIN_FAILED_KEYWORDS,
+    LOGIN_SCREEN_UI_KEYWORDS_STRICT,
     LOGIN_SCREEN_UI_KEYWORDS,
     LOGIN_WINDOW_AUTOMATION_ID_MARKERS,
     D3_TAB_AUTOMATION_IDS,
@@ -42,7 +43,7 @@ _login_failed_loaded: bool = False
 
 
 def _load_login_failed_features_from_snapshots() -> Tuple[Set[str], Set[str]]:
-    """Load bn_flow_*.json; extract control name/automation_id that contain BATTLE_NET_LOGIN_FAILED_KEYWORDS (main button only)."""
+    """Load bn_flow_*.json; extract control name/automation_id that contain any BATTLE_NET_LOGIN_FAILED_KEYWORDS."""
     global _login_failed_names, _login_failed_ids, _login_failed_loaded
     if _login_failed_loaded:
         return (_login_failed_names or set(), _login_failed_ids or set())
@@ -131,7 +132,7 @@ class BattlenetOperation:
 
     @staticmethod
     def _default_elements_json_path() -> Path:
-        """docs/登陆后的战网元素.json"""
+        """Path to battlenet elements JSON under docs (filename may be CN)."""
         base = Path(__file__).resolve().parent.parent
         return base / "docs" / "登陆后的战网元素.json"
 
@@ -294,7 +295,7 @@ class BattlenetOperation:
         return False
 
     def click_control(self, control: Dict[str, Any]) -> bool:
-        """Click at control rect center. 秒点、不移动鼠标（duration=0）、点击后鼠标复原位."""
+        """Click at control rect center. Instant click (duration=0), return mouse to original after click."""
         rect = control.get("rect")
         if not rect:
             return False
@@ -468,41 +469,45 @@ class BattlenetOperation:
 
     def is_login_screen_ready(self) -> bool:
         """
-        True when login screen is ready for interaction (agree checkbox or NetEase button visible).
-        Used in B7: 转圈时仅有 login-wrapper 等，不应判为「找到确切元素」；只有出现 legalAcceptance/ntes 或「您同意」/「使用网易」才判为可操作。
+        True when login screen is ready for interaction. Maximized: require BOTH automation_id (legalAcceptance or ntes) AND control name (agree or NetEase keywords), so spinning login-wrapper alone does not pass.
         """
         controls = self._enumerate_controls()
         if not controls:
             return False
-        if self.find_control_by_automation_id("legalAcceptance", controls) is not None:
-            return True
-        if self.find_control_by_automation_id("ntes", controls) is not None:
-            return True
-        if self.find_control_by_name(BATTLE_NET_CN_AGREE_KEYWORDS, controls) is not None:
-            return True
-        if self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS, controls) is not None:
-            return True
-        return False
+        has_agree_id = self.find_control_by_automation_id("legalAcceptance", controls) is not None
+        has_netease_id = self.find_control_by_automation_id("ntes", controls) is not None
+        has_agree_name = self.find_control_by_name(BATTLE_NET_CN_AGREE_KEYWORDS, controls) is not None
+        has_netease_name = self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS, controls) is not None
+        return (has_agree_id or has_netease_id) and (has_agree_name or has_netease_name)
 
-    def get_dynamic_state(self) -> Tuple[bool, bool, bool]:
+    def get_dynamic_state(self) -> Tuple[bool, bool, bool, Optional[str]]:
         """
-        Enumerate UI once and return (on_login_screen, disconnected, normal_available).
-        Uses UI Automation only. Unlogged-in state: automation_id markers from battlenet_analysis.json (未登陆 UI).
+        Enumerate UI once and return (on_login_screen, disconnected, normal_available, play_button_name).
+        Maximized and mutually exclusive: check normal first, then disconnected, then on_login; at most one of the three is True.
+        When normal_available, play_button_name is the Play button control name (e.g. "Play", "Playing Now", "开始游戏"); else None.
         """
         controls = self._enumerate_controls()
         if not controls:
-            return (False, False, False)
-        # Unlogged-in: any control automation_id contains LoginWindow/loginWidget/login-wrapper/legalAcceptance/ntes/connectAccounts, or name matches need-login/agree/NetEase
-        on_login = self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS, controls) is not None
-        disconnected = self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
+            return (False, False, False, None)
         d3_tab = self.find_control_by_automation_id("game-nav-btn-D3CN", controls) or self.find_control_by_automation_id("game-nav-btn-D3", controls)
         play_ctrl = (
             self.find_control_by_automation_id("play-btn-main", controls)
             or self.find_control_by_automation_id("play-btn", controls)
             or self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
         )
-        normal_available = d3_tab is not None and play_ctrl is not None
-        return (on_login, disconnected, normal_available)
+        has_login_markers = self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS)
+        has_login_name = self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
+        on_login_strict = has_login_markers or has_login_name
+        disconnected = self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
+        normal_available = d3_tab is not None and play_ctrl is not None and not has_login_markers
+        play_button_name = (play_ctrl.get("name") or "").strip() or None if play_ctrl else None
+        if normal_available:
+            return (False, False, True, play_button_name or "Play")
+        if disconnected:
+            return (False, True, False, None)
+        if on_login_strict:
+            return (True, False, False, None)
+        return (False, False, False, None)
 
     def save_ui_elements_snapshot(self, node_name: str, reason: str) -> Optional[Path]:
         """
@@ -532,45 +537,59 @@ class BattlenetOperation:
             return None
 
     def is_on_login_screen(self) -> bool:
-        """True if Battle.net is on login screen (未登陆). Uses automation_id markers from battlenet_analysis.json or control name keywords."""
+        """True if Battle.net is on login screen. Maximized: automation_id contains login-window markers OR control name contains strict long phrases (no single 登录)."""
         controls = self._enumerate_controls()
         if not controls:
             return False
-        return self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS, controls) is not None
+        return (
+            self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS)
+            or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
+        )
 
     def is_login_failed_screen(self) -> bool:
-        """True if Battle.net shows post-web-login dialog (two buttons: Continue Offline + Cancel / 继续离线 + 取消). Only primary button (Continue Offline / 继续离线) is checked to avoid false positive on 取消 alone. Exclude browser-login-wait screen first."""
+        """True if Battle.net shows post-web-login dialog. Maximized: exclude browser-wait first; require BOTH primary (Continue Offline/继续离线) AND secondary (Cancel/取消) present in current UI."""
         controls = self._enumerate_controls()
         if not controls:
             return False
         if self.is_on_browser_login_wait_screen():
             return False
-        names_set, ids_set = _load_login_failed_features_from_snapshots()
+        primary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[:2]
+        secondary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[2:4]
+        has_primary = False
+        has_secondary = False
         for c in controls:
             name = (c.get("name") or "").strip()
             aid = (c.get("automation_id") or "").strip()
-            if name and (name in names_set or any(kw in name for kw in BATTLE_NET_LOGIN_FAILED_KEYWORDS if kw)):
-                return True
-            if aid and (aid in ids_set or any(kw in aid for kw in BATTLE_NET_LOGIN_FAILED_KEYWORDS if kw)):
-                return True
-        return False
+            if name and any(kw in name for kw in primary_kw if kw):
+                has_primary = True
+            if aid and any(kw in aid for kw in primary_kw if kw):
+                has_primary = True
+            if name and any(kw in name for kw in secondary_kw if kw):
+                has_secondary = True
+            if aid and any(kw in aid for kw in secondary_kw if kw):
+                has_secondary = True
+        return has_primary and has_secondary
 
     def is_on_browser_login_wait_screen(self) -> bool:
-        """True if current window is the '使用浏览器完成登录。/取消' popup (wait for browser login). If we see this at start, restart BN and go to step 1; in the middle it is normal."""
+        """True if current window is the browser-login-wait popup. Maximized: detect by main text only (do not use Cancel alone)."""
         controls = self._enumerate_controls()
         if not controls:
             return False
-        return self.find_control_by_name(BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS, controls) is not None
+        return self.find_control_by_name(BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS, controls) is not None
 
     def is_disconnected(self) -> bool:
-        """True if Battle.net shows disconnect (UI element: Retry / 重试)."""
-        controls = self._enumerate_controls()
-        return self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None if controls else False
-
-    def is_logged_in(self) -> bool:
-        """True if logged in and normal available: D3 tab + Play area visible (UI Automation)."""
+        """True if Battle.net shows disconnect. Maximized: must have Retry/重试 control (unique keywords)."""
         controls = self._enumerate_controls()
         if not controls:
+            return False
+        return self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
+
+    def is_logged_in(self) -> bool:
+        """True if logged in and normal available. Maximized: D3 tab and Play both present, and no login-window automation_id (avoid false positive when login overlay on main)."""
+        controls = self._enumerate_controls()
+        if not controls:
+            return False
+        if self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS):
             return False
         d3_tab = self.find_control_by_automation_id("game-nav-btn-D3CN", controls) or self.find_control_by_automation_id("game-nav-btn-D3", controls)
         if not d3_tab:

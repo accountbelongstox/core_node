@@ -1,65 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Bottom Bar Status Block
-Single row: game status + window size. Used by BottomBar as sub-component.
+Bottom Bar Status Block: two rows, no frame title. All value labels registered for fg updates.
 """
 
 import tkinter as tk
-from ..theme import UITheme
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
+from .status_item import make_status_item
+from .status_row_config import STATUS_ROW_1, STATUS_ROW_2
 
 i18n_manager = I18nManager()
 
 
+def _build_row(parent, items, status_vars):
+    row = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+    row.pack(fill=tk.X, padx=4, pady=2)
+    labels = {}
+    for label_key, var_key, fg_key in items:
+        var = status_vars.get(var_key)
+        if var is None:
+            continue
+        label_text = i18n_manager.get_ui_text(label_key)
+        fg = UnifiedStyles.COLORS.get(fg_key) if isinstance(fg_key, str) else fg_key
+        item_frame, value_label = make_status_item(row, label_text, var, fg)
+        item_frame.pack(side=tk.LEFT)
+        labels[var_key] = value_label
+    return labels
+
+
 class BottomBarStatusBlock:
-    """One row: game status LabelFrame + window size LabelFrame."""
+    """Two rows, no title. register_callback(value_labels: dict var_key -> Label)."""
 
-    def __init__(self, parent, game_status_var, window_size_var, register_callback):
-        """
-        Args:
-            parent: Parent widget
-            game_status_var: StringVar for game status text
-            window_size_var: StringVar for window size text
-            register_callback: Callable(game_status_label, window_size_label) to register for fg updates
-        """
+    def __init__(self, parent, status_vars: dict, register_callback):
         self.frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
-        self.frame.grid_columnconfigure(0, weight=0)
-        self.frame.grid_columnconfigure(1, weight=0)
+        self.frame.grid_columnconfigure(0, weight=1)
 
-        status_lf = tk.LabelFrame(
-            self.frame,
-            text=i18n_manager.get_ui_text("ui.status_bar.game_status"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['default']
-        )
-        status_lf.pack(side=tk.LEFT, padx=5, pady=2)
-        self.game_status_label = tk.Label(
-            status_lf,
-            textvariable=game_status_var,
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['error'],
-            font=UnifiedStyles.FONTS['default']
-        )
-        self.game_status_label.pack(padx=10, pady=2)
+        content = tk.Frame(self.frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        content.pack(fill=tk.X, padx=5, pady=2)
 
-        window_lf = tk.LabelFrame(
-            self.frame,
-            text=i18n_manager.get_ui_text("ui.status_bar.window_size"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['default']
-        )
-        window_lf.pack(side=tk.LEFT, padx=5, pady=2)
-        self.window_size_label = tk.Label(
-            window_lf,
-            textvariable=window_size_var,
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['code']
-        )
-        self.window_size_label.pack(padx=10, pady=2)
-
-        register_callback(self.game_status_label, self.window_size_label)
+        labels1 = _build_row(content, STATUS_ROW_1, status_vars)
+        labels2 = _build_row(content, STATUS_ROW_2, status_vars)
+        value_labels = {**labels1, **labels2}
+        register_callback(value_labels)

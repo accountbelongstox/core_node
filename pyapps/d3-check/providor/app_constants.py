@@ -85,9 +85,13 @@ BATTLE_NET_NEED_LOGIN_KEYWORDS = ("需要登陆", "请登录", "登录")
 BATTLE_NET_CN_AGREE_KEYWORDS = ("您同意",)
 BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS = ("使用网易账号登录或注册",)
 BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS = ("登陆", "登录")
+# Browser-login-wait popup: detect by main text only (do not use Cancel alone).
+BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS = ("使用浏览器完成登录",)
 BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS = ("使用浏览器完成登录", "取消")
-# Login-failed dialog: two buttons (EN: Continue Offline + Cancel; CN: 继续离线 + 取消). Detect by main button only.
-BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线")
+# Login-failed dialog: one constant. Order: primary (Continue Offline, 继续离线) then secondary (Cancel, 取消). Maximized: require both primary [0:2] and secondary [2:4] present.
+BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel", "取消")
+# Login screen: strict long phrases only (no single 登录) to avoid false match.
+LOGIN_SCREEN_UI_KEYWORDS_STRICT = ("需要登陆", "请登录", "您同意", "使用网易账号登录或注册")
 LOGIN_SCREEN_UI_KEYWORDS = BATTLE_NET_NEED_LOGIN_KEYWORDS + BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
 LOGIN_WINDOW_AUTOMATION_ID_MARKERS = (
     "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper",
@@ -143,7 +147,7 @@ D3_ONLINE_SIMILARITY_THRESHOLD = 0.98
 D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 CLICK_MOVE_DURATION_SEC = 0.0
 CLICK_PAUSE_AFTER_MOVE_SEC = 0.02
-# Battle.net flow: 点击秒点、不移动鼠标（duration=0）、点击后鼠标复原位
+# Battle.net flow: instant click (duration=0), no visible move, return mouse to original after click
 BN_CLICK_MOVE_DURATION_SEC = 0.0
 BN_CLICK_PAUSE_AFTER_MOVE_SEC = 0.0
 VK_M = 0x4D

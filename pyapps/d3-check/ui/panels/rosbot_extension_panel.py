@@ -29,7 +29,7 @@ from ui.utils.config_binding import ConfigBinding
 
 # Import game state and task thread manager (timer/UI are sibling modules; controller wires status UI and refresh fn)
 from share.game_interface_data import get_game_interface_data
-from share.threads import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze
+from share.threads import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze, do_rosbot_debug, do_rosbot_test_pause_resume
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_file_with_notepad
 from providor.app_constants import TAMPERMONKEY_SCRIPT_PATH
 from runtime import get_task_manager, TaskStatus, trigger_extension_rosbot_start, trigger_extension_rosbot_stop, is_shutdown_requested
@@ -44,9 +44,10 @@ from d3utils.battlenet_manager import get_battlenet_manager
 class RosbotExtensionPanel:
     """ROSBOT Extension panel with unified styling"""
 
-    def __init__(self, parent):
-        """Initialize ROSBOT extension panel"""
+    def __init__(self, parent, bottom_bar=None):
+        """Initialize ROSBOT extension panel. bottom_bar: optional BottomBar to update status (merged into bottom Game Status row)."""
         self.parent = parent
+        self._bottom_bar = bottom_bar
 
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
@@ -318,11 +319,8 @@ class RosbotExtensionPanel:
         control_frame.grid_columnconfigure(0, weight=1)
         control_frame.grid_rowconfigure(1, weight=0)
 
-        # Control buttons
+        # Control buttons (status display merged into bottom bar Game Status row)
         self._create_control_buttons(control_frame)
-
-        # Status display
-        self._create_status_display(control_frame)
 
     def _create_control_buttons(self, parent):
         """Create control buttons with toggle functionality"""
@@ -341,6 +339,17 @@ class RosbotExtensionPanel:
         self.control_btn.grid(row=0, column=0, sticky="ew", 
                              padx=UnifiedStyles.SPACING['xs'])
 
+        # Ensure Battle.net only: same logic as start ROSBOT but only BN segment; re-login on exit/disconnect
+        self.ensure_battlenet_btn = tk.Button(button_frame,
+                                             text=i18n_manager.get_ui_text("rosbot.ensure_battlenet_only"),
+                                             bg=UnifiedStyles.COLORS['bg_primary'],
+                                             fg=UnifiedStyles.COLORS['text_primary'],
+                                             font=UnifiedStyles.FONTS['button'],
+                                             command=self._ensure_battlenet_only)
+        self.ensure_battlenet_btn.grid(row=1, column=0, sticky="ew",
+                                       padx=UnifiedStyles.SPACING['xs'],
+                                       pady=(UnifiedStyles.SPACING['xs'], 0))
+
         # Debug button: export Battle.net UI to JSON (immediate call, same module logic as timer-driven flow)
         self.debug_battlenet_ui_btn = tk.Button(button_frame,
                                                text=i18n_manager.get_ui_text("rosbot.debug_battlenet_ui"),
@@ -348,9 +357,29 @@ class RosbotExtensionPanel:
                                                fg=UnifiedStyles.COLORS['text_primary'],
                                                font=UnifiedStyles.FONTS['button'],
                                                command=self._debug_battlenet_ui_json)
-        self.debug_battlenet_ui_btn.grid(row=1, column=0, sticky="ew",
+        self.debug_battlenet_ui_btn.grid(row=2, column=0, sticky="ew",
                                         padx=UnifiedStyles.SPACING['xs'],
                                         pady=(UnifiedStyles.SPACING['xs'], 0))
+
+        self.debug_rosbot_btn = tk.Button(button_frame,
+                                         text=i18n_manager.get_ui_text("rosbot.debug_rosbot"),
+                                         bg=UnifiedStyles.COLORS['bg_primary'],
+                                         fg=UnifiedStyles.COLORS['text_primary'],
+                                         font=UnifiedStyles.FONTS['button'],
+                                         command=self._debug_rosbot)
+        self.debug_rosbot_btn.grid(row=3, column=0, sticky="ew",
+                                  padx=UnifiedStyles.SPACING['xs'],
+                                  pady=(UnifiedStyles.SPACING['xs'], 0))
+
+        self.test_pause_resume_btn = tk.Button(button_frame,
+                                              text=i18n_manager.get_ui_text("rosbot.test_pause_resume"),
+                                              bg=UnifiedStyles.COLORS['bg_primary'],
+                                              fg=UnifiedStyles.COLORS['text_primary'],
+                                              font=UnifiedStyles.FONTS['button'],
+                                              command=self._test_pause_resume)
+        self.test_pause_resume_btn.grid(row=4, column=0, sticky="ew",
+                                       padx=UnifiedStyles.SPACING['xs'],
+                                       pady=(UnifiedStyles.SPACING['xs'], 0))
 
         # Open Tampermonkey script in Notepad for easy copy
         self.open_tampermonkey_script_btn = tk.Button(button_frame,
@@ -359,7 +388,7 @@ class RosbotExtensionPanel:
                                                       fg=UnifiedStyles.COLORS['text_primary'],
                                                       font=UnifiedStyles.FONTS['button'],
                                                       command=self._open_tampermonkey_script)
-        self.open_tampermonkey_script_btn.grid(row=2, column=0, sticky="ew",
+        self.open_tampermonkey_script_btn.grid(row=5, column=0, sticky="ew",
                                               padx=UnifiedStyles.SPACING['xs'],
                                               pady=(UnifiedStyles.SPACING['xs'], 0))
 
@@ -370,135 +399,13 @@ class RosbotExtensionPanel:
                                            fg=UnifiedStyles.COLORS['text_primary'],
                                            font=UnifiedStyles.FONTS['button'],
                                            command=self._refresh_status_now)
-        self.refresh_status_btn.grid(row=3, column=0, sticky="ew",
+        self.refresh_status_btn.grid(row=6, column=0, sticky="ew",
                                     padx=UnifiedStyles.SPACING['xs'],
                                     pady=(UnifiedStyles.SPACING['xs'], 0))
         
         # Update button state based on current ROSBOT status
         self._update_control_button()
-
-    def _create_status_display(self, parent):
-        """Create status display with ROS/D3/Map/Stage"""
-        status_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.status_info"),
-                                    bg=UnifiedStyles.COLORS['bg_secondary'],
-                                    fg=UnifiedStyles.COLORS['text_primary'],
-                                    font=UnifiedStyles.FONTS['subheading'])
-        status_frame.grid(row=1, column=0, sticky="ew",
-                         padx=UnifiedStyles.SPACING['sm'],
-                         pady=UnifiedStyles.SPACING['sm'])
-
-        # Configure grid for status display (5 rows: Battle.net / ROS / D3 / Map / Stage)
-        for i in range(5):
-            status_frame.grid_rowconfigure(i, weight=0, minsize=20)
-        status_frame.grid_columnconfigure(0, weight=0)
-        status_frame.grid_columnconfigure(1, weight=1)
-
-        # Battle.net Status
-        battlenet_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.battlenet_status") + ":",
-                                  bg=UnifiedStyles.COLORS['bg_secondary'],
-                                  fg=UnifiedStyles.COLORS['text_primary'],
-                                  font=UnifiedStyles.FONTS['label'])
-        battlenet_label.grid(row=0, column=0, sticky="w",
-                            padx=UnifiedStyles.SPACING['sm'],
-                            pady=UnifiedStyles.SPACING['xs'])
-        self.battlenet_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.not_found"))
-        self.battlenet_status_label = tk.Label(status_frame, textvariable=self.battlenet_status_var,
-                                              bg=UnifiedStyles.COLORS['bg_secondary'],
-                                              fg=UnifiedStyles.COLORS['error'],
-                                              font=UnifiedStyles.FONTS['label'])
-        self.battlenet_status_label.grid(row=0, column=1, sticky="w",
-                                        padx=UnifiedStyles.SPACING['sm'],
-                                        pady=UnifiedStyles.SPACING['xs'])
-
-        # ROS Status
-        ros_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.ros_status") + ":",
-                            bg=UnifiedStyles.COLORS['bg_secondary'],
-                            fg=UnifiedStyles.COLORS['text_primary'],
-                            font=UnifiedStyles.FONTS['label'])
-        ros_label.grid(row=1, column=0, sticky="w",
-                      padx=UnifiedStyles.SPACING['sm'],
-                      pady=UnifiedStyles.SPACING['xs'])
-
-        self.ros_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.not_running"))
-        self.ros_status_label = tk.Label(status_frame, textvariable=self.ros_status_var,
-                                        bg=UnifiedStyles.COLORS['bg_secondary'],
-                                        fg=UnifiedStyles.COLORS['error'],
-                                        font=UnifiedStyles.FONTS['label'])
-        self.ros_status_label.grid(row=1, column=1, sticky="w",
-                                  padx=UnifiedStyles.SPACING['sm'],
-                                  pady=UnifiedStyles.SPACING['xs'])
-
-        # D3 Status
-        d3_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.d3_status") + ":",
-                           bg=UnifiedStyles.COLORS['bg_secondary'],
-                           fg=UnifiedStyles.COLORS['text_primary'],
-                           font=UnifiedStyles.FONTS['label'])
-        d3_label.grid(row=2, column=0, sticky="w",
-                     padx=UnifiedStyles.SPACING['sm'],
-                     pady=UnifiedStyles.SPACING['xs'])
-
-        self.d3_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.not_running"))
-        self.d3_status_label = tk.Label(status_frame, textvariable=self.d3_status_var,
-                                       bg=UnifiedStyles.COLORS['bg_secondary'],
-                                       fg=UnifiedStyles.COLORS['error'],
-                                       font=UnifiedStyles.FONTS['label'])
-        self.d3_status_label.grid(row=2, column=1, sticky="w",
-                                 padx=UnifiedStyles.SPACING['sm'],
-                                 pady=UnifiedStyles.SPACING['xs'])
-
-        # Map Status
-        map_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.map_status") + ":",
-                            bg=UnifiedStyles.COLORS['bg_secondary'],
-                            fg=UnifiedStyles.COLORS['text_primary'],
-                            font=UnifiedStyles.FONTS['label'])
-        map_label.grid(row=3, column=0, sticky="w",
-                      padx=UnifiedStyles.SPACING['sm'],
-                      pady=UnifiedStyles.SPACING['xs'])
-
-        self.map_status_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.map_unknown"))
-        self.map_status_label = tk.Label(status_frame, textvariable=self.map_status_var,
-                                        bg=UnifiedStyles.COLORS['bg_secondary'],
-                                        fg=UnifiedStyles.COLORS['text_muted'],
-                                        font=UnifiedStyles.FONTS['label'])
-        self.map_status_label.grid(row=3, column=1, sticky="w",
-                                  padx=UnifiedStyles.SPACING['sm'],
-                                  pady=UnifiedStyles.SPACING['xs'])
-
-        # Stage Status
-        stage_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.stage") + ":",
-                              bg=UnifiedStyles.COLORS['bg_secondary'],
-                              fg=UnifiedStyles.COLORS['text_primary'],
-                              font=UnifiedStyles.FONTS['label'])
-        stage_label.grid(row=4, column=0, sticky="w",
-                        padx=UnifiedStyles.SPACING['sm'],
-                        pady=UnifiedStyles.SPACING['xs'])
-
-        self.stage_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.stage_unknown"))
-        self.stage_label = tk.Label(status_frame, textvariable=self.stage_var,
-                                   bg=UnifiedStyles.COLORS['bg_secondary'],
-                                   fg=UnifiedStyles.COLORS['text_muted'],
-                                   font=UnifiedStyles.FONTS['label'])
-        self.stage_label.grid(row=4, column=1, sticky="w",
-                             padx=UnifiedStyles.SPACING['sm'],
-                             pady=UnifiedStyles.SPACING['xs'])
-
-        # 油猴脚本连接状态（健康机制：油猴定时 ping，此处显示已连接/未连接）
-        oauth_label = tk.Label(status_frame, text=i18n_manager.get_ui_text("rosbot.oauth_script_status") + ":",
-                              bg=UnifiedStyles.COLORS['bg_secondary'],
-                              fg=UnifiedStyles.COLORS['text_primary'],
-                              font=UnifiedStyles.FONTS['label'])
-        oauth_label.grid(row=5, column=0, sticky="w",
-                        padx=UnifiedStyles.SPACING['sm'],
-                        pady=UnifiedStyles.SPACING['xs'])
-        self.oauth_script_var = var_str(status_frame, i18n_manager.get_ui_text("rosbot.oauth_script_disconnected"))
-        self.oauth_script_label = tk.Label(status_frame, textvariable=self.oauth_script_var,
-                                          bg=UnifiedStyles.COLORS['bg_secondary'],
-                                          fg=UnifiedStyles.COLORS['error'],
-                                          font=UnifiedStyles.FONTS['label'])
-        self.oauth_script_label.grid(row=5, column=1, sticky="w",
-                                    padx=UnifiedStyles.SPACING['sm'],
-                                    pady=UnifiedStyles.SPACING['xs'])
-        status_frame.grid_rowconfigure(5, weight=0, minsize=20)
+        self._update_ensure_battlenet_button()
 
     def _create_log_display_row(self):
         """Create log display in its own row (row 1). Ensure scrollbar visible: row has weight=1, log_frame fills and constrains text."""
@@ -603,6 +510,29 @@ class RosbotExtensionPanel:
         """Set the D3 extension thread (called after UI is ready). Commands sent via put_command."""
         self._d3_extension_thread = thread
 
+    def _ensure_battlenet_only(self):
+        """Toggle 确保战网：修改状态允许 tick 通过，与启动ROSBOT 同 tick 驱动，只跑战网段；确认后每 tick 再轮询，掉线则重登（ROSBOT_FLOW_MERMAID B）。"""
+        g = self.game_state
+        next_enabled = not g.ensure_battlenet_only_master_enabled
+        g.set_ensure_battlenet_only_master_enabled(next_enabled)
+        if next_enabled:
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
+        else:
+            reset_battlenet_flow_state()
+            if not g.rosbot_flow_master_enabled:
+                get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
+        self._update_ensure_battlenet_button()
+
+    def _update_ensure_battlenet_button(self):
+        """Update 确保战网 button text to show on/off."""
+        try:
+            if hasattr(self, 'ensure_battlenet_btn') and self.ensure_battlenet_btn.winfo_exists():
+                on = self.game_state.ensure_battlenet_only_master_enabled
+                key = "rosbot.ensure_battlenet_only_on" if on else "rosbot.ensure_battlenet_only"
+                self.ensure_battlenet_btn.config(text=i18n_manager.get_ui_text(key))
+        except Exception:
+            pass
+
     def _start_rosbot(self):
         """Start ROSBOT: set flow master on, enable 1s flow driver, update UI to running; BN ready is tick-driven, then D3 part runs (ROSBOT_FLOW_MERMAID.md)."""
         if self.rosbot_running:
@@ -648,6 +578,14 @@ class RosbotExtensionPanel:
     def _debug_battlenet_ui_json(self):
         """Export Battle.net UI to JSON via UI Automation (Chrome/Chromium accessibility tree). CoInitialize in worker thread then call WindowAnalyzer."""
         timer_manager.submit_one_shot(lambda: do_battlenet_ui_analyze(self))
+
+    def _debug_rosbot(self):
+        """Debug ROSBOT: if paused run window analysis; if running send F7 to pause."""
+        timer_manager.submit_one_shot(lambda: do_rosbot_debug(self))
+
+    def _test_pause_resume(self):
+        """Test ROSBOT pause and resume: F7 to switch state, wait, then F7 again and wait."""
+        timer_manager.submit_one_shot(lambda: do_rosbot_test_pause_resume(self))
 
     def _open_tampermonkey_script(self):
         """Open Tampermonkey script file in Notepad for easy copy."""
@@ -718,11 +656,13 @@ class RosbotExtensionPanel:
         ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _stop_rosbot(self):
-        """Stop ROSBOT: clear flow master; notify D3 extension thread or run stop on main thread (ROSBOT_FLOW.md)."""
+        """Stop ROSBOT: clear flow master and 确保战网; notify D3 extension thread or run stop on main thread (ROSBOT_FLOW.md)."""
         if not self.rosbot_running:
             return
         self.game_state.set_rosbot_flow_master_enabled(False)
+        self.game_state.set_ensure_battlenet_only_master_enabled(False)
         reset_battlenet_flow_state()
+        self._update_ensure_battlenet_button()
         if get_d3_extension_thread():
             self._control_btn_set_busy(True)
             trigger_extension_rosbot_stop()
@@ -777,77 +717,13 @@ class RosbotExtensionPanel:
             pass
 
     def _update_ui_from_state(self, state):
-        """Update UI elements from game state (called on main thread)"""
-        if not hasattr(self, 'ros_status_var') or not hasattr(self, 'd3_status_var'):
-            return
-
-        # Update Battle.net status (priority: disconnected > on_login_screen > normal_available)
-        bn_found = state.get("battlenet_window_found", False)
-        ColorPrint.gray(
-            f"[StatusUI] state: battlenet_found={bn_found}, d3_running={state.get('d3_running', False)}, "
-            f"bn_disconnected={state.get('battlenet_disconnected', False)}, bn_normal={state.get('battlenet_normal_available', False)}"
-        )
-        if not bn_found:
-            bn_text = i18n_manager.get_ui_text("rosbot.not_found")
-            bn_ok = False
-        elif state.get("battlenet_disconnected", False):
-            bn_text = i18n_manager.get_ui_text("rosbot.battlenet_disconnected")
-            bn_ok = False
-        elif state.get("battlenet_on_login_screen", False):
-            bn_text = i18n_manager.get_ui_text("rosbot.battlenet_on_login_screen")
-            bn_ok = False
-        elif state.get("battlenet_normal_available", False):
-            bn_text = i18n_manager.get_ui_text("rosbot.battlenet_normal_available")
-            bn_ok = True
-        else:
-            # Window found but dynamic detection not implemented (BattlenetOperation.is_* all return False)
-            bn_text = i18n_manager.get_ui_text("rosbot.found_unknown_state")
-            bn_ok = True
-        if hasattr(self, "battlenet_status_var"):
-            self.battlenet_status_var.set(bn_text)
-            self.battlenet_status_label.config(fg=UnifiedStyles.COLORS["success" if bn_ok else "error"])
-
-        # Update ROS status
-        ros_running = state.get("rosbot_running", False)
-        ros_text = i18n_manager.get_ui_text("rosbot.running" if ros_running else "rosbot.not_running")
-        self.ros_status_var.set(ros_text)
-        self.ros_status_label.config(fg=UnifiedStyles.COLORS["success" if ros_running else "error"])
-
-        # Update D3 status (priority: disconnected > on_login_screen > in_game > found; align with Battle.net: window found => 已找到)
-        if not state.get("d3_running", False):
-            d3_text = i18n_manager.get_ui_text("rosbot.not_running")
-            d3_ok = False
-        elif state.get("d3_disconnected", False):
-            d3_text = i18n_manager.get_ui_text("rosbot.d3_disconnected")
-            d3_ok = False
-        elif state.get("d3_on_login_screen", False):
-            d3_text = i18n_manager.get_ui_text("rosbot.d3_on_login_screen")
-            d3_ok = False
-        elif state.get("d3_in_game", False):
-            d3_text = i18n_manager.get_ui_text("rosbot.d3_in_game")
-            d3_ok = True
-        else:
-            # Window found but granular state not detected: show 已找到 (same as Battle.net)
-            d3_text = i18n_manager.get_ui_text("rosbot.found")
-            d3_ok = True
-        self.d3_status_var.set(d3_text)
-        self.d3_status_label.config(fg=UnifiedStyles.COLORS["success" if d3_ok else "error"])
-
-        # Update map status
-        map_type = state.get("map_type", "unknown")
-        map_key = f"rosbot.map_{map_type}"
-        map_text = i18n_manager.get_ui_text(map_key)
-        self.map_status_var.set(map_text)
-
-        # Update stage status
-        game_stage = state.get("game_stage", "unknown")
-        stage_key = f"rosbot.stage_{game_stage}"
-        stage_text = i18n_manager.get_ui_text(stage_key)
-        self.stage_var.set(stage_text)
-
-        # Update 油猴脚本 connection (health: script pings /api/login-try/oauth-ping)
-        oauth_connected = state.get("oauth_script_connected", False)
-        if hasattr(self, "oauth_script_var") and hasattr(self, "oauth_script_label"):
-            oauth_text = i18n_manager.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
-            self.oauth_script_var.set(oauth_text)
-            self.oauth_script_label.config(fg=UnifiedStyles.COLORS["success" if oauth_connected else "error"])
+        """Push state to bottom bar Game Status row (status display merged there)."""
+        if getattr(self, "_bottom_bar", None):
+            try:
+                self._bottom_bar.update_status_from_state(state)
+            except Exception:
+                pass
+        try:
+            self._update_ensure_battlenet_button()
+        except Exception:
+            pass

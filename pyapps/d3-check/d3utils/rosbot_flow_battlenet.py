@@ -85,14 +85,22 @@ def get_bn_flow_ever_confirmed() -> bool:
     return _bn_flow_ever_confirmed
 
 
+def reset_confirmed_to_poll() -> None:
+    """For BN-only mode: after confirmed, reset to BN_Poll so next tick re-checks (detect disconnect)."""
+    global _current_node
+    if _current_node == BNNode.BN_Confirmed:
+        _current_node = BNNode.BN_Poll
+
+
 def get_battlenet_flow_node() -> BNNode:
     """Current node (for debug)."""
     return _current_node
 
 
-def tick_battlenet_ready_flow() -> Tuple[bool, str]:
+def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
     """
     Run one step of Battle.net ready flow. Call every 2s tick when flow master on.
+    no_activate: when True (ensure_battlenet_only mode), do not activate window; UI detection only. Other flow unchanged.
     Returns (done, result): done=True when flow exits (confirmed or not); result in ("confirmed", "exit", "wait").
     """
     global _current_node, _wait_until, _b7_poll_deadline, _oauth_wait_until, _bn_flow_ever_confirmed
@@ -152,7 +160,7 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
             return False, ""
         _save_ui_snapshot("B7", "B7_poll_elements")
         try:
-            on_login, disconnected, normal_available = op.get_dynamic_state()
+            on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
             elem_ready = normal_available or disconnected or (on_login and op.is_login_screen_ready())
             if elem_ready:
                 if op.is_login_failed_screen():
@@ -183,13 +191,18 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
             _current_node = BNNode.BN_Exit
             return False, ""
         ColorPrint.blue("[BNFlow] flow B9 first screen | reason: decide current UI (login/main/disconnected/other)")
-        on_login, disconnected, normal_available = op.get_dynamic_state()
+        on_login, disconnected, normal_available, play_button_name = op.get_dynamic_state()
         if normal_available:
-            ColorPrint.green("[BNFlow] flow B9→B12 continue | reason: main/logged-in (D3 tab+Play visible), confirmed")
+            _play_label = "Playing" if (play_button_name and ("Playing" in play_button_name or "正在" in (play_button_name or ""))) else "Play"
+            ColorPrint.green("[BNFlow] flow B9→B12 continue | reason: main/logged-in (D3 tab+%s visible), confirmed" % _play_label)
             _current_node = BNNode.BN_Confirmed
             _bn_flow_ever_confirmed = True
             return True, "confirmed"
         if on_login:
+            if op.is_on_browser_login_wait_screen():
+                ColorPrint.blue("[BNFlow] flow B9→B5 | reason: browser login wait popup (使用浏览器完成登录/取消), exit Battle.net (flowchart)")
+                _current_node = BNNode.BN_Exit
+                return False, ""
             ColorPrint.blue("[BNFlow] flow B9→B10 | reason: login screen, step1 agree and confirm")
             _current_node = BNNode.BN_Login1
             return False, ""
@@ -205,8 +218,9 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
     if _current_node == BNNode.BN_Login1:
         _save_ui_snapshot("B10", "B10_agree_netease")
         ColorPrint.blue("[BNFlow] flow B10 run | reason: step1 agree+NetEase; either way go B11 wait OAuth (timeout %ds = 2 min)" % int(BN_FLOW_OAUTH_WAIT_SEC))
-        op.activate_window()
-        time.sleep(0.2)
+        if not no_activate:
+            op.activate_window()
+            time.sleep(0.2)
         if not op.perform_cn_login_flow():
             ColorPrint.yellow("[BNFlow] flow B10→B11 | reason: agree/NetEase failed, still go B11 wait OAuth return")
         else:
@@ -257,9 +271,10 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
     # ----- [B6] BN_Act -----
     if _current_node == BNNode.BN_Act:
         _save_ui_snapshot("B6", "B6_to_B13")
-        ColorPrint.blue("[BNFlow] flow B6→B13 | reason: window activated, enter B13 poll state")
-        get_battlenet_manager().activate_window()
-        time.sleep(0.5)
+        ColorPrint.blue("[BNFlow] flow B6→B13 | reason: %s, enter B13 poll state" % ("window activated" if not no_activate else "UI poll only (no activate)"))
+        if not no_activate:
+            get_battlenet_manager().activate_window()
+            time.sleep(0.5)
         _current_node = BNNode.BN_Poll
         return False, ""
 
@@ -270,14 +285,19 @@ def tick_battlenet_ready_flow() -> Tuple[bool, str]:
             ColorPrint.yellow("[BNFlow] flow B13→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
             _current_node = BNNode.BN_Exit
             return False, ""
-        on_login, disconnected, normal_available = op.get_dynamic_state()
+        on_login, disconnected, normal_available, play_button_name = op.get_dynamic_state()
         if normal_available:
-            ColorPrint.green("[BNFlow] flow B13→B16 continue | reason: [B14] poll logged-in (D3 tab+Play visible), confirmed")
+            _play_label = "Playing" if (play_button_name and ("Playing" in play_button_name or "正在" in (play_button_name or ""))) else "Play"
+            ColorPrint.green("[BNFlow] flow B13→B16 continue | reason: [B14] poll logged-in (D3 tab+%s visible), confirmed" % _play_label)
             _current_node = BNNode.BN_Confirmed
             _bn_flow_ever_confirmed = True
             return True, "confirmed"
         if disconnected:
             ColorPrint.blue("[BNFlow] flow B13→B5 | reason: [B15a] disconnected, exit and restart")
+            _current_node = BNNode.BN_Exit
+            return False, ""
+        if op.is_on_browser_login_wait_screen():
+            ColorPrint.blue("[BNFlow] flow B13→B5 | reason: browser login wait popup (使用浏览器完成登录/取消), exit Battle.net (flowchart)")
             _current_node = BNNode.BN_Exit
             return False, ""
         if on_login:

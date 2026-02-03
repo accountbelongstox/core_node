@@ -38,23 +38,9 @@ class BottomBarOptionsBlock:
                 f.grid_remove()
 
     def _build_tab_strip(self, tab_index: int) -> tk.Frame:
-        """Build one row for tab: 0=title only (options moved to main panel left bottom), 1-5=title."""
+        """Build one row for tab: empty frame (no per-tab title; status merged into bottom Game Status row)."""
         root = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        root.grid_columnconfigure(1, weight=1)
-
-        if tab_index == 0:
-            # Main tab: options (sound, smart pause, custom stand, current config) live in main panel left bottom
-            tk.Label(root, text=i18n_manager.get_ui_text("ui.bottom_bar.tab_main"),
-                     bg=UITheme.get_color('bg_primary'), fg=UnifiedStyles.COLORS['text_secondary'],
-                     font=UnifiedStyles.FONTS['default']).grid(row=0, column=0, sticky="w", padx=0, pady=0)
-        else:
-            title_key = (
-                "ui.bottom_bar.tab_auxiliary", "ui.bottom_bar.tab_rosbot", "ui.bottom_bar.tab_d4",
-                "ui.bottom_bar.tab_calibration", "ui.bottom_bar.tab_log"
-            )[tab_index - 1]
-            tk.Label(root, text=i18n_manager.get_ui_text(title_key),
-                     bg=UITheme.get_color('bg_primary'), fg=UnifiedStyles.COLORS['text_secondary'],
-                     font=UnifiedStyles.FONTS['default']).grid(row=0, column=0, sticky="w", padx=0, pady=0)
+        root.grid_columnconfigure(0, weight=1)
         return root
 
     def show_tab(self, tab_index: int):

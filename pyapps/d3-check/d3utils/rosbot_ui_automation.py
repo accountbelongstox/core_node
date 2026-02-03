@@ -345,3 +345,51 @@ def run_after_rosbot_start(
         return ok
 
     return _do_ui()
+
+
+def resume_rosbot_ui(do_tab: bool = True, do_start_botting: bool = True) -> bool:
+    """
+    Resume ROSBOT when window is visible (paused): activate window, switch to main profile tab, click Start botting!.
+    Uses automation_id btnStart for button (i18n-safe); tab by TAB_MAIN_PROFILE_NAMES.
+    Returns True if at least one step succeeded.
+    """
+    auto = _auto()
+    win32gui = _win32gui()
+    win32con = _win32con()
+    if not auto or not win32gui or not win32con:
+        ColorPrint.red("[ROSBOT_UI] uiautomation/win32 not available")
+        return False
+
+    winfo = get_rosbot_manager().get_rosbot_window()
+    if not winfo or not winfo.get("hwnd"):
+        ColorPrint.yellow("[ROSBOT_UI] resume_rosbot_ui: no visible ROSBOT window")
+        return False
+
+    hwnd = int(winfo["hwnd"])
+    try:
+        win32gui.SetForegroundWindow(hwnd)
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(UI_OPERATION_DELAY)
+    except Exception as e:
+        ColorPrint.yellow(f"[ROSBOT_UI] Window activate: {e}")
+
+    _COM_INIT.ensure_thread()
+
+    try:
+        window_control = auto.ControlFromHandle(hwnd)
+    except Exception as e:
+        ColorPrint.red(f"[ROSBOT_UI] ControlFromHandle: {e}")
+        return False
+    if not window_control or not window_control.Exists():
+        ColorPrint.red("[ROSBOT_UI] Window control not available")
+        return False
+
+    ok = False
+    if do_tab:
+        if click_tab_main_profile(window_control):
+            ok = True
+        time.sleep(UI_OPERATION_DELAY)
+    if do_start_botting:
+        if click_start_botting(window_control):
+            ok = True
+    return ok

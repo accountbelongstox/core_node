@@ -595,13 +595,6 @@ DIABLO_IV_WINDOW_TITLES = [
     "《暗黑破壞神 IV》"                # TW alternative with book title marks
 ]
 
-# ROSBOT (RoS-BoT) window title constants (for UI automation after start)
-ROSBOT_WINDOW_TITLES = [
-    "RoS-BoT",
-    "RoS-BoT.exe",
-    "ROSBOT",
-]
-
 # Battle.net server region constants
 BATTLE_NET_SERVER_REGIONS = {
     "CN": {

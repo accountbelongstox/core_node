@@ -30,7 +30,7 @@ def _detect_battlenet_dynamic(found: bool, window_info_or_none: Optional[Dict[st
         return (False, False, False)
     try:
         op = get_battlenet_operation()
-        on_login, disconnected, normal_available = op.get_dynamic_state()
+        on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
         if disconnected:
             return (False, True, False)
         if on_login:

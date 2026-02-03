@@ -648,8 +648,11 @@ class D3InterfaceData(InterfaceDataBase):
 
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
+    rosbot_window_found: bool = False  # True when extended_status is paused (has window)
+    rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
     rosbot_flow_master_enabled: bool = False  # 总状态：用户点击「启动 ROSBOT」为 True，点击「停止」为 False（ROSBOT_FLOW_MERMAID A1）
+    ensure_battlenet_only_master_enabled: bool = False  # 用户点击「确保战网」为 True，tick 只跑战网段，不掉 D3/ROSBOT；确认后每 tick 再轮询，掉线则重登
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
@@ -688,8 +691,11 @@ class D3InterfaceData(InterfaceDataBase):
         self.bag_left_match = None
         self.button_detections = None
         self.battlenet_window_found = False
+        self.rosbot_window_found = False
+        self.rosbot_extended_status = "not_found"
         self.rosbot_running = False
         self.rosbot_flow_master_enabled = False
+        self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
@@ -718,6 +724,8 @@ class D3InterfaceData(InterfaceDataBase):
             "has_bag_layout": self.bag_layout is not None,
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
+            "rosbot_window_found": self.rosbot_window_found,
+            "rosbot_extended_status": self.rosbot_extended_status,
             "rosbot_running": self.rosbot_running,
             "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
@@ -745,6 +753,31 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
+    def set_rosbot_window_found(self, window_found: bool):
+        """Set ROSBOT window found status (from rosbot_status_provider). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_window_found != window_found:
+                self.rosbot_window_found = window_found
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT window: {'found' if window_found else 'not found'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_rosbot_extended_status(self, status: str):
+        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks."""
+        if status not in ("not_found", "running", "paused"):
+            return
+        should_notify = False
+        with self._lock:
+            if self.rosbot_extended_status != status:
+                self.rosbot_extended_status = status
+                self.rosbot_window_found = status == "paused"
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT extended status: {status}")
+        if should_notify:
+            self._notify_callbacks()
+
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
         should_notify = False
@@ -764,6 +797,17 @@ class D3InterfaceData(InterfaceDataBase):
                 self.rosbot_flow_master_enabled = enabled
                 should_notify = True
                 ColorPrint.blue(f"[D3State] ROSBOT flow master: {'enabled' if enabled else 'disabled'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_ensure_battlenet_only_master_enabled(self, enabled: bool):
+        """Set 确保战网：True = 点击「确保战网」，tick 只跑战网段；False = 关闭。Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.ensure_battlenet_only_master_enabled != enabled:
+                self.ensure_battlenet_only_master_enabled = enabled
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Ensure Battle.net only: {'enabled' if enabled else 'disabled'}")
         if should_notify:
             self._notify_callbacks()
 
@@ -860,6 +904,8 @@ class D3InterfaceData(InterfaceDataBase):
                 callbacks = self._callbacks.copy()
                 state = {
                     "battlenet_window_found": self.battlenet_window_found,
+                    "rosbot_window_found": self.rosbot_window_found,
+                    "rosbot_extended_status": self.rosbot_extended_status,
                     "rosbot_running": self.rosbot_running,
                     "d3_running": self.d3_running,
                     "map_type": self.map_type,

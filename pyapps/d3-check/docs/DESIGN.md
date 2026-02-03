@@ -218,8 +218,7 @@
 
 ### 3.11 ROSBOT UI 自动化（启动后点击主档案与 Start botting）
 
-- **模块**：`d3utils.rosbot_ui_automation`。使用 **uiautomation**（pycore.pyfoundations.third_party.get_third_package_uiautomation）枚举并点击 ROSBOT 窗口内控件；窗口通过 `WindowFinder.find_windows_by_titles(ROSBOT_WINDOW_TITLES)` 查找。
-- **窗口标题常量**：`providor.providor_index.ROSBOT_WINDOW_TITLES`（如 `RoS-BoT`、`RoS-BoT.exe`、`ROSBOT`）。
+- **模块**：`d3utils.rosbot_ui_automation`。使用 **uiautomation** 枚举并点击 ROSBOT 窗口内控件；窗口通过 `get_rosbot_manager().get_rosbot_window()` 查找（exe 在 ros_directory 下 PID 找窗口，不按标题）。
 - **入口**：`run_after_rosbot_start(wait_sec=5, do_debug=True, do_tab=True, do_start_botting=True)`。等待 ROSBOT 窗口出现 → 激活窗口 → 用 uiautomation 取 Control → **DEBUG 打印可操作元素**（`debug_print_operable_elements`：递归遍历控件树，ColorPrint 输出 type、name、automation_id、rect）→ 点击 **主档案** Tab（TabItemControl 名称含 主档案/主檔案/Main Profile）→ 点击 **Start botting!** 按钮（ButtonControl automation_id `btnStart` 或名称含 Start botting）。
 - **调用时机**：在 `ensure_battlenet_started_and_login_check()` 内，`get_rosbot_manager().start()` 与 `start_rosbot_task()` 之后调用；若异常仅打 Yellow 日志，不中断流程。
 - **点击实现**：控件级点击用 `control.Click()`（uiautomation），非 pyautogui 屏幕坐标。屏幕坐标点击（战网 Play、托盘）仍用 `ClickHandler`（pycore/pyutils/click_handler.py，内部 pyautogui）。

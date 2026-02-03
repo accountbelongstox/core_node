@@ -304,7 +304,7 @@ class LoginTryScreenshotController:
         time.sleep(0.5)
         max_login_rounds = 5
         for _ in range(max_login_rounds):
-            on_login, disconnected, normal_available = op.get_dynamic_state()
+            on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
             if normal_available:
                 ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed logged in (UI), now allow D3 check")
                 return True
@@ -329,6 +329,19 @@ class LoginTryScreenshotController:
             time.sleep(2)
         ColorPrint.yellow("[LoginTryScreenshotController] Battle.net not confirmed logged in; skip D3 branch, run Battle.net flow only")
         return False
+
+    def ensure_battlenet_only(self) -> bool:
+        """
+        Ensure Battle.net is running and logged in (normal_available). No D3, no ROSBOT.
+        If window not found: start Battle.net. If disconnected or on login: restart / run login flow until confirmed.
+        Returns True when Battle.net is confirmed logged in.
+        """
+        bn_path = get_battlenet_manager().get_path()
+        if not bn_path:
+            ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path, skip ensure_battlenet_only")
+            return False
+        clicker = ClickHandler()
+        return self._ensure_battlenet_logged_in_first(bn_path, clicker)
 
     def ensure_battlenet_started_and_login_check(self) -> bool:
         """
