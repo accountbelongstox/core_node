@@ -4,14 +4,24 @@
 # 3. Never create or update documentation (*.md).
 # ### AI SPECIAL ATTENTION RULES END ###
 #
-# GitHub520 hosts refresh: replace only the marked block in hosts file, leave other entries intact.
+# GitHub520 hosts refresh. Replaces only the marked block in hosts file.
 # Markers: # GitHub520 Host Start ... # GitHub520 Host End
+# Ref: https://github.com/521xueweihan/GitHub520
 
 $ErrorActionPreference = "Stop"
 
 $GitHub520HostsUrl = "https://raw.hellogithub.com/hosts"
 $GitHub520MarkerStart = "# GitHub520 Host Start"
 $GitHub520MarkerEnd = "# GitHub520 Host End"
+
+$script:HostsPath = ""
+$script:DownloadTempFile = ""
+$script:NewContent = ""
+$script:FetchedCount = 0
+$script:ReplacedCount = 0
+$script:RefreshSuccess = $false
+$script:EchoCommand = $null
+$script:WriteColorText = { param($t, $c) Write-Host $t }
 
 function Get-GitHubHostsFilePath {
     if ($env:OS -match "Windows") {
@@ -29,89 +39,43 @@ function Get-CurlPath {
 }
 
 function Install-CurlIfMissing {
-    if (Get-CurlPath) { return $true }
+    if (Get-CurlPath) { return }
     if (Get-Command "winget" -ErrorAction SilentlyContinue) {
         try {
-            $proc = Start-Process -FilePath "winget" -ArgumentList "install","curl.curl","--accept-package-agreements","--accept-source-agreements" -Wait -PassThru -NoNewWindow
-            if ($proc.ExitCode -eq 0 -and (Get-CurlPath)) { return $true }
+            Start-Process -FilePath "winget" -ArgumentList "install","curl.curl","--accept-package-agreements","--accept-source-agreements" -Wait -NoNewWindow
         } catch { }
     }
-    if (Get-Command "choco" -ErrorAction SilentlyContinue) {
+    if (-not (Get-CurlPath) -and (Get-Command "choco" -ErrorAction SilentlyContinue)) {
         try {
-            $proc = Start-Process -FilePath "choco" -ArgumentList "install","curl","-y" -Wait -PassThru -NoNewWindow
-            if ($proc.ExitCode -eq 0 -and (Get-CurlPath)) { return $true }
+            Start-Process -FilePath "choco" -ArgumentList "install","curl","-y" -Wait -NoNewWindow
         } catch { }
-    }
-    return $false
-}
-
-function Get-GitHubHostsContent {
-    param([scriptblock]$EchoCommand = $null)
-    $curlPath = Get-CurlPath
-    if (-not $curlPath) {
-        Write-Warning "curl not found. Attempting to install..."
-        if (-not (Install-CurlIfMissing)) {
-            Write-Warning "Could not install curl. Install curl manually (e.g. winget install curl.curl)."
-            return $null
-        }
-        $curlPath = Get-CurlPath
-    }
-    $tempFile = [System.IO.Path]::GetTempFileName()
-    try {
-        $curlArgs = @("-sL", "--connect-timeout", "15", "--max-time", "30", "-o", $tempFile, $GitHub520HostsUrl)
-        $cmdLine = "& `"$curlPath`" -sL --connect-timeout 15 --max-time 30 -o `"$tempFile`" `"$GitHub520HostsUrl`""
-        if ($EchoCommand) { & $EchoCommand $cmdLine }
-        $proc = Start-Process -FilePath $curlPath -ArgumentList $curlArgs -Wait -NoNewWindow -PassThru
-        if ($proc.ExitCode -ne 0) {
-            Write-Warning "GitHub520 fetch failed: curl exit code $($proc.ExitCode)"
-            return $null
-        }
-        if (-not (Test-Path $tempFile)) {
-            Write-Warning "GitHub520 fetch failed: no output file."
-            return $null
-        }
-        $text = [System.IO.File]::ReadAllText($tempFile, [System.Text.Encoding]::UTF8).TrimEnd()
-        if ([string]::IsNullOrWhiteSpace($text)) {
-            Write-Warning "GitHub520 fetch returned empty content."
-            return $null
-        }
-        if ($text -match [regex]::Escape($GitHub520MarkerStart) -and $text -match [regex]::Escape($GitHub520MarkerEnd)) {
-            return $text
-        }
-        Write-Warning "GitHub520 content missing expected markers (Start/End)."
-        return $null
-    } catch {
-        Write-Warning "Failed to fetch GitHub520 hosts: $($_.Exception.Message)"
-        return $null
-    } finally {
-        if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
     }
 }
 
 function Get-HostEntryCount {
     param([string]$Content)
-    $count = 0
+    $n = 0
     foreach ($line in ($Content -split "[\r\n]+")) {
         $t = $line.Trim()
         if ([string]::IsNullOrWhiteSpace($t) -or $t.StartsWith("#")) { continue }
-        if ($t -match "^\s*[\d.]+\s+\S+") { $count++ }
+        if ($t -match "^\s*[\d.]+\s+\S+") { $n++ }
     }
-    return $count
+    return $n
 }
 
 function Remove-GitHub520Block {
     param([string[]]$Lines)
     $out = @()
     $inside = $false
-    $removedCount = 0
+    $script:ReplacedCount = 0
     foreach ($line in $Lines) {
         if ($line -match "^\s*" + [regex]::Escape($GitHub520MarkerStart)) {
             $inside = $true
-            $removedCount++
+            $script:ReplacedCount++
             continue
         }
         if ($inside) {
-            $removedCount++
+            $script:ReplacedCount++
             if ($line -match "^\s*" + [regex]::Escape($GitHub520MarkerEnd)) {
                 $inside = $false
             }
@@ -119,28 +83,73 @@ function Remove-GitHub520Block {
         }
         $out += $line
     }
-    return @{ Lines = $out; RemovedCount = $removedCount }
+    return $out
 }
 
-function Update-GitHubHostsFile {
-    param([scriptblock]$EchoCommand = $null)
-    $hostsPath = Get-GitHubHostsFilePath
-    if (-not (Test-Path $hostsPath)) {
-        Write-Warning "Hosts file not found: $hostsPath"
-        return @{ Success = $false; FetchedCount = 0; ReplacedCount = 0 }
+function Invoke-GitHubHostRefresh {
+    param(
+        [scriptblock]$WriteColorText = { param($t, $c) Write-Host $t }
+    )
+    $script:WriteColorText = $WriteColorText
+    $script:EchoCommand = { param($cmd) & $script:WriteColorText "> $cmd" "DarkGray" }
+    $script:HostsPath = Get-GitHubHostsFilePath
+    $script:RefreshSuccess = $false
+    $script:NewContent = ""
+    $script:FetchedCount = 0
+    $script:ReplacedCount = 0
+
+    & $script:WriteColorText "Hosts file: $script:HostsPath" "Cyan"
+    if (-not (Test-Path $script:HostsPath)) {
+        Write-Warning "Hosts file not found: $script:HostsPath"
+        return
     }
 
-    $newContent = Get-GitHubHostsContent -EchoCommand $EchoCommand
-    if (-not $newContent) {
-        Write-Warning "Could not fetch GitHub520 hosts content."
-        return @{ Success = $false; FetchedCount = 0; ReplacedCount = 0 }
+    & $script:WriteColorText "Fetching GitHub520 hosts..." "Cyan"
+    $curlPath = Get-CurlPath
+    if (-not $curlPath) {
+        Write-Warning "curl not found. Attempting to install..."
+        Install-CurlIfMissing
+        $curlPath = Get-CurlPath
+    }
+    if (-not $curlPath) {
+        Write-Warning "Could not find or install curl. Install manually (e.g. winget install curl.curl)."
+        return
     }
 
-    $fetchedCount = Get-HostEntryCount -Content $newContent
-    $existingLines = @(Get-Content -Path $hostsPath -Encoding UTF8 -ErrorAction Stop)
-    $blockResult = Remove-GitHub520Block -Lines $existingLines
-    $withoutBlock = $blockResult.Lines
-    $replacedCount = $blockResult.RemovedCount
+    $script:DownloadTempFile = [System.IO.Path]::GetTempFileName()
+    $curlArgs = @("-sL", "--connect-timeout", "15", "--max-time", "30", "-o", $script:DownloadTempFile, $GitHub520HostsUrl)
+    & $script:EchoCommand "& `"$curlPath`" -sL --connect-timeout 15 --max-time 30 -o `"$script:DownloadTempFile`" `"$GitHub520HostsUrl`""
+    Start-Process -FilePath $curlPath -ArgumentList $curlArgs -Wait -NoNewWindow
+
+    if (-not (Test-Path $script:DownloadTempFile)) {
+        Write-Warning "Download failed: temp file does not exist."
+        return
+    }
+    $rawSize = (Get-Item $script:DownloadTempFile).Length
+    if ($rawSize -eq 0) {
+        Write-Warning "Download failed: file is empty."
+        Remove-Item $script:DownloadTempFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    $script:NewContent = [System.IO.File]::ReadAllText($script:DownloadTempFile, [System.Text.Encoding]::UTF8).TrimEnd()
+    Remove-Item $script:DownloadTempFile -Force -ErrorAction SilentlyContinue
+    $script:DownloadTempFile = ""
+
+    if (-not ($script:NewContent -match [regex]::Escape($GitHub520MarkerStart) -and $script:NewContent -match [regex]::Escape($GitHub520MarkerEnd))) {
+        Write-Warning "Downloaded content missing expected markers (Start/End)."
+        return
+    }
+
+    & $script:WriteColorText "Downloaded content (GitHub520 block):" "Cyan"
+    & $script:WriteColorText $script:NewContent "DarkGray"
+    $script:FetchedCount = Get-HostEntryCount -Content $script:NewContent
+    & $script:WriteColorText "Fetched entries: $script:FetchedCount" "Cyan"
+
+    $existingLines = @(Get-Content -Path $script:HostsPath -Encoding UTF8 -ErrorAction Stop)
+    $withoutBlock = Remove-GitHub520Block -Lines $existingLines
+    & $script:WriteColorText "Replaced (old block lines): $script:ReplacedCount" "Cyan"
+
     $trailingEmpty = 0
     for ($i = $withoutBlock.Count - 1; $i -ge 0; $i--) {
         if ([string]::IsNullOrWhiteSpace($withoutBlock[$i])) {
@@ -152,46 +161,31 @@ function Update-GitHubHostsFile {
     $keepCount = $withoutBlock.Count - $trailingEmpty
     $baseLines = if ($keepCount -gt 0) { $withoutBlock[0..($keepCount - 1)] } else { @() }
     $newLine = [Environment]::NewLine
-    $toWrite = ($baseLines -join $newLine) + $newLine + $newLine + $newContent + $newLine
+    $toWrite = ($baseLines -join $newLine) + $newLine + $newLine + $script:NewContent + $newLine
 
-    if ($EchoCommand) { & $EchoCommand "Write-Content to `"$hostsPath`" (GitHub520 block)" }
+    & $script:EchoCommand "Write-Content to `"$script:HostsPath`""
     try {
-        [System.IO.File]::WriteAllText($hostsPath, $toWrite, [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText($script:HostsPath, $toWrite, [System.Text.UTF8Encoding]::new($false))
     } catch {
         Write-Warning "Failed to write hosts file (may need Administrator): $_"
-        return @{ Success = $false; FetchedCount = $fetchedCount; ReplacedCount = $replacedCount }
+        return
     }
 
-    if ($EchoCommand) { & $EchoCommand "ipconfig /flushdns" }
+    & $script:EchoCommand "ipconfig /flushdns"
     try {
         Start-Process -FilePath "ipconfig" -ArgumentList "/flushdns" -Wait -NoNewWindow
     } catch {
         Write-Warning "Flush DNS skipped: $_"
     }
-    return @{ Success = $true; FetchedCount = $fetchedCount; ReplacedCount = $replacedCount }
-}
 
-function Invoke-GitHubHostRefresh {
-    param(
-        [scriptblock]$WriteColorText = { param($t, $c) Write-Host $t }
-    )
-    $echoCmd = { param($cmd) & $WriteColorText "> $cmd" "DarkGray" }
-    & $WriteColorText "Fetching GitHub520 hosts..." "Cyan"
-    $result = Update-GitHubHostsFile -EchoCommand $echoCmd
-    & $WriteColorText "Fetched entries: $($result.FetchedCount) | Replaced (old block lines): $($result.ReplacedCount)" "Cyan"
-    if ($result.Success) {
-        & $WriteColorText "Refresh succeeded. Hosts file updated and DNS cache flushed." "Green"
-        & $WriteColorText "Verifying: resolving github.com..." "DarkGray"
-        $testCmd = "Resolve-DnsName github.com -ErrorAction SilentlyContinue | Select-Object -First 1"
-        & $WriteColorText "> $testCmd" "DarkGray"
-        $resolved = Resolve-DnsName -Name "github.com" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($resolved -and $resolved.IPAddress) {
-            & $WriteColorText "Test OK: github.com -> $($resolved.IPAddress)" "Green"
-        } else {
-            & $WriteColorText "Test: Resolve-DnsName did not return IP (may still work via hosts)." "Yellow"
-        }
-        return $true
+    $script:RefreshSuccess = $true
+    & $script:WriteColorText "Refresh succeeded. Hosts file updated and DNS cache flushed." "Green"
+    & $script:WriteColorText "Verifying: resolving github.com..." "DarkGray"
+    & $script:EchoCommand "Resolve-DnsName github.com -ErrorAction SilentlyContinue | Select-Object -First 1"
+    $resolved = Resolve-DnsName -Name "github.com" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($resolved -and $resolved.IPAddress) {
+        & $script:WriteColorText "Test OK: github.com -> $($resolved.IPAddress)" "Green"
+    } else {
+        & $script:WriteColorText "Test: Resolve-DnsName did not return IP (may still work via hosts)." "Yellow"
     }
-    & $WriteColorText "Refresh failed or skipped." "Yellow"
-    return $false
 }
