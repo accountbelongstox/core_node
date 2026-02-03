@@ -50,7 +50,15 @@
       "stop_picking": "Stop Picking",
       "undo": "Undo",
       "picks_count": "Total Picks:",
-      "close": "Close"
+      "history_title": "Coordinate History",
+      "template_matching_title": "Template Matching",
+      "client_label": "Client:",
+      "select_templates": "Select Templates",
+      "history_col_id": "ID",
+      "history_col_type": "Type",
+      "history_col_coords": "Coords",
+      "close": "Close",
+      "complete": "Complete"
     }
   }
 }

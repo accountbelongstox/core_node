@@ -17,9 +17,16 @@ Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 ImageTk = get_third_package_PIL_ImageTk()
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint, ImageAnnotator
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from providor.providor_index import (
+    CLIENT_TYPE_BATTLENET,
+    CLIENT_TYPE_D3_GAME,
+    CLIENT_TYPE_D4_GAME,
+)
 from d3utils.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_int, var_bool
@@ -32,11 +39,11 @@ class CoordinatePicker:
     Displays large screenshot and allows coordinate picking with optional template matching
     """
 
-    def __init__(self, screenshot, game_mode: str = 'd3', on_picks_updated: Optional[Callable] = None, parent=None, client_mode: str = 'game', pick_history_ref: Optional[List] = None):
-        """Initialize coordinate picker window"""
+    def __init__(self, screenshot, game_mode: str = 'd3', on_picks_updated: Optional[Callable] = None, parent=None, client_mode: Optional[str] = None, pick_history_ref: Optional[List] = None):
+        """Initialize coordinate picker window. client_mode: CLIENT_TYPE_BATTLENET / CLIENT_TYPE_D3_GAME / CLIENT_TYPE_D4_GAME."""
         self.screenshot = screenshot
         self.game_mode = game_mode
-        self.client_mode = client_mode
+        self.client_mode = client_mode if client_mode in (CLIENT_TYPE_BATTLENET, CLIENT_TYPE_D3_GAME, CLIENT_TYPE_D4_GAME) else CLIENT_TYPE_BATTLENET
         self.on_picks_updated = on_picks_updated
         self.parent = parent
         self.picks: List[Dict] = []
@@ -76,13 +83,11 @@ class CoordinatePicker:
         self._create_screenshot_canvas(main_frame)
 
     def _create_left_menu(self, parent):
-        """Create left side menu panel"""
-        menu_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'],
-                             width=200)
-        menu_frame.grid(row=0, column=0, sticky="ns")  # Fixed: removed fill=tk.Y (not valid for grid)
+        """Create left side menu panel (delegates to section builders)."""
+        menu_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'], width=200)
+        menu_frame.grid(row=0, column=0, sticky="ns")
         menu_frame.grid_propagate(False)
 
-        # Title
         title = tk.Label(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.menu_title"),
@@ -92,27 +97,31 @@ class CoordinatePicker:
             wraplength=180
         )
         title.pack(padx=10, pady=10, fill=tk.X)
+        ttk.Separator(menu_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
 
-        # Separator
-        sep1 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
-        sep1.pack(fill=tk.X, padx=10, pady=5)
+        self._create_pick_type_section(menu_frame)
+        self._create_params_section(menu_frame)
+        self._create_template_section(menu_frame)
+        self._create_history_section(menu_frame)
+        self._create_action_buttons(menu_frame)
 
-        # Pick mode label
-        mode_label = tk.Label(
+    def _create_pick_type_section(self, menu_frame: tk.Frame):
+        """Build pick type block: label + point/rect/circle buttons."""
+        tk.Label(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.pick_mode_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['label']
-        )
-        mode_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+        ).pack(padx=10, pady=(10, 5), anchor=tk.W)
 
-        # Pick type buttons (use factory so master is always set)
         self.pick_type_var = var_str(self.window, 'point')
-
-        for pick_type, label_key in [('point', 'ui.coord_picker.pick_type_point'),
-                                      ('rect', 'ui.coord_picker.pick_type_rect'),
-                                      ('circle', 'ui.coord_picker.pick_type_circle')]:
+        self.buttons = {}
+        for pick_type, label_key in [
+            ('point', 'ui.coord_picker.pick_type_point'),
+            ('rect', 'ui.coord_picker.pick_type_rect'),
+            ('circle', 'ui.coord_picker.pick_type_circle'),
+        ]:
             btn = tk.Button(
                 menu_frame,
                 text=i18n_manager.get_ui_text(label_key),
@@ -127,138 +136,64 @@ class CoordinatePicker:
                 cursor='hand2'
             )
             btn.pack(padx=10, pady=3, fill=tk.X)
-            self.buttons = getattr(self, 'buttons', {})
             self.buttons[pick_type] = btn
+        ttk.Separator(menu_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
 
-        # Separator
-        sep2 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
-        sep2.pack(fill=tk.X, padx=10, pady=5)
-
-        # Values section for rect/circle
-        value_label = tk.Label(
+    def _create_params_section(self, menu_frame: tk.Frame):
+        """Build parameters block: width, height, radius spinboxes."""
+        tk.Label(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.values_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['label']
-        )
-        value_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+        ).pack(padx=10, pady=(10, 5), anchor=tk.W)
 
-        # Width spinbox
-        width_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        width_frame.pack(padx=10, pady=3, fill=tk.X)
+        for label_key, var_name, default, from_, to in [
+            ('ui.coord_picker.width', 'width_var', 50, 10, 500),
+            ('ui.coord_picker.height', 'height_var', 50, 10, 500),
+            ('ui.coord_picker.radius', 'radius_var', 30, 5, 200),
+        ]:
+            row = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            row.pack(padx=10, pady=3, fill=tk.X)
+            tk.Label(row, text=i18n_manager.get_ui_text(label_key), bg=UnifiedStyles.COLORS['bg_secondary'],
+                     fg=UnifiedStyles.COLORS['text_primary'], font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, padx=(0, 5))
+            v = var_int(self.window, default)
+            setattr(self, var_name, v)
+            tk.Spinbox(row, from_=from_, to=to, textvariable=v, width=6,
+                       bg=UnifiedStyles.COLORS['bg_primary'], fg=UnifiedStyles.COLORS['text_primary'],
+                       font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Separator(menu_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
 
-        width_label = tk.Label(
-            width_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.width"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        width_label.pack(side=tk.LEFT, padx=(0, 5))
-
-        self.width_var = var_int(self.window, 50)
-        width_spin = tk.Spinbox(
-            width_frame,
-            from_=10,
-            to=500,
-            textvariable=self.width_var,
-            width=6,
-            bg=UnifiedStyles.COLORS['bg_primary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        width_spin.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # Height spinbox
-        height_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        height_frame.pack(padx=10, pady=3, fill=tk.X)
-
-        height_label = tk.Label(
-            height_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.height"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        height_label.pack(side=tk.LEFT, padx=(0, 5))
-
-        self.height_var = var_int(self.window, 50)
-        height_spin = tk.Spinbox(
-            height_frame,
-            from_=10,
-            to=500,
-            textvariable=self.height_var,
-            width=6,
-            bg=UnifiedStyles.COLORS['bg_primary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        height_spin.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # Radius spinbox
-        radius_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        radius_frame.pack(padx=10, pady=3, fill=tk.X)
-
-        radius_label = tk.Label(
-            radius_frame,
-            text=i18n_manager.get_ui_text("ui.coord_picker.radius"),
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        radius_label.pack(side=tk.LEFT, padx=(0, 5))
-
-        self.radius_var = var_int(self.window, 30)
-        radius_spin = tk.Spinbox(
-            radius_frame,
-            from_=5,
-            to=200,
-            textvariable=self.radius_var,
-            width=6,
-            bg=UnifiedStyles.COLORS['bg_primary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        radius_spin.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # Separator
-        sep3 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
-        sep3.pack(fill=tk.X, padx=10, pady=5)
-
-        # Note: Start/Stop/Undo buttons removed - window is always in picking mode
-
-        # Template Matching Section
-        template_label = tk.Label(
+    def _create_template_section(self, menu_frame: tk.Frame):
+        """Build template matching block: title, client radio, Select Templates button."""
+        tk.Label(
             menu_frame,
-            text="Template Matching",
+            text=i18n_manager.get_ui_text("ui.coord_picker.template_matching_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['bold'],
             wraplength=180
-        )
-        template_label.pack(padx=10, pady=(10, 5), fill=tk.X)
+        ).pack(padx=10, pady=(10, 5), fill=tk.X)
 
-        # Client mode for template matching
         client_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         client_frame.pack(padx=10, pady=3, fill=tk.X)
+        tk.Label(client_frame, text=i18n_manager.get_ui_text("ui.coord_picker.client_label"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
+                 font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, padx=(0, 5))
 
-        client_label = tk.Label(
-            client_frame,
-            text="Client:",
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
-            font=UnifiedStyles.FONTS['small']
-        )
-        client_label.pack(side=tk.LEFT, padx=(0, 5))
-
-        self.client_var = var_str(self.window, 'game')
-        for mode in ['game', 'battlenet']:
+        self.client_var = var_str(self.window, self.client_mode)
+        client_options = [
+            (CLIENT_TYPE_BATTLENET, "ui.coord_calibration.client_battlenet"),
+            (CLIENT_TYPE_D3_GAME, "ui.coord_calibration.client_d3_game"),
+            (CLIENT_TYPE_D4_GAME, "ui.coord_calibration.client_d4_game"),
+        ]
+        for value, i18n_key in client_options:
             rb = tk.Radiobutton(
                 client_frame,
-                text=mode.capitalize(),
+                text=i18n_manager.get_ui_text(i18n_key),
                 variable=self.client_var,
-                value=mode,
+                value=value,
                 bg=UnifiedStyles.COLORS['bg_secondary'],
                 fg=UnifiedStyles.COLORS['text_primary'],
                 activebackground=UnifiedStyles.COLORS['bg_tertiary'],
@@ -268,10 +203,9 @@ class CoordinatePicker:
             )
             rb.pack(side=tk.LEFT, padx=3)
 
-        # Template selection button
-        template_btn = tk.Button(
+        tk.Button(
             menu_frame,
-            text="Select Templates",
+            text=i18n_manager.get_ui_text("ui.coord_picker.select_templates"),
             command=self._on_select_templates,
             bg=UnifiedStyles.COLORS['accent'],
             fg=UnifiedStyles.COLORS['text_primary'],
@@ -281,32 +215,27 @@ class CoordinatePicker:
             pady=5,
             relief=tk.FLAT,
             cursor='hand2'
-        )
-        template_btn.pack(padx=10, pady=3, fill=tk.X)
+        ).pack(padx=10, pady=3, fill=tk.X)
+        ttk.Separator(menu_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
 
-        # Separator
-        sep5 = ttk.Separator(menu_frame, orient=tk.HORIZONTAL)
-        sep5.pack(fill=tk.X, padx=10, pady=5)
-
-        # History section - Treeview list like main panel
-        history_label = tk.Label(
+    def _create_history_section(self, menu_frame: tk.Frame):
+        """Build history block: title + Treeview (ID, Type, Coords)."""
+        tk.Label(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.history_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['bold']
-        )
-        history_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+        ).pack(padx=10, pady=(10, 5), anchor=tk.W)
 
-        # Create frame for treeview and scrollbar
         tree_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         tree_frame.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
-
-        # Create scrollbar
         tree_scrollbar = ttk.Scrollbar(tree_frame)
         tree_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Create compact Treeview
+        col_id = i18n_manager.get_ui_text("ui.coord_picker.history_col_id")
+        col_type = i18n_manager.get_ui_text("ui.coord_picker.history_col_type")
+        col_coords = i18n_manager.get_ui_text("ui.coord_picker.history_col_coords")
         self.history_tree = ttk.Treeview(
             tree_frame,
             columns=('ID', 'Type', 'Coords'),
@@ -316,20 +245,36 @@ class CoordinatePicker:
             show='headings'
         )
         tree_scrollbar.config(command=self.history_tree.yview)
-
-        # Configure columns - compact version
         self.history_tree.column('ID', width=30, anchor=tk.CENTER)
-        self.history_tree.column('Type', width=50, anchor=tk.CENTER)
+        self.history_tree.column('Type', width=58, anchor=tk.CENTER)
         self.history_tree.column('Coords', width=100, anchor=tk.W)
-
-        self.history_tree.heading('ID', text='ID')
-        self.history_tree.heading('Type', text='Type')
-        self.history_tree.heading('Coords', text='Coords')
-
+        self.history_tree.heading('ID', text=col_id)
+        self.history_tree.heading('Type', text=col_type)
+        self.history_tree.heading('Coords', text=col_coords)
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+    def _create_action_buttons(self, menu_frame: tk.Frame):
+        """Build bottom action buttons: Complete, Close."""
+        btn_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        btn_frame.pack(padx=10, pady=10, fill=tk.X, side=tk.BOTTOM)
+
+        complete_btn = tk.Button(
+            btn_frame,
+            text=i18n_manager.get_ui_text("ui.coord_picker.complete"),
+            command=self._on_complete,
+            bg=UnifiedStyles.COLORS['accent'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['accent_light'],
+            font=UnifiedStyles.FONTS['button'],
+            padx=10,
+            pady=5,
+            relief=tk.FLAT,
+            cursor='hand2'
+        )
+        complete_btn.pack(side=tk.LEFT, padx=(0, 5))
+
         close_btn = tk.Button(
-            menu_frame,
+            btn_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.close"),
             command=self._on_close,
             bg=UnifiedStyles.COLORS['bg_tertiary'],
@@ -341,7 +286,7 @@ class CoordinatePicker:
             relief=tk.FLAT,
             cursor='hand2'
         )
-        close_btn.pack(padx=10, pady=10, fill=tk.X, side=tk.BOTTOM)
+        close_btn.pack(side=tk.LEFT)
 
     def _create_screenshot_canvas(self, parent):
         """Create screenshot canvas with transparent overlay for drawing"""
@@ -591,10 +536,12 @@ class CoordinatePicker:
                 values=(idx, pick_type, coords)
             )
 
+    def _on_complete(self):
+        """Confirm and close (same as close; picks already synced in real-time)."""
+        self.window.destroy()
+
     def _on_close(self):
-        """Close window - picks already synced in real-time"""
-        # Note: Picks are now synced immediately on each click
-        # No need to sync again on close
+        """Close window - picks already synced in real-time."""
         self.window.destroy()
 
     def destroy(self):
@@ -612,11 +559,11 @@ class CoordinatePicker:
         from tkinter import ttk as tkinter_ttk
 
         dialog = Toplevel(self.window)
-        dialog.title("Select Templates")
+        dialog.title(i18n_manager.get_ui_text("ui.coord_picker.select_templates"))
         dialog.geometry("450x600")
         dialog.resizable(True, True)
 
-        templates_data = self.template_matcher.get_available_templates(self.game_mode, self.client_var.get())
+        templates_data = self.template_matcher.get_available_templates(self.client_var.get())
 
         selected_templates = {}
 
@@ -636,7 +583,7 @@ class CoordinatePicker:
         # Template selection section
         template_label = tk.Label(
             scrollable_frame,
-            text="Select Templates:",
+            text=i18n_manager.get_ui_text("ui.coord_picker.select_templates") + ":",
             bg=UnifiedStyles.COLORS['bg_primary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['bold']

@@ -6,6 +6,6 @@ Diablo IV utility modules
 """
 
 # D4State functionality now integrated into D4InterfaceData
-from .red_portal_detector import detect_red_portal
+from .red_portal_detector import d4_detect_red_portal
 
-__all__ = ['detect_red_portal']
+__all__ = ['d4_detect_red_portal']

@@ -11,8 +11,9 @@ import sys
 import os
 from typing import Optional, Callable
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from runtime import is_shutdown_requested
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles
@@ -126,9 +127,6 @@ class LogPanel:
         )
         auto_scroll_check.grid(row=0, column=3, padx=UnifiedStyles.SPACING['sm'], sticky="e")
 
-        # Store auto_scroll variable reference
-        self.auto_scroll_var = auto_scroll_check.cget('variable')
-
         # Log level filter
         level_label = tk.Label(control_frame, text=i18n_manager.get_ui_text("log_panel.log_level") + ":",
                               bg=UnifiedStyles.COLORS['bg_secondary'],
@@ -180,6 +178,31 @@ class LogPanel:
         # Configure text tags for different log levels
         self._configure_log_tags()
 
+        # Right-click context menu: Copy (reuse same pattern as ROSBOT log)
+        self.log_text.bind("<Button-3>", self._show_log_context_menu)
+
+    def _show_log_context_menu(self, event):
+        """Show right-click context menu for log area (Copy)."""
+        menu = tk.Menu(self.log_text, tearoff=0)
+        menu.add_command(label=i18n_manager.get_ui_text("log_panel.copy"), command=self._copy_log_to_clipboard)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _copy_log_to_clipboard(self):
+        """Copy log content to clipboard (selection if any, else all)."""
+        try:
+            if self.log_text.tag_ranges(tk.SEL):
+                text = self.log_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+            else:
+                text = self.log_text.get("1.0", tk.END)
+            if text.strip():
+                self.container.clipboard_clear()
+                self.container.clipboard_append(text)
+        except tk.TclError:
+            pass
+
     def _configure_log_tags(self):
         """Configure text tags for different log levels"""
         self.log_text.tag_configure("DEBUG", foreground=UnifiedStyles.COLORS['text_muted'])
@@ -190,36 +213,64 @@ class LogPanel:
         self.log_text.tag_configure("CYAN", foreground=UnifiedStyles.COLORS['accent'])
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Add a log message to the display."""
+        """Add a log message to the display. ColorPrint calls (message, color_type, log_level); schedule UI update on main thread via after(0)."""
+        if is_shutdown_requested():
+            return
+        # ColorPrint.notify passes (message, color_type, log_level) -> our (message, level, color) receive (message, color_type, log_level)
+        color_type = level if level in ("red", "green", "yellow", "blue", "gray", "cyan", "white") else None
+        log_level_raw = color if isinstance(color, str) and color in ("DEBUG", "INFO", "WARNING", "ERROR", "SUCCESS") else (level if not color_type else "INFO")
+        # Filter combo uses DEBUG/INFO/WARNING/ERROR/ALL; map SUCCESS to INFO
+        log_level = (log_level_raw or "INFO").upper()
+        if log_level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
+            log_level = "INFO"
+        log_entry = {
+            'message': message,
+            'level': log_level,
+            'color': color_type
+        }
+
+        def _append():
+            try:
+                if not self.container.winfo_exists():
+                    return
+                self.log_buffer.append(log_entry)
+                if len(self.log_buffer) > self.max_log_lines:
+                    self.log_buffer = self.log_buffer[-self.max_log_lines:]
+                if self._should_display_message(log_entry):
+                    self._display_message(log_entry)
+            except (tk.TclError, RuntimeError, Exception):
+                pass
         try:
-            log_entry = {
-                'message': message,
-                'level': (level or "INFO").upper(),
-                'color': color
-            }
-            self.log_buffer.append(log_entry)
-            if len(self.log_buffer) > self.max_log_lines:
-                self.log_buffer = self.log_buffer[-self.max_log_lines:]
-            if self._should_display_message(log_entry):
-                self._display_message(log_entry)
-        except Exception as e:
-            print(f"Error adding log message: {e}")
+            if self.container.winfo_exists():
+                self.container.after(0, _append)
+        except (tk.TclError, RuntimeError):
+            pass
 
     def _should_display_message(self, log_entry):
         """Check if message should be displayed based on current filter"""
         try:
-            current_filter = self.level_combo.get() if hasattr(self, 'level_combo') else "ALL"
+            current_filter = ConfigBinding.get_config_value("log_settings.log_level", "ALL")
             if current_filter == "ALL":
                 return True
             return log_entry['level'] == current_filter
-        except:
-            return True  # Show all messages if there's an error
+        except Exception:
+            return True
 
     def _display_message(self, log_entry):
-        """Display a single log message"""
+        """Display a single log message. Auto-scroll only when option is on and user was at bottom before insert (reuse: same as ROSBOT; no scroll steal when mid-log copy)."""
         try:
             self.log_text.configure(state=tk.NORMAL)
-            
+            # Check at-bottom before insert (after insert content grows and yview may no longer be 0.99)
+            at_bottom = False
+            try:
+                auto_on = ConfigBinding.get_config_value("log_settings.auto_scroll", True)
+                if auto_on:
+                    yview = self.log_text.yview()
+                    if yview and len(yview) >= 2:
+                        at_bottom = float(yview[1]) >= 0.99
+            except Exception:
+                pass
+
             # Determine tag based on level or color
             tag = log_entry['level']
             if log_entry['color']:
@@ -231,16 +282,15 @@ class LogPanel:
                     'blue': 'INFO'
                 }
                 tag = color_map.get(log_entry['color'], log_entry['level'])
-            
+
             # Insert message with tag
             self.log_text.insert(tk.END, f"{log_entry['message']}\n", tag)
-            
-            # Auto-scroll if enabled
-            if self.auto_scroll_var.get():
+
+            if at_bottom:
                 self.log_text.see(tk.END)
-            
+
             self.log_text.configure(state=tk.DISABLED)
-            
+
         except Exception as e:
             print(f"Error displaying log message: {e}")
 

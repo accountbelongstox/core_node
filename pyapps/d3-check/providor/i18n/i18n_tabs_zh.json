@@ -50,7 +50,15 @@
       "stop_picking": "停止拾取",
       "undo": "撤销",
       "picks_count": "拾取总数:",
-      "close": "关闭"
+      "history_title": "坐标历史记录",
+      "template_matching_title": "模板匹配",
+      "client_label": "客户端:",
+      "select_templates": "选择模板",
+      "history_col_id": "ID",
+      "history_col_type": "类型",
+      "history_col_coords": "坐标",
+      "close": "关闭",
+      "complete": "完成"
     }
   }
 }

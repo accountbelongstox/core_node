@@ -10,26 +10,22 @@ import shutil
 import time
 import traceback
 import platform
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-import subprocess
 
-try:
-    import cv2
-except ImportError:
-    cv2 = None
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.third_party import (
+    get_third_package_cv2,
+    get_third_package_numpy,
+    get_third_package_ultralytics,
+)
 
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-try:
-    from ultralytics import YOLO
-except ImportError:
-    YOLO = None
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+_ultralytics = get_third_package_ultralytics()
+YOLO = getattr(_ultralytics, "YOLO", None)
 
 from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
 from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer

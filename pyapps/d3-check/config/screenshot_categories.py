@@ -9,21 +9,20 @@ import time
 from pathlib import Path
 from typing import Dict, Optional
 
-from providor.providor_index import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR
-from providor.common_imports import ColorPrint
-
-from config.constants import LOGIN_TRY_SCREENSHOT_DIR
-
-# ---------------------------------------------------------------------------
-# Category directory definitions (extend here for new screenshot types)
-# ---------------------------------------------------------------------------
-D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
-D4_ANNOTATED_DIR = TMP_DIR / "d4_annotated"
-MATCH_DEBUG_DIR = TMP_DIR / "match_debug"
-PATHFINDING_DIR = TMP_DIR / "pathfinding"
-DEBUG_CAPTURE_DIR = TMP_DIR / "debug_capture"
-UI_ANNOTATED_DIR = TMP_DIR / "ui_annotated"
-VALIDATION_DIR = TMP_DIR / "validation"
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import (
+    TMP_DIR,
+    SCALED_TEMPLATES_CACHE_DIR,
+    LOGIN_TRY_SCREENSHOT_DIR,
+    D4_SCREENSHOT_DIR,
+    D4_ANNOTATED_DIR,
+    MATCH_DEBUG_DIR,
+    PATHFINDING_DIR,
+    DEBUG_CAPTURE_DIR,
+    UI_ANNOTATED_DIR,
+    VALIDATION_DIR,
+    DEFAULT_CLEANUP_MAX_AGE_SECONDS,
+)
 
 SCREENSHOT_CATEGORIES: Dict[str, Path] = {
     "login_try": LOGIN_TRY_SCREENSHOT_DIR,
@@ -36,8 +35,6 @@ SCREENSHOT_CATEGORIES: Dict[str, Path] = {
     "validation": VALIDATION_DIR,
     "scaled_templates": SCALED_TEMPLATES_CACHE_DIR,
 }
-
-DEFAULT_CLEANUP_MAX_AGE_SECONDS = 60
 
 
 class ScreenshotCategoryManager:

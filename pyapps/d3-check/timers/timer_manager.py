@@ -7,17 +7,16 @@ Centralized timer management system for periodic task execution
 
 import os
 import sys
+import queue
 import threading
 import time
 from typing import Dict, Callable, Optional, Any
 from dataclasses import dataclass
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 @dataclass
@@ -43,12 +42,110 @@ class TimerTask:
     interceptor: Optional[Callable[[], bool]] = None
 
 
-# Global task registry
+# Global task registry (no lock: direct write when not running; when running, serialized via cmd queue in timer thread)
 _tasks: Dict[str, TimerTask] = {}
-_lock = threading.Lock()
+_cmd_queue: queue.Queue = queue.Queue()
 _running = False
-_thread: Optional[threading.Thread] = None
+_thread: Optional["TimerManagerThread"] = None
 _stop_event = threading.Event()
+
+
+class TimerManagerThread(threading.Thread):
+    """Native thread for timer loop. Override run() to execute _timer_loop."""
+
+    def __init__(self):
+        super().__init__(daemon=True, name="TimerManagerThread")
+
+    def run(self):
+        _timer_loop()
+
+
+def _apply_register(name: str, interval: float, callback: Callable, enabled: bool) -> bool:
+    global _tasks
+    if name in _tasks:
+        return False
+    _tasks[name] = TimerTask(name=name, interval=interval, callback=callback, enabled=enabled)
+    return True
+
+
+def _apply_unregister(name: str) -> bool:
+    global _tasks
+    if name not in _tasks:
+        return False
+    del _tasks[name]
+    return True
+
+
+def _drain_cmd_queue():
+    """Called by timer thread; drain and process cmd queue (serialized, no lock)."""
+    global _tasks
+    while True:
+        try:
+            item = _cmd_queue.get_nowait()
+        except queue.Empty:
+            break
+        cmd, args, result_q = item
+        if cmd == "register":
+            ok = _apply_register(*args)
+            if ok:
+                ColorPrint.green(f"[TimerManager] Registered task '{args[0]}' with interval {args[1]}s (enabled={args[3]})")
+            else:
+                ColorPrint.yellow(f"[TimerManager] Task '{args[0]}' already exists")
+            result_q.put(ok)
+        elif cmd == "unregister":
+            ok = _apply_unregister(*args)
+            if ok:
+                ColorPrint.blue(f"[TimerManager] Unregistered task '{args[0]}'")
+            else:
+                ColorPrint.yellow(f"[TimerManager] Task '{args[0]}' not found")
+            result_q.put(ok)
+        elif cmd == "enable":
+            name, = args
+            if name not in _tasks:
+                result_q.put(False)
+            else:
+                _tasks[name].enabled = True
+                ColorPrint.blue(f"[TimerManager] Enabled task '{name}'")
+                result_q.put(True)
+        elif cmd == "disable":
+            name, = args
+            if name not in _tasks:
+                result_q.put(False)
+            else:
+                _tasks[name].enabled = False
+                ColorPrint.blue(f"[TimerManager] Disabled task '{name}'")
+                result_q.put(True)
+        elif cmd == "set_interval":
+            name, interval = args
+            if name not in _tasks:
+                result_q.put(False)
+            else:
+                _tasks[name].interval = interval
+                ColorPrint.blue(f"[TimerManager] Updated task '{name}' interval to {interval}s")
+                result_q.put(True)
+        elif cmd == "set_interceptor":
+            name, interceptor = args
+            if name not in _tasks:
+                result_q.put(False)
+            else:
+                _tasks[name].interceptor = interceptor
+                ColorPrint.blue(f"[TimerManager] Updated task '{name}' interceptor")
+                result_q.put(True)
+        elif cmd == "one_shot":
+            cb, = args
+            try:
+                cb()
+            except Exception as e:
+                ColorPrint.red(f"[TimerManager] One-shot task error: {e}")
+
+
+def submit_one_shot(callback: Callable[[], None]) -> None:
+    """Submit a one-shot task to the timer thread. No new thread is created. Call from main thread."""
+    global _running, _cmd_queue
+    if not _running:
+        ColorPrint.yellow("[TimerManager] submit_one_shot ignored: timer not started yet")
+        return
+    _cmd_queue.put(("one_shot", (callback,), None))
 
 
 def register_task(
@@ -57,150 +154,79 @@ def register_task(
     callback: Callable,
     enabled: bool = True
 ) -> bool:
-    """
-    Register a timer task
-
-    Args:
-        name: Task name (unique identifier)
-        interval: Interval in seconds
-        callback: Callback function to execute
-        enabled: Whether to enable the task immediately
-
-    Returns:
-        True if registered successfully, False if name already exists
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name in _tasks:
             ColorPrint.yellow(f"[TimerManager] Task '{name}' already exists")
             return False
-
-        task = TimerTask(
-            name=name,
-            interval=interval,
-            callback=callback,
-            enabled=enabled
-        )
-        _tasks[name] = task
-
-        ColorPrint.green(
-            f"[TimerManager] Registered task '{name}' "
-            f"with interval {interval}s (enabled={enabled})"
-        )
+        _apply_register(name, interval, callback, enabled)
+        ColorPrint.green(f"[TimerManager] Registered task '{name}' with interval {interval}s (enabled={enabled})")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("register", (name, interval, callback, enabled), rq))
+    return rq.get()
 
 
 def unregister_task(name: str) -> bool:
-    """
-    Unregister a timer task
-
-    Args:
-        name: Task name to unregister
-
-    Returns:
-        True if unregistered successfully, False if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name not in _tasks:
             ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
             return False
-
-        del _tasks[name]
+        _apply_unregister(name)
         ColorPrint.blue(f"[TimerManager] Unregistered task '{name}'")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("unregister", (name,), rq))
+    return rq.get()
 
 
 def enable_task(name: str) -> bool:
-    """
-    Enable a timer task
-
-    Args:
-        name: Task name to enable
-
-    Returns:
-        True if enabled successfully, False if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name not in _tasks:
-            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
             return False
-
         _tasks[name].enabled = True
-        ColorPrint.blue(f"[TimerManager] Enabled task '{name}'")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("enable", (name,), rq))
+    return rq.get()
 
 
 def disable_task(name: str) -> bool:
-    """
-    Disable a timer task
-
-    Args:
-        name: Task name to disable
-
-    Returns:
-        True if disabled successfully, False if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name not in _tasks:
-            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
             return False
-
         _tasks[name].enabled = False
-        ColorPrint.blue(f"[TimerManager] Disabled task '{name}'")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("disable", (name,), rq))
+    return rq.get()
 
 
 def set_task_interval(name: str, interval: float) -> bool:
-    """
-    Set task interval
-
-    Args:
-        name: Task name to update
-        interval: New interval in seconds
-
-    Returns:
-        True if updated successfully, False if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name not in _tasks:
-            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
             return False
-
         _tasks[name].interval = interval
-        ColorPrint.blue(f"[TimerManager] Updated task '{name}' interval to {interval}s")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("set_interval", (name, interval), rq))
+    return rq.get()
 
 
 def set_task_interceptor(name: str, interceptor: Optional[Callable[[], bool]]) -> bool:
-    """
-    Set task interceptor function
-
-    Args:
-        name: Task name to update
-        interceptor: Interceptor function that returns True to allow execution, False to skip
-
-    Returns:
-        True if updated successfully, False if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
+    global _tasks, _running, _cmd_queue
+    if not _running:
         if name not in _tasks:
-            ColorPrint.yellow(f"[TimerManager] Task '{name}' not found")
             return False
-
         _tasks[name].interceptor = interceptor
-        ColorPrint.blue(f"[TimerManager] Updated task '{name}' interceptor")
         return True
+    rq = queue.Queue()
+    _cmd_queue.put(("set_interceptor", (name, interceptor), rq))
+    return rq.get()
 
 
 def _execute_task(task: TimerTask):
@@ -235,38 +261,28 @@ def _execute_task(task: TimerTask):
 
 
 def _timer_loop():
-    """Main timer loop (runs in separate thread)"""
-    global _stop_event, _tasks, _lock
+    """Main timer loop (runs in separate thread): drain cmd queue then run due tasks (serialized, no lock)."""
+    global _stop_event, _tasks
 
     ColorPrint.blue("[TimerManager] Timer loop started")
 
     while not _stop_event.is_set():
         try:
+            _drain_cmd_queue()
             current_time = time.time()
-
-            # Collect tasks to execute OUTSIDE the lock
             tasks_to_execute = []
-
-            with _lock:
-                for task in _tasks.values():
-                    if not task.enabled:
-                        continue
-
-                    # Check if it's time to execute
-                    if current_time - task.last_run >= task.interval:
-                        task.last_run = current_time
-                        tasks_to_execute.append(task)
-
-            # Execute tasks OUTSIDE the lock to prevent deadlock
+            for task in list(_tasks.values()):
+                if not task.enabled:
+                    continue
+                if current_time - task.last_run >= task.interval:
+                    task.last_run = current_time
+                    tasks_to_execute.append(task)
             for task in tasks_to_execute:
                 _execute_task(task)
-
-            # Sleep for 100ms to reduce CPU usage
             time.sleep(0.1)
-
         except Exception as e:
             ColorPrint.red(f"[TimerManager] Error in timer loop: {e}")
-            time.sleep(1.0)  # Sleep longer on error
+            time.sleep(1.0)
 
     ColorPrint.blue("[TimerManager] Timer loop stopped")
 
@@ -287,12 +303,7 @@ def start() -> bool:
     _running = True
     _stop_event.clear()
 
-    # Start timer thread
-    _thread = threading.Thread(
-        target=_timer_loop,
-        daemon=True,
-        name="TimerManagerThread"
-    )
+    _thread = TimerManagerThread()
     _thread.start()
 
     ColorPrint.green("[TimerManager] Started")
@@ -330,45 +341,30 @@ def is_running() -> bool:
 
 
 def get_task_status(name: str) -> Optional[Dict[str, Any]]:
-    """
-    Get status of a timer task
+    global _tasks
+    if name not in _tasks:
+        return None
+    task = _tasks[name]
+    return {
+        "name": task.name,
+        "interval": task.interval,
+        "enabled": task.enabled,
+        "last_run": task.last_run,
+        "error_count": task.error_count
+    }
 
-    Args:
-        name: Task name
 
-    Returns:
-        Task status dictionary or None if not found
-    """
-    global _tasks, _lock
-
-    with _lock:
-        if name not in _tasks:
-            return None
-
-        task = _tasks[name]
-        return {
-            "name": task.name,
+def get_all_tasks_status() -> Dict[str, Dict[str, Any]]:
+    global _tasks
+    return {
+        name: {
             "interval": task.interval,
             "enabled": task.enabled,
             "last_run": task.last_run,
             "error_count": task.error_count
         }
-
-
-def get_all_tasks_status() -> Dict[str, Dict[str, Any]]:
-    """Get status of all registered tasks"""
-    global _tasks, _lock
-
-    with _lock:
-        return {
-            name: {
-                "interval": task.interval,
-                "enabled": task.enabled,
-                "last_run": task.last_run,
-                "error_count": task.error_count
-            }
-            for name, task in _tasks.items()
-        }
+        for name, task in _tasks.items()
+    }
 
 
 # Initialize on module import

@@ -6,10 +6,10 @@ Provides GPU acceleration for image operations during training data generation
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+np = get_third_package_numpy()
 
 
 class GPUImageProcessor:

@@ -8,6 +8,7 @@
       "progress": "进度",
       "start_all_tests": "开始所有测试",
       "stop_all_tests": "停止所有测试",
+      "copy": "复制",
       "clear_logs": "清除日志",
       "log_output": "日志输出",
       "clear": "清除",

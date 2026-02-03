@@ -9,9 +9,10 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional, Callable
 from ..theme.theme import UITheme
-# LanguageCombobox is now replaced by ConfigBinding.create_combobox_binding()
 from ..utils.config_binding import ConfigBinding
+from runtime import trigger_window_minimize, trigger_window_maximize, trigger_app_restart, trigger_app_exit
 from d3utils.i18n_manager import i18n_manager
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class TitleBar:
@@ -152,7 +153,6 @@ class TitleBar:
     
     def _on_language_combo_changed(self, event=None):
         """Handle language combobox selection change - ConfigBinding will handle everything"""
-        from providor.common_imports import ColorPrint
         try:
             new_language = self.language_combo.get()
             ColorPrint.blue(f"[TitleBar] Language combo changed to: {new_language}")
@@ -161,7 +161,6 @@ class TitleBar:
 
     def _on_language_changed(self, new_language: str):
         """Handle language change - update UI elements (called by i18n_manager)"""
-        from providor.common_imports import ColorPrint
         ColorPrint.blue(f"[TitleBar] Updating UI for language: {new_language}")
 
         if hasattr(self, 'title_label'):
@@ -187,23 +186,19 @@ class TitleBar:
     
     def _minimize_window(self):
         """Minimize window; runs on main thread via event center."""
-        from d3utils import event_center
-        event_center.trigger_window_minimize()
+        trigger_window_minimize()
 
     def _toggle_maximize(self):
         """Toggle maximize/restore; runs on main thread via event center."""
-        from d3utils import event_center
-        event_center.trigger_window_maximize()
+        trigger_window_maximize()
 
     def _restart_application(self):
         """Restart application; dispatched to main thread via event center."""
-        from d3utils import event_center
-        event_center.trigger_app_restart()
+        trigger_app_restart()
 
     def _close_window(self):
         """Close window; dispatched to main thread via event center."""
-        from d3utils import event_center
-        event_center.trigger_app_exit()
+        trigger_app_exit()
     
     def _bind_drag_events(self):
         """Bind drag events for window dragging"""

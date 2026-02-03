@@ -7,9 +7,8 @@ from typing import List, Dict, Any, Optional, Callable
 import sys
 import os
 
-# Add project root to path for absolute imports
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from ui.theme.theme import UITheme
 from ui.utils.tk_variables import var_str

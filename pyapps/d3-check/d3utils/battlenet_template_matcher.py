@@ -3,21 +3,16 @@
 """
 Battle.net template matcher: load+scale template, match or best-attempt (TM).
 Shared by LoginTryScreenshotController and battlenet_match_debug.
+复用 share.scaled_template_matcher_base.load_template_and_scale_by_resolution。
 """
 
-from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
-cv2 = get_third_package_cv2()
-np = get_third_package_numpy()
-
-from providor.common_imports import ColorPrint, ImageMatcher
-from providor.providor_index import (
-    BATTLENET_TEMPLATE_CONFIGS,
-    BATTLENET_STANDARD_RESOLUTION_WIDTH,
-    BATTLENET_STANDARD_RESOLUTION_HEIGHT,
-)
+from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, cv2, np
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_matcher import ImageMatcher
+from providor.app_constants import BATTLENET_STANDARD_RESOLUTION_WIDTH, BATTLENET_STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.d3u_common.image_utils import convert_pil_to_bgr
 
 TM_MAP = {
@@ -43,21 +38,20 @@ def load_scaled_battlenet_template(
     if not config:
         return None, None
     path = config.get("path")
-    if not path or not Path(path).exists():
-        ColorPrint.yellow(f"[BattlenetTemplateMatcher] Template file not found: {path}")
+    if not path:
         return None, None
-    template_bgr = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    template_bgr = load_template_and_scale_by_resolution(
+        path,
+        window_width,
+        window_height,
+        BATTLENET_STANDARD_RESOLUTION_WIDTH,
+        BATTLENET_STANDARD_RESOLUTION_HEIGHT,
+        log_prefix="[BattlenetTemplateMatcher]",
+    )
     if template_bgr is None:
-        ColorPrint.yellow(f"[BattlenetTemplateMatcher] Failed to load template: {path}")
+        ColorPrint.yellow(f"[BattlenetTemplateMatcher] Template file not found or failed to load: {path}")
         return None, None
-    scale_x = window_width / BATTLENET_STANDARD_RESOLUTION_WIDTH
-    scale_y = window_height / BATTLENET_STANDARD_RESOLUTION_HEIGHT
-    if abs(scale_x - 1.0) > 0.001 or abs(scale_y - 1.0) > 0.001:
-        th, tw = template_bgr.shape[:2]
-        new_w = max(1, int(tw * scale_x))
-        new_h = max(1, int(th * scale_y))
-        interp = cv2.INTER_AREA if (scale_x < 1.0 or scale_y < 1.0) else cv2.INTER_CUBIC
-        template_bgr = cv2.resize(template_bgr, (new_w, new_h), interpolation=interp)
+    if window_width != BATTLENET_STANDARD_RESOLUTION_WIDTH or window_height != BATTLENET_STANDARD_RESOLUTION_HEIGHT:
         ColorPrint.gray(
             f"[BattlenetTemplateMatcher] Scaled {template_name}: "
             f"{BATTLENET_STANDARD_RESOLUTION_WIDTH}x{BATTLENET_STANDARD_RESOLUTION_HEIGHT} -> "

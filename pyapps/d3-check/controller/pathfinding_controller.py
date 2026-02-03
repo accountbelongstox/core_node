@@ -29,11 +29,15 @@ controller_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, controller_path)
 
 # Project imports
-from providor.common_imports import ColorPrint, ImageAnnotator, ImageCrop, CnOCREngine
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_crop import ImageCrop
+from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
 from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.providor_index import TMP_DIR, DIABLO_III_WINDOW_TITLES
-from config.grid_config import GRID_ROWS, GRID_COLS, TOTAL_GRID_CELLS
+from providor.app_constants import TMP_DIR
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
+from config.grid_config import get_grid_config
 
 class PathfindingController:
     """
@@ -99,8 +103,11 @@ class PathfindingController:
                 - coordinates: Screen coordinates (x, y)
                 - annotated_image_path: Path to result image
         """
+        grid_cfg = get_grid_config()
+        grid_rows, grid_cols = grid_cfg['rows'], grid_cfg['cols']
+        total_cells = grid_rows * grid_cols
         ColorPrint.blue(f"[PathfindingController] Starting grid-based search for: {target_text}")
-        ColorPrint.blue(f"[PathfindingController] Grid size: {GRID_ROWS} x {GRID_COLS} = {TOTAL_GRID_CELLS} cells")
+        ColorPrint.blue(f"[PathfindingController] Grid size: {grid_rows} x {grid_cols} = {total_cells} cells")
 
         # Initialize OCR
         if not self._ensure_ocr_initialized():
@@ -119,24 +126,24 @@ class PathfindingController:
         search_results = []  # Store all search results for visualization
 
         # Step two: Iterate through grid cells
-        ColorPrint.blue(f"[PathfindingController] Step two: Searching through {TOTAL_GRID_CELLS} cells...")
+        ColorPrint.blue(f"[PathfindingController] Step two: Searching through {total_cells} cells...")
         ColorPrint.yellow(f"[PathfindingController] Note: Mouse will move to each cell before capture")
 
         try:
-            for row in range(GRID_ROWS):
+            for row in range(grid_rows):
                 if found:
                     break
 
-                ColorPrint.blue(f"[PathfindingController] === Searching row {row + 1}/{GRID_ROWS} ===")
+                ColorPrint.blue(f"[PathfindingController] === Searching row {row + 1}/{grid_rows} ===")
 
-                for col in range(GRID_COLS):
+                for col in range(grid_cols):
                     if found:
                         break
 
                     # Progress indicator
-                    cell_index = row * GRID_COLS + col
-                    progress_pct = (cell_index / TOTAL_GRID_CELLS) * 100
-                    ColorPrint.gray(f"[Progress] Cell {cell_index + 1}/{TOTAL_GRID_CELLS} ({progress_pct:.1f}%) - ({row},{col})")
+                    cell_index = row * grid_cols + col
+                    progress_pct = (cell_index / total_cells) * 100
+                    ColorPrint.gray(f"[Progress] Cell {cell_index + 1}/{total_cells} ({progress_pct:.1f}%) - ({row},{col})")
 
                     # Step 2a: Get cell center position (uses config defaults)
                     cell_center = self.grid_collector.get_cell_center_position(
@@ -315,7 +322,8 @@ class PathfindingController:
                 f.write(f"Target Text: {target_text}\n")
                 f.write(f"Search Status: {'FOUND' if found else 'NOT FOUND'}\n")
                 f.write(f"Total Cells Searched: {len(search_results)}\n")
-                f.write(f"Grid Size: {GRID_ROWS} x {GRID_COLS} = {TOTAL_GRID_CELLS} cells\n")
+                grid_cfg = get_grid_config()
+                f.write(f"Grid Size: {grid_cfg['rows']} x {grid_cfg['cols']} = {grid_cfg['rows'] * grid_cfg['cols']} cells\n")
                 f.write(f"Timestamp: {timestamp}\n")
                 f.write(f"{'=' * 70}\n\n")
 

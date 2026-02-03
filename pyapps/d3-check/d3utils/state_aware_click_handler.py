@@ -9,13 +9,11 @@ import os
 import sys
 from typing import Optional, Tuple
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint, ClickHandler
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.click_handler import ClickHandler
 from providor.providor_index import should_stop_assistant
 
 class StateAwareClickHandler:

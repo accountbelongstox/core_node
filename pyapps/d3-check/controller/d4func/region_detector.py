@@ -13,20 +13,20 @@ from datetime import datetime
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.i18n_manager import I18nManager
 # D4State functionality now integrated into D4InterfaceData
+from providor.app_constants import D4_ANNOTATED_DIR
 from share.game_interface_data import (
     D4_STANDARD_COORDS,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
     calculate_unified_scaled_coordinate,
     get_d4_interface_data,
-    D4_ANNOTATED_DIR
 )
 from d4utils.window_region_detector import get_d4_window_region_detector
-from d4utils.team_health_detector import get_team_health_detector
-from d4utils.small_map_detector import get_small_map_detector
+from d4utils.team_health_detector import get_d4_team_health_detector
+from d4utils.small_map_detector import get_d4_small_map_detector
 from pycore.pyutils.image_crop import ImageCrop
 
 
@@ -44,8 +44,8 @@ class RegionDetector:
         """Initialize region detector"""
         self.d4_data = get_d4_interface_data()
         self.region_detector = get_d4_window_region_detector()
-        self.team_health_detector = get_team_health_detector()
-        self.small_map_detector = get_small_map_detector()
+        self.team_health_detector = get_d4_team_health_detector()
+        self.small_map_detector = get_d4_small_map_detector()
         self.i18n = I18nManager()
         # D4State functionality now integrated into D4InterfaceData
         ColorPrint.blue("[RegionDetector] Initialized")

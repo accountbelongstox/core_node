@@ -8,10 +8,13 @@ import os
 import sys
 import time
 from typing import Optional
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.log_monitor import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
+from d3utils.d3_status_provider import refresh_d3_status
+from d3utils.battlenet_status_provider import refresh_battlenet_status
+from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -75,15 +78,31 @@ class RosbotTaskProcessor:
             ColorPrint.red(f"[RosbotTaskProcessor] Error stopping ROSBOT: {e}")
     
     def process_task(self):
-        """Main task processing function"""
-        # This method is called by the task thread
-        # Currently just maintains the ROSBOT state
-        # Future enhancements can be added here
-        pass
+        """Flow driver: 1s tick from task thread; this flow uses % for 2s tick; when flow master off, skip all logic (ROSBOT_FLOW.md). When flow master on, 2s tick also refreshes D3/Battle.net state for status UI (no global timer state detection)."""
+        if not self.game_state.rosbot_flow_master_enabled:
+            return
+        _flow_tick_count[0] += 1
+        if _flow_tick_count[0] % 2 != 0:
+            return
+        try:
+            refresh_battlenet_status()
+            if get_bn_flow_ever_confirmed():
+                refresh_d3_status()
+            self.game_state.notify_state_sync()
+        except Exception:
+            pass
+        done, result = tick_battlenet_ready_flow()
+        # Gate: D3/extension only after BN_Confirmed (rosbot_flow_battlenet.tick_battlenet_ready_flow)
+        if done and result == "confirmed":
+            set_battlenet_tick_confirmed()
+            from d3utils.event_center import trigger_extension_rosbot_start
+            trigger_extension_rosbot_start()
 
 
 # Global instance
 _rosbot_processor = None
+# 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0, ROSBOT_FLOW.md)
+_flow_tick_count = [0]
 
 
 def get_rosbot_processor() -> RosbotTaskProcessor:

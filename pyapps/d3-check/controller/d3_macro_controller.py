@@ -13,34 +13,55 @@ import logging
 from pathlib import Path
 from typing import Optional, Callable
 
-# Add the current directory to Python path
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from providor.providor_index import CONFIG, load_config, save_config, CONFIG_USER_PATH
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController
 from d3utils.i18n_manager import i18n_manager
-from d3utils.main_function_thread import (
-    MainFunctionThread,
-    get_main_function_thread,
-    set_main_function_thread,
-)
-from d3utils.auxiliary_function_thread import (
-    AuxiliaryFunctionThread,
-    get_auxiliary_function_thread,
-    set_auxiliary_function_thread,
-)
-from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread, set_d3_extension_thread
-from d3utils.d4_extension_thread import D4ExtensionThread, get_d4_extension_thread, set_d4_extension_thread
-from d3utils.event_center import (
+from d3utils.main_function_thread import get_main_function_thread
+from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
+from d3utils.d3_extension_thread import get_d3_extension_thread
+from d3utils.d4_extension_thread import get_d4_extension_thread
+from runtime import (
+    get_thread_registry,
     register_extension_handlers,
     trigger_extension_main_start_macro,
     trigger_extension_main_stop_macro,
+    execute_shutdown,
 )
-from d3utils.shutdown_manager import execute_shutdown
 import timers.window_monitor_timer as window_monitor
+
+
+class MacroLoopThread(threading.Thread):
+    """Fallback macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_fallback_thread()."""
+
+    def __init__(self, controller: "D3MacroController"):
+        super().__init__(daemon=True, name="MacroLoopFallback")
+        self._controller = controller
+
+    def run(self) -> None:
+        c = self._controller
+        while c.macro_running:
+            try:
+                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(c.current_skill_config, {})
+                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+                config = {**skill_config, **auxiliary_config}
+                skills = config.get('skills', {})
+
+                for skill_name, sk_cfg in skills.items():
+                    if not c.macro_running:
+                        break
+                    if sk_cfg.get('strategy') == '禁用':
+                        continue
+                    c._execute_skill(skill_name, sk_cfg)
+                    time.sleep(0.01)
+                time.sleep(0.1)
+            except Exception as e:
+                c.logger.error("Macro error: %s", e)
+                time.sleep(1)
 
 
 class D3MacroController:
@@ -58,7 +79,7 @@ class D3MacroController:
         
         # Macro state
         self.macro_running = False
-        self.macro_thread: Optional[threading.Thread] = None
+        # Macro fallback thread is owned by ThreadRegistry; no self.macro_thread
         self.current_skill_config = 'config1'
         
         # Callbacks
@@ -84,8 +105,7 @@ class D3MacroController:
         self.macro_running = True
         if not main_thread:
             self.macro_running = True
-            self.macro_thread = threading.Thread(target=self._macro_loop_fallback, daemon=True)
-            self.macro_thread.start()
+            get_thread_registry().start_macro_fallback(self)
 
         if self.ui:
             self.ui.show_message("信息", "宏已启动！", "info")
@@ -101,36 +121,16 @@ class D3MacroController:
 
         trigger_extension_main_stop_macro()
         self.macro_running = False
-        main_thread = get_main_function_thread()
-        if self.macro_thread:
-            self.macro_thread.join(timeout=1)
-            self.macro_thread = None
+        get_thread_registry().stop_macro_fallback()
 
         if self.ui:
             self.ui.show_message("信息", "宏已停止！", "info")
         if self.on_macro_stop:
             self.on_macro_stop()
 
-    def _macro_loop_fallback(self):
-        """Fallback macro loop when MainFunctionThread not used."""
-        while self.macro_running:
-            try:
-                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(self.current_skill_config, {})
-                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
-                config = {**skill_config, **auxiliary_config}
-                skills = config.get('skills', {})
-
-                for skill_name, skill_config in skills.items():
-                    if not self.macro_running:
-                        break
-                    if skill_config.get('strategy') == '禁用':
-                        continue
-                    self._execute_skill(skill_name, skill_config)
-                    time.sleep(0.01)
-                time.sleep(0.1)
-            except Exception as e:
-                self.logger.error("Macro error: %s", e)
-                time.sleep(1)
+    def create_macro_fallback_thread(self) -> MacroLoopThread:
+        """Create the fallback macro thread instance. ThreadRegistry calls this."""
+        return MacroLoopThread(self)
 
     def _execute_skill(self, skill_name: str, skill_config: dict):
         """Execute a single skill (placeholder)."""
@@ -263,27 +263,13 @@ class D3MacroController:
                 window_monitor.add_callback(callback)
                 ColorPrint.green("[Controller] Registered UI window status callback to window monitor")
 
-            # Create and start all 4 extension threads (UI ready; commands via queue, shared data thread-safe)
             schedule = lambda f: self.ui.root.after(0, f)
             panel = self.ui.rosbot_extension_panel
 
-            main_thread = MainFunctionThread(schedule_on_main_thread=schedule)
-            main_thread.set_current_skill_config(self.current_skill_config)
-            set_main_function_thread(main_thread)
-            main_thread.start()
+            window_monitor.register_status_ui(panel.get_status_ui_callback())
+            panel.set_refresh_status_fn(window_monitor.check_window)
 
-            aux_thread = AuxiliaryFunctionThread()
-            set_auxiliary_function_thread(aux_thread)
-            aux_thread.start()
-
-            d3_thread = D3ExtensionThread()
-            set_d3_extension_thread(d3_thread)
-            panel.set_d3_extension_thread(d3_thread)
-            d3_thread.start()
-
-            d4_thread = D4ExtensionThread()
-            set_d4_extension_thread(d4_thread)
-            d4_thread.start()
+            get_thread_registry().create_extension_threads(schedule, panel, self.current_skill_config)
 
             register_extension_handlers(
                 self.ui,
@@ -294,7 +280,9 @@ class D3MacroController:
                 get_d4_extension_thread,
             )
 
-            ColorPrint.green("[Controller] All 4 extension threads started; event center handlers registered")
+            ColorPrint.green("[Controller] Extension threads and event center registered")
+
+            get_thread_registry().start_timer_loop_after_ui_ready()
 
             # Run UI (BLOCKING)
             self.ui.run()
@@ -309,12 +297,8 @@ class D3MacroController:
             self.logger.error(f"Application error: {e}")
             raise
         finally:
-            # Cleanup
             self.macro_running = False
-            if self.macro_thread:
-                self.macro_thread.join(timeout=1)
-
-            # Shutdown game interface
+            get_thread_registry().stop_macro_fallback()
             self.game_interface_controller.shutdown_game_interface()
     
     def shutdown(self):

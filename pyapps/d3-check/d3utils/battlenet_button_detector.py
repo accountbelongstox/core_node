@@ -16,17 +16,17 @@ np = get_third_package_numpy()
 Image = get_third_package_PIL_Image()
 
 try:
-    from providor.common_imports import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 except Exception:
     ColorPrint = None
 
-# Battle.net button blue; color ±1% brightness
-BATTLE_NET_BUTTON_HEX = "#0074E0"
-BATTLE_NET_BUTTON_RGB = (0, 116, 224)
-DEFAULT_BRIGHTNESS_TOL = 0.01
-# Button: 200px wide, 20px high; validate left, top, right only (not bottom)
-DEFAULT_BUTTON_W = 200
-DEFAULT_BUTTON_H = 20
+from providor.app_constants import (
+    BATTLE_NET_BUTTON_HEX,
+    BATTLE_NET_BUTTON_RGB,
+    DEFAULT_BRIGHTNESS_TOL,
+    DEFAULT_BUTTON_W,
+    DEFAULT_BUTTON_H,
+)
 
 
 def _hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:

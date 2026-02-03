@@ -17,8 +17,8 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint
-from share import get_game_interface_data
+from pycore.pyfoundations.color_print import ColorPrint
+from share.game_interface_data import get_game_interface_data
 from share.game_interface_data import (
     get_scaled_kanai_put_material_button,
     get_scaled_kanai_right_panel_toggle,

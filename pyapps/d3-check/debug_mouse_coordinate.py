@@ -19,7 +19,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 from share.game_interface_data import get_d4_interface_data
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class MouseCoordinateDisplay:

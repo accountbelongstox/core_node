@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from typing import Optional
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.log_analyzer import analyze_log_line
 
 

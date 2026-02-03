@@ -18,7 +18,7 @@ from pycore.pyfoundations.third_party import (
 )
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
+np = get_third_package_numpy()
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 ImageFont = get_third_package_PIL_ImageFont()

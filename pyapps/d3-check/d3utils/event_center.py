@@ -10,25 +10,33 @@ may forward to specific threads or schedule main-thread UI updates).
 from typing import Any, Callable, Optional
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.event_signals import (
+    EXTENSION_ROSBOT_STARTED,
+    EXTENSION_ROSBOT_STOPPED,
+    EXTENSION_SHUTDOWN,
+    trigger_extension_rosbot_started,
+    trigger_extension_rosbot_stopped,
+    trigger_extension_shutdown,
+)
+from d3utils.shutdown_manager import (
+    is_shutdown_requested,
+    request_restart,
+    request_shutdown,
+)
 
-# App/window events (handlers run on main thread via root.after in handler)
-APP_EXIT = "app.exit"
-APP_RESTART = "app.restart"
-WINDOW_SHOW = "window.show"
-WINDOW_MINIMIZE = "window.minimize"
-WINDOW_MAXIMIZE = "window.maximize"
-
-# Extension thread command events (handler forwards to thread queue)
-EXTENSION_MAIN_START_MACRO = "extension.main.start_macro"
-EXTENSION_MAIN_STOP_MACRO = "extension.main.stop_macro"
-EXTENSION_ROSBOT_START = "extension.rosbot.start"
-EXTENSION_ROSBOT_STOP = "extension.rosbot.stop"
-EXTENSION_SHUTDOWN = "extension.shutdown"
-
-# Extension thread completion events (handler schedules main-thread UI update)
-EXTENSION_ROSBOT_STARTED = "extension.rosbot.started"
-EXTENSION_ROSBOT_STOPPED = "extension.rosbot.stopped"
+from providor.app_constants import (
+    APP_EXIT,
+    APP_RESTART,
+    WINDOW_SHOW,
+    WINDOW_MINIMIZE,
+    WINDOW_MAXIMIZE,
+    EXTENSION_MAIN_START_MACRO,
+    EXTENSION_MAIN_STOP_MACRO,
+    EXTENSION_ROSBOT_START,
+    EXTENSION_ROSBOT_STOP,
+)
 
 
 def _do_show(ui) -> None:
@@ -62,31 +70,25 @@ def register_main_thread_handlers(ui) -> None:
     Register main-thread handlers: all events run on main thread via root.after(0, ...).
     Must be called after UI is created and before main loop starts.
     """
-    from providor.common_imports import ColorPrint
-    from d3utils.shutdown_manager import (
-        request_shutdown,
-        request_restart,
-        is_shutdown_requested,
-    )
 
     def on_exit(_data: Any = None) -> None:
         if is_shutdown_requested():
             return
-        ui.root.after(0, request_shutdown)
+        request_shutdown()
 
     def on_restart(_data: Any = None) -> None:
         if is_shutdown_requested():
             return
-        ui.root.after(0, request_restart)
+        request_restart()
 
     def on_show(_data: Any = None) -> None:
-        ui.root.after(0, lambda: _do_show(ui))
+        _do_show(ui)
 
     def on_minimize(_data: Any = None) -> None:
-        ui.root.after(0, lambda: ui.root.withdraw())
+        ui.root.withdraw()
 
     def on_maximize(_data: Any = None) -> None:
-        ui.root.after(0, lambda: _do_toggle_maximize(ui))
+        _do_toggle_maximize(ui)
 
     THREAD_BUS.register_event_handler(APP_EXIT, on_exit, priority=100)
     THREAD_BUS.register_event_handler(APP_RESTART, on_restart, priority=100)
@@ -96,29 +98,38 @@ def register_main_thread_handlers(ui) -> None:
     ColorPrint.blue("[EventCenter] Main-thread handlers registered: exit/restart/show/minimize/maximize")
 
 
+def _schedule_on_main_thread(event_name: str, event_data: Any = None) -> None:
+    """Schedule THREAD_BUS.trigger_event on main thread so handlers run on main thread."""
+    ui = ENCYCLOPEDIA.get("ui")
+    if ui and hasattr(ui, "root"):
+        ui.root.after(0, lambda: THREAD_BUS.trigger_event(event_name, event_data))
+    else:
+        THREAD_BUS.trigger_event(event_name, event_data)
+
+
 def trigger_app_exit() -> None:
-    """Trigger exit (callable from any thread; runs on main thread)."""
-    THREAD_BUS.trigger_event(APP_EXIT, None)
+    """Trigger exit (callable from any thread; handler runs on main thread)."""
+    _schedule_on_main_thread(APP_EXIT, None)
 
 
 def trigger_app_restart() -> None:
-    """Trigger restart (callable from any thread)."""
-    THREAD_BUS.trigger_event(APP_RESTART, None)
+    """Trigger restart (callable from any thread; handler runs on main thread)."""
+    _schedule_on_main_thread(APP_RESTART, None)
 
 
 def trigger_window_show() -> None:
-    """Trigger show window (e.g. tray 'Show')."""
-    THREAD_BUS.trigger_event(WINDOW_SHOW, None)
+    """Trigger show window (e.g. tray 'Show'); handler runs on main thread."""
+    _schedule_on_main_thread(WINDOW_SHOW, None)
 
 
 def trigger_window_minimize() -> None:
-    """Trigger minimize."""
-    THREAD_BUS.trigger_event(WINDOW_MINIMIZE, None)
+    """Trigger minimize; handler runs on main thread."""
+    _schedule_on_main_thread(WINDOW_MINIMIZE, None)
 
 
 def trigger_window_maximize() -> None:
-    """Trigger maximize/restore."""
-    THREAD_BUS.trigger_event(WINDOW_MAXIMIZE, None)
+    """Trigger maximize/restore; handler runs on main thread."""
+    _schedule_on_main_thread(WINDOW_MAXIMIZE, None)
 
 
 # ---------- Extension thread events: UI/threads only trigger; handlers forward to threads ----------
@@ -215,16 +226,4 @@ def trigger_extension_rosbot_stop() -> None:
     THREAD_BUS.trigger_event(EXTENSION_ROSBOT_STOP, None)
 
 
-def trigger_extension_rosbot_started(success: bool, error: Optional[Exception] = None) -> None:
-    """Trigger from D3 extension thread when login check done; event center schedules panel callback on main thread."""
-    THREAD_BUS.trigger_event(EXTENSION_ROSBOT_STARTED, (success, error))
-
-
-def trigger_extension_rosbot_stopped() -> None:
-    """Trigger from D3 extension thread when stop done; event center schedules panel callback on main thread."""
-    THREAD_BUS.trigger_event(EXTENSION_ROSBOT_STOPPED, None)
-
-
-def trigger_extension_shutdown() -> None:
-    """Trigger from shutdown manager; event center forwards request_shutdown to all four extension threads."""
-    THREAD_BUS.trigger_event(EXTENSION_SHUTDOWN, None)
+# trigger_extension_rosbot_started, trigger_extension_rosbot_stopped, trigger_extension_shutdown from event_signals (re-exported)

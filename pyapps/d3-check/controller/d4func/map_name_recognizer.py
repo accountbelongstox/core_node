@@ -19,7 +19,7 @@ Image = get_third_package_PIL_Image()
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from d3utils.i18n_manager import I18nManager
 from .map_name_utils import set_current_map_name

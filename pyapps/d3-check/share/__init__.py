@@ -2,11 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 Shared Data Structures Package
-Centralized data structures shared across D3 application
+Centralized data structures shared across D3 application.
+
+Prefer direct imports from submodules (no secondary encapsulation):
+  from share.game_interface_data import ... ; from share.project_path import ...
 """
 
+from .project_path import get_project_root, ensure_d3_check_in_sys_path
 from .game_interface_data import (
     D3InterfaceData,
+    StandardCoordinates,
+    STANDARD_COORDS,
     UIRegion,
     BagCoordinates,
     BagLayout,
@@ -28,7 +34,11 @@ from .game_interface_data import (
 )
 
 __all__ = [
+    'get_project_root',
+    'ensure_d3_check_in_sys_path',
     'D3InterfaceData',
+    'StandardCoordinates',
+    'STANDARD_COORDS',
     'UIRegion',
     'BagCoordinates',
     'BagLayout',
@@ -46,5 +56,5 @@ __all__ = [
     'get_global_scale',
     'get_screen_resolution',
     'GLOBAL_SCALE_X',
-    'GLOBAL_SCALE_Y'
+    'GLOBAL_SCALE_Y',
 ]

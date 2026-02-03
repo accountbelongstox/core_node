@@ -9,8 +9,8 @@ import sys
 from typing import Dict, Any, Optional, List, Callable
 from pathlib import Path
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 class I18nManager:
     """Internationalization Manager for multi-language support (Singleton)"""

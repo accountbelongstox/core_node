@@ -27,16 +27,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
-# Import D3/D4 specific resolution constants
-from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,    # D3: 1300x800 (was 1826x1301)
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    D4_STANDARD_RESOLUTION_WIDTH,                                  # D4: 1763x1126
+# Import D3/D4 specific resolution constants (direct from app_constants; no re-export)
+from providor.app_constants import (
+    STANDARD_RESOLUTION_WIDTH,
+    STANDARD_RESOLUTION_HEIGHT,
+    D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
-    get_template_path,
-    TMP_DIR
+    TMP_DIR,
 )
-from providor.common_imports import ColorPrint
+from providor.providor_index import get_template_path
+
+D3_STANDARD_RESOLUTION_WIDTH = STANDARD_RESOLUTION_WIDTH
+D3_STANDARD_RESOLUTION_HEIGHT = STANDARD_RESOLUTION_HEIGHT
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Global scale variables (moved from providor_index.py to avoid circular imports)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
@@ -59,7 +62,7 @@ def get_screen_resolution() -> tuple[int, int]:
             _screen_resolution = _get_screen_resolution_win32()
         else:
             try:
-                from providor.common_imports import ENCYCLOPEDIA
+                from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
                 ui = ENCYCLOPEDIA.get("ui")
                 if ui is not None and hasattr(ui, "root") and ui.root.winfo_exists():
                     _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
@@ -112,9 +115,8 @@ D3_STANDARD_OUTER_HEIGHT = D3_STANDARD_RESOLUTION_HEIGHT + TITLE_BAR_HEIGHT + WI
 CLICK_MARGIN_DEFAULT = 10  # Default safety margin for click operations (pixels)
 CLICK_MARGIN_REGION = 5  # Margin for region-based clicks (pixels)
 
-# D4 Directory constants
-D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
-D4_ANNOTATED_DIR = TMP_DIR / "d4_annotated"
+# D4 Directory constants (from app_constants; no re-export)
+from providor.app_constants import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 
 # Optimized image processing constants (scaled from 800x600 at old base 1826x1301)
 OPTIMIZED_IMAGE_WIDTH = 570   # was 800
@@ -621,7 +623,10 @@ class D3InterfaceData(InterfaceDataBase):
     1. screenshot_provider fills: fullscreen_image, game_window_image, window_offset, screenshot_history
     2. ui_region_collector fills: ui_region, timestamp
     3. bag_info_collector fills: bag_coordinates, bag_layout
-    4. ROSBOT/controllers fill: rosbot_running, d3_running, map_type, game_stage
+    4. d3_running / battlenet_window_found set by window detection (d3_status_provider / battlenet_status_provider / timer), independent of rosbot_running
+    5. D3 dynamic: on_login_screen, disconnected (highest priority), in_game (normal) - set by d3_status_provider or TODO
+    6. Battle.net dynamic: on_login_screen, disconnected, normal_available - same as D3
+    7. ROSBOT/controllers fill: rosbot_running, map_type, game_stage
     """
 
     # UI region (filled by ui_region_collector)
@@ -642,10 +647,22 @@ class D3InterfaceData(InterfaceDataBase):
     button_detections: Optional[Dict[str, DetectionResult]] = None
 
     # Game state management (merged from GameState for D3/ROSBOT)
+    battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_running: bool = False
-    d3_running: bool = False
+    rosbot_flow_master_enabled: bool = False  # 总状态：用户点击「启动 ROSBOT」为 True，点击「停止」为 False（ROSBOT_FLOW_MERMAID A1）
+    d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
+
+    # D3 dynamic state (display priority: disconnected > on_login_screen > in_game)
+    d3_on_login_screen: bool = False
+    d3_disconnected: bool = False  # Highest priority
+    d3_in_game: bool = False  # Normal state
+
+    # Battle.net dynamic state (same priority: disconnected > on_login_screen > normal_available)
+    battlenet_on_login_screen: bool = False
+    battlenet_disconnected: bool = False
+    battlenet_normal_available: bool = False
 
     # State change callbacks (merged from GameState)
     _callbacks: List[Callable] = field(default_factory=list)
@@ -670,10 +687,18 @@ class D3InterfaceData(InterfaceDataBase):
         self.bag_buttom_match = None
         self.bag_left_match = None
         self.button_detections = None
+        self.battlenet_window_found = False
         self.rosbot_running = False
+        self.rosbot_flow_master_enabled = False
         self.d3_running = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
+        self.d3_on_login_screen = False
+        self.d3_disconnected = False
+        self.d3_in_game = False
+        self.battlenet_on_login_screen = False
+        self.battlenet_disconnected = False
+        self.battlenet_normal_available = False
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -692,14 +717,33 @@ class D3InterfaceData(InterfaceDataBase):
             "has_bag_coordinates": self.bag_coordinates is not None,
             "has_bag_layout": self.bag_layout is not None,
             "functional_interface": self.functional_interface,
+            "battlenet_window_found": self.battlenet_window_found,
             "rosbot_running": self.rosbot_running,
+            "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
             "map_type": self.map_type,
-            "game_stage": self.game_stage
+            "game_stage": self.game_stage,
+            "d3_on_login_screen": self.d3_on_login_screen,
+            "d3_disconnected": self.d3_disconnected,
+            "d3_in_game": self.d3_in_game,
+            "battlenet_on_login_screen": self.battlenet_on_login_screen,
+            "battlenet_disconnected": self.battlenet_disconnected,
+            "battlenet_normal_available": self.battlenet_normal_available,
         }
 
     # ==================== Game State Methods (with callback notification) ====================
     # These methods are kept because they trigger callbacks
+
+    def set_battlenet_status(self, window_found: bool):
+        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.battlenet_window_found != window_found:
+                self.battlenet_window_found = window_found
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
+        if should_notify:
+            self._notify_callbacks()
 
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
@@ -712,14 +756,67 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
+    def set_rosbot_flow_master_enabled(self, enabled: bool):
+        """Set 总状态 (ROSBOT flow master): True = 用户点击「启动 ROSBOT」，False = 点击「停止」。Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_flow_master_enabled != enabled:
+                self.rosbot_flow_master_enabled = enabled
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT flow master: {'enabled' if enabled else 'disabled'}")
+        if should_notify:
+            self._notify_callbacks()
+
     def set_d3_status(self, running: bool):
-        """Set D3 running status and notify callbacks"""
+        """Set D3 running status and notify callbacks."""
         should_notify = False
         with self._lock:
             if self.d3_running != running:
                 self.d3_running = running
                 should_notify = True
                 ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_d3_dynamic_status(
+        self,
+        on_login_screen: bool = False,
+        disconnected: bool = False,
+        in_game: bool = False,
+    ):
+        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if (
+                self.d3_on_login_screen != on_login_screen
+                or self.d3_disconnected != disconnected
+                or self.d3_in_game != in_game
+            ):
+                self.d3_on_login_screen = on_login_screen
+                self.d3_disconnected = disconnected
+                self.d3_in_game = in_game
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_battlenet_dynamic_status(
+        self,
+        on_login_screen: bool = False,
+        disconnected: bool = False,
+        normal_available: bool = False,
+    ):
+        """Set Battle.net dynamic state (same priority as D3). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if (
+                self.battlenet_on_login_screen != on_login_screen
+                or self.battlenet_disconnected != disconnected
+                or self.battlenet_normal_available != normal_available
+            ):
+                self.battlenet_on_login_screen = on_login_screen
+                self.battlenet_disconnected = disconnected
+                self.battlenet_normal_available = normal_available
+                should_notify = True
         if should_notify:
             self._notify_callbacks()
 
@@ -751,6 +848,10 @@ class D3InterfaceData(InterfaceDataBase):
             self._callbacks.append(callback)
             ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
 
+    def notify_state_sync(self):
+        """Push current state to all registered callbacks (e.g. after timer refresh). Use when UI must reflect latest state even if no field changed (avoids race where first callback ran before status widgets existed)."""
+        self._notify_callbacks()
+
     def _notify_callbacks(self):
         """Notify all registered callbacks"""
         try:
@@ -758,10 +859,17 @@ class D3InterfaceData(InterfaceDataBase):
             with self._lock:
                 callbacks = self._callbacks.copy()
                 state = {
-                    'rosbot_running': self.rosbot_running,
-                    'd3_running': self.d3_running,
-                    'map_type': self.map_type,
-                    'game_stage': self.game_stage
+                    "battlenet_window_found": self.battlenet_window_found,
+                    "rosbot_running": self.rosbot_running,
+                    "d3_running": self.d3_running,
+                    "map_type": self.map_type,
+                    "game_stage": self.game_stage,
+                    "d3_on_login_screen": self.d3_on_login_screen,
+                    "d3_disconnected": self.d3_disconnected,
+                    "d3_in_game": self.d3_in_game,
+                    "battlenet_on_login_screen": self.battlenet_on_login_screen,
+                    "battlenet_disconnected": self.battlenet_disconnected,
+                    "battlenet_normal_available": self.battlenet_normal_available,
                 }
             for callback in callbacks:
                 try:

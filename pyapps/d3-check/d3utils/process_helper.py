@@ -9,7 +9,7 @@ import os
 import subprocess
 from typing import Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 try:
     import win32process

@@ -18,11 +18,17 @@ Components:
 - **window_monitor**: Static global module for Diablo III window monitoring
 - Thread-safe operation with automatic error recovery
 
+## Thread Registry and THREAD_BUS
+
+- **Thread lifecycle**: All thread instances are created and held only in **ThreadRegistry** (`share/thread_registry.py`). **No dynamic thread creation**—all threads start together with UI; execution is driven by global state and tick. The main thread references threads only via `get_thread_registry()` (e.g. `create_extension_threads`, `run_path_scan`, `start_timer_loop_after_ui_ready`). No component uses `self.xxx_thread` to own a thread.
+- **One-shot work**: Path scan, login check, refresh status, Battle.net UI analyze, and window monitor initial check are submitted to the **timer thread** via `timer_manager.submit_one_shot(callback)`; no new thread is ever created for these. See `docs/THREAD_BUS_AND_REGISTRY.md`.
+- **Communication**: All inter-thread communication goes through **pycore THREAD_BUS** / **event_center** (signals, events, queues). Threads do not reference each other. See `d3utils/event_center.py` and pycore `pyfoundations/thread_bus.py`.
+
 ## Architecture
 
 ### Static Global Design
 
-All timer components are static global modules. They are initialized on module import and shared across the entire application.
+All timer components are static global modules. They are initialized on module import and shared across the entire application. The timer loop is started via **ThreadRegistry** after UI is ready; one-shot work (path scan, login check, refresh, Battle.net UI analyze, initial window check) is submitted via **timer_manager.submit_one_shot()**—no new threads are created.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -56,39 +62,58 @@ All timer components are static global modules. They are initialized on module i
     └───────────────────┘      └──────────────────────┘
 ```
 
+### Timer and UI as sibling modules
+
+**Timer** (`timers/`) and **UI** (`ui/`) are peer submodules. Neither imports the other. The **main thread (controller)** imports both and wires them:
+
+- Controller imports `timers.window_monitor_timer` and creates UI (which creates ROSBOT panel).
+- Controller registers status UI: `window_monitor.register_status_ui(panel.get_status_ui_callback())`.
+- Controller injects refresh fn: `panel.set_refresh_status_fn(window_monitor.check_window)` so the panel’s “刷新状态” button can trigger the same check without importing the timer.
+- Controller starts the timer loop and first check only after UI is ready: `get_system_initializer().start_timer_loop_after_ui_ready()` (called before `ui.run()`).
+
+All imports are at the top of each file; no inline imports. No cross-import between timer and UI.
+
 ### Data Flow
 
-1. **Initialization** (in system_initializer.py):
+1. **Initialization** (in system_initializer.py, main thread):
    ```python
    import timers.timer_manager as timer_manager
    import timers.window_monitor_timer as window_monitor
 
-   # Initialize window monitor and register with timer manager
+   # Register window monitor and log_monitor with timer manager (do NOT start loop yet)
    window_monitor.initialize_and_register(interval=10.0, enabled=True)
-
-   # Start timer manager
-   timer_manager.start()
+   # timer_manager.start() is NOT called here; see start_timer_loop_after_ui_ready()
    ```
 
-2. **Registration** (in controller.run()):
+2. **Registration and timer start** (in controller.run(), main thread):
    ```python
    import timers.window_monitor_timer as window_monitor
 
-   ui = Diablo3MacroUI()
-   callback = ui.get_status_bar_callback()
-   window_monitor.add_callback(callback)
+   self.ui = Diablo3MacroUI()
+   panel = self.ui.rosbot_extension_panel
+
+   # Wire timer and UI from controller (no cross-import)
+   window_monitor.register_status_ui(panel.get_status_ui_callback())
+   panel.set_refresh_status_fn(window_monitor.check_window)
+
+   window_monitor.add_callback(self.ui.get_window_status_callback())  # D3 window info
+
+   get_system_initializer().start_timer_loop_after_ui_ready()  # start loop + one check
+   self.ui.run()
    ```
 
 3. **Periodic Updates** (every 10 seconds):
    ```
    timer_manager triggers
    → window_monitor.check_window()
-   → WindowFinder.find_windows()
-   → game_interface_data update (fullscreen_size, window_offset)
-   → window_monitor._notify_callbacks()
-   → status_bar.on_window_status_update(window_info)
-   → UI updates (game_status, window_size)
+   → d3_status_provider.refresh_d3_status()   (D3 window + dynamic state + geometry)
+   → battlenet_status_provider.refresh_battlenet_status()   (Battle.net window + dynamic state)
+   → game_interface_data updated (d3_running, battlenet_window_found, d3_*/battlenet_* dynamic flags)
+   → game_interface_data._notify_callbacks(state)   (status UI registered via register_status_ui)
+   → window_monitor._notify_callbacks(d3_window_info)   (D3 window info callbacks)
+   → UI updates (Battle.net/D3 status with priority: disconnected > on_login_screen > in_game/normal)
    ```
+   D3 and Battle.net status are provided by separate modules (`d3_status_provider`, `battlenet_status_provider`); shared refresh flow is in `d3utils/status_provider_common.py`. See DESIGN.md §3.12.
 
 ## Key Principles
 
@@ -139,6 +164,15 @@ shared_data.window_offset = (left, top)
 window_size = shared_data.fullscreen_size
 ```
 
+## Status providers (D3 / Battle.net)
+
+Window monitor does **not** use a single generic "window status" module. Each tick it calls:
+
+- **d3_status_provider.refresh_d3_status()** – D3 window find, dynamic state (on_login_screen, disconnected, in_game), geometry → game_interface_data.
+- **battlenet_status_provider.refresh_battlenet_status()** – Battle.net window find, dynamic state (on_login_screen, disconnected, normal_available) → game_interface_data.
+
+Shared refresh flow (set running → apply geometry → detect dynamic triple → set dynamic) lives in **d3utils/status_provider_common.py**; each provider supplies its own find/detect/geometry logic. See **DESIGN.md §3.12**.
+
 ## Components
 
 ### timer_manager (Static Global Module)
@@ -172,25 +206,33 @@ timer_manager.stop()
 
 ### window_monitor (Static Global Module)
 
-Monitors Diablo III window status and updates game interface data.
+Calls D3 and Battle.net status providers each tick; updates game interface data and notifies callbacks.
 
 **Features:**
-- Detects Diablo III window using multiple title variations
-- Updates `game_interface_data` with window information
-- Provides callbacks for window status changes
-- Default interval: 10 seconds
+- Each tick: calls `d3_status_provider.refresh_d3_status()` then `battlenet_status_provider.refresh_battlenet_status()` (no generic "window status" layer).
+- Updates `game_interface_data` (d3_running, battlenet_window_found, and dynamic state: on_login_screen, disconnected, in_game/normal_available).
+- Status UI: `register_status_ui(callback)` registers callback on `game_interface_data`; when providers update state, callback(state) is invoked. D3/Battle.net state is independent of rosbot.
+- D3 window info callbacks: `add_callback(callback)` receives D3 window dict or None each tick.
+- Default interval: 10 seconds.
 
 **Usage:**
 ```python
+# In controller (timer and UI are sibling modules; controller wires them)
 import timers.window_monitor_timer as window_monitor
 
-# Initialize and register (called by system_initializer)
+# Initialize and register (called by system_initializer; does NOT start loop)
 window_monitor.initialize_and_register(interval=10.0, enabled=True)
 
-# Add callback
-window_monitor.add_callback(my_callback)
+# Register status UI from controller (callback = panel.get_status_ui_callback())
+window_monitor.register_status_ui(my_state_callback)
 
-# Manual check
+# Inject refresh fn into panel so "刷新状态" button can call check_window without importing timer
+panel.set_refresh_status_fn(window_monitor.check_window)
+
+# Add D3 window info callback (receives D3 window dict or None)
+window_monitor.add_callback(my_window_callback)
+
+# Manual check (D3 window only)
 info = window_monitor.get_current_window_info()
 ```
 
@@ -198,22 +240,30 @@ info = window_monitor.get_current_window_info()
 
 ### For Application Developers
 
-The timer system is automatically initialized. You only need to:
+Timer and UI are sibling modules; only the controller imports and wires them.
 
 1. **Create UI** (in controller):
    ```python
-   ui = Diablo3MacroUI()
+   self.ui = Diablo3MacroUI()
+   panel = self.ui.rosbot_extension_panel
    ```
 
-2. **Register UI callback** (in controller):
+2. **Register status UI and refresh fn** (in controller):
    ```python
    import timers.window_monitor_timer as window_monitor
 
-   callback = ui.get_status_bar_callback()
-   window_monitor.add_callback(callback)
+   window_monitor.register_status_ui(panel.get_status_ui_callback())
+   panel.set_refresh_status_fn(window_monitor.check_window)
+   window_monitor.add_callback(self.ui.get_window_status_callback())
    ```
 
-3. **Implement callback in UI** (already done in status_bar.py):
+3. **Start timer loop after UI ready** (in controller, before mainloop):
+   ```python
+   get_system_initializer().start_timer_loop_after_ui_ready()
+   self.ui.run()
+   ```
+
+4. **Implement callback in UI** (already done in status_bar.py and rosbot_extension_panel):
    ```python
    def on_window_status_update(self, window_info):
        if window_info:
@@ -260,16 +310,19 @@ timer_manager.unregister_task("my_task")
 
 ### Data Updates
 
-window_monitor updates the following in `game_interface_data`:
+window_monitor (via d3_status_provider and battlenet_status_provider) updates the following in `game_interface_data`:
 
-- `fullscreen_size`: Window dimensions (width, height)
-- `window_offset`: Window position (left, top)
-- `_window_hwnd`: Window handle (internal use)
-- `_window_title`: Window title (internal use)
+- **D3**: `d3_running`, `fullscreen_size`, `window_offset`, `_window_hwnd`, `_window_title`; dynamic: `d3_on_login_screen`, `d3_disconnected`, `d3_in_game`.
+  - **d3_disconnected**: SIFT match of template `d3_disconnected` (image `images/d3_disconnected.png`, constant `config.constants.D3_DISCONNECTED_TEMPLATE_NAME`) inside the D3 window via `get_scaled_template_matcher().match_template_auto_scale(window_image, template_name)` (D3 matcher uses its built-in D3_STANDARD_* to derive scale from window size); when found, state is set to disconnected for status UI.
+- **Battle.net**: `battlenet_window_found`; dynamic: `battlenet_on_login_screen`, `battlenet_disconnected`, `battlenet_normal_available`.
 
-### Callback Signature
+Display priority for both: disconnected > on_login_screen > in_game / normal_available. See DESIGN.md §3.12.
 
-Callbacks registered with `window_monitor.add_callback()` receive:
+### Callback Signatures
+
+**Status UI** (registered with `window_monitor.register_status_ui(callback)`): receives full `state` dict (battlenet_window_found, d3_running, rosbot_running, map_type, game_stage, d3_on_login_screen, d3_disconnected, d3_in_game, battlenet_on_login_screen, battlenet_disconnected, battlenet_normal_available).
+
+**D3 window info** (registered with `window_monitor.add_callback(callback)`): receives D3 window dict or None:
 
 ```python
 def callback(window_info: Optional[Dict]):
@@ -308,10 +361,11 @@ def callback(window_info: Optional[Dict]):
 #### Functions
 
 - `initialize_and_register(interval, enabled)` - Initialize and register with timer_manager
-- `add_callback(callback)` - Add window status callback
-- `remove_callback(callback)` - Remove callback
-- `check_window()` - Manual window check (called by timer)
-- `get_current_window_info()` - Immediate window check
+- `register_status_ui(callback)` - Register callback on game_interface_data; callback(state) when D3/Battle.net state updates (state includes dynamic flags; independent of rosbot)
+- `add_callback(callback)` - Add D3 window info callback (callback receives D3 window dict or None each tick)
+- `remove_callback(callback)` - Remove D3 window info callback
+- `check_window()` - Called by timer; calls refresh_d3_status(), refresh_battlenet_status(), then _notify_callbacks(d3_info)
+- `get_current_window_info()` - Immediate D3 window check (uses d3_status_provider.get_current_d3_window())
 
 #### Constants
 
@@ -320,29 +374,33 @@ def callback(window_info: Optional[Dict]):
 ## Example: Full Integration
 
 ```python
-# In system_initializer.py
+# In system_initializer.py (all imports at top)
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
+import threading
 
-# Initialize window monitor and register
+# Initialize: register tasks only (do NOT start timer loop)
 window_monitor.initialize_and_register(interval=10.0, enabled=True)
 
-# Start timer manager
-timer_manager.start()
+def start_timer_loop_after_ui_ready(self):
+    if not timer_manager.is_running():
+        timer_manager.start()
+    threading.Thread(target=window_monitor.check_window, daemon=True).start()
 
-# In controller (d3_macro_controller.py)
+# In controller (d3_macro_controller.py, all imports at top)
 import timers.window_monitor_timer as window_monitor
 
 class D3MacroController:
     def run(self):
-        # Create UI
         self.ui = Diablo3MacroUI()
+        panel = self.ui.rosbot_extension_panel
 
-        # Register UI callback
-        callback = self.ui.get_status_bar_callback()
-        window_monitor.add_callback(callback)
+        # Wire timer and UI from controller (timer and UI are sibling modules)
+        window_monitor.register_status_ui(panel.get_status_ui_callback())
+        panel.set_refresh_status_fn(window_monitor.check_window)
+        window_monitor.add_callback(self.ui.get_window_status_callback())
 
-        # Run UI
+        get_system_initializer().start_timer_loop_after_ui_ready()
         self.ui.run()
 
 # In UI (diablo3_macro_ui.py)
@@ -402,5 +460,5 @@ execute_shutdown()
 - Tasks are checked every 100ms for execution
 - Tasks with 5 consecutive errors are automatically disabled
 - All operations are thread-safe
-- Timer tasks should not perform blocking operations
+- Timer tasks should not perform operations that 卡住 (get stuck)
 - For UI updates, use `parent.after(0, update_function, args)` to ensure thread safety

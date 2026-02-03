@@ -13,7 +13,7 @@ import win32con
 
 # Add ncore path
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 class WindowActivator:
     """Activates and manages window focus"""

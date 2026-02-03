@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 D4 Controller
-Main controller for Diablo IV operations
+Main controller for Diablo IV operations.
 
-Registered to timer_manager for periodic execution
-Uses interceptor pattern to control task execution without starting/stopping timers
+Driven by D4ExtensionThread (every D4_TICK_INTERVAL), not timer_manager.
 """
 
 import os
@@ -18,24 +17,23 @@ from datetime import datetime
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import DIABLO_IV_WINDOW_TITLES, TMP_DIR
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import TMP_DIR
+from providor.providor_index import DIABLO_IV_WINDOW_TITLES
 # D4State functionality now integrated into D4InterfaceData
 from d3utils.screenshot_provider import get_screenshot_provider
-from share.game_interface_data import (
-    get_d4_interface_data,
-    D4_SCREENSHOT_DIR,
-    D4_ANNOTATED_DIR
-)
-from controller.d4func import ExpFarmingManager, get_ui_status_updater, get_event_manager
+from providor.app_constants import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
+from share.game_interface_data import get_d4_interface_data
+from controller.d4func import ExpFarmingManager, get_ui_status_updater
+from controller.d4func.events.event_manager import get_event_manager
 
 
 class D4Controller:
     """
-    D4 Main Controller
+    D4 Main Controller.
 
-    Registered to timer_manager with 3-second interval
-    Uses interceptor pattern: timer always runs but checks state before executing
+    process() is called by D4ExtensionThread every D4_TICK_INTERVAL when
+    exp_farming or debug_window is active.
     """
 
     def __init__(self):
@@ -67,10 +65,8 @@ class D4Controller:
 
     def process(self):
         """
-        Main processing method called by timer
-
-        This method is called every 3 seconds by timer_manager
-        Uses interceptor pattern: timer always runs but checks state before executing
+        Main processing method. Called by D4ExtensionThread every D4_TICK_INTERVAL
+        when exp_farming or debug_window is active.
         """
         try:
             # Check if EXP farming is running
@@ -171,7 +167,7 @@ class D4Controller:
         """
         try:
             # Import DEBUG flag
-            from providor.providor_index import DEBUG
+            from providor.app_constants import DEBUG
 
             # Get window info
             window_size = self.d4_data.game_window_size if self.d4_data.game_window_size else (0, 0)

@@ -15,18 +15,16 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from providor.common_imports import ColorPrint, WindowScreenshot
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.window_screenshot import WindowScreenshot
 
 # Local imports
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from config.grid_config import GRID_ROWS, GRID_COLS
+from providor.app_constants import GRID_ROWS, GRID_COLS
 
 class GridScreenshotCollector:
     """

@@ -76,3 +76,58 @@ def open_folder(folder_path: Path) -> Dict[str, Any]:
             "success": False,
             "error": f"Failed to open folder: {str(e)}"
         }
+
+
+def open_file_with_notepad(file_path: Path) -> Dict[str, Any]:
+    """
+    Open a file with system Notepad (Windows) or default text editor (macOS/Linux) for easy viewing/copying.
+
+    Args:
+        file_path: Path to the file to open
+
+    Returns:
+        Result dictionary with success/error
+    """
+    if not file_path.exists() or not file_path.is_file():
+        return {
+            "success": False,
+            "error": "File not found or not a file"
+        }
+
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["notepad", str(file_path)])
+            return {
+                "success": True,
+                "message": f"Opened in Notepad: {file_path.name}"
+            }
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-e", str(file_path)])
+            return {
+                "success": True,
+                "message": f"Opened in TextEdit: {file_path.name}"
+            }
+        elif sys.platform.startswith("linux"):
+            for cmd in ["xdg-open", "gedit", "kate", "nano"]:
+                try:
+                    subprocess.Popen([cmd, str(file_path)])
+                    return {
+                        "success": True,
+                        "message": f"Opened with {cmd}: {file_path.name}"
+                    }
+                except FileNotFoundError:
+                    continue
+            return {
+                "success": False,
+                "error": "No text editor found on Linux"
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Unsupported platform: {sys.platform}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to open file: {str(e)}"
+        }

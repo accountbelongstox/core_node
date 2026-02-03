@@ -205,9 +205,10 @@
 ### 3.10 图标查找与等比例缩放
 
 - **规则（与 D3/D4 一致）**：预定一个**标准分辨率**（参考窗口尺寸）；若**实际窗口**与标准存在比例差，则用于查找的**小图（模板）按同一比例伸缩**后再参与匹配，以避免窗口拉伸后图标找不到。
-- **游戏窗口**：
-  - D3：标准分辨率（客户区）`STANDARD_RESOLUTION_WIDTH x HEIGHT`（1300x800）；截图/GetWindowRect 得到的是**外框**（含标题栏与左右底边），当客户区为 1300x800 时外框为 1316x839（去两边空白 9+7、标题 31、底边 8 后即 1300x800）。`D3_STANDARD_OUTER_WIDTH/HEIGHT`（1316x839）由 `share/game_interface_data` 根据边框常量推导。实际尺寸由 `screenshot_provider` / `game_interface_data` 得到；`get_global_scale()` 返回 `(scale_x, scale_y)` = 实际/标准；`d3utils.scaled_template_matcher.ScaledTemplateMatcher` 用该比例缩放模板后再调用 `ImageMatcher` 匹配。
-  - D4：同理，标准为 `D4_STANDARD_RESOLUTION_*`（1763x1126），`d4utils.d4_scaled_template_matcher` 按 `get_global_scale()` 缩放模板。
+- **游戏窗口（公共基类 + D3/D4 各自实现）**：
+  - **公共基类**：`share/scaled_template_matcher_base.py` 的 `ScaledTemplateMatcherBase` 只提供通用逻辑，无游戏常量、无游戏专属方法。提供：标准宽高与 `get_scale_factors`/`get_template_config` 由子类注入、`_load_target_image`/`_load_original_template`/`_get_scaled_template_image`、`match_template`、`_match_single_with_scale(target_img_array, template_name, scale_x, scale_y)`（供子类封装）、`match_multiple_templates`、`match_template_in_image`、`clear_cache`。子类通过构造函数传入各自游戏维度和配置获取函数。
+  - **D3**：`d3utils.d3_scaled_template_matcher` 内置常量 `D3_STANDARD_WIDTH`/`D3_STANDARD_HEIGHT`（1300x800），模板配置来自 providor。`D3ScaledTemplateMatcher` 继承基类并**在本类内**实现 `match_template_auto_scale(target_image, template_name)`：用目标图尺寸与 D3 标准分辨率推导 scale，再调用基类 `_match_single_with_scale`。`d3_status_provider._detect_d3_dynamic` 使用 `get_scaled_template_matcher().match_template_auto_scale(window_image, D3_DISCONNECTED_TEMPLATE_NAME)`。对外入口：`d3utils.scaled_template_matcher.ScaledTemplateMatcher` / `get_scaled_template_matcher`（re-export）。
+  - **D4**：`d4utils.d4_scaled_template_matcher` 内置常量 `D4_STANDARD_WIDTH`/`D4_STANDARD_HEIGHT`（1763x1126），模板配置来自 providor。`D4ScaledTemplateMatcher` 继承基类并**在本类内**实现 `match_template_auto_scale`（同 D3 思路，用 D4 常量）以及 D4 独有方法：`match_template_in_region(template_name, region_name, ...)`、`_get_shared_region_image`、`_extract_region_from_full_image`、`_save_region_debug_image` 等。
 - **战网窗口**：
   - **统一入口**：`d3utils.battlenet_template_matcher`。标准分辨率：`BATTLENET_STANDARD_RESOLUTION_WIDTH x HEIGHT`（960x540），定义在 `providor.providor_index`。
   - **加载与缩放**：`load_scaled_battlenet_template(template_name, window_width, window_height)` 从 `BATTLENET_TEMPLATE_CONFIGS` 读 path，按 `scale_x = window_width/960`、`scale_y = window_height/540` 缩放模板后返回 `(template_bgr, config)`。
@@ -222,6 +223,80 @@
 - **入口**：`run_after_rosbot_start(wait_sec=5, do_debug=True, do_tab=True, do_start_botting=True)`。等待 ROSBOT 窗口出现 → 激活窗口 → 用 uiautomation 取 Control → **DEBUG 打印可操作元素**（`debug_print_operable_elements`：递归遍历控件树，ColorPrint 输出 type、name、automation_id、rect）→ 点击 **主档案** Tab（TabItemControl 名称含 主档案/主檔案/Main Profile）→ 点击 **Start botting!** 按钮（ButtonControl automation_id `btnStart` 或名称含 Start botting）。
 - **调用时机**：在 `ensure_battlenet_started_and_login_check()` 内，`get_rosbot_manager().start()` 与 `start_rosbot_task()` 之后调用；若异常仅打 Yellow 日志，不中断流程。
 - **点击实现**：控件级点击用 `control.Click()`（uiautomation），非 pyautogui 屏幕坐标。屏幕坐标点击（战网 Play、托盘）仍用 `ClickHandler`（pycore/pyutils/click_handler.py，内部 pyautogui）。
+
+### 3.12 D3 / Battle.net 状态提供者与动态状态
+
+**设计思路**：① 战网与 D3 状态**仅由窗口检测与各 provider 的 detect 逻辑更新**，与 ROSBOT 是否启动无关，便于独立展示与后续自动化。② **统一入口**：定时器与面板「刷新状态」按钮共用 `check_window()`，不重复实现。③ **注册即刷新**：`register_status_ui(callback)` 时在后台线程立即执行一次 `check_window()`，避免启动后 0～10 秒状态区显示默认「未找到/未运行」。
+
+**设计原则**：战网状态与 D3 状态各自独立模块（非笼统的「窗口状态」）；逻辑代码在各自 provider 内，公共部分（刷新流程）在 `status_provider_common` 中共享，而非简单二次封装。
+
+#### 3.12.1 模块与职责
+
+| 模块 | 路径 | 职责 |
+|------|------|------|
+| **status_provider_common** | `d3utils/status_provider_common.py` | 共享刷新流程：`refresh_window_state(game_data, window_info_or_none, set_running_fn, set_dynamic_fn, detect_dynamic_fn, apply_geometry_fn=None)`。依次执行：set_running(窗口是否找到)、可选 apply_geometry、detect_dynamic → (on_login, disconnected, third)、set_dynamic。各 provider 只提供四个回调，不重复写流程。 |
+| **d3_status_provider** | `d3utils/d3_status_provider.py` | D3 窗口查找（WindowFinder + DIABLO_III_WINDOW_TITLES）、D3 动态状态检测、D3 几何写入 game_interface_data。接口：`refresh_d3_status()` → 返回 D3 窗口信息或 None；`get_current_d3_window()`。 |
+| **battlenet_status_provider** | `d3utils/battlenet_status_provider.py` | 战网窗口查找（BattleNetManager.find_windows）、战网动态状态检测（BattlenetOperation）。无几何。接口：`refresh_battlenet_status()` → 返回战网窗口信息或 None；`get_current_battlenet_window()`。 |
+| **BattlenetOperation** | `d3utils/battlenet_operation.py` | 战网窗口操作：`start()`/`close()`/`restart()`、`activate_window()`、`click_d3_tab()`、`click_start_game()`、`is_game_starting()`；动态状态检测（已实现，**仅 UI 元素**，不截图）：`get_dynamic_state()` 一次枚举返回 (on_login_screen, disconnected, normal_available)；`is_on_login_screen()` / `is_disconnected()` 按控件名匹配（需要登陆/请登录/登录/您同意/使用网易账号登录或注册、Retry/重试）；`is_logged_in()` 为 D3 标签 + Play 区域；TODO：`agree_login()`、`click_confirm_login()`。控件名/automation_id 参考 `docs/登陆后的战网元素.json`（见 3.12.7）。 |
+
+#### 3.12.2 动态状态字段与优先级
+
+- **D3**（`share/game_interface_data.py`）：`d3_on_login_screen`、`d3_disconnected`（**最高优先级**）、`d3_in_game`（正常）。显示优先级：disconnected > on_login_screen > in_game。
+- **Battle.net**：`battlenet_on_login_screen`、`battlenet_disconnected`、`battlenet_normal_available`。显示优先级同上：disconnected > on_login_screen > normal_available。
+- 战网 / D3 状态**不依赖** rosbot 是否启动，仅由窗口检测与各 provider 的 detect 逻辑更新。
+
+#### 3.12.2a 战网状态 UI 显示要求与当前限制
+
+- **要求显示的几种状态**（ROSBOT 面板「战网」一行）：**未找到**、**掉线**、**登录界面**、**正常可用**；当仅检测到窗口存在且动态检测未实现时显示「**已找到(状态未检测)**」。
+- **数据来源**：`battlenet_status_provider.refresh_battlenet_status()` → `BattlenetOperation.is_on_login_screen()`、`is_disconnected()`、`is_logged_in()` 写入 `game_interface_data` 的 `battlenet_on_login_screen`、`battlenet_disconnected`、`battlenet_normal_available`；面板 `_update_ui_from_state(state)` 按优先级显示对应 i18n 文案（见 `i18n_rosbot_panel_*` 中 `rosbot.battlenet_disconnected`、`rosbot.battlenet_on_login_screen`、`rosbot.battlenet_normal_available`、`rosbot.found_unknown_state`）。
+- **实现情况**：`d3utils/battlenet_operation.py` 中战网动态状态**仅用 UI 元素**（JSON 控件树），不截图、不用 OCR。`get_dynamic_state()` 一次枚举控件，按控件名/automation_id 判断登录界面、掉线、正常可用；刷新后战网一行将按优先级显示「掉线」「登录界面」「正常可用」或「已找到(状态未检测)」。
+
+#### 3.12.3 统一定时器与按钮立即调用（设计思路）
+
+- **设计原则**：定时器**周期性**调用同一套模块逻辑；面板上的按钮**立即**调用同一套逻辑。入口统一为 `check_window()`，定时器 = 定时调用，按钮 = 立即调用，不重复实现。
+- **定时器与 UI 为平级子模块**：`timers/` 与 `ui/` 互不导入。由**主线程（controller）**统一导入并接线：controller 导入 `window_monitor_timer` 和创建 UI（含 ROSBOT 面板）；controller 调用 `window_monitor.register_status_ui(panel.get_status_ui_callback())` 注册状态回调；controller 调用 `panel.set_refresh_status_fn(window_monitor.check_window)` 注入「刷新」可调用，使「刷新状态」按钮可触发同一套逻辑而面板不导入定时器。所有包引入放在文件开头，不在函数内导入。
+- **统一定时器**（`timers/window_monitor_timer.py`）：
+  - 定时器每 10 秒调用 `check_window()`；`check_window()` 内依次调用 `refresh_d3_status()`、`refresh_battlenet_status()`，再 `get_game_interface_data().notify_state_sync()`、`_notify_callbacks(d3_info)`（D3 窗口信息回调）。
+  - 定时器循环在 **UI 就绪后** 才启动：controller 在进入 mainloop 前调用 `get_system_initializer().start_timer_loop_after_ui_ready()`，此时才 `timer_manager.start()` 并执行一次 `check_window()`，避免回调早于状态控件创建。
+- **按钮立即调用**（同一入口）：
+  - 面板「**刷新状态**」按钮：点击后调用 controller 注入的 `_refresh_status_fn()`（即 `window_monitor.check_window`），在后台线程执行，逻辑与定时器一致。面板不导入 `window_monitor_timer`。
+  - 「启动ROSBOT」「调试(战网UI JSON)」等按钮：各自调用对应流程（非 `check_window()`）；仅「刷新状态」与定时器共用 `check_window()`。
+- **状态 UI 注册**：在 controller 中 `window_monitor.register_status_ui(panel.get_status_ui_callback())` 将 callback 注册到 `game_interface_data`；每次刷新（定时或按钮触发）后都会触发 `_notify_callbacks(state)`。首次检测在 `start_timer_loop_after_ui_ready()` 中执行，不在 `register_status_ui()` 内。
+- **面板**（`ui/panels/rosbot_extension_panel.py`）：不导入定时器；提供 `get_status_ui_callback()` 与 `set_refresh_status_fn(fn)` 供 controller 接线。`_update_ui_from_state(state)` 按优先级显示 Battle.net / D3 状态（disconnected > on_login_screen > in_game / normal_available）。控制区「刷新状态」按钮调用注入的 `_refresh_status_fn()`。
+
+#### 3.12.4 检测实现与 TODO
+
+- **D3 动态状态**（`d3_status_provider._detect_d3_dynamic`）：
+  - **掉线（disconnected）**：在 D3 窗口内截屏，用 SIFT 匹配模板 `d3_disconnected`（常量 `config.constants.D3_DISCONNECTED_TEMPLATE_NAME`，图 `images/d3_disconnected.png`，原 `ScreenShot_2026-01-30_071704_521.png`）；匹配到则设 `d3_disconnected=True`，状态 UI 显示「掉线」。
+  - **登录界面 / 游戏中**：TODO；当前未检测时返回 (False, False, False)。
+- **刷新时机**：全局定时器每 **10 秒**调用 `check_window()`（`timers/window_monitor_timer.DEFAULT_INTERVAL = 10.0`）；面板「刷新状态」按钮可**实时**调用同一 `check_window()`（由 controller 注入 `window_monitor.check_window`），逻辑与定时器一致。
+- **Battle.net 动态状态**（`battlenet_status_provider._detect_battlenet_dynamic`）：**仅用 UI 元素**（JSON/控件树），不截图、不用 OCR。通过 `BattlenetOperation.get_dynamic_state()` 一次枚举控件，返回 `(on_login_screen, disconnected, normal_available)`：**未登陆** = 任一控件 automation_id 含 LoginWindow/loginWidgetContainer/loginWidget/login-wrapper/login-header/legalAcceptance/ntes/connectAccounts（特征来自未登陆 UI 分析 `*.d3check/cache/battlenet_ui_analyze/window_analysis_*/battlenet_analysis.json`），或控件名含需要登陆/请登录/登录/您同意/使用网易账号登录或注册；掉线 = 控件名含 Retry/重试；正常可用 = 存在 D3 标签（game-nav-btn-D3CN / game-nav-btn-D3）且存在 Play 区域（play-btn-main / play-btn 或名称含 Play/开始游戏/Playing Now）。控件参考 `docs/登陆后的战网元素.json`。优先级：disconnected > on_login_screen > normal_available。
+
+#### 3.12.5 调用关系小结
+
+| 触发方式 | 入口 | 行为 |
+|----------|------|------|
+| 定时器 | 每 10s 由 timer_manager 调用（timer 在 UI 就绪后启动） | `check_window()` → refresh_d3_status() + refresh_battlenet_status() → 更新 game_interface_data → 回调 |
+| 面板「刷新状态」按钮 | 用户点击，调用 controller 注入的 _refresh_status_fn | 同上：后台线程中调用 `check_window()`，逻辑与定时器一致；面板不导入 timer |
+| UI 就绪后 | controller 调用 start_timer_loop_after_ui_ready() | 启动 timer_manager 并在后台线程执行一次 `check_window()`，避免 0～10s 状态区为默认 |
+
+#### 3.12.6 相关文件索引
+
+| 文档/模块 | 路径 |
+|-----------|------|
+| 共享刷新流程 | `d3utils/status_provider_common.py` |
+| D3 状态提供者 | `d3utils/d3_status_provider.py` |
+| 战网状态提供者 | `d3utils/battlenet_status_provider.py` |
+| 战网操作（BattlenetOperation：start/close/restart、点击 D3/Play、动态状态 TODO） | `d3utils/battlenet_operation.py` |
+| 共享游戏状态（含 d3/battlenet 动态字段） | `share/game_interface_data.py` |
+| 窗口监控定时器（统一入口 check_window；定时与 UI 平级，由 controller 导入并接线） | `timers/window_monitor_timer.py` |
+| ROSBOT 面板（刷新状态按钮调用注入的 _refresh_status_fn、状态区、get_status_ui_callback/set_refresh_status_fn、调试战网 UI JSON；不导入 timer） | `ui/panels/rosbot_extension_panel.py` |
+
+#### 3.12.7 战网 UI 导出与控件说明
+
+- **调试按钮**：ROSBOT 扩展面板「**调试(战网 UI JSON)**」按钮。点击后在子线程内先 `pythoncom.CoInitialize()` 再调用 `WindowAnalyzer`（pycore.pyutils.window_analyzer），枚举战网窗口的 UI Automation 树，导出为 JSON 并保存到 `docs/登陆后的战网元素.json`（若目录不可写则退化为复制到剪贴板）。
+- **控件说明**：`docs/登陆后的战网元素-控件说明.md` 记录控件 key、automation_id、用途；数据来源为上述调试按钮导出的 JSON（Chromium 战网客户端）。
+- **BattlenetOperation 依赖**：`BattlenetOperation` 内 D3 Tab、Play 等控件的 automation_id/名称常量参考该 JSON（如 `game-nav-btn-D3CN`、`play-btn-main`）；后续实现 `is_on_login_screen`/`is_disconnected`/`is_logged_in` 时可复用 LoginTryScreenshotController 的 OCR 关键词或该 JSON 中的登录相关控件。
 
 ---
 
@@ -244,7 +319,7 @@
 | ① 战网 | LoginTryScreenshotController | `controller/login_try_screenshot_controller.py` | `ensure_battlenet_started_and_login_check()`（**状态1=完整流程；状态2、3=掉线检测**，检测到没掉线则回到 1 的流程从中间继续。D3 已运行时 `detect_d3_already_running_state()`；战网流程：杀 D3→托盘→截图→有 D3 小图则点小图→Play→轮询 D3→wait_for_and_click_start_game→k ROSBOT→start→run_after_rosbot_start；**最多 3 轮**；掉线/需要登陆用 `restart(bn_path)`） |
 | ① 战网 | ClickHandler（托盘点击激活） | pycore/pyutils/click_handler.py | `find_and_click_tray_icon()`：通过托盘图标点击激活战网窗口，**不重启** |
 | ① 战网 | 配置 / 截图 / 战网截图保存 | `providor.providor_index`、`d3utils.screenshot_provider`、`d3utils.battlenet_capture` | `CONFIG["battlenet"]["battlenet_path"]`，`BATTLE_NET_WINDOW_TITLES`；战网截图统一 `capture_battlenet_and_save_to_category("login_try")` |
-| ② D3 | WindowMonitor / WindowFinder / D3Manager / GameState | `timers/window_monitor_timer.py`、`pycore.pyutils.common.window_finder`、`d3utils.d3_manager`、`share/game_interface_data.py` | 点击 Play 后轮询 `WindowFinder.find_windows_by_titles(DIABLO_III_WINDOW_TITLES)` 找到即「D3 窗口就绪」；**d3_running 仅由窗口检测维护**：WindowMonitor 定时检测 D3 窗口并 `set_d3_status`，controller 轮询到 D3 窗口时也 `set_d3_status(True)`；log_analyzer 不读写 d3_running |
+| ② D3 | d3_status_provider / battlenet_status_provider / WindowMonitor / GameState | `d3utils/d3_status_provider.py`、`d3utils/battlenet_status_provider.py`、`timers/window_monitor_timer.py`、`share/game_interface_data.py` | 定时器 `check_window()` 依次调用 `refresh_d3_status()`、`refresh_battlenet_status()` 更新 d3_running / battlenet_window_found 及动态状态；**d3_running 仅由窗口检测维护**（d3_status_provider + controller 轮询到 D3 时 set_d3_status(True)）；log_analyzer 不读写 d3_running。见 3.12。 |
 | ③ ROSBOT | ROSBOTManager / rosbot_task_processor / rosbot_ui_automation / TaskThreadManager | `d3utils/rosbot_manager.py`、`d3utils/rosbot_task_processor.py`、`d3utils/rosbot_ui_automation.py`、`d3utils/task_thread_manager.py` | **D3 稳定后**：`kill_if_running()` → `start()`（若 `ros_settings.auto_start_rosbot`）→ `start_rosbot_task()` → **`run_after_rosbot_start()`**（DEBUG 打印可操作元素、点主档案、点 Start botting!）；详见 [ROSBOT_FLOW.md](ROSBOT_FLOW.md) |
 
 ### 4.3 各步流程简述
@@ -263,7 +338,7 @@
 
 **② 确保暗黑3启动**
 
-- **状态来源**：`game_state.d3_running` **不由日志决定**，仅由窗口检测设置：① `WindowMonitor`（`timers/window_monitor_timer.py`）定时用 `WindowFinder.find_windows_by_titles(DIABLO_III_WINDOW_TITLES)` 检测到 D3 窗口则 `set_d3_status(True)`，未检测到则 `set_d3_status(False)`；② 在 `ensure_battlenet_started_and_login_check()` 内点击 Play 后轮询到 D3 窗口时也会 `set_d3_status(True)`。`log_analyzer` 不读写 d3_running。
+- **状态来源**：`game_state.d3_running` **不由日志决定**，仅由窗口检测设置：① 定时器调用 `d3_status_provider.refresh_d3_status()` 检测 D3 窗口并 `set_d3_status`；② 在 `ensure_battlenet_started_and_login_check()` 内点击 Play 后轮询到 D3 窗口时也会 `set_d3_status(True)`。`log_analyzer` 不读写 d3_running。D3/战网动态状态（on_login_screen、disconnected、in_game/normal_available）由各 status provider 更新，见 3.12。
 - **含义**：不在本程序内启动 D3 进程；D3 由用户在战网客户端中点击启动。本步只做「确保检测到 D3 已运行」：轮询/等待 D3 窗口出现，由 WindowMonitor 或 controller 更新 d3_running。
 - **顺序约束**：必须先 ① 战网并登陆，用户才能在战网里启动 D3；之后才能进行 ③。D3 运行状态仅由窗口检测维护。
 
@@ -318,7 +393,9 @@
 - **主线程与各线程共享数据**：
   - **game_interface_data**（`share/game_interface_data.py`）：已有 `_lock`，主线程与各扩展线程可安全共享。
   - **CONFIG**：`providor.providor_index` 提供 `CONFIG_LOCK` 及 `get_config_value_safe`/`set_config_value_safe`；主要功能线程读宏配置时使用 `CONFIG_LOCK`。UI 可随时修改配置，确保配置为所有线程共享的安全类型。
-- **启动顺序**：`Controller.run()` 在创建 UI、注册回调后，依次创建并 `start()` 四个线程（MainFunctionThread、AuxiliaryFunctionThread、D3ExtensionThread、D4ExtensionThread），再 `ui.run()`。关闭时 `ShutdownManager.execute_shutdown()` 的 Step 0 对四个线程依次 `request_shutdown()` 并 `join(timeout=3)`，再停 hotkey、timer、销毁 UI。
+- **线程注册中心（THREAD BUS 生命周期侧）**：`share/thread_registry.py` 的 `get_thread_registry()` 返回单例 **ThreadRegistry**。所有线程实例仅在此创建与持有；**禁止在运行中动态创建线程**（防止卡住）。主线程只通过该中心引用线程（`create_extension_threads`、`get_xxx_thread`、`run_path_scan` 等）。禁止在组件内使用 `self.xxx_thread` 创建或持有线程。**正常运行时禁止线程互相卡住**；线程间通信**一律通过事件中心**（THREAD_BUS / event_center）；关闭阶段主线程可对工作线程 `join(timeout)` 做收尾。
+- **线程实现为原生类**：禁止一个类对另一个类做简单封装。组件直接继承 Thread（如 `SystemTray(threading.Thread)`）或线程类 run() 内直接实现循环/逻辑。宏 fallback（`MacroLoopThread`）、游戏界面宏（`GameInterfaceMacroThread`）在各自 controller 模块，run() 内直接写循环；托盘为 `SystemTray(Thread)`，无单独 TrayRunnerThread。Registry 通过 create_macro_fallback_thread、create_macro_thread 获取线程实例，托盘则 start_tray(tray) 直接 start(tray)。
+- **启动顺序与驱动**：**所有线程随 UI 同步启动**；执行仅由**全局状态与 tick** 驱动。`Controller.run()` 在创建 UI 后，由 controller 将定时器与 UI 接线，再调用 `get_thread_registry().create_extension_threads(schedule, panel, ...)` 创建并启动四路扩展线程，`register_extension_handlers(..., get_main_function_thread, ...)` 使用模块级 getter（由 registry 在创建时 set），然后 `get_thread_registry().start_timer_loop_after_ui_ready()`（启动 timer 并投递首次窗口检测，一次性工作均通过 `timer_manager.submit_one_shot` 投递，不新建线程），最后 `ui.run()`。关闭时 `ShutdownManager.execute_shutdown()` 的 Step 0 对四路线程依次 `request_shutdown()` 并 `join(timeout=3)`，再停 hotkey、timer、销毁 UI。
 - **包引入**：所有包引入放在文件开头；Controller、ShutdownManager、各扩展线程等不再在函数内 `import`。
 - **窗口监控回调与关闭**：WindowMonitor 回调内先 `is_shutdown_requested()`，再通过 `parent.after(0, ...)` 调度到主线程；对 `after` 用 `try/except tk.TclError` 避免 main loop 已停止时报错。
 
@@ -329,6 +406,7 @@
 | 文档/模块 | 路径 |
 |-----------|------|
 | 设计文档（详细） | `docs/设计文档.md` |
+| THREAD_BUS 与线程注册中心 | `docs/THREAD_BUS_AND_REGISTRY.md` |
 | Login/Battle.net 分类与复用 | `docs/LOGIN_BATTLENET_CLASSIFICATION.md` |
 | ROSBOT 启动流程 | `docs/ROSBOT_FLOW.md` |
 | 常量 | `config/constants.py` |
@@ -340,7 +418,14 @@
 | 公共导入 | `providor/common_imports.py` |
 | 日志监控 | `d3utils/log_monitor.py` |
 | 日志解析 | `d3utils/log_analyzer.py` |
-| 窗口监控（D3 状态由窗口检测） | `timers/window_monitor_timer.py` |
+| 窗口监控（调用 d3/battlenet status provider） | `timers/window_monitor_timer.py` |
+| 共享状态刷新流程 | `d3utils/status_provider_common.py` |
+| D3 状态提供者 | `d3utils/d3_status_provider.py` |
+| 战网状态提供者 | `d3utils/battlenet_status_provider.py` |
+| 战网操作（BattlenetOperation） | `d3utils/battlenet_operation.py` |
+| 战网 UI 导出（调试按钮、WindowAnalyzer） | `ui/panels/rosbot_extension_panel.py`（_export_battlenet_ui_to_json） |
+| 战网元素 JSON / 控件说明 | `docs/登陆后的战网元素.json`、`docs/登陆后的战网元素-控件说明.md` |
+| WindowAnalyzer（UI Automation 树导出） | pycore.pyutils.window_analyzer |
 | Login Try 控制器（登陆功能类库） | `controller/login_try_screenshot_controller.py` |
 | 截图提供 | `d3utils/screenshot_provider.py` |
 | 战网窗口截图并保存 | `d3utils/battlenet_capture.py` |
@@ -355,6 +440,7 @@
 | ROSBOT 管理（同目录 exe、k/start） | `d3utils/rosbot_manager.py` |
 | ROSBOT UI 自动化（uiautomation：主档案、Start botting） | `d3utils/rosbot_ui_automation.py` |
 | 共享游戏状态（d3_running/rosbot_running 等） | `share/game_interface_data.py` |
+| 线程注册中心（统一创建/持有线程，主线程仅通过此处引用） | `share/thread_registry.py` |
 | 主要功能线程（宏循环） | `d3utils/main_function_thread.py` |
 | 辅助功能线程（占位/轻量任务） | `d3utils/auxiliary_function_thread.py` |
 | D3/ROSBOT 扩展线程（登录检查、ROSBOT 启动/停止） | `d3utils/d3_extension_thread.py` |

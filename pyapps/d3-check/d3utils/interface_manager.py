@@ -10,9 +10,9 @@ import os
 import sys
 from typing import Optional, Tuple, Dict
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
-from share import get_game_interface_data, BagCoordinates, UIRegion
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from share.game_interface_data import get_game_interface_data, BagCoordinates, UIRegion
 # Import both UI region collectors
 from d3utils.collectors import UIRegionCollectorOptimized, UIRegionCollectorAnchor, BagInfoCollector
 

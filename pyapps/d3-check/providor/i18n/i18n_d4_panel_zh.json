@@ -15,7 +15,11 @@
           "stopped": "已停止",
           "ready": "就绪"
         },
-        "game_status": {
+        "debug_window": {
+        "title": "D4 调试 - 区域检测",
+        "heading": "D4 区域检测调试"
+      },
+      "game_status": {
           "title": "游戏状态",
           "current_map": "当前地图",
           "game_state": "游戏状态",

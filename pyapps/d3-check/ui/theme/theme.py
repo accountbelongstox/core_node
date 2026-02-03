@@ -168,24 +168,28 @@ class UITheme:
         except tk.TclError as e:
             print(f"[Theme] Failed to set clam theme: {e}")
 
-        # Configure Notebook style (scaled to 60%)
-        # IMPORTANT: Explicitly set all colors to override clam defaults
+        # Configure Notebook style (scaled to 60%); tabmargins bottom=1 to align with Dark.TNotebook
         style.configure('TNotebook',
                        background=cls.get_color('bg_primary'),
                        borderwidth=0,
-                       tabmargins=[1, 3, 1, 0])  # [2,5,2,0] * 0.6 = [1.2,3,1.2,0] -> [1,3,1,0]
+                       tabmargins=[1, 3, 1, 1])
 
-        # Configure Tab style - unselected: high contrast (tab_unselected_bg/fg)
+        # Configure Tab style - unselected: high contrast; padding [L,T,R,B] equal top/bottom for same height
         style.configure('TNotebook.Tab',
                        background=cls.get_color('tab_unselected_bg'),
                        foreground=cls.get_color('tab_unselected_fg'),
                        bordercolor=cls.get_color('tab_unselected_bg'),
                        lightcolor=cls.get_color('tab_unselected_bg'),
                        darkcolor=cls.get_color('tab_unselected_bg'),
-                       padding=[12, 6],
+                       padding=[12, 6, 12, 6],
+                       borderwidth=0,
+                       focusthickness=0,
+                       focuscolor=cls.get_color('tab_unselected_bg'),
+                       shiftrelief=0,
+                       relief='flat',
                        font=cls.get_font('button'))
 
-        # map(): selected/active override; !selected forces unselected contrast on all platforms
+        # map(): selected expand [0,0,0,6] so selected tab same height as unselected (clam default gap)
         style.map('TNotebook.Tab',
                  background=[('selected', cls.get_color('tab_selected_bg')),
                            ('active', cls.get_color('state_hover')),
@@ -201,7 +205,8 @@ class UITheme:
                            ('!selected', cls.get_color('tab_unselected_bg'))],
                  darkcolor=[('selected', cls.get_color('tab_selected_bg')),
                           ('active', cls.get_color('state_hover')),
-                          ('!selected', cls.get_color('tab_unselected_bg'))])
+                          ('!selected', cls.get_color('tab_unselected_bg'))],
+                 expand=[('selected', [0, 0, 0, 6]), ('!selected', [0, 0, 0, 0])])
 
         # Configure Frame style
         style.configure('TFrame', background=cls.get_color('bg_primary'))

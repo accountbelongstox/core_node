@@ -62,7 +62,7 @@ class MenuBar:
             import sys
             import os
 
-            from providor.common_imports import ColorPrint
+            from pycore.pyfoundations.color_print import ColorPrint
             ColorPrint.red(f"[MenuBar] Failed to switch language: {e}")
 
     def update_labels(self):

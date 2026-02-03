@@ -11,16 +11,15 @@ import queue
 import threading
 from typing import Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
+from share.game_interface_data import get_game_interface_data
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
-from d3utils.task_thread_manager import set_task_status, TaskStatus
+from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
-from d3utils.event_center import trigger_extension_rosbot_started, trigger_extension_rosbot_stopped
+from d3utils.event_signals import trigger_extension_rosbot_started, trigger_extension_rosbot_stopped
 
 
-CMD_START_ROSBOT = "start_rosbot"
-CMD_STOP_ROSBOT = "stop_rosbot"
-CMD_SHUTDOWN = "shutdown"
+from providor.app_constants import CMD_START_ROSBOT, CMD_STOP_ROSBOT, CMD_SHUTDOWN
 
 
 class D3ExtensionThread(threading.Thread):
@@ -62,6 +61,9 @@ class D3ExtensionThread(threading.Thread):
         ColorPrint.yellow("[D3ExtensionThread] Stopped")
 
     def _do_start_rosbot(self) -> None:
+        if not get_game_interface_data().rosbot_flow_master_enabled:
+            trigger_extension_rosbot_started(False, None)
+            return
         result = False
         err = None
         try:
@@ -72,7 +74,7 @@ class D3ExtensionThread(threading.Thread):
 
     def _do_stop_rosbot(self) -> None:
         try:
-            set_task_status("rosbot_task", TaskStatus.DISABLED)
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             rosbot_processor.stop_rosbot_task()
         except Exception as e:
             ColorPrint.red(f"[D3ExtensionThread] Stop error: {e}")

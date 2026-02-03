@@ -13,29 +13,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Third-party imports
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
-from providor.common_imports import ColorPrint, ImageAnnotator
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
 
 # Local imports
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
-from share import get_game_interface_data, UIRegion
-from providor.providor_index import (
-    DIABLO_III_WINDOW_TITLES,
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    DEBUG,
-    TMP_DIR
-)
+from share.game_interface_data import get_game_interface_data, UIRegion
+from providor.app_constants import STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT, DEBUG, TMP_DIR
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
 
 class UIRegionCollectorOptimized:
     """

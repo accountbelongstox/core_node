@@ -15,7 +15,7 @@ import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.d3u_common.image_annotator_helper import (
     create_annotator,
     draw_grid_overlay,
@@ -29,7 +29,7 @@ from share.game_interface_data import (
     SEPARATOR_SCAN_WIDTH_PERCENT
 )
 from providor.providor_index import CONFIG
-from share import get_global_scale
+from share.game_interface_data import get_global_scale
 
 class BagLayoutDetector:
     """

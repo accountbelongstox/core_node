@@ -5,19 +5,19 @@ Red Portal Detector for Diablo 4
 Detects red portals using color matching with sliding window approach
 
 Usage:
-    from d4utils.red_portal_detector import detect_red_portal
+    from d4utils.red_portal_detector import d4_detect_red_portal
 
     # From file path
-    result = detect_red_portal("screenshot.png")
+    result = d4_detect_red_portal("screenshot.png")
 
     # From PIL Image
     from PIL import Image
     img = Image.open("screenshot.png")
-    result = detect_red_portal(img)
+    result = d4_detect_red_portal(img)
 
     # From numpy array
     img = cv2.imread("screenshot.png")
-    result = detect_red_portal(img)
+    result = d4_detect_red_portal(img)
 
 Returns:
     Tuple[int, int, int, int] | None - (x, y, width, height) if portal found, None otherwise
@@ -34,9 +34,8 @@ numpy = get_third_package_numpy()
 np = numpy
 Image = get_third_package_PIL_Image()
 
-# Add parent directory to path for imports
-current_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from share.game_interface_data import (
     D4StandardCoordinates,
@@ -252,7 +251,7 @@ def _find_portal_region(mask: np.ndarray, coords: D4StandardCoordinates, current
     return None
 
 
-def detect_red_portal(image_input: Union[str, Image.Image, np.ndarray]) -> Optional[Tuple[int, int, int, int]]:
+def d4_detect_red_portal(image_input: Union[str, Image.Image, np.ndarray]) -> Optional[Tuple[int, int, int, int]]:
     """
     Detect red portal in Diablo 4 screenshot
 
@@ -294,7 +293,7 @@ if __name__ == "__main__":
     image_path = sys.argv[1]
 
     try:
-        result = detect_red_portal(image_path)
+        result = d4_detect_red_portal(image_path)
 
         if result:
             x, y, w, h = result

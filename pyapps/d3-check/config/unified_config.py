@@ -13,24 +13,22 @@ from typing import Dict, List, Optional, Any, Union, Callable
 from enum import Enum
 from pathlib import Path
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 
 # =============================================================================
 # CONSTANTS AND ENUMS
 # =============================================================================
-
-# Grid Configuration Constants
-GRID_ROWS = 18
-GRID_COLS = 18
-TOTAL_GRID_CELLS = GRID_ROWS * GRID_COLS
-GRID_TYPE_NINE = '9grid'
-GRID_TYPE_CUSTOM = '18x18grid'
-GRID_DESCRIPTION = f"{GRID_ROWS} rows x {GRID_COLS} columns = {TOTAL_GRID_CELLS} cells"
-
-# Skill Configuration Constants
-COMMON_KEY_OPTIONS = ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P']
-COMMON_STRATEGY_OPTIONS = ['continuous', 'single', 'hold']
+from providor.app_constants import (
+    GRID_ROWS,
+    GRID_COLS,
+    TOTAL_GRID_CELLS,
+    GRID_TYPE_NINE,
+    GRID_TYPE_CUSTOM,
+    GRID_DESCRIPTION,
+    COMMON_KEY_OPTIONS,
+    COMMON_STRATEGY_OPTIONS,
+)
 
 DEFAULT_SKILL_CONFIG = {
     'key_options': COMMON_KEY_OPTIONS,
@@ -448,16 +446,5 @@ def reload_all_configs():
 # For backward compatibility with existing code
 config_manager = get_config_manager()
 
-# Grid configuration backward compatibility
-GRID_ROWS = GRID_ROWS
-GRID_COLS = GRID_COLS
-TOTAL_GRID_CELLS = TOTAL_GRID_CELLS
-GRID_TYPE_NINE = GRID_TYPE_NINE
-GRID_TYPE_CUSTOM = GRID_TYPE_CUSTOM
-GRID_DESCRIPTION = GRID_DESCRIPTION
-
-# Skill constants backward compatibility
-COMMON_KEY_OPTIONS = COMMON_KEY_OPTIONS
-COMMON_STRATEGY_OPTIONS = COMMON_STRATEGY_OPTIONS
 DEFAULT_SKILL_CONFIG = DEFAULT_SKILL_CONFIG
 SPECIAL_SKILL_CONFIGS = SPECIAL_SKILL_CONFIGS

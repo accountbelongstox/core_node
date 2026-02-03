@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D4 Extension Thread (D4功能)
+D4 Extension Thread (D4 extension).
 Dedicated thread for D4 controller: runs d4_controller.process() every 3s when
 exp_farming or debug_window. Replaces timer_manager registration for d4_controller.
 """
@@ -10,11 +10,11 @@ import threading
 import time
 from typing import Optional
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from controller.d4_controller import get_d4_controller
 from share.game_interface_data import get_d4_interface_data
 
-D4_TICK_INTERVAL = 3.0
+from providor.app_constants import D4_TICK_INTERVAL
 
 
 class D4ExtensionThread(threading.Thread):

@@ -12,9 +12,9 @@ from pathlib import Path
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
-from d4utils.black_screen_detector import is_black_screen
+from d4utils.black_screen_detector import d4_is_black_screen
 
 
 class MapSwitchDetector:
@@ -69,7 +69,7 @@ class MapSwitchDetector:
                 return False
 
             # Check if the Map Name region is black
-            is_currently_black = is_black_screen(map_name_image)
+            is_currently_black = d4_is_black_screen(map_name_image)
 
             # State machine transitions
             if is_currently_black and not self._previous_is_black:

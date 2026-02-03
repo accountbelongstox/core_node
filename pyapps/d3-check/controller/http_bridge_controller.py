@@ -14,28 +14,31 @@ from typing import Dict, Any
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint, ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
+from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
 
 
 class HTTPBridgeController:
     """HTTP Bridge Controller for D3Check"""
 
-    def __init__(self, host: str = '127.0.0.1', port: int = 8765):
+    def __init__(self, host: str = '127.0.0.1', port: int = 8765, macro_controller: D3MacroController = None):
         """
         Initialize HTTP bridge controller
 
         Args:
             host: Server host address
             port: Server port number
+            macro_controller: Optional shared D3MacroController; if None, creates one (for bridge-only mode).
         """
         self.logger = logging.getLogger(__name__)
         self.host = host
         self.port = port
 
-        self.macro_controller = D3MacroController()
+        self.macro_controller = macro_controller if macro_controller is not None else D3MacroController()
 
         self.bridge = HTTPBridgeServer(host, port)
 
@@ -57,6 +60,10 @@ class HTTPBridgeController:
         self.bridge.register_post_handler('/api/config/update', self._handle_config_update)
         self.bridge.register_post_handler('/api/config/switch', self._handle_config_switch)
         self.bridge.register_post_handler('/api/config/save', self._handle_config_save)
+        self.bridge.register_post_handler('/api/login-try/oauth-done', self._handle_login_try_oauth_done)
+        self.bridge.register_get_handler('/api/login-try/oauth-done', self._handle_login_try_oauth_done_get)
+        self.bridge.register_get_handler('/api/login-try/oauth-ping', self._handle_login_try_oauth_ping)
+        self.bridge.register_get_handler('/api/login-try/oauth-step1-received', self._handle_login_try_oauth_step1_received)
 
         ColorPrint.green("[HTTPBridgeController] All handlers registered")
 
@@ -180,6 +187,40 @@ class HTTPBridgeController:
                 'error': str(e)
             }
 
+    def _handle_login_try_oauth_done(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/login-try/oauth-done: Tampermonkey notifies web 登录 completed."""
+        try:
+            notify_oauth_done()
+            return {'success': True, 'message': 'oauth_done'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_login_try_oauth_done_get(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GET /api/login-try/oauth-done (same)."""
+        try:
+            notify_oauth_done()
+            return {'success': True, 'message': 'oauth_done'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_login_try_oauth_ping(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GET /api/login-try/oauth-ping: Tampermonkey health ping (no oauth_done). UI shows 油猴脚本 已连接."""
+        try:
+            notify_ping()
+            return {'success': True, 'message': 'pong'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_login_try_oauth_step1_received(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GET /api/login-try/oauth-step1-received: flow/end page (account.battlenet.com.cn) queries whether step1 (oauth-done) was just submitted; consumed once."""
+        try:
+            received, at = get_and_consume_step1_received()
+            if received and at is not None:
+                return {'success': True, 'received': True, 'at': at}
+            return {'success': True, 'received': False}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
     def start(self):
         """Start HTTP bridge server"""
         self.bridge.start()
@@ -195,6 +236,3 @@ class HTTPBridgeController:
         return self.bridge.is_running()
 
 
-def get_http_bridge_controller():
-    """Get global HTTP bridge controller instance"""
-    return ENCYCLOPEDIA.get('http_bridge_controller')

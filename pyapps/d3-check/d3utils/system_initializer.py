@@ -8,14 +8,15 @@ Handles system-wide initialization including configuration, hotkeys, and signal 
 import sys
 import os
 import signal
+import threading
 from typing import Optional
 
-# Add project paths
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint, HotkeyListener
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.hotkey_listener import HotkeyListener
 from providor.providor_index import initialize_config
 
 # Import static global modules
@@ -24,9 +25,10 @@ import timers.window_monitor_timer as window_monitor
 from d3utils.shutdown_manager import is_shutdown_requested, register_hotkey_listener
 from d3utils import event_center
 import d3utils.log_monitor as log_monitor_module
-from d3utils.task_thread_manager import get_task_manager, register_task, start_all_tasks, TaskStatus
+from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
+from share.thread_registry import get_thread_registry
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -94,9 +96,10 @@ class SystemInitializer:
             return False
 
     def _on_ctrl_c_pressed(self):
-        """Handle Ctrl+C hotkey press: forward via event center to main thread."""
-        if not is_shutdown_requested():
-            ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
+        """Handle Ctrl+C hotkey press: forward via event center to main thread only once."""
+        if is_shutdown_requested():
+            return
+        ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
         event_center.trigger_app_exit()
 
     def initialize_configuration(self):
@@ -113,13 +116,20 @@ class SystemInitializer:
 
     def initialize_timer_system(self):
         """
-        Initialize timer system with window monitoring
+        Initialize timer system.
 
-        Note: Timer system can only be initialized once.
-        Multiple calls will be ignored.
+        Two drivers:
+        - timer_manager: single-thread loop; task log_monitor (1.5s). State detection (window_monitor)
+          is NOT registered here; when UI Start is used, status is updated by tick-driven flow (rosbot_task).
+          Loop started after UI ready (start_timer_loop_after_ui_ready).
+        - task_thread_manager: one thread per task; rosbot_task (1s) drives ROSBOT flow (ROSBOT_FLOW.md)
+          and, when flow master on, refreshes D3/Battle.net state every 2s for status UI.
+          Task threads start here; rosbot_task enabled/disabled by flow master (start/stop).
+
+        Note: Timer system can only be initialized once. Multiple calls are ignored.
 
         Returns:
-            True if initialized successfully or already initialized, False on error
+            True if initialized successfully or already initialized, False on error.
         """
         if self.timer_initialized:
             ColorPrint.yellow("[INIT] Timer system already initialized")
@@ -131,11 +141,7 @@ class SystemInitializer:
             # Initialize task thread manager
             self._init_task_thread_manager()
 
-            # Initialize window monitor and register with timer manager (static global)
-            window_monitor.initialize_and_register(
-                interval=10.0,  # Check every 10 seconds
-                enabled=True
-            )
+            # State detection (window_monitor) is NOT registered with timer; UI Start uses tick-driven flow for status updates (rosbot_task 2s tick).
 
             # Register log monitor with timer manager (static global, always enabled with interceptor)
             timer_manager.register_task(
@@ -150,11 +156,10 @@ class SystemInitializer:
 
             # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
 
-            # Start timer manager (static global)
-            timer_manager.start()
+            # Do NOT start timer loop here: start after UI is ready so status UI receives updates only when widgets exist (see start_timer_loop_after_ui_ready).
 
             self.timer_initialized = True
-            ColorPrint.green("[INIT] Timer system initialized successfully")
+            ColorPrint.green("[INIT] Timer system initialized (loop will start after UI ready)")
             return True
 
         except Exception as e:
@@ -166,15 +171,15 @@ class SystemInitializer:
         try:
             ColorPrint.blue("[INIT] Initializing task thread manager...")
             
-            # Register ROSBOT task
-            register_task(
+            # ROSBOT flow driver: 1s tick (task_thread_manager); process_rosbot_task uses % for 2s flow tick when flow master on (ROSBOT_FLOW.md)
+            get_task_manager().register_task(
                 name='rosbot_task',
                 task_func=rosbot_processor.process_rosbot_task,
-                interval=1.0  # Check every second
+                interval=1.0
             )
             
             # Start all task threads
-            start_all_tasks()
+            get_task_manager().start_all()
             
             ColorPrint.green("[INIT] Task thread manager initialized successfully")
             
@@ -225,6 +230,10 @@ class SystemInitializer:
     def is_shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""
         return is_shutdown_requested()
+
+    def start_timer_loop_after_ui_ready(self):
+        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner)."""
+        get_thread_registry().start_timer_loop_after_ui_ready()
 
     def register_ui_instance(self, ui_instance):
         """

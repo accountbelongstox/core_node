@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Main Function Thread (主要功能)
+Main Function Thread (main function / macro).
 Dedicated thread for macro loop: skill execution when started.
-Commands: start_macro, stop_macro, shutdown. Config read with CONFIG_LOCK.
+Commands: start_macro, stop_macro, shutdown. Config read via get_config_value_safe (queue).
 """
 
 import logging
@@ -12,12 +12,9 @@ import threading
 import time
 from typing import Callable, Optional
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import CONFIG, CONFIG_LOCK
-
-CMD_START_MACRO = "start_macro"
-CMD_STOP_MACRO = "stop_macro"
-CMD_SHUTDOWN = "shutdown"
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.providor_index import get_config_value_safe
+from providor.app_constants import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
 
 
 class MainFunctionThread(threading.Thread):
@@ -89,11 +86,10 @@ class MainFunctionThread(threading.Thread):
     def _macro_loop_once(self) -> None:
         """One iteration of macro loop (skill execution)."""
         try:
-            with CONFIG_LOCK:
-                skill_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(
-                    self._current_skill_config, {}
-                )
-                auxiliary_config = CONFIG.get("macro_configs", {}).get("auxiliary_config", {})
+            skill_config = get_config_value_safe(
+                f"macro_configs.skill_configs.{self._current_skill_config}", {}
+            ) or {}
+            auxiliary_config = get_config_value_safe("macro_configs.auxiliary_config") or {}
             config = {**skill_config, **auxiliary_config}
             skills = config.get("skills", {})
 

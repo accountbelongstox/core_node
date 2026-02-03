@@ -12,11 +12,18 @@ from pycore.pyfoundations.third_party import (
     get_third_package_win32gui,
     get_third_package_win32con,
 )
-from providor.common_imports import ColorPrint
-from providor.providor_index import TMP_DIR
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import (
+    ROSBOT_UI_DEBUG_DIR,
+    TAB_MAIN_PROFILE_NAMES,
+    START_BUTTON_NAMES,
+    START_BUTTON_AUTOMATION_ID,
+    UI_OPERATION_DELAY,
+    SERVER_WAIT_SECONDS,
+    MAIN_UI_POLL_TIMEOUT_SECONDS,
+    MAIN_UI_POLL_INTERVAL_SECONDS,
+)
 from d3utils.rosbot_manager import get_rosbot_manager
-
-ROSBOT_UI_DEBUG_DIR = TMP_DIR / "debug"
 
 # Lazy load Windows-only packages
 def _auto():
@@ -29,17 +36,6 @@ def _win32gui():
 
 def _win32con():
     return get_third_package_win32con()
-
-
-# Tab name for main profile (CN/TW/EN); Start button name contains "Start botting"
-TAB_MAIN_PROFILE_NAMES = ("主档案", "主檔案", "Main Profile")
-START_BUTTON_NAMES = ("Start botting", "Start botting!", "開始掛機", "开始挂机")
-START_BUTTON_AUTOMATION_ID = "btnStart"
-UI_OPERATION_DELAY = 1.0
-# Original _obsolete_rosbot_manager: after finding new other exe, wait 10s for server connection then analyze
-SERVER_WAIT_SECONDS = 10
-MAIN_UI_POLL_TIMEOUT_SECONDS = 50
-MAIN_UI_POLL_INTERVAL_SECONDS = 2
 
 
 class _ComInitializer:

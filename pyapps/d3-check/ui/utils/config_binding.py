@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_safe
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.i18n_manager import i18n_manager
 from .tk_variables import var_str, var_bool
 

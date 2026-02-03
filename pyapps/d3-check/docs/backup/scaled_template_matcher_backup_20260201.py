@@ -43,7 +43,8 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint, ImageMatcher
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_matcher import ImageMatcher
 from providor.providor_index import (
     D3_TEMPLATE_CONFIGS,
     D4_TEMPLATE_CONFIGS,
@@ -57,7 +58,7 @@ from providor.providor_index import (
     get_template_match_method,
     get_adjusted_threshold
 )
-from share import get_global_scale
+from share.game_interface_data import get_global_scale
 
 class ScaledTemplateMatcher:
     """
@@ -430,6 +431,56 @@ class ScaledTemplateMatcher:
                 "total_matches": 0,
                 "matches": []
             }
+
+    def match_template_auto_scale(
+        self,
+        target_image: Union[str, Path, Image.Image, np.ndarray],
+        template_name: str,
+    ) -> Dict:
+        """
+        Match a single template with scale derived from target image size (no global scale).
+        Scale = (target_width / STANDARD_WIDTH, target_height / STANDARD_HEIGHT). Used when
+        target is a window/screenshot whose size determines the scale (e.g. D3 status provider).
+        """
+        target_img_array = self._load_target_image(target_image)
+        if target_img_array is None:
+            return {"total_matches": 0, "matches": [], "error": "Failed to load target image"}
+        h, w = target_img_array.shape[:2]
+        if self.use_d4_templates:
+            std_w, std_h = D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
+        else:
+            std_w, std_h = D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
+        scale_x = w / std_w
+        scale_y = h / std_h
+        ColorPrint.gray(f"[ScaledMatcher] Auto scale from image {w}x{h}: ({scale_x:.4f}, {scale_y:.4f})")
+        scaled_template_img = self._get_scaled_template_image(
+            template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False
+        )
+        if scaled_template_img is None:
+            return {"total_matches": 0, "matches": [], "error": "Failed to scale template"}
+        if self.use_d4_templates:
+            template_config = self.template_configs.get(template_name)
+            if not template_config:
+                return {"total_matches": 0, "matches": [], "error": f"D4 template not found: {template_name}"}
+            threshold = template_config["threshold"]
+            use_alpha = template_config.get("use_alpha", False)
+            match_method = template_config.get("match_method", "ORB")
+        else:
+            threshold = get_template_threshold(template_name)
+            use_alpha = get_template_use_alpha(template_name)
+            match_method = get_template_match_method(template_name)
+        matcher = self._get_matcher(match_method)
+        match_result = matcher.match_single_template(
+            target_image=target_img_array,
+            template_image=scaled_template_img,
+            template_name=template_name,
+            custom_threshold=threshold,
+            use_alpha=use_alpha,
+            detection_method=match_method
+        )
+        if match_result and match_result.get("success"):
+            return {"total_matches": 1, "matches": [match_result]}
+        return {"total_matches": 0, "matches": []}
 
     def match_multiple_templates(
         self,

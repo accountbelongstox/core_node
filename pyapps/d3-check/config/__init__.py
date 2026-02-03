@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 Configuration Package
-Unified configuration management for D3-Check application
+Unified configuration management for D3-Check application.
+
+Prefer direct imports from submodules (no secondary encapsulation):
+  from config.unified_config import get_config_manager, get_skill_config, ...
+  from config.grid_config import get_grid_config, update_grid_config
+  Literal constants (GRID_ROWS, etc.) from providor.app_constants.
 """
 
 # Import from unified config

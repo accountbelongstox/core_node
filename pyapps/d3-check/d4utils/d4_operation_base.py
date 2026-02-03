@@ -13,12 +13,11 @@ from typing import Optional, Tuple
 from abc import ABC, abstractmethod
 import pyautogui
 
-# Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path, get_project_root
+ensure_d3_check_in_sys_path()
 
 # Add pycore path
-pycore_path = Path(current_dir).parent / "pycore"
+pycore_path = get_project_root().parent / "pycore"
 sys.path.insert(0, str(pycore_path))
 
 from pycore.pyutils.click_handler import ClickHandler

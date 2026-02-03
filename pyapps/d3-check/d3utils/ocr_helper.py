@@ -7,7 +7,7 @@ OCR helper: shared keyword-in-image check.
 from pathlib import Path
 from typing import Optional, Sequence, Union, List, Dict, Any, Tuple
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 # Use third-party manager singleton: load CnOCR engine once (pycore.pyfoundations.third_party).
 def _get_default_engine():

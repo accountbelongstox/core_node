@@ -14,7 +14,7 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.insert(0, project_root)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.interface_manager import D3InterfaceManager
 from share.game_interface_data import get_game_interface_data
 from providor.providor_index import (
@@ -23,7 +23,8 @@ from providor.providor_index import (
     should_stop_assistant,
     reset_assistant_state
 )
-from controller.ctl_func import get_blacksmith_handler, get_kanai_cube_handler
+from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
+from controller.ctl_func.kanai_cube_handler import get_kanai_cube_handler
 
 class GameAssistantController:
     """

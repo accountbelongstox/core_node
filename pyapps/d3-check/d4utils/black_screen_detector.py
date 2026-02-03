@@ -16,13 +16,13 @@ np = numpy
 Image = get_third_package_PIL_Image()
 
 # Add project paths
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
-class BlackScreenDetector:
+class D4_BlackScreenDetector:
     """
     Detects if an image region is completely black (±10% brightness tolerance)
 
@@ -65,7 +65,7 @@ class BlackScreenDetector:
 
             # Ensure we have a valid image
             if img_array is None or img_array.size == 0:
-                ColorPrint.yellow("[BlackScreenDetector] Invalid image provided")
+                ColorPrint.yellow("[D4_BlackScreenDetector] Invalid image provided")
                 return False
 
             # Handle grayscale images (2D array)
@@ -78,7 +78,7 @@ class BlackScreenDetector:
                 # A pixel is black if R <= threshold AND G <= threshold AND B <= threshold
                 black_mask = np.all(img_array <= threshold, axis=2)
             else:
-                ColorPrint.yellow(f"[BlackScreenDetector] Unexpected image shape: {img_array.shape}")
+                ColorPrint.yellow(f"[D4_BlackScreenDetector] Unexpected image shape: {img_array.shape}")
                 return False
 
             # Calculate percentage of black pixels
@@ -91,12 +91,12 @@ class BlackScreenDetector:
 
             # Debug output
             if is_black:
-                ColorPrint.blue(f"[BlackScreenDetector] Black screen detected: {black_ratio*100:.1f}% black pixels")
+                ColorPrint.blue(f"[D4_BlackScreenDetector] Black screen detected: {black_ratio*100:.1f}% black pixels")
 
             return is_black
 
         except Exception as e:
-            ColorPrint.red(f"[BlackScreenDetector] Error detecting black screen: {e}")
+            ColorPrint.red(f"[D4_BlackScreenDetector] Error detecting black screen: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -139,17 +139,17 @@ class BlackScreenDetector:
             }
 
         except Exception as e:
-            ColorPrint.red(f"[BlackScreenDetector] Error getting brightness stats: {e}")
+            ColorPrint.red(f"[D4_BlackScreenDetector] Error getting brightness stats: {e}")
             return {}
 
 
 # Convenience function for easy import
-def is_black_screen(
+def d4_is_black_screen(
     image: Union[Image.Image, np.ndarray],
-    threshold: int = BlackScreenDetector.BLACK_THRESHOLD
+    threshold: int = D4_BlackScreenDetector.BLACK_THRESHOLD
 ) -> bool:
     """
-    Check if an image is completely black
+    Check if an image is completely black (D4 map switching detection).
 
     Args:
         image: PIL Image or numpy array
@@ -158,7 +158,7 @@ def is_black_screen(
     Returns:
         True if black screen detected, False otherwise
     """
-    return BlackScreenDetector.is_black_screen(image, threshold=threshold)
+    return D4_BlackScreenDetector.is_black_screen(image, threshold=threshold)
 
 
 if __name__ == "__main__":
@@ -168,22 +168,22 @@ if __name__ == "__main__":
 
     # Test 1: Pure black image
     black_img = Image.new('RGB', (100, 100), color=(0, 0, 0))
-    result = is_black_screen(black_img)
+    result = d4_is_black_screen(black_img)
     print(f"Pure black (0,0,0): {result} (expected: True)")
 
     # Test 2: Near black image (within 10% tolerance)
     near_black_img = Image.new('RGB', (100, 100), color=(20, 20, 20))
-    result = is_black_screen(near_black_img)
+    result = d4_is_black_screen(near_black_img)
     print(f"Near black (20,20,20): {result} (expected: True)")
 
     # Test 3: Dark gray (outside tolerance)
     dark_gray_img = Image.new('RGB', (100, 100), color=(50, 50, 50))
-    result = is_black_screen(dark_gray_img)
+    result = d4_is_black_screen(dark_gray_img)
     print(f"Dark gray (50,50,50): {result} (expected: False)")
 
     # Test 4: White image
     white_img = Image.new('RGB', (100, 100), color=(255, 255, 255))
-    result = is_black_screen(white_img)
+    result = d4_is_black_screen(white_img)
     print(f"White (255,255,255): {result} (expected: False)")
 
     # Test 5: Mixed image (90% black, 10% white)
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     for i in range(10):
         for j in range(10):
             pixels[i, j] = (255, 255, 255)
-    result = is_black_screen(mixed_img)
+    result = d4_is_black_screen(mixed_img)
     print(f"90% black, 10% white: {result} (expected: False, only 90% < 95%)")
 
     print("=" * 50)

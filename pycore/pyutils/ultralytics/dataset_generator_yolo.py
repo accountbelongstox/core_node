@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
+np = get_third_package_numpy()
 
 # Import enhancer utilities (used in direct patch mode)
 try:

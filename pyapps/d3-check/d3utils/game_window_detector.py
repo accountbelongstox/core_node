@@ -12,14 +12,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from providor.providor_index import (
     get_template_path,
     get_template_threshold,

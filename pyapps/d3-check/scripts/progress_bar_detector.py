@@ -35,7 +35,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 # Target color group for HP/Progress bars (BGR format)

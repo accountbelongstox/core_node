@@ -16,14 +16,12 @@ from .region_detector import RegionDetector
 from .image_annotator import ImageAnnotator
 from .exp_farming import ExpFarmingManager
 from .ui_status_updater import UIStatusUpdater, get_ui_status_updater
-from .events import get_event_manager
 
 __all__ = [
     'ScreenshotHandler',
-    'RegionDetector', 
+    'RegionDetector',
     'ImageAnnotator',
     'ExpFarmingManager',
     'UIStatusUpdater',
     'get_ui_status_updater',
-    'get_event_manager'
 ]

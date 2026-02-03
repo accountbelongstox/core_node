@@ -13,12 +13,9 @@ from pathlib import Path
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
-from share.game_interface_data import (
-    get_d4_interface_data,
-    D4_SCREENSHOT_DIR,
-    D4_ANNOTATED_DIR
-)
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.app_constants import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
+from share.game_interface_data import get_d4_interface_data
 # D4State functionality now integrated into D4InterfaceData
 from .screenshot_handler import ScreenshotHandler
 from .region_detector import RegionDetector

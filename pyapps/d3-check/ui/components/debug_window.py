@@ -16,13 +16,14 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_th
 Image = get_third_package_PIL_Image()
 ImageTk = get_third_package_PIL_ImageTk()
 
-# Add project paths
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from ui.unified_styles import UnifiedStyles
 from ui.utils.app_root import get_app_root
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
+from d3utils.i18n_manager import i18n_manager
 
 
 class DebugWindow:
@@ -41,7 +42,7 @@ class DebugWindow:
         # Create window (reuse app root to avoid extra blank "Tk" window)
         root = parent or get_app_root()
         self.window = tk.Toplevel(root) if root else tk.Tk()
-        self.window.title("D4 Debug - Region Detection")
+        self.window.title(i18n_manager.get_ui_text("d4_panel.debug_window.title"))
         self.window.geometry("680x1000+50+50")  # 680x1000px, positioned at left side
         self.window.resizable(False, False)
         self.window.configure(bg=UnifiedStyles.COLORS['bg_primary'])
@@ -86,7 +87,7 @@ class DebugWindow:
 
         # Title
         title_label = tk.Label(scrollable_frame,
-                              text="D4 Region Detection Debug",
+                              text=i18n_manager.get_ui_text("d4_panel.debug_window.heading"),
                               bg=UnifiedStyles.COLORS['bg_primary'],
                               fg=UnifiedStyles.COLORS['text_primary'],
                               font=UnifiedStyles.FONTS['heading'])
