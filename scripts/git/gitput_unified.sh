@@ -101,6 +101,8 @@ export COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
+GITHUB_HOST_REFRESH_SH="$SCRIPT_PATH/github_host_refresh.sh"
+[ -f "$GITHUB_HOST_REFRESH_SH" ] && . "$GITHUB_HOST_REFRESH_SH"
 # Initialize skip encrypt cache
 init_skip_encrypt_cache() {
     if [ ! -d "$SKIP_ENCRYPT_CACHE_DIR" ]; then
@@ -1568,6 +1570,15 @@ main() {
             write_color_text "✓ Force push enabled for ALL targets" "Red"
         else
             write_color_text "✓ Normal push mode (with pull) for ALL targets" "Green"
+        fi
+        write_color_text "" "White"
+
+        write_color_text "是否刷新 GitHub HOST? [y/N]: " "Yellow"
+        read -r refresh_host_choice
+        if [[ "$refresh_host_choice" =~ ^[Yy]$ ]]; then
+            if type invoke_github_host_refresh >/dev/null 2>&1; then
+                invoke_github_host_refresh write_color_text
+            fi
         fi
         write_color_text "" "White"
     fi

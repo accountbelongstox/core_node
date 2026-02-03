@@ -40,6 +40,10 @@ $script:ForcePushChoice = $null
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
+$githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
+if (Test-Path $githubHostRefreshScript) {
+    . $githubHostRefreshScript
+}
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {
@@ -1043,8 +1047,18 @@ try {
             Write-ColorText "✓ Normal push mode (with pull) for ALL targets" -ForegroundColor Green
         }
         Write-ColorText "" -ForegroundColor White
+
+        Write-ColorText "是否刷新 GitHub HOST? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshHostChoice = Read-Host
+        if ($refreshHostChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GitHubHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GitHubHostRefresh -WriteColorText $refreshScriptBlock
+            }
+        }
+        Write-ColorText "" -ForegroundColor White
     }
-    
+
     $allSuccess = $true
     
     foreach ($target in $targets) {
