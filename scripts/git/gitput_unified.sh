@@ -103,6 +103,8 @@ SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
 GITHUB_HOST_REFRESH_SH="$SCRIPT_PATH/github_host_refresh.sh"
 [ -f "$GITHUB_HOST_REFRESH_SH" ] && . "$GITHUB_HOST_REFRESH_SH"
+GITEE_HOST_REFRESH_SH="$SCRIPT_PATH/gitee_host_refresh.sh"
+[ -f "$GITEE_HOST_REFRESH_SH" ] && . "$GITEE_HOST_REFRESH_SH"
 # Initialize skip encrypt cache
 init_skip_encrypt_cache() {
     if [ ! -d "$SKIP_ENCRYPT_CACHE_DIR" ]; then
@@ -1578,6 +1580,15 @@ main() {
         if [[ "$refresh_host_choice" =~ ^[Yy]$ ]]; then
             if type invoke_github_host_refresh >/dev/null 2>&1; then
                 invoke_github_host_refresh write_color_text
+            fi
+        fi
+        write_color_text "" "White"
+
+        write_color_text "Refresh Gitee HOST? [y/N]: " "Yellow"
+        read -r refresh_gitee_choice
+        if [[ "$refresh_gitee_choice" =~ ^[Yy]$ ]]; then
+            if type invoke_gitee_host_refresh >/dev/null 2>&1; then
+                invoke_gitee_host_refresh write_color_text
             fi
         fi
         write_color_text "" "White"

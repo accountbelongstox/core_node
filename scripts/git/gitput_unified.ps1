@@ -44,6 +44,10 @@ $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
 if (Test-Path $githubHostRefreshScript) {
     . $githubHostRefreshScript
 }
+$giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
+if (Test-Path $giteeHostRefreshScript) {
+    . $giteeHostRefreshScript
+}
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {
@@ -1054,6 +1058,16 @@ try {
             if (Get-Command Invoke-GitHubHostRefresh -ErrorAction SilentlyContinue) {
                 $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
                 Invoke-GitHubHostRefresh -WriteColorText $refreshScriptBlock
+            }
+        }
+        Write-ColorText "" -ForegroundColor White
+
+        Write-ColorText "Refresh Gitee HOST? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshGiteeChoice = Read-Host
+        if ($refreshGiteeChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GiteeHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GiteeHostRefresh -WriteColorText $refreshScriptBlock
             }
         }
         Write-ColorText "" -ForegroundColor White
