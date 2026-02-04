@@ -128,12 +128,12 @@ invoke_github_host_refresh() {
     fi
     if [ ! -s "$DOWNLOAD_FILE" ]; then
         echo "WARNING: Download failed: file is empty." >&2
-        rm -f "$DOWNLOAD_FILE"
+        [ -e "$DOWNLOAD_FILE" ] && rm "$DOWNLOAD_FILE"
         return
     fi
 
     NEW_CONTENT=$(cat "$DOWNLOAD_FILE")
-    rm -f "$DOWNLOAD_FILE"
+    [ -e "$DOWNLOAD_FILE" ] && rm "$DOWNLOAD_FILE"
     DOWNLOAD_FILE=""
 
     if [ -z "$NEW_CONTENT" ] || ! echo "$NEW_CONTENT" | grep -qF "$GITHUB520_MARKER_START" || ! echo "$NEW_CONTENT" | grep -qF "$GITHUB520_MARKER_END"; then

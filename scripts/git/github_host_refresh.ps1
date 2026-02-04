@@ -128,12 +128,12 @@ function Invoke-GitHubHostRefresh {
     $rawSize = (Get-Item $script:DownloadTempFile).Length
     if ($rawSize -eq 0) {
         Write-Warning "Download failed: file is empty."
-        Remove-Item $script:DownloadTempFile -Force -ErrorAction SilentlyContinue
+        Remove-Item $script:DownloadTempFile -ErrorAction SilentlyContinue
         return
     }
 
     $script:NewContent = [System.IO.File]::ReadAllText($script:DownloadTempFile, [System.Text.Encoding]::UTF8).TrimEnd()
-    Remove-Item $script:DownloadTempFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $script:DownloadTempFile -ErrorAction SilentlyContinue
     $script:DownloadTempFile = ""
 
     if (-not ($script:NewContent -match [regex]::Escape($GitHub520MarkerStart) -and $script:NewContent -match [regex]::Escape($GitHub520MarkerEnd))) {

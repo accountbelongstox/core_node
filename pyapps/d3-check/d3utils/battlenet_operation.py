@@ -25,6 +25,7 @@ from providor.app_constants import (
     BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC,
     BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS,
     BATTLE_NET_LOGIN_FAILED_KEYWORDS,
+    BATTLE_NET_CONNECTING_KEYWORDS,
     LOGIN_SCREEN_UI_KEYWORDS_STRICT,
     LOGIN_SCREEN_UI_KEYWORDS,
     LOGIN_WINDOW_AUTOMATION_ID_MARKERS,
@@ -480,15 +481,11 @@ class BattlenetOperation:
         has_netease_name = self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS, controls) is not None
         return (has_agree_id or has_netease_id) and (has_agree_name or has_netease_name)
 
-    def get_dynamic_state(self) -> Tuple[bool, bool, bool, Optional[str]]:
-        """
-        Enumerate UI once and return (on_login_screen, disconnected, normal_available, play_button_name).
-        Maximized and mutually exclusive: check normal first, then disconnected, then on_login; at most one of the three is True.
-        When normal_available, play_button_name is the Play button control name (e.g. "Play", "Playing Now", "开始游戏"); else None.
-        """
+    def get_dynamic_state(self) -> Tuple[bool, bool, bool, Optional[str], bool]:
+        """Return (on_login_screen, disconnected, normal_available, play_button_name, connecting). At most one of on_login/disconnected/normal_available True. connecting=True => main UI visible but not logged in yet."""
         controls = self._enumerate_controls()
         if not controls:
-            return (False, False, False, None)
+            return (False, False, False, None, False)
         d3_tab = self.find_control_by_automation_id("game-nav-btn-D3CN", controls) or self.find_control_by_automation_id("game-nav-btn-D3", controls)
         play_ctrl = (
             self.find_control_by_automation_id("play-btn-main", controls)
@@ -496,18 +493,21 @@ class BattlenetOperation:
             or self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
         )
         has_login_markers = self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS)
-        has_login_name = self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
-        on_login_strict = has_login_markers or has_login_name
+        on_login_strict = has_login_markers or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
         disconnected = self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
-        normal_available = d3_tab is not None and play_ctrl is not None and not has_login_markers
+        has_main_ui = d3_tab is not None and play_ctrl is not None and not has_login_markers
+        connecting = self.find_control_by_name(BATTLE_NET_CONNECTING_KEYWORDS, controls) is not None
+        normal_available = has_main_ui and not connecting
         play_button_name = (play_ctrl.get("name") or "").strip() or None if play_ctrl else None
         if normal_available:
-            return (False, False, True, play_button_name or "Play")
+            return (False, False, True, play_button_name or "Play", False)
+        if has_main_ui and connecting:
+            return (False, False, False, None, True)
         if disconnected:
-            return (False, True, False, None)
+            return (False, True, False, None, False)
         if on_login_strict:
-            return (True, False, False, None)
-        return (False, False, False, None)
+            return (True, False, False, None, False)
+        return (False, False, False, None, False)
 
     def save_ui_elements_snapshot(self, node_name: str, reason: str) -> Optional[Path]:
         """

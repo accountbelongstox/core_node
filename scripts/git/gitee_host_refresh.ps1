@@ -50,17 +50,33 @@ function Set-GiteeCacheIp {
     param([string]$Ip)
     $dir = Split-Path $GiteeCacheFile -Parent
     if (-not (Test-Path $dir)) {
-        New-Item -Path $dir -ItemType Directory -Force | Out-Null
+        New-Item -Path $dir -ItemType Directory | Out-Null
     }
     Set-Content -Path $GiteeCacheFile -Value $Ip -Encoding UTF8 -NoNewline
 }
 
-function Test-GiteeIpWithPing {
+function Get-CurlPath {
+    $curlExe = Get-Command "curl.exe" -ErrorAction SilentlyContinue
+    if ($curlExe) { return $curlExe.Source }
+    $curlExe = Get-Command "curl" -ErrorAction SilentlyContinue
+    if ($curlExe -and $curlExe.Source -notmatch "Invoke-WebRequest") { return $curlExe.Source }
+    return $null
+}
+
+function Test-GiteeIpWithHttps {
     param([string]$Ip)
     if ([string]::IsNullOrWhiteSpace($Ip)) { return $false }
+    $curlPath = Get-CurlPath
+    if (-not $curlPath) { return $false }
+    $outFile = [System.IO.Path]::GetTempFileName()
     try {
-        $p = Start-Process -FilePath "ping" -ArgumentList "-n", "1", "-w", ($GiteeTestTimeoutSec * 1000), $Ip -Wait -NoNewWindow -PassThru
-        return ($p.ExitCode -eq 0)
+        $args = @("-s", "-o", $outFile, "-w", "%{http_code}", "--connect-timeout", $GiteeTestTimeoutSec.ToString(), "--max-time", ($GiteeTestTimeoutSec + 5).ToString(), "--resolve", "gitee.com:443:$Ip", $GiteeTestUrl)
+        $p = Start-Process -FilePath $curlPath -ArgumentList $args -Wait -NoNewWindow -PassThru
+        if ($p.ExitCode -ne 0) { return $false }
+        if (-not (Test-Path $outFile)) { return $false }
+        $code = Get-Content -Path $outFile -Raw -ErrorAction SilentlyContinue
+        Remove-Item $outFile -ErrorAction SilentlyContinue
+        return ($code -match "200")
     } catch {
         return $false
     }
@@ -95,6 +111,12 @@ function Invoke-GiteeHostRefresh {
         return
     }
 
+    $curlPath = Get-CurlPath
+    if (-not $curlPath) {
+        Write-Warning "curl not found. Gitee IP test requires curl (HTTPS check)."
+        return
+    }
+
     $cachedIp = Get-GiteeCacheIp
     $candidates = @()
     if ($cachedIp) {
@@ -108,20 +130,22 @@ function Invoke-GiteeHostRefresh {
 
     & $script:WriteColorText "Gitee IP candidates (cached first, then library): $($candidates -join ', ')" "Cyan"
     foreach ($ip in $candidates) {
-        & $script:WriteColorText "Testing IP: $ip ..." "Cyan"
-        & $script:EchoCommand "ping -n 1 -w $($GiteeTestTimeoutSec * 1000) $ip"
-        if (Test-GiteeIpWithPing -Ip $ip) {
+        & $script:WriteColorText "Testing IP: $ip (HTTPS) ..." "Cyan"
+        $curlCmdDisplay = "curl -s -o nul -w " + [char]34 + "%{http_code}" + [char]34 + " --connect-timeout $GiteeTestTimeoutSec --resolve gitee.com:443:$ip $GiteeTestUrl"
+        & $script:EchoCommand $curlCmdDisplay
+        if (Test-GiteeIpWithHttps -Ip $ip) {
             $script:ChosenIp = $ip
-            & $script:WriteColorText "IP $ip responds OK (ping)." "Green"
+            & $script:WriteColorText "IP $ip responds OK (HTTPS 200)." "Green"
             break
         }
         & $script:WriteColorText "IP $ip failed, try next." "Yellow"
     }
 
     if (-not $script:ChosenIp) {
-        Write-Warning "No Gitee IP responded. Hosts not updated."
+        Write-Warning "No Gitee IP responded with HTTPS 200. Hosts not updated."
         foreach ($ip in $candidates) {
-            & $script:WriteColorText "  ping -n 1 -w $($GiteeTestTimeoutSec * 1000) $ip" "DarkGray"
+            $curlCmdDisplay = "  curl -s -o nul -w " + [char]34 + "%{http_code}" + [char]34 + " --connect-timeout $GiteeTestTimeoutSec --resolve gitee.com:443:$ip $GiteeTestUrl"
+            & $script:WriteColorText $curlCmdDisplay "DarkGray"
         }
         $speedTestUrl = "https://tool.chinaz.com/speedworld/www.gitee.com"
         & $script:WriteColorText "Opening in browser: $speedTestUrl" "Cyan"

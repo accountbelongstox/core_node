@@ -90,6 +90,8 @@ BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS = ("使用浏览器完成登录",)
 BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS = ("使用浏览器完成登录", "取消")
 # Login-failed dialog: one constant. Order: primary (Continue Offline, 继续离线) then secondary (Cancel, 取消). Maximized: require both primary [0:2] and secondary [2:4] present.
 BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel", "取消")
+# Connecting: control name (e.g. Connecting…) means not logged in yet; flow keeps wait.
+BATTLE_NET_CONNECTING_KEYWORDS = ("Connecting", "连接中")
 # Login screen: strict long phrases only (no single 登录) to avoid false match.
 LOGIN_SCREEN_UI_KEYWORDS_STRICT = ("需要登陆", "请登录", "您同意", "使用网易账号登录或注册")
 LOGIN_SCREEN_UI_KEYWORDS = BATTLE_NET_NEED_LOGIN_KEYWORDS + BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS

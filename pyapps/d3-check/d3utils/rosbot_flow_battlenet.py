@@ -191,9 +191,12 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             _current_node = BNNode.BN_Exit
             return False, ""
         ColorPrint.blue("[BNFlow] flow B9 first screen | reason: decide current UI (login/main/disconnected/other)")
-        on_login, disconnected, normal_available, play_button_name = op.get_dynamic_state()
+        on_login, disconnected, normal_available, play_button_name, connecting = op.get_dynamic_state()
+        if connecting:
+            ColorPrint.gray("[BNFlow] connecting, keep wait")
+            return False, "wait"
         if normal_available:
-            _play_label = "Playing" if (play_button_name and ("Playing" in play_button_name or "正在" in (play_button_name or ""))) else "Play"
+            _play_label = "Playing" if (play_button_name and ("Playing" in (play_button_name or "") or "\u6b63\u5728" in (play_button_name or ""))) else "Play"
             ColorPrint.green("[BNFlow] flow B9→B12 continue | reason: main/logged-in (D3 tab+%s visible), confirmed" % _play_label)
             _current_node = BNNode.BN_Confirmed
             _bn_flow_ever_confirmed = True
@@ -285,9 +288,12 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ColorPrint.yellow("[BNFlow] flow B13→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
             _current_node = BNNode.BN_Exit
             return False, ""
-        on_login, disconnected, normal_available, play_button_name = op.get_dynamic_state()
+        on_login, disconnected, normal_available, play_button_name, connecting = op.get_dynamic_state()
+        if connecting:
+            ColorPrint.gray("[BNFlow] connecting, keep wait")
+            return False, "wait"
         if normal_available:
-            _play_label = "Playing" if (play_button_name and ("Playing" in play_button_name or "正在" in (play_button_name or ""))) else "Play"
+            _play_label = "Playing" if (play_button_name and ("Playing" in (play_button_name or "") or "\u6b63\u5728" in (play_button_name or ""))) else "Play"
             ColorPrint.green("[BNFlow] flow B13→B16 continue | reason: [B14] poll logged-in (D3 tab+%s visible), confirmed" % _play_label)
             _current_node = BNNode.BN_Confirmed
             _bn_flow_ever_confirmed = True

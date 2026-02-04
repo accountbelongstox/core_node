@@ -38,10 +38,12 @@ set_gitee_cache_ip() {
     printf '%s' "$1" > "$GITEE_CACHE_FILE"
 }
 
-test_gitee_ip_ping() {
+test_gitee_ip_https() {
     ip="$1"
     [ -z "$ip" ] && return 1
-    ping -c 1 -W "$GITEE_TEST_TIMEOUT" "$ip" >/dev/null 2>&1
+    command -v curl >/dev/null 2>&1 || return 1
+    code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout "$GITEE_TEST_TIMEOUT" --max-time $((GITEE_TEST_TIMEOUT+5)) --resolve "gitee.com:443:$ip" "$GITEE_TEST_URL" 2>/dev/null)
+    [ "$code" = "200" ]
 }
 
 get_gitee_block_content() {
@@ -97,6 +99,11 @@ invoke_gitee_host_refresh() {
         return
     fi
 
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "WARNING: curl not found. Gitee IP test requires curl (HTTPS check)." >&2
+        return
+    fi
+
     get_gitee_cache_ip
     CANDIDATES="$CACHED_IP"
     for ip in $GITEE_IP_LIBRARY; do
@@ -110,21 +117,21 @@ invoke_gitee_host_refresh() {
     $write_color_text "Gitee IP candidates (cached first, then library): $CANDIDATES" "Cyan"
     for ip in $CANDIDATES; do
         [ -z "$ip" ] && continue
-        $write_color_text "Testing IP: $ip ..." "Cyan"
-        echo_cmd "ping -c 1 -W $GITEE_TEST_TIMEOUT $ip"
-        if test_gitee_ip_ping "$ip"; then
+        $write_color_text "Testing IP: $ip (HTTPS) ..." "Cyan"
+        echo_cmd "curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout $GITEE_TEST_TIMEOUT --resolve gitee.com:443:$ip $GITEE_TEST_URL"
+        if test_gitee_ip_https "$ip"; then
             CHOSEN_IP="$ip"
-            $write_color_text "IP $ip responds OK (ping)." "Green"
+            $write_color_text "IP $ip responds OK (HTTPS 200)." "Green"
             break
         fi
         $write_color_text "IP $ip failed, try next." "Yellow"
     done
 
     if [ -z "$CHOSEN_IP" ]; then
-        echo "WARNING: No Gitee IP responded. Hosts not updated." >&2
+        echo "WARNING: No Gitee IP responded with HTTPS 200. Hosts not updated." >&2
         for ip in $CANDIDATES; do
             [ -z "$ip" ] && continue
-            $write_color_text "  ping -c 1 -W $GITEE_TEST_TIMEOUT $ip" "DarkGray"
+            $write_color_text "  curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout $GITEE_TEST_TIMEOUT --resolve gitee.com:443:$ip $GITEE_TEST_URL" "DarkGray"
         done
         speed_test_url="https://tool.chinaz.com/speedworld/www.gitee.com"
         $write_color_text "Opening in browser: $speed_test_url" "Cyan"
