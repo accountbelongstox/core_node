@@ -71,7 +71,16 @@ All `ttk.Notebook` tabs: selected and unselected must be same height. Ref: `ui/d
 - **一次性任务**：直接使用 `timers.timer_manager.submit_one_shot(callback)` 并直接引用 `share.threads` 中的 `do_*` 函数。
 - **不要**新增仅做“转发一层”的包装函数或包装类。
 
-### 7. Summary
+### 7. Prompt persistence (提示词追加到固定目录)
+
+- **固定目录**：**`pyapps/d3-check/.prompts/`**
+- **要求**：每次在 d3-check 上下文中产生或使用的提示词（prompt），必须追加到该固定目录。
+- **做法**：任选其一并保持一致：
+  - 追加到该目录下的单一日志文件（如 `prompt_log.md`），每次新内容 append 到文件末尾并加时间戳/分隔；
+  - 或在该目录下按时间戳新建文件保存（如 `prompt_YYYYMMdd_HHmmss.md`）。
+- 不得仅将提示词留在对话或临时缓冲区，必须落盘到上述目录。
+
+### 8. Summary
 
 | Need | Where |
 |------|--------|
@@ -85,6 +94,7 @@ All `ttk.Notebook` tabs: selected and unselected must be same height. Ref: `ui/d
 | 代码树与分层 | `docs/CODE_TREE.md` |
 | 线程：禁止互相卡住；事件中心；启动时全初始化；tick 驱动；每线程管自身状态 | §5; `docs/THREAD_BUS_AND_REGISTRY.md` |
 | 禁止二次封装；直接调用、直接引用 | §6；直接 pycore 引用、直接 timer_manager + share.threads |
+| 提示词追加到固定目录 | §7；固定目录 `pyapps/d3-check/.prompts/`，每次提示词追加到该目录下的文件 |
 
 Follow these rules so d3-check stays consistent, favors pycore, and keeps all D3/D4 configuration in CONFIG.
 
