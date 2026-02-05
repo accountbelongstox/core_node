@@ -18,8 +18,8 @@ Do not add new literal constants in feature modules; add to `providor.app_consta
 
 3. **Threads.** No mutual blocking at runtime; all inter-thread communication via **event center** (THREAD_BUS / `d3utils.event_center`) only; at shutdown main thread may `join(timeout)` workers. Init all threads at startup (no dynamic creation). Tick-driven; each thread manages its own state; one-shot work via **timer_manager.submit_one_shot(callback)**. No simple wrapper: thread classes must be native (component extends `threading.Thread`, run() implements loop). See `docs/THREAD_BUS_AND_REGISTRY.md`.
 
-4. **No secondary encapsulation (禁止二次封装).** No wrapper methods or re-export modules; use direct calls and direct imports only.
+4. **No secondary encapsulation.** No wrapper methods or re-export modules; use direct calls and direct imports only.
 
-5. **Adding new standards (规范).** When the user asks to add a 规范, add it by priority: (1) `.cursor/rules` for project/file-scoped rules; (2) `.cursor/skills` for reusable skills with "When to Use"; (3) `pyapps/d3-check/AGENTS.md` for short sub-app instructions. This rule applies to the new 规范 as well—write it into rules, skills, or AGENTS.md accordingly.
+5. **Adding new standards.** When the user asks to add a standard/rule, add it by priority: (1) `.cursor/rules` for project/file-scoped rules; (2) `.cursor/skills` for reusable skills with "When to Use"; (3) `pyapps/d3-check/AGENTS.md` for short sub-app instructions. This rule applies to the new standard as well—write it into rules, skills, or AGENTS.md accordingly.
 
-6. **Prompt persistence (提示词追加).** Every prompt (提示词) produced or used in d3-check context must be appended to the fixed directory **`pyapps/d3-check/.prompts/`**. Append to a single log file (e.g. `prompt_log.md`) or save as a new timestamped file in that directory; do not leave prompts only in chat or temporary buffers.
+6. **Prompt persistence.** Every prompt produced or used in d3-check context must be appended to the fixed directory **`pyapps/d3-check/.prompts/`**. Append to a single log file (e.g. `prompt_log.md`) or save as a new timestamped file in that directory; do not leave prompts only in chat or temporary buffers.

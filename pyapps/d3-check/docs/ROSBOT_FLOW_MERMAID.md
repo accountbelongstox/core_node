@@ -6,6 +6,8 @@
 - **Node**：`node pyapps/d3-check/docs/preview_mermaid.mjs`（需可执行 `npx`，首次会拉取 `@mermaid-js/mermaid-cli`），会生成 `docs/mermaid_preview/ROSBOT_FLOW.svg` 并打开。
 - **Python**：`pip install mermaid-cli` 后执行 `python pyapps/d3-check/docs/preview_mermaid.py`，同样生成 SVG 并打开。
 
+**动态刷新**（改 md 即更新预览）：`node pyapps/d3-check/docs/preview_mermaid_watch.mjs`。会监听 `ROSBOT_FLOW_MERMAID.md`，文件变更时自动重新生成 SVG，并启动本地服务（默认 http://localhost:18765），页面每 1.5 秒刷新一次图；保存 md 后稍等即可看到更新。
+
 ---
 
 ## 全流程（单图合并）

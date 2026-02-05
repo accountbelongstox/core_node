@@ -362,17 +362,11 @@ function Create-WorkingBackup {
     }
 }
 
-# Function to determine default remote based on region setting
+# Function to determine default remote (GitHub first; used for execution order and restore)
 function Get-DefaultRemote {
     param([string]$ProjectName)
     
-    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
-    if ($selectedRegion -eq "Global") {
-        return "git@github.com:accountbelongstox/$ProjectName.git"
-    } else {
-        # Default to China/Gitee if no region is set or if set to China
-        return "git@gitee.com:accountbelongstox/$ProjectName.git"
-    }
+    return "git@github.com:accountbelongstox/$ProjectName.git"
 }
 
 # Load remote configurations from git_remotes.conf
@@ -883,11 +877,19 @@ function Invoke-GitOperations {
         Write-ColorText "Executing: git checkout -b $currentBranch" -ForegroundColor DarkGray
         git checkout -b $currentBranch
         Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-        git push --set-upstream origin $currentBranch
+        git push --set-upstream origin $currentBranch 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "Push failed (e.g. SSH connection timeout), skipping this remote." -ForegroundColor Yellow
+            return $false
+        }
         Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
         Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
-        git pull origin main
+        git pull origin main 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "Pull failed (e.g. SSH connection timeout), skipping this remote." -ForegroundColor Yellow
+            return $false
+        }
     } else {
         # Stage all changes FIRST (before pull)
         Write-ColorText "Staging all changes..." -ForegroundColor Cyan
@@ -944,19 +946,29 @@ function Invoke-GitOperations {
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
             Write-ColorText "WARNING: Force pushing all changes..." -ForegroundColor Red
             Write-ColorText "Executing: git push --force --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-            git push --force --set-upstream origin $currentBranch
+            git push --force --set-upstream origin $currentBranch 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorText "Push failed (e.g. SSH connection timeout), skipping this remote." -ForegroundColor Yellow
+                return $false
+            }
         } else {
             # Normal push mode - pull first to prevent conflicts
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
-            # Always pull to prevent push conflicts
             Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
             Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-            git pull origin $currentBranch --no-edit
+            git pull origin $currentBranch --no-edit 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorText "Pull failed (e.g. SSH connection timeout), skipping this remote." -ForegroundColor Yellow
+                return $false
+            }
 
-            # Push changes to remote
             Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
             Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-            git push --set-upstream origin $currentBranch
+            git push --set-upstream origin $currentBranch 2>&1 | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                Write-ColorText "Push failed (e.g. SSH connection timeout), skipping this remote." -ForegroundColor Yellow
+                return $false
+            }
         }
 
         Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkBlue
@@ -1000,7 +1012,7 @@ try {
     # Determine target remote
     if (-not $TargetRemote) {
         Write-ColorText "No target specified, using all remotes" -ForegroundColor Yellow
-        $targets = @("gitee", "github", "local")
+        $targets = @("github", "gitee", "local")
     } else {
         $targets = @($TargetRemote)
     }

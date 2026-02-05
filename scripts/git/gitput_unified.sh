@@ -559,17 +559,10 @@ get_commit_message() {
     echo "$COMMIT_MESSAGE"
 }
 
-# Function to determine default remote based on region setting
+# Default remote: GitHub first (used for execution order and restore)
 get_default_remote() {
     local project_name="$1"
-    
-    local selected_region=$(get_global_var "SELECTED_REGION")
-    if [ "$selected_region" = "Global" ]; then
-        echo "git@github.com:accountbelongstox/$project_name.git"
-    else
-        # Default to China/Gitee if no region is set or if set to China
-        echo "git@gitee.com:accountbelongstox/$project_name.git"
-    fi
+    echo "git@github.com:accountbelongstox/$project_name.git"
 }
 
 # Load remote configurations from git_remotes.conf
@@ -1450,21 +1443,28 @@ invoke_git_operations() {
         write_color_text "Skipping pull (will overwrite remote changes)" "Red"
         write_color_text "WARNING: Force pushing all changes..." "Red"
         write_color_text "Executing: git push --force --set-upstream origin $current_branch" "DarkGray"
-        git push --force --set-upstream origin "$current_branch"
+        if ! git push --force --set-upstream origin "$current_branch"; then
+            write_color_text "Push failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
+            return 1
+        fi
     else
         # Normal push mode - pull first to prevent conflicts
         write_color_text "=== NORMAL PUSH MODE ===" "Green"
         if git branch -r | grep -q "origin/$current_branch"; then
-            # Pull to prevent push conflicts
             write_color_text "Pulling and merging remote changes after commit..." "Cyan"
             write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
-            git pull origin "$current_branch" --no-edit
+            if ! git pull origin "$current_branch" --no-edit; then
+                write_color_text "Pull failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
+                return 1
+            fi
         fi
 
-        # Normal push
         write_color_text "Pushing changes to remote..." "Cyan"
         write_color_text "Executing: git push --set-upstream origin $current_branch" "DarkGray"
-        git push --set-upstream origin "$current_branch"
+        if ! git push --set-upstream origin "$current_branch"; then
+            write_color_text "Push failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
+            return 1
+        fi
     fi
 
     write_color_text "----------------------------------------------------------------" "DarkBlue"
@@ -1490,7 +1490,7 @@ main() {
     # Determine target remote
     if [ -z "$TARGET_REMOTE" ]; then
         write_color_text "No target specified, using all remotes" "Yellow"
-        targets=("gitee" "github" "local")
+        targets=("github" "gitee" "local")
     else
         targets=("$TARGET_REMOTE")
     fi

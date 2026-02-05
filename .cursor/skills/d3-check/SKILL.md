@@ -34,15 +34,15 @@ Use this skill when editing or adding code under **pyapps/d3-check** (Diablo III
   - **`config.grid_config`:** Grid dimensions and helpers (get_grid_config, update_grid_config); it reads from app_constants (GRID_ROWS, GRID_COLS, etc.).
 - **Do not add new literal constants in feature modules.** Add them to `providor.app_constants` or the appropriate config module, then import where needed.
 
-### 3. Adding new standards (规范)
+### 3. Adding new standards
 
-When the user asks to **add a 规范** (standard/rule), add it to the appropriate place **by priority**:
+When the user asks to **add a standard/rule**, add it to the appropriate place **by priority**:
 
 1. **`.cursor/rules`** — Project- or file-scoped rules (use `globs` / `description`). Prefer when the standard is "when editing these files or in this context, do X."
 2. **`.cursor/skills`** — Reusable skill with "When to Use" and step-by-step instructions (SKILL.md). Prefer when the standard is a capability plus usage context.
 3. **`pyapps/d3-check/AGENTS.md`** — Short, always-relevant instructions for this sub-app. Prefer when the standard is a simple, directory-level guideline.
 
-This rule itself must be followed: any new 规范 you add should be written into rules, skills, or AGENTS.md according to the above priority.
+This rule itself must be followed: any new standard you add should be written into rules, skills, or AGENTS.md according to the above priority.
 
 ### 4. ttk Notebook Tab (equal height)
 
@@ -53,32 +53,32 @@ All `ttk.Notebook` tabs: selected and unselected must be same height. Ref: `ui/d
 - **Expand:** `map(..., expand=[('selected',[0,0,0,2]), ('!selected',[0,0,0,0])])`.
 - **Notebook:** `tabmargins=[1,3,1,0]`, `takefocus=0`. Theme `clam`; style `Dark.TNotebook`/`Dark.TNotebook.Tab`.
 
-### 5. Threads: no mutual 卡住; event center only; init all at startup; tick-driven; per-thread state
+### 5. Threads: no mutual blocking; event center only; init all at startup; tick-driven; per-thread state
 
-- **禁止线程互相卡住**：**正常运行时**任意线程不得通过 `queue.get()`、`join()` 等等待另一线程的返回或结束；否则会导致主线程/UI **卡住**。**关闭阶段**主线程可对工作线程 `join(timeout)` 做收尾；除此以外禁止跨线程卡住。
-- **事件中心为唯一通道**：线程间通信**一律通过事件中心**（`d3utils.event_center` / pycore `THREAD_BUS`）发事件、收事件；由 event_center 调度到目标线程或主线程（如 `root.after(0, ...)`）。禁止线程间直接传参、互相引用或同步等待。
-- **启动时初始化所有线程**：所有后台线程（TaskThreadManager 及其 worker/任务线程、TimerManager、扩展线程 Main/Aux/D3/D4、托盘、宏线程等）在 UI 就绪后**一次性创建并启动**，禁止在运行中动态创建线程。
-- **tick 驱动**：执行仅由**全局状态与 tick** 驱动（如 timer_manager 周期、任务线程 1s tick、rosbot_flow_master_enabled 等）；一次性工作须通过 **timer_manager.submit_one_shot(callback)** 投递到定时器线程执行，不新建线程。
-- **每线程管理自身状态**：每个线程/任务只维护自己的状态（如 TaskThread 的 status、D3InterfaceData 的 rosbot_flow_master_enabled）；状态更新通过事件或不卡住入队（fire-and-forget）；需要「当前状态」时从**共享状态**读取，禁止卡住等待另一线程返回。
-- **线程类必须实现为原生类**：禁止 A 的 run() 仅调用 B.xxx()。组件直接继承 `threading.Thread` 且 `run()` 内实现循环/逻辑，或线程 run() 内直接实现逻辑，不单纯转发到另一对象单方法。详见 `docs/THREAD_BUS_AND_REGISTRY.md`。
+- **No cross-thread blocking at runtime:** No thread may block on another (e.g. via `queue.get()`, `join()`) waiting for return or completion during normal operation; that would block the main thread/UI. At shutdown the main thread may `join(timeout)` workers for cleanup; otherwise no cross-thread blocking.
+- **Event center is the only channel:** All cross-thread communication goes through the event center (`d3utils.event_center` / pycore `THREAD_BUS`); event_center dispatches to the target thread or main thread (e.g. `root.after(0, ...)`). No direct cross-thread arguments, references, or synchronous waits.
+- **Init all threads at startup:** All background threads (TaskThreadManager and its workers, TimerManager, Main/Aux/D3/D4, tray, macro threads, etc.) are created and started once after UI is ready; no dynamic thread creation during run.
+- **Tick-driven:** Execution is driven only by global state and tick (e.g. timer_manager period, task thread 1s tick, rosbot_flow_master_enabled); one-off work must be submitted via **timer_manager.submit_one_shot(callback)** to the timer thread; do not spawn new threads for it.
+- **Each thread manages its own state:** Each thread/task only maintains its own state (e.g. TaskThread status, D3InterfaceData.rosbot_flow_master_enabled); state updates via events or non-blocking enqueue (fire-and-forget); when "current state" is needed, read from shared state; do not block waiting for another thread to return.
+- **Thread classes must be native:** Do not have A's run() only call B.xxx(). Components extend `threading.Thread` and implement the loop/logic in run(), or the thread's run() implements the loop/logic directly; do not simply forward to a single method of another object. See `docs/THREAD_BUS_AND_REGISTRY.md`.
 
-### 6. No secondary encapsulation (禁止二次封装)
+### 6. No secondary encapsulation
 
-- **任何类库、常量、方法均不允许进行二次封装**；**不允许任何简单封装**（包括转引、包装函数、包装类）。
-- **禁止使用一个类对另一个类进行简单封装**：不得新增仅做“转发一层”的包装类（如 A 仅持有 B 且 A 的方法只调 B 的单一方法）。线程类须为原生：要么组件直接继承 Thread 且 run() 内实现逻辑，要么线程类的 run() 内直接实现循环/逻辑，不单纯调用另一对象的单一方法。
-- **禁止使用二次封装**：方法、类库一律**直接调用和直接引用**。
-- **导入**：不从 `providor.common_imports` 转引；从 **pycore** 对应模块直接引用。常量从 **`providor.app_constants`** 直接引用，不从 `providor.providor_index` 转引常量。共享数据从 **`share.game_interface_data`**、**`share.project_path`** 等子模块直接引用，不从 `share` 包根转引。D3 模板匹配从 **`d3utils.d3_scaled_template_matcher`** 直接引用（无 `d3utils.scaled_template_matcher` 转引）。控制器函数从 **`controller.ctl_func.blacksmith_handler`**、**`controller.ctl_func.kanai_cube_handler`** 直接引用。网格当前配置用 **`config.grid_config.get_grid_config()`**，字面常量仍从 `app_constants`。
-- **一次性任务**：直接使用 `timers.timer_manager.submit_one_shot(callback)` 并直接引用 `share.threads` 中的 `do_*` 函数。
-- **不要**新增仅做“转发一层”的包装函数或包装类。
+- **No secondary encapsulation** of any library, constant, or method; **no trivial wrappers** (re-exports, wrapper functions, wrapper classes).
+- **Do not wrap one class with another:** Do not add wrapper classes that only forward one layer (e.g. A holds B and A's methods only call B's single method). Thread classes must be native: either the component extends Thread and run() implements logic, or the thread's run() implements the loop/logic directly; do not simply call another object's single method.
+- **Direct use only:** Methods and libraries must be **called and referenced directly**.
+- **Imports:** Do not re-export from `providor.common_imports`; import directly from the **pycore** module. Constants from **`providor.app_constants`** directly, not from `providor.providor_index`. Shared data from **`share.game_interface_data`**, **`share.project_path`**, etc., not from the `share` package root. D3 template matching from **`d3utils.d3_scaled_template_matcher`** (no `d3utils.scaled_template_matcher` re-export). Controller functions from **`controller.ctl_func.blacksmith_handler`**, **`controller.ctl_func.kanai_cube_handler`** directly. Grid config via **`config.grid_config.get_grid_config()`**; literals still from `app_constants`.
+- **One-shot work:** Use `timers.timer_manager.submit_one_shot(callback)` directly and reference `share.threads` `do_*` functions directly.
+- **Do not** add wrapper functions or classes that only forward one layer.
 
-### 7. Prompt persistence (提示词追加到固定目录)
+### 7. Prompt persistence
 
-- **固定目录**：**`pyapps/d3-check/.prompts/`**
-- **要求**：每次在 d3-check 上下文中产生或使用的提示词（prompt），必须追加到该固定目录。
-- **做法**：任选其一并保持一致：
-  - 追加到该目录下的单一日志文件（如 `prompt_log.md`），每次新内容 append 到文件末尾并加时间戳/分隔；
-  - 或在该目录下按时间戳新建文件保存（如 `prompt_YYYYMMdd_HHmmss.md`）。
-- 不得仅将提示词留在对话或临时缓冲区，必须落盘到上述目录。
+- **Fixed directory:** **`pyapps/d3-check/.prompts/`**
+- **Requirement:** Every prompt produced or used in d3-check context must be appended to this fixed directory.
+- **Practice:** Use one approach consistently:
+  - Append to a single log file in that directory (e.g. `prompt_log.md`), with timestamp/separator for each entry; or
+  - Save as a new timestamped file in that directory (e.g. `prompt_YYYYMMdd_HHmmss.md`).
+- Do not leave prompts only in chat or temporary buffers; they must be written to the directory above.
 
 ### 8. Summary
 
@@ -87,14 +87,14 @@ All `ttk.Notebook` tabs: selected and unselected must be same height. Ref: `ui/d
 | Literal D3/D4/Battle.net constants, paths, resolutions, keys | `providor.app_constants` |
 | Skill/macro/template config, ConfigManager | `config` (unified_config, grid_config); literals still in app_constants |
 | Shared pycore-style imports used by d3-check | Direct `pycore.*` only (no common_imports re-export) |
-| New 规范 (standard/rule) | rules → skills → AGENTS.md (by priority above) |
-| 启动 ROSBOT 流程要求 | `.cursor/skills/rosbot-startup/SKILL.md`（ensure_battlenet_started_and_login_check、_start_rosbot、run_after_rosbot_start 等须按该文档执行） |
+| New standard/rule | rules → skills → AGENTS.md (by priority above) |
+| ROSBOT startup flow | `.cursor/skills/rosbot-startup/SKILL.md` (ensure_battlenet_started_and_login_check, _start_rosbot, run_after_rosbot_start, etc. per that doc) |
 | ttk Notebook Tab (equal height) | §4; ref diablo3_macro_ui |
-| 生命周期/线程/事件（init、shutdown、event center、task manager、thread registry） | **runtime**；见 `docs/CODE_TREE.md` |
-| 代码树与分层 | `docs/CODE_TREE.md` |
-| 线程：禁止互相卡住；事件中心；启动时全初始化；tick 驱动；每线程管自身状态 | §5; `docs/THREAD_BUS_AND_REGISTRY.md` |
-| 禁止二次封装；直接调用、直接引用 | §6；直接 pycore 引用、直接 timer_manager + share.threads |
-| 提示词追加到固定目录 | §7；固定目录 `pyapps/d3-check/.prompts/`，每次提示词追加到该目录下的文件 |
+| Lifecycle/threads/events (init, shutdown, event center, task manager, thread registry) | **runtime**; see `docs/CODE_TREE.md` |
+| Code tree and layers | `docs/CODE_TREE.md` |
+| Threads: no mutual blocking; event center; init all at startup; tick-driven; per-thread state | §5; `docs/THREAD_BUS_AND_REGISTRY.md` |
+| No secondary encapsulation; direct call and reference | §6; direct pycore refs, direct timer_manager + share.threads |
+| Prompt persistence (fixed directory) | §7; fixed dir `pyapps/d3-check/.prompts/`, append each prompt to a file there |
 
 Follow these rules so d3-check stays consistent, favors pycore, and keeps all D3/D4 configuration in CONFIG.
 
