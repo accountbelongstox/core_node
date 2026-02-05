@@ -877,23 +877,11 @@ function Invoke-GitOperations {
         Write-ColorText "Executing: git checkout -b $currentBranch" -ForegroundColor DarkGray
         git checkout -b $currentBranch
         Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-        $pushOut = git push --set-upstream origin $currentBranch 2>&1
-        $pushExit = $LASTEXITCODE
-        Write-ColorText ($pushOut | Out-String) -ForegroundColor White
-        if ($pushExit -ne 0) {
-            Write-ColorText "Push failed (e.g. SSH connection timeout or unreachable host), skipping this remote." -ForegroundColor Yellow
-            return $false
-        }
+        git push --set-upstream origin $currentBranch 2>&1 | Out-Host
         Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
         Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
-        $pullOut = git pull origin main 2>&1
-        $pullExit = $LASTEXITCODE
-        Write-ColorText ($pullOut | Out-String) -ForegroundColor White
-        if ($pullExit -ne 0) {
-            Write-ColorText "Pull failed (e.g. SSH connection timeout or unreachable host), skipping this remote." -ForegroundColor Yellow
-            return $false
-        }
+        git pull origin main 2>&1 | Out-Host
     } else {
         # Stage all changes FIRST (before pull)
         Write-ColorText "Staging all changes..." -ForegroundColor Cyan
@@ -950,13 +938,7 @@ function Invoke-GitOperations {
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
             Write-ColorText "WARNING: Force pushing all changes..." -ForegroundColor Red
             Write-ColorText "Executing: git push --force --set-upstream origin $currentBranch" -ForegroundColor DarkGray
-            $pushOut = git push --force --set-upstream origin $currentBranch 2>&1
-            $pushExit = $LASTEXITCODE
-            Write-ColorText ($pushOut | Out-String) -ForegroundColor White
-            if ($pushExit -ne 0) {
-                Write-ColorText "Push failed (e.g. SSH connection timeout or unreachable host), skipping this remote." -ForegroundColor Yellow
-                return $false
-            }
+            git push --force --set-upstream origin $currentBranch 2>&1 | Out-Host
         } else {
             # Normal push mode - pull first to prevent conflicts
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
