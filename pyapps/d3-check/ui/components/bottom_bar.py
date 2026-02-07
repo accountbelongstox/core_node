@@ -163,25 +163,24 @@ class BottomBar:
                 self.battlenet_status.set(i18n.get_ui_text("rosbot.found_unknown_state"))
                 bn_fg = C['text_secondary']
 
-            ros_ext = state.get("rosbot_extended_status", "not_found")
-            exe_name = state.get("rosbot_found_exe_name") or ""
-            window_title = state.get("rosbot_found_window_title") or ""
+            ros_ext = state.get("rosbot_extended_status") or "not_found"
+            exe_name = (state.get("rosbot_found_exe_name") or "").strip()
+            window_title = (state.get("rosbot_found_window_title") or "").strip()
+            ros_val = "-"
             if ros_ext == "running":
-                self.ros_status.set(i18n.get_ui_text("rosbot.extended_running"))
+                ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
                 ros_fg = C['success']
-            elif ros_ext == "paused" and (exe_name or window_title):
-                self.ros_status.set(
-                    (i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}").format(
-                        exe=exe_name or "-", title=window_title or "-"
-                    )
-                )
-                ros_fg = C['warning']
             elif ros_ext == "paused":
-                self.ros_status.set(i18n.get_ui_text("rosbot.extended_paused"))
+                if exe_name or window_title:
+                    fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
+                    ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
+                else:
+                    ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
                 ros_fg = C['warning']
             else:
-                self.ros_status.set(i18n.get_ui_text("rosbot.not_found"))
+                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
                 ros_fg = C['error']
+            self.ros_status.set(ros_val or "-")
 
             if not state.get("d3_running", False):
                 self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))
