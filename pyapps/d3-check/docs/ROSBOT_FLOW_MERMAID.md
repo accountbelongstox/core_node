@@ -1,302 +1,245 @@
 # ROSBOT 启动流程（Mermaid 版）
 
-本文档为 `ROSBOT_FLOW.md` 的 Mermaid 图版本，流程与约定与原文一致。**全部流程合并为一张 Mermaid 图**，规范见：[`MERMAID_SPEC.md`](MERMAID_SPEC.md)。可在 VS Code 内置 Markdown 预览（Markdown Preview Mermaid Support 扩展）、GitHub、Typora 等支持 Mermaid 的查看器中渲染。
-
-**本地导出为 SVG 预览**（Node 或 Python）：
-- **Node**：`node pyapps/d3-check/docs/preview_mermaid.mjs`（需可执行 `npx`，首次会拉取 `@mermaid-js/mermaid-cli`），会生成 `docs/mermaid_preview/ROSBOT_FLOW.svg` 并打开。
-- **Python**：`pip install mermaid-cli` 后执行 `python pyapps/d3-check/docs/preview_mermaid.py`，同样生成 SVG 并打开。
-
-**动态刷新**（改 md 即更新预览）：`node pyapps/d3-check/docs/preview_mermaid_watch.mjs`。会监听 `ROSBOT_FLOW_MERMAID.md`，文件变更时自动重新生成 SVG，并启动本地服务（默认 http://localhost:18765），页面每 1.5 秒刷新一次图；保存 md 后稍等即可看到更新。
-
----
-
-## 全流程（单图合并）
-
-下图包含：入口与定时器、战网就绪检查、**A4a 预判**（先查 D3 是否在线 → 再查 ROSBOT 是否在线 → 均在线则查 ROSBOT 日志是否超时（UI 超时）→ 超时则关闭 D3/ROSBOT 并回到预判入口）、D3 是否在线、是否有 D3 进程、分支 A（C）、分支 B（D）、**E ROSBOT 运行流程**、主线程收尾。**若 D3 在线且 ROSBOT 不在线**：走 C（D3 已运行直连），成功后进入 E（启动 ROSBOT）。本流程为 tick 驱动，掉线后自动回到流程开始。
-
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '45px', 'primaryFontSize': '45px', 'secondaryFontSize': '45px', 'tertiaryFontSize': '45px', 'fontFamily': 'arial'}}}%%
 flowchart TB
-    Start["[A1] 启动 ROSBOT，设总状态、更新 UI"]
-    Stop["停止：关闭总状态，定时器跳过所有分支"]
-    Start --> Timer["[A2] 全局定时器 2 秒 tick，按总状态驱动"]
-    Timer --> Tick{"[A3] 总状态开启且本 tick 有导向？"}
-    Tick -->|否| Skip["跳过所有分支"]
-    Tick -->|是| BN_Entry["[B1] 战网就绪检查入口"]
-
-    subgraph B["B"]
-        BN_Entry --> BN_Win{"[B2] 当前是否有战网窗口？"}
-        BN_Win -->|无| BN_Start["[B3] 启动战网 → 等待数秒"]
-        BN_Win -->|有| BN_FirstQ1{"[B4] 首界面：登陆页？"}
-        BN_FirstQ1 -->|是| BN_Exit["[B5] 退出战网"]
-        BN_FirstQ1 -->|否| BN_FirstQ2{"[B4'] 首界面：等待浏览器返回页？"}
-        BN_FirstQ2 -->|是| BN_Exit
-        BN_FirstQ2 -->|否| BN_Act["[B6] 激活战网窗口，轮询 UI"]
-        BN_Start --> BN_Wait["[B7] 轮询 UI 直到出现确切元素"]
-        BN_Wait --> BN_WaitResult{"[B8] 轮询 UI 找到元素？"}
-        BN_WaitResult -->|超时未找到| BN_Exit
-        BN_WaitResult -->|找到| BN_UI{"[B9] 当前界面是？"}
-        BN_UI -->|登录界面| BN_Login1["[B10] 步骤1：点同意、确认"]
-        BN_UI -->|主界面/已登录| BN_Ok1["[B12] 继续"]
-        BN_Login1 --> BN_Login2["[B11] 步骤2：等待油猴返回(2分钟超时)"]
-        BN_Login2 -->|超时| BN_Exit
-        BN_Exit --> BN_ExitWait["[B5w] 等待战网退出完成"]
-        BN_ExitWait --> BN_Entry
-        BN_Login2 -->|返回| BN_Ok1
-        BN_Act --> BN_Poll{"[B13] 轮询 UI 结果？"}
-        BN_Poll -->|已登录| BN_PollOk["[B14] 继续"]
-        BN_Poll --> BN_ExitD["[B15a] 掉线"]
-        BN_Poll --> BN_ExitT["[B15b] 轮询 UI 超时未找到元素"]
-        BN_Poll --> BN_ExitO["[B15c] 轮询 UI 其他未知状态"]
-        BN_ExitD --> BN_Exit
-        BN_ExitT --> BN_Exit
-        BN_ExitO --> BN_Exit
-        BN_PollOk --> BN_Confirmed["[B16] 战网已确认登录"]
-        BN_Ok1 --> BN_Confirmed
+    subgraph A["A 入口与定时器"]
+        A1_Start["[A1] 启动 ROSBOT，设总状态、更新 UI<br/>启动顺序：战网→暗黑3→ROSBOT"]
+        A2_Timer["[A2] 全局定时器 1 秒 tick，% 实现 2 秒驱动"]
+        A3_Tick{"[A3] 总状态开启且本 tick 有导向？"}
+        A_Skip["[A4] 跳过所有分支"]
+        A9_MainEnd["[A9] 面板运行中，启用周期任务"]
+        A1_Start --> A2_Timer
+        A2_Timer --> A3_Tick
+        A3_Tick -->|否，跳过| A_Skip
+        A3_Tick -->|是，→B1 战网就绪| B1_Entry
     end
 
-    BN_Confirmed --> PreCheck_Entry["[A4a] 预判入口"]
-
-    subgraph PreCheck["A4a 预判（D3/ROSBOT 在线 + ROSBOT 日志超时）"]
-        PreCheck_Entry --> PreCheck_D3{"[A4a-1] D3 是否在线？"}
-        PreCheck_D3 -->|否| HasD3
-        PreCheck_D3 -->|是| PreCheck_Rosbot{"[A4a-2] ROSBOT 是否在线？"}
-        PreCheck_Rosbot -->|否| BranchA_Entry
-        PreCheck_Rosbot -->|是| PreCheck_LogTimeout{"[A4a-3] ROSBOT 日志超时？"}
-        PreCheck_LogTimeout -->|未超时| D3_Online
-        PreCheck_LogTimeout -->|超时| PreCheck_Kill["[A4a-4] 关闭 D3、关闭 ROSBOT"]
-        PreCheck_Kill --> PreCheck_Entry
+    subgraph B["B 战网就绪检查"]
+        B1_Entry["[B1] 战网就绪检查入口"]
+        B2_HasWin{"[B2] 当前是否有战网窗口？"}
+        B3_StartBN["[B3] 启动战网"]
+        B3w_Wait["[B3w] 等待数秒"]
+        B4_LoginPage{"[B4] 首界面：登陆页？"}
+        B5_Exit["[B5] 退出战网"]
+        B4p_BrowserWait{"[B4p] 首界面：等待浏览器返回页？"}
+        B6_Activate["[B6] 激活战网窗口<br/>需置顶激活战网 UI"]
+        B7_WaitUI["[B7] 轮询 UI 直到出现确切元素"]
+        B8_Found{"[B8] 轮询 UI 找到元素？"}
+        B9_UIState{"[B9] 当前界面是？"}
+        B10_Agree["[B10] 步骤1：点同意、确认<br/>→打开浏览器网易登录页"]
+        B11_OAuth["[B11] 步骤2：等待油猴返回"]
+        B12_Ok["[B12] 继续"]
+        B5w_ExitWait["[B5w] 等待战网退出完成"]
+        B13_Poll{"[B13] 轮询 UI 结果？"}
+        B14_Ok["[B14] 继续"]
+        B15a_Offline["[B15a] 掉线"]
+        B15b_Timeout["[B15b] 轮询 UI 超时未找到元素"]
+        B15c_Other["[B15c] 轮询 UI 其他未知状态"]
+        B16_Confirmed["[B16] 战网已确认登录"]
+        B1_Entry --> B2_HasWin
+        B2_HasWin -->|无| B3_StartBN
+        B2_HasWin -->|有| B4_LoginPage
+        B4_LoginPage -->|是| B5_Exit
+        B4_LoginPage -->|否| B4p_BrowserWait
+        B4p_BrowserWait -->|是| B5_Exit
+        B4p_BrowserWait -->|否| B6_Activate
+        B3_StartBN --> B3w_Wait
+        B3w_Wait --> B7_WaitUI
+        B7_WaitUI --> B8_Found
+        B8_Found -->|超时未找到| B5_Exit
+        B8_Found -->|找到| B9_UIState
+        B9_UIState -->|登录界面| B10_Agree
+        B9_UIState -->|主界面/已登录| B12_Ok
+        B10_Agree --> B11_OAuth
+        B10_Agree -.->|打开浏览器| T1_WaitBtn
+        B11_OAuth -->|超时→B5 退出战网| B5_Exit
+        B5_Exit --> B5w_ExitWait
+        B5w_ExitWait --> B1_Entry
+        T1_Close -.->|oauth-done，B11 返回| B12_Ok
+        B11_OAuth -->|返回| B12_Ok
+        B6_Activate --> B13_Poll
+        B13_Poll -->|已登录| B14_Ok
+        B13_Poll -->|掉线| B15a_Offline
+        B13_Poll -->|超时| B15b_Timeout
+        B13_Poll -->|其他| B15c_Other
+        B15a_Offline --> B5_Exit
+        B15b_Timeout --> B5_Exit
+        B15c_Other --> B6_Activate
+        B14_Ok --> B16_Confirmed
+        B12_Ok --> B16_Confirmed
     end
 
-    D3_Online["[A5] D3 是否在线"]
-    D3_Online --> HasD3{"[A6] 当前是否已有 D3 进程在运行？"}
-    HasD3 -->|是| BranchA_Entry["[C1] D3 已运行直连"]
-    HasD3 -->|否| BranchB_Entry["[D1] 从战网启动 D3"]
-
-    subgraph C["C"]
-        BranchA_Entry --> A_Resize["[C2] 将 D3 窗口缩放到标准分辨率"]
-        A_Resize --> A_Detect["[C3] 检测 D3 界面状态"]
-        A_Detect --> A_Result{"[C4] 检测结果？"}
-        A_Result -->|start| Frag1["[C5] 片段1：点开始游戏，等 d3_game_tool"]
-        A_Result -->|game_tool| Frag2["[C9] 片段2：按 M，检测悬赏进度"]
-        A_Result -->|其他/无| EndD3["[C12] 结束 D3 进程，落到 D"]
-        Frag1 --> F1_Check{"[C6] 出现 d3_game_tool？"}
-        F1_Check -->|超时未出现| EndD3
-        F1_Check -->|出现| F1_M["[C7] 按 M，2 秒后传送三连点"]
-        F1_M --> F1_Result{"[C8] 结果？"}
-        F1_Result -->|成功| Success
-        F1_Result -->|失败| EndD3
-        Frag2 --> F2_Result{"[C10] 两次都未出现悬赏进度？"}
-        F2_Result -->|是| EndD3
-        F2_Result -->|否| F2_Teleport["[C11] 等待 2 秒后执行传送三连点"]
-        F2_Teleport --> Success
-    end
-
-    subgraph D["D"]
-        BranchB_Entry --> B1["[D2] 无战网则启动战网"]
-        B1 --> B2["[D3] 结束 D3 进程(若有)，等 5 秒"]
-        B2 --> B3["[D4] 激活战网窗口，等 1 秒"]
-        B3 --> B4["[D5] UI 识别战网界面"]
-        B4 --> B5{"[D6] 找到战网窗口？"}
-        B5 -->|否| B_Fail["本步失败，返回失败"]
-        B5 -->|是| B6["[D7] 查找 D3 tab 与 Play 控件"]
-        B6 --> B7{"[D8] 找到 D3 tab 且可点击？"}
-        B7 -->|是| B_Click["[D9] 点击战网 D3 tab 对应 UI"]
-        B7 -->|否| B_UI["[D10] UI 状态判断，登录或重启战网"]
-        B_UI --> BranchB_Entry
-        B_Click --> B_Play["[D11] 等 Play 出现后点击"]
-        B_Play --> B_Sleep["[D12] sleep(5)，轮询 D3 窗口最多 10 秒"]
-        B_Sleep --> B_D3{"[D13] 10 秒内找到 D3 窗口？"}
-        B_D3 -->|否| B_Restart["[D14] 重启战网，等 5 秒"]
-        B_Restart --> BranchB_Entry
-        B_D3 -->|是| B_Scale["[D15] D3 窗口缩放，清缓存"]
-        B_Scale --> B_StartGame["[D16] 截图匹配开始游戏按钮，点击"]
-        B_StartGame --> B_Success{"[D17] 成功点击「开始游戏」？"}
-        B_Success -->|否| B_Restart
-        B_Success -->|是| B_Rosbot["[D18] 结束已有 ROSBOT，若配置则启动并自动化"]
-        B_Rosbot --> Success
-    end
-
-    EndD3 --> BranchB_Entry
-    Success["[A8] 返回成功，进入 E"] --> E1["[E1] 结束已有 ROSBOT"]
-    E1 --> E2["[E2] 等待 1 秒"]
-    E2 --> E3{"[E3] 配置 auto_start_rosbot？"}
-    E3 -->|否| E6
-    E3 -->|是| E4["[E4] 启动 ROSBOT 进程"]
-    E4 --> E5["[E5] 任务初始化"]
-    E5 --> E5a["[E5a] 等窗口、点主档案、Start botting!"]
-    E5a --> E6["[E6] 主线程收尾，打日志"]
-    E6 --> MainEnd["[A9] 面板运行中，启用周期任务"]
-    subgraph E["E ROSBOT 运行流程"]
-        E1
-        E2
-        E3
-        E4
-        E5
-        E5a
-        E6
-    end
-```
-
----
-
-## 步骤与区域索引（开发可引用）
-
-图中仅用 **A、B、C、D** 标记大块（字母 + 序号），开发时可指定「从哪一步做到哪一步」。
-
-| 字母 | 图中标记 | 说明 |
-|------|----------|------|
-| **A** | A1～A9；**A4a**（A4a-1～A4a-4） | 入口、定时器、**A4a 预判**（D3/ROSBOT 在线 + ROSBOT 日志超时）、D3 在线、是否有 D3、成功、收尾 |
-| **B** | B1～B16（B4/B4' 首界面两判；B5w 为退出后等待；B15a/b/c 为掉线/超时/其他） | 就绪检查入口、有无窗口、**B4/B4' 首界面两判**（是→B5 否→B6）、退出、**B6/B7/B8/B13 轮询 UI**（激活/等元素/找元素/结果）、登录两步、确切状态、继续 |
-| **C** | C1～C12 | 缩放、检测、片段1/2、结束 D3 落 D |
-| **D** | D1～D18 | 找窗口、D3 tab、Play、开始游戏、进入 A8 |
-| **E** | E1～E6（E5a 为启动后自动化） | **ROSBOT 运行流程**：结束已有 ROSBOT → 等待 1 秒 → 若配置则启动进程 → 任务初始化 → 启动后自动化（等窗口、激活、等服务器、轮询主 UI、可选调试、点主档案、点 Start botting!）→ 主线程收尾 [A9] |
-
-**开发引用示例**：「从 B1 开发到 B16」「实现 B」「实现 D 的 D5～D18」「从 C1 做到 C8」「实现 E（ROSBOT 运行流程）」。
-
----
-
-## 约定（流程内容）
-
-本文档只描述「做什么、在什么条件下走哪条分支」，不指定具体代码、模块名或类库。实现时由 AI 根据仓库内代码与项目规范自行选用合适模块与调用方式。
-
-**启动顺序**：战网启动并登录 → 暗黑 3 启动 → ROSBOT 启动，顺序不可乱。
-
----
-
-## 状态管理与全局定时器（流程前提）
-
-**总状态**：用户点击「启动 ROSBOT」后修改总状态为开启；停止时关闭总状态。全局定时器根据总状态决定是否驱动流程。
-
-**全局定时器**：**1 秒** 一跳。本流程通过 **% 方式** 实现 2 秒一个 tick（即每 2 个 1 秒 tick 才驱动一次本流程）。
-- **总状态关闭**：跳过所有分支，本 tick 不执行任何流程逻辑。
-- **总状态开启**：按当前分支状态驱动流程；每个分支节点（在本流程的 2 秒 tick 内）：
-  - **wait**（等待中，如 sleep、轮询 UI 未到点）：本 tick **跳过**，不切换流程。
-  - **有导向**（可执行并产生下一跳）：执行本步逻辑并 **切换流程** 到对应下一节点。
-
-**停止**：关闭总状态后，全局定时器因总状态关闭而跳过所有分支，流程不再推进。本流程为 tick 驱动，掉线后自动回到流程开始，无需单独「10 秒循环」。
-
----
-
-## D3 界面判定与在线检测（约定）
-
-**开始界面判定**：对 D3 窗口截图后，用 **scale match** 匹配模板 **d3_start_game_button.png**；匹配到则视为处在「开始游戏」界面（即 "start" 状态）。
-
-**按 M 键的前提**：**只有当出现 d3_game_tool 时才按 M 键**。未出现 d3_game_tool 时（游戏可能正在切换地图 UI 或其他 UI）标记为 **wait** 状态，本 tick 跳过。
-
-**D3 是否在线检测**（用于本流程 tick 内判断 D3 是否掉线）：**仅当已出现 d3_game_tool 时**才执行以下五步；未出现则标记 **wait**，本 tick 跳过。顺序：1. 先截图（图 A）→ 2. 按 M 键 → 3. 再截图（图 B）→ 4. 对比相似度（高度相似则按 M 无效果，判定掉线；否则在线）→ 5. 再按 M 键恢复地图打开状态。
-
-**图片命名**：掉线/断线相关模板图约定文件名为 **d3_disconnected.png**。若原图为 ScreenShot_2026-01-30_064009_491.png，则重命名为 d3_disconnected.png（或项目约定名）。
-
----
-
-## ROSBOT 运行流程（E）与代码对应
-
-D3 运行成功后进入 **A8 → E**。代码中由 `login_try_screenshot_controller` 在返回 True 前执行 E1～E5a，主线程 `_on_login_check_done` 执行 E6（A9）。
-
-| 步骤 | 流程说明 | 代码对应 |
-|------|----------|----------|
-| **E1** | 结束已有 ROSBOT | `get_rosbot_manager().kill_if_running()` |
-| **E2** | 等待 1 秒 | `time.sleep(1)` |
-| **E3** | 配置 auto_start_rosbot？ | `CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True)`；否则跳过 E4～E5a，直接主线程收尾 |
-| **E4** | 启动 ROSBOT 进程 | `get_rosbot_manager().start()`（find_rosbot_exe + start_executable） |
-| **E5** | 任务初始化 | `start_rosbot_task()`（启用 rosbot_task 周期任务） |
-| **E5a** | 启动后自动化 | `run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)` |
-| **E6 [A9]** | 主线程收尾 | 面板 `_on_login_check_done`：set_task_status("rosbot_task", ENABLED)、initialize()、start_rosbot_task()、打日志「ROSBOT Started monitoring」 |
-
----
-
-## ROSBOT 启动后自动化（E5a / 流程内统一调用点）
-
-在 E4 启动进程、E5 任务初始化之后，执行同一段「启动后自动化」（对应 `run_after_rosbot_start`）：
-
-1. **等窗口**：轮询 `get_rosbot_window()` 直到 ROSBOT 窗口出现，超时可用配置（默认 30 秒）；激活该窗口（SetForegroundWindow、ShowWindow）。
-2. **等服务器连接**：等待 `SERVER_WAIT_SECONDS`。
-3. **轮询主 UI 就绪**：轮询直到主档案 Tab 可见（MAIN_UI_POLL_TIMEOUT / MAIN_UI_POLL_INTERVAL）。
-4. **调试输出**（可选）：递归遍历该窗口的可操作元素，输出类型、名称、自动化 ID、矩形等，便于排查。
-5. **点主档案**：在窗口内找到名称包含「主档案/主檔案/Main Profile」的 Tab，点击。
-6. **点 Start botting!**：找到 automation_id 或名称对应「Start botting」的按钮并点击。
-
-异常仅记录为黄色日志，不改变流程成功/失败结果。
-
----
-
-## 首次启动首界面（B4 / B4' 判定）
-
-B2 有战网窗口时，当前界面即**首次启动的首界面**。流程图中用两个判定节点写清：**B4 首界面：登陆页？**、**B4' 首界面：等待浏览器返回页？**；任一为是 → B5，均否 → B6。该首界面仅区分两种状态：
-
-| 状态 | 说明 | B4 判定 |
-|------|------|---------|
-| **登陆页** | 客户端内同意条款、网易账号登录页（UI 含「需要登陆」「您同意」「使用网易账号登录或注册」等） | 视为「当前是否为登陆界面」**是** → B5 退出战网 |
-| **等待浏览器返回页** | 弹窗「使用浏览器完成登录。/取消」 | 视为**是** → B5 退出战网 |
-
-上述两种状态**任一**为真则 B4 走 **是 → B5 退出战网**；否则为**否 → B6 激活战网窗口、轮询 UI**（由 B13 每 tick 轮询 UI 控件树）。点同意/确认（B10/B11）仅在本流程自己启动战网后经 B7→B8→B9 判定为登录界面时执行。
-
----
-
-## 实现说明（给 AI）
-
-- **本文档不指定**：具体文件路径、类名、函数名、常量名、第三方库名。
-- **实现时**：在仓库内根据现有模块与项目规范（如 CONFIG 放置常量、优先使用 pycore 等）自行查找并调用对应能力；流程中涉及的「战网/D3/ROSBOT 管理器」「截图与模板匹配」「OCR」「点击与窗口操作」「任务线程与状态回调」等，均应在代码库中按既有结构接入，保持风格一致。
-- **状态管理与全局定时器**：全局定时器 1 秒一跳，本流程通过 % 方式实现 2 秒一个 tick；总状态关闭时跳过所有分支，总状态开启时按当前分支状态驱动（wait 则本 tick 跳过，有导向则执行并切换）；停止时关闭总状态。各节点需区分为 wait 与有导向。本流程为 tick 驱动，掉线后自动回到流程开始。
-- **D3 界面判定与在线检测**：开始界面 = scale match **d3_start_game_button.png**。只有当出现 **d3_game_tool** 时才按 M 键；未出现时标记 **wait**。D3 是否在线 = 仅当已出现 d3_game_tool 时按约定五步（先截图→按 M→再截图→对比相似度，高度相似则掉线→再按 M 恢复地图）。掉线模板图命名为 **d3_disconnected.png**。
-- **B11 油猴等待超时**：步骤2 等待油猴返回超时时间为 **2 分钟**（120 秒），由 `BN_FLOW_OAUTH_WAIT_SEC` 配置。
-- **B4 首次启动首界面两种状态**：见上节「首次启动首界面（B4 判定）」；实现时用 `is_on_login_screen()` 判登陆页、`is_on_browser_login_wait_screen()` 判等待浏览器返回页，任一为真则 B4→B5。
-- **B6/B7/B8/B13 轮询 UI**：流程中「轮询」均指**轮询战网 UI**（每 tick 查控件树/枚举控件），非轮询网络或其它。B6 激活窗口后由 B13 轮询 UI；B7 轮询 UI 直到出现确切元素（战网刚启动转圈则继续等）；B8 为 B7 轮询 UI 结果；B13 轮询 UI 得确切状态（已登录/掉线/超时/其他）。节点上已写说明。
-- **登录失败状态**：在 B4、B7、B9、B11、B13 任一节点，若战网 UI 为**网页登陆后**战网显示的弹窗，则判定为登录失败，退出战网并回到 B1。该弹窗有**两个按钮**、支持中英文：主按钮「继续离线」/ Continue Offline、次按钮「取消」/ Cancel。**判定以主按钮为准**（仅当出现「继续离线」或 Continue Offline 时判为登录失败），避免仅因「取消」误判（等待浏览器返回页也有「取消」）。实现时先排除 `is_on_browser_login_wait_screen()`，再检查 `BATTLE_NET_LOGIN_FAILED_KEYWORDS`（前二为主按钮、后二为次按钮，最大化需两者均存在）。
-- **每步 UI 快照**：每步使用固定流程名（如 B2_has_window、B7_poll_elements、B11_wait_oauth 等）保存战网当前 UI 元素到 `battlenet_ui_analyze/bn_flow_snapshots/`，便于对照调试。
-- **A4a 预判（D3/ROSBOT 在线 + ROSBOT 日志超时）**：在战网就绪（BN_Confirmed）之后、A5 D3 是否在线（按 M 键检测）之前执行。**A4a-1 D3 是否在线**：以 D3 进程/窗口存在为准（与 A5 的「按 M 对比相似度」不同）。**A4a-2 ROSBOT 是否在线**：以 ROSBOT 进程存在为准。**A4a-3 ROSBOT 日志是否超时**：超时时间取 **UI 上设置的超时时间**；若超时则执行 A4a-4 关闭 D3 与 ROSBOT，然后回到 A4a 入口重新判断。**D3 在线、ROSBOT 不在线**：直接进入 C（D3 已运行直连），C 成功后走 E（启动 ROSBOT）。**D3 不在线**：落到 A6 HasD3，按现有逻辑走 C 或 D。
-- **Mermaid 图**：全部流程合并为一张图，按「Mermaid 使用规范」编写，规范见 [`MERMAID_SPEC.md`](MERMAID_SPEC.md)；审阅或修改本 Mermaid 版时须遵守该规范。
-
----
-
-## 油猴脚本子流程（Tampermonkey）
-
-脚本监听两个 URL，与主流程 **B10/B11** 配合：B10 步骤1 点同意/确认后，浏览器会打开网易登录页（URL1）；油猴在 URL1 完成「wait 按钮 → wait 服务器(30s) → 点击 → wait 5s → 通知 oauth-done」后关标签，后端收到 oauth-done 即 B11「油猴返回」。用户可能被重定向到 URL2，URL2 仅做「查询上一页是否已提交成功」并记录日志。
-
-### 油猴子流程（Mermaid）
-
-```mermaid
-flowchart LR
-    subgraph URL1["URL1 oauth.g.mkey.163.com"]
-        T1_WaitBtn["wait 登录按钮"]
-        T1_WaitSrv["wait 服务器连接，超时 30s"]
-        T1_Click["点击按钮"]
-        T1_Wait5["wait 5s"]
-        T1_Notify["POST/GET oauth-done，后端记录 step1"]
-        T1_Close["关标签"]
+    subgraph TM["油猴脚本（与 B10/B11 配合）"]
+        T1_WaitBtn["[T1.1] URL1 wait 登录按钮"]
+        T1_WaitSrv["[T1.2] wait 服务器连接，超时 30s"]
+        T1_Click["[T1.3] 点击按钮"]
+        T1_Wait5["[T1.4] wait 5s"]
+        T1_Notify["[T1.5] POST/GET oauth-done<br/>后端记录 step1，B11 视为返回"]
+        T1_Close["[T1.6] 关标签"]
         T1_WaitBtn --> T1_WaitSrv
         T1_WaitSrv -->|连上或超时| T1_Click
         T1_Click --> T1_Wait5
         T1_Wait5 --> T1_Notify
         T1_Notify --> T1_Close
-    end
-
-    subgraph URL2["URL2 account.battlenet.com.cn"]
-        T2_Enter["进入该页(点后跳转)"]
-        T2_Query["GET oauth-step1-received"]
-        T2_Log["有则本页记录成功日志"]
+        T2_Enter["[T2.1] URL2 进入该页(点后跳转)"]
+        T2_Query["[T2.2] GET oauth-step1-received"]
+        T2_Log["[T2.3] 若收到则本页记录成功日志"]
+        T1_Close -.->|可能跳转| T2_Enter
         T2_Enter --> T2_Query
         T2_Query --> T2_Log
     end
 
-    T1_Close -.->|可能跳转| T2_Enter
+    B16_Confirmed --> F_Entry
+
+    subgraph F["F 预判（D3/ROSBOT 在线与日志超时）"]
+        F_Entry["[F0] 预判入口"]
+        F1_HasD3{"[F1] D3 是否在线？"}
+        F1c_EndD3["[F1c] 结束 D3 进程"]
+        F1d_Offline["[F1d] 识别到掉线"]
+        F2_RosbotOnline{"[F2] ROSBOT 是否在线？"}
+        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>按 UI 设置时间"}
+        F4a_EndD3["[F4a] 关闭 D3"]
+        F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT"]
+        F_Entry --> F1_HasD3
+        F1_HasD3 -->|否<br/>→D1 从战网启动 D3| D1_Entry
+        F1_HasD3 -->|是| F2_RosbotOnline
+        F1c_EndD3 --> F_Entry
+        F1d_Offline --> F1c_EndD3
+        F2_RosbotOnline -->|否<br/>→C1 入口| C1_Entry
+        F2_RosbotOnline -->|是| F3_LogTimeout
+        F3_LogTimeout -->|未超时<br/>回到 F3| F3_LogTimeout
+        F3_LogTimeout -->|超时| F4a_EndD3
+        F4a_EndD3 --> F4b_SendF7
+        F4b_SendF7 --> B2_HasWin
+    end
+
+    subgraph C["C D3 已运行直连"]
+        C1_Entry["[C1] 入口"]
+        C2_Resize["[C2] 将 D3 窗口缩放到标准分辨率"]
+        C3_Screenshot["[C3] 截屏识图（前提）<br/>模板 d3_start_game_button / d3_game_tool"]
+        C4_Result{"[C4] 识图结果<br/>由 C3 截屏识图决定"}
+        C5_StartGame["[C5] 点击开始游戏按钮"]
+        C5w_Wait["[C5w] wait 直到出现 d3_game_tool 或超时"]
+        C9_MapCheck["[C9] 按两次 M 检测悬赏<br/>（防止地图已开时按一次反而关闭）"]
+        C12_EndD3["[C12] 结束 D3 进程，进入 D 流程"]
+        C6_GameTool["[C6] 继续 d3_game_tool 流程"]
+        C7a_PressM["[C7a] 按 M"]
+        C7w_Wait["[C7w] 等待 2 秒"]
+        C7b_Teleport["[C7b] 传送三连点"]
+        C8_Result{"[C8] 传送结果？"}
+        C10_Check["[C10a] 用 d3_bounty_progress 查悬赏图<br/>两次按 M 两次检测"]
+        C10_Result{"[C10b] 都未出现悬赏图？"}
+        C11w_Wait["[C11w] 等待 2 秒"]
+        C11b_Teleport["[C11b] 传送三连点"]
+        C1_Entry --> C2_Resize
+        C2_Resize --> C3_Screenshot
+        C3_Screenshot --> C4_Result
+        C4_Result -->|出现 d3_start_game_button<br/>在开始游戏界面| C5_StartGame
+        C4_Result -->|出现 d3_game_tool<br/>在游戏中，走 C6 流程| C6_GameTool
+        C4_Result -->|游戏掉线| F1d_Offline
+        C4_Result -->|未匹配，进入 D| C12_EndD3
+        C5_StartGame --> C5w_Wait
+        C5w_Wait -->|超时，→C12| C12_EndD3
+        C5w_Wait -->|出现 d3_game_tool<br/>走 C6 流程| C6_GameTool
+        C6_GameTool --> C9_MapCheck
+        C9_MapCheck --> C10_Check
+        C10_Check --> C10_Result
+        C10_Result -->|是，两次都未出现悬赏图<br/>视为游戏掉线| C12_EndD3
+        C10_Result -->|否，任一次出现悬赏进度<br/>→传送三连点| C7a_PressM
+        C7a_PressM --> C7w_Wait
+        C7w_Wait --> C7b_Teleport
+        C7b_Teleport --> C8_Result
+        C8_Result -->|成功| A8_Success
+        C8_Result -->|失败| C12_EndD3
+    end
+
+    subgraph D["D 从战网启动 D3"]
+        D1_Entry["[D1] 从战网启动 D3 入口"]
+        D2_StartBN["[D2] 无战网则启动战网"]
+        D3_EndD3["[D3] 若有 D3 进程则结束"]
+        D3w_Wait["[D3w] 等 5 秒"]
+        D4_Activate["[D4] 激活战网窗口"]
+        D4w_Wait["[D4w] 等 1 秒"]
+        D5_UI["[D5] UI 识别战网界面"]
+        D6_HasWin{"[D6] 找到战网窗口？"}
+        D_Fail["[D6f] 本步失败，返回失败"]
+        D7_FindTab["[D7] 查找 D3 tab 与 Play 控件"]
+        D8_TabOk{"[D8] 找到 D3 tab 且可点击？"}
+        D9_ClickTab["[D9] 点击战网 D3 tab 对应 UI"]
+        D10_UIState["[D10] UI 状态判断，登录或重启战网"]
+        D11w_WaitPlay["[D11w] 等 Play 出现"]
+        D11_Click["[D11] 点击 Play"]
+        D12_Sleep["[D12] sleep(5)"]
+        D12b_Poll["[D12b] 轮询 D3 窗口最多 10 秒"]
+        D13_HasD3Win{"[D13] 10 秒内找到 D3 窗口？"}
+        D14_Restart["[D14] 重启战网"]
+        D14w_Wait["[D14w] 等 5 秒"]
+        D15a_Scale["[D15a] D3 窗口缩放"]
+        D15b_Clear["[D15b] 清缓存"]
+        D16a_Match["[D16a] 截图匹配开始游戏按钮"]
+        D16b_Click["[D16b] 点击开始游戏"]
+        D17_ClickOk{"[D17] 成功点击「开始游戏」？"}
+        D18a_Kill["[D18a] 结束已有 ROSBOT"]
+        D18b_Start["[D18b] 若配置则启动并自动化"]
+        D1_Entry --> D2_StartBN
+        D2_StartBN --> D3_EndD3
+        D3_EndD3 --> D3w_Wait
+        D3w_Wait --> D4_Activate
+        D4_Activate --> D4w_Wait
+        D4w_Wait --> D5_UI
+        D5_UI --> D6_HasWin
+        D6_HasWin -->|否| D_Fail
+        D6_HasWin -->|是| D7_FindTab
+        D7_FindTab --> D8_TabOk
+        D8_TabOk -->|是| D9_ClickTab
+        D8_TabOk -->|否| D10_UIState
+        D10_UIState --> D1_Entry
+        D9_ClickTab --> D11w_WaitPlay
+        D11w_WaitPlay --> D11_Click
+        D11_Click --> D12_Sleep
+        D12_Sleep --> D12b_Poll
+        D12b_Poll --> D13_HasD3Win
+        D13_HasD3Win -->|否| D14_Restart
+        D14_Restart --> D14w_Wait
+        D14w_Wait --> D1_Entry
+        D13_HasD3Win -->|是<br/>→C1 入口| C1_Entry
+        D15a_Scale --> D15b_Clear
+        D15b_Clear --> D16a_Match
+        D16a_Match --> D16b_Click
+        D16b_Click --> D17_ClickOk
+        D17_ClickOk -->|否| D14_Restart
+        D17_ClickOk -->|是| D18a_Kill
+        D18a_Kill --> D18b_Start
+        D18b_Start --> A8_Success
+    end
+
+    C12_EndD3 --> D1_Entry
+    A8_Success["[A8] 返回成功，进入 E"] --> E1_Kill
+
+    subgraph E["E ROSBOT 运行流程"]
+        E1_Kill["[E1] 结束已有 ROSBOT"]
+        E2_Sleep["[E2] 等待 1 秒"]
+        E3_Config{"[E3] 配置 auto_start_rosbot？"}
+        E4_Start["[E4] 启动 ROSBOT 进程"]
+        E5_Init["[E5] 任务初始化"]
+        E5a_WaitWin["[E5a1] 等窗口"]
+        E5a_WaitSrv["[E5a2] 等服务器"]
+        E5a_PollUI["[E5a3] 轮询主 UI"]
+        E5a_ClickProfile["[E5a4] 点主档案"]
+        E5a_ClickStart["[E5a5] 点 Start botting!"]
+        E6_Done["[E6] 主线程收尾，记录日志"]
+        E1_Kill --> E2_Sleep
+        E2_Sleep --> E3_Config
+        E3_Config -->|否| E6_Done
+        E3_Config -->|是| E4_Start
+        E4_Start --> E5_Init
+        E5_Init --> E5a_WaitWin
+        E5a_WaitWin --> E5a_WaitSrv
+        E5a_WaitSrv --> E5a_PollUI
+        E5a_PollUI --> E5a_ClickProfile
+        E5a_ClickProfile --> E5a_ClickStart
+        E5a_ClickStart --> E6_Done
+        E6_Done --> A9_MainEnd
+    end
 ```
-
-### 分工说明
-
-| URL | 功能 | 备注 |
-|-----|------|------|
-| **URL1** `oauth.g.mkey.163.com` | **wait 按钮 + wait 服务器（超时 30s）+ 点击** | 轮询等「登 录」按钮 → 发现后等 D3 服务器连接（ping），**超时 30s** → 连上则点击 / 超时则直接点击 → wait 5s → POST/GET `oauth-done`（后端记录 step1，对应 B11 油猴返回）→ 关标签。 |
-| **URL2** `account.battlenet.com.cn` | **无任何其它功能** | 点后会跳转到此页。仅：进入后请求「上一页（URL1）是否已提交成功」；后端返回是则本页记录成功日志。不找按钮、不点击。跨域无法读 URL1 的 localStorage，由后端记录 step1 并在本页查询时消费一次。 |
-
-**URL1（网易登录页）**
-
-- **wait 按钮**：轮询查找「登 录」按钮。
-- **wait 服务器（超时 30s）**：发现按钮后，等待 D3 服务器连接成功（ping `oauth-ping`）；**30 秒内连上则点击**，**30 秒未连上则超时直接点击**。
-- 点击后 **wait 5 秒** → POST/GET `oauth-done` → 后端记录 step1（主流程 B11 视为油猴返回）→ 关标签。
-- 定时 ping `oauth-ping`，UI 显示是否已连接 D3。
-
-**URL2（战网 account 页）**
-
-- **无任何其它功能**。仅：进入该页后（通常由 URL1 点击后跳转）请求 GET `oauth-step1-received`，若后端返回「URL1 已提交成功」，则在本页记录成功日志。不找按钮、不点击。
-- UI 同 URL1：右下角面板、连接状态、最近日志（本域 localStorage，最近 100 条）。
