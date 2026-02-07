@@ -1,0 +1,21 @@
+{
+  "name": "md-preview",
+  "version": "1.0.0",
+  "description": "Local Markdown/Mermaid preview with watch and file picker",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "md-preview": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "preview": "node index.js",
+    "postinstall": "node copy-vendor.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.1",
+    "express": "^4.21.0",
+    "marked": "^17.0.1",
+    "mermaid": "^11.12.2"
+  }
+}
