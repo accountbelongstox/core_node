@@ -17,7 +17,9 @@
         },
         "debug_window": {
         "title": "D4 调试 - 区域检测",
-        "heading": "D4 区域检测调试"
+        "heading": "D4 区域检测调试",
+        "d3_bag_title": "D3 背包识别",
+        "d3_bag_no_data": "无 D3 背包数据（请先执行背包检测）"
       },
       "game_status": {
           "title": "游戏状态",
