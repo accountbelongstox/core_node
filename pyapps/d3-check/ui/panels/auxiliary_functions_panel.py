@@ -13,7 +13,7 @@ from typing import Optional, Callable
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, save_config
+from providor.providor_index import CONFIG, save_config, DIABLO_III_WINDOW_TITLES
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles
@@ -25,6 +25,11 @@ from ..widgets import HotkeyInput
 from d3utils.i18n_manager import i18n_manager
 from ..utils.tk_variables import var_str
 from ui.utils.config_binding import ConfigBinding
+from share.game_interface_data import get_game_interface_data, get_scaled_bag_region, get_global_scale
+from pycore.pyfoundations.third_party import get_third_package_PIL_ImageTk
+from d3utils.screenshot_provider import get_screenshot_provider
+
+ImageTk = get_third_package_PIL_ImageTk()
 
 class AuxiliaryFunctionsPanel:
     """
@@ -91,8 +96,16 @@ class AuxiliaryFunctionsPanel:
         
         for i, (label_text, var_name, default, min_val, max_val) in enumerate(settings):
             self._create_spinbox_row(bag_frame, label_text, var_name, default, min_val, max_val, i)
-        
-        # Note: Removed bag offset test button as requested by user
+
+        btn_row = len(settings)
+        open_bag_btn = ttk.Button(
+            bag_frame,
+            text=i18n_manager.get_ui_text("ui.auxiliary_panel.open_bag_adjust"),
+            command=self._open_bag_adjust_window
+        )
+        open_bag_btn.grid(row=btn_row, column=0, columnspan=2, sticky="w",
+                         padx=UnifiedStyles.SPACING['sm'],
+                         pady=UnifiedStyles.SPACING['xs'])
 
     def _create_spinbox_row(self, parent, label_text, var_name, default, min_val, max_val, row):
         """Create a spinbox configuration row using ConfigBinding"""
@@ -409,6 +422,57 @@ class AuxiliaryFunctionsPanel:
         hotkey_input.grid(row=10, column=1, sticky='w',
                          padx=UnifiedStyles.SPACING['sm'],
                          pady=UnifiedStyles.SPACING['md'])
+
+    def _open_bag_adjust_window(self):
+        """Open a popup window that displays the cropped bag region from current game window image."""
+        win = tk.Toplevel(self.parent)
+        win.title(i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_window_title"))
+        win.configure(bg=UnifiedStyles.COLORS['bg_primary'])
+        win.geometry("500x400")
+
+        content = tk.Frame(win, bg=UnifiedStyles.COLORS['bg_primary'])
+        content.pack(fill=tk.BOTH, expand=True, padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['md'])
+
+        img_label = tk.Label(content, text="", bg=UnifiedStyles.COLORS['bg_secondary'],
+                             fg=UnifiedStyles.COLORS['text_primary'], font=UnifiedStyles.FONTS['label'])
+        img_label.pack(fill=tk.BOTH, expand=True)
+
+        def _refresh():
+            # Re-capture screenshot each time (memory only, no path saved)
+            provider = get_screenshot_provider()
+            sd = provider.gen(
+                use_optimized_capture=True,
+                window_titles=list(DIABLO_III_WINDOW_TITLES),
+            )
+            game_data = get_game_interface_data()
+            img = getattr(game_data, "game_window_image", None) if sd is None else sd.game_window_image
+            if img is None:
+                img_label.configure(image="", text=i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image"))
+                return
+            try:
+                (tl, br) = get_scaled_bag_region()
+                scale_x, scale_y = get_global_scale()
+                off = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
+                left = tl[0] + int(off.get("left", 9) * scale_x)
+                top = tl[1] + int(off.get("top", 0) * scale_y)
+                right = br[0] - int(off.get("right", 22) * scale_x)
+                bottom = br[1] - int(off.get("bottom", 0) * scale_y)
+                left = max(0, min(left, img.width))
+                top = max(0, min(top, img.height))
+                right = max(left, min(right, img.width))
+                bottom = max(top, min(bottom, img.height))
+                cropped = img.crop((left, top, right, bottom))
+                photo = ImageTk.PhotoImage(cropped)
+                win._bag_photo = photo
+                img_label.configure(image=photo, text="")
+            except Exception as e:
+                img_label.configure(image="", text=str(e))
+                win._bag_photo = None
+
+        refresh_btn = ttk.Button(content, text=i18n_manager.get_ui_text("ui.auxiliary_panel.refresh_bag_preview"), command=_refresh)
+        refresh_btn.pack(pady=UnifiedStyles.SPACING['xs'])
+
+        _refresh()
 
     # Note: Removed _test_bag_offset method as requested by user
     # Note: Removed _start_automation and _stop_automation methods - replaced with hotkey control

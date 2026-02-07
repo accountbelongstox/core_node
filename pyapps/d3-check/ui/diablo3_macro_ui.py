@@ -254,17 +254,22 @@ class Diablo3MacroUI:
         return self.bottom_bar.on_window_status_update
 
     def _create_system_tray(self):
-        """Create system tray icon"""
+        """Create system tray icon. Start deferred so Tk is ready (fixes tray not showing on Windows)."""
         self.system_tray = SystemTray(self)
-
         self.system_tray.set_show_callback(self._tray_show_window)
         self.system_tray.set_exit_callback(self._tray_exit_application)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
+        # Deferred start (backup): in case start_system_tray_if_needed() is not called before mainloop
+        self.root.after(500, self.start_system_tray_if_needed)
 
+    def start_system_tray_if_needed(self):
+        """Start system tray if not already running. Call when UI is ready (e.g. before mainloop)."""
+        if not getattr(self, "system_tray", None):
+            return
         if self.system_tray.start():
             ColorPrint.green("[UI] System tray started successfully")
-            self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
         else:
-            ColorPrint.yellow("[UI] System tray failed to start")
+            ColorPrint.yellow("[UI] System tray failed to start (pystray/PIL missing or icon create failed)")
     
     def _tray_show_window(self):
         """Show window from tray; dispatched to main thread via event center."""

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-D3Check 项目根路径与 sys.path 注入。
-统一在此计算 pyapps/d3-check 根目录，供各模块替换重复的 current_dir/sys.path.insert。
+D3Check project root path and sys.path injection.
+Single place for pyapps/d3-check root; modules use this instead of repeating current_dir/sys.path.insert.
 """
 
 import sys
@@ -11,12 +11,12 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def get_project_root() -> Path:
-    """返回 pyapps/d3-check 根目录。"""
+    """Return pyapps/d3-check root directory."""
     return _PROJECT_ROOT
 
 
 def ensure_d3_check_in_sys_path() -> None:
-    """确保 pyapps/d3-check 在 sys.path 最前，可重复调用。"""
+    """Ensure pyapps/d3-check is at the front of sys.path; safe to call repeatedly."""
     s = str(_PROJECT_ROOT)
     if s not in sys.path:
         sys.path.insert(0, s)

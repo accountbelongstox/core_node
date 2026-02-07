@@ -188,7 +188,7 @@ class HTTPBridgeController:
             }
 
     def _handle_login_try_oauth_done(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
-        """POST /api/login-try/oauth-done: Tampermonkey notifies web 登录 completed."""
+        """POST /api/login-try/oauth-done: Tampermonkey notifies web that login completed."""
         try:
             notify_oauth_done()
             return {'success': True, 'message': 'oauth_done'}
@@ -204,7 +204,7 @@ class HTTPBridgeController:
             return {'success': False, 'error': str(e)}
 
     def _handle_login_try_oauth_ping(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
-        """GET /api/login-try/oauth-ping: Tampermonkey health ping (no oauth_done). UI shows 油猴脚本 已连接."""
+        """GET /api/login-try/oauth-ping: Tampermonkey health ping (no oauth_done). UI shows script connected."""
         try:
             notify_ping()
             return {'success': True, 'message': 'pong'}

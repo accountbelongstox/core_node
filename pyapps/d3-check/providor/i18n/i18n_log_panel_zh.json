@@ -14,6 +14,8 @@
       "clear": "清除",
       "save_log": "保存日志",
       "auto_scroll": "自动滚动",
+      "show_debug_logs": "是否打印DEBUG日志",
+      "debug_log_latency": "校验实时性(显示延迟)",
       "running_test": "运行测试",
       "test_failed": "测试失败",
       "test_completed": "测试执行完成",

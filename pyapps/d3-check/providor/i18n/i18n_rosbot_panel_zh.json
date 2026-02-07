@@ -49,6 +49,10 @@
       "prevent_stuck_desc": "(当击杀BOSS后有可能卡住导致没法点开升级宝石页)",
       "blue_portal_priority": "蓝门优先捡材料",
       "blue_portal_priority_desc": "(当蓝门结束时有可能背包满导致没有捡材料就回城",
+      "smart_echo": "智能回响",
+      "smart_echo_wait_seconds_label": "等待",
+      "smart_echo_pause_log": "智能暂停ROSBOT防止游戏退出。",
+      "smart_echo_echo_returning_log": "正在回响地图回城中",
       "path_configuration": "路径配置",
       "bot_settings": "机器人设置",
       "auto_combat": "自动战斗",
@@ -119,6 +123,9 @@
       "battlenet_normal_available": "正常可用",
       "battlenet_unknown": "未知",
       "ros_status": "ROS",
+      "ros_label": "ROS:",
+      "ros_found": "找到的ROSBOT",
+      "ros_found_format": "进程:{exe} 标题:{title}",
       "d3_status": "D3",
       "map_status": "地图",
       "stage": "阶段",
@@ -127,6 +134,8 @@
       "map_town": "城里",
       "map_greater_rift": "大秘境",
       "map_rift": "小秘境",
+      "map_echo": "回响",
+      "map_echo_completed": "回响完成",
       "map_unknown": "未知",
       "stage_gem_upgrade": "升级宝石",
       "stage_kill_boss": "击杀BOSS",
@@ -145,7 +154,14 @@
       "scan_not_found_battlenet": "未找到 Battle.net.exe",
       "scan_not_found_rosbot": "未找到 ROSBOT 可执行文件",
       "cancel": "取消",
-      "copy": "复制"
+      "copy": "复制",
+      "log_last_ago": "最后一条: {0} 前",
+      "log_last_ago_min": "最后一条: {0} 前",
+      "log_latency": "延迟 +{0}s",
+      "refresh_no_fn": "未设置刷新函数(控制器可能未连接窗口监控)",
+      "refresh_refreshing": "正在刷新状态(手动) -> 后台执行 check_window...",
+      "rosbot_started_monitoring": "ROSBOT 已开始监控",
+      "rosbot_stopped_monitoring": "ROSBOT 已停止监控"
     }
   }
 }

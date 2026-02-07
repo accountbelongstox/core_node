@@ -74,19 +74,63 @@ class CoordinateCalibrationPanel:
 
         self.container.grid_columnconfigure(0, weight=1)
         self.container.grid_rowconfigure(0, weight=0)
-        self.container.grid_rowconfigure(1, weight=1)
+        self.container.grid_rowconfigure(1, weight=0)
+        self.container.grid_rowconfigure(2, weight=1)
 
         self.create_content()
 
     def create_content(self):
-        """Create panel content"""
+        """Create panel content: client row first, then buttons, then history."""
+        self._create_client_row()
         self._create_control_panel()
         self._create_history_panel()
 
+    def _create_client_row(self):
+        """Client selector at top, left-aligned and grouped."""
+        client_frame = tk.Frame(
+            self.container,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            highlightbackground=UnifiedStyles.COLORS['panel_border'],
+            highlightthickness=1
+        )
+        client_frame.grid(row=0, column=0, sticky="w", padx=0, pady=(0, UnifiedStyles.SPACING['sm']))
+        client_frame.grid_columnconfigure(0, weight=0)
+        pad = UnifiedStyles.SPACING['sm']
+        inner = tk.Frame(client_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        inner.pack(side=tk.LEFT, padx=pad, pady=pad)
+        lbl = tk.Label(
+            inner,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.client_mode"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_secondary'],
+            font=UnifiedStyles.FONTS['label']
+        )
+        lbl.pack(side=tk.LEFT, padx=(0, pad))
+        self.var_client = tk.StringVar(value=self.current_client_type)
+        for val, key in [
+            (CLIENT_TYPE_BATTLENET, "ui.coord_calibration.client_battlenet"),
+            (CLIENT_TYPE_D3_GAME, "ui.coord_calibration.client_d3_game"),
+            (CLIENT_TYPE_D4_GAME, "ui.coord_calibration.client_d4_game"),
+        ]:
+            rb = tk.Radiobutton(
+                inner,
+                text=i18n_manager.get_ui_text(key),
+                variable=self.var_client,
+                value=val,
+                bg=UnifiedStyles.COLORS['bg_secondary'],
+                fg=UnifiedStyles.COLORS['text_primary'],
+                selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
+                activebackground=UnifiedStyles.COLORS['bg_secondary'],
+                activeforeground=UnifiedStyles.COLORS['text_primary'],
+                font=UnifiedStyles.FONTS['label'],
+                command=lambda v=val: setattr(self, 'current_client_type', v)
+            )
+            rb.pack(side=tk.LEFT, padx=(0, pad * 2))
+
     def _create_control_panel(self):
-        """Create top bar: 拾取坐标, 清除历史, 导出JSON only. Client type and save/compress use defaults (chosen before opening picker, not shown here)."""
+        """Top bar: capture, clear history, export JSON."""
         button_frame = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_primary'])
-        button_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
+        button_frame.grid(row=1, column=0, sticky="ew", padx=0, pady=(0, UnifiedStyles.SPACING['md']))
         button_frame.grid_columnconfigure(0, weight=1)
 
         capture_btn = tk.Button(
@@ -144,7 +188,7 @@ class CoordinateCalibrationPanel:
             text=i18n_manager.get_ui_text("ui.coord_calibration.history_title"),
             style='TLabelframe'
         )
-        history_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        history_frame.grid(row=2, column=0, sticky="nsew", padx=0, pady=0)
         history_frame.grid_rowconfigure(0, weight=1)
         history_frame.grid_columnconfigure(0, weight=1)
 
@@ -193,48 +237,26 @@ class CoordinateCalibrationPanel:
         )
 
     def _on_capture_screenshot(self):
-        """Capture screenshot from game window based on selected client type"""
-        ColorPrint.blue(f"[COORD_CALIBRATION] Capturing screenshot for client: {self.current_client_type}...")
-
+        """Activate client window, capture to memory (no file), open picker."""
+        ColorPrint.blue(f"[COORD_CALIBRATION] Capturing for client: {self.current_client_type}...")
         try:
-            # Get window titles for the selected client type
             window_titles = self.WINDOW_TITLES_MAP.get(
                 self.current_client_type,
-                self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]  # Default fallback
+                self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
             )
-            ColorPrint.blue(f"[COORD_CALIBRATION] Looking for windows: {window_titles}")
-
-            # Use WindowScreenshot to capture the window
-            ws = WindowScreenshot()
-
-            # Use the capture_first_window_by_titles method to capture the window
-            result = ws.screenshot_first_window_by_titles(
-                titles=window_titles,
-                filename_prefix=f"calibration_{self.current_client_type}",
-                use_cache=True
-            )
-
-            if not result or not result.get('screenshot_path'):
+            ws = WindowScreenshot(match_mode="endswith")
+            out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
+            if not out:
                 messagebox.showwarning(
                     i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
                     i18n_manager.get_ui_text("ui.coord_calibration.no_game_window")
                 )
-                ColorPrint.yellow(f"[COORD_CALIBRATION] Could not find window matching: {window_titles}")
+                ColorPrint.yellow(f"[COORD_CALIBRATION] No window: {window_titles}")
                 return
-
-            # Load the screenshot from the saved file path
-            from PIL import Image
-            screenshot_path = result['screenshot_path']
-            self.screenshot = Image.open(screenshot_path)
-            self.screenshot_path = screenshot_path
-
-            ColorPrint.green(f"[COORD_CALIBRATION] Screenshot captured successfully")
-            ColorPrint.blue(f"[COORD_CALIBRATION] Window: {result.get('window_title', 'unknown')}")
-            ColorPrint.blue(f"[COORD_CALIBRATION] Window offset: {result.get('window_offset', 'N/A')}")
-            ColorPrint.blue(f"[COORD_CALIBRATION] Window size: {result.get('window_size', 'N/A')}")
-
+            self.screenshot, info = out
+            self.screenshot_path = None
+            ColorPrint.green(f"[COORD_CALIBRATION] Captured in memory {info.get('window_size')}")
             self._open_calibration_window()
-
         except Exception as e:
             ColorPrint.red(f"[COORD_CALIBRATION] Error capturing screenshot: {e}")
             import traceback
@@ -279,8 +301,18 @@ class CoordinateCalibrationPanel:
             self.history_tree.delete(item)
 
         for idx, pick in enumerate(self.pick_history, 1):
-            coords = f"({pick.get('x', 0)}, {pick.get('y', 0)})"
             pick_type = pick.get('type', 'point')
+            x, y = pick.get('x', 0), pick.get('y', 0)
+            if pick_type == 'point':
+                coords = f"({x}, {y})"
+            elif pick_type == 'rect':
+                w, h = pick.get('width', 0), pick.get('height', 0)
+                coords = f"{x},{y} {w}×{h}"
+            elif pick_type == 'circle':
+                r = pick.get('radius', 0)
+                coords = f"({x},{y}) r={r}"
+            else:
+                coords = f"({x}, {y})"
             game_mode = pick.get('game_mode', 'd3')
             timestamp = pick.get('timestamp', '')[:19]
 

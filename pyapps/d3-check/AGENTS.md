@@ -2,9 +2,14 @@
 
 Instructions for the Agent when working in this sub-app (pyapps/d3-check).
 
+## Reuse and no redundancy
+
+- **Reuse before adding.** Before writing new code, search the codebase for existing logic that can be extended (same module, d3utils, timers, controller, pycore). Prefer extending or parameterizing existing functions/classes over adding new ones. New features: first check for similar flows (e.g. one-shot tasks in `timers.one_shot_tasks`, OCR in `d3utils/ocr_helper`, key send in `d3utils/key_send`, crop in `d3utils/d3u_common/game_window_region`).
+- **No redundant definitions.** Do not duplicate stdlib or project-wide APIs: no local redefinitions of the same constant, same helper, or thin wrapper that only forwards. Use `providor.app_constants` for literals; use existing d3utils/pycore helpers; do not add a second constant or function that does the same thing elsewhere.
+
 ## Code and dependencies
 
-- Prefer **pycore** libraries. **No secondary encapsulation:** no re-exports or simple wrappers for any libs, constants, or methods. Import directly from `pycore.*`; do not use `providor.common_imports`. Constants: from `providor.app_constants`; not via `providor.providor_index`. Shared data: from `share.game_interface_data` or `share.project_path`; not `from share import ...`. D3 template matcher: from `d3utils.d3_scaled_template_matcher`; no `d3utils.scaled_template_matcher` re-export. Controller handlers: from `controller.ctl_func.blacksmith_handler` / `controller.ctl_func.kanai_cube_handler` directly. Grid config: use `config.grid_config.get_grid_config()` for current grid; literals from `app_constants`. One-shot work: `timers.timer_manager.submit_one_shot` and `share.threads.do_*` directly.
+- Prefer **pycore** libraries. **No secondary encapsulation:** no re-exports or simple wrappers for any libs, constants, or methods. Import directly from `pycore.*`; do not use `providor.common_imports`. Constants: from `providor.app_constants`; not via `providor.providor_index`. **share = shared data only** (game_interface_data, project_path); do not put business logic or one-shot tasks in share. Shared data: from `share.game_interface_data` or `share.project_path`. D3 template matcher: from `d3utils.d3_scaled_template_matcher`. Controller handlers: from `controller.ctl_func.*` directly. Grid config: use `config.grid_config.get_grid_config()`; literals from `app_constants`. One-shot work: `timers.timer_manager.submit_one_shot` and **`timers.one_shot_tasks.do_*`** (SmartEcho: `d3utils.smart_echo.do_smart_echo_pause_after_complete`).
 - For typical pycore usage in d3-check, see `.cursor/skills/d3-check/SKILL.md`.
 
 ## Configuration and constants
@@ -26,7 +31,7 @@ This requirement applies to the new 规范 too: write it into rules, skills, or 
 
 ## Runtime and code tree
 
-- **Lifecycle/thread/event:** main, controller, and ui import from **`runtime`** only (get_system_initializer, execute_shutdown, get_thread_registry, event triggers, get_task_manager, is_shutdown_requested). Implementation stays in d3utils and share; see `docs/CODE_TREE.md`.
+- **Lifecycle/thread/event:** main, controller, and ui import from **`runtime`** only (get_system_initializer, execute_shutdown, get_thread_registry, event triggers, get_task_manager, is_shutdown_requested). Implementation: d3utils (logic), runtime (thread_registry), **share = shared data only**; see `docs/CODE_TREE.md`.
 - **Code tree:** Full module tree and layers are in `docs/CODE_TREE.md`.
 
 ## Threads
@@ -43,8 +48,10 @@ This requirement applies to the new 规范 too: write it into rules, skills, or 
 |------|--------|
 | Literal D3/D4/Battle.net constants | `providor.app_constants` |
 | Skill/macro/template config | `config` (unified_config, grid_config) |
-| Shared pycore imports | Direct `pycore.*` only (no common_imports) |
-| New 规范 (standard/rule) | rules → skills → AGENTS.md (by priority above) |
+| Shared data (state, paths) | **share** (game_interface_data, project_path only; no business logic) |
+| One-shot tasks (path scan, login check, ROSBOT debug, Battlenet UI, window check) | **timers.one_shot_tasks** (do_*) |
+| SmartEcho (F7 + OCR resume) | **d3utils.smart_echo** |
 | Lifecycle/thread/event (init, shutdown, event center, task manager, thread registry) | **runtime** (see `docs/CODE_TREE.md`) |
 | Code tree and layers | `docs/CODE_TREE.md` |
 | Threads: 禁止互相卡住; event center only; init all at startup; tick-driven; per-thread state | `docs/THREAD_BUS_AND_REGISTRY.md` |
+| Reuse existing logic before adding; no redundant constants/methods | §Reuse and no redundancy above |

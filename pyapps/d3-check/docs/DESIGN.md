@@ -178,7 +178,7 @@
 | **process_helper** | `d3utils.process_helper` | 共用：`get_pid_from_hwnd(hwnd)`（win32process.GetWindowThreadProcessId）；`kill_process_by_pid(pid)`（taskkill /F /PID）；`kill_process_by_exe(exe_name)`（taskkill /F /IM）。D3Manager 按「找到的窗口」取 PID 再 k，BattleNetManager 仍按 exe 名 k。 |
 | **BattleNetManager** | `d3utils.battlenet_manager` | 战网：`get_path()`（从 CONFIG）、`kill()`、`restart(exe_path=None, wait_after_sec=2.0)`（kill + sleep + start）、`start(exe_path)`（explorer）、`find_windows()`、`activate_window()`（WindowFinder + WindowActivator）。单例：`get_battlenet_manager()`。**每次对战网做点击前**需先调用 `activate_window()` 确保窗口置顶。战网窗口标题含 `BATTLE_NET_WINDOW_TITLES`（含 `"Battle.net Login"` 等）。 |
 | **D3Manager** | `d3utils.d3_manager` | D3：`_find_windows()`（WindowFinder + DIABLO_III_WINDOW_TITLES，use_cache=True）、`is_running()`、`kill_if_running()`：**按实际找到的窗口取 PID**，再 `kill_process_by_pid(pid)`，不依赖固定 exe 名（标题/exe 可能变化）。单例：`get_d3_manager()`。 |
-| **ROSBOTManager** | `d3utils.rosbot_manager` | ROSBOT：`get_ros_directory()`（从 CONFIG ros_settings.ros_directory）；`find_rosbot_exe()`（ROSBOT_EXE_PATTERNS 在目录下找主 exe）；`find_same_dir_exe_names()`（同目录下生成的临时 exe，排除主程序与 install/uninstall）；`is_running()`（psutil：任一进程 exe 路径在该目录下）；`kill_if_running()`（上述进程按 PID k）；`start()`（Popen 主 exe）。单例：`get_rosbot_manager()`。**原 ROS 管理类**：`utils/_obsolete_rosbot_manager.py` 的 `RoSBotManager`（含 find_other_exe_files、cleanup_old_other_exe_processes、wait_for_new_other_exe、start_rosbot_sequence 等完整序列）；当前 d3utils 版为精简版，仅 k/start，详见 [ROSBOT_FLOW.md 第 0 节](ROSBOT_FLOW.md#0-原-ros-管理类库已废弃仅作对照)。 |
+| **ROSBOTManager** | `d3utils.rosbot_manager` | ROSBOT：同目录 exe 唯一查找流程见 [ROSBOT_LOOKUP_FLOW.md](ROSBOT_LOOKUP_FLOW.md)。`get_ros_directory()`；`find_rosbot_exe()`；`find_other_exe_files()`（同目录 exe 列表）；`get_rosbot_window()` / `get_rosbot_detection()`（先 other 后 main，仅 exe 找进程、按 PID 取窗口，无标题过滤）；`is_running()`、`kill_if_running()`、`start()`。单例：`get_rosbot_manager()`。废弃：`utils/_obsolete_rosbot_manager.py`，见 [ROSBOT_FLOW.md 第 0 节](ROSBOT_FLOW.md#0-原-ros-管理类库已废弃仅作对照)。 |
 
 **依赖基础类库**：WindowFinder、WindowActivator、get_default_skip_browser_callable（pycore/pyutils/common）；ColorPrint、WindowActivator（providor.common_imports）；config.constants；providor_index（CONFIG、窗口标题常量）。
 
@@ -218,7 +218,7 @@
 
 ### 3.11 ROSBOT UI 自动化（启动后点击主档案与 Start botting）
 
-- **模块**：`d3utils.rosbot_ui_automation`。使用 **uiautomation** 枚举并点击 ROSBOT 窗口内控件；窗口通过 `get_rosbot_manager().get_rosbot_window()` 查找（exe 在 ros_directory 下 PID 找窗口，不按标题）。
+- **模块**：`d3utils.rosbot_ui_automation`。使用 **uiautomation** 枚举并点击 ROSBOT 窗口内控件；窗口通过 `get_rosbot_manager().get_rosbot_window()` 查找（同目录 exe 单一路径，见 [ROSBOT_LOOKUP_FLOW.md](ROSBOT_LOOKUP_FLOW.md)）。
 - **入口**：`run_after_rosbot_start(wait_sec=5, do_debug=True, do_tab=True, do_start_botting=True)`。等待 ROSBOT 窗口出现 → 激活窗口 → 用 uiautomation 取 Control → **DEBUG 打印可操作元素**（`debug_print_operable_elements`：递归遍历控件树，ColorPrint 输出 type、name、automation_id、rect）→ 点击 **主档案** Tab（TabItemControl 名称含 主档案/主檔案/Main Profile）→ 点击 **Start botting!** 按钮（ButtonControl automation_id `btnStart` 或名称含 Start botting）。
 - **调用时机**：在 `ensure_battlenet_started_and_login_check()` 内，`get_rosbot_manager().start()` 与 `start_rosbot_task()` 之后调用；若异常仅打 Yellow 日志，不中断流程。
 - **点击实现**：控件级点击用 `control.Click()`（uiautomation），非 pyautogui 屏幕坐标。屏幕坐标点击（战网 Play、托盘）仍用 `ClickHandler`（pycore/pyutils/click_handler.py，内部 pyautogui）。
@@ -392,7 +392,7 @@
 - **主线程与各线程共享数据**：
   - **game_interface_data**（`share/game_interface_data.py`）：已有 `_lock`，主线程与各扩展线程可安全共享。
   - **CONFIG**：`providor.providor_index` 提供 `CONFIG_LOCK` 及 `get_config_value_safe`/`set_config_value_safe`；主要功能线程读宏配置时使用 `CONFIG_LOCK`。UI 可随时修改配置，确保配置为所有线程共享的安全类型。
-- **线程注册中心（THREAD BUS 生命周期侧）**：`share/thread_registry.py` 的 `get_thread_registry()` 返回单例 **ThreadRegistry**。所有线程实例仅在此创建与持有；**禁止在运行中动态创建线程**（防止卡住）。主线程只通过该中心引用线程（`create_extension_threads`、`get_xxx_thread`、`run_path_scan` 等）。禁止在组件内使用 `self.xxx_thread` 创建或持有线程。**正常运行时禁止线程互相卡住**；线程间通信**一律通过事件中心**（THREAD_BUS / event_center）；关闭阶段主线程可对工作线程 `join(timeout)` 做收尾。
+- **线程注册中心（THREAD BUS 生命周期侧）**：`runtime/thread_registry.py` 的 `get_thread_registry()` 返回单例 **ThreadRegistry**（share 仅放共享数据，不放业务逻辑与线程注册）。所有线程实例仅在此创建与持有；**禁止在运行中动态创建线程**（防止卡住）。主线程只通过该中心引用线程（`create_extension_threads`、`get_xxx_thread`、`run_path_scan` 等）。禁止在组件内使用 `self.xxx_thread` 创建或持有线程。**正常运行时禁止线程互相卡住**；线程间通信**一律通过事件中心**（THREAD_BUS / event_center）；关闭阶段主线程可对工作线程 `join(timeout)` 做收尾。
 - **线程实现为原生类**：禁止一个类对另一个类做简单封装。组件直接继承 Thread（如 `SystemTray(threading.Thread)`）或线程类 run() 内直接实现循环/逻辑。宏 fallback（`MacroLoopThread`）、游戏界面宏（`GameInterfaceMacroThread`）在各自 controller 模块，run() 内直接写循环；托盘为 `SystemTray(Thread)`，无单独 TrayRunnerThread。Registry 通过 create_macro_fallback_thread、create_macro_thread 获取线程实例，托盘则 start_tray(tray) 直接 start(tray)。
 - **启动顺序与驱动**：**所有线程随 UI 同步启动**；执行仅由**全局状态与 tick** 驱动。`Controller.run()` 在创建 UI 后，由 controller 将定时器与 UI 接线，再调用 `get_thread_registry().create_extension_threads(schedule, panel, ...)` 创建并启动四路扩展线程，`register_extension_handlers(..., get_main_function_thread, ...)` 使用模块级 getter（由 registry 在创建时 set），然后 `get_thread_registry().start_timer_loop_after_ui_ready()`（启动 timer 并投递首次窗口检测，一次性工作均通过 `timer_manager.submit_one_shot` 投递，不新建线程），最后 `ui.run()`。关闭时 `ShutdownManager.execute_shutdown()` 的 Step 0 对四路线程依次 `request_shutdown()` 并 `join(timeout=3)`，再停 hotkey、timer、销毁 UI。
 - **包引入**：所有包引入放在文件开头；Controller、ShutdownManager、各扩展线程等不再在函数内 `import`。
@@ -439,7 +439,7 @@
 | ROSBOT 管理（同目录 exe、k/start） | `d3utils/rosbot_manager.py` |
 | ROSBOT UI 自动化（uiautomation：主档案、Start botting） | `d3utils/rosbot_ui_automation.py` |
 | 共享游戏状态（d3_running/rosbot_running 等） | `share/game_interface_data.py` |
-| 线程注册中心（统一创建/持有线程，主线程仅通过此处引用） | `share/thread_registry.py` |
+| 线程注册中心（统一创建/持有线程，主线程仅通过此处引用） | `runtime/thread_registry.py` |
 | 主要功能线程（宏循环） | `d3utils/main_function_thread.py` |
 | 辅助功能线程（占位/轻量任务） | `d3utils/auxiliary_function_thread.py` |
 | D3/ROSBOT 扩展线程（登录检查、ROSBOT 启动/停止） | `d3utils/d3_extension_thread.py` |

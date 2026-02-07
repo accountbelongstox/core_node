@@ -24,8 +24,6 @@ from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
-from d3utils.d3_extension_thread import get_d3_extension_thread
-from d3utils.d4_extension_thread import get_d4_extension_thread
 
 # Global hotkey listener reference
 _hotkey_listener: Optional[HotkeyListener] = None
@@ -129,6 +127,9 @@ def execute_shutdown():
 
         # Step 0: Signal extension shutdown via event center, then join all 4 threads
         trigger_extension_shutdown()
+        # Lazy import to avoid circular: shutdown_manager -> d3_extension_thread -> ... -> event_center -> shutdown_manager
+        from d3utils.d3_extension_thread import get_d3_extension_thread
+        from d3utils.d4_extension_thread import get_d4_extension_thread
         for name, getter, label in [
             ("main", get_main_function_thread, "Main function"),
             ("auxiliary", get_auxiliary_function_thread, "Auxiliary"),
@@ -163,7 +164,14 @@ def execute_shutdown():
         except Exception as e:
             ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")
 
-        # Step 3: Stop timer manager (log_monitor; state detection uses tick-driven flow when UI Start)
+        # Step 2.5: Stop log file watcher (watchdog observer)
+        try:
+            import d3utils.log_monitor as _log_mon
+            _log_mon.stop_log_watching()
+        except Exception:
+            pass
+
+        # Step 3: Stop timer manager
         try:
             ColorPrint.blue("[ShutdownManager] [3/5] Stopping timer manager...")
             timer_manager.stop()

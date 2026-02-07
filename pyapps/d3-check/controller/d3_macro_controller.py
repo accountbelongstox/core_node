@@ -54,7 +54,7 @@ class MacroLoopThread(threading.Thread):
                 for skill_name, sk_cfg in skills.items():
                     if not c.macro_running:
                         break
-                    if sk_cfg.get('strategy') == '禁用':
+                    if sk_cfg.get('strategy') == '禁用':  # Disabled (CN config)
                         continue
                     c._execute_skill(skill_name, sk_cfg)
                     time.sleep(0.01)
@@ -95,7 +95,7 @@ class D3MacroController:
         """Start the macro (sends command to MainFunctionThread if available)."""
         if self.macro_running:
             if self.ui:
-                self.ui.show_message("警告", "宏已经在运行中！", "warning")
+                self.ui.show_message("Warning", "Macro is already running.", "warning")
             return
 
         main_thread = get_main_function_thread()
@@ -108,7 +108,7 @@ class D3MacroController:
             get_thread_registry().start_macro_fallback(self)
 
         if self.ui:
-            self.ui.show_message("信息", "宏已启动！", "info")
+            self.ui.show_message("Info", "Macro started.", "info")
         if self.on_macro_start:
             self.on_macro_start()
 
@@ -116,7 +116,7 @@ class D3MacroController:
         """Stop the macro (sends command to MainFunctionThread if available)."""
         if not self.macro_running:
             if self.ui:
-                self.ui.show_message("警告", "宏没有在运行！", "warning")
+                self.ui.show_message("Warning", "Macro is not running.", "warning")
             return
 
         trigger_extension_main_stop_macro()
@@ -124,7 +124,7 @@ class D3MacroController:
         get_thread_registry().stop_macro_fallback()
 
         if self.ui:
-            self.ui.show_message("信息", "宏已停止！", "info")
+            self.ui.show_message("Info", "Macro stopped.", "info")
         if self.on_macro_stop:
             self.on_macro_stop()
 
@@ -283,6 +283,10 @@ class D3MacroController:
             ColorPrint.green("[Controller] Extension threads and event center registered")
 
             get_thread_registry().start_timer_loop_after_ui_ready()
+
+            # Start tray before mainloop so icon and menu are visible (after(200) alone can miss)
+            if hasattr(self.ui, "start_system_tray_if_needed"):
+                self.ui.start_system_tray_if_needed()
 
             # Run UI (BLOCKING)
             self.ui.run()

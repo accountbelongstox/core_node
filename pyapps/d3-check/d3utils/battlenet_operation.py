@@ -37,6 +37,11 @@ from providor.app_constants import (
 
 win32gui = get_third_package_win32gui()
 
+try:
+    import pythoncom
+except ImportError:
+    pythoncom = None
+
 # Login-failed features loaded from bn_flow_*.json snapshots (EN/CN dynamic UI)
 _login_failed_names: Optional[Set[str]] = None
 _login_failed_ids: Optional[Set[str]] = None
@@ -81,11 +86,11 @@ def _load_login_failed_features_from_snapshots() -> Tuple[Set[str], Set[str]]:
 
 
 def _ensure_com() -> None:
-    try:
-        import pythoncom
-        pythoncom.CoInitialize()
-    except ImportError:
-        pass
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
 
 
 def _safe_control_dict(control) -> Optional[Dict[str, Any]]:
@@ -324,7 +329,7 @@ class BattlenetOperation:
         return self.click_control(ctrl)
 
     def click_start_game(self) -> bool:
-        """Click start game button (prefer automation_id play-btn-main/play-btn, else name Play/开始游戏)."""
+        """Click start game button (prefer automation_id play-btn-main/play-btn, else name Play or locale equivalent)."""
         for aid in START_GAME_AUTOMATION_IDS:
             ctrl = self.find_control_by_automation_id(aid)
             if ctrl:
@@ -343,7 +348,7 @@ class BattlenetOperation:
         if not ctrl:
             return False
         name = (ctrl.get("name") or "").strip()
-        if "Playing Now" in name or "正在" in name:
+        if "Playing Now" in name or ("正在" in name):  # CN: "Playing now"
             return True
         is_enabled = ctrl.get("is_enabled")
         if is_enabled is not None:
@@ -396,7 +401,7 @@ class BattlenetOperation:
 
     def _ensure_agree_checkbox_checked(self) -> bool:
         """
-        Ensure the "您同意..." checkbox is checked (confirm state, not double-click).
+        Ensure the agreement checkbox is checked (confirm state, not double-click).
         Find by automation_id legalAcceptance first; fallback: name containing BATTLE_NET_CN_AGREE_KEYWORDS + type CheckBox.
         """
         raw = self._find_raw_control_by_automation_id("legalAcceptance")
@@ -422,21 +427,21 @@ class BattlenetOperation:
         return self._ensure_checkbox_checked_by_state(raw)
 
     def _click_netease_login_button(self) -> bool:
-        """Click '使用网易账号登录或注册' (automation_id ntes or name)."""
+        """Click NetEase login/register button (automation_id ntes or name)."""
         ctrl = self.find_control_by_automation_id("ntes")
         if ctrl:
-            ColorPrint.blue("[BattlenetOperation] Click 使用网易账号登录或注册: automation_id=ntes")
+            ColorPrint.blue("[BattlenetOperation] Click NetEase login: automation_id=ntes")
             return self.click_control(ctrl)
         ctrl = self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS)
         if ctrl:
-            ColorPrint.blue("[BattlenetOperation] Click 使用网易账号登录或注册: by name")
+            ColorPrint.blue("[BattlenetOperation] Click NetEase login: by name")
             return self.click_control(ctrl)
-        ColorPrint.yellow("[BattlenetOperation] 使用网易账号登录或注册 button not found")
+        ColorPrint.yellow("[BattlenetOperation] NetEase login button not found")
         return False
 
     def perform_cn_login_flow(self, wait_after_netease_sec: float = BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC) -> bool:
         """
-        CN login flow on login screen: ensure "您同意..." checkbox checked, then click "使用网易账号登录或注册".
+        CN login flow on login screen: ensure agreement checkbox checked, then click NetEase login/register.
         Web agreement is not waited here; BN_Login2 polls is_oauth_done() each 2s tick until 30s timeout.
         """
         self.activate_window()
@@ -455,7 +460,7 @@ class BattlenetOperation:
         return self.perform_cn_login_flow()
 
     def click_cn_login_button(self) -> bool:
-        """Click the final '登录' / 'Login' button (CN web agreement) via UI Automation only."""
+        """Click the final Login button (CN web agreement) via UI Automation only."""
         keywords = BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS + ("Login",)
         ctrl = self.find_control_by_name(keywords)
         if not ctrl:
@@ -537,7 +542,7 @@ class BattlenetOperation:
             return None
 
     def is_on_login_screen(self) -> bool:
-        """True if Battle.net is on login screen. Maximized: automation_id contains login-window markers OR control name contains strict long phrases (no single 登录)."""
+        """True if Battle.net is on login screen. Maximized: automation_id contains login-window markers OR control name contains strict long phrases."""
         controls = self._enumerate_controls()
         if not controls:
             return False
@@ -547,7 +552,7 @@ class BattlenetOperation:
         )
 
     def is_login_failed_screen(self) -> bool:
-        """True if Battle.net shows post-web-login dialog. Maximized: exclude browser-wait first; require BOTH primary (Continue Offline/继续离线) AND secondary (Cancel/取消) present in current UI."""
+        """True if Battle.net shows post-web-login dialog. Maximized: exclude browser-wait first; require BOTH primary (Continue Offline) AND secondary (Cancel) present in current UI."""
         controls = self._enumerate_controls()
         if not controls:
             return False
@@ -578,7 +583,7 @@ class BattlenetOperation:
         return self.find_control_by_name(BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS, controls) is not None
 
     def is_disconnected(self) -> bool:
-        """True if Battle.net shows disconnect. Maximized: must have Retry/重试 control (unique keywords)."""
+        """True if Battle.net shows disconnect. Maximized: must have Retry control (unique keywords)."""
         controls = self._enumerate_controls()
         if not controls:
             return False

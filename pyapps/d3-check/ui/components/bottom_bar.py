@@ -30,11 +30,11 @@ class BottomBar:
         self.smart_pause_var = var_bool(parent, True)
         self.custom_stand_var = var_bool(parent, False)
         self.custom_stand_key_var = var_str(parent, 'Shift')
-        self.game_status = var_str(parent, i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
         self.window_size = var_str(parent, "0x0")
         self.config_name_var = var_str(parent, "Config 1")
         self.battlenet_status = var_str(parent, "-")
         self.ros_status = var_str(parent, "-")
+        self.ros_found_status = var_str(parent, "-")
         self.d3_status = var_str(parent, "-")
         self.map_status = var_str(parent, "-")
         self.stage_status = var_str(parent, "-")
@@ -72,11 +72,11 @@ class BottomBar:
         status_vars = {
             "battlenet": self.battlenet_status,
             "ros": self.ros_status,
+            "ros_found": self.ros_found_status,
             "d3": self.d3_status,
             "map": self.map_status,
             "stage": self.stage_status,
             "oauth": self.oauth_status,
-            "game_status": self.game_status,
             "window_size": self.window_size,
         }
         self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
@@ -125,21 +125,13 @@ class BottomBar:
             if window_info:
                 width = window_info.get('width', 0)
                 height = window_info.get('height', 0)
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
                 size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
                 self.window_size.set(size_text)
-                fg_ok = UnifiedStyles.COLORS['success']
-                fg_bad = UnifiedStyles.COLORS['error']
             else:
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
                 self.window_size.set("0x0")
-                fg_ok = UnifiedStyles.COLORS['error']
-                fg_bad = UnifiedStyles.COLORS['error']
             for key, lb in (self._value_labels or {}).items():
                 try:
-                    if key == "game_status":
-                        lb.config(fg=fg_ok if window_info else fg_bad)
-                    elif key == "window_size":
+                    if key == "window_size":
                         lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['text_secondary'])
                 except tk.TclError:
                     pass
@@ -171,16 +163,24 @@ class BottomBar:
                 self.battlenet_status.set(i18n.get_ui_text("rosbot.found_unknown_state"))
                 bn_fg = C['text_secondary']
 
-            ros_ext = state.get("rosbot_extended_status", "not_found")
+            ros_ext = state.get("rosbot_extended_status") or "not_found"
+            exe_name = (state.get("rosbot_found_exe_name") or "").strip()
+            window_title = (state.get("rosbot_found_window_title") or "").strip()
+            ros_val = "-"
             if ros_ext == "running":
-                self.ros_status.set(i18n.get_ui_text("rosbot.extended_running"))
+                ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
                 ros_fg = C['success']
             elif ros_ext == "paused":
-                self.ros_status.set(i18n.get_ui_text("rosbot.extended_paused"))
+                if exe_name or window_title:
+                    fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
+                    ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
+                else:
+                    ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
                 ros_fg = C['warning']
             else:
-                self.ros_status.set(i18n.get_ui_text("rosbot.not_found"))
+                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
                 ros_fg = C['error']
+            self.ros_status.set(ros_val or "-")
 
             if not state.get("d3_running", False):
                 self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))
@@ -212,15 +212,9 @@ class BottomBar:
             )
             oauth_fg = C['success'] if oauth_connected else C['warning']
 
-            running = state.get("d3_running", False)
-            self.game_status.set(
-                i18n.get_ui_text("ui.status_bar.diablo_running") if running else i18n.get_ui_text("ui.status_bar.diablo_not_running")
-            )
-            game_fg = C['success'] if running else C['error']
-
             fg_map = {
                 "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
-                "stage": stage_fg, "oauth": oauth_fg, "game_status": game_fg,
+                "stage": stage_fg, "oauth": oauth_fg,
             }
             for key, lb in (self._value_labels or {}).items():
                 try:

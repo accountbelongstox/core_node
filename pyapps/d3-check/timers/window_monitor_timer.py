@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Window Monitor Timer
-定时调用窗口状态提供者，检测 D3/战网窗口并更新 game_interface_data；状态 UI 通过 game_interface_data 的 callback 接收更新（与 rosbot 是否启动无关）。
+Periodically calls window status providers, detects D3/Battle.net windows and updates game_interface_data; status UI receives updates via game_interface_data callbacks (independent of ROSBOT running).
 """
 
 import os
@@ -125,8 +125,6 @@ def check_window():
 
         refresh_rosbot_status()
         g = get_game_interface_data()
-        rosbot_extended = g.rosbot_extended_status
-        ColorPrint.blue(f"[Refresh] ROSBOT extended status: {rosbot_extended}")
 
         g.notify_state_sync()
         ColorPrint.blue("[Refresh] State pushed to UI")

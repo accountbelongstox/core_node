@@ -1,6 +1,6 @@
 # d3-check Code Tree
 
-Layers and modules. Entry uses **runtime** only for lifecycle/thread/event; runtime re-exports from d3utils and share.
+Layers and modules. Entry uses **runtime** only for lifecycle/thread/event; runtime re-exports from d3utils and runtime.thread_registry. **share = shared data only** (no business logic).
 
 ## Layer 1: Entry
 
@@ -20,7 +20,7 @@ Single facade for startup, shutdown, event center, thread registry, task threads
 | `d3utils/event_center.py` | Event bus over THREAD_BUS; main-thread and extension-thread handlers. |
 | `d3utils/event_signals.py` | Event names and triggers (extension shutdown, rosbot started/stopped). |
 | `d3utils/task_thread_manager.py` | Task threads (e.g. rosbot_task); fire-and-forget API, status snapshot. |
-| `share/thread_registry.py` | Central owner of extension threads, macro fallback, tray, game_interface_macro; create_extension_threads, start_timer_loop_after_ui_ready. |
+| `runtime/thread_registry.py` | Central owner of extension threads, macro fallback, tray, game_interface_macro; create_extension_threads, start_timer_loop_after_ui_ready. |
 
 ## Layer 3: Controllers
 
@@ -54,24 +54,26 @@ Single facade for startup, shutdown, event center, thread registry, task threads
 | `d3utils/d3u_common/` | Hotkey registry, image utils. |
 | `d3utils/i18n_manager.py` | i18n. |
 | `d3utils/global_hotkey_manager.py` | Global hotkeys. |
+| `d3utils/smart_echo.py` | SmartEcho: F7 pause + OCR-driven resume (do_smart_echo_pause_after_complete). |
+| `d3utils/key_send.py` | System key send (e.g. F7). |
 | Others | Screenshot, path scanner, window resizer, etc. |
 
-## Layer 5: share (shared data and one-shot work)
+## Layer 5: share (shared data only)
 
 | Path | Role |
 |------|------|
 | `share/game_interface_data.py` | Shared D3/D4 interface data. |
-| `share/thread_registry.py` | Thread registry (also re-exported by runtime). |
-| `share/threads.py` | One-shot do_* (window monitor, path scan, etc.). |
-| `share/oauth_callback.py` | OAuth done event. |
 | `share/project_path.py` | Path and sys.path. |
+| `share/oauth_callback.py` | OAuth done event. |
 | `share/scaled_template_matcher_base.py` | Base template matcher. |
+| (others) | Data/state only; no business logic or one-shot tasks. |
 
 ## Layer 6: timers
 
 | Path | Role |
 |------|------|
 | `timers/timer_manager.py` | Single-thread timer loop; register_task, submit_one_shot. |
+| `timers/one_shot_tasks.py` | One-shot do_* (path scan, login check, ROSBOT debug, Battlenet UI, window monitor). |
 | `timers/window_monitor_timer.py` | Window monitor. |
 
 ## Layer 7: UI
@@ -95,8 +97,8 @@ Single facade for startup, shutdown, event center, thread registry, task threads
 ## Import rules
 
 - **main.py** and **controllers** / **ui** that need lifecycle or thread/event: import from **runtime** only (get_system_initializer, execute_shutdown, get_thread_registry, event_center triggers, get_task_manager, is_shutdown_requested).
-- **d3utils** and **share** internals: keep importing each other as today (no runtime import) to avoid cycles.
-- One-shot work: `timers.timer_manager.submit_one_shot`, `share.threads.do_*`.
+- **d3utils** and **share** (data only) internals: keep importing as needed; no business logic in share.
+- One-shot work: `timers.timer_manager.submit_one_shot`, **`timers.one_shot_tasks.do_*`**; SmartEcho: `d3utils.smart_echo.do_smart_echo_pause_after_complete`.
 
 ## Related docs
 

@@ -17,7 +17,9 @@
         },
         "debug_window": {
         "title": "D4 Debug - Region Detection",
-        "heading": "D4 Region Detection Debug"
+        "heading": "D4 Region Detection Debug",
+        "d3_bag_title": "D3 Bag Recognition",
+        "d3_bag_no_data": "No D3 bag data (run bag detection first)"
       },
       "game_status": {
           "title": "Game Status",

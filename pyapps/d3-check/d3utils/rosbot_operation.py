@@ -4,7 +4,7 @@ ROSBOT operation: activate window, run after-start automation (wait window, clic
 Reuses ROSBOTManager for process/window; delegates UI automation to rosbot_ui_automation.
 Mirrors battlenet_operation pattern (get_rosbot_operation, class RosbotOperation).
 """
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.rosbot_manager import get_rosbot_manager
@@ -20,7 +20,7 @@ class RosbotOperation:
     """
 
     def get_window(self) -> Optional[Dict[str, Any]]:
-        """Return current ROSBOT window info (hwnd, title, pid, etc.) or None. Delegates to ROSBOTManager.get_rosbot_window()."""
+        """Return current ROSBOT window info (hwnd, title, pid, etc.) or None. Single path: ROSBOTManager.get_rosbot_window() (same-dir exe flow)."""
         return get_rosbot_manager().get_rosbot_window()
 
     def activate_window(self) -> bool:
@@ -50,24 +50,35 @@ class RosbotOperation:
         do_debug: bool = True,
         do_tab: bool = True,
         do_start_botting: bool = True,
+        click_params: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
-        After ROSBOT process started: wait window, activate, debug print elements, click main profile tab, click Start botting!.
-        Delegates to rosbot_ui_automation.run_after_rosbot_start.
+        After ROSBOT process started: wait window, activate, then run built-in sequence (main profile tab + Start botting!).
+        Uses hardcoded rosbot_ui_structure only. Delegates to rosbot_ui_automation.run_after_rosbot_start.
         """
         return _run_after_rosbot_start(
             wait_sec=wait_sec,
             do_debug=do_debug,
             do_tab=do_tab,
             do_start_botting=do_start_botting,
+            click_params=click_params,
         )
 
-    def resume_rosbot(self, do_tab: bool = True, do_start_botting: bool = True) -> bool:
+    def resume_rosbot(
+        self,
+        do_tab: bool = True,
+        do_start_botting: bool = True,
+        click_params: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """
-        Resume ROSBOT when paused: activate window, switch to main profile, click Start botting!.
-        Delegates to rosbot_ui_automation.resume_rosbot_ui.
+        Resume ROSBOT when paused: activate window, run built-in sequence (main profile + Start botting!).
+        Uses hardcoded rosbot_ui_structure only. Delegates to rosbot_ui_automation.resume_rosbot_ui.
         """
-        return _resume_rosbot_ui(do_tab=do_tab, do_start_botting=do_start_botting)
+        return _resume_rosbot_ui(
+            do_tab=do_tab,
+            do_start_botting=do_start_botting,
+            click_params=click_params,
+        )
 
 
 _rosbot_operation: Optional[RosbotOperation] = None

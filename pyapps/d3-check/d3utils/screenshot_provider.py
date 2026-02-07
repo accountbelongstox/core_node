@@ -14,6 +14,7 @@ Features:
 
 import os
 import sys
+import time
 import tkinter as tk
 from typing import Optional, Tuple, Dict
 from pathlib import Path
@@ -31,9 +32,16 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.third_party import get_third_package_win32gui
 from pycore.pyutils.window_screenshot import WindowScreenshot
+from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pyutils.window_activator import WindowActivator
 from d3utils.game_window_detector import GameWindowDetector
-from providor.app_constants import TMP_DIR, TEMPLATE_DIR
+
+win32gui = get_third_package_win32gui()
+from providor.app_constants import TMP_DIR, TEMPLATE_DIR, ACTIVATE_BEFORE_CAPTURE_DELAY_SEC
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data, update_global_scale, get_screen_resolution
 DEBUG = False
 
@@ -157,7 +165,7 @@ class ScreenshotProvider:
 
     def __init__(self):
         """Initialize screenshot provider"""
-        self.screenshot_manager = WindowScreenshot(match_mode="ends")
+        self.screenshot_manager = WindowScreenshot(match_mode="endswith")
         self.window_detector = GameWindowDetector()
 
         # Current screenshot data (shared across application)
@@ -185,7 +193,10 @@ class ScreenshotProvider:
     def gen(
         self,
         use_optimized_capture: bool = True,
-        window_titles: Optional[list] = None
+        window_titles: Optional[list] = None,
+        activate_d3_first: bool = False,
+        use_d3_rect_for_crop: bool = False,
+        use_native_region_capture: bool = False
     ) -> Optional[ScreenshotData]:
         """
         Generate a new screenshot (force re-capture)
@@ -195,7 +206,10 @@ class ScreenshotProvider:
 
         Args:
             use_optimized_capture: If True, use screenshot_first_window_by_titles (fast with cache, default: True)
-            window_titles: Window titles to search for (required if use_optimized_capture=True)
+            window_titles: Window titles to search for (required if use_optimized_capture=True or use_d3_rect_for_crop=True)
+            activate_d3_first: If True, activate D3 window before capture (then fullscreen or optimized)
+            use_d3_rect_for_crop: If True with fullscreen capture, crop by D3 window rect (Win32 position) instead of anchor detection
+            use_native_region_capture: If True, activate D3 then native screen region grab (mss.grab(monitor)) by D3 rect, no fullscreen/crop
 
         Returns:
             ScreenshotData object or None if capture failed
@@ -203,7 +217,103 @@ class ScreenshotProvider:
         ColorPrint.blue("\n[Provider] Generating new screenshot...")
 
         try:
-            # Step 1: Capture screenshot using selected method
+            # Step 0: Optionally activate D3 window before capture
+            if activate_d3_first:
+                titles_for_activate = list(window_titles) if (window_titles and len(window_titles)) else list(DIABLO_III_WINDOW_TITLES)
+                windows = WindowFinder.find_windows_by_titles(
+                    titles=titles_for_activate,
+                    match_mode="in",
+                    use_cache=False,
+                )
+                if windows and windows[0].get("hwnd"):
+                    WindowActivator().activate_window_by_handle(windows[0]["hwnd"])
+                    time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
+                    ColorPrint.green("[Provider] D3 window activated before capture")
+                else:
+                    ColorPrint.yellow("[Provider] D3 window not found for activation")
+
+            # Step 1: Native screen region capture (activate D3 then mss.grab(region)); D3 position cached
+            if use_native_region_capture:
+                titles_for_rect = list(window_titles) if (window_titles and len(window_titles)) else list(DIABLO_III_WINDOW_TITLES)
+                canonical_label = (titles_for_rect[0] or "").lower()
+                cache_key = f"window_cache_{canonical_label}" if canonical_label else None
+                hwnd = None
+                rect = None
+                if cache_key:
+                    cached_info = ENCYCLOPEDIA.get(cache_key)
+                    if cached_info:
+                        ch = cached_info.get("hwnd")
+                        if ch and win32gui.IsWindow(ch) and win32gui.IsWindowVisible(ch):
+                            hwnd = ch
+                            ColorPrint.print_min_interval("[Provider] Native region: using cached D3 position", "1min", "blue")
+                if hwnd is None:
+                    windows = WindowFinder.find_windows_by_titles(
+                        titles=titles_for_rect,
+                        match_mode="in",
+                        use_cache=True,
+                    )
+                    if not windows or not windows[0].get("hwnd"):
+                        ColorPrint.red("[Provider] use_native_region_capture: D3 window not found")
+                        return None
+                    hwnd = windows[0]["hwnd"]
+                WindowActivator().activate_window_by_handle(hwnd)
+                time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
+                try:
+                    rect = win32gui.GetWindowRect(hwnd)
+                except Exception as e:
+                    ColorPrint.red(f"[Provider] use_native_region_capture: get rect failed: {e}")
+                    return None
+                if not rect or len(rect) < 4:
+                    return None
+                if cache_key:
+                    cache_data = {
+                        "hwnd": hwnd,
+                        "title": win32gui.GetWindowText(hwnd) if win32gui else "",
+                        "rect": rect,
+                        "left": rect[0],
+                        "top": rect[1],
+                        "right": rect[2],
+                        "bottom": rect[3],
+                        "width": rect[2] - rect[0],
+                        "height": rect[3] - rect[1],
+                        "class_name": win32gui.GetClassName(hwnd) if win32gui else "",
+                    }
+                    ENCYCLOPEDIA.add(cache_key, cache_data)
+                left, top, right, bottom = rect
+                width = right - left
+                height = bottom - top
+                game_window_image = self.screenshot_manager.capture_screen_region(left, top, width, height)
+                if game_window_image is None:
+                    ColorPrint.red("[Provider] use_native_region_capture: capture_screen_region failed")
+                    return None
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                screen_resolution = get_screen_resolution()
+                fullscreen_size = (screen_resolution[0], screen_resolution[1])
+                game_window_rect = (left, top, right, bottom)
+                window_offset = (left, top)
+                game_window_size = (width, height)
+                update_global_scale(width, height)
+                screenshot_data = ScreenshotData(
+                    fullscreen_image=None,
+                    game_window_image=game_window_image,
+                    game_window_rect=game_window_rect,
+                    window_offset=window_offset,
+                    fullscreen_size=fullscreen_size,
+                    game_window_size=game_window_size,
+                    timestamp=timestamp,
+                )
+                self.current_screenshot = screenshot_data
+                shared_data = get_game_interface_data()
+                shared_data.fullscreen_image = None
+                shared_data.game_window_image = screenshot_data.game_window_image
+                shared_data.window_offset = screenshot_data.window_offset
+                shared_data.fullscreen_size = fullscreen_size
+                shared_data.game_window_size = game_window_size
+                shared_data.timestamp = timestamp
+                ColorPrint.green("[Provider] Native region capture: D3 rect, mss.grab(region)")
+                return screenshot_data
+
+            # Step 2: Capture screenshot using selected method
             if use_optimized_capture:
                 if window_titles is None or len(window_titles) == 0:
                     ColorPrint.red("[Provider] window_titles required when use_optimized_capture=True")
@@ -216,10 +326,10 @@ class ScreenshotProvider:
                     use_cache=True
                 )
             else:
-                # Original method: capture full screen
+                # Full screen: capture whole screen (no window filter)
                 ColorPrint.blue("[Provider] Capturing full screen...")
                 result = self.screenshot_manager.capture_window_fast(
-                    titles=None,  # No title - full screen
+                    titles=None,
                     filename_prefix="temp_fullscreen",
                     scale_to_720p=False,
                     use_cache=False
@@ -397,6 +507,9 @@ class ScreenshotProvider:
             ColorPrint.blue(f"[Provider] Window offset: {screenshot_data.window_offset}")
             ColorPrint.blue(f"[Provider] Full screen size: {screenshot_data.fullscreen_size[0]}x{screenshot_data.fullscreen_size[1]}")
             ColorPrint.blue(f"[Provider] Game window size: {screenshot_data.game_window_size[0] if screenshot_data.game_window_size else 0}x{screenshot_data.game_window_size[1] if screenshot_data.game_window_size else 0}")
+            if screenshot_data.game_window_image is not None:
+                rw, rh = screenshot_data.game_window_image.size
+                ColorPrint.blue(f"[Provider] Screenshot region size: {rw}x{rh}")
             ColorPrint.green("[Provider] Updated shared game interface data")
 
             return screenshot_data

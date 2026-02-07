@@ -234,12 +234,12 @@ class GameWindowDetector:
         ColorPrint.blue(f"[Calc] Bottom-left anchor: pos=({bl_x}, {bl_y}), size=({bl_w}x{bl_h})")
         ColorPrint.blue(f"[Calc] Bottom-right anchor: pos=({br_x}, {br_y}), size=({br_w}x{br_h})")
 
-        # Calculate offset positions (向左下偏移 / 向右下偏移)
-        # 左下角：向左偏移 bl_w，向下偏移 bl_h
+        # Calculate offset positions (bottom-left / bottom-right)
+        # Bottom-left: offset left by bl_w, down by bl_h
         left_bottom_x = int(bl_x - bl_w)
         left_bottom_y = int(bl_y + bl_h)
 
-        # 右下角：向右偏移 br_w，向下偏移 br_h
+        # Bottom-right: offset right by br_w, down by br_h
         right_bottom_x = int(br_x + br_w)
         right_bottom_y = int(br_y + br_h)
 

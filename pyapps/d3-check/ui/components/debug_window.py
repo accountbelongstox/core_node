@@ -22,7 +22,7 @@ ensure_d3_check_in_sys_path()
 from ui.unified_styles import UnifiedStyles
 from ui.utils.app_root import get_app_root
 from pycore.pyfoundations.color_print import ColorPrint
-from share.game_interface_data import get_d4_interface_data
+from share.game_interface_data import get_d4_interface_data, get_game_interface_data
 from d3utils.i18n_manager import i18n_manager
 
 
@@ -115,6 +115,9 @@ class DebugWindow:
                              command=self._on_close)
         close_btn.pack(side=tk.LEFT, padx=5)
 
+        # D3 Bag Recognition section (from bag_info_collector result)
+        self._create_d3_bag_section(scrollable_frame)
+
         # Image display areas
         self.image_labels = {}
 
@@ -161,6 +164,111 @@ class DebugWindow:
         # Column 2 (right)
         for idx, (region_key, region_title) in enumerate(regions[half:]):
             self._create_image_section(columns_container, region_key, region_title, row=idx, column=1)
+
+    def _create_d3_bag_section(self, parent):
+        """Create D3 bag recognition section: text info + bag crop image."""
+        try:
+            title = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_title", "D3 Bag Recognition")
+        except Exception:
+            title = "D3 Bag Recognition"
+        section = tk.LabelFrame(
+            parent,
+            text=title,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['subheading'],
+            relief=tk.RIDGE,
+            bd=2,
+        )
+        section.pack(fill=tk.X, padx=5, pady=5)
+
+        self.d3_bag_info_label = tk.Label(
+            section,
+            text="",
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['small'],
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self.d3_bag_info_label.pack(anchor="w", padx=5, pady=2, fill=tk.X)
+
+        self.d3_bag_image_label = tk.Label(
+            section,
+            text="No Image",
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_muted'],
+            font=UnifiedStyles.FONTS['small'],
+        )
+        self.d3_bag_image_label.pack(padx=5, pady=5)
+        self.d3_bag_photo = None
+
+    def _update_d3_bag_section(self):
+        """Refresh D3 bag section from get_game_interface_data() (bag_coordinates, bag_layout)."""
+        try:
+            if not hasattr(self, 'd3_bag_info_label') or not self.d3_bag_info_label.winfo_exists():
+                return
+            no_data = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data", "No D3 bag data (run bag detection first)")
+            d3_data = get_game_interface_data()
+            coords = getattr(d3_data, "bag_coordinates", None)
+            layout = getattr(d3_data, "bag_layout", None)
+            game_img = getattr(d3_data, "game_window_image", None)
+
+            if coords is None and layout is None:
+                self.d3_bag_info_label.configure(text=no_data)
+                if hasattr(self, 'd3_bag_image_label') and self.d3_bag_image_label.winfo_exists():
+                    self.d3_bag_image_label.configure(image="", text="No Image")
+                self.d3_bag_photo = None
+                return
+
+            lines = []
+            lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
+            lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
+            lines.append(f"Size: {coords.width}x{coords.height}")
+
+            if layout and getattr(layout, "items", None):
+                items = layout.items
+                occupied = sum(1 for v in items.values() if v.get("type") != "empty" if isinstance(v, dict) else True)
+                lines.append(f"Occupied: {occupied} / {coords.total_slots}")
+                for (r, c), info in sorted(items.items()):
+                    if not isinstance(info, dict):
+                        continue
+                    t = info.get("type", "?")
+                    q = info.get("quality", "?")
+                    if t == "empty":
+                        continue
+                    lines.append(f"  ({r},{c}) {t}  quality={q}")
+            else:
+                lines.append("Layout: no item detail")
+
+            self.d3_bag_info_label.configure(text="\n".join(lines))
+
+            if game_img is not None and coords is not None:
+                try:
+                    left, top = coords.top_left[0], coords.top_left[1]
+                    right, bottom = coords.bottom_right[0], coords.bottom_right[1]
+                    left = max(0, min(left, game_img.width))
+                    top = max(0, min(top, game_img.height))
+                    right = max(left, min(right, game_img.width))
+                    bottom = max(top, min(bottom, game_img.height))
+                    cropped = game_img.crop((left, top, right, bottom))
+                    max_w = 320
+                    if cropped.width > max_w:
+                        ratio = max_w / cropped.width
+                        h = int(cropped.height * ratio)
+                        cropped = cropped.resize((max_w, h), Image.Resampling.LANCZOS)
+                    self.d3_bag_photo = ImageTk.PhotoImage(cropped)
+                    self.d3_bag_image_label.configure(image=self.d3_bag_photo, text="")
+                except Exception as e:
+                    self.d3_bag_image_label.configure(image="", text=str(e))
+                    self.d3_bag_photo = None
+            else:
+                self.d3_bag_image_label.configure(image="", text="No game window image")
+                self.d3_bag_photo = None
+        except Exception as e:
+            if hasattr(self, 'd3_bag_info_label') and self.d3_bag_info_label.winfo_exists():
+                self.d3_bag_info_label.configure(text=str(e))
+            self.d3_bag_photo = None
 
     def _create_image_section(self, parent, region_key, title, row=0, column=0):
         """
@@ -268,6 +376,7 @@ class DebugWindow:
                         img_label.configure(image="", text="No Image Available")
                     ColorPrint.yellow(f"[DebugWindow] ✗ No image for '{region_key}'")
 
+            self._update_d3_bag_section()
             ColorPrint.green(f"[DebugWindow] Updated {updated_count}/{len(self.image_labels)} images")
 
         except Exception as e:

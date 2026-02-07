@@ -10,6 +10,8 @@ from tkinter import ttk, filedialog, messagebox
 import sys
 import os
 import threading
+import re
+import time
 from typing import Optional, Callable
 
 # Import unified styles
@@ -29,10 +31,11 @@ from ui.utils.config_binding import ConfigBinding
 
 # Import game state and task thread manager (timer/UI are sibling modules; controller wires status UI and refresh fn)
 from share.game_interface_data import get_game_interface_data
-from share.threads import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze, do_rosbot_debug, do_rosbot_test_pause_resume
+from timers.one_shot_tasks import do_path_scan, do_login_check, do_refresh_status, do_battlenet_ui_analyze, do_rosbot_debug, do_rosbot_test_pause_resume
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_file_with_notepad
 from providor.app_constants import TAMPERMONKEY_SCRIPT_PATH
 from runtime import get_task_manager, TaskStatus, trigger_extension_rosbot_start, trigger_extension_rosbot_stop, is_shutdown_requested
+from ui.panels.log_panel import _strip_ui_log_prefix
 import timers.timer_manager as timer_manager
 import d3utils.rosbot_task_processor as rosbot_processor
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
@@ -284,6 +287,7 @@ class RosbotExtensionPanel:
             ("rosbot.pickup_blood_shards", "rosbot.pickup_blood_shards", False),
             ("rosbot.prevent_stuck", "rosbot.prevent_stuck", False),
             ("rosbot.blue_portal_priority", "rosbot.blue_portal_priority", False),
+            ("rosbot.smart_echo", "rosbot.smart_echo", False),
             ("rosbot.startup", "rosbot.startup", False),
             ("rosbot.monitor_start_rosbot", "rosbot.monitor_start_rosbot", False)
         ]
@@ -302,7 +306,6 @@ class RosbotExtensionPanel:
             check.grid(row=row, column=col, sticky="w",
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
-
             col += 1
             if col > 2:
                 col = 0
@@ -408,36 +411,114 @@ class RosbotExtensionPanel:
         self._update_ensure_battlenet_button()
 
     def _create_log_display_row(self):
-        """Create log display in its own row (row 1). Ensure scrollbar visible: row has weight=1, log_frame fills and constrains text."""
-        log_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("rosbot.rosbot_log"), style='TLabelframe')
+        """Create log display in row 1. Header: ROSBOT log title + last log time ago + latency (when checkbox on) + verify real-time checkbox. Then log text + scrollbar."""
+        self._last_log_time: Optional[float] = None
+        self._last_latency_sec: Optional[float] = None
+
+        # Use Frame instead of LabelFrame with text="" to avoid empty label band (缝) above header
+        log_frame = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_primary'])
         log_frame.grid(row=1, column=0, columnspan=2, sticky="nsew",
                       padx=0,
                       pady=UnifiedStyles.SPACING['xs'])
         log_frame.grid_columnconfigure(0, weight=1)
-        log_frame.grid_columnconfigure(1, weight=0)  # scrollbar column fixed width
-        log_frame.grid_rowconfigure(0, weight=1)
+        log_frame.grid_columnconfigure(1, weight=0)
+        log_frame.grid_rowconfigure(0, weight=0)
+        log_frame.grid_rowconfigure(1, weight=1)
 
-        # Log text widget - expands with row weight=1 so scrollbar stays visible
+        # Header row: title + status (last log Xs ago) + latency (only when checkbox on) + verify real-time checkbox
+        header = tk.Frame(log_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=(UnifiedStyles.SPACING['xs'], 0))
+        header.grid_columnconfigure(0, weight=0)
+        header.grid_columnconfigure(1, weight=1)
+        header.grid_columnconfigure(2, weight=0)
+        header.grid_columnconfigure(3, weight=0)
+
+        title_lbl = tk.Label(header, text=i18n_manager.get_ui_text("rosbot.rosbot_log"),
+                            bg=UnifiedStyles.COLORS['bg_secondary'],
+                            fg=UnifiedStyles.COLORS['text_primary'],
+                            font=UnifiedStyles.FONTS['label'])
+        title_lbl.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
+
+        self._rosbot_log_status_var = tk.StringVar(value="")
+        self._rosbot_log_status_lbl = tk.Label(header, textvariable=self._rosbot_log_status_var,
+                                              bg=UnifiedStyles.COLORS['bg_secondary'],
+                                              fg=UnifiedStyles.COLORS['text_primary'],
+                                              font=UnifiedStyles.FONTS['code'])
+        self._rosbot_log_status_lbl.grid(row=0, column=1, sticky="w")
+
+        self._rosbot_log_latency_var = tk.StringVar(value="")
+        self._rosbot_log_latency_lbl = tk.Label(header, textvariable=self._rosbot_log_latency_var,
+                                               bg=UnifiedStyles.COLORS['bg_secondary'],
+                                               fg=UnifiedStyles.COLORS['text_primary'],
+                                               font=UnifiedStyles.FONTS['code'])
+        self._rosbot_log_latency_lbl.grid(row=0, column=2, sticky="e", padx=UnifiedStyles.SPACING['sm'])
+
+        debug_latency_check = ConfigBinding.create_checkbox_binding(
+            header, "log_settings.debug_log_latency",
+            text=i18n_manager.get_ui_text("log_panel.debug_log_latency"), default_value=False,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
+            activebackground=UnifiedStyles.COLORS['bg_secondary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary']
+        )
+        debug_latency_check.grid(row=0, column=3, sticky="e")
+        debug_latency_check.bind("<ButtonRelease-1>", lambda e: self._update_rosbot_log_status_display())
+
+        # Log text widget
         self.log_text = tk.Text(log_frame,
                                bg=UnifiedStyles.COLORS['bg_primary'],
                                fg=UnifiedStyles.COLORS['text_primary'],
                                font=UnifiedStyles.FONTS['code'],
                                wrap=tk.WORD,
                                state=tk.DISABLED)
-
-        # Scrollbar - column 1 so it stays visible (not overflow)
         scrollbar = tk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
-
-        self.log_text.grid(row=0, column=0, sticky="nsew",
+        self.log_text.grid(row=1, column=0, sticky="nsew",
                           padx=(UnifiedStyles.SPACING['sm'], 0),
                           pady=UnifiedStyles.SPACING['sm'])
-        scrollbar.grid(row=0, column=1, sticky="nsew",
+        scrollbar.grid(row=1, column=1, sticky="nsew",
                       padx=(0, UnifiedStyles.SPACING['sm']),
                       pady=UnifiedStyles.SPACING['sm'])
 
-        # Right-click context menu: Copy
         self.log_text.bind("<Button-3>", self._show_rosbot_log_context_menu)
+        self._schedule_rosbot_log_status_tick()
+
+    def _update_rosbot_log_status_display(self) -> None:
+        """Update last-log-ago and latency label (latency only when debug_log_latency is on)."""
+        try:
+            if self._last_log_time is None:
+                self._rosbot_log_status_var.set("")
+                self._rosbot_log_latency_var.set("")
+                return
+            elapsed = time.time() - self._last_log_time
+            if elapsed < 60:
+                ago_val = "{:.1f}s".format(elapsed)
+                status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
+            else:
+                ago_val = "{:.0f}min".format(elapsed / 60)
+                status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago_min", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
+            self._rosbot_log_status_var.set(status_text)
+            show_latency = bool(ConfigBinding.get_config_value("log_settings.debug_log_latency", False))
+            if show_latency and self._last_latency_sec is not None:
+                lat_val = "{:.1f}".format(self._last_latency_sec)
+                self._rosbot_log_latency_var.set((i18n_manager.get_ui_text("rosbot.log_latency", default="latency +{0}s") or "latency +{0}s").format(lat_val))
+                self._rosbot_log_latency_lbl.grid()
+            else:
+                self._rosbot_log_latency_var.set("")
+                self._rosbot_log_latency_lbl.grid_remove()
+        except (tk.TclError, RuntimeError):
+            pass
+
+    def _schedule_rosbot_log_status_tick(self) -> None:
+        """Tick every 1s to update last-log-ago label."""
+        try:
+            if not self.container.winfo_exists():
+                return
+            self._update_rosbot_log_status_display()
+            self.container.after(1000, self._schedule_rosbot_log_status_tick)
+        except (tk.TclError, RuntimeError):
+            pass
 
     def _show_rosbot_log_context_menu(self, event):
         """Show right-click context menu for ROSBOT log area (Copy)."""
@@ -462,15 +543,26 @@ class RosbotExtensionPanel:
             pass
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Add a log message to the rosbot log display. Schedules UI update on main thread via after(0)."""
+        """ColorPrint callback when ROSBOT tab is active. Accept [ROSBOT] / [ROSBOT~*s] (log_monitor) and [LogAnalyzer] (log_analyzer); display strips prefix via _strip_ui_log_prefix."""
         if is_shutdown_requested():
             return
+        if not any(m in message for m in ("[ROSBOT]", "LogAnalyzer")):
+            return
+        self._last_log_time = time.time()
+        if "[ROSBOT~" in message and "s]" in message:
+            try:
+                start = message.index("[ROSBOT~") + len("[ROSBOT~")
+                end = message.index("s]", start)
+                self._last_latency_sec = float(message[start:end])
+            except (ValueError, TypeError):
+                self._last_latency_sec = None
         def _append():
             try:
                 if not self.log_text.winfo_exists():
                     return
                 self.log_text.configure(state=tk.NORMAL)
-                self.log_text.insert(tk.END, f"{message}\n")
+                text = _strip_ui_log_prefix(message)
+                self.log_text.insert(tk.END, f"{text}\n")
                 self.log_text.see(tk.END)
                 self.log_text.configure(state=tk.DISABLED)
             except (tk.TclError, RuntimeError):
@@ -511,7 +603,7 @@ class RosbotExtensionPanel:
         self._d3_extension_thread = thread
 
     def _ensure_battlenet_only(self):
-        """Toggle 确保战网：修改状态允许 tick 通过，与启动ROSBOT 同 tick 驱动，只跑战网段；确认后每 tick 再轮询，掉线则重登（ROSBOT_FLOW_MERMAID B）。"""
+        """Toggle ensure Battle.net only: set state so tick runs BN segment only (no D3/ROSBOT); after confirm, poll each tick and re-login if disconnected (ROSBOT_FLOW_MERMAID B)."""
         g = self.game_state
         next_enabled = not g.ensure_battlenet_only_master_enabled
         g.set_ensure_battlenet_only_master_enabled(next_enabled)
@@ -524,7 +616,7 @@ class RosbotExtensionPanel:
         self._update_ensure_battlenet_button()
 
     def _update_ensure_battlenet_button(self):
-        """Update 确保战网 button text to show on/off."""
+        """Update ensure-Battle.net button text to show on/off."""
         try:
             if hasattr(self, 'ensure_battlenet_btn') and self.ensure_battlenet_btn.winfo_exists():
                 on = self.game_state.ensure_battlenet_only_master_enabled
@@ -633,7 +725,7 @@ class RosbotExtensionPanel:
                 return
             self.rosbot_running = True
             self._update_control_button()
-            # [A9] 主线程收尾：面板状态「运行中」；启用 rosbot_task 周期任务；再次执行 ROSBOT 任务初始化；打日志（ROSBOT_FLOW_MERMAID.md）
+            # [A9] Main thread wrap-up: panel state running; enable rosbot_task; re-run ROSBOT task init; log (ROSBOT_FLOW_MERMAID.md)
             get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
             rosbot_processor.get_rosbot_processor().initialize()
             rosbot_processor.start_rosbot_task()
@@ -656,7 +748,7 @@ class RosbotExtensionPanel:
         ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _stop_rosbot(self):
-        """Stop ROSBOT: clear flow master and 确保战网; notify D3 extension thread or run stop on main thread (ROSBOT_FLOW.md)."""
+        """Stop ROSBOT: clear flow master and ensure-Battle.net state; notify D3 extension thread or run stop on main thread (ROSBOT_FLOW.md)."""
         if not self.rosbot_running:
             return
         self.game_state.set_rosbot_flow_master_enabled(False)

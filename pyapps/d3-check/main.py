@@ -184,7 +184,7 @@ Examples:
             return 1
 
     else:
-        # Default: 全部启动 - TK GUI + HTTP bridge + tray
+        # Default: start all - TK GUI + HTTP bridge + tray
         ColorPrint.blue("\n" + "=" * 80)
         ColorPrint.blue("D3Check - GUI Mode (TK + HTTP Bridge)")
         ColorPrint.blue("=" * 80)

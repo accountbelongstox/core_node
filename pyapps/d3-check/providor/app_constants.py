@@ -88,11 +88,11 @@ BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS = ("登陆", "登录")
 # Browser-login-wait popup: detect by main text only (do not use Cancel alone).
 BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS = ("使用浏览器完成登录",)
 BATTLE_NET_BROWSER_LOGIN_WAIT_KEYWORDS = ("使用浏览器完成登录", "取消")
-# Login-failed dialog: one constant. Order: primary (Continue Offline, 继续离线) then secondary (Cancel, 取消). Maximized: require both primary [0:2] and secondary [2:4] present.
+# Login-failed dialog: primary (Continue Offline / CN) then secondary (Cancel / CN). Maximized: require both primary [0:2] and secondary [2:4] present.
 BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel", "取消")
 # Connecting: control name (e.g. Connecting…) means not logged in yet; flow keeps wait.
 BATTLE_NET_CONNECTING_KEYWORDS = ("Connecting", "连接中")
-# Login screen: strict long phrases only (no single 登录) to avoid false match.
+# Login screen: strict long phrases only to avoid false match.
 LOGIN_SCREEN_UI_KEYWORDS_STRICT = ("需要登陆", "请登录", "您同意", "使用网易账号登录或注册")
 LOGIN_SCREEN_UI_KEYWORDS = BATTLE_NET_NEED_LOGIN_KEYWORDS + BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
 LOGIN_WINDOW_AUTOMATION_ID_MARKERS = (
@@ -144,7 +144,7 @@ D3_START_GAME_MAX_ATTEMPTS = 10
 D3_GAME_TOOL_MAX_ATTEMPTS = 10
 D3_FRAGMENT1_WAIT_GAME_TOOL_ATTEMPTS = 5
 D3_FRAGMENT2_DISAPPEAR_ATTEMPTS = 5
-# A5 D3 online check (ROSBOT_FLOW_MERMAID.md): screenshot A -> M -> screenshot B -> similarity; >= threshold = 掉线
+# A5 D3 online check (ROSBOT_FLOW_MERMAID.md): screenshot A -> M -> screenshot B -> similarity; >= threshold = disconnected
 D3_ONLINE_SIMILARITY_THRESHOLD = 0.98
 D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 CLICK_MOVE_DURATION_SEC = 0.0
@@ -224,6 +224,9 @@ MAIN_FUNCTIONS_SUB_TABS_KEY = "main_functions_sub_tabs"
 
 # UI settings keys (CONFIG["ui_settings"][...])
 UI_SETTINGS_WINDOW_GEOMETRY = "window_geometry"
+
+# SmartEcho: OCR game region every 3s. If no Chinese text → resume immediately. Timeout 60s → resume immediately.
+SMART_ECHO_OCR_TICK_MAX_SEC = 60.0
 
 # ---------------------------------------------------------------------------
 # D4 event keys (game_interface_data, d4 event_manager)

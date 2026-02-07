@@ -166,7 +166,7 @@ class CoordinatePicker:
         ttk.Separator(menu_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
 
     def _create_template_section(self, menu_frame: tk.Frame):
-        """Build template matching block: title, client radio, Select Templates button."""
+        """Build template matching block: title, Select Templates button. Client is fixed from panel."""
         tk.Label(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.coord_picker.template_matching_title"),
@@ -175,33 +175,6 @@ class CoordinatePicker:
             font=UnifiedStyles.FONTS['bold'],
             wraplength=180
         ).pack(padx=10, pady=(10, 5), fill=tk.X)
-
-        client_frame = tk.Frame(menu_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        client_frame.pack(padx=10, pady=3, fill=tk.X)
-        tk.Label(client_frame, text=i18n_manager.get_ui_text("ui.coord_picker.client_label"),
-                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                 font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, padx=(0, 5))
-
-        self.client_var = var_str(self.window, self.client_mode)
-        client_options = [
-            (CLIENT_TYPE_BATTLENET, "ui.coord_calibration.client_battlenet"),
-            (CLIENT_TYPE_D3_GAME, "ui.coord_calibration.client_d3_game"),
-            (CLIENT_TYPE_D4_GAME, "ui.coord_calibration.client_d4_game"),
-        ]
-        for value, i18n_key in client_options:
-            rb = tk.Radiobutton(
-                client_frame,
-                text=i18n_manager.get_ui_text(i18n_key),
-                variable=self.client_var,
-                value=value,
-                bg=UnifiedStyles.COLORS['bg_secondary'],
-                fg=UnifiedStyles.COLORS['text_primary'],
-                activebackground=UnifiedStyles.COLORS['bg_tertiary'],
-                activeforeground=UnifiedStyles.COLORS['text_primary'],
-                selectcolor=UnifiedStyles.COLORS['accent'],
-                font=UnifiedStyles.FONTS['small']
-            )
-            rb.pack(side=tk.LEFT, padx=3)
 
         tk.Button(
             menu_frame,
@@ -352,20 +325,19 @@ class CoordinatePicker:
 
     def _redraw_all_marks(self):
         """Redraw all pick marks on canvas after display update"""
-        # Clear old canvas marks list
         self.canvas_marks = []
-
-        # Use main UI's history if available, otherwise local picks
         history = self.pick_history_ref if self.pick_history_ref is not None else self.picks
-
-        # Redraw all marks from history
         for pick in history:
-            x = pick.get('x', 0)
-            y = pick.get('y', 0)
             pick_type = pick.get('type', 'point')
-
             if pick_type == 'point':
-                self._draw_mark_at(x, y)
+                self._draw_mark_at(pick.get('x', 0), pick.get('y', 0))
+            elif pick_type == 'rect':
+                self._draw_rect_mark(pick)
+            elif pick_type == 'circle':
+                self._draw_circle_mark(pick)
+        # Draw temp first point for rect/circle when in progress
+        if len(self.temp_points) == 1:
+            self._draw_mark_at(self.temp_points[0][0], self.temp_points[0][1])
 
     def _draw_mark_at(self, x: int, y: int):
         """Draw a mark at given original coordinates"""
@@ -406,10 +378,47 @@ class CoordinatePicker:
 
         self.canvas_marks.extend([mark_id, h_line, v_line])
 
+    def _to_canvas(self, x: int, y: int):
+        """Convert original image coords to canvas coords."""
+        if not hasattr(self, 'scale_factor'):
+            return (0, 0)
+        cx = int(x * self.scale_factor) + self.canvas_offset_x
+        cy = int(y * self.scale_factor) + self.canvas_offset_y
+        return (cx, cy)
+
+    def _draw_rect_mark(self, pick: Dict):
+        """Draw rectangle region on canvas overlay."""
+        x, y = pick.get('x', 0), pick.get('y', 0)
+        w, h = pick.get('width', 0), pick.get('height', 0)
+        if w <= 0 or h <= 0:
+            return
+        c1 = self._to_canvas(x, y)
+        c2 = self._to_canvas(x + w, y + h)
+        mark_id = self.canvas.create_rectangle(
+            c1[0], c1[1], c2[0], c2[1],
+            outline='#00FF00', fill='', width=2, tags='pick_mark'
+        )
+        self.canvas_marks.append(mark_id)
+
+    def _draw_circle_mark(self, pick: Dict):
+        """Draw circle region on canvas overlay."""
+        cx, cy = pick.get('x', 0), pick.get('y', 0)
+        r = pick.get('radius', 0)
+        if r <= 0:
+            return
+        cc = self._to_canvas(cx, cy)
+        sr = int(r * self.scale_factor)
+        mark_id = self.canvas.create_oval(
+            cc[0] - sr, cc[1] - sr, cc[0] + sr, cc[1] + sr,
+            outline='#00FF00', fill='', width=2, tags='pick_mark'
+        )
+        self.canvas_marks.append(mark_id)
+
     def _set_pick_type(self, pick_type: str):
         """Set current pick type"""
         self.current_pick_type = pick_type
         self.pick_type_var.set(pick_type)
+        self.temp_points = []
 
         for ptype, btn in self.buttons.items():
             if ptype == pick_type:
@@ -452,6 +461,7 @@ class CoordinatePicker:
         elif self.current_pick_type == 'rect':
             if len(self.temp_points) == 0:
                 self.temp_points.append((x, y))
+                self._draw_pick(x, y)
             elif len(self.temp_points) == 1:
                 x1, y1 = self.temp_points[0]
                 pick = {
@@ -475,6 +485,7 @@ class CoordinatePicker:
         elif self.current_pick_type == 'circle':
             if len(self.temp_points) == 0:
                 self.temp_points.append((x, y))
+                self._draw_pick(x, y)
             elif len(self.temp_points) == 1:
                 cx, cy = self.temp_points[0]
                 radius = int(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5)
@@ -522,17 +533,21 @@ class CoordinatePicker:
         # Use main UI's history if available, otherwise local picks
         history = self.pick_history_ref if self.pick_history_ref is not None else self.picks
 
-        # Populate tree with history
         for idx, pick in enumerate(history, 1):
             pick_type = pick.get('type', 'point')
-            x = pick.get('x', 0)
-            y = pick.get('y', 0)
-            coords = f"({x}, {y})"
-
+            x, y = pick.get('x', 0), pick.get('y', 0)
+            if pick_type == 'point':
+                coords = f"({x}, {y})"
+            elif pick_type == 'rect':
+                w, h = pick.get('width', 0), pick.get('height', 0)
+                coords = f"{x},{y} {w}×{h}"
+            elif pick_type == 'circle':
+                r = pick.get('radius', 0)
+                coords = f"({x},{y}) r={r}"
+            else:
+                coords = f"({x}, {y})"
             self.history_tree.insert(
-                '',
-                'end',
-                iid=f"item_{idx}",
+                '', 'end', iid=f"item_{idx}",
                 values=(idx, pick_type, coords)
             )
 
@@ -563,7 +578,7 @@ class CoordinatePicker:
         dialog.geometry("450x600")
         dialog.resizable(True, True)
 
-        templates_data = self.template_matcher.get_available_templates(self.client_var.get())
+        templates_data = self.template_matcher.get_available_templates(self.client_mode)
 
         selected_templates = {}
 
@@ -673,7 +688,7 @@ class CoordinatePicker:
                     return
 
                 self.template_matcher.set_image(self.original_screenshot.copy())
-                if self.template_matcher.match_templates(self.client_var.get()):
+                if self.template_matcher.match_templates(self.client_mode):
                     self.template_matcher.draw_matches_on_image()
                     self._update_canvas_display()
                     ColorPrint.green(f"[COORD_PICKER] Templates matched and drawn with modes: {self.template_matcher.match_modes}")

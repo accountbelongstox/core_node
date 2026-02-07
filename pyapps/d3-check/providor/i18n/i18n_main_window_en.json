@@ -80,6 +80,8 @@
     },
     "system_tray": {
       "show_software": "Show Software",
+      "maximize": "Maximize",
+      "restart": "Restart",
       "exit": "Exit"
     }
   }
