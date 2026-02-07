@@ -29,7 +29,7 @@ def load_template_and_scale_by_resolution(
     standard_height: int,
     log_prefix: str = "",
 ) -> Optional[np.ndarray]:
-    """按窗口分辨率与标准分辨率缩放模板图，供 Battle.net 等复用。返回 BGR/BGRA 数组或 None。"""
+    """Load and scale template by window vs standard resolution; shared by Battle.net etc. Returns BGR/BGRA array or None."""
     path = Path(template_path)
     if not path.exists():
         return None
@@ -337,7 +337,7 @@ class ScaledTemplateMatcherBase:
             return {"total_matches": 1, "matches": [match_result]}
         return {"total_matches": 0, "matches": []}
 
-    # Alias: D3 等可沿用“在给定图像中匹配”的旧名
+    # Alias: D3 etc. can keep the old name "match in given image"
     match_template_in_region = match_template_in_image
 
     def clear_cache(self):

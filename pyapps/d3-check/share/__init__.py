@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Shared Data Structures Package
-Centralized data structures shared across D3 application.
+Share = shared data only. Centralized data structures shared across the app.
+Do not put business logic or one-shot tasks here; use d3utils / timers.one_shot_tasks.
 
-Prefer direct imports from submodules (no secondary encapsulation):
-  from share.game_interface_data import ... ; from share.project_path import ...
+Direct imports: from share.game_interface_data import ... ; from share.project_path import ...
 """
 
 from .project_path import get_project_root, ensure_d3_check_in_sys_path

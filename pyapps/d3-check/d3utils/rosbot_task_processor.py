@@ -9,12 +9,14 @@ import sys
 import time
 from typing import Optional
 from pycore.pyfoundations.color_print import ColorPrint
+from providor.providor_index import LOGS_FILE_PATH
 from d3utils.log_monitor import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
 from d3utils.task_thread_manager import TaskStatus
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed, reset_confirmed_to_poll
+from d3utils.event_center import trigger_extension_rosbot_start
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -29,8 +31,7 @@ class RosbotTaskProcessor:
     def initialize(self):
         """Initialize ROSBOT task processor"""
         if not self.initialized:
-            # Set log file path (hardcoded)
-            self.log_file_path = os.path.expanduser(r"~\Documents\RoS-BoT\Logs\logs.txt")
+            self.log_file_path = LOGS_FILE_PATH
             set_log_file(self.log_file_path)
             self.initialized = True
             ColorPrint.blue("[RosbotTaskProcessor] Initialized with log file")
@@ -78,7 +79,7 @@ class RosbotTaskProcessor:
             ColorPrint.red(f"[RosbotTaskProcessor] Error stopping ROSBOT: {e}")
     
     def process_task(self):
-        """Flow driver: 1s tick; flow uses % for 2s. When flow master on: full flow (BN then D3/ROSBOT). When ensure_battlenet_only on: BN-only, confirmed后每 tick 再轮询（掉线则重登）。"""
+        """Flow driver: 1s tick; flow uses % for 2s. When flow master on: full flow (BN then D3/ROSBOT). When ensure_battlenet_only on: BN-only, each tick re-polls after confirm (reconnect on disconnect)."""
         bn_only = self.game_state.ensure_battlenet_only_master_enabled
         flow_master = self.game_state.rosbot_flow_master_enabled
         if not flow_master and not bn_only:
@@ -97,7 +98,6 @@ class RosbotTaskProcessor:
         if done and result == "confirmed":
             if flow_master:
                 set_battlenet_tick_confirmed()
-                from d3utils.event_center import trigger_extension_rosbot_start
                 trigger_extension_rosbot_start()
             elif bn_only:
                 reset_confirmed_to_poll()

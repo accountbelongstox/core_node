@@ -80,6 +80,8 @@
     },
     "system_tray": {
       "show_software": "显示软件",
+      "maximize": "最大化",
+      "restart": "重启",
       "exit": "退出"
     }
   }

@@ -176,6 +176,8 @@ OPTIONAL_PACKAGES = {
     "edge_tts": "edge-tts",
     # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
     "whisper": "openai-whisper",
+    # For filesystem/watch file change (log monitor - optional)
+    "watchdog": "watchdog",
 
     # For native Linux system tray (Ubuntu/GNOME) - optional
     # Note: Requires system packages: gir1.2-appindicator3-0.1, libgirepository1.0-dev
@@ -1041,6 +1043,17 @@ def get_third_package_whisper():
     return _PACKAGE_CACHE['whisper']
 
 
+def get_third_package_watchdog():
+    """Get watchdog package (lazy load, optional). For file-change driven log monitor."""
+    if 'watchdog' not in _PACKAGE_CACHE:
+        try:
+            import watchdog
+            _PACKAGE_CACHE['watchdog'] = watchdog
+        except ImportError:
+            _PACKAGE_CACHE['watchdog'] = None
+    return _PACKAGE_CACHE['watchdog']
+
+
 # Audio packages
 def get_third_package_pygame():
     """Get pygame package (lazy load)"""
@@ -1295,6 +1308,7 @@ __all__ = [
     'get_third_package_edge_tts',
     'get_third_package_vosk',
     'get_third_package_whisper',
+    'get_third_package_watchdog',
     # Audio packages
     'get_third_package_pygame',
     'get_third_package_eng_to_ipa',

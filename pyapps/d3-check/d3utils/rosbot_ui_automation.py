@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ROSBOT UI automation: after ROSBOT starts, find window by title, DEBUG print operable elements,
-then click main-profile tab and Start botting! button. Uses uiautomation (pycore third_party).
+ROSBOT UI automation: after ROSBOT starts, get window via get_rosbot_window() (same-dir exe flow), DEBUG print operable elements, then click main-profile tab and Start botting! button. Uses uiautomation (pycore third_party). Prefers UI Automation patterns (InvokePattern, SelectionItemPattern) via ui_control_operations; falls back to ClickHandler mouse at rect.
 """
 import time
 from pathlib import Path
@@ -13,6 +12,11 @@ from pycore.pyfoundations.third_party import (
     get_third_package_win32con,
 )
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.click_handler import ClickHandler
+
+from d3utils.ui_control_operations import operate_button, operate_tab_item, click_at_control_rect
+from d3utils.ui_analysis_operations import run_sequence, find_control_in_window
+from d3utils.rosbot_ui_structure import get_resume_sequence, CMB_SEQUENCE, BTN_START, LIST_ITEM_RIFT_MODE
 from providor.app_constants import (
     ROSBOT_UI_DEBUG_DIR,
     TAB_MAIN_PROFILE_NAMES,
@@ -25,7 +29,16 @@ from providor.app_constants import (
 )
 from d3utils.rosbot_manager import get_rosbot_manager
 
-# Lazy load Windows-only packages
+try:
+    import pythoncom
+except ImportError:
+    pythoncom = None
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+
 def _auto():
     return get_third_package_uiautomation()
 
@@ -42,14 +55,69 @@ class _ComInitializer:
     """Global COM initializer: call CoInitialize in current thread before using uiautomation."""
 
     def ensure_thread(self) -> None:
-        try:
-            import pythoncom
-            pythoncom.CoInitialize()
-        except ImportError:
-            pass
+        if pythoncom is not None:
+            try:
+                pythoncom.CoInitialize()
+            except Exception:
+                pass
 
 
 _COM_INIT = _ComInitializer()
+
+# AutomationIds that identify the ROSBOT main window (content-based, not title)
+_ROSBOT_MAIN_CONTENT_IDS = ("profileTab", "btnStart")
+
+
+def window_has_rosbot_main_content(hwnd: int) -> bool:
+    """
+    Return True if the window has ROSBOT main UI content (e.g. profileTab or btnStart by AutomationId).
+    Used to select the main window by content when the process has multiple windows (title may be e.g. "The Vault").
+    """
+    auto = _auto()
+    if not auto:
+        return False
+    try:
+        _COM_INIT.ensure_thread()
+        root = auto.ControlFromHandle(int(hwnd))
+    except Exception:
+        return False
+    if not root:
+        return False
+
+    def walk(control, depth: int, max_d: int = 8) -> bool:
+        if depth > max_d:
+            return False
+        try:
+            aid = (getattr(control, "AutomationId", None) or "").strip()
+            if aid in _ROSBOT_MAIN_CONTENT_IDS:
+                return True
+            for child in control.GetChildren():
+                if walk(child, depth + 1, max_d):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    return walk(root, 0)
+
+
+def _register_content_validator() -> None:
+    """Register content-based main window validator with ROSBOTManager so get_rosbot_window uses content, not title."""
+    try:
+        get_rosbot_manager().set_main_window_content_validator(window_has_rosbot_main_content)
+    except Exception:
+        pass
+
+
+_register_content_validator()
+
+# Default: instant move (no visible trajectory), instant click, then move back to original position (used when falling back to mouse)
+_ROSBOT_CLICK_PARAMS = {
+    "direct_click": True,
+    "return_to_original": True,
+    "duration": 0.0,
+    "pause_after_move": 0.0,
+}
 
 
 def _safe_control_info(control) -> Optional[Dict[str, Any]]:
@@ -188,8 +256,8 @@ def _find_controls_by_type(
     return found
 
 
-def click_tab_main_profile(window_control) -> bool:
-    """Find TabItemControl with main profile name in TAB_MAIN_PROFILE_NAMES and click it."""
+def click_tab_main_profile(window_control, clicker: Optional[ClickHandler] = None, **click_kwargs) -> bool:
+    """Find TabItemControl with main profile name; operate via SelectionItemPattern/InvokePattern first, else mouse at rect."""
     tabs = _find_controls_by_type(window_control, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
     if not tabs:
         ColorPrint.yellow("[ROSBOT_UI] No tab matching main profile found")
@@ -197,17 +265,20 @@ def click_tab_main_profile(window_control) -> bool:
     tab = tabs[0]
     try:
         ColorPrint.blue(f"[ROSBOT_UI] Clicking tab: '{tab.get('name', '')}'")
-        tab["control"].Click()
-        time.sleep(UI_OPERATION_DELAY)
-        ColorPrint.green("[ROSBOT_UI] Main profile tab clicked")
-        return True
+        params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
+        c = clicker if clicker is not None else ClickHandler()
+        ok = operate_tab_item(tab["control"], clicker=c, **params)
+        if ok:
+            time.sleep(UI_OPERATION_DELAY)
+            ColorPrint.green("[ROSBOT_UI] Main profile tab clicked")
+        return ok
     except Exception as e:
         ColorPrint.red(f"[ROSBOT_UI] Tab click error: {e}")
         return False
 
 
-def click_start_botting(window_control) -> bool:
-    """Find ButtonControl with automation_id btnStart or name containing Start botting and click it."""
+def click_start_botting(window_control, clicker: Optional[ClickHandler] = None, **click_kwargs) -> bool:
+    """Find ButtonControl (btnStart or name containing Start botting); operate via InvokePattern first, else mouse at rect."""
     buttons = _find_controls_by_type(window_control, "ButtonControl")
     start_btn = None
     for b in buttons:
@@ -225,13 +296,189 @@ def click_start_botting(window_control) -> bool:
         return False
     try:
         ColorPrint.blue(f"[ROSBOT_UI] Clicking button: '{start_btn.get('name', '')}'")
-        start_btn["control"].Click()
-        time.sleep(UI_OPERATION_DELAY)
-        ColorPrint.green("[ROSBOT_UI] Start botting clicked")
-        return True
+        params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
+        c = clicker if clicker is not None else ClickHandler()
+        ok = operate_button(start_btn["control"], clicker=c, **params)
+        if ok:
+            time.sleep(UI_OPERATION_DELAY)
+            ColorPrint.green("[ROSBOT_UI] Start botting clicked")
+        return ok
     except Exception as e:
         ColorPrint.red(f"[ROSBOT_UI] Start button click error: {e}")
         return False
+
+
+# OK button names for "No items" popup (localized; 确定 = OK in Chinese)
+_NO_ITEMS_POPUP_OK_NAMES = ("OK", "确定", "ok")
+
+
+def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> Optional[Any]:
+    """Walk control tree, return first ButtonControl whose Name is OK or 确定."""
+    if depth > max_depth:
+        return None
+    try:
+        ctype = getattr(control, "ControlTypeName", None) or ""
+        if "Button" in ctype:
+            name = (getattr(control, "Name", None) or "").strip()
+            if name in _NO_ITEMS_POPUP_OK_NAMES or name.lower() == "ok" or name == "确定":
+                return control
+    except Exception:
+        pass
+    try:
+        for child in control.GetChildren():
+            found = _find_ok_button_in_control(child, depth + 1, max_depth)
+            if found is not None:
+                return found
+    except Exception:
+        pass
+    return None
+
+
+# Per docs/rosbot_ui_elements.json: "No items" is in a child TextControl.Name, not window title (title can be "The Vault").
+_NO_ITEMS_MESSAGE_SUBSTR = "No items"
+
+
+def _window_has_no_items_message(root, depth: int = 0, max_d: int = 6) -> bool:
+    """Walk control tree; return True if any TextControl has Name containing NO_ITEMS_MESSAGE_SUBSTR."""
+    if depth > max_d:
+        return False
+    try:
+        ctype = getattr(root, "ControlTypeName", None) or ""
+        if "Text" in ctype:
+            name = (getattr(root, "Name", None) or "") or ""
+            if _NO_ITEMS_MESSAGE_SUBSTR in name:
+                return True
+        for child in root.GetChildren():
+            if _window_has_no_items_message(child, depth + 1, max_d):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def try_close_no_items_popup() -> bool:
+    """
+    Find a top-level window that has a child TextControl with "No items" in Name (content, not title; see rosbot_ui_elements.json).
+    Then click OK to close it. Returns True if popup was found and OK clicked.
+    """
+    auto = _auto()
+    win32gui = _win32gui()
+    if not auto or not win32gui:
+        return False
+    _COM_INIT.ensure_thread()
+
+    found_hwnd = []
+
+    def enum_cb(hwnd, _):
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            try:
+                root = auto.ControlFromHandle(hwnd)
+            except Exception:
+                return True
+            if not root:
+                return True
+            if _window_has_no_items_message(root):
+                found_hwnd.append(hwnd)
+                return False
+            return True
+        except Exception:
+            return True
+
+    try:
+        win32gui.EnumWindows(enum_cb, None)
+    except Exception as e:
+        ColorPrint.yellow(f"[ROSBOT_UI] EnumWindows for No items popup: {e}")
+        return False
+
+    if not found_hwnd:
+        return False
+
+    hwnd = found_hwnd[0]
+    try:
+        root = auto.ControlFromHandle(hwnd)
+    except Exception as e:
+        ColorPrint.yellow(f"[ROSBOT_UI] ControlFromHandle(No items popup): {e}")
+        return False
+    if not root:
+        return False
+    if hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
+        return False
+
+    ok_btn = _find_ok_button_in_control(root)
+    if not ok_btn:
+        ColorPrint.yellow("[ROSBOT_UI] No items popup: OK button not found")
+        return False
+    clicker = ClickHandler()
+    if operate_button(ok_btn, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
+        ColorPrint.green("[ROSBOT_UI] No items popup closed (OK clicked)")
+        return True
+    return False
+
+
+def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
+    """Expand ComboBox: try ExpandCollapsePattern.Expand(), else click at rect."""
+    try:
+        get_exp = getattr(control, "GetExpandCollapsePattern", None)
+        if get_exp:
+            pattern = get_exp()
+            if pattern and getattr(pattern, "Expand", None):
+                pattern.Expand()
+                return True
+    except Exception:
+        pass
+    c = clicker or ClickHandler()
+    return click_at_control_rect(control, clicker=c, **_ROSBOT_CLICK_PARAMS)
+
+
+def switch_to_rift_mode_and_start(window_control: Any) -> bool:
+    """
+    Set mode to rift (大小秘境) and click Start. Uses rosbot_ui_structure: find cmbSequence, expand,
+    find ListItem with name containing rift keywords, select it, then invoke btnStart.
+    Returns True if at least Start was invoked.
+    """
+    if not window_control:
+        return False
+    clicker = ClickHandler()
+    ok = False
+    cmb = find_control_in_window(window_control, CMB_SEQUENCE, max_depth=12)
+    if cmb:
+        if _try_expand_combo(cmb, clicker=clicker):
+            time.sleep(0.4)
+        item = find_control_in_window(window_control, LIST_ITEM_RIFT_MODE, max_depth=14)
+        if item:
+            if operate_tab_item(item, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
+                ok = True
+            time.sleep(0.25)
+    start_btn = find_control_in_window(window_control, BTN_START, max_depth=12)
+    if start_btn and operate_button(start_btn, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
+        ok = True
+    return ok
+
+
+def do_after_no_items_close_switch_rift_and_start() -> bool:
+    """
+    After OK closed the No items popup: log that we switch to rift mode, get ROSBOT window,
+    set mode to rift and click Start. Returns True if switch+start succeeded.
+    """
+    ColorPrint.blue("[ROSBOT_UI] Other mode keys exhausted, switching to rift mode")
+    winfo = get_rosbot_manager().get_rosbot_window()
+    if not winfo or not winfo.get("hwnd"):
+        ColorPrint.yellow("[ROSBOT_UI] do_after_no_items: no ROSBOT window")
+        return False
+    auto = _auto()
+    if not auto:
+        return False
+    _COM_INIT.ensure_thread()
+    try:
+        window_control = auto.ControlFromHandle(int(winfo["hwnd"]))
+    except Exception as e:
+        ColorPrint.red(f"[ROSBOT_UI] ControlFromHandle: {e}")
+        return False
+    if not window_control:
+        return False
+    return switch_to_rift_mode_and_start(window_control)
 
 
 def run_after_rosbot_start(
@@ -239,17 +486,19 @@ def run_after_rosbot_start(
     do_debug: bool = True,
     do_tab: bool = True,
     do_start_botting: bool = True,
+    click_params: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """
     After ROSBOT process started: find ROSBOT window by process (exe under ros_directory only),
     activate, DEBUG print elements, click main profile tab, then click Start botting!.
-    No title search; uses get_rosbot_manager().get_rosbot_window() + uiautomation (COM init in thread).
+    Clicks use ClickHandler with click_params (default: instant move, instant click, return to original position).
 
     Args:
         wait_sec: Seconds to wait for window to appear (poll every 1s).
         do_debug: If True, call debug_print_operable_elements first.
         do_tab: If True, click main profile tab.
         do_start_botting: If True, click Start botting! button.
+        click_params: Optional dict for clicker.click() (e.g. direct_click, return_to_original, duration, pause_after_move). Merged over _ROSBOT_CLICK_PARAMS.
 
     Returns:
         True if at least one step succeeded (window found and control obtained).
@@ -278,13 +527,13 @@ def run_after_rosbot_start(
     pid = winfo.get("pid") or 0
     exe_name = ""
     exe_path = ""
-    try:
-        import psutil
-        p = psutil.Process(pid)
-        exe_name = p.name() or ""
-        exe_path = p.exe() or ""
-    except Exception:
-        pass
+    if psutil is not None:
+        try:
+            p = psutil.Process(pid)
+            exe_name = p.name() or ""
+            exe_path = p.exe() or ""
+        except Exception:
+            pass
     ColorPrint.blue(
         f"[ROSBOT_UI] Found window: title='{title}', pid={pid}, exe_name='{exe_name}', exe_path='{exe_path}'"
     )
@@ -322,6 +571,9 @@ def run_after_rosbot_start(
         hwnd = winfo_fresh["hwnd"]
         ColorPrint.gray("[ROSBOT_UI] Re-got window (get_rosbot_window -> find_window_by_pid -> GetWindowText) before ControlFromHandle")
 
+    kw = dict(click_params or {})
+    clicker = ClickHandler()
+
     def _do_ui():
         try:
             window_control = auto.ControlFromHandle(hwnd)
@@ -335,23 +587,23 @@ def run_after_rosbot_start(
         if do_debug:
             debug_print_operable_elements(window_control)
             ok = True
-        if do_tab:
-            if click_tab_main_profile(window_control):
-                ok = True
-            time.sleep(UI_OPERATION_DELAY)
-        if do_start_botting:
-            if click_start_botting(window_control):
-                ok = True
+        if do_tab or do_start_botting:
+            run_seq = get_resume_sequence()
+            results = run_sequence(window_control, run_seq, clicker=clicker, click_params=kw, delay_after_step=UI_OPERATION_DELAY)
+            ok = ok or any(results)
         return ok
 
     return _do_ui()
 
 
-def resume_rosbot_ui(do_tab: bool = True, do_start_botting: bool = True) -> bool:
+def resume_rosbot_ui(
+    do_tab: bool = True,
+    do_start_botting: bool = True,
+    click_params: Optional[Dict[str, Any]] = None,
+) -> bool:
     """
-    Resume ROSBOT when window is visible (paused): activate window, switch to main profile tab, click Start botting!.
-    Uses automation_id btnStart for button (i18n-safe); tab by TAB_MAIN_PROFILE_NAMES.
-    Returns True if at least one step succeeded.
+    Resume ROSBOT when window is visible (paused): activate window, run built-in sequence (main profile tab + Start botting!).
+    Uses hardcoded rosbot_ui_structure only. Returns True if at least one step succeeded.
     """
     auto = _auto()
     win32gui = _win32gui()
@@ -384,12 +636,10 @@ def resume_rosbot_ui(do_tab: bool = True, do_start_botting: bool = True) -> bool
         ColorPrint.red("[ROSBOT_UI] Window control not available")
         return False
 
-    ok = False
-    if do_tab:
-        if click_tab_main_profile(window_control):
-            ok = True
-        time.sleep(UI_OPERATION_DELAY)
-    if do_start_botting:
-        if click_start_botting(window_control):
-            ok = True
-    return ok
+    kw = dict(click_params or {})
+    clicker = ClickHandler()
+    if do_tab or do_start_botting:
+        run_seq = get_resume_sequence()
+        results = run_sequence(window_control, run_seq, clicker=clicker, click_params=kw, delay_after_step=UI_OPERATION_DELAY)
+        return any(results)
+    return False

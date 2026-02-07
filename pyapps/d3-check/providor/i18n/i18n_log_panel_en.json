@@ -14,6 +14,8 @@
       "clear": "Clear",
       "save_log": "Save Log",
       "auto_scroll": "Auto Scroll",
+      "show_debug_logs": "Show DEBUG logs",
+      "debug_log_latency": "Verify real-time (show latency)",
       "running_test": "Running Test",
       "test_failed": "Test Failed",
       "test_completed": "Test Completed",

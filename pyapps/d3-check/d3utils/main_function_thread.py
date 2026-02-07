@@ -96,7 +96,7 @@ class MainFunctionThread(threading.Thread):
             for skill_name, sc in skills.items():
                 if not self._macro_running or self._shutdown.is_set():
                     break
-                if sc.get("strategy") == "禁用":
+                if sc.get("strategy") == "禁用":  # Disabled (CN config value)
                     continue
                 self._execute_skill(skill_name, sc)
                 time.sleep(0.01)

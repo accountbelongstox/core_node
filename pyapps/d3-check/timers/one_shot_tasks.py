@@ -1,49 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-One-shot work functions (run via timer_manager.submit_one_shot) and shared imports for thread logic.
-
-No thread classes here: long-lived thread classes are implemented in their owning modules
-(controller/d3_macro_controller, controller/game_interface_controller, ui/components/system_tray).
-Used by share.thread_registry for do_* callbacks only.
+One-shot work tasks run via timer_manager.submit_one_shot (no new thread).
+Used by thread registry and panels. Long-lived thread classes live in controller/d3utils/ui.
 """
 
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
-
-# F7 debounce: do not send again within this many seconds.
-_ROSDEBUG_F7_DEBOUNCE_SEC = 3.0
-_last_rosdebug_f7_at: Optional[float] = None
-# Only one "running" flow at a time (send F7 + wait + analyze); skip if already in progress.
-_rosdebug_running_busy = False
-
-VK_F7 = 0x76
-
-
-def _send_f7_to_system() -> bool:
-    """Send F7 key to system (global key press). Returns True if sent."""
-    try:
-        import win32api
-        win32api.keybd_event(VK_F7, 0, 0, 0)
-        time.sleep(0.05)
-        win32api.keybd_event(VK_F7, 0, 2, 0)
-        return True
-    except Exception:
-        return False
+from typing import Any, Callable, Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CACHE_DIR
-from d3utils.path_scanner import scan_for_paths
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
+from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pyutils.window_activator import WindowActivator
 from pycore.pyutils.window_analyzer import WindowAnalyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
-
+from providor.providor_index import CACHE_DIR, BATTLE_NET_WINDOW_TITLES
+from d3utils.path_scanner import scan_for_paths
+from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_operation import get_rosbot_operation
+from d3utils.rosbot_status_provider import refresh_rosbot_status
+from d3utils.key_send import send_f7_to_system
+from d3utils.smart_echo import do_smart_echo_pause_after_complete
+import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
+from share.game_interface_data import get_game_interface_data
 
+try:
+    import pythoncom
+except ImportError:
+    pythoncom = None
 
-# --- One-shot work (run via timer_manager.submit_one_shot; no new thread) ---
+_ROSDEBUG_F7_DEBOUNCE_SEC = 3.0
+_last_rosdebug_f7_at: Optional[float] = None
+_rosdebug_running_busy = False
 
 
 def do_path_scan(panel: Any) -> None:
@@ -70,7 +60,7 @@ def do_login_check(panel: Any, login_check_fn: Callable[[], Tuple[bool, Optional
 
 
 def do_battlenet_only_check(panel: Any) -> None:
-    """Ensure Battle.net running and logged in only (no D3, no ROSBOT). Run in timer thread; schedules _on_battlenet_only_done on main."""
+    """Ensure Battle.net running and logged in only. Run in timer thread; schedules _on_battlenet_only_done on main."""
     result = False
     err = None
     try:
@@ -101,12 +91,12 @@ def _do_window_ui_analyze(
     log_label: str,
     error_not_found: str,
 ) -> None:
-    """Shared: CoInitialize, mkdir, WindowAnalyzer.analyze_window, copy to docs, open folder. Schedules UI updates on main."""
-    try:
-        import pythoncom
-        pythoncom.CoInitialize()
-    except ImportError:
-        pass
+    """CoInitialize, mkdir, WindowAnalyzer.analyze_window, copy to docs, open folder. Schedules UI updates on main."""
+    if pythoncom is not None:
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
     output_dir = Path(CACHE_DIR) / cache_subdir
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -156,12 +146,9 @@ def _do_window_ui_analyze(
 
 
 def do_rosbot_debug(panel: Any) -> None:
-    """Debug ROSBOT: if paused (has window) run window analysis; if running (process, no window) send F7 once then wait for visible window and run analysis."""
+    """Debug ROSBOT: if paused run window analysis; if running send F7 then wait for visible window and run analysis."""
     global _last_rosdebug_f7_at, _rosdebug_running_busy
-    from d3utils.rosbot_manager import get_rosbot_manager
-    from d3utils.rosbot_status_provider import refresh_rosbot_status
     refresh_rosbot_status()
-    from share.game_interface_data import get_game_interface_data
     g = get_game_interface_data()
     status = g.rosbot_extended_status
     mgr = get_rosbot_manager()
@@ -194,14 +181,13 @@ def do_rosbot_debug(panel: Any) -> None:
             return
         _rosdebug_running_busy = True
         try:
-            sent = _send_f7_to_system()
+            sent = send_f7_to_system()
             if sent:
                 _last_rosdebug_f7_at = time.time()
                 ColorPrint.green("[RosbotPanel] F7 sent to system (pause)")
             else:
                 ColorPrint.yellow("[RosbotPanel] F7 send failed")
             time.sleep(1.0)
-            # Wait for visible window (paused), then run window UI analysis.
             poll_interval = 2.0
             poll_timeout = 15.0
             deadline = time.time() + poll_timeout
@@ -237,7 +223,7 @@ def do_rosbot_debug(panel: Any) -> None:
 def _send_f7_for_status(mgr: Any, status: str) -> bool:
     """Send F7: pause = to system only; resume = to visible window. Returns True if sent."""
     if status == "running":
-        return _send_f7_to_system()
+        return send_f7_to_system()
     if status == "paused":
         winfo = mgr.get_rosbot_window()
         if winfo and winfo.get("hwnd"):
@@ -248,11 +234,6 @@ def _send_f7_for_status(mgr: Any, status: str) -> bool:
 
 def do_rosbot_test_pause_resume(panel: Any) -> None:
     """Test ROSBOT pause and resume: pause = F7 to system; resume = main profile + Start botting! (UI)."""
-    from d3utils.rosbot_manager import get_rosbot_manager
-    from d3utils.rosbot_operation import get_rosbot_operation
-    from d3utils.rosbot_status_provider import refresh_rosbot_status
-    from share.game_interface_data import get_game_interface_data
-
     refresh_rosbot_status()
     g = get_game_interface_data()
     status = g.rosbot_extended_status
@@ -337,9 +318,3 @@ def do_window_monitor_initial_check() -> None:
         window_monitor.check_window()
     except Exception as e:
         ColorPrint.red(f"[WindowMonitor] Initial check error: {e}")
-
-
-# --- Long-lived thread classes: implemented in their owning modules (no wrappers here) ---
-# - MacroLoopThread, GameInterfaceMacroThread: controller/d3_macro_controller.py, controller/game_interface_controller.py
-# - TrayRunnerThread: ui/components/system_tray.py
-# ThreadRegistry uses controller.create_macro_fallback_thread(), controller.create_macro_thread(); tray is the thread (SystemTray extends Thread).

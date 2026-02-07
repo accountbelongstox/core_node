@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-02-04T09:15:25.771833",
+  "timestamp": "2026-02-07T22:28:47.078830",
   "program_name": "battlenet",
   "window_info": {
-    "hwnd": 1048964,
+    "hwnd": 264240,
     "title": "Battle.net",
-    "left": 449,
-    "top": 379,
+    "left": -48,
+    "top": 596,
     "width": 1041,
-    "height": 640,
+    "height": 656,
     "is_active": false,
     "is_maximized": false,
     "is_minimized": false
@@ -24,12 +24,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
@@ -40,18 +40,18 @@
       "parent_id": 0,
       "type": "DocumentControl",
       "name": "",
-      "automation_id": "1351876832",
+      "automation_id": "1060257504",
       "class_name": "Chrome_RenderWidgetHostHWND",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
@@ -68,12 +68,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
@@ -90,12 +90,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
@@ -112,10 +112,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 467,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 684,
         "width": 1041,
         "height": 88
       },
@@ -134,11 +134,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 403,
-        "right": 1170,
-        "bottom": 467,
-        "width": 721,
+        "left": -48,
+        "top": 620,
+        "right": 857,
+        "bottom": 684,
+        "width": 905,
         "height": 64
       },
       "is_enabled": true,
@@ -156,11 +156,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 403,
-        "right": 1118,
-        "bottom": 467,
-        "width": 669,
+        "left": -48,
+        "top": 620,
+        "right": 805,
+        "bottom": 684,
+        "width": 853,
         "height": 64
       },
       "is_enabled": true,
@@ -178,10 +178,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 473,
-        "top": 415,
-        "right": 521,
-        "bottom": 455,
+        "left": -24,
+        "top": 632,
+        "right": 24,
+        "bottom": 672,
         "width": 48,
         "height": 40
       },
@@ -200,10 +200,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 481,
-        "top": 415,
-        "right": 521,
-        "bottom": 455,
+        "left": -16,
+        "top": 632,
+        "right": 24,
+        "bottom": 672,
         "width": 40,
         "height": 40
       },
@@ -222,10 +222,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 481,
-        "top": 415,
-        "right": 521,
-        "bottom": 455,
+        "left": -16,
+        "top": 632,
+        "right": 24,
+        "bottom": 672,
         "width": 40,
         "height": 40
       },
@@ -244,10 +244,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 525,
-        "top": 425,
-        "right": 541,
-        "bottom": 441,
+        "left": 28,
+        "top": 642,
+        "right": 44,
+        "bottom": 658,
         "width": 16,
         "height": 16
       },
@@ -266,10 +266,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 545,
-        "top": 403,
-        "right": 727,
-        "bottom": 467,
+        "left": 48,
+        "top": 620,
+        "right": 230,
+        "bottom": 684,
         "width": 182,
         "height": 64
       },
@@ -288,10 +288,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 545,
-        "top": 415,
-        "right": 643,
-        "bottom": 455,
+        "left": 48,
+        "top": 632,
+        "right": 146,
+        "bottom": 672,
         "width": 98,
         "height": 40
       },
@@ -310,10 +310,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 642,
-        "top": 415,
-        "right": 727,
-        "bottom": 455,
+        "left": 145,
+        "top": 632,
+        "right": 230,
+        "bottom": 672,
         "width": 85,
         "height": 40
       },
@@ -332,10 +332,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1118,
-        "top": 403,
-        "right": 1158,
-        "bottom": 467,
+        "left": 805,
+        "top": 620,
+        "right": 845,
+        "bottom": 684,
         "width": 40,
         "height": 64
       },
@@ -354,10 +354,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1118,
-        "top": 415,
-        "right": 1158,
-        "bottom": 455,
+        "left": 805,
+        "top": 632,
+        "right": 845,
+        "bottom": 672,
         "width": 40,
         "height": 40
       },
@@ -376,10 +376,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1118,
-        "top": 415,
-        "right": 1158,
-        "bottom": 455,
+        "left": 805,
+        "top": 632,
+        "right": 845,
+        "bottom": 672,
         "width": 40,
         "height": 40
       },
@@ -398,10 +398,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1126,
-        "top": 423,
-        "right": 1150,
-        "bottom": 447,
+        "left": 813,
+        "top": 640,
+        "right": 837,
+        "bottom": 664,
         "width": 24,
         "height": 24
       },
@@ -420,11 +420,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1194,
-        "top": 409,
-        "right": 1466,
-        "bottom": 461,
-        "width": 272,
+        "left": 881,
+        "top": 626,
+        "right": 969,
+        "bottom": 678,
+        "width": 88,
         "height": 52
       },
       "is_enabled": true,
@@ -436,17 +436,17 @@
       "parent_id": 18,
       "type": "GroupControl",
       "name": "",
-      "automation_id": "",
+      "automation_id": "user-header-dropdown-menu",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1194,
-        "top": 409,
-        "right": 1246,
-        "bottom": 461,
-        "width": 52,
+        "left": 881,
+        "top": 626,
+        "right": 969,
+        "bottom": 678,
+        "width": 88,
         "height": 52
       },
       "is_enabled": true,
@@ -456,6 +456,94 @@
     {
       "id": 20,
       "parent_id": 19,
+      "type": "MenuItemControl",
+      "name": "凝视之熊, Online, Playing Diablo III, Torment XVI - In Town",
+      "automation_id": "DropdownMenu_8_button",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 881,
+        "top": 626,
+        "right": 969,
+        "bottom": 678,
+        "width": 88,
+        "height": 52
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 7
+    },
+    {
+      "id": 21,
+      "parent_id": 20,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 900,
+        "top": 628,
+        "right": 948,
+        "bottom": 676,
+        "width": 48,
+        "height": 48
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 8
+    },
+    {
+      "id": 22,
+      "parent_id": 21,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 900,
+        "top": 628,
+        "right": 948,
+        "bottom": 676,
+        "width": 48,
+        "height": 48
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 9
+    },
+    {
+      "id": 23,
+      "parent_id": 21,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 940,
+        "top": 627,
+        "right": 958,
+        "bottom": 645,
+        "width": 18,
+        "height": 18
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 9
+    },
+    {
+      "id": 24,
+      "parent_id": 21,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -464,107 +552,41 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1227,
-        "top": 442,
-        "right": 1251,
-        "bottom": 466,
-        "width": 24,
-        "height": 24
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 7
-    },
-    {
-      "id": 21,
-      "parent_id": 18,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1254,
-        "top": 413,
-        "right": 1462,
-        "bottom": 438,
-        "width": 208,
-        "height": 25
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 6
-    },
-    {
-      "id": 22,
-      "parent_id": 21,
-      "type": "TextControl",
-      "name": "凝视之熊",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1254,
-        "top": 414,
-        "right": 1318,
-        "bottom": 437,
-        "width": 64,
-        "height": 23
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 7
-    },
-    {
-      "id": 23,
-      "parent_id": 18,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1254,
-        "top": 435,
-        "right": 1462,
-        "bottom": 457,
-        "width": 208,
-        "height": 22
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 6
-    },
-    {
-      "id": 24,
-      "parent_id": 23,
-      "type": "TextControl",
-      "name": "Connecting…",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1254,
-        "top": 436,
-        "right": 1341,
-        "bottom": 456,
-        "width": 87,
+        "left": 932,
+        "top": 660,
+        "right": 952,
+        "bottom": 680,
+        "width": 20,
         "height": 20
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 7
+      "level": 9
     },
     {
       "id": 25,
+      "parent_id": 20,
+      "type": "ImageControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 951,
+        "top": 644,
+        "right": 967,
+        "bottom": 660,
+        "width": 16,
+        "height": 16
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 8
+    },
+    {
+      "id": 26,
       "parent_id": 3,
       "type": "GroupControl",
       "name": "",
@@ -586,7 +608,7 @@
       "level": 4
     },
     {
-      "id": 26,
+      "id": 27,
       "parent_id": 3,
       "type": "GroupControl",
       "name": "",
@@ -596,20 +618,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 467,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 684,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 552
+        "height": 568
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 4
     },
     {
-      "id": 27,
-      "parent_id": 26,
+      "id": 28,
+      "parent_id": 27,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -618,20 +640,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 5
     },
     {
-      "id": 28,
-      "parent_id": 26,
+      "id": 29,
+      "parent_id": 27,
       "type": "GroupControl",
       "name": "",
       "automation_id": "background-gradient",
@@ -640,20 +662,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 850,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": 353,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 640,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 5
     },
     {
-      "id": 29,
-      "parent_id": 26,
+      "id": 30,
+      "parent_id": 27,
       "type": "GroupControl",
       "name": "",
       "automation_id": "main-panel",
@@ -662,38 +684,16 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 467,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 721,
-        "height": 552
+        "left": -48,
+        "top": 684,
+        "right": 857,
+        "bottom": 1252,
+        "width": 905,
+        "height": 568
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 5
-    },
-    {
-      "id": 30,
-      "parent_id": 29,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 449,
-        "top": 467,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 721,
-        "height": 552
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 6
     },
     {
       "id": 31,
@@ -706,11 +706,33 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 473,
-        "top": 467,
-        "right": 1170,
-        "bottom": 523,
-        "width": 697,
+        "left": -48,
+        "top": 684,
+        "right": 857,
+        "bottom": 1252,
+        "width": 905,
+        "height": 568
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 6
+    },
+    {
+      "id": 32,
+      "parent_id": 31,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": -24,
+        "top": 684,
+        "right": 857,
+        "bottom": 740,
+        "width": 881,
         "height": 56
       },
       "is_enabled": true,
@@ -718,8 +740,8 @@
       "level": 7
     },
     {
-      "id": 32,
-      "parent_id": 31,
+      "id": 33,
+      "parent_id": 32,
       "type": "GroupControl",
       "name": "",
       "automation_id": "favorites-bar",
@@ -728,11 +750,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 473,
-        "top": 467,
-        "right": 1170,
-        "bottom": 523,
-        "width": 697,
+        "left": -24,
+        "top": 684,
+        "right": 857,
+        "bottom": 740,
+        "width": 881,
         "height": 56
       },
       "is_enabled": true,
@@ -740,8 +762,8 @@
       "level": 8
     },
     {
-      "id": 33,
-      "parent_id": 32,
+      "id": 34,
+      "parent_id": 33,
       "type": "GroupControl",
       "name": "",
       "automation_id": "featureHighlightTarget-newfeature_quickaction",
@@ -750,10 +772,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 467,
-        "right": 513,
-        "bottom": 523,
+        "left": -8,
+        "top": 684,
+        "right": 16,
+        "bottom": 740,
         "width": 24,
         "height": 56
       },
@@ -762,8 +784,8 @@
       "level": 9
     },
     {
-      "id": 34,
-      "parent_id": 33,
+      "id": 35,
+      "parent_id": 34,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -772,10 +794,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 483,
-        "right": 513,
-        "bottom": 507,
+        "left": -8,
+        "top": 700,
+        "right": 16,
+        "bottom": 724,
         "width": 24,
         "height": 24
       },
@@ -784,8 +806,8 @@
       "level": 10
     },
     {
-      "id": 35,
-      "parent_id": 32,
+      "id": 36,
+      "parent_id": 33,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -794,11 +816,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 529,
-        "top": 467,
-        "right": 1170,
-        "bottom": 523,
-        "width": 641,
+        "left": 32,
+        "top": 684,
+        "right": 857,
+        "bottom": 740,
+        "width": 825,
         "height": 56
       },
       "is_enabled": true,
@@ -806,8 +828,8 @@
       "level": 9
     },
     {
-      "id": 36,
-      "parent_id": 35,
+      "id": 37,
+      "parent_id": 36,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -816,11 +838,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 529,
-        "top": 467,
-        "right": 1170,
-        "bottom": 523,
-        "width": 641,
+        "left": 32,
+        "top": 684,
+        "right": 857,
+        "bottom": 740,
+        "width": 825,
         "height": 56
       },
       "is_enabled": true,
@@ -828,8 +850,8 @@
       "level": 10
     },
     {
-      "id": 37,
-      "parent_id": 36,
+      "id": 38,
+      "parent_id": 37,
       "type": "TabControl",
       "name": "",
       "automation_id": "",
@@ -838,11 +860,11 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 529,
-        "top": 467,
-        "right": 1170,
-        "bottom": 523,
-        "width": 641,
+        "left": 32,
+        "top": 684,
+        "right": 857,
+        "bottom": 740,
+        "width": 825,
         "height": 56
       },
       "is_enabled": true,
@@ -850,8 +872,8 @@
       "level": 11
     },
     {
-      "id": 38,
-      "parent_id": 37,
+      "id": 39,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "World of Warcraft",
       "automation_id": "game-nav-btn-WoW",
@@ -860,10 +882,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 529,
-        "top": 467,
-        "right": 593,
-        "bottom": 523,
+        "left": 32,
+        "top": 684,
+        "right": 96,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -872,8 +894,8 @@
       "level": 12
     },
     {
-      "id": 39,
-      "parent_id": 38,
+      "id": 40,
+      "parent_id": 39,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -882,10 +904,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 529,
-        "top": 471,
-        "right": 593,
-        "bottom": 473,
+        "left": 32,
+        "top": 688,
+        "right": 96,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -894,8 +916,8 @@
       "level": 13
     },
     {
-      "id": 40,
-      "parent_id": 38,
+      "id": 41,
+      "parent_id": 39,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -904,10 +926,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 541,
-        "top": 475,
-        "right": 581,
-        "bottom": 515,
+        "left": 44,
+        "top": 692,
+        "right": 84,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -916,8 +938,8 @@
       "level": 13
     },
     {
-      "id": 41,
-      "parent_id": 37,
+      "id": 42,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "World of Warcraft Classic",
       "automation_id": "game-nav-btn-WoWC",
@@ -926,10 +948,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 593,
-        "top": 467,
-        "right": 657,
-        "bottom": 523,
+        "left": 96,
+        "top": 684,
+        "right": 160,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -938,8 +960,8 @@
       "level": 12
     },
     {
-      "id": 42,
-      "parent_id": 41,
+      "id": 43,
+      "parent_id": 42,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -948,10 +970,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 593,
-        "top": 471,
-        "right": 657,
-        "bottom": 473,
+        "left": 96,
+        "top": 688,
+        "right": 160,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -960,8 +982,8 @@
       "level": 13
     },
     {
-      "id": 43,
-      "parent_id": 41,
+      "id": 44,
+      "parent_id": 42,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -970,10 +992,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 605,
-        "top": 475,
-        "right": 645,
-        "bottom": 515,
+        "left": 108,
+        "top": 692,
+        "right": 148,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -982,8 +1004,8 @@
       "level": 13
     },
     {
-      "id": 44,
-      "parent_id": 37,
+      "id": 45,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "Diablo IV",
       "automation_id": "game-nav-btn-Fen",
@@ -992,10 +1014,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 657,
-        "top": 467,
-        "right": 721,
-        "bottom": 523,
+        "left": 160,
+        "top": 684,
+        "right": 224,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -1004,8 +1026,8 @@
       "level": 12
     },
     {
-      "id": 45,
-      "parent_id": 44,
+      "id": 46,
+      "parent_id": 45,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1014,10 +1036,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 657,
-        "top": 471,
-        "right": 721,
-        "bottom": 473,
+        "left": 160,
+        "top": 688,
+        "right": 224,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -1026,8 +1048,8 @@
       "level": 13
     },
     {
-      "id": 46,
-      "parent_id": 44,
+      "id": 47,
+      "parent_id": 45,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1036,10 +1058,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 669,
-        "top": 475,
-        "right": 709,
-        "bottom": 515,
+        "left": 172,
+        "top": 692,
+        "right": 212,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -1048,8 +1070,8 @@
       "level": 13
     },
     {
-      "id": 47,
-      "parent_id": 37,
+      "id": 48,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "Overwatch",
       "automation_id": "game-nav-btn-Pro",
@@ -1058,10 +1080,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 721,
-        "top": 467,
-        "right": 785,
-        "bottom": 523,
+        "left": 224,
+        "top": 684,
+        "right": 288,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -1070,8 +1092,8 @@
       "level": 12
     },
     {
-      "id": 48,
-      "parent_id": 47,
+      "id": 49,
+      "parent_id": 48,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1080,10 +1102,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 721,
-        "top": 471,
-        "right": 785,
-        "bottom": 473,
+        "left": 224,
+        "top": 688,
+        "right": 288,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -1092,8 +1114,8 @@
       "level": 13
     },
     {
-      "id": 49,
-      "parent_id": 47,
+      "id": 50,
+      "parent_id": 48,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1102,10 +1124,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 733,
-        "top": 475,
-        "right": 773,
-        "bottom": 515,
+        "left": 236,
+        "top": 692,
+        "right": 276,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -1114,8 +1136,8 @@
       "level": 13
     },
     {
-      "id": 50,
-      "parent_id": 37,
+      "id": 51,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "StarCraft II",
       "automation_id": "game-nav-btn-S2",
@@ -1124,10 +1146,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 785,
-        "top": 467,
-        "right": 849,
-        "bottom": 523,
+        "left": 288,
+        "top": 684,
+        "right": 352,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -1136,8 +1158,8 @@
       "level": 12
     },
     {
-      "id": 51,
-      "parent_id": 50,
+      "id": 52,
+      "parent_id": 51,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1146,10 +1168,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 785,
-        "top": 471,
-        "right": 849,
-        "bottom": 473,
+        "left": 288,
+        "top": 688,
+        "right": 352,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -1158,8 +1180,8 @@
       "level": 13
     },
     {
-      "id": 52,
-      "parent_id": 50,
+      "id": 53,
+      "parent_id": 51,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1168,10 +1190,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 797,
-        "top": 475,
-        "right": 837,
-        "bottom": 515,
+        "left": 300,
+        "top": 692,
+        "right": 340,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -1180,8 +1202,8 @@
       "level": 13
     },
     {
-      "id": 53,
-      "parent_id": 37,
+      "id": 54,
+      "parent_id": 38,
       "type": "TabItemControl",
       "name": "Diablo III",
       "automation_id": "game-nav-btn-D3CN",
@@ -1190,10 +1212,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 849,
-        "top": 467,
-        "right": 913,
-        "bottom": 523,
+        "left": 352,
+        "top": 684,
+        "right": 416,
+        "bottom": 740,
         "width": 64,
         "height": 56
       },
@@ -1202,8 +1224,8 @@
       "level": 12
     },
     {
-      "id": 54,
-      "parent_id": 53,
+      "id": 55,
+      "parent_id": 54,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1212,10 +1234,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 849,
-        "top": 471,
-        "right": 913,
-        "bottom": 473,
+        "left": 352,
+        "top": 688,
+        "right": 416,
+        "bottom": 690,
         "width": 64,
         "height": 2
       },
@@ -1224,8 +1246,8 @@
       "level": 13
     },
     {
-      "id": 55,
-      "parent_id": 53,
+      "id": 56,
+      "parent_id": 54,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1234,10 +1256,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 861,
-        "top": 475,
-        "right": 901,
-        "bottom": 515,
+        "left": 364,
+        "top": 692,
+        "right": 404,
+        "bottom": 732,
         "width": 40,
         "height": 40
       },
@@ -1246,8 +1268,8 @@
       "level": 13
     },
     {
-      "id": 56,
-      "parent_id": 37,
+      "id": 57,
+      "parent_id": 38,
       "type": "MenuItemControl",
       "name": "Add a Favorite",
       "automation_id": "add-to-favorites-nav-list-btn-id",
@@ -1256,10 +1278,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 921,
-        "top": 467,
-        "right": 963,
-        "bottom": 523,
+        "left": 424,
+        "top": 684,
+        "right": 466,
+        "bottom": 740,
         "width": 42,
         "height": 56
       },
@@ -1268,8 +1290,8 @@
       "level": 12
     },
     {
-      "id": 57,
-      "parent_id": 56,
+      "id": 58,
+      "parent_id": 57,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1278,10 +1300,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 932,
-        "top": 485,
-        "right": 952,
-        "bottom": 505,
+        "left": 435,
+        "top": 702,
+        "right": 455,
+        "bottom": 722,
         "width": 20,
         "height": 20
       },
@@ -1290,8 +1312,8 @@
       "level": 13
     },
     {
-      "id": 58,
-      "parent_id": 35,
+      "id": 59,
+      "parent_id": 36,
       "type": "GroupControl",
       "name": "",
       "automation_id": "add-to-favorites-dropdown-menu",
@@ -1300,10 +1322,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 921,
-        "top": 523,
-        "right": 1132,
-        "bottom": 710,
+        "left": 424,
+        "top": 740,
+        "right": 635,
+        "bottom": 927,
         "width": 211,
         "height": 187
       },
@@ -1312,8 +1334,8 @@
       "level": 10
     },
     {
-      "id": 59,
-      "parent_id": 30,
+      "id": 60,
+      "parent_id": 31,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1322,10 +1344,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 555,
-        "right": 761,
-        "bottom": 643,
+        "left": -8,
+        "top": 772,
+        "right": 264,
+        "bottom": 860,
         "width": 272,
         "height": 88
       },
@@ -1334,8 +1356,8 @@
       "level": 7
     },
     {
-      "id": 60,
-      "parent_id": 59,
+      "id": 61,
+      "parent_id": 60,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1344,10 +1366,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 519,
-        "top": 498,
-        "right": 731,
-        "bottom": 700,
+        "left": 22,
+        "top": 715,
+        "right": 234,
+        "bottom": 917,
         "width": 212,
         "height": 202
       },
@@ -1356,8 +1378,8 @@
       "level": 8
     },
     {
-      "id": 61,
-      "parent_id": 30,
+      "id": 62,
+      "parent_id": 31,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1366,20 +1388,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 643,
-        "right": 761,
-        "bottom": 823,
+        "left": -8,
+        "top": 860,
+        "right": 264,
+        "bottom": 1056,
         "width": 272,
-        "height": 180
+        "height": 196
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 7
     },
     {
-      "id": 62,
-      "parent_id": 61,
+      "id": 63,
+      "parent_id": 62,
       "type": "ListControl",
       "name": "",
       "automation_id": "",
@@ -1388,10 +1410,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 643,
-        "right": 761,
-        "bottom": 683,
+        "left": -8,
+        "top": 860,
+        "right": 264,
+        "bottom": 900,
         "width": 272,
         "height": 40
       },
@@ -1400,8 +1422,8 @@
       "level": 8
     },
     {
-      "id": 63,
-      "parent_id": 62,
+      "id": 64,
+      "parent_id": 63,
       "type": "ListItemControl",
       "name": "",
       "automation_id": "",
@@ -1410,10 +1432,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 651,
-        "right": 761,
-        "bottom": 675,
+        "left": -8,
+        "top": 868,
+        "right": 264,
+        "bottom": 892,
         "width": 272,
         "height": 24
       },
@@ -1422,8 +1444,8 @@
       "level": 9
     },
     {
-      "id": 64,
-      "parent_id": 63,
+      "id": 65,
+      "parent_id": 64,
       "type": "HyperlinkControl",
       "name": "Support External Link",
       "automation_id": "QuickLink-inline-link-support",
@@ -1432,10 +1454,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 651,
-        "right": 592,
-        "bottom": 675,
+        "left": -8,
+        "top": 868,
+        "right": 95,
+        "bottom": 892,
         "width": 103,
         "height": 24
       },
@@ -1444,8 +1466,8 @@
       "level": 10
     },
     {
-      "id": 65,
-      "parent_id": 64,
+      "id": 66,
+      "parent_id": 65,
       "type": "TextControl",
       "name": "Support",
       "automation_id": "",
@@ -1454,10 +1476,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 521,
-        "top": 653,
-        "right": 574,
-        "bottom": 673,
+        "left": 24,
+        "top": 870,
+        "right": 77,
+        "bottom": 890,
         "width": 53,
         "height": 20
       },
@@ -1466,8 +1488,8 @@
       "level": 11
     },
     {
-      "id": 66,
-      "parent_id": 64,
+      "id": 67,
+      "parent_id": 65,
       "type": "GroupControl",
       "name": "External Link",
       "automation_id": "",
@@ -1476,10 +1498,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 577,
-        "top": 656,
-        "right": 594,
-        "bottom": 672,
+        "left": 80,
+        "top": 873,
+        "right": 97,
+        "bottom": 889,
         "width": 17,
         "height": 16
       },
@@ -1488,8 +1510,8 @@
       "level": 11
     },
     {
-      "id": 67,
-      "parent_id": 66,
+      "id": 68,
+      "parent_id": 67,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1498,10 +1520,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 577,
-        "top": 656,
-        "right": 594,
-        "bottom": 672,
+        "left": 80,
+        "top": 873,
+        "right": 97,
+        "bottom": 889,
         "width": 17,
         "height": 16
       },
@@ -1510,8 +1532,8 @@
       "level": 12
     },
     {
-      "id": 68,
-      "parent_id": 30,
+      "id": 69,
+      "parent_id": 31,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1520,10 +1542,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 823,
-        "right": 761,
-        "bottom": 939,
+        "left": -8,
+        "top": 1056,
+        "right": 264,
+        "bottom": 1172,
         "width": 272,
         "height": 116
       },
@@ -1532,8 +1554,8 @@
       "level": 7
     },
     {
-      "id": 69,
-      "parent_id": 68,
+      "id": 70,
+      "parent_id": 69,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1542,10 +1564,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 823,
-        "right": 761,
-        "bottom": 835,
+        "left": -8,
+        "top": 1056,
+        "right": 264,
+        "bottom": 1068,
         "width": 272,
         "height": 12
       },
@@ -1554,8 +1576,8 @@
       "level": 8
     },
     {
-      "id": 70,
-      "parent_id": 69,
+      "id": 71,
+      "parent_id": 70,
       "type": "TextControl",
       "name": "GAME VERSION",
       "automation_id": "",
@@ -1564,10 +1586,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 821,
-        "right": 593,
-        "bottom": 837,
+        "left": -8,
+        "top": 1054,
+        "right": 96,
+        "bottom": 1070,
         "width": 104,
         "height": 16
       },
@@ -1576,8 +1598,8 @@
       "level": 9
     },
     {
-      "id": 71,
-      "parent_id": 68,
+      "id": 72,
+      "parent_id": 69,
       "type": "GroupControl",
       "name": "",
       "automation_id": "product-dropdown-menu",
@@ -1586,10 +1608,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 843,
-        "right": 761,
-        "bottom": 875,
+        "left": -8,
+        "top": 1076,
+        "right": 264,
+        "bottom": 1108,
         "width": 272,
         "height": 32
       },
@@ -1598,20 +1620,20 @@
       "level": 8
     },
     {
-      "id": 72,
-      "parent_id": 71,
+      "id": 73,
+      "parent_id": 72,
       "type": "MenuItemControl",
       "name": "Game Version Diablo III",
-      "automation_id": "DropdownMenu_4_button",
+      "automation_id": "DropdownMenu_6_button",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 843,
-        "right": 761,
-        "bottom": 875,
+        "left": -8,
+        "top": 1076,
+        "right": 264,
+        "bottom": 1108,
         "width": 272,
         "height": 32
       },
@@ -1620,8 +1642,8 @@
       "level": 9
     },
     {
-      "id": 73,
-      "parent_id": 68,
+      "id": 74,
+      "parent_id": 69,
       "type": "GroupControl",
       "name": "",
       "automation_id": "play-btn",
@@ -1630,10 +1652,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 883,
-        "right": 761,
-        "bottom": 939,
+        "left": -8,
+        "top": 1116,
+        "right": 264,
+        "bottom": 1172,
         "width": 272,
         "height": 56
       },
@@ -1642,8 +1664,8 @@
       "level": 8
     },
     {
-      "id": 74,
-      "parent_id": 73,
+      "id": 75,
+      "parent_id": 74,
       "type": "GroupControl",
       "name": "",
       "automation_id": "play-btn-main",
@@ -1652,10 +1674,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 883,
-        "right": 722,
-        "bottom": 939,
+        "left": -8,
+        "top": 1116,
+        "right": 225,
+        "bottom": 1172,
         "width": 233,
         "height": 56
       },
@@ -1664,30 +1686,30 @@
       "level": 9
     },
     {
-      "id": 75,
-      "parent_id": 74,
+      "id": 76,
+      "parent_id": 75,
       "type": "ButtonControl",
-      "name": "Play: Diablo III, Version: 2.8.1.101167",
+      "name": "Playing Now: Diablo III",
       "automation_id": "",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 883,
-        "right": 722,
-        "bottom": 939,
+        "left": -8,
+        "top": 1116,
+        "right": 225,
+        "bottom": 1172,
         "width": 233,
         "height": 56
       },
-      "is_enabled": true,
+      "is_enabled": false,
       "is_visible": null,
       "level": 10
     },
     {
-      "id": 76,
-      "parent_id": 73,
+      "id": 77,
+      "parent_id": 74,
       "type": "GroupControl",
       "name": "",
       "automation_id": "play-options-dropdown-menu",
@@ -1696,10 +1718,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 722,
-        "top": 883,
-        "right": 761,
-        "bottom": 939,
+        "left": 225,
+        "top": 1116,
+        "right": 264,
+        "bottom": 1172,
         "width": 39,
         "height": 56
       },
@@ -1708,20 +1730,20 @@
       "level": 9
     },
     {
-      "id": 77,
-      "parent_id": 76,
+      "id": 78,
+      "parent_id": 77,
       "type": "MenuItemControl",
       "name": "",
-      "automation_id": "DropdownMenu_5_button",
+      "automation_id": "DropdownMenu_7_button",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 722,
-        "top": 883,
-        "right": 761,
-        "bottom": 939,
+        "left": 225,
+        "top": 1116,
+        "right": 264,
+        "bottom": 1172,
         "width": 39,
         "height": 56
       },
@@ -1730,8 +1752,8 @@
       "level": 10
     },
     {
-      "id": 78,
-      "parent_id": 77,
+      "id": 79,
+      "parent_id": 78,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -1740,10 +1762,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 729,
-        "top": 898,
-        "right": 753,
-        "bottom": 922,
+        "left": 232,
+        "top": 1131,
+        "right": 256,
+        "bottom": 1155,
         "width": 24,
         "height": 24
       },
@@ -1752,8 +1774,8 @@
       "level": 11
     },
     {
-      "id": 79,
-      "parent_id": 30,
+      "id": 80,
+      "parent_id": 31,
       "type": "DocumentControl",
       "name": "",
       "automation_id": "",
@@ -1762,10 +1784,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 947,
-        "right": 761,
-        "bottom": 995,
+        "left": -8,
+        "top": 1180,
+        "right": 264,
+        "bottom": 1228,
         "width": 272,
         "height": 48
       },
@@ -1774,8 +1796,8 @@
       "level": 7
     },
     {
-      "id": 80,
-      "parent_id": 79,
+      "id": 81,
+      "parent_id": 80,
       "type": "TextControl",
       "name": "Version: 2.8.1.101167",
       "automation_id": "",
@@ -1784,10 +1806,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 489,
-        "top": 947,
-        "right": 609,
-        "bottom": 964,
+        "left": -8,
+        "top": 1180,
+        "right": 112,
+        "bottom": 1197,
         "width": 120,
         "height": 17
       },
@@ -1796,8 +1818,8 @@
       "level": 8
     },
     {
-      "id": 81,
-      "parent_id": 30,
+      "id": 82,
+      "parent_id": 31,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1806,38 +1828,16 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 801,
-        "top": 555,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 369,
-        "height": 464
+        "left": 304,
+        "top": 772,
+        "right": 857,
+        "bottom": 1252,
+        "width": 553,
+        "height": 480
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 7
-    },
-    {
-      "id": 82,
-      "parent_id": 81,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 801,
-        "top": 555,
-        "right": 1152,
-        "bottom": 793,
-        "width": 351,
-        "height": 238
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 8
     },
     {
       "id": 83,
@@ -1850,64 +1850,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 817,
-        "top": 571,
-        "right": 892,
-        "bottom": 668,
-        "width": 75,
-        "height": 97
+        "left": 304,
+        "top": 772,
+        "right": 839,
+        "bottom": 938,
+        "width": 535,
+        "height": 166
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 9
+      "level": 8
     },
     {
       "id": 84,
       "parent_id": 83,
-      "type": "HyperlinkControl",
-      "name": "CADPA External Link",
-      "automation_id": "rating-id-a400b605-98fe-44ab-a638-05b03e7c2289",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 817,
-        "top": 571,
-        "right": 892,
-        "bottom": 668,
-        "width": 75,
-        "height": 97
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 10
-    },
-    {
-      "id": 85,
-      "parent_id": 84,
-      "type": "ImageControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 817,
-        "top": 571,
-        "right": 892,
-        "bottom": 668,
-        "width": 75,
-        "height": 97
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 11
-    },
-    {
-      "id": 86,
-      "parent_id": 82,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -1916,20 +1872,64 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 817,
-        "top": 571,
-        "right": 1117,
-        "bottom": 777,
-        "width": 300,
-        "height": 206
+        "left": 320,
+        "top": 788,
+        "right": 395,
+        "bottom": 885,
+        "width": 75,
+        "height": 97
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 9
     },
     {
+      "id": 85,
+      "parent_id": 84,
+      "type": "HyperlinkControl",
+      "name": "CADPA External Link",
+      "automation_id": "rating-id-a400b605-98fe-44ab-a638-05b03e7c2289",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 320,
+        "top": 788,
+        "right": 395,
+        "bottom": 885,
+        "width": 75,
+        "height": 97
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 10
+    },
+    {
+      "id": 86,
+      "parent_id": 85,
+      "type": "ImageControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 320,
+        "top": 788,
+        "right": 395,
+        "bottom": 885,
+        "width": 75,
+        "height": 97
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 11
+    },
+    {
       "id": 87,
-      "parent_id": 86,
+      "parent_id": 83,
       "type": "TextControl",
       "name": "",
       "automation_id": "",
@@ -1938,16 +1938,16 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 817,
-        "top": 571,
-        "right": 1117,
-        "bottom": 697,
-        "width": 300,
-        "height": 126
+        "left": 320,
+        "top": 788,
+        "right": 804,
+        "bottom": 860,
+        "width": 484,
+        "height": 72
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 10
+      "level": 9
     },
     {
       "id": 88,
@@ -1960,20 +1960,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 908,
-        "top": 571,
-        "right": 1116,
-        "bottom": 696,
-        "width": 208,
-        "height": 125
+        "left": 411,
+        "top": 788,
+        "right": 802,
+        "bottom": 859,
+        "width": 391,
+        "height": 71
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 11
+      "level": 10
     },
     {
       "id": 89,
-      "parent_id": 86,
+      "parent_id": 83,
       "type": "TextControl",
       "name": "",
       "automation_id": "",
@@ -1982,16 +1982,16 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 817,
-        "top": 705,
-        "right": 1117,
-        "bottom": 777,
-        "width": 300,
-        "height": 72
+        "left": 320,
+        "top": 868,
+        "right": 804,
+        "bottom": 922,
+        "width": 484,
+        "height": 54
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 10
+      "level": 9
     },
     {
       "id": 90,
@@ -2004,20 +2004,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 817,
-        "top": 705,
-        "right": 1110,
-        "bottom": 776,
-        "width": 293,
-        "height": 71
+        "left": 320,
+        "top": 868,
+        "right": 802,
+        "bottom": 921,
+        "width": 482,
+        "height": 53
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 11
+      "level": 10
     },
     {
       "id": 91,
-      "parent_id": 81,
+      "parent_id": 82,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -2026,12 +2026,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 801,
-        "top": 809,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 369,
-        "height": 210
+        "left": 304,
+        "top": 954,
+        "right": 857,
+        "bottom": 1252,
+        "width": 553,
+        "height": 298
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2048,12 +2048,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 801,
-        "top": 809,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 369,
-        "height": 210
+        "left": 304,
+        "top": 954,
+        "right": 857,
+        "bottom": 1252,
+        "width": 553,
+        "height": 298
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2070,12 +2070,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 801,
-        "top": 809,
-        "right": 1170,
-        "bottom": 1019,
-        "width": 369,
-        "height": 210
+        "left": 304,
+        "top": 954,
+        "right": 857,
+        "bottom": 1252,
+        "width": 553,
+        "height": 298
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2092,12 +2092,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 761,
-        "top": 828,
-        "right": 1170,
-        "bottom": 1000,
-        "width": 409,
-        "height": 172
+        "left": 304,
+        "top": 954,
+        "right": 840,
+        "bottom": 3997,
+        "width": 536,
+        "height": 3043
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2114,12 +2114,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 801,
-        "top": 828,
-        "right": 1170,
-        "bottom": 1000,
-        "width": 369,
-        "height": 172
+        "left": 304,
+        "top": 954,
+        "right": 840,
+        "bottom": 3997,
+        "width": 536,
+        "height": 3043
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2136,12 +2136,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 961,
-        "top": 840,
-        "right": 1010,
-        "bottom": 888,
-        "width": 49,
-        "height": 48
+        "left": 307,
+        "top": 954,
+        "right": 837,
+        "bottom": 1465,
+        "width": 530,
+        "height": 511
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2150,20 +2150,20 @@
     {
       "id": 97,
       "parent_id": 96,
-      "type": "ImageControl",
+      "type": "GroupControl",
       "name": "",
-      "automation_id": "Alert",
+      "automation_id": "",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 961,
-        "top": 840,
-        "right": 1010,
-        "bottom": 888,
-        "width": 49,
-        "height": 48
+        "left": 307,
+        "top": 954,
+        "right": 837,
+        "bottom": 1314,
+        "width": 530,
+        "height": 360
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2171,30 +2171,8 @@
     },
     {
       "id": 98,
-      "parent_id": 95,
-      "type": "TextControl",
-      "name": "Oops! Something went wrong.",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 809,
-        "top": 900,
-        "right": 1162,
-        "bottom": 920,
-        "width": 353,
-        "height": 20
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 13
-    },
-    {
-      "id": 99,
-      "parent_id": 95,
-      "type": "TextControl",
+      "parent_id": 97,
+      "type": "GroupControl",
       "name": "",
       "automation_id": "",
       "class_name": "",
@@ -2202,34 +2180,56 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 809,
-        "top": 924,
-        "right": 1162,
-        "bottom": 944,
-        "width": 353,
-        "height": 20
+        "left": 307,
+        "top": 954,
+        "right": 837,
+        "bottom": 1314,
+        "width": 530,
+        "height": 360
       },
       "is_enabled": true,
       "is_visible": null,
-      "level": 13
+      "level": 15
     },
     {
-      "id": 100,
-      "parent_id": 99,
-      "type": "TextControl",
-      "name": "We had trouble loading your content",
+      "id": 99,
+      "parent_id": 98,
+      "type": "ImageControl",
+      "name": "Loading...",
       "automation_id": "",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 864,
-        "top": 924,
-        "right": 1107,
-        "bottom": 943,
-        "width": 243,
-        "height": 19
+        "left": 307,
+        "top": 954,
+        "right": 837,
+        "bottom": 1314,
+        "width": 530,
+        "height": 360
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 16
+    },
+    {
+      "id": 100,
+      "parent_id": 96,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2237,28 +2237,820 @@
     },
     {
       "id": 101,
-      "parent_id": 95,
-      "type": "ButtonControl",
-      "name": "Reload",
+      "parent_id": 96,
+      "type": "ImageControl",
+      "name": "Loading...",
       "automation_id": "",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 946,
-        "top": 960,
-        "right": 1025,
-        "bottom": 984,
-        "width": 79,
-        "height": 24
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 102,
+      "parent_id": 96,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 103,
+      "parent_id": 95,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 13
     },
     {
-      "id": 102,
+      "id": 104,
+      "parent_id": 103,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 105,
+      "parent_id": 104,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 106,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 107,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 108,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 109,
+      "parent_id": 103,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 110,
+      "parent_id": 109,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 111,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 112,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 113,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 114,
+      "parent_id": 103,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 115,
+      "parent_id": 114,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 116,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 117,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 118,
+      "parent_id": 103,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 119,
+      "parent_id": 95,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 13
+    },
+    {
+      "id": 120,
+      "parent_id": 119,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 121,
+      "parent_id": 120,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 122,
+      "parent_id": 121,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 16
+    },
+    {
+      "id": 123,
+      "parent_id": 120,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 124,
+      "parent_id": 120,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 125,
+      "parent_id": 120,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 126,
+      "parent_id": 119,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 127,
+      "parent_id": 126,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 128,
+      "parent_id": 127,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 16
+    },
+    {
+      "id": 129,
+      "parent_id": 126,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 130,
+      "parent_id": 126,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 131,
+      "parent_id": 126,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 132,
+      "parent_id": 119,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 14
+    },
+    {
+      "id": 133,
+      "parent_id": 132,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 134,
+      "parent_id": 133,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 16
+    },
+    {
+      "id": 135,
+      "parent_id": 132,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 136,
+      "parent_id": 132,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 137,
+      "parent_id": 132,
+      "type": "ImageControl",
+      "name": "Loading...",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "width": 0,
+        "height": 0
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 15
+    },
+    {
+      "id": 138,
       "parent_id": 93,
       "type": "GroupControl",
       "name": "",
@@ -2268,20 +3060,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 800,
-        "top": 808,
-        "right": 801,
-        "bottom": 809,
+        "left": 303,
+        "top": 4011,
+        "right": 304,
+        "bottom": 4013,
         "width": 1,
-        "height": 1
+        "height": 2
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 11
     },
     {
-      "id": 103,
-      "parent_id": 102,
+      "id": 139,
+      "parent_id": 138,
       "type": "CustomControl",
       "name": "",
       "automation_id": "__next-route-announcer__",
@@ -2302,8 +3094,8 @@
       "level": 12
     },
     {
-      "id": 104,
-      "parent_id": 81,
+      "id": 140,
+      "parent_id": 82,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -2324,8 +3116,8 @@
       "level": 8
     },
     {
-      "id": 105,
-      "parent_id": 26,
+      "id": 141,
+      "parent_id": 27,
       "type": "GroupControl",
       "name": "",
       "automation_id": "right-panel",
@@ -2334,130 +3126,64 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1170,
-        "top": 467,
-        "right": 1490,
-        "bottom": 1019,
-        "width": 320,
-        "height": 552
+        "left": 857,
+        "top": 684,
+        "right": 993,
+        "bottom": 1252,
+        "width": 136,
+        "height": 568
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 5
     },
     {
-      "id": 106,
-      "parent_id": 105,
+      "id": 142,
+      "parent_id": 141,
       "type": "GroupControl",
       "name": "",
-      "automation_id": "",
+      "automation_id": "friends-settings-dropdown-menu",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1194,
-        "top": 953,
-        "right": 1418,
-        "bottom": 995,
-        "width": 224,
-        "height": 42
+        "left": 881,
+        "top": 692,
+        "right": 969,
+        "bottom": 732,
+        "width": 88,
+        "height": 40
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 6
     },
     {
-      "id": 107,
-      "parent_id": 106,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
+      "id": 143,
+      "parent_id": 142,
+      "type": "MenuItemControl",
+      "name": "Friend Settings",
+      "automation_id": "DropdownMenu_9_button",
       "class_name": "",
       "value": null,
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1200,
-        "top": 959,
-        "right": 1412,
-        "bottom": 989,
-        "width": 212,
-        "height": 30
+        "left": 881,
+        "top": 692,
+        "right": 969,
+        "bottom": 732,
+        "width": 88,
+        "height": 40
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 7
     },
     {
-      "id": 108,
-      "parent_id": 106,
-      "type": "ButtonControl",
-      "name": "Chats and Groups",
-      "automation_id": "host-anchor",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1194,
-        "top": 953,
-        "right": 1418,
-        "bottom": 995,
-        "width": 224,
-        "height": 42
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 7
-    },
-    {
-      "id": 109,
-      "parent_id": 105,
-      "type": "GroupControl",
-      "name": "",
-      "automation_id": "",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1426,
-        "top": 957,
-        "right": 1458,
-        "bottom": 989,
-        "width": 32,
-        "height": 32
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 6
-    },
-    {
-      "id": 110,
-      "parent_id": 109,
-      "type": "ButtonControl",
-      "name": "Collapse Social Panel",
-      "automation_id": "collapse-social-panel-button",
-      "class_name": "",
-      "value": null,
-      "help_text": null,
-      "patterns": [],
-      "rect": {
-        "left": 1426,
-        "top": 957,
-        "right": 1458,
-        "bottom": 989,
-        "width": 32,
-        "height": 32
-      },
-      "is_enabled": true,
-      "is_visible": null,
-      "level": 7
-    },
-    {
-      "id": 111,
-      "parent_id": 110,
+      "id": 144,
+      "parent_id": 143,
       "type": "ImageControl",
       "name": "",
       "automation_id": "",
@@ -2466,10 +3192,164 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1432,
-        "top": 963,
-        "right": 1452,
-        "bottom": 983,
+        "left": 913,
+        "top": 700,
+        "right": 937,
+        "bottom": 724,
+        "width": 24,
+        "height": 24
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 8
+    },
+    {
+      "id": 145,
+      "parent_id": 141,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 857,
+        "top": 750,
+        "right": 993,
+        "bottom": 1188,
+        "width": 136,
+        "height": 438
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 6
+    },
+    {
+      "id": 146,
+      "parent_id": 145,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 857,
+        "top": 750,
+        "right": 993,
+        "bottom": 1188,
+        "width": 136,
+        "height": 438
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 7
+    },
+    {
+      "id": 147,
+      "parent_id": 141,
+      "type": "ButtonControl",
+      "name": "Chats and Groups",
+      "automation_id": "open-social-button-collapsed",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 881,
+        "top": 1188,
+        "right": 921,
+        "bottom": 1228,
+        "width": 40,
+        "height": 40
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 6
+    },
+    {
+      "id": 148,
+      "parent_id": 147,
+      "type": "ImageControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 889,
+        "top": 1196,
+        "right": 913,
+        "bottom": 1220,
+        "width": 24,
+        "height": 24
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 7
+    },
+    {
+      "id": 149,
+      "parent_id": 141,
+      "type": "GroupControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 929,
+        "top": 1192,
+        "right": 961,
+        "bottom": 1224,
+        "width": 32,
+        "height": 32
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 6
+    },
+    {
+      "id": 150,
+      "parent_id": 149,
+      "type": "ButtonControl",
+      "name": "Expand Social Panel",
+      "automation_id": "expand-social-panel-button",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 929,
+        "top": 1192,
+        "right": 961,
+        "bottom": 1224,
+        "width": 32,
+        "height": 32
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 7
+    },
+    {
+      "id": 151,
+      "parent_id": 150,
+      "type": "ImageControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 935,
+        "top": 1198,
+        "right": 955,
+        "bottom": 1218,
         "width": 20,
         "height": 20
       },
@@ -2478,7 +3358,7 @@
       "level": 8
     },
     {
-      "id": 112,
+      "id": 152,
       "parent_id": 3,
       "type": "GroupControl",
       "name": "",
@@ -2500,7 +3380,7 @@
       "level": 4
     },
     {
-      "id": 113,
+      "id": 153,
       "parent_id": 2,
       "type": "GroupControl",
       "name": "",
@@ -2510,19 +3390,19 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 3
     },
     {
-      "id": 114,
+      "id": 154,
       "parent_id": 2,
       "type": "GroupControl",
       "name": "",
@@ -2532,10 +3412,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 403,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 620,
         "width": 1041,
         "height": 24
       },
@@ -2544,8 +3424,8 @@
       "level": 3
     },
     {
-      "id": 115,
-      "parent_id": 114,
+      "id": 155,
+      "parent_id": 154,
       "type": "GroupControl",
       "name": "",
       "automation_id": "",
@@ -2554,10 +3434,10 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 1376,
-        "top": 379,
-        "right": 1490,
-        "bottom": 403,
+        "left": 879,
+        "top": 596,
+        "right": 993,
+        "bottom": 620,
         "width": 114,
         "height": 24
       },
@@ -2566,7 +3446,7 @@
       "level": 4
     },
     {
-      "id": 116,
+      "id": 156,
       "parent_id": 0,
       "type": "PaneControl",
       "name": "",
@@ -2576,19 +3456,19 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": false,
       "is_visible": null,
       "level": 1
     },
     {
-      "id": 117,
+      "id": 157,
       "parent_id": 0,
       "type": "PaneControl",
       "name": "",
@@ -2598,20 +3478,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 1
     },
     {
-      "id": 118,
-      "parent_id": 117,
+      "id": 158,
+      "parent_id": 157,
       "type": "PaneControl",
       "name": "",
       "automation_id": "",
@@ -2620,20 +3500,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 2
     },
     {
-      "id": 119,
-      "parent_id": 118,
+      "id": 159,
+      "parent_id": 158,
       "type": "PaneControl",
       "name": "",
       "automation_id": "",
@@ -2642,20 +3522,20 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
       "level": 3
     },
     {
-      "id": 120,
-      "parent_id": 119,
+      "id": 160,
+      "parent_id": 159,
       "type": "PaneControl",
       "name": "",
       "automation_id": "",
@@ -2664,12 +3544,12 @@
       "help_text": null,
       "patterns": [],
       "rect": {
-        "left": 449,
-        "top": 379,
-        "right": 1490,
-        "bottom": 1019,
+        "left": -48,
+        "top": 596,
+        "right": 993,
+        "bottom": 1252,
         "width": 1041,
-        "height": 640
+        "height": 656
       },
       "is_enabled": true,
       "is_visible": null,
@@ -2677,7 +3557,7 @@
     }
   ],
   "files": {
-    "screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\battlenet_ui_analyze\\window_analysis_20260204_091524\\battlenet_screenshot.png",
-    "annotated_screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\battlenet_ui_analyze\\window_analysis_20260204_091524\\battlenet_annotated.png"
+    "screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\battlenet_ui_analyze\\window_analysis_20260207_222844\\battlenet_screenshot.png",
+    "annotated_screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\battlenet_ui_analyze\\window_analysis_20260207_222844\\battlenet_annotated.png"
   }
 }

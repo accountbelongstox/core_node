@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 System Initializer
-Handles system-wide initialization including configuration, hotkeys, and signal handling
+Handles system-wide initialization including configuration, hotkeys, and signal handling.
+Ctrl+C (signal or global hotkey) only triggers exit when the current app's console window is foreground.
 """
 
 import sys
 import os
 import signal
 import threading
+import platform
 from typing import Optional
 
 from share.project_path import ensure_d3_check_in_sys_path
@@ -17,7 +19,7 @@ ensure_d3_check_in_sys_path()
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.hotkey_listener import HotkeyListener
-from providor.providor_index import initialize_config
+from providor.providor_index import initialize_config, LOGS_FILE_PATH
 
 # Import static global modules
 import timers.timer_manager as timer_manager
@@ -28,7 +30,24 @@ import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
-from share.thread_registry import get_thread_registry
+from runtime import get_thread_registry
+
+def _is_console_foreground() -> bool:
+    """True if the current process console (CMD) is the foreground window, or no console. Only then allow Ctrl+C to exit."""
+    if platform.system() != "win32":
+        return True
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        user32 = ctypes.windll.user32
+        console_hwnd = kernel32.GetConsoleWindow()
+        if not console_hwnd:
+            return True
+        foreground_hwnd = user32.GetForegroundWindow()
+        return bool(foreground_hwnd and console_hwnd == foreground_hwnd)
+    except Exception:
+        return True
+
 
 class SystemInitializer:
     """System-wide initialization manager"""
@@ -40,7 +59,9 @@ class SystemInitializer:
         self.timer_initialized = False
 
     def _signal_handler(self, signum, frame):
-        """Handle system signals (Ctrl+C, etc.); dispatched to main thread via event center."""
+        """Handle system signals (Ctrl+C, etc.); only exit when our console is foreground."""
+        if not _is_console_foreground():
+            return
         if not is_shutdown_requested():
             ColorPrint.yellow(f"[SYSTEM] Received signal {signum}, requesting shutdown...")
         event_center.trigger_app_exit()
@@ -96,7 +117,9 @@ class SystemInitializer:
             return False
 
     def _on_ctrl_c_pressed(self):
-        """Handle Ctrl+C hotkey press: forward via event center to main thread only once."""
+        """Handle Ctrl+C hotkey press: only exit when our console (CMD) is the foreground window."""
+        if not _is_console_foreground():
+            return
         if is_shutdown_requested():
             return
         ColorPrint.yellow("[SYSTEM] Ctrl+C hotkey pressed, requesting shutdown...")
@@ -119,7 +142,7 @@ class SystemInitializer:
         Initialize timer system.
 
         Two drivers:
-        - timer_manager: single-thread loop; task log_monitor (1.5s). State detection (window_monitor)
+        - timer_manager: single-thread loop; task log_monitor (1s). State detection (window_monitor)
           is NOT registered here; when UI Start is used, status is updated by tick-driven flow (rosbot_task).
           Loop started after UI ready (start_timer_loop_after_ui_ready).
         - task_thread_manager: one thread per task; rosbot_task (1s) drives ROSBOT flow (ROSBOT_FLOW.md)
@@ -143,16 +166,16 @@ class SystemInitializer:
 
             # State detection (window_monitor) is NOT registered with timer; UI Start uses tick-driven flow for status updates (rosbot_task 2s tick).
 
-            # Register log monitor with timer manager (static global, always enabled with interceptor)
-            timer_manager.register_task(
-                name='log_monitor',
-                interval=1.5,  # Always 1.5 seconds
-                callback=log_monitor_module.check_logs,
-                enabled=True  # Always enabled, controlled by interceptor
-            )
-
-            # Set default interceptor (10-second throttling when ROSBOT not running)
-            timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
+            # Log monitor: file-change driven when watchdog available; otherwise timer 1s tick
+            if not log_monitor_module.is_file_watcher_available():
+                timer_manager.register_task(
+                    name='log_monitor',
+                    interval=1.0,
+                    callback=log_monitor_module.check_logs,
+                    enabled=True,
+                )
+                timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
+            log_monitor_module.set_log_file(LOGS_FILE_PATH)
 
             # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
 

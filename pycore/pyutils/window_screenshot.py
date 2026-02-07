@@ -650,6 +650,45 @@ class WindowScreenshot:
             ColorPrint.print_min_interval(f"[ERROR] Failed to get window region: {e}", "1min", "red")
             return None
 
+    def capture_screen_region(
+        self,
+        left: int,
+        top: int,
+        width: int,
+        height: int
+    ) -> Optional[Image.Image]:
+        """
+        Native screen region capture: grab only the given screen rect (no fullscreen then crop).
+        Uses mss sct.grab(monitor) with monitor = {left, top, width, height}.
+
+        Args:
+            left: Screen X of region top-left
+            top: Screen Y of region top-left
+            width: Region width in pixels
+            height: Region height in pixels
+
+        Returns:
+            PIL Image of the region or None if failed
+        """
+        try:
+            if width <= 0 or height <= 0:
+                ColorPrint.print_min_interval("[ScreenRegion] Invalid width/height", "1min", "red")
+                return None
+            with mss.mss() as sct:
+                monitor = {
+                    "left": left,
+                    "top": top,
+                    "width": width,
+                    "height": height,
+                }
+                screenshot = sct.grab(monitor)
+                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+            ColorPrint.print_min_interval(f"[ScreenRegion] Native grab: ({left},{top}) {width}x{height}", "1min", "gray")
+            return img
+        except Exception as e:
+            ColorPrint.print_min_interval(f"[ERROR] capture_screen_region: {e}", "1min", "red")
+            return None
+
     def capture_window_grid_region(
         self,
         titles: Optional[List[str]] = None,

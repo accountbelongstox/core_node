@@ -13,6 +13,8 @@
   },
   "log_settings": {
     "log_level": "INFO",
+    "show_debug_logs": true,
+    "debug_log_latency": false,
     "log_levels": [
       "DEBUG",
       "INFO",
@@ -286,6 +288,10 @@
     "prevent_stuck_description": "是否开启防止卡住 (当击杀BOSS后有可能卡住导致没法点开升级宝石页)",
     "blue_portal_priority": false,
     "blue_portal_priority_description": "蓝门优先捡材料 (当蓝门结束时有可能背包满导致没有捡材料就回城)",
+    "smart_echo": false,
+    "smart_echo_description": "回响完成时暂停ROSBOT防游戏退出，等待后自动恢复",
+    "smart_echo_wait_seconds": 15,
+    "smart_echo_wait_seconds_description": "智能回响等待秒数",
     "startup": false,
     "startup_description": "开机启动",
     "monitor_start_rosbot": false,

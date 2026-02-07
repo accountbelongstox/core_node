@@ -3,7 +3,7 @@
 """
 Battle.net template matcher: load+scale template, match or best-attempt (TM).
 Shared by LoginTryScreenshotController and battlenet_match_debug.
-复用 share.scaled_template_matcher_base.load_template_and_scale_by_resolution。
+Uses share.scaled_template_matcher_base.load_template_and_scale_by_resolution.
 """
 
 from typing import Optional, Dict, Any, Tuple
@@ -13,7 +13,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_matcher import ImageMatcher
 from providor.app_constants import BATTLENET_STANDARD_RESOLUTION_WIDTH, BATTLENET_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
-from d3utils.d3u_common.image_utils import convert_pil_to_bgr
+from d3utils.d3u_common.image_conversion import convert_pil_to_bgr
 
 TM_MAP = {
     "TM_CCOEFF": cv2.TM_CCOEFF,

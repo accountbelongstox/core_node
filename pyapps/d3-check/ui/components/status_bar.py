@@ -254,9 +254,9 @@ class StatusBar:
         """Update all UI text elements"""
         try:
             # Update status text; match both EN and localized (e.g. zh) status strings
-            if "not running" in self.game_status.get() or "未运行" in self.game_status.get():
+            if "not running" in self.game_status.get() or ("未运行" in self.game_status.get()):  # CN locale
                 self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-            elif "running" in self.game_status.get() or "运行中" in self.game_status.get():
+            elif "running" in self.game_status.get() or ("运行中" in self.game_status.get()):  # CN locale
                 self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
 
             # Note: Removed ready status handling as requested by user

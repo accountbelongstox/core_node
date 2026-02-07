@@ -8,7 +8,7 @@ Generic UI control to CONFIG data binding. Supports checkbox, combobox, entry, e
 import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
-from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_safe
+from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_async
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.i18n_manager import i18n_manager
 from .tk_variables import var_str, var_bool
@@ -62,10 +62,10 @@ class ConfigBinding:
     @staticmethod
     def set_config_value(key_path: str, value: Any) -> bool:
         """
-        Set value in CONFIG by key path (thread-safe for main and D3 extension thread).
+        Set value in CONFIG by key path. Uses async update so UI never blocks on config worker or file I/O.
         """
         try:
-            set_config_value_safe(key_path, value)
+            set_config_value_async(key_path, value)
             ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
             ConfigBinding._update_bindings(key_path, value)
             if key_path == "ui_settings.current_language":

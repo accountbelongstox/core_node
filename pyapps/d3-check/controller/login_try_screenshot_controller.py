@@ -204,7 +204,7 @@ class LoginTryScreenshotController:
     ) -> None:
         """
         CN region Battle.net login flow: when on login screen (UI), use BattlenetOperation.perform_cn_login_flow()
-        (ensure "您同意" checkbox checked, click "使用网易账号登录或注册", wait for web). Then fullscreen capture + OCR/blue, click Login.
+        (ensure agreement checkbox checked, click NetEase login/register, wait for web). Then fullscreen capture + OCR/blue, click Login.
         If UI flow not available, fallback to OCR/ratio for agree + NetEase.
         """
         cn_log = "[LoginTryScreenshotController][CN]"
@@ -315,7 +315,7 @@ class LoginTryScreenshotController:
                 continue
             if on_login:
                 if op.is_on_browser_login_wait_screen():
-                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on '使用浏览器完成登录/取消' (initial), restart and go to step 1...")
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on browser-login-wait (initial), restart and go to step 1...")
                     get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
                     time.sleep(5)
                     continue
@@ -373,29 +373,29 @@ class LoginTryScreenshotController:
             if not battlenet_confirmed:
                 ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
 
-        # 进入分支 A（C）须同时满足：战网已确认登录 + [A6] 已有 D3 进程（ROSBOT_FLOW_MERMAID.md）
+        # Enter branch A (C) only when: Battle.net logged in + [A6] D3 process exists (ROSBOT_FLOW_MERMAID.md)
         has_bn_confirmed = battlenet_confirmed
         has_d3_process = get_d3_manager().is_running()
         if has_bn_confirmed and has_d3_process:
-            ColorPrint.blue("[LoginTryScreenshotController] 条件1+2 满足 -> [A6] 是 -> [C1] 分支 A 直连")
-            # [C2] 将 D3 窗口缩放到标准分辨率（文档 C1→C2→C3→C4 顺序）
+            ColorPrint.blue("[LoginTryScreenshotController] Condition 1+2 met -> [A6] yes -> [C1] branch A direct")
+            # [C2] Resize D3 window to standard resolution (doc C1->C2->C3->C4 order)
             resize_window_by_titles_to_client_size(
                 DIABLO_III_WINDOW_TITLES,
                 STANDARD_RESOLUTION_WIDTH,
                 STANDARD_RESOLUTION_HEIGHT,
             )
             WindowFinder.invalidate_window_cache(list(DIABLO_III_WINDOW_TITLES))
-            # [C3] 检测当前 D3 界面状态（start/game_tool/其他）
+            # [C3] Detect current D3 UI state (start/game_tool/other)
             state = detect_d3_already_running_state()
-            # [A5] 仅当出现 d3_game_tool 时执行五步在线检测（文档：D3_Online 在 C 内、C4 前）
+            # [A5] Only when d3_game_tool present run five-step online check (doc: D3_Online inside C, before C4)
             if state == "game_tool":
                 if not check_d3_online_by_m_similarity():
-                    ColorPrint.yellow("[LoginTryScreenshotController][A5] D3 掉线, reset flow and kill D3")
+                    ColorPrint.yellow("[LoginTryScreenshotController][A5] D3 disconnected, reset flow and kill D3")
                     get_game_interface_data().set_d3_dynamic_status(on_login_screen=False, disconnected=True, in_game=False)
                     reset_battlenet_flow_state()
                     get_d3_manager().kill_if_running()
                     return False
-            # [C4] 检测结果分支
+            # [C4] Detection result branch
             if state == "start":
                 r1 = try_fragment1_click_start_game_wait_game_tool()
                 if r1 is True:
@@ -422,10 +422,10 @@ class LoginTryScreenshotController:
                     return True
                 get_d3_manager().kill_if_running()
             else:
-                # [C12] 其他/无 → 结束 D3 进程，落到 D
+                # [C12] Other/none -> end D3 process, fall to D
                 get_d3_manager().kill_if_running()
 
-        # [D1] 从战网启动 D3 分支
+        # [D1] Launch D3 from Battle.net branch
         max_rounds = 3
         max_outer_retries = 3
         for outer_round in range(max_outer_retries):
@@ -434,14 +434,14 @@ class LoginTryScreenshotController:
                 # Step 1: ensure Battle.net window (from beginning each round after restart)
                 img_path = self._capture_battlenet_window()
                 if img_path is None:
-                    ColorPrint.blue("[LoginTryScreenshotController] [D2] 无战网窗口 -> 启动战网 -> 等待数秒")
+                    ColorPrint.blue("[LoginTryScreenshotController] [D2] No Battle.net window -> start Battle.net -> wait")
                     get_battlenet_manager().start(bn_path)
                     time.sleep(3)
 
                 get_d3_manager().kill_if_running()
                 time.sleep(5)
 
-                ColorPrint.blue("[LoginTryScreenshotController] [D3] 结束当前 D3 进程（若有）-> 等待 5 秒; [D4] 托盘/激活聚焦战网窗口 -> 等待 1 秒")
+                ColorPrint.blue("[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s")
                 clicker.find_and_click_tray_icon(instant=True, interval_after=1.0)
                 if get_battlenet_manager().activate_window():
                     time.sleep(1)
@@ -450,7 +450,7 @@ class LoginTryScreenshotController:
 
                 screenshot_data, img_path = capture_battlenet_and_save_to_category("login_try")
                 if screenshot_data is None or img_path is None:
-                    ColorPrint.yellow("[LoginTryScreenshotController] [D5/D6] 战网窗口未找到")
+                    ColorPrint.yellow("[LoginTryScreenshotController] [D5/D6] Battle.net window not found")
                     if round_idx < max_rounds - 1:
                         continue
                     return False
@@ -527,7 +527,7 @@ class LoginTryScreenshotController:
                     MATCH_DEBUG_DIR,
                     filename_prefix="login_try_small_map_click",
                 )
-                ColorPrint.blue(f"[LoginTryScreenshotController] [D7/D9] 点击战网 D3 tab 对应 UI at ({click_x}, {click_y})")
+                ColorPrint.blue(f"[LoginTryScreenshotController] [D7/D9] Click Battle.net D3 tab at ({click_x}, {click_y})")
                 clicker.click(click_x, click_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
             else:
                 ox, oy = screenshot_data.window_offset
@@ -554,10 +554,10 @@ class LoginTryScreenshotController:
                     MATCH_DEBUG_DIR,
                     filename_prefix="login_try_play_click",
                 )
-                ColorPrint.blue(f"[LoginTryScreenshotController] [D11] 点击 Play 按钮 at ({play_x}, {play_y})")
+                ColorPrint.blue(f"[LoginTryScreenshotController] [D11] Click Play at ({play_x}, {play_y})")
                 clicker.click(play_x, play_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
 
-            # [D12] Play 之后 sleep(5)，轮询查找 D3 窗口最多 10 秒; [D13] 10 秒内找到 D3 窗口？
+            # [D12] After Play sleep(5), poll for D3 window up to 10s; [D13] D3 window found within 10s?
             time.sleep(5)
             _poll_sec = 10
             already_restarted = False
@@ -584,7 +584,7 @@ class LoginTryScreenshotController:
                         self._restart_battlenet_and_retry_from_step1(bn_path)
                         already_restarted = True
                         break
-                    ColorPrint.blue("[LoginTryScreenshotController] [D15/D16/D17] D3 窗口就绪，开始游戏点击成功; [D18] 结束已有 ROSBOT，启动 ROSBOT，ROSBOT 启动后自动化")
+                    ColorPrint.blue("[LoginTryScreenshotController] [D15/D16/D17] D3 window ready, start-game click OK; [D18] End existing ROSBOT, start ROSBOT, run after-start automation")
                     get_rosbot_manager().kill_if_running()
                     time.sleep(1)
                     if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True):

@@ -49,6 +49,10 @@
       "prevent_stuck_desc": "(When killing BOSS might get stuck and unable to open gem upgrade page)",
       "blue_portal_priority": "Blue Portal Priority Material Pickup",
       "blue_portal_priority_desc": "(When blue portal ends, bag might be full causing materials not picked up before returning to town)",
+      "smart_echo": "Smart Echo",
+      "smart_echo_wait_seconds_label": "Wait",
+      "smart_echo_pause_log": "Smart pause ROSBOT to prevent game exit.",
+      "smart_echo_echo_returning_log": "Echo map returning to town.",
       "timeout_restart": "Auto restart ROSBOT/Diablo after X minutes timeout",
       "minutes": "minutes",
       "startup_on_boot": "Startup on Boot",
@@ -121,6 +125,9 @@
       "battlenet_normal_available": "Normal",
       "battlenet_unknown": "Unknown",
       "ros_status": "ROS",
+      "ros_label": "ROS:",
+      "ros_found": "Found ROSBOT",
+      "ros_found_format": "Process:{exe} Title:{title}",
       "d3_status": "D3",
       "map_status": "Map",
       "stage": "Stage",
@@ -129,6 +136,8 @@
       "map_town": "Town",
       "map_greater_rift": "Greater Rift",
       "map_rift": "Rift",
+      "map_echo": "Echo",
+      "map_echo_completed": "Echo Done",
       "map_unknown": "Unknown",
       "stage_gem_upgrade": "Gem Upgrade",
       "stage_kill_boss": "Kill BOSS",
@@ -147,7 +156,14 @@
       "scan_not_found_battlenet": "Battle.net.exe not found",
       "scan_not_found_rosbot": "No ROSBOT executable found",
       "cancel": "Cancel",
-      "copy": "Copy"
+      "copy": "Copy",
+      "log_last_ago": "Last: {0} ago",
+      "log_last_ago_min": "Last: {0} ago",
+      "log_latency": "latency +{0}s",
+      "refresh_no_fn": "No refresh fn set (controller may not have wired window_monitor)",
+      "refresh_refreshing": "Refreshing status (manual) -> running check_window in background...",
+      "rosbot_started_monitoring": "ROSBOT started monitoring",
+      "rosbot_stopped_monitoring": "ROSBOT stopped monitoring"
     }
   }
 }

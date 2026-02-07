@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Scan current Windows: find running ROSBOT characteristics (main exe + same-dir temp exe).
-Uses rosbot_manager: ros_directory, find_other_exe_files (同目录 exe 列表/临时 exe), _pids_with_exe_under_ros_dir, get_running_rosbot_processes.
+Scan current Windows: find running ROSBOT (main exe + same-dir other exe).
+Uses rosbot_manager: ros_directory, find_other_exe_files, get_running_rosbot_processes.
 Run from pyapps/d3-check: python scripts/scan_rosbot_running.py
 """
 import os
@@ -33,13 +33,11 @@ def main():
     ros_dir = mgr.get_ros_directory()
     ColorPrint.blue("[Scan] ROS directory (config): %s" % (ros_dir or "(not set)"))
 
-    # 同目录 exe 列表：find_other_exe_files = 排除主程序/Uninstall/setup 后的 *.exe，即「临时/其它 exe」
     other_exe = mgr.find_other_exe_files()
-    ColorPrint.blue("[Scan] Same-dir other exe (find_other_exe_files, 含临时 exe): %d files" % len(other_exe))
+    ColorPrint.blue("[Scan] Same-dir other exe (find_other_exe_files): %d files" % len(other_exe))
     for p in other_exe:
         ColorPrint.gray("  - %s" % p)
 
-    # 当前正在运行的、exe 在 ros_directory 下的进程（主 + 临时）
     running = mgr.get_running_rosbot_processes()
     ColorPrint.blue("[Scan] Running ROSBOT processes (exe under ros_directory): %d" % len(running))
     for r in running:

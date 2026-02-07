@@ -229,8 +229,8 @@ def calculate_unified_scaled_coordinate(
         # - For each coordinate[0]: subtract 8, calculate percentage, then add back 8
         # - For each coordinate[1]: subtract 31, calculate percentage, then add back 31
         # - Use (a,b) coordinate system when possible
-        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x + WINDOW_BORDER_WIDTH)  # [0] -8, 计算后 +8
-        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)  # [1] -31, 计算后 +31
+        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x + WINDOW_BORDER_WIDTH)  # [0] -8, then +8
+        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)  # [1] -31, then +31
 
         if debug_this_coord:
             ColorPrint.blue(f"[CoordCalc] 🔍 Windowed mode:")
@@ -252,8 +252,8 @@ def calculate_unified_scaled_coordinate(
         # Fullscreen mode: no title bar or borders, so don't add back fixed offsets
         # - For coordinate[0]: subtract 8, calculate percentage, don't add back (no borders)
         # - For coordinate[1]: subtract 31, calculate percentage, don't add back (no title bar)
-        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x)  # [0] -8, 计算后不加回
-        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y)  # [1] -31, 计算后不加回
+        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x)  # [0] -8, do not add back
+        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y)  # [1] -31, do not add back
 
         if debug_this_coord:
             ColorPrint.blue(f"[CoordCalc] 🔍 Fullscreen mode:")
@@ -651,8 +651,8 @@ class D3InterfaceData(InterfaceDataBase):
     rosbot_window_found: bool = False  # True when extended_status is paused (has window)
     rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
-    rosbot_flow_master_enabled: bool = False  # 总状态：用户点击「启动 ROSBOT」为 True，点击「停止」为 False（ROSBOT_FLOW_MERMAID A1）
-    ensure_battlenet_only_master_enabled: bool = False  # 用户点击「确保战网」为 True，tick 只跑战网段，不掉 D3/ROSBOT；确认后每 tick 再轮询，掉线则重登
+    rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
+    ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
@@ -666,6 +666,10 @@ class D3InterfaceData(InterfaceDataBase):
     battlenet_on_login_screen: bool = False
     battlenet_disconnected: bool = False
     battlenet_normal_available: bool = False
+
+    # Found ROSBOT display (process name + window title for status bar "进程:xxx.exe 标题:xxx")
+    rosbot_found_exe_name: str = ""
+    rosbot_found_window_title: str = ""
 
     # State change callbacks (merged from GameState)
     _callbacks: List[Callable] = field(default_factory=list)
@@ -705,6 +709,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.battlenet_on_login_screen = False
         self.battlenet_disconnected = False
         self.battlenet_normal_available = False
+        self.rosbot_found_exe_name = ""
+        self.rosbot_found_window_title = ""
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -737,6 +743,8 @@ class D3InterfaceData(InterfaceDataBase):
             "battlenet_on_login_screen": self.battlenet_on_login_screen,
             "battlenet_disconnected": self.battlenet_disconnected,
             "battlenet_normal_available": self.battlenet_normal_available,
+            "rosbot_found_exe_name": self.rosbot_found_exe_name,
+            "rosbot_found_window_title": self.rosbot_found_window_title,
         }
 
     # ==================== Game State Methods (with callback notification) ====================
@@ -754,7 +762,7 @@ class D3InterfaceData(InterfaceDataBase):
             self._notify_callbacks()
 
     def set_rosbot_window_found(self, window_found: bool):
-        """Set ROSBOT window found status (from rosbot_status_provider). Notify callbacks."""
+        """Legacy: prefer set_rosbot_extended_status (rosbot_window_found is derived as status == 'paused'). Notify callbacks."""
         should_notify = False
         with self._lock:
             if self.rosbot_window_found != window_found:
@@ -778,6 +786,17 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
+    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = ""):
+        """Set found ROSBOT process name and window title for status bar (进程:xxx.exe 标题:xxx). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_found_exe_name != exe_name or self.rosbot_found_window_title != window_title:
+                self.rosbot_found_exe_name = exe_name
+                self.rosbot_found_window_title = window_title
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
         should_notify = False
@@ -790,7 +809,7 @@ class D3InterfaceData(InterfaceDataBase):
             self._notify_callbacks()
 
     def set_rosbot_flow_master_enabled(self, enabled: bool):
-        """Set 总状态 (ROSBOT flow master): True = 用户点击「启动 ROSBOT」，False = 点击「停止」。Notify callbacks."""
+        """Set master state (ROSBOT flow): True = user clicked Start ROSBOT, False = Stop. Notify callbacks."""
         should_notify = False
         with self._lock:
             if self.rosbot_flow_master_enabled != enabled:
@@ -801,7 +820,7 @@ class D3InterfaceData(InterfaceDataBase):
             self._notify_callbacks()
 
     def set_ensure_battlenet_only_master_enabled(self, enabled: bool):
-        """Set 确保战网：True = 点击「确保战网」，tick 只跑战网段；False = 关闭。Notify callbacks."""
+        """Set Ensure Battle.net: True = user clicked Ensure Battle.net, tick runs Battle.net only; False = off. Notify callbacks."""
         should_notify = False
         with self._lock:
             if self.ensure_battlenet_only_master_enabled != enabled:
@@ -916,6 +935,8 @@ class D3InterfaceData(InterfaceDataBase):
                     "battlenet_on_login_screen": self.battlenet_on_login_screen,
                     "battlenet_disconnected": self.battlenet_disconnected,
                     "battlenet_normal_available": self.battlenet_normal_available,
+                    "rosbot_found_exe_name": self.rosbot_found_exe_name,
+                    "rosbot_found_window_title": self.rosbot_found_window_title,
                 }
             for callback in callbacks:
                 try:

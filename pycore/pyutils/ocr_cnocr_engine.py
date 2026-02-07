@@ -142,14 +142,16 @@ class CnOCREngine:
 
     def ocr(
         self,
-        img_path: Union[str, Path],
+        img_path: Optional[Union[str, Path]] = None,
+        image: Optional[Union[Any, "Image.Image"]] = None,
         grid_position: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Perform OCR recognition
+        Perform OCR recognition. Pass either img_path (file path) or image (PIL Image / ndarray); in-memory image avoids disk I/O.
 
         Args:
-            img_path: Image path
+            img_path: Image file path (use when image is None)
+            image: In-memory image as PIL Image or numpy ndarray (use when img_path is None)
             grid_position: Grid position (1-9), None means recognize entire image
 
         Returns:
@@ -161,9 +163,19 @@ class CnOCREngine:
         """
         if not self._initialized:
             raise RuntimeError("OCR not initialized, please call init() first")
+        if image is None and img_path is None:
+            raise ValueError("Provide either img_path or image")
+        if image is not None and img_path is not None:
+            raise ValueError("Provide only one of img_path or image")
 
-        # Load image
-        img = Image.open(img_path)
+        # Load image: from path or use in-memory image (PIL or ndarray)
+        if image is not None:
+            if hasattr(image, "mode"):
+                img = image
+            else:
+                img = Image.fromarray(np.asarray(image))
+        else:
+            img = Image.open(img_path)
         img_width, img_height = img.size
 
         # Initialize offset and region

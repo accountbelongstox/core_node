@@ -4,10 +4,10 @@ Battle.net ready flow (tick-driven).
 States match ROSBOT_FLOW_MERMAID.md: BN_Entry -> BN_Win -> BN_First/BN_Start -> ... -> BN_Confirmed.
 Each tick: if current node is wait, return without transition; else execute one step and transition.
 
-首次启动首界面（B2 有窗口时当前界面，B4 判定）仅区分两种状态：
-1. 登陆页：客户端内同意条款、网易账号登录页（UI 含「需要登陆」「您同意」「使用网易账号登录或注册」等）。
-2. 等待浏览器返回页：弹窗「使用浏览器完成登录。/取消」。
-B4「当前是否为登陆界面？」：上述两种任一为真 → 是 → B5 退出战网；否则 → 否 → B6 激活、轮询 UI（B13 每 tick 查控件树）。
+First-launch UI (when B2 has window, B4 decision): two states only.
+1. Login page: in-client agreement + NetEase login (UI contains "need login", "you agree", "NetEase login or register", etc.).
+2. Browser-wait page: popup "Complete login in browser / Cancel".
+B4 "Is current the login UI?": either true -> yes -> B5 exit Battle.net; else -> no -> B6 activate, poll UI (B13 each tick inspects control tree).
 """
 
 import time
@@ -203,7 +203,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             return True, "confirmed"
         if on_login:
             if op.is_on_browser_login_wait_screen():
-                ColorPrint.blue("[BNFlow] flow B9→B5 | reason: browser login wait popup (使用浏览器完成登录/取消), exit Battle.net (flowchart)")
+                ColorPrint.blue("[BNFlow] flow B9→B5 | reason: browser login wait popup, exit Battle.net (flowchart)")
                 _current_node = BNNode.BN_Exit
                 return False, ""
             ColorPrint.blue("[BNFlow] flow B9→B10 | reason: login screen, step1 agree and confirm")
@@ -252,7 +252,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
         ColorPrint.gray("[BNFlow] flow B11 skip this tick | reason: waiting OAuth return, wait")
         return False, "wait"
 
-    # ----- [B4] BN_First: 首次启动首界面两种状态（登陆页 / 等待浏览器返回页），是→B5 否→B6 -----
+    # ----- [B4] BN_First: two first-launch states (login page / browser-wait); yes->B5 no->B6 -----
     if _current_node == BNNode.BN_First:
         _save_ui_snapshot("B4", "B4_first_check")
         if op.is_login_failed_screen():
@@ -264,10 +264,10 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             _current_node = BNNode.BN_Exit
             return False, ""
         if op.is_on_login_screen():
-            ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (flowchart: 是→退出战网), exit then B1→B3→B7→B9→B10")
+            ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (flowchart: yes->exit Battle.net), exit then B1→B3→B7→B9→B10")
             _current_node = BNNode.BN_Exit
             return False, ""
-        ColorPrint.blue("[BNFlow] flow B4→B6 | reason: current not login page (flowchart: 否→激活、轮询 UI)")
+        ColorPrint.blue("[BNFlow] flow B4→B6 | reason: current not login page (flowchart: no->activate, poll UI)")
         _current_node = BNNode.BN_Act
         return False, ""
 
@@ -303,7 +303,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             _current_node = BNNode.BN_Exit
             return False, ""
         if op.is_on_browser_login_wait_screen():
-            ColorPrint.blue("[BNFlow] flow B13→B5 | reason: browser login wait popup (使用浏览器完成登录/取消), exit Battle.net (flowchart)")
+            ColorPrint.blue("[BNFlow] flow B13→B5 | reason: browser login wait popup, exit Battle.net (flowchart)")
             _current_node = BNNode.BN_Exit
             return False, ""
         if on_login:

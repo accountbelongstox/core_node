@@ -26,7 +26,7 @@ ensure_d3_check_in_sys_path()
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.app_constants import DEBUG, TMP_DIR
 from d3utils.i18n_manager import I18nManager
-from d3utils.d3u_common.image_utils import normalize_image_to_bgr
+from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
 from d3utils.d3u_common.image_annotator_helper import (
     create_annotator,
     get_image_pil,

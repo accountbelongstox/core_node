@@ -9,6 +9,8 @@ from pathlib import Path
 
 # Config worker: single thread owns CONFIG read/write (main thread + D3 extension thread use queue)
 CONFIG_QUEUE = queue.Queue()
+# Save requests: actual file write runs in dedicated thread so config worker and main thread never block on I/O
+SAVE_QUEUE = queue.Queue()
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
@@ -44,9 +46,9 @@ from providor.app_constants import (
 #   should_stop: True if execution should stop, False otherwise
 #   enabled: True if execution is allowed, False if disabled
 ASSISTANT_EXECUTION_STATE = {
-    "is_running": False,   # 程序运行中
-    "should_stop": False,  # 请求中断
-    "enabled": True        # 允许启动
+    "is_running": False,   # App running
+    "should_stop": False,  # Request stop
+    "enabled": True        # Allow start
 }
 
 def get_assistant_state():
@@ -223,7 +225,7 @@ D3_TEMPLATE_CONFIGS = {
         "note": "Game tool UI; after found send M key to D3 window then click D3_GAME_TOOL_CLICK_STANDARD (602,94) scaled by base 1300x800"
     },
 
-    # D3 in-game bounty progress UI (悬赏任务进度图); Fragment2: after M twice, two screenshots; both missing = timeout.
+    # D3 in-game bounty progress UI; Fragment2: after M twice, two screenshots; both missing = timeout.
     "d3_bounty_progress": {
         "path": os.path.join(TEMPLATE_DIR, "d3_bounty_progress.png"),
         "threshold": 0.75,
@@ -233,7 +235,7 @@ D3_TEMPLATE_CONFIGS = {
         "note": "Bounty progress UI (d3_bounty_progress.png); Fragment2 checks after press M twice; if both of two captures lack this, timeout"
     },
 
-    # D3 status: disconnected overlay (掉线界面); SIFT match in D3 window; found => d3_disconnected (d3_status_provider)
+    # D3 status: disconnected overlay; SIFT match in D3 window; found => d3_disconnected (d3_status_provider)
     "d3_disconnected": {
         "path": os.path.join(TEMPLATE_DIR, "d3_disconnected.png"),
         "threshold": 0.70,
@@ -760,8 +762,20 @@ def _config_set_by_path(key_path: str, value: Any) -> None:
     config_ref[keys[-1]] = value
 
 
+def _save_worker() -> None:
+    """Dedicated thread for writing CONFIG to file. Prevents main thread and config worker from blocking on I/O."""
+    while True:
+        SAVE_QUEUE.get()
+        while not SAVE_QUEUE.empty():
+            try:
+                SAVE_QUEUE.get_nowait()
+            except queue.Empty:
+                break
+        save_config()
+
+
 def _config_worker() -> None:
-    """Single thread that owns CONFIG read/write; get/set via queue."""
+    """Single thread that owns CONFIG read/write; get/set via queue. File save is delegated to save worker."""
     while True:
         item = CONFIG_QUEUE.get()
         if item is None:
@@ -771,8 +785,17 @@ def _config_worker() -> None:
             result_q.put(_config_get_by_path(key_path, val))
         elif op == "set":
             _config_set_by_path(key_path, val)
-            save_config()
-            result_q.put(True)
+            if result_q is not None:
+                result_q.put(True)
+            try:
+                SAVE_QUEUE.put_nowait(None)
+            except queue.Full:
+                pass
+
+
+def set_config_value_async(key_path: str, value: Any) -> None:
+    """Queue config update and save without blocking. Use from UI so main thread never waits on config worker or file I/O."""
+    CONFIG_QUEUE.put(("set", key_path, value, None))
 
 
 def get_config_value_safe(key_path: str, default: Any = None) -> Any:
@@ -783,7 +806,7 @@ def get_config_value_safe(key_path: str, default: Any = None) -> Any:
 
 
 def set_config_value_safe(key_path: str, value: Any) -> bool:
-    """Thread-safe set CONFIG value by dot path and save. Caller may be main or D3 thread."""
+    """Thread-safe set CONFIG value by dot path and save. Blocks until in-memory update is done. Prefer set_config_value_async from UI."""
     result_q: queue.Queue = queue.Queue()
     CONFIG_QUEUE.put(("set", key_path, value, result_q))
     return result_q.get()
@@ -879,6 +902,9 @@ load_config()
 # Start config worker (single thread owns CONFIG; get/set via CONFIG_QUEUE)
 _config_worker_thread = threading.Thread(target=_config_worker, daemon=True)
 _config_worker_thread.start()
+# Start save worker (file I/O off config worker so main thread never blocks on save)
+_save_worker_thread = threading.Thread(target=_save_worker, daemon=True)
+_save_worker_thread.start()
 
 # Export dynamic paths
 _dynamic_paths = get_dynamic_paths()
@@ -915,7 +941,7 @@ BATTLENET_TEMPLATE_CONFIGS = {
         "category": "battlenet_login",
         "use_alpha": False,
         "match_method": "TM_CCOEFF_NORMED",
-        "note": "开始游戏 button (Chinese) on Battle.net - from ScreenShot_2026-01-29_231157_269.png"
+        "note": "Play button (Chinese locale) on Battle.net - from ScreenShot_2026-01-29_231157_269.png"
     },
     "battlenet_play_button_en": {
         "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_en.png"),

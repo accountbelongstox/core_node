@@ -4,6 +4,7 @@
 OCR helper: shared keyword-in-image check.
 """
 
+import os
 from pathlib import Path
 from typing import Optional, Sequence, Union, List, Dict, Any, Tuple
 
@@ -16,20 +17,33 @@ def _get_default_engine():
 
 
 def ocr_get_result(
-    image_path: Union[str, Path],
+    image_input: Union[str, Path, Any],
     engine=None,
 ) -> Optional[Dict[str, Any]]:
     """
     Run OCR once; return {text, raw_result} or None. Same engine.ocr() result.
-    Use one result for multiple keyword checks and for boxes (CN region priority before need-login).
+    image_input: file path (str/Path) or in-memory PIL Image (avoids disk I/O).
     """
     eng = engine if engine is not None else _get_default_engine()
     if eng is None:
         return None
     try:
-        return eng.ocr(str(image_path))
+        if hasattr(image_input, "mode"):
+            return eng.ocr(image=image_input)
+        return eng.ocr(img_path=str(image_input))
     except Exception as e:
         ColorPrint.red(f"[OCR] ocr_get_result error: {e}")
+        if not hasattr(image_input, "mode"):
+            try:
+                path_str = str(image_input)
+                exists = os.path.exists(path_str)
+                size = os.path.getsize(path_str) if exists else None
+                ext = os.path.splitext(path_str)[1].lower() if path_str else ""
+                ColorPrint.gray(
+                    f"[OCR] IMG path={path_str!r} exists={exists} size={size} ext={ext!r}"
+                )
+            except Exception as info_err:
+                ColorPrint.gray(f"[OCR] IMG input (info failed: {info_err})")
         return None
 
 

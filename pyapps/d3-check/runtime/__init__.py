@@ -10,8 +10,11 @@ Consumers (main, controller, ui) import from runtime for:
 - Thread registry: get_thread_registry
 
 Implementation lives in d3utils (event_center, shutdown_manager, system_initializer,
-task_thread_manager) and share (thread_registry). See docs/CODE_TREE.md.
+task_thread_manager) and runtime (thread_registry). share = shared data only. See docs/CODE_TREE.md.
 """
+
+# Import thread_registry first so runtime has get_thread_registry before d3utils.system_initializer (which imports runtime) runs.
+from runtime.thread_registry import get_thread_registry
 
 from d3utils.system_initializer import get_system_initializer
 from d3utils.shutdown_manager import (
@@ -35,7 +38,6 @@ from d3utils.event_center import (
     trigger_extension_rosbot_stop,
 )
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
-from share.thread_registry import get_thread_registry
 
 __all__ = [
     "get_system_initializer",

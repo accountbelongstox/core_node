@@ -22,6 +22,24 @@ from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
+
+def _strip_ui_log_prefix(msg: str) -> str:
+    """Remove [ROSBOT], [ROSBOT~*s], [LogAnalyzer] prefix for UI log display."""
+    s = (msg or "").strip()
+    if s.startswith("[ROSBOT~") and "s]" in s:
+        i = s.index("s]") + 2
+        return s[i:].lstrip()
+    if s.startswith("[ROSBOT] "):
+        return s[len("[ROSBOT] "):]
+    if s.startswith("[ROSBOT]"):
+        return s[len("[ROSBOT]"):].lstrip()
+    if s.startswith("[LogAnalyzer] "):
+        return s[len("[LogAnalyzer] "):]
+    if s.startswith("[LogAnalyzer]"):
+        return s[len("[LogAnalyzer]"):].lstrip()
+    return s
+
+
 class LogPanel:
     """
     Log Panel for TABLE4
@@ -114,8 +132,20 @@ class LogPanel:
                             font=UnifiedStyles.FONTS['button'],
                             command=self.save_logs)
         save_btn.grid(row=0, column=1, padx=UnifiedStyles.SPACING['xs'])
+
+        # Show DEBUG logs checkbox: when unchecked, DEBUG messages are filtered in add_log_message callback
+        show_debug_check = ConfigBinding.create_checkbox_binding(
+            control_frame, "log_settings.show_debug_logs",
+            text=i18n_manager.get_ui_text("log_panel.show_debug_logs"), default_value=True,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
+            activebackground=UnifiedStyles.COLORS['bg_secondary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary']
+        )
+        show_debug_check.grid(row=0, column=2, padx=UnifiedStyles.SPACING['sm'], sticky="w")
         
-        # Auto-scroll checkbox using ConfigBinding
+        # Auto-scroll checkbox using ConfigBinding (debug_log_latency moved to ROSBOT tab)
         auto_scroll_check = ConfigBinding.create_checkbox_binding(
             control_frame, "log_settings.auto_scroll",
             text=i18n_manager.get_ui_text("log_panel.auto_scroll"), default_value=True,
@@ -223,6 +253,7 @@ class LogPanel:
         log_level = (log_level_raw or "INFO").upper()
         if log_level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
             log_level = "INFO"
+        # Do not read config here: this runs in ColorPrint callback on the caller thread. When the caller is the config worker, get_config_value blocks it on CONFIG_QUEUE and deadlocks. Filter DEBUG in _should_display_message (runs on main thread).
         log_entry = {
             'message': message,
             'level': log_level,
@@ -247,8 +278,11 @@ class LogPanel:
             pass
 
     def _should_display_message(self, log_entry):
-        """Check if message should be displayed based on current filter"""
+        """Check if message should be displayed based on current filter and show_debug_logs."""
         try:
+            if log_entry.get('level') == "DEBUG":
+                if not ConfigBinding.get_config_value("log_settings.show_debug_logs", True):
+                    return False
             current_filter = ConfigBinding.get_config_value("log_settings.log_level", "ALL")
             if current_filter == "ALL":
                 return True
@@ -283,8 +317,9 @@ class LogPanel:
                 }
                 tag = color_map.get(log_entry['color'], log_entry['level'])
 
-            # Insert message with tag
-            self.log_text.insert(tk.END, f"{log_entry['message']}\n", tag)
+            # Insert message with tag (no prefix in UI)
+            text = _strip_ui_log_prefix(log_entry['message'])
+            self.log_text.insert(tk.END, f"{text}\n", tag)
 
             if at_bottom:
                 self.log_text.see(tk.END)
@@ -326,8 +361,9 @@ class LogPanel:
                 }
                 tag = color_map.get(log_entry['color'], log_entry['level'])
             
-            # Insert message
-            self.log_text.insert(tk.END, f"{log_entry['message']}\n", tag)
+            # Insert message (no prefix in UI)
+            text = _strip_ui_log_prefix(log_entry['message'])
+            self.log_text.insert(tk.END, f"{text}\n", tag)
             
         except Exception as e:
             print(f"Error displaying message: {e}")
