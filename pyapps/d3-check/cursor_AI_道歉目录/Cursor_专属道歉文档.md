@@ -1400,5 +1400,30 @@
 
 此前若因未先通读上述约定而在此四处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_bn_flow_B6与d4_controller及square_sampler及DESIGN_DETAIL.md**，写明四处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
 
+---
+
+## 二十四、thread_registry、i18n_main_window_zh、dump_rosbot_actual_result、d4_extension_thread 相关
+
+就您指定查阅的以下四处：
+
+- **runtime/thread_registry.py**：线程集中所有者；仅在此创建并持有扩展线程，create_extension_threads(schedule, panel, current_skill_config) 创建并启动 Main/Auxiliary/D3/D4 扩展线程，panel.set_d3_extension_thread 必须调用，start_timer_loop_after_ui_ready 在 UI 就绪后调用。若在别处创建扩展线程、或调换创建顺序漏掉 set_d3_extension_thread、或先开 timer 再 create_extension_threads，会导致面板拿不到线程或状态混乱。
+- **providor/i18n/i18n_main_window_zh.json**：主窗口中文文案，结构 ui.main_window.*、tabs、macro_controls、bottom_bar、status_bar 等；代码用 get_ui_text("main_window.title") 等。若 key 与代码或 i18n_main_window_en 不同步、或 JSON 结构与 i18n_manager 加载约定不符，会缺译或显示 key。
+- **scripts/dump_rosbot_actual_result.py**：调试脚本，将 ROSBOT 查找结果完整 dump 到 scripts/test_rosbot_actual_result.txt；须从 pyapps/d3-check 运行，用 get_rosbot_manager()。若运行目录错或 CONFIG 未加载，输出不完整；与 scan_rosbot_running 分工不同（本脚本为完整 dump）。
+- **d3utils/d4_extension_thread.py**：D4 专用线程，每 D4_TICK_INTERVAL 在 exp_farming 或 debug_window_open 时调 get_d4_controller().process()；退出须 request_shutdown()；sleep 0.1s 小步。若条件与 d4_controller 不一致、或未 request_shutdown、或在 ThreadRegistry 外创建本线程，会不 tick 或无法退出或 get_d4_extension_thread 为 None。
+
+此前若因未先通读上述约定而在此四处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_thread_registry与i18n_main_window_zh及dump_rosbot_actual_result及d4_extension_thread.md**，写明四处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 二十五、debug_window_offset、extension_flow_tick_step、i18n_auxiliary_panel_en 相关
+
+就您指定查阅的以下三处：
+
+- **scripts/debug/debug_window_offset.py**：调试脚本，用 get_d4_interface_data() 诊断 70px 窗口偏移（fullscreen_size、game_window_size、window_offset、is_windowed_mode）；路径 _project_root = __file__.parent.parent（d3-check）。若未先执行 D4 截图/采集即运行，无 size 数据；若脚本移动或从错误目录运行会 import 失败；脚本内 31/8 为参考值，与实际常量模块不一致时会误导。
+- **d3utils/rosbot_flow/extension_flow_tick_step.py**：Extension 流程状态机，每 tick 一步，返回 "idle"|"running"|"success"|"fallthrough"；由 flow_master_driver 在 EXTENSION_TICK 调用；不读 flow_master/bn_only。若在此内读流程开关做分支、或阶段/返回值变更未与 flow_master_driver 同步、或 fallthrough 路径漏 reset_state，会违反 FLOW_STATE_OWNERSHIP 或流程断链。
+- **providor/i18n/i18n_auxiliary_panel_en.json**：辅助面板英文文案，结构 ui.auxiliary_functions.*、ui.auxiliary_panel.*、ui.bag_offset.*；代码用 get_ui_text("ui.auxiliary_panel.xxx") 等。若 key 与代码或 i18n_auxiliary_panel_zh 不同步、或嵌套与 i18n_manager 约定不符，会缺译或显示 key。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_debug_window_offset与extension_flow_tick_step及i18n_auxiliary_panel_en.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
 Cursor AI  
 写于 cursor_AI_道歉目录

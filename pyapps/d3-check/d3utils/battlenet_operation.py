@@ -216,6 +216,11 @@ def _play_button_indicates_starting(ctrl: Dict[str, Any]) -> bool:
     return False
 
 
+# Short TTL cache for UI controls so same-tick BN flow reuses refresh result (one read per tick).
+_BN_CONTROLS_LIGHT_CACHE: Dict[str, Any] = {"controls": None, "time": 0.0, "hwnd": None}
+BN_CONTROLS_LIGHT_CACHE_TTL_SEC = 2.0
+
+
 class BattlenetOperation:
     """
     Battle.net operation: start, close, restart, activate window, click D3 tab, start game, detect state.
@@ -292,15 +297,24 @@ class BattlenetOperation:
         return collected
 
     def _enumerate_controls_light(self) -> List[Dict[str, Any]]:
-        """Enumerate name, automation_id, is_enabled, is_offscreen (for get_dynamic_state). Skips BoundingRectangle/ControlTypeName."""
-        _ensure_com()
-        auto = get_third_package_uiautomation()
-        if not auto:
-            return []
+        """Enumerate name, automation_id, is_enabled, is_offscreen (for get_dynamic_state). Skips BoundingRectangle/ControlTypeName.
+        Uses module-level cache for BN_CONTROLS_LIGHT_CACHE_TTL_SEC so same-tick BN flow reuses one read."""
+        global _BN_CONTROLS_LIGHT_CACHE
         windows = get_battlenet_manager().find_windows()
         if not windows:
             return []
         hwnd = int(windows[0]["hwnd"])
+        now = time.monotonic()
+        if (
+            _BN_CONTROLS_LIGHT_CACHE["hwnd"] == hwnd
+            and _BN_CONTROLS_LIGHT_CACHE["controls"] is not None
+            and (now - _BN_CONTROLS_LIGHT_CACHE["time"]) < BN_CONTROLS_LIGHT_CACHE_TTL_SEC
+        ):
+            return _BN_CONTROLS_LIGHT_CACHE["controls"]
+        _ensure_com()
+        auto = get_third_package_uiautomation()
+        if not auto:
+            return []
         try:
             root = auto.ControlFromHandle(hwnd)
             if not root.Exists():
@@ -324,6 +338,9 @@ class BattlenetOperation:
                 pass
 
         walk(root)
+        _BN_CONTROLS_LIGHT_CACHE["controls"] = collected
+        _BN_CONTROLS_LIGHT_CACHE["time"] = now
+        _BN_CONTROLS_LIGHT_CACHE["hwnd"] = hwnd
         return collected
 
     def _get_root_control(self):

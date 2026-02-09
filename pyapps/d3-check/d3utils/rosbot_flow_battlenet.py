@@ -107,12 +107,13 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
 
     # ----- [B2] BN_Win -----
     if ctx.get_current_step() == BNNode.BN_Win:
-        ColorPrint.gray("[BNFlow] progress: B2 find_windows...")
-        windows = get_battlenet_manager().find_windows(use_cache=False)
-        if not windows:
+        # Use same-tick refresh result to avoid redundant find_windows (one read per tick)
+        has_window = get_game_interface_data().battlenet_window_found
+        if not has_window:
             ColorPrint.blue("[BNFlow] flow B2→B3 | reason: no window, start Battle.net")
             ctx.set_current_step(BNNode.BN_Start)
             return False, ""
+        ColorPrint.gray("[BNFlow] progress: B2 has window (from refresh)")
         _save_ui_snapshot("B2", "B2_has_window")
         ColorPrint.blue("[BNFlow] flow B2→B4 | reason: has window, check if current is login page (flowchart B4)")
         ctx.set_current_step(BNNode.BN_First)
@@ -179,8 +180,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
 
     # ----- [B9] BN_UI first screen -----
     if ctx.get_current_step() == BNNode.BN_UI:
-        # 文档 B9 需根据“当前界面”判断，无窗口时不应 get_dynamic_state 导致 unknown→误杀；回到 B2 重检
-        if not get_battlenet_manager().find_windows(use_cache=False):
+        if not get_game_interface_data().battlenet_window_found:
             ColorPrint.blue("[BNFlow] flow B9→B2 | reason: no window this tick, re-check (avoid unknown→B5)")
             ctx.set_current_step(BNNode.BN_Win)
             return False, ""
@@ -300,8 +300,8 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ctx.set_b5_entry_reason("B4_browser_login_wait")
             ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        region = _get_bn_preferred_region()
-        is_login = op.is_on_asia_login_screen() if region == "asia" else op.is_on_login_screen()
+        # Use same-tick refresh result for login page (no extra UI enum)
+        is_login = get_game_interface_data().battlenet_on_login_screen
         if is_login:
             ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (CN/Asia), exit then B1→B3→B7→B9→B10/BN_LoginAsia")
             ctx.set_b5_entry_reason("B4_login_page_CN_Asia")

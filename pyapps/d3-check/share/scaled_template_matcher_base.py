@@ -165,12 +165,14 @@ class ScaledTemplateMatcherBase:
         template_name: str,
         scale_x: float,
         scale_y: float,
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        silent: bool = False
     ) -> Optional[np.ndarray]:
         ColorPrint, _ = _ensure_provider_imports()
         cache_key = (template_name, round(scale_x, 4), round(scale_y, 4))
         if not force_refresh and cache_key in self._template_cache:
-            ColorPrint.gray(f"{self.log_prefix} Using cached scaled template: {template_name}")
+            if not silent:
+                ColorPrint.gray(f"{self.log_prefix} Using cached scaled template: {template_name}")
             return self._template_cache[cache_key]
         template_img = self._load_original_template(template_name)
         if template_img is None:
@@ -247,14 +249,16 @@ class ScaledTemplateMatcherBase:
         template_name: str,
         scale_x: float,
         scale_y: float,
+        silent: bool = False,
     ) -> Dict:
         """
         Internal: match one template at given scale. Caller supplies pre-loaded target array and scale.
         Subclasses use this to implement game-specific match_template_auto_scale with their own constants.
+        silent=True: suppress per-template and DEBUG logs (for one-shot multi-state, one summary line only).
         """
         ColorPrint, _ = _ensure_provider_imports()
         scaled_template_img = self._get_scaled_template_image(
-            template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False
+            template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False, silent=silent
         )
         if scaled_template_img is None:
             return {"total_matches": 0, "matches": [], "error": "Failed to scale template"}
@@ -271,7 +275,8 @@ class ScaledTemplateMatcherBase:
             template_name=template_name,
             custom_threshold=threshold,
             use_alpha=use_alpha,
-            detection_method=match_method
+            detection_method=match_method,
+            silent=silent,
         )
         if match_result and match_result.get("success"):
             return {"total_matches": 1, "matches": [match_result]}

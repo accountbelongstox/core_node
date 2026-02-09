@@ -103,16 +103,16 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         ]
         target_img_array = self._load_target_image(target_image)
         if target_img_array is None:
+            ColorPrint.gray(f"{self.log_prefix} D3 state: none (no image) | export: none")
             return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
         h, w = target_img_array.shape[:2]
         scale_x = w / D3_STANDARD_WIDTH
         scale_y = h / D3_STANDARD_HEIGHT
-        ColorPrint.gray(
-            f"{self.log_prefix} One-shot detect all D3 states from image {w}x{h} (scale {scale_x:.4f}, {scale_y:.4f})"
-        )
         values: Dict[str, int] = {}
         for template_name in names:
-            r = self._match_single_with_scale(target_img_array, template_name, scale_x, scale_y)
+            r = self._match_single_with_scale(
+                target_img_array, template_name, scale_x, scale_y, silent=True
+            )
             num = 0
             if r.get("total_matches", 0) >= 1 and r.get("matches"):
                 num = r["matches"][0].get("num_matches", 0)
@@ -133,6 +133,10 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             ("disconnected", d_val, 0),
         ]
         winner = max(candidates, key=lambda x: (x[1], x[2]))
+        out_state = winner[0] if winner[1] > 0 else "none"
+        ColorPrint.gray(
+            f"{self.log_prefix} D3 state: {out_state} | disconnected={d_val} start={s_val} game_tool={g_val} connecting={connecting_val} -> export: {out_state}"
+        )
         if winner[1] == 0:
             return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
         return {
