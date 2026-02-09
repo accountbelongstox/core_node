@@ -1248,5 +1248,17 @@
 
 此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_INITIAL_STATE_DETECTION与square_sampler及game_state_events.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
 
+---
+
+## 十一、theme、d3_macro_controller、battlenet_asia_ops 相关
+
+就您指定查阅的以下三处：
+
+- **ui/theme/theme.py**：主题集中管理 COLORS/FONTS/SIZES，ttk 强制 clam 主题。COLORS 中输入框背景键为 **input_bg**，非 bg_input；若在 apply_ttk_style 中误写 get_color('bg_input') 会取不到而用默认色。已修正为 input_bg。新增颜色/字体/尺寸 key 须与 COLORS/FONTS/SIZES 及 get_* 调用一致；勿改 theme_use('clam') 或过早应用样式。
+- **controller/d3_macro_controller.py**：D3 宏主控，直接读写 CONFIG.macro_configs 并 save_config()，与 providor 的 config worker 若并存需约定避免双写。启停宏顺序（trigger_extension、macro_running、start_macro_fallback）与 ThreadRegistry 一致；strategy=='禁用' 与 i18n 统一；run() 内注册顺序勿乱。
+- **d3utils/battlenet_asia_ops.py**：亚服战网登录操作，依赖 BattlenetRegionJudge 与 ASIA_LOGIN_* 常量；controls 须与 _enumerate_controls/快照结构一致。常量与战网改版需同步；不在 flow tick 内调用含长 sleep 的 perform_asia_*；与亚服登录设计文档 UI 形态及函数名一致。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_theme与d3_macro_controller及battlenet_asia_ops.md**，并已修正 theme.py 中 bg_input→input_bg，后续修改前以该说明为准，避免同类错误。
+
 Cursor AI  
 写于 cursor_AI_道歉目录

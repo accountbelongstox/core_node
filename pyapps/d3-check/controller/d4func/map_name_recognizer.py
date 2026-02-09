@@ -98,69 +98,58 @@ class MapNameRecognizer:
         if not self.d4_data.is_post_switch_idle:
             return False
         if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
-                ColorPrint.yellow("[MapNameRecognizer] No detected_regions available")
-                return False
+            ColorPrint.yellow("[MapNameRecognizer] No detected_regions available")
+            return False
+        if 'region_images' not in self.d4_data.detected_regions:
+            ColorPrint.yellow("[MapNameRecognizer] No region_images in detected_regions")
+            return False
+        region_images = self.d4_data.detected_regions['region_images']
+        if 'Map Name' not in region_images:
+            ColorPrint.yellow("[MapNameRecognizer] Map Name region not found in detected_regions")
+            return False
+        map_name_image = region_images['Map Name']
 
-            if 'region_images' not in self.d4_data.detected_regions:
-                ColorPrint.yellow("[MapNameRecognizer] No region_images in detected_regions")
-                return False
+        if map_name_image is None:
+            ColorPrint.yellow("[MapNameRecognizer] Map Name region image is None")
+            return False
 
-            region_images = self.d4_data.detected_regions['region_images']
+        # Check if we have OCR engines available
+        if not self._has_ocr_engine():
+            ColorPrint.yellow("[MapNameRecognizer] No OCR engines available")
+            return False
 
-            # Get Map Name region image
-            if 'Map Name' not in region_images:
-                ColorPrint.yellow("[MapNameRecognizer] Map Name region not found in detected_regions")
-                return False
-
-            map_name_image = region_images['Map Name']
-
-            if map_name_image is None:
-                ColorPrint.yellow("[MapNameRecognizer] Map Name region image is None")
-                return False
-
-            # Check if we have OCR engines available
-            if not self._has_ocr_engine():
-                ColorPrint.yellow("[MapNameRecognizer] No OCR engines available")
-                return False
-
-            # Increment recognition attempts
-            self.recognition_attempts += 1
+        # Increment recognition attempts
+        self.recognition_attempts += 1
             
-            ColorPrint.blue(f"[MapNameRecognizer] 🗺️ Attempting map name recognition (attempt {self.recognition_attempts}/{self.max_recognition_attempts})")
+        ColorPrint.blue(f"[MapNameRecognizer] 🗺️ Attempting map name recognition (attempt {self.recognition_attempts}/{self.max_recognition_attempts})")
 
-            # Perform OCR recognition on the Map Name region image
-            recognized_text = self._perform_ocr_recognition(map_name_image)
+        # Perform OCR recognition on the Map Name region image
+        recognized_text = self._perform_ocr_recognition(map_name_image)
             
-            if recognized_text and recognized_text.strip():
-                # Successfully recognized text
-                self.last_recognized_map = recognized_text.strip()
-                
-                # Update shared data with recognized map name
-                self._update_shared_data_with_map_name(recognized_text.strip())
-                
-                # Reset post-switch idle state
+        if recognized_text and recognized_text.strip():
+            # Successfully recognized text
+            self.last_recognized_map = recognized_text.strip()
+            
+            # Update shared data with recognized map name
+            self._update_shared_data_with_map_name(recognized_text.strip())
+            
+            # Reset post-switch idle state
+            self.d4_data.is_post_switch_idle = False
+            self.recognition_attempts = 0
+            
+            ColorPrint.green(f"[MapNameRecognizer] ✅ Map name recognized: '{recognized_text.strip()}'")
+            return True
+        else:
+            # No text recognized
+            ColorPrint.yellow(f"[MapNameRecognizer] No text recognized in Map Name region")
+            
+            # Check if we've exceeded max attempts
+            if self.recognition_attempts >= self.max_recognition_attempts:
+                ColorPrint.yellow(f"[MapNameRecognizer] Max recognition attempts reached, resetting post-switch idle")
                 self.d4_data.is_post_switch_idle = False
                 self.recognition_attempts = 0
-                
-                ColorPrint.green(f"[MapNameRecognizer] ✅ Map name recognized: '{recognized_text.strip()}'")
-                return True
-            else:
-                # No text recognized
-                ColorPrint.yellow(f"[MapNameRecognizer] No text recognized in Map Name region")
-                
-                # Check if we've exceeded max attempts
-                if self.recognition_attempts >= self.max_recognition_attempts:
-                    ColorPrint.yellow(f"[MapNameRecognizer] Max recognition attempts reached, resetting post-switch idle")
-                    self.d4_data.is_post_switch_idle = False
-                    self.recognition_attempts = 0
-                
-                return True
-
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error recognizing map name: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+            
+            return True
 
     def _has_ocr_engine(self) -> bool:
         """Check if CnOCR engine is available"""
@@ -176,27 +165,14 @@ class MapNameRecognizer:
         Returns:
             Recognized text or None if failed
         """
-        try:
-            # Convert PIL Image to bytes for OCR processing
-            # This avoids file I/O and keeps everything in memory
-            img_bytes = self._pil_to_bytes(image)
-
-            # Use CnOCR for recognition
-            if self.cnocr_engine is not None:
-                try:
-                    ColorPrint.blue("[MapNameRecognizer] Performing CnOCR recognition...")
-                    result = self._recognize_with_cnocr(img_bytes)
-                    if result and result.strip():
-                        ColorPrint.green(f"[MapNameRecognizer] CnOCR result: '{result}'")
-                        return result
-                except Exception as e:
-                    ColorPrint.yellow(f"[MapNameRecognizer] CnOCR recognition failed: {e}")
-
-            return None
-
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error in OCR recognition: {e}")
-            return None
+        img_bytes = self._pil_to_bytes(image)
+        if self.cnocr_engine is not None:
+            ColorPrint.blue("[MapNameRecognizer] Performing CnOCR recognition...")
+            result = self._recognize_with_cnocr(img_bytes)
+            if result and result.strip():
+                ColorPrint.green(f"[MapNameRecognizer] CnOCR result: '{result}'")
+                return result
+        return None
 
     def _pil_to_bytes(self, image: Image.Image) -> bytes:
         """
@@ -208,22 +184,13 @@ class MapNameRecognizer:
         Returns:
             Image bytes
         """
-        try:
-            # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Save to bytes buffer
-            img_buffer = io.BytesIO()
-            image.save(img_buffer, format='PNG')
-            img_bytes = img_buffer.getvalue()
-            img_buffer.close()
-            
-            return img_bytes
-            
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error converting PIL to bytes: {e}")
-            return b''
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format='PNG')
+        img_bytes = img_buffer.getvalue()
+        img_buffer.close()
+        return img_bytes
 
     def _recognize_with_cnocr(self, img_bytes: bytes) -> Optional[str]:
         """
@@ -235,34 +202,20 @@ class MapNameRecognizer:
         Returns:
             Recognized text or None
         """
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
+            temp_file.write(img_bytes)
+            temp_path = temp_file.name
         try:
-            # Create temporary file path for CnOCR
-            # Note: CnOCR requires file path, so we need to save to temp file
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-                temp_file.write(img_bytes)
-                temp_path = temp_file.name
-            
-            try:
-                # Perform OCR recognition
-                result = self.cnocr_engine.ocr(temp_path)
-                
-                if result and 'text' in result:
-                    return result['text']
-                else:
-                    return None
-                    
-            finally:
-                # Clean up temporary file
-                try:
-                    os.unlink(temp_path)
-                except:
-                    pass
-                    
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] CnOCR recognition error: {e}")
+            result = self.cnocr_engine.ocr(temp_path)
+            if result and 'text' in result:
+                return result['text']
             return None
-
+        finally:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
 
     def _update_shared_data_with_map_name(self, map_name: str):
         """
@@ -271,13 +224,8 @@ class MapNameRecognizer:
         Args:
             map_name: Recognized map name
         """
-        try:
-            # Use unified method to update map name
-            set_current_map_name(map_name)
-            ColorPrint.blue(f"[MapNameRecognizer] Updated shared data with map name: '{map_name}'")
-            
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error updating shared data: {e}")
+        set_current_map_name(map_name)
+        ColorPrint.blue(f"[MapNameRecognizer] Updated shared data with map name: '{map_name}'")
 
     def get_recognition_stats(self) -> Dict[str, Any]:
         """
