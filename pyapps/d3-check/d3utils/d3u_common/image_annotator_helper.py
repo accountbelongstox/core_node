@@ -17,7 +17,7 @@ from datetime import datetime
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
-from providor.app_constants import TMP_DIR
+from providor.constants.common import TMP_DIR
 from share.scaled_template_matcher_base import cv2, np, Image
 
 # Built-in color palette for annotations (BGR format for OpenCV)

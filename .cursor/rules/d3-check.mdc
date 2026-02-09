@@ -1,25 +1,16 @@
 ---
-description: "d3-check sub-app: reuse existing logic; no redundant definitions; prefer pycore; share = data only; constants in CONFIG/app_constants."
+description: "d3-check: reuse; no redundant defs; pycore direct; share=values+common; constants in CONFIG/app_constants. Canonical: PROJECT_STANDARDS.md."
 globs: pyapps/d3-check/**
 alwaysApply: false
 ---
 
-# d3-check project rule
+# d3-check rule
 
-When editing or adding code under **pyapps/d3-check** (Diablo III/IV macro, Battle.net, grid, D4):
-
-1. **Reuse before adding.** Before writing new code, search for existing logic that can be extended (same module, d3utils, timers, controller, pycore). Prefer extending or parameterizing existing functions/classes over adding new ones. Do not add a second implementation of the same behavior elsewhere.
-
-2. **No redundant definitions.** Do not duplicate stdlib or project-wide APIs: no local redefinitions of the same constant, same helper, or thin wrapper that only forwards. Literals → `providor.app_constants`; use existing d3utils/pycore helpers; do not add a duplicate constant or function that does the same thing in another module.
-
-3. **Prefer pycore; no secondary encapsulation.** Import directly from `pycore.pyfoundations` / `pycore.pyutils`. Do not use `providor.common_imports` re-exports. One-shot work: `timers.timer_manager.submit_one_shot` and **`timers.one_shot_tasks.do_*`** (not share.threads; share = shared data only).
-
-4. **D3/D4 constants and config → CONFIG.** Literal constants → **`providor.app_constants`**; structured config → **`config`** (unified_config, grid_config). Do not add new literal constants in feature modules.
-
-5. **Threads.** No mutual blocking at runtime; event center only; init all at startup; one-shot via **timer_manager.submit_one_shot**. Thread classes native (extends `threading.Thread`, run() implements loop). See `docs/THREAD_BUS_AND_REGISTRY.md`.
-
-6. **No secondary encapsulation.** No wrapper methods or re-export modules; direct calls and imports only.
-
-7. **Adding new standards.** Add by priority: (1) `.cursor/rules`; (2) `.cursor/skills`; (3) `pyapps/d3-check/AGENTS.md`.
-
-8. **Prompt persistence.** Prompts used in d3-check context → **`pyapps/d3-check/.prompts/`** (append to log or timestamped file).
+1. **Reuse before adding.** Search existing logic (d3utils, timers, controller, pycore); extend or parameterize; no second implementation of same behavior.
+2. **No redundant definitions.** No duplicate constant/helper/wrapper. Literals → `providor.app_constants`; use existing helpers.
+3. **Pycore direct; no secondary encapsulation.** Import from `pycore.*`; no `providor.common_imports`. One-shot: `timers.timer_manager.submit_one_shot` + **`timers.one_shot_tasks.do_*`**. **share**: `share/values` (data only), `share/common` (shared functions/base); no run_/do_; no dirs like data/store/cache (gitignore-prone). See `docs/PROJECT_STANDARDS.md` §1.3.
+4. **Constants/config.** Literals → `providor.app_constants`; structured → `config`. No new literals in feature modules.
+5. **Threads.** No mutual blocking; event center only; init at startup; one-shot via timer_manager; native Thread. See `docs/THREAD_BUS_AND_REGISTRY.md`.
+6. **New standards.** Add to (1) `.cursor/rules` (2) `.cursor/skills` (3) `AGENTS.md`; no duplicate; canonical = PROJECT_STANDARDS.md.
+7. **Prompts.** d3-check prompts → `pyapps/d3-check/.prompts/`.
+8. **Every edit.** Check: redundant → merge; similar code → extend; architecture → fit event center, CONFIG. See `.cursor/skills/d3-check/SKILL.md` §10–11.

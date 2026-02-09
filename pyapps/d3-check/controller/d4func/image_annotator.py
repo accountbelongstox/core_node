@@ -13,7 +13,7 @@ current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import D4_ANNOTATED_DIR
+from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (
     D4_STANDARD_COORDS,
     D4_STANDARD_RESOLUTION_WIDTH,

@@ -84,27 +84,32 @@ class UnifiedStyles:
         'input': ('Segoe UI', 9),        # 9px as minimum font size
     }
     
-    # Spacing Configuration (scaled to 60%)
+    # Spacing Configuration - relaxed for readable layout (no crowding)
     SPACING = {
         'none': 0,
-        'xs': 1,      # 2 * 0.6 = 1.2 -> 1
-        'sm': 3,      # 5 * 0.6 = 3
-        'md': 6,      # 10 * 0.6 = 6
-        'lg': 9,      # 15 * 0.6 = 9
-        'xl': 12,     # 20 * 0.6 = 12
-        'xxl': 18,    # 30 * 0.6 = 18
+        'xs': 2,
+        'sm': 5,
+        'md': 10,
+        'lg': 14,
+        'xl': 18,
+        'xxl': 24,
     }
     
-    # Padding Configuration (scaled to 60%)
+    # Padding Configuration - comfortable padding for sections
     PADDING = {
         'none': 0,
-        'xs': 2,      # 3 * 0.6 = 1.8 -> 2
-        'sm': 4,      # 6 * 0.6 = 3.6 -> 4
-        'md': 7,      # 12 * 0.6 = 7.2 -> 7
-        'lg': 11,     # 18 * 0.6 = 10.8 -> 11
-        'xl': 14,     # 24 * 0.6 = 14.4 -> 14
-        'xxl': 22,    # 36 * 0.6 = 21.6 -> 22
+        'xs': 3,
+        'sm': 6,
+        'md': 10,
+        'lg': 14,
+        'xl': 18,
+        'xxl': 26,
     }
+
+    # Tab content main style: same outer padding for all tab panels (reuse across TABLE1/TABLE2/ROSBOT/D4/Log/Coord).
+    TAB_PAD = 8
+    # One line of text height (for status bar extra row, etc.)
+    LINE_HEIGHT = 20
     
     @classmethod
     def configure_ttk_styles(cls):

@@ -20,7 +20,7 @@ try:
 except Exception:
     ColorPrint = None
 
-from providor.app_constants import (
+from providor.constants.common import (
     BATTLE_NET_BUTTON_HEX,
     BATTLE_NET_BUTTON_RGB,
     DEFAULT_BRIGHTNESS_TOL,

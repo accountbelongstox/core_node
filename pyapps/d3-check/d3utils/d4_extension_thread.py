@@ -14,7 +14,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from controller.d4_controller import get_d4_controller
 from share.game_interface_data import get_d4_interface_data
 
-from providor.app_constants import D4_TICK_INTERVAL
+from providor.constants.d4 import D4_TICK_INTERVAL
 
 
 class D4ExtensionThread(threading.Thread):

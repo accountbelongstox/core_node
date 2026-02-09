@@ -55,11 +55,10 @@ class LogPanel:
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
         
-        # Create main container
+        # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True, 
-                           padx=UnifiedStyles.SPACING['md'], 
-                           pady=UnifiedStyles.SPACING['md'])
+        tab_pad = UnifiedStyles.TAB_PAD
+        self.container.pack(fill=tk.BOTH, expand=True, padx=tab_pad, pady=tab_pad)
         
         # Configure grid
         self.container.grid_columnconfigure(0, weight=1)

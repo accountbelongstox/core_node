@@ -17,7 +17,7 @@ from pathlib import Path
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
-from providor.app_constants import UI_SETTINGS_WINDOW_GEOMETRY
+from providor.constants.common import UI_SETTINGS_WINDOW_GEOMETRY, DEFAULT_WINDOW_GEOMETRY
 
 # Import UI components
 from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray
@@ -61,7 +61,7 @@ class Diablo3MacroUI:
 
         # Set window title and initial geometry (saved position/size or default) so window never flashes at 0,0
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
-        initial_geos = CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY) or "670x550"
+        initial_geos = CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY) or DEFAULT_WINDOW_GEOMETRY
         self.root.geometry(initial_geos)
         self.root.minsize(670, 400)
         self.root.resizable(True, True)
@@ -95,6 +95,10 @@ class Diablo3MacroUI:
 
         # First run only: bring window to top (geometry already set at init)
         self._apply_first_run_topmost()
+
+        # Maximize/restore: state for frameless window (overrideredirect); event_center toggles via saved geometry
+        self._is_maximized = False
+        self._saved_geometry_restore = None
 
         # Bind Configure to save geometry when user moves/resizes (debounced)
         self.root.bind("<Configure>", self._on_window_configure)
@@ -213,9 +217,9 @@ class Diablo3MacroUI:
         # Add resize borders for frameless window
         self._add_resize_borders()
         
-        # Title bar with language switch and window controls
+        # Title bar with language switch and window controls (no outer margin)
         self.title_bar = TitleBar(self)
-        self.title_bar.pack(fill=tk.X, padx=5, pady=3)
+        self.title_bar.pack(fill=tk.X, padx=0, pady=0)
 
         # Menu bar (hidden since language switch is now in title bar)
         # self.menu_bar = MenuBar(self.root, on_language_change=self._on_language_changed)
@@ -226,8 +230,8 @@ class Diablo3MacroUI:
         # Main tabbed interface
         self._create_main_tabs()
 
-        # Pack bottom bar
-        self.bottom_bar.pack(fill=tk.X, padx=5, pady=3)
+        # Pack bottom bar (no outer margin)
+        self.bottom_bar.pack(fill=tk.X, padx=0, pady=0)
 
         # Note: Bottom bar callback registration is handled by system_initializer
         # UI does not import timer system - decoupled architecture
@@ -239,7 +243,7 @@ class Diablo3MacroUI:
             on_start=self._on_start_macro,
             on_stop=self._on_stop_macro
         )
-        self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
     def get_window_status_callback(self):
         """
@@ -300,9 +304,21 @@ class Diablo3MacroUI:
         self.root.attributes("-topmost", True)
         self.root.after(500, lambda: self.root.attributes("-topmost", False))
 
-    def _save_window_geometry(self):
-        """Persist current window position and size to config."""
+    def restore_window_to_preset(self):
+        """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
         try:
+            self.root.geometry(DEFAULT_WINDOW_GEOMETRY)
+            self._is_maximized = False
+            if hasattr(self, "title_bar") and hasattr(self.title_bar, "maximize_btn"):
+                self.title_bar.maximize_btn.configure(text="□")
+        except Exception:
+            pass
+
+    def _save_window_geometry(self):
+        """Persist current window position and size to config (skip when maximized to avoid saving fullscreen)."""
+        try:
+            if getattr(self, "_is_maximized", False):
+                return
             w = self.root.winfo_width()
             h = self.root.winfo_height()
             x = self.root.winfo_rootx()
@@ -334,7 +350,7 @@ class Diablo3MacroUI:
         # Create notebook for main tabs (takeFocus=0 to avoid dotted focus ring on selected tab)
         self.main_notebook = ttk.Notebook(self.root, height=370)
         self.main_notebook.configure(takefocus=0)
-        self.main_notebook.pack(fill=tk.X, padx=8, pady=3)
+        self.main_notebook.pack(fill=tk.X, padx=0, pady=0)
         
         # Apply dark theme to notebook
         self._apply_notebook_theme()
@@ -720,7 +736,7 @@ class Diablo3MacroUI:
         self._register_panel_language_listeners()
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
@@ -742,7 +758,7 @@ class Diablo3MacroUI:
             )
 
         if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=(20, 0), pady=(0, 3))
+            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
         try:
             self.main_notebook.select(self.last_selected_tab)

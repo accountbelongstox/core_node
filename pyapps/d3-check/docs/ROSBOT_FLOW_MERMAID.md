@@ -8,11 +8,10 @@ flowchart TB
         A2_Timer["[A2] 全局定时器 1 秒 tick，% 实现 2 秒驱动"]
         A3_Tick{"[A3] 总状态开启且本 tick 有导向？"}
         A_Skip["[A4] 跳过所有分支"]
-        A9_MainEnd["[A9] 面板运行中，启用周期任务"]
         A1_Start --> A2_Timer
         A2_Timer --> A3_Tick
         A3_Tick -->|否，跳过| A_Skip
-        A3_Tick -->|是，→B1 战网就绪| B1_Entry
+        A3_Tick -->|是，→F0 预判入口| F_Entry
     end
 
     subgraph B["B 战网就绪检查"]
@@ -90,7 +89,7 @@ flowchart TB
         T2_Query --> T2_Log
     end
 
-    B16_Confirmed --> F_Entry
+    B16_Confirmed --> D1_Entry
 
     subgraph F["F 预判（D3/ROSBOT 在线与日志超时）"]
         F_Entry["[F0] 预判入口"]
@@ -102,11 +101,11 @@ flowchart TB
         F4a_EndD3["[F4a] 关闭 D3"]
         F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT"]
         F_Entry --> F1_HasD3
-        F1_HasD3 -->|否<br/>→D1 从战网启动 D3| D1_Entry
-        F1_HasD3 -->|是| F2_RosbotOnline
+        F1_HasD3 -->|否<br/>→B2 当前是否有战网窗口？| B2_HasWin
+        F1_HasD3 -->|是<br/>→C1 入口| C1_Entry
         F1c_EndD3 --> F_Entry
         F1d_Offline --> F1c_EndD3
-        F2_RosbotOnline -->|否<br/>→C1 入口| C1_Entry
+        F2_RosbotOnline -->|否<br/>→E1 结束已有 ROSBOT| E1_Kill
         F2_RosbotOnline -->|是| F3_LogTimeout
         F3_LogTimeout -->|未超时<br/>回到 F3| F3_LogTimeout
         F3_LogTimeout -->|超时| F4a_EndD3
@@ -117,48 +116,43 @@ flowchart TB
     subgraph C["C D3 已运行直连"]
         C1_Entry["[C1] 入口"]
         C2_Resize["[C2] 将 D3 窗口缩放到标准分辨率"]
-        C3_Screenshot["[C3] 截屏识图（前提）<br/>模板 d3_start_game_button / d3_game_tool"]
-        C4_Result{"[C4] 识图结果<br/>由 C3 截屏识图决定"}
+        C3_Step["[C3] 截屏识图与识图结果<br/>一步内：截屏→识图→若识别到 d3_start_game_button 则点击并重置 1 分钟（开始游戏可能卡住并重新开始）；若识别到 game_tool/disconnected 则分支；若识别到 d3_connecting 或 d3_connecting_alt 则继续 wait；超时则未识别"]
+        C3_Result{"[C3] 识图结果"}
+        C3w_Wait["[C3w] wait"]
         C5_StartGame["[C5] 点击开始游戏按钮"]
         C5w_Wait["[C5w] wait 直到出现 d3_game_tool 或超时"]
-        C9_MapCheck["[C9] 按两次 M 检测悬赏<br/>（防止地图已开时按一次反而关闭）"]
         C12_EndD3["[C12] 结束 D3 进程，进入 D 流程"]
         C6_GameTool["[C6] 继续 d3_game_tool 流程"]
-        C7a_PressM["[C7a] 按 M"]
+        C7a_PressM["[C7a] 再按 M 复位地图"]
         C7w_Wait["[C7w] 等待 2 秒"]
-        C7b_Teleport["[C7b] 传送三连点"]
-        C8_Result{"[C8] 传送结果？"}
-        C10_Check["[C10a] 用 d3_bounty_progress 查悬赏图<br/>两次按 M 两次检测"]
-        C10_Result{"[C10b] 都未出现悬赏图？"}
-        C11w_Wait["[C11w] 等待 2 秒"]
-        C11b_Teleport["[C11b] 传送三连点"]
+        C7b_Teleport["[C7b] 传送：打开地图按 M（前步已做）<br/>缩小地图 (751,413) 点击传送 (610,126)"]
+        C8_Result["[C8] 传送结果（流程步骤，无否分支）"]
+        C10_Check["[C10a] 截图（发送前）→ 向游戏发送 M → 截图（发送后）→ 对比相似度"]
+        C10_Result{"[C10b] 发送前后截图高度相似？<br/>（相似则 M 无反应，即掉线）"}
         C1_Entry --> C2_Resize
-        C2_Resize --> C3_Screenshot
-        C3_Screenshot --> C4_Result
-        C4_Result -->|出现 d3_start_game_button<br/>在开始游戏界面| C5_StartGame
-        C4_Result -->|出现 d3_game_tool<br/>在游戏中，走 C6 流程| C6_GameTool
-        C4_Result -->|游戏掉线| F1d_Offline
-        C4_Result -->|未匹配，进入 D| C12_EndD3
+        C2_Resize --> C3_Step
+        C3_Step --> C3_Result
+        C3_Result -->|未识别或 d3_connecting / d3_connecting_alt<br/>未超时，继续| C3w_Wait
+        C3w_Wait --> C3_Step
+        C3_Result -->|出现 d3_start_game_button<br/>在开始游戏界面| C5_StartGame
+        C3_Result -->|出现 d3_game_tool<br/>在游戏中，走 C6 流程| C6_GameTool
+        C3_Result -->|游戏掉线（连续两次识图确认后分支）| F1d_Offline
+        C3_Result -->|未识别/超时 1 分钟，进入 D| C12_EndD3
         C5_StartGame --> C5w_Wait
         C5w_Wait -->|超时，→C12| C12_EndD3
         C5w_Wait -->|出现 d3_game_tool<br/>走 C6 流程| C6_GameTool
-        C6_GameTool --> C9_MapCheck
-        C9_MapCheck --> C10_Check
+        C6_GameTool --> C10_Check
         C10_Check --> C10_Result
-        C10_Result -->|是，两次都未出现悬赏图<br/>视为游戏掉线| C12_EndD3
-        C10_Result -->|否，任一次出现悬赏进度<br/>→传送三连点| C7a_PressM
+        C10_Result -->|是，高度相似，M 无反应<br/>视为游戏掉线| C12_EndD3
+        C10_Result -->|否，未掉线，再按一次 M 复位地图<br/>然后传送（缩小地图+点击传送）| C7a_PressM
         C7a_PressM --> C7w_Wait
         C7w_Wait --> C7b_Teleport
         C7b_Teleport --> C8_Result
-        C8_Result -->|成功| A8_Success
-        C8_Result -->|失败| C12_EndD3
+        C8_Result --> A8_Success
     end
 
     subgraph D["D 从战网启动 D3"]
         D1_Entry["[D1] 从战网启动 D3 入口"]
-        D2_StartBN["[D2] 无战网则启动战网"]
-        D3_EndD3["[D3] 若有 D3 进程则结束"]
-        D3w_Wait["[D3w] 等 5 秒"]
         D4_Activate["[D4] 激活战网窗口"]
         D4w_Wait["[D4w] 等 1 秒"]
         D5_UI["[D5] UI 识别战网界面"]
@@ -173,19 +167,10 @@ flowchart TB
         D12_Sleep["[D12] sleep(5)"]
         D12b_Poll["[D12b] 轮询 D3 窗口最多 10 秒"]
         D13_HasD3Win{"[D13] 10 秒内找到 D3 窗口？"}
+        D13b_RestartD3["[D13b] 重启 D3"]
         D14_Restart["[D14] 重启战网"]
         D14w_Wait["[D14w] 等 5 秒"]
-        D15a_Scale["[D15a] D3 窗口缩放"]
-        D15b_Clear["[D15b] 清缓存"]
-        D16a_Match["[D16a] 截图匹配开始游戏按钮"]
-        D16b_Click["[D16b] 点击开始游戏"]
-        D17_ClickOk{"[D17] 成功点击「开始游戏」？"}
-        D18a_Kill["[D18a] 结束已有 ROSBOT"]
-        D18b_Start["[D18b] 若配置则启动并自动化"]
-        D1_Entry --> D2_StartBN
-        D2_StartBN --> D3_EndD3
-        D3_EndD3 --> D3w_Wait
-        D3w_Wait --> D4_Activate
+        D1_Entry --> D4_Activate
         D4_Activate --> D4w_Wait
         D4w_Wait --> D5_UI
         D5_UI --> D6_HasWin
@@ -200,27 +185,26 @@ flowchart TB
         D11_Click --> D12_Sleep
         D12_Sleep --> D12b_Poll
         D12b_Poll --> D13_HasD3Win
-        D13_HasD3Win -->|否| D14_Restart
+        D13_HasD3Win -->|否| D13b_RestartD3
+        D13b_RestartD3 --> D14_Restart
         D14_Restart --> D14w_Wait
-        D14w_Wait --> D1_Entry
+        D14w_Wait --> B2_HasWin
         D13_HasD3Win -->|是<br/>→C1 入口| C1_Entry
-        D15a_Scale --> D15b_Clear
-        D15b_Clear --> D16a_Match
-        D16a_Match --> D16b_Click
-        D16b_Click --> D17_ClickOk
-        D17_ClickOk -->|否| D14_Restart
-        D17_ClickOk -->|是| D18a_Kill
-        D18a_Kill --> D18b_Start
-        D18b_Start --> A8_Success
     end
 
     C12_EndD3 --> D1_Entry
-    A8_Success["[A8] 返回成功，进入 E"] --> E1_Kill
+    A8_Success["[A8] 返回成功，进入 E"] --> F2_RosbotOnline
 
     subgraph E["E ROSBOT 运行流程"]
         E1_Kill["[E1] 结束已有 ROSBOT"]
         E2_Sleep["[E2] 等待 1 秒"]
-        E3_Config{"[E3] 配置 auto_start_rosbot？"}
+        E3_StartRosbot{"[E3] 启动 ROSBOT<br/>UI 是否开始更新 ROSBOT？"}
+        E3a_FindZip["[E3a] 到下载目录找最新 zip 包"]
+        E3b_Newer{"[E3b] 找到且比当前目录新？"}
+        E3c_Extract["[E3c] 解压到 ROBOT 目录"]
+        E3d_CopyConfig["[E3d] 复制旧 ROSBOT 配置文件到新目录并替换"]
+        E3e_UpdatePath["[E3e] 更新配置为新的 ROSBOT 路径"]
+        E3f_Launch["[E3f] 启动"]
         E4_Start["[E4] 启动 ROSBOT 进程"]
         E5_Init["[E5] 任务初始化"]
         E5a_WaitWin["[E5a1] 等窗口"]
@@ -230,9 +214,16 @@ flowchart TB
         E5a_ClickStart["[E5a5] 点 Start botting!"]
         E6_Done["[E6] 主线程收尾，记录日志"]
         E1_Kill --> E2_Sleep
-        E2_Sleep --> E3_Config
-        E3_Config -->|否| E6_Done
-        E3_Config -->|是| E4_Start
+        E2_Sleep --> E3_StartRosbot
+        E3_StartRosbot -->|否<br/>跳过更新，直接启动| E4_Start
+        E3_StartRosbot -->|开启更新| E3a_FindZip
+        E3a_FindZip --> E3b_Newer
+        E3b_Newer -->|是| E3c_Extract
+        E3b_Newer -->|否| E4_Start
+        E3c_Extract --> E3d_CopyConfig
+        E3d_CopyConfig --> E3e_UpdatePath
+        E3e_UpdatePath --> E3f_Launch
+        E3f_Launch --> E4_Start
         E4_Start --> E5_Init
         E5_Init --> E5a_WaitWin
         E5a_WaitWin --> E5a_WaitSrv
@@ -240,6 +231,13 @@ flowchart TB
         E5a_PollUI --> E5a_ClickProfile
         E5a_ClickProfile --> E5a_ClickStart
         E5a_ClickStart --> E6_Done
-        E6_Done --> A9_MainEnd
+        E6_Done --> F3_LogTimeout
     end
 ```
+
+## C3 超时与 start 重置说明
+
+- **超时时长**：1 分钟（60 秒）；**计时起点**：进入 C3 循环（C2 完成后）。
+- **检测到 d3_start_game_button 则点击并重置**：循环过程中只要识别到「开始游戏」按钮，则执行点击并将 1 分钟计时重置；若多次检测到则每次点击并重置。
+- **开始游戏可能卡住并重新开始**：上述行为用于处理开始游戏界面卡住的情况，通过反复点击并重置计时避免误判超时。
+- **游戏掉线**：C3 识图结果为 d3_disconnected 时，需**连续两次**截图识图均为 disconnect 才分支至 F1d_Offline，避免单次弱匹配（如 4 inliers）误判杀 D3。

@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,10 +18,21 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_numpy
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
-from share.game_interface_data import get_game_interface_data
+from share.game_interface_data import (
+    get_game_interface_data,
+    get_scaled_blacksmith_salvage_button,
+    get_scaled_blacksmith_tab_salvage_materials,
+    get_scaled_blacksmith_salvage_dialog_salvage_button,
+    get_scaled_blacksmith_salvage_dialog_confirm,
+)
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.app_constants import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR
+from d3utils.debug_bag_hover import classify_slot_quality_from_window
+from providor.constants.common import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR
+from providor.providor_index import CONFIG
+
+np = get_third_package_numpy()
 
 class BlacksmithHandler:
     """
@@ -173,9 +184,6 @@ class BlacksmithHandler:
         try:
             ColorPrint.blue(f"[BlacksmithHandler] Using scaled coordinates for window size: {actual_width}x{actual_height}")
 
-            # Import coordinate calculation function
-            from share.game_interface_data import get_scaled_blacksmith_salvage_button
-
             # Get scaled coordinate for salvage button
             button_x, button_y = get_scaled_blacksmith_salvage_button()
 
@@ -194,6 +202,88 @@ class BlacksmithHandler:
         except Exception as e:
             ColorPrint.red(f"[BlacksmithHandler] Error calculating button position: {e}")
             return False
+
+    def handle_auto_salvage_by_slots(self, keep: str) -> bool:
+        """
+        Auto salvage: for each bag slot that should be salvaged (by keep policy),
+        click slot -> click dialog salvage button -> click confirm.
+        keep: "keep_ancient_plus" = salvage normal/rare/magic; "keep_primal" = salvage normal/ancient/rare/magic.
+        """
+        shared_data = get_game_interface_data()
+        coords = getattr(shared_data, "bag_coordinates", None)
+        layout = getattr(shared_data, "bag_layout", None)
+        if not coords or not layout or not getattr(layout, "items", None):
+            ColorPrint.red("[BlacksmithHandler] No bag coordinates/layout for auto salvage")
+            return False
+        window_offset = getattr(shared_data, "window_offset", (0, 0))
+        if not isinstance(window_offset, (tuple, list)) or len(window_offset) != 2:
+            ColorPrint.red("[BlacksmithHandler] Window offset unavailable")
+            return False
+        ox, oy = int(window_offset[0]), int(window_offset[1])
+        top_left = coords.top_left
+        w, h = coords.width, coords.height
+        rows, cols = coords.rows, coords.cols
+        slot_width = w / cols
+        slot_height = h / rows
+
+        if not shared_data.game_window_image:
+            ColorPrint.red("[BlacksmithHandler] No game window image for slot classification")
+            return False
+        img_array = np.array(shared_data.game_window_image)
+
+        # Switch to salvage materials tab
+        tab_x, tab_y = get_scaled_blacksmith_tab_salvage_materials()
+        self.click_handler.click(ox + tab_x, oy + tab_y)
+        time.sleep(0.4)
+
+        btn_salvage_x, btn_salvage_y = get_scaled_blacksmith_salvage_dialog_salvage_button()
+        btn_confirm_x, btn_confirm_y = get_scaled_blacksmith_salvage_dialog_confirm()
+
+        slots_to_process: List[Tuple[int, int, dict]] = []
+        for r in range(rows):
+            for c in range(cols):
+                info = layout.items.get((r, c))
+                if not info:
+                    continue
+                if info.get("type") not in ("item_1slot", "item_2slot"):
+                    continue
+                slots_to_process.append((r, c, info))
+
+        to_salvage: List[Tuple[int, int]] = []
+        for (r, c, info) in slots_to_process:
+            quality = info.get("quality", "unknown")
+            if quality in ("rare", "magic"):
+                to_salvage.append((r, c))
+                continue
+            if quality not in ("legendary_set", "legendary"):
+                to_salvage.append((r, c))
+                continue
+            tier = classify_slot_quality_from_window(
+                img_array, top_left, slot_width, slot_height, r, c
+            )
+            if keep == "keep_ancient_plus":
+                if tier == "normal":
+                    to_salvage.append((r, c))
+            else:
+                if tier in ("normal", "ancient"):
+                    to_salvage.append((r, c))
+
+        if not to_salvage:
+            ColorPrint.blue("[BlacksmithHandler] Auto salvage: no slots to salvage")
+            return True
+
+        ColorPrint.blue(f"[BlacksmithHandler] Auto salvage: {len(to_salvage)} slots (keep={keep})")
+        for (r, c) in to_salvage:
+            slot_screen_x = int(ox + top_left[0] + (c + 0.5) * slot_width)
+            slot_screen_y = int(oy + top_left[1] + (r + 0.5) * slot_height)
+            self.click_handler.click(slot_screen_x, slot_screen_y)
+            time.sleep(0.2)
+            self.click_handler.click(ox + btn_salvage_x, oy + btn_salvage_y)
+            time.sleep(0.15)
+            self.click_handler.click(ox + btn_confirm_x, oy + btn_confirm_y)
+            time.sleep(0.25)
+        ColorPrint.green("[BlacksmithHandler] Auto salvage by slots completed")
+        return True
 
 
 # Singleton instance

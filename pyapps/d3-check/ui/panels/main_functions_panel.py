@@ -71,11 +71,10 @@ class MainFunctionsPanel:
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
         
-        # Create main container
+        # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True, 
-                           padx=UnifiedStyles.SPACING['md'], 
-                           pady=UnifiedStyles.SPACING['md'])
+        tab_pad = UnifiedStyles.TAB_PAD
+        self.container.pack(fill=tk.BOTH, expand=True, padx=tab_pad, pady=tab_pad)
         
         # Configure grid weights
         self.container.grid_columnconfigure(0, weight=1)
@@ -109,8 +108,8 @@ class MainFunctionsPanel:
         """Create skill configuration panel (left column)."""
         skill_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
         skill_frame.grid(row=0, column=0, sticky="nsew",
-                        padx=(0, UnifiedStyles.SPACING['sm']),
-                        pady=UnifiedStyles.SPACING['xs'])
+                        padx=(0, UnifiedStyles.SPACING['md']),
+                        pady=UnifiedStyles.SPACING['sm'])
 
         skill_frame.grid_columnconfigure(0, weight=1)
         skill_frame.grid_rowconfigure(1, weight=1)
@@ -125,8 +124,8 @@ class MainFunctionsPanel:
         # Create left frame for skill configuration
         skill_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
         skill_frame.grid(row=0, column=0, sticky="nsew",
-                        padx=(0, UnifiedStyles.SPACING['sm']),
-                        pady=UnifiedStyles.SPACING['xs'])
+                        padx=(0, UnifiedStyles.SPACING['md']),
+                        pady=UnifiedStyles.SPACING['sm'])
         
         # Configure skill frame grid
         skill_frame.grid_columnconfigure(0, weight=1)
@@ -254,7 +253,7 @@ class MainFunctionsPanel:
         key_input.grid(row=row, column=1, sticky="ew", padx=1, pady=1)
 
         # Strategy combobox - KEY-VALUE pattern
-        # Display: i18n text (e.g., "连续", "Continuous")
+        # Display: i18n text (e.g. Continuous mode)
         # Save: Fixed English key (e.g., "continuous")
         strategy_en = skill_data.get('strategy', 'continuous')
         strategy_zh = self.strategy_en_to_zh.get(strategy_en, strategy_en)
@@ -455,30 +454,30 @@ class MainFunctionsPanel:
         self.skill_vars['potion'] = potion_input  # Store widget instead of var
         self.skill_vars['potion_interval'] = potion_interval_var
 
-        # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar
+        # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar; no block background
         if self.bottom_bar:
             bb = self.bottom_bar
             ThemedCheckbutton.create(
                 additional_frame, text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
-                variable=bb.sound_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.sound_var, bg_color='bg_primary', select_color='text_secondary'
             ).grid(row=2, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             ThemedCheckbutton.create(
                 additional_frame, text=i18n_manager.get_ui_text("options.smart_pause"),
-                variable=bb.smart_pause_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.smart_pause_var, bg_color='bg_primary', select_color='text_secondary'
             ).grid(row=2, column=2, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
             custom_f.grid(row=3, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             ThemedCheckbutton.create(
                 custom_f, text=i18n_manager.get_ui_text("options.use_custom_stand_key") + ":",
-                variable=bb.custom_stand_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.custom_stand_var, bg_color='bg_primary', select_color='text_secondary'
             ).pack(side=tk.LEFT)
             ThemedEntry.create(custom_f, textvariable=bb.custom_stand_key_var, width=8).pack(side=tk.LEFT, padx=5)
-            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
             right_f.grid(row=3, column=2, columnspan=2, sticky="e", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             tk.Label(right_f, text=i18n_manager.get_ui_text("options.current_active_config") + " ",
-                     bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['success'],
+                     bg=UnifiedStyles.COLORS['bg_primary'], fg=UnifiedStyles.COLORS['success'],
                      font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT)
-            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_secondary'],
+            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_primary'],
                      fg=UnifiedStyles.COLORS['success'], font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT, padx=(0, 5))
 
     def _get_skill_key(self, skill_name):
@@ -658,8 +657,8 @@ class MainFunctionsPanel:
         """Create right panel: other settings (animation/language/hotkey) + basic info (Text), merged into one column."""
         right_column = tk.Frame(parent_frame, bg=UnifiedStyles.COLORS['bg_primary'])
         right_column.grid(row=0, column=1, sticky="nsew",
-                         padx=(UnifiedStyles.SPACING['sm'], 0),
-                         pady=UnifiedStyles.SPACING['xs'])
+                         padx=(UnifiedStyles.SPACING['md'], 0),
+                         pady=UnifiedStyles.SPACING['sm'])
         right_column.grid_columnconfigure(0, weight=1)
         right_column.grid_rowconfigure(0, weight=0)
         right_column.grid_rowconfigure(1, weight=1)

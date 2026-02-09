@@ -19,6 +19,7 @@ from d3utils.main_function_thread import MainFunctionThread, set_main_function_t
 from d3utils.auxiliary_function_thread import AuxiliaryFunctionThread, set_auxiliary_function_thread
 from d3utils.d3_extension_thread import D3ExtensionThread, set_d3_extension_thread
 from d3utils.d4_extension_thread import D4ExtensionThread, set_d4_extension_thread
+from d3utils.system_initializer import reapply_sigint_sigbreak_ignore_for_gui
 
 
 class ThreadRegistry:
@@ -103,6 +104,8 @@ class ThreadRegistry:
         self._game_interface_macro_thread = None
 
     def start_timer_loop_after_ui_ready(self) -> None:
+        """Start timer loop. Submit initial status refresh once in timer thread (non-blocking); further refresh only when flow-driven."""
+        reapply_sigint_sigbreak_ignore_for_gui()
         if not timer_manager.is_running():
             timer_manager.start()
             ColorPrint.green("[ThreadRegistry] Timer loop started (UI ready)")

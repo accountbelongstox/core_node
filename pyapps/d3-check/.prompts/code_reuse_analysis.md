@@ -122,7 +122,7 @@ from pycore.pyutils.image_annotator import ImageAnnotator
 - ❌ `utils/_obsolete_window_analyzer.py` - 已被 WindowScreenshot 替代
 - ❌ `utils/_obsolete_automation_controller.py` - 已被新架构替代
 - ❌ `utils/_obsolete_ui_analyzer.py` - 已被新架构替代
-- ❌ `providor/_obsolete_window_mapping_provider.py` - 已被新架构替代
+- ❌ `utils/_obsolete_window_mapping_provider.py`（原 providor/ 已迁入）- 已被新架构替代
 
 **建议:** 这些文件可以安全删除
 

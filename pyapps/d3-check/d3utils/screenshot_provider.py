@@ -15,6 +15,7 @@ Features:
 import os
 import sys
 import time
+import traceback
 import tkinter as tk
 from typing import Optional, Tuple, Dict
 from pathlib import Path
@@ -40,9 +41,10 @@ from pycore.pyutils.window_activator import WindowActivator
 from d3utils.game_window_detector import GameWindowDetector
 
 win32gui = get_third_package_win32gui()
-from providor.app_constants import TMP_DIR, TEMPLATE_DIR, ACTIVATE_BEFORE_CAPTURE_DELAY_SEC
+from providor.constants.common import TMP_DIR, TEMPLATE_DIR, ACTIVATE_BEFORE_CAPTURE_DELAY_SEC
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data, update_global_scale, get_screen_resolution
+from d3utils.d3_manager import get_d3_manager
 DEBUG = False
 
 
@@ -217,14 +219,21 @@ class ScreenshotProvider:
         ColorPrint.blue("\n[Provider] Generating new screenshot...")
 
         try:
+            # When capturing D3: prime cache with exe-first lookup (config d3.d3_path); skip title search when exe valid
+            if window_titles and len(window_titles) and set(window_titles) == set(get_d3_manager().get_capture_titles()):
+                get_d3_manager().prime_window_cache_for_capture()
+
             # Step 0: Optionally activate D3 window before capture
             if activate_d3_first:
                 titles_for_activate = list(window_titles) if (window_titles and len(window_titles)) else list(DIABLO_III_WINDOW_TITLES)
-                windows = WindowFinder.find_windows_by_titles(
-                    titles=titles_for_activate,
-                    match_mode="in",
-                    use_cache=False,
-                )
+                if set(titles_for_activate) == set(get_d3_manager().get_capture_titles()):
+                    windows = get_d3_manager().find_windows()
+                else:
+                    windows = WindowFinder.find_windows_by_titles(
+                        titles=titles_for_activate,
+                        match_mode="in",
+                        use_cache=False,
+                    )
                 if windows and windows[0].get("hwnd"):
                     WindowActivator().activate_window_by_handle(windows[0]["hwnd"])
                     time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
@@ -247,11 +256,14 @@ class ScreenshotProvider:
                             hwnd = ch
                             ColorPrint.print_min_interval("[Provider] Native region: using cached D3 position", "1min", "blue")
                 if hwnd is None:
-                    windows = WindowFinder.find_windows_by_titles(
-                        titles=titles_for_rect,
-                        match_mode="in",
-                        use_cache=True,
-                    )
+                    if set(titles_for_rect) == set(get_d3_manager().get_capture_titles()):
+                        windows = get_d3_manager().find_windows()
+                    else:
+                        windows = WindowFinder.find_windows_by_titles(
+                            titles=titles_for_rect,
+                            match_mode="in",
+                            use_cache=True,
+                        )
                     if not windows or not windows[0].get("hwnd"):
                         ColorPrint.red("[Provider] use_native_region_capture: D3 window not found")
                         return None
@@ -319,6 +331,28 @@ class ScreenshotProvider:
                     ColorPrint.red("[Provider] window_titles required when use_optimized_capture=True")
                     return None
 
+                # D3 optimized capture: activate window first if not already foreground (reuse WindowActivator; skip if already active)
+                if set(window_titles) == set(get_d3_manager().get_capture_titles()):
+                    d3_hwnd = None
+                    canonical_label = (window_titles[0] or "").lower()
+                    cache_key = f"window_cache_{canonical_label}" if canonical_label else None
+                    if cache_key:
+                        cached_info = ENCYCLOPEDIA.get(cache_key)
+                        if cached_info:
+                            ch = cached_info.get("hwnd")
+                            if ch and win32gui.IsWindow(ch) and win32gui.IsWindowVisible(ch):
+                                d3_hwnd = ch
+                    if d3_hwnd is None:
+                        windows = get_d3_manager().find_windows()
+                        if windows and windows[0].get("hwnd"):
+                            d3_hwnd = windows[0]["hwnd"]
+                    if d3_hwnd and win32gui.GetForegroundWindow() != d3_hwnd:
+                        WindowActivator().activate_window_by_handle(d3_hwnd)
+                        time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
+                        ColorPrint.green("[Provider] D3 window activated before capture (was not foreground)")
+                    elif d3_hwnd:
+                        ColorPrint.print_min_interval("[Provider] D3 already foreground, skip activate", "1min", "gray")
+
                 ColorPrint.blue(f"[Provider] Using optimized capture for: {window_titles}")
                 result = self.screenshot_manager.screenshot_first_window_by_titles(
                     titles=window_titles,
@@ -375,7 +409,6 @@ class ScreenshotProvider:
                 fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
 
                 # Get window offset from cache (same canonical key as WindowFinder)
-                from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
                 window_offset = (0, 0)
                 if window_titles:
                     cache_key = f"window_cache_{window_titles[0].lower()}"
@@ -516,7 +549,6 @@ class ScreenshotProvider:
 
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing screenshot: {e}")
-            import traceback
             traceback.print_exc()
             return None
 
@@ -548,6 +580,28 @@ class ScreenshotProvider:
             return None
 
         return self.current_screenshot.save(output_dir, prefix)
+
+    def capture_region(
+        self,
+        left: int,
+        top: int,
+        width: int,
+        height: int,
+    ) -> Optional[Image.Image]:
+        """
+        Native screen region capture: grab only the given rect (no fullscreen then crop).
+        Uses mss sct.grab(monitor) with monitor = {left, top, width, height}.
+
+        Args:
+            left: Screen X of region top-left
+            top: Screen Y of region top-left
+            width: Region width in pixels
+            height: Region height in pixels
+
+        Returns:
+            PIL Image of the region or None if failed
+        """
+        return self.screenshot_manager.capture_screen_region(left, top, width, height)
 
     def gen_grid_region(
         self,
@@ -585,7 +639,6 @@ class ScreenshotProvider:
             )
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing grid region: {e}")
-            import traceback
             traceback.print_exc()
             return None
 
@@ -626,7 +679,6 @@ class ScreenshotProvider:
                 return None
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing grid cell ({cell_row},{cell_col}): {e}")
-            import traceback
             traceback.print_exc()
             return None
 

@@ -16,7 +16,7 @@ from typing import List, Optional, Dict, Any, Tuple, Callable
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
 
-from providor.app_constants import ROSBOT_EXE_PATTERNS
+from providor.constants.d3 import ROSBOT_EXE_PATTERNS
 from d3utils.process_helper import kill_process_by_pid
 
 try:
@@ -41,6 +41,12 @@ _DEFAULT_EXCLUDE = ("RoS-BoT.exe", "Uninstall", "setup", "install")
 
 # docs/rosbot_ui_elements.json: No items popup window title. Exclude when resolving main window (judge by title).
 _POPUP_NO_ITEMS_TITLE = "The Vault"
+
+# When result is (None, process_found=True) (process but no main window), reuse for this many seconds to avoid repeated lookup and log spam. Module-level so all callers share.
+_ROSBOT_LOOKUP_CACHE_TTL_SEC = 15.0
+_rosbot_lookup_cache: Tuple[Optional[Dict[str, Any]], bool] = (None, False)
+_rosbot_lookup_cache_at: float = 0.0
+
 
 def _normpath(path: str) -> str:
     return os.path.normpath(os.path.abspath(path)).lower()
@@ -317,7 +323,13 @@ class ROSBOTManager:
         """
         Single ROSBOT lookup: same-dir exe list only (other exes first, then main exe). Process by find_process_by_exe_name.
         Window: when content validator is set, pick the visible window that has main UI content (profileTab/btnStart); otherwise find_window_by_pid (one window by PID). No title filtering; exe is unique.
+        When result is (None, True) (process found but no main window), result is cached at module level for _ROSBOT_LOOKUP_CACHE_TTL_SEC to skip repeated lookup and log spam.
         """
+        global _rosbot_lookup_cache, _rosbot_lookup_cache_at
+        now = time.time()
+        if _rosbot_lookup_cache[0] is None and _rosbot_lookup_cache[1] is True and (now - _rosbot_lookup_cache_at) <= _ROSBOT_LOOKUP_CACHE_TTL_SEC:
+            ColorPrint.gray("[ROSBOTManager] get_rosbot_window cache hit (no main window), skip lookup")
+            return _rosbot_lookup_cache
         ros_dir = self.get_ros_directory()
         other_files = self.find_other_exe_files()
         ColorPrint.gray(
@@ -359,6 +371,8 @@ class ROSBOTManager:
                     ColorPrint.gray(
                         f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} visible window, title={winfo.get('title')!r}"
                     )
+                _rosbot_lookup_cache = (winfo, True)
+                _rosbot_lookup_cache_at = time.time()
                 return (winfo, True)
             if validator and visible_count > 0:
                 ColorPrint.gray(
@@ -381,6 +395,8 @@ class ROSBOTManager:
                     ColorPrint.gray(
                         f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} visible window, title={winfo.get('title')!r}"
                     )
+                _rosbot_lookup_cache = (winfo, True)
+                _rosbot_lookup_cache_at = time.time()
                 return (winfo, True)
             if validator and visible_count > 0:
                 ColorPrint.gray(
@@ -392,8 +408,12 @@ class ROSBOTManager:
                 )
         if any_process_found:
             ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: process(es) found but no visible main window")
+            _rosbot_lookup_cache = (None, True)
+            _rosbot_lookup_cache_at = time.time()
         else:
             ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: no process/window for same-dir exe")
+            _rosbot_lookup_cache = (None, False)
+            _rosbot_lookup_cache_at = time.time()
         return (None, any_process_found)
 
     def get_rosbot_window(self) -> Optional[Dict[str, Any]]:
@@ -432,13 +452,8 @@ class ROSBOTManager:
         return out
 
     def is_running(self) -> bool:
-        """True if main exe or any same-dir exe has a running process (exe-only, no title fallback)."""
-        if self.find_process_by_exe_name(self.rosbot_exe_name):
-            return True
-        for exe_path in self.find_other_exe_files():
-            if self.find_process_by_exe_name(os.path.basename(exe_path)):
-                return True
-        return False
+        """True if ROSBOT online (running or paused). Single source: get_rosbot_detection(); no redundant process-only check."""
+        return self.get_rosbot_detection()["status"] in ("running", "paused")
 
     def kill_if_running(self) -> bool:
         """Kill main exe and each same-dir exe process (find_process_by_exe_name -> pid -> kill)."""

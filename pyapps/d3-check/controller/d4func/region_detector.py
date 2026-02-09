@@ -16,7 +16,7 @@ sys.path.insert(0, str(current_dir))
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.i18n_manager import I18nManager
 # D4State functionality now integrated into D4InterfaceData
-from providor.app_constants import D4_ANNOTATED_DIR
+from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (
     D4_STANDARD_COORDS,
     D4_STANDARD_RESOLUTION_WIDTH,
@@ -24,9 +24,9 @@ from share.game_interface_data import (
     calculate_unified_scaled_coordinate,
     get_d4_interface_data,
 )
-from d4utils.window_region_detector import get_d4_window_region_detector
-from d4utils.team_health_detector import get_d4_team_health_detector
-from d4utils.small_map_detector import get_d4_small_map_detector
+from d4utils.d4_window_region_detector import get_d4_window_region_detector
+from d4utils.d4_team_health_detector import get_d4_team_health_detector
+from d4utils.d4_small_map_detector import get_d4_small_map_detector
 from pycore.pyutils.image_crop import ImageCrop
 
 

@@ -13,13 +13,16 @@
         "exit": "退出"
       }
     },
+    "button_area": {
+      "start_d3": "启动D3"
+    },
     "tabs": {
       "main_functions": "D3 主要功能",
       "auxiliary_functions": "D3 辅助功能",
       "log": "日志",
       "rosbot_extension": "D3 Rosbot扩展",
       "d4_functions": "D4功能",
-      "coordinate_calibration": "坐标效准"
+      "coordinate_calibration": "坐标校准"
     },
     "macro_controls": {
       "start_macro": "启动宏",

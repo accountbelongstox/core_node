@@ -6,11 +6,12 @@ Handles system-wide initialization including configuration, hotkeys, and signal 
 Ctrl+C (signal or global hotkey) only triggers exit when the current app's console window is foreground.
 """
 
-import sys
+import ctypes
 import os
-import signal
-import threading
 import platform
+import signal
+import sys
+import threading
 from typing import Optional
 
 from share.project_path import ensure_d3_check_in_sys_path
@@ -30,14 +31,12 @@ import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
-from runtime import get_thread_registry
 
 def _is_console_foreground() -> bool:
     """True if the current process console (CMD) is the foreground window, or no console. Only then allow Ctrl+C to exit."""
     if platform.system() != "win32":
         return True
     try:
-        import ctypes
         kernel32 = ctypes.windll.kernel32
         user32 = ctypes.windll.user32
         console_hwnd = kernel32.GetConsoleWindow()
@@ -210,8 +209,13 @@ class SystemInitializer:
             ColorPrint.red(f"[INIT] Failed to initialize task thread manager: {e}")
             raise
 
-    def initialize_system(self):
-        """Initialize the entire system"""
+    def initialize_system(self, gui_mode: bool = False):
+        """
+        Initialize the entire system.
+
+        gui_mode: If True (GUI start), do not register SIGINT/Ctrl+C for exit;
+                  exit only via UI. If False (bridge/tray), register Ctrl+C and show prompt.
+        """
         if self.initialized:
             ColorPrint.yellow("[INIT] System already initialized")
             return True
@@ -219,12 +223,12 @@ class SystemInitializer:
         try:
             ColorPrint.blue("[INIT] Starting system initialization...")
 
-            # Setup signal handlers first
-            self._setup_signal_handlers()
-
-            # Setup Ctrl+C hotkey using hotkey_listener
-            if not self._setup_ctrl_c_hotkey():
-                ColorPrint.yellow("[INIT] Ctrl+C hotkey setup failed")
+            if not gui_mode:
+                # Setup signal handlers and Ctrl+C hotkey only when not in UI mode (bridge/tray)
+                self._setup_signal_handlers()
+                if not self._setup_ctrl_c_hotkey():
+                    ColorPrint.yellow("[INIT] Ctrl+C hotkey setup failed")
+            # GUI mode: do not register any Ctrl+C handler or hotkey (handled at end of init after all imports)
 
             # Initialize configuration
             if not self.initialize_configuration():
@@ -237,6 +241,24 @@ class SystemInitializer:
             # Initialize timer system
             if not self.initialize_timer_system():
                 ColorPrint.yellow("[INIT] Timer system initialization failed, but continuing...")
+
+            # GUI mode: ignore SIGINT/SIGBREAK after all init; re-apply every tick so Fortran/numpy (loaded later) cannot cause forrtl control-C abort
+            if gui_mode:
+                global _gui_mode_sigint_ignored
+                _gui_mode_sigint_ignored = True
+                try:
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+                    if hasattr(signal, "SIGBREAK"):
+                        signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+                    ColorPrint.blue("[INIT] GUI mode: Ctrl+C ignored (close via UI only)")
+                    timer_manager.register_task(
+                        name="sigint_guard",
+                        interval=1.0,
+                        callback=_reapply_sigint_sigbreak_ignore,
+                        enabled=True,
+                    )
+                except Exception:
+                    pass
 
             self.initialized = True
             ColorPrint.green("[INIT] System initialization completed successfully")
@@ -255,7 +277,8 @@ class SystemInitializer:
         return is_shutdown_requested()
 
     def start_timer_loop_after_ui_ready(self):
-        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner)."""
+        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner). Lazy import to avoid circular: runtime.thread_registry -> system_initializer -> runtime."""
+        from runtime.thread_registry import get_thread_registry
         get_thread_registry().start_timer_loop_after_ui_ready()
 
     def register_ui_instance(self, ui_instance):
@@ -280,6 +303,26 @@ class SystemInitializer:
 
 # Global system initializer instance
 _system_initializer: Optional[SystemInitializer] = None
+_gui_mode_sigint_ignored: bool = False
+
+
+def _reapply_sigint_sigbreak_ignore() -> None:
+    """Re-apply SIG_IGN so Fortran/numpy (loaded later) cannot override and cause forrtl control-C abort."""
+    global _gui_mode_sigint_ignored
+    if not _gui_mode_sigint_ignored:
+        return
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+    except Exception:
+        pass
+
+
+def reapply_sigint_sigbreak_ignore_for_gui() -> None:
+    """Public: re-apply SIG_IGN for GUI mode (call when timer loop starts so forrtl control-C is ignored)."""
+    _reapply_sigint_sigbreak_ignore()
+
 
 def get_system_initializer() -> SystemInitializer:
     """Get the global system initializer instance (singleton)"""

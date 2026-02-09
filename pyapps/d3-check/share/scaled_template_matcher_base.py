@@ -10,8 +10,11 @@ Subclass provides: standard_width, standard_height, get_scale_factors(), get_tem
 from typing import Optional, Union, Dict, List, Tuple, Callable
 from pathlib import Path
 
+from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyutils.image_matcher import ImageMatcher
+from share.template_match_debug import notify_match
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -19,6 +22,11 @@ np = numpy
 Image = get_third_package_PIL_Image()
 
 __all__ = ["ScaledTemplateMatcherBase", "cv2", "np", "Image", "numpy", "load_template_and_scale_by_resolution"]
+
+
+def _ensure_provider_imports():
+    """Return ColorPrint and ImageMatcher (imports at module top to avoid late-binding issues)."""
+    return ColorPrint, ImageMatcher
 
 
 def load_template_and_scale_by_resolution(
@@ -45,13 +53,6 @@ def load_template_and_scale_by_resolution(
     new_h = max(1, int(h * scale_y))
     interp = cv2.INTER_AREA if (scale_x < 1.0 or scale_y < 1.0) else cv2.INTER_CUBIC
     return cv2.resize(img, (new_w, new_h), interpolation=interp)
-
-
-def _ensure_provider_imports():
-    """Lazy import to avoid circular imports when share is loaded first."""
-    from pycore.pyfoundations.color_print import ColorPrint
-    from pycore.pyutils.image_matcher import ImageMatcher
-    return ColorPrint, ImageMatcher
 
 
 class ScaledTemplateMatcherBase:
@@ -225,9 +226,20 @@ class ScaledTemplateMatcherBase:
             use_alpha=use_alpha,
             detection_method=match_method
         )
-        if match_result and match_result.get("success"):
-            return {"total_matches": 1, "matches": [match_result]}
-        return {"total_matches": 0, "matches": []}
+        result = {"total_matches": 1, "matches": [match_result]} if (match_result and match_result.get("success")) else {"total_matches": 0, "matches": []}
+        try:
+            notify_match(
+                template_name=template_name,
+                result=result,
+                target_img_array=target_img_array,
+                template_img_array=scaled_template_img,
+                match_method=cfg.get("match_method", "ORB"),
+                expected_threshold=threshold,
+                first_match=result.get("matches", [None])[0] if result.get("matches") else None,
+            )
+        except Exception:
+            pass
+        return result
 
     def _match_single_with_scale(
         self,

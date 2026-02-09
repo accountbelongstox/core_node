@@ -34,9 +34,10 @@ class I18nManager:
         self.i18n_dir = os.path.join(self.providor_dir, "i18n")
         self.i18n_config_path = os.path.join(self.providor_dir, "i18n_config.json")
 
-        # Language configuration
-        self.current_language = "zh"  # Default Chinese
-        self.supported_languages = ["zh", "en"]
+        # Language configuration (only from config; no hardcoded defaults in code)
+        self.current_language = ""
+        self.supported_languages = []
+        self._language_names = {}
         self.translations = {}
         
         # Listener list for language changes
@@ -59,8 +60,9 @@ class I18nManager:
                 with open(self.i18n_config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                 
-                self.current_language = config.get('default_language', 'zh')
-                self.supported_languages = config.get('supported_languages', ['zh', 'en'])
+                self.current_language = config.get('default_language') or ""
+                self.supported_languages = config.get('supported_languages') or []
+                self._language_names = config.get('language_names') or {}
                 self.translations = config.get('translations', {})
                 
                 ColorPrint.green(f"[I18nManager] Loaded single file i18n config, current language: {self.current_language}")
@@ -81,11 +83,13 @@ class I18nManager:
                 with open(base_config_path, 'r', encoding='utf-8') as f:
                     base_config = json.load(f)
                 
-                self.current_language = base_config.get('default_language', 'zh')
-                self.supported_languages = base_config.get('supported_languages', ['zh', 'en'])
+                self.current_language = base_config.get('default_language') or ""
+                self.supported_languages = base_config.get('supported_languages') or []
+                self._language_names = base_config.get('language_names') or {}
             else:
-                self.current_language = "zh"
-                self.supported_languages = ["zh", "en"]
+                self.current_language = ""
+                self.supported_languages = []
+                self._language_names = {}
             
             # Load translation files for each language
             self.translations = {}
@@ -115,6 +119,7 @@ class I18nManager:
             f"i18n_errors_{language}.json"
         ]
         
+        loaded = []
         for pattern in file_patterns:
             file_path = os.path.join(self.i18n_dir, pattern)
             if os.path.exists(file_path):
@@ -124,10 +129,12 @@ class I18nManager:
                     
                     # Merge into translation dictionary
                     self._merge_dict(translations, file_data)
-                    ColorPrint.blue(f"[I18nManager] Loaded {pattern}")
+                    loaded.append(pattern)
                     
                 except Exception as e:
                     ColorPrint.red(f"[I18nManager] Failed to load {pattern}: {e}")
+        if loaded:
+            ColorPrint.blue(f"[I18nManager] Loaded {', '.join(loaded)}")
         
         return translations
     

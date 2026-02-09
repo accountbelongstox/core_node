@@ -13,11 +13,12 @@ Documentation (Windows API):
   We only include DRIVE_FIXED (3); skip REMOVABLE, CDROM, REMOTE.
 """
 
+import ctypes
 import os
 import string
 from typing import List, Optional
 
-from providor.app_constants import (
+from providor.constants.common import (
     DRIVE_FIXED,
     DRIVE_REMOTE,
     DRIVE_REMOVABLE,
@@ -49,7 +50,6 @@ def get_fixed_drive_roots_for_scan(use_cache: bool = True) -> List[str]:
         return _cached_fixed_roots
 
     try:
-        import ctypes
         kernel32 = ctypes.windll.kernel32
         # GetLogicalDrives: bitmask, bit 0 = A:, bit 1 = B:, ...
         bitmask = kernel32.GetLogicalDrives()

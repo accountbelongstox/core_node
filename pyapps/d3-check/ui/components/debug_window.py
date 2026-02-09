@@ -11,10 +11,11 @@ import sys
 import os
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk, get_third_package_PIL_ImageDraw
 
 Image = get_third_package_PIL_Image()
 ImageTk = get_third_package_PIL_ImageTk()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
@@ -203,6 +204,66 @@ class DebugWindow:
         self.d3_bag_image_label.pack(padx=5, pady=5)
         self.d3_bag_photo = None
 
+    def _draw_d3_bag_grid_on_pil(self, pil_img, coords, layout):
+        """Draw grid and quality labels on cropped bag PIL image (same logic as _draw_bag_layout_grid)."""
+        if pil_img is None or coords is None:
+            return pil_img
+        try:
+            img = pil_img.copy()
+            draw = ImageDraw.Draw(img)
+            w, h = img.size
+            rows, cols = coords.rows, coords.cols
+            slot_w = w / cols
+            slot_h = h / rows
+            # Quality color (RGB): same as image_annotator_helper
+            quality_colors = {
+                'empty': (100, 100, 100),
+                'legendary_set': (0, 200, 0),
+                'legendary': (255, 165, 0),
+                'rare': (255, 255, 0),
+                'magic': (0, 128, 255),
+                'unknown': (128, 128, 128),
+            }
+            grid_color = (160, 160, 160)
+            # Grid lines
+            for col in range(cols + 1):
+                x = int(col * slot_w)
+                draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
+            for row in range(rows + 1):
+                y = int(row * slot_h)
+                draw.line([(0, y), (w, y)], fill=grid_color, width=1)
+            # Slot quality labels
+            if layout and getattr(layout, "layout", None) and getattr(layout, "items", None):
+                layout_grid = layout.layout
+                items = layout.items
+                for row in range(rows):
+                    for col in range(cols):
+                        if layout_grid[row][col] == 'item_2slot_bottom':
+                            continue
+                        cx = int((col + 0.5) * slot_w)
+                        cy = int((row + 0.5) * slot_h)
+                        info = items.get((row, col))
+                        if not info:
+                            continue
+                        quality = info.get('quality', 'unknown')
+                        color = quality_colors.get(quality, (128, 128, 128))
+                        letter = quality[0].upper() if quality else '?'
+                        # Draw small filled rect as marker
+                        r = max(2, min(int(slot_w * 0.15), int(slot_h * 0.15)))
+                        draw.rectangle(
+                            [cx - r, cy - r, cx + r, cy + r],
+                            outline=color,
+                            fill=color,
+                            width=2
+                        )
+                        # Text (default font, small)
+                        tw, th = 8, 10
+                        draw.text((cx - tw // 2, cy - th // 2), letter, fill=(255, 255, 255))
+            return img
+        except Exception as e:
+            ColorPrint.yellow(f"[DebugWindow] _draw_d3_bag_grid_on_pil: {e}")
+            return pil_img
+
     def _update_d3_bag_section(self):
         """Refresh D3 bag section from get_game_interface_data() (bag_coordinates, bag_layout)."""
         try:
@@ -228,8 +289,26 @@ class DebugWindow:
 
             if layout and getattr(layout, "items", None):
                 items = layout.items
-                occupied = sum(1 for v in items.values() if v.get("type") != "empty" if isinstance(v, dict) else True)
+                occupied = sum(1 for v in items.values() if isinstance(v, dict) and v.get("type") != "empty")
                 lines.append(f"Occupied: {occupied} / {coords.total_slots}")
+                # Quality counts (same as bag_layout_detector: legendary_set/legendary/rare/magic)
+                quality_count = {
+                    'legendary_set': 0,
+                    'legendary': 0,
+                    'rare': 0,
+                    'magic': 0,
+                    'unknown': 0,
+                    'empty': 0,
+                }
+                for v in items.values():
+                    if not isinstance(v, dict):
+                        continue
+                    q = v.get('quality', 'unknown')
+                    quality_count[q] = quality_count.get(q, 0) + 1
+                lines.append("")
+                lines.append("Quality:")
+                lines.append(f"  Legendary set: {quality_count.get('legendary_set', 0)}  Legendary: {quality_count.get('legendary', 0)}  Rare: {quality_count.get('rare', 0)}  Magic: {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
+                lines.append("")
                 for (r, c), info in sorted(items.items()):
                     if not isinstance(info, dict):
                         continue
@@ -252,6 +331,7 @@ class DebugWindow:
                     right = max(left, min(right, game_img.width))
                     bottom = max(top, min(bottom, game_img.height))
                     cropped = game_img.crop((left, top, right, bottom))
+                    cropped = self._draw_d3_bag_grid_on_pil(cropped, coords, layout)
                     max_w = 320
                     if cropped.width > max_w:
                         ratio = max_w / cropped.width

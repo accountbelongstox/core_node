@@ -370,7 +370,7 @@ class HotkeyInput(tk.Entry):
             # Update placeholder if showing
             current_value = self.get()
             # Check if placeholder is currently shown (need to check both languages)
-            if not self.current_hotkey or current_value in ["按下热键...", "Press hotkey..."]:
+            if not self.current_hotkey or current_value in ["Press hotkey..."]:
                 self._set_placeholder()
             else:
                 # If showing a hotkey, we might need to update it if it contains i18n key names

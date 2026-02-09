@@ -167,6 +167,9 @@ DEPENDENCY_MAP = {
 
     # For phonetic transcription (IPA - International Phonetic Alphabet)
     "eng_to_ipa": "eng-to-ipa",
+
+    # For machine-bound password encryption (Fernet)
+    "cryptography": "cryptography",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -640,6 +643,11 @@ def get_third_package_aiohttp_web():
 def get_third_package_yaml():
     """Get yaml package (lazy load)"""
     return _lazy_import('yaml', 'import yaml')
+
+
+def get_third_package_cryptography():
+    """Get cryptography package (lazy load, for Fernet)"""
+    return _lazy_import('cryptography', 'import cryptography')
 
 
 # PIL/Pillow packages

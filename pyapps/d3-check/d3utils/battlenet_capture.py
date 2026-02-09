@@ -8,24 +8,27 @@ from pathlib import Path
 from typing import Optional, Tuple, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
 
-from providor.app_constants import LOGIN_TRY_SCREENSHOT_PREFIX
+from providor.constants.common import LOGIN_TRY_SCREENSHOT_PREFIX
 from config.screenshot_categories import get_screenshot_category_manager
 from d3utils.screenshot_provider import get_screenshot_provider
+from d3utils.battlenet_manager import get_battlenet_manager
 
 
 def capture_battlenet_and_save_to_category(
     category: str = "login_try",
 ) -> Tuple[Optional[Any], Optional[Path]]:
     """
-    Capture Battle.net window, save to category directory, clean older files in that category.
+    Capture Battle.net window (find by exe via BattleNetManager), save to category directory, clean older files.
     Returns (screenshot_data, path) or (None, None) on failure.
     """
+    if not get_battlenet_manager().prime_window_cache_for_capture():
+        ColorPrint.yellow("[BattlenetCapture] Battle.net window not found")
+        return None, None
     provider = get_screenshot_provider()
     screenshot_data = provider.gen(
         use_optimized_capture=True,
-        window_titles=list(BATTLE_NET_WINDOW_TITLES),
+        window_titles=["Battle.net"],
     )
     if screenshot_data is None or screenshot_data.game_window_image is None:
         ColorPrint.yellow("[BattlenetCapture] Battle.net window not found")

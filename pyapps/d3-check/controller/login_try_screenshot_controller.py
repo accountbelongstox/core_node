@@ -18,10 +18,8 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
-from providor.app_constants import TEMPLATE_DIR, STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT
-from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS, CONFIG, DIABLO_III_WINDOW_TITLES
-from pycore.pyutils.common.window_finder import WindowFinder
-from providor.app_constants import (
+from providor.constants.common import (
+    TEMPLATE_DIR,
     LOGIN_TRY_SCREENSHOT_DIR,
     LOGIN_TRY_SCREENSHOT_PREFIX,
     BATTLE_NET_DISCONNECT_KEYWORDS,
@@ -34,22 +32,31 @@ from providor.app_constants import (
     BATTLE_NET_CN_AGREE_CLICK_Y,
     BATTLE_NET_CN_NETEASE_CLICK_X,
     BATTLE_NET_CN_NETEASE_CLICK_Y,
-    BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME,
-    BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME,
-    BATTLE_NET_PLAY_BUTTON_LEFT_PX,
-    BATTLE_NET_PLAY_BUTTON_BOTTOM_PX,
     CLICK_MOVE_DURATION_SEC,
     CLICK_PAUSE_AFTER_MOVE_SEC,
 )
-from share.game_interface_data import get_game_interface_data
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
+from providor.constants.d3 import (
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT,
+    C3_C3W_TIMEOUT_SEC,
+    C3W_WAIT_SEC,
+    BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME,
+    BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME,
+)
+from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS, CONFIG
+from pycore.pyutils.common.window_finder import WindowFinder
+from share.game_interface_data import (
+    get_game_interface_data,
+    get_request_d_block_from_b7,
+    get_and_clear_request_d_block_from_b7,
+)
 from d3utils.battlenet_manager import get_battlenet_manager
+from d3utils.rosbot_flow_battlenet import is_bn_flow_in_login_phase
 from d3utils.d3_manager import get_d3_manager
 from d3utils.window_resizer import resize_window_by_titles_to_client_size
 from d3utils.d3_start_game_and_teleport_waiter import (
-    wait_for_and_click_start_game,
-    detect_d3_already_running_state,
-    check_d3_online_by_m_similarity,
+    capture_and_detect_all_d3_states,
+    click_start_game_button_if_found,
     try_fragment1_click_start_game_wait_game_tool,
     try_fragment2_game_tool_press_m_then_clicks,
     send_m_then_teleport_three_clicks,
@@ -69,7 +76,15 @@ from d3utils.ocr_helper import (
 )
 from d3utils.battlenet_capture import capture_battlenet_and_save_to_category
 from d3utils.battlenet_operation import get_battlenet_operation
-from d3utils.rosbot_flow_battlenet import get_and_clear_battlenet_tick_confirmed, reset_battlenet_flow_state
+from d3utils.rosbot_flow_battlenet import get_and_clear_battlenet_tick_confirmed, reset_flow_master_bn_block
+from d3utils.rosbot_flow.flow_c_d3_direct import (
+    run_c1_entry,
+    run_c2_resize,
+    run_c3_screenshot_state,
+    run_c4_branch_result,
+    run_c4_disconnect_then_f1d_f1c,
+    run_c12_end_d3,
+)
 from d3utils.battlenet_template_matcher import match_battlenet_template
 from d3utils.battlenet_match_debug import debug_all_match_methods as run_battlenet_match_debug
 from d3utils.d3u_common.image_annotator_helper import save_match_debug_image, save_no_match_debug_image, save_click_debug_image
@@ -145,55 +160,44 @@ class LoginTryScreenshotController:
 
     def handle_login_try(self) -> None:
         """
-        On "Login try" in log: capture Battle.net window, OCR for disconnect keywords;
-        if found, treat as disconnect and restart Battle.net.exe (taskkill + explorer).
-        Uses config battlenet.battlenet_path and BATTLE_NET_WINDOW_TITLES; no Python threading.
+        On "Login try" in log: check Battle.net state via UI only; if disconnected, restart.
+        Uses config battlenet.battlenet_path; no screenshot/OCR.
         """
         bn_path = get_battlenet_manager().get_path()
         if not bn_path:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path in config")
-            self.capture_screenshot()
             return
-
-        img_path = self._capture_battlenet_window()
-        if img_path is None:
-            self.capture_screenshot()
+        op = get_battlenet_operation()
+        _, disconnected, *_ = op.get_dynamic_state()
+        if not disconnected:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net not disconnected (UI), skip restart")
             return
-
-        if not self._ocr_has_disconnect_keywords(img_path):
-            ColorPrint.blue("[LoginTryScreenshotController] No disconnect keywords, skip restart")
-            return
-
-        ColorPrint.blue("[LoginTryScreenshotController] Disconnect detected, restarting Battle.net...")
+        ColorPrint.blue("[LoginTryScreenshotController] Disconnect detected (UI), restarting Battle.net...")
         get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
 
     def handle_screenshot_trigger(self) -> None:
         """
-        Screenshot trigger: capture Battle.net window, run OCR once; CN region (agree/NetEase login) first,
-        then need-login. Same OCR for both branches, no ocr_has_any_keywords (no "Keyword in UI" log).
+        Screenshot trigger: check Battle.net state via UI only; if on login run CN flow (UI), if disconnected restart.
+        No screenshot/OCR.
         """
         bn_path = get_battlenet_manager().get_path()
         if not bn_path:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path in config, skip screenshot trigger")
             return
-        screenshot_data, img_path = capture_battlenet_and_save_to_category("login_try")
-        if screenshot_data is None or img_path is None:
-            ColorPrint.yellow("[LoginTryScreenshotController] Battle.net window not found, skip screenshot trigger")
+        op = get_battlenet_operation()
+        on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+        if normal_available:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net normal_available (UI), skip re-login")
             return
-        ocr_result = ocr_get_result(img_path)
-        ocr_text = (ocr_result or {}).get("text") or ""
-        cn_agree_netease = BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
-        has_cn = any(kw in ocr_text for kw in cn_agree_netease)
-        if has_cn:
-            ColorPrint.blue("[LoginTryScreenshotController][CN] Detected CN region login (agree/NetEase login), run flow")
-            self._run_cn_login_flow(screenshot_data, ocr_result or {}, ClickHandler(), img_path=img_path)
+        if disconnected:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net disconnected (UI), restart...")
+            get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
             return
-        has_need_login = any(kw in ocr_text for kw in BATTLE_NET_NEED_LOGIN_KEYWORDS)
-        if not has_need_login:
-            ColorPrint.blue("[LoginTryScreenshotController] No need-login keywords, skip re-login")
+        if on_login:
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login (UI), run CN flow (UI only)")
+            self._run_cn_login_flow_ui_only(ClickHandler())
             return
-        ColorPrint.blue("[LoginTryScreenshotController] Need-login text detected, triggering re-login (restart)...")
-        get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+        ColorPrint.blue("[LoginTryScreenshotController] Battle.net state not login/disconnect/normal, skip")
 
     def _run_cn_login_flow(
         self,
@@ -268,6 +272,17 @@ class LoginTryScreenshotController:
         time.sleep(5)
         self._run_cn_login_flow_click_login_button(clicker)
 
+    def _run_cn_login_flow_ui_only(self, clicker: ClickHandler) -> None:
+        """Run CN login flow using only UI Automation (no screenshot/OCR)."""
+        cn_log = "[LoginTryScreenshotController][CN]"
+        op = get_battlenet_operation()
+        if op.is_on_login_screen():
+            if op.perform_cn_login_flow():
+                ColorPrint.blue(f"{cn_log} UI login flow done (agree + NetEase), proceeding to Login button")
+                self._run_cn_login_flow_click_login_button(clicker)
+            else:
+                ColorPrint.yellow(f"{cn_log} perform_cn_login_flow failed (not CN or UI not found), skip")
+
     def _run_cn_login_flow_click_login_button(self, clicker: ClickHandler) -> None:
         """After agree + NetEase + wait: click Login button via UI Automation only (no fullscreen/OCR)."""
         cn_log = "[LoginTryScreenshotController][CN]"
@@ -283,6 +298,122 @@ class LoginTryScreenshotController:
         get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
         time.sleep(5)
 
+    def _run_d_block_launch_d3_only(
+        self, bn_path: Path, clicker: ClickHandler, kill_d3_first: bool
+    ) -> bool:
+        """
+        D block only: ensure BN logged in, optionally kill D3, activate BN, click D3 tab + Play,
+        [D12] sleep(5), poll D3 window 10s. On D3 found: set_d3_status(True) and return True.
+        No C branch, no ROSBOT. Reused from ensure_battlenet_started_and_login_check D block.
+        """
+        if not self._ensure_battlenet_logged_in_first(bn_path, clicker):
+            return False
+        op = get_battlenet_operation()
+        max_rounds = 3
+        max_outer_retries = 3
+        for outer_round in range(max_outer_retries):
+            for round_idx in range(max_rounds):
+                ColorPrint.gray("[LoginTryScreenshotController] [D-only] progress: find_windows...")
+                windows = get_battlenet_manager().find_windows()
+                if not windows:
+                    ColorPrint.blue("[LoginTryScreenshotController] [D-only] [D2] No Battle.net window -> start Battle.net -> wait")
+                    get_battlenet_manager().start(bn_path)
+                    time.sleep(3)
+                    continue
+                if kill_d3_first:
+                    ColorPrint.gray("[LoginTryScreenshotController] [D-only] progress: kill_if_running + sleep(5)...")
+                    get_d3_manager().kill_if_running()
+                    time.sleep(5)
+                ColorPrint.gray("[LoginTryScreenshotController] [D-only] progress: tray + activate_window...")
+                clicker.find_and_click_tray_icon(instant=True, interval_after=1.0)
+                if not get_battlenet_manager().activate_window():
+                    if round_idx < max_rounds - 1:
+                        continue
+                    return False
+                time.sleep(1)
+                on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+                if disconnected:
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                if on_login:
+                    self._run_cn_login_flow_ui_only(clicker)
+                    time.sleep(2)
+                    continue
+                if not normal_available:
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                if not op.click_d3_tab():
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                time.sleep(0.8)
+                if not op.click_start_game():
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                break
+            else:
+                continue
+            ColorPrint.gray("[LoginTryScreenshotController] [D-only] [D12] sleep(5) then poll D3 window 10s...")
+            time.sleep(5)
+            _poll_sec = 10
+            already_restarted = False
+            for poll_i in range(_poll_sec):
+                time.sleep(1)
+                d3_windows = get_d3_manager().find_windows()
+                if d3_windows:
+                    get_game_interface_data().set_d3_status(True)
+                    ColorPrint.green("[LoginTryScreenshotController] [D-only] D3 window found, set_d3_status(True)")
+                    return True
+                if poll_i == 0 or poll_i % 2 == 0:
+                    ColorPrint.gray(f"[LoginTryScreenshotController] [D-only] poll #{poll_i + 1}/{_poll_sec} -> not found")
+            self._restart_battlenet_and_retry_from_step1(bn_path)
+            continue
+        ColorPrint.yellow("[LoginTryScreenshotController] [D-only] Exhausted retries")
+        return False
+
+    def ensure_d3_running_from_battlenet_no_rosbot(self) -> bool:
+        """
+        If D3 online then disconnected: restart from Battle.net (kill D3 + BN flow, no ROSBOT).
+        If D3 not online: start from Battle.net (BN flow, no ROSBOT).
+        If D3 online and not disconnected: do nothing, return True.
+        Disconnected = SIFT match of d3_disconnected template (d3_disconnected.png) in D3 window;
+        requires two consecutive captures to confirm (same as C3), to avoid single weak match false positive.
+        """
+        bn_path = get_battlenet_manager().get_path()
+        if not bn_path:
+            ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path, skip ensure_d3_running_from_battlenet_no_rosbot")
+            return False
+        d3_windows = get_d3_manager().find_windows()
+        has_d3 = bool(d3_windows)
+        if has_d3:
+            titles = tuple(get_d3_manager().get_capture_titles())
+            try:
+                _sd, state_dict = capture_and_detect_all_d3_states(window_titles=titles)
+                disconnected = state_dict.get("disconnected", False)
+                if not disconnected:
+                    ColorPrint.gray("[LoginTryScreenshotController] D3 online and not disconnected, skip")
+                    return True
+                ColorPrint.gray("[LoginTryScreenshotController] First capture: d3_disconnected template matched; confirming with second capture (avoid false positive)...")
+                # Confirm twice (same as C3) to avoid single weak match false positive (ROSBOT_FLOW_MERMAID.md)
+                time.sleep(C3W_WAIT_SEC)
+                _sd2, state_dict2 = capture_and_detect_all_d3_states(window_titles=titles)
+                if not state_dict2.get("disconnected", False):
+                    ColorPrint.gray("[LoginTryScreenshotController] D3 disconnect not confirmed (second capture != disconnect), skip")
+                    return True
+                ColorPrint.blue("[LoginTryScreenshotController] D3 online then disconnected (confirmed twice) -> restart from Battle.net")
+                kill_d3_first = True
+            except Exception as e:
+                ColorPrint.yellow(f"[LoginTryScreenshotController] detect D3 state error: {e}, treat as restart")
+                kill_d3_first = True
+        else:
+            ColorPrint.blue("[LoginTryScreenshotController] D3 not online -> start from Battle.net")
+            kill_d3_first = False
+        clicker = ClickHandler()
+        return self._run_d_block_launch_d3_only(bn_path, clicker, kill_d3_first)
+
     def _ensure_battlenet_logged_in_first(self, bn_path: Path, clicker: ClickHandler) -> bool:
         """
         Ensure Battle.net is logged in (normal_available) before any D3 operation.
@@ -291,11 +422,7 @@ class LoginTryScreenshotController:
         Caller must only run the D3-already-running branch when this returns True.
         """
         op = get_battlenet_operation()
-        windows = WindowFinder.find_windows_by_titles(
-            titles=list(BATTLE_NET_WINDOW_TITLES),
-            match_mode="in",
-            use_cache=False,
-        )
+        windows = get_battlenet_manager().find_windows()
         if not windows:
             ColorPrint.blue("[LoginTryScreenshotController] Battle.net window not found, starting Battle.net...")
             get_battlenet_manager().start(bn_path)
@@ -319,11 +446,8 @@ class LoginTryScreenshotController:
                     get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
                     time.sleep(5)
                     continue
-                ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), running login flow first...")
-                screenshot_data, img_path = capture_battlenet_and_save_to_category("login_try")
-                if screenshot_data and img_path:
-                    ocr_result = ocr_get_result(img_path) or {}
-                    self._run_cn_login_flow(screenshot_data, ocr_result, clicker, img_path=img_path)
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), running login flow (UI only)...")
+                self._run_cn_login_flow_ui_only(clicker)
                 time.sleep(3)
                 continue
             time.sleep(2)
@@ -343,21 +467,78 @@ class LoginTryScreenshotController:
         clicker = ClickHandler()
         return self._ensure_battlenet_logged_in_first(bn_path, clicker)
 
+    def _run_c3_loop_and_handle_branch(self) -> str:
+        """
+        [C3] One step per tick: screenshot -> match all (start/game_tool/disconnected/connecting); branch on result.
+        Caller must have done C2 (resize) before. Returns "success" if start or game_tool path completed with ROSBOT;
+        "fallthrough" for disconnect / other / timeout (caller continues to D or retry).
+        Doc: no-match/timeout 1min -> C12. Timeout=1min from C3 loop entry; if d3_start_game_button detected then click and reset 1min (Start Game may be stuck and retry).
+        """
+        c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # Timer start: on C3 loop entry (after C2)
+        state = None
+        while time.time() < c3_deadline:
+            state = run_c3_screenshot_state()
+            if state == "disconnect":
+                time.sleep(C3W_WAIT_SEC)
+                state2 = run_c3_screenshot_state()
+                if state2 == "disconnect":
+                    break
+                ColorPrint.gray("[LoginTryScreenshotController] [C3] disconnect not confirmed (second step != disconnect), continue loop")
+                time.sleep(C3W_WAIT_SEC)
+                continue
+            if state == "game_tool":
+                break
+            if state == "start":
+                if click_start_game_button_if_found():
+                    c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # On start: click and reset 1min
+                    ColorPrint.gray("[LoginTryScreenshotController] [C3] d3_start_game_button detected, clicked and reset 1min (Start Game may be stuck)")
+                time.sleep(C3W_WAIT_SEC)
+                continue
+            time.sleep(C3W_WAIT_SEC)
+        if time.time() >= c3_deadline and state not in ("disconnect", "start", "game_tool"):
+            state = run_c3_screenshot_state()
+        ColorPrint.gray("[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> %s" % (state,))
+        branch_result = run_c4_branch_result(state)
+        ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s" % branch_result)
+        if branch_result == "disconnect":
+            ColorPrint.yellow("[LoginTryScreenshotController][C4] D3 disconnected (template or C10b), F1d+F1c then C12->D1")
+            run_c4_disconnect_then_f1d_f1c()
+            return "fallthrough"
+        if branch_result == "start":
+            r1 = try_fragment1_click_start_game_wait_game_tool()
+            if r1 is True and send_m_then_teleport_three_clicks():
+                get_game_interface_data().set_d3_status(True)
+                get_rosbot_manager().kill_if_running()
+                time.sleep(1)
+                if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                    start_rosbot_task()
+                    run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
+                return "success"
+            if r1 is False or r1 is None:
+                run_c12_end_d3()
+            return "fallthrough"
+        if branch_result == "game_tool":
+            if try_fragment2_game_tool_press_m_then_clicks():
+                get_game_interface_data().set_d3_status(True)
+                get_rosbot_manager().kill_if_running()
+                time.sleep(1)
+                if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                    start_rosbot_task()
+                    run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
+                return "success"
+            run_c12_end_d3()  # [C6] path fail -> C12 (doc: fallthrough to D)
+            return "fallthrough"
+        run_c12_end_d3()
+        return "fallthrough"
+
     def ensure_battlenet_started_and_login_check(self) -> bool:
         """
         Step 1 for starting ROSBOT: ensure Battle.net window, capture screenshot. Three states, reuse code only, do not mix flows:
-        D3-already-running: if D3 window exists, resize then detect_d3_already_running_state() -> branch:
-          state "start" (state 2): try_fragment1 only; on True do send_m_then_teleport_three_clicks (no fragment2).
-          state "game_tool" (state 3): try_fragment2 only (no fragment1).
-          None: kill D3, fall through to Battle.net flow.
-        Battle.net flow (state 1): if screenshot has D3 small map -> click small map, click Play, then proceed to game.
-        2) If screenshot has no D3 small map -> run OCR once; if CN region (agree/NetEase login) run CN flow:
-           click first char of agree -> click NetEase login -> wait 5s -> fullscreen OCR click Login,
-           then retry from step 1 (next round re-capture).
-        3) Not CN and need-login -> restart Battle.net, retry from step 1.
-        4) Not CN and no small map -> restart Battle.net, retry from step 1.
-        After Play: wait for d3_start_game_button (10 x 2s), then d3_game_tool (10 x 2s). If either fails, restart and retry from step 1.
-        Returns True if step completed (D3 small map found or D3 direct path success), False if config missing or window unavailable.
+        D3-already-running (C branch): if D3 window exists, [C2] resize then [C3] loop (screenshot+match all) -> branch:
+          start -> try_fragment1; game_tool -> try_fragment2; disconnect -> F1d+F1c; other/timeout -> kill D3, fall to D.
+        Battle.net flow (D block): ensure BN window, kill D3, activate BN, click D3 tab + Play. [D12] sleep(5), [D13] poll D3 window 10s.
+        D13 Yes -> [C1] C2 resize, [C3] loop + branch (same as C); success -> start ROSBOT; fallthrough -> restart BN, retry from step 1.
+        Returns True if step completed (C branch or D13->C path success), False if config missing or window unavailable.
         """
         bn_path = get_battlenet_manager().get_path()
         if not bn_path:
@@ -365,233 +546,162 @@ class LoginTryScreenshotController:
             return False
 
         clicker = ClickHandler()
-        if get_and_clear_battlenet_tick_confirmed():
+        from_tick_fast_path = False
+        ColorPrint.gray("[LoginTryScreenshotController] progress: ensure_battlenet_started_and_login_check entry (battlenet_confirmed branch)...")
+        # D block from B7: only treat as battlenet_confirmed when NOT on login screen (tick flow may have moved to BN_LoginAsia/BN_Login1/BN_Login2 after B7 triggered).
+        if get_request_d_block_from_b7():
+            ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_request_d_block_from_b7")
+            if is_bn_flow_in_login_phase():
+                get_and_clear_request_d_block_from_b7()
+                battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+                if not battlenet_confirmed:
+                    ColorPrint.blue("[LoginTryScreenshotController] D block from B7 but flow on login screen -> run Battle.net flow only (no D3 small map check yet)")
+            else:
+                get_and_clear_request_d_block_from_b7()
+                battlenet_confirmed = True
+                ColorPrint.blue("[LoginTryScreenshotController] D block from B7 (no operable UI): run D3 tab, Play, region (CN/Asia) then C or D")
+        elif get_and_clear_battlenet_tick_confirmed():
+            ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_and_clear_battlenet_tick_confirmed (tick-confirmed)")
             battlenet_confirmed = True
+            from_tick_fast_path = True
             ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed by tick flow, running D3 part only")
         else:
+            ColorPrint.gray("[LoginTryScreenshotController] progress: branch _ensure_battlenet_logged_in_first...")
             battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
             if not battlenet_confirmed:
                 ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
+        if not battlenet_confirmed:
+            from_tick_fast_path = False
 
         # Enter branch A (C) only when: Battle.net logged in + [A6] D3 process exists (ROSBOT_FLOW_MERMAID.md)
         has_bn_confirmed = battlenet_confirmed
         has_d3_process = get_d3_manager().is_running()
+        # When tick flow is on login screen (BN_LoginAsia/BN_Login1/BN_Login2), do not run D block (kill D3, capture, expect small map). Let tick flow finish login; controller will be triggered again after BN_Confirmed.
+        if not has_bn_confirmed and is_bn_flow_in_login_phase():
+            ColorPrint.blue("[LoginTryScreenshotController] Flow on login screen, skip D block (no kill/restart); tick flow will perform login")
+            return False
         if has_bn_confirmed and has_d3_process:
-            ColorPrint.blue("[LoginTryScreenshotController] Condition 1+2 met -> [A6] yes -> [C1] branch A direct")
-            # [C2] Resize D3 window to standard resolution (doc C1->C2->C3->C4 order)
-            resize_window_by_titles_to_client_size(
-                DIABLO_III_WINDOW_TITLES,
-                STANDARD_RESOLUTION_WIDTH,
-                STANDARD_RESOLUTION_HEIGHT,
-            )
-            WindowFinder.invalidate_window_cache(list(DIABLO_III_WINDOW_TITLES))
-            # [C3] Detect current D3 UI state (start/game_tool/other)
-            state = detect_d3_already_running_state()
-            # [A5] Only when d3_game_tool present run five-step online check (doc: D3_Online inside C, before C4)
-            if state == "game_tool":
-                if not check_d3_online_by_m_similarity():
-                    ColorPrint.yellow("[LoginTryScreenshotController][A5] D3 disconnected, reset flow and kill D3")
-                    get_game_interface_data().set_d3_dynamic_status(on_login_screen=False, disconnected=True, in_game=False)
-                    reset_battlenet_flow_state()
-                    get_d3_manager().kill_if_running()
-                    return False
-            # [C4] Detection result branch
-            if state == "start":
-                r1 = try_fragment1_click_start_game_wait_game_tool()
-                if r1 is True:
-                    if send_m_then_teleport_three_clicks():
-                        get_game_interface_data().set_d3_status(True)
-                        get_rosbot_manager().kill_if_running()
-                        time.sleep(1)
-                        if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True):
-                            if get_rosbot_manager().start():
-                                start_rosbot_task()
-                                run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
-                        return True
-                if r1 is False or r1 is None:
-                    get_d3_manager().kill_if_running()
-            elif state == "game_tool":
-                if try_fragment2_game_tool_press_m_then_clicks():
-                    get_game_interface_data().set_d3_status(True)
-                    get_rosbot_manager().kill_if_running()
-                    time.sleep(1)
-                    if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True):
-                        if get_rosbot_manager().start():
-                            start_rosbot_task()
-                            run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
+            if run_c1_entry(has_bn_confirmed, has_d3_process):
+                ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3)")
+                run_c2_resize()
+                ColorPrint.gray("[LoginTryScreenshotController] [C] progress: _run_c3_loop_and_handle_branch...")
+                if self._run_c3_loop_and_handle_branch() == "success":
                     return True
-                get_d3_manager().kill_if_running()
-            else:
-                # [C12] Other/none -> end D3 process, fall to D
-                get_d3_manager().kill_if_running()
 
-        # [D1] Launch D3 from Battle.net branch
+        # [D1] Launch D3 from Battle.net branch (UI-only: no screenshot/template)
+        op = get_battlenet_operation()
         max_rounds = 3
         max_outer_retries = 3
         for outer_round in range(max_outer_retries):
-            d3_small_map_match = None
             for round_idx in range(max_rounds):
-                # Step 1: ensure Battle.net window (from beginning each round after restart)
-                img_path = self._capture_battlenet_window()
-                if img_path is None:
+                # Fast path: tick just confirmed BN (B12), skip kill+5s+tray, go straight to tab+play
+                if from_tick_fast_path and outer_round == 0 and round_idx == 0:
+                    ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: find_windows...")
+                    windows = get_battlenet_manager().find_windows()
+                    if not windows:
+                        from_tick_fast_path = False
+                        continue
+                    ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: activate_window...")
+                    get_battlenet_manager().activate_window()
+                    time.sleep(0.3)
+                    ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: get_dynamic_state...")
+                    on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+                    if not normal_available:
+                        from_tick_fast_path = False
+                        continue
+                    ColorPrint.green("[LoginTryScreenshotController] [D fast] Tick-confirmed: click D3 tab + Play (no kill/tray)")
+                    ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: click_d3_tab...")
+                    if op.click_d3_tab():
+                        time.sleep(0.8)
+                        ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: click_start_game...")
+                        if op.click_start_game():
+                            from_tick_fast_path = False
+                            break
+                    from_tick_fast_path = False
+                    continue
+
+                # Step 1: ensure Battle.net window (UI only: find_windows)
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: find_windows...")
+                windows = get_battlenet_manager().find_windows()
+                if not windows:
                     ColorPrint.blue("[LoginTryScreenshotController] [D2] No Battle.net window -> start Battle.net -> wait")
                     get_battlenet_manager().start(bn_path)
                     time.sleep(3)
+                    continue
 
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...")
                 get_d3_manager().kill_if_running()
                 time.sleep(5)
 
                 ColorPrint.blue("[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s")
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...")
                 clicker.find_and_click_tray_icon(instant=True, interval_after=1.0)
-                if get_battlenet_manager().activate_window():
-                    time.sleep(1)
-                else:
-                    ColorPrint.yellow("[LoginTryScreenshotController] Battle.net window not found for activate, proceeding with capture")
-
-                screenshot_data, img_path = capture_battlenet_and_save_to_category("login_try")
-                if screenshot_data is None or img_path is None:
-                    ColorPrint.yellow("[LoginTryScreenshotController] [D5/D6] Battle.net window not found")
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: activate_window...")
+                if not get_battlenet_manager().activate_window():
+                    ColorPrint.yellow("[LoginTryScreenshotController] Battle.net window not found for activate")
                     if round_idx < max_rounds - 1:
                         continue
                     return False
+                time.sleep(1)
 
-                img = screenshot_data.game_window_image
-                if img is None:
-                    if round_idx < max_rounds - 1:
-                        continue
-                    return False
-
-                # Branch from step 1: check screenshot for D3 small map first; if none, OCR for CN/need-login
-                w, h = screenshot_data.game_window_size or (img.width, img.height)
-                d3_small_map_match = match_battlenet_template(
-                    img, BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME, w, h
-                )
-                if d3_small_map_match is not None:
-                    break
-
-                # No D3 small map on screenshot: OCR to detect CN region (agree/NetEase login)
-                ocr_result = ocr_get_result(img_path)
-                ocr_text = (ocr_result or {}).get("text") or ""
-                cn_agree_netease = BATTLE_NET_CN_AGREE_KEYWORDS + BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS
-                has_cn = any(kw in ocr_text for kw in cn_agree_netease)
-                if has_cn:
-                    ColorPrint.blue("[LoginTryScreenshotController][CN] No D3 small map, CN region login (agree/NetEase), run flow then retry from step 1")
-                    self._run_cn_login_flow(screenshot_data, ocr_result or {}, clicker, img_path=img_path)
+                # Branch by UI state (no screenshot/OCR/template)
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: get_dynamic_state...")
+                on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+                if disconnected:
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net disconnected (UI), restart and retry...")
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                if on_login:
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), run login flow then retry...")
+                    self._run_cn_login_flow_ui_only(clicker)
                     time.sleep(2)
                     continue
-                has_need_login = any(kw in ocr_text for kw in BATTLE_NET_NEED_LOGIN_KEYWORDS)
-                if has_need_login:
-                    ColorPrint.blue("[LoginTryScreenshotController] Need-login text detected, restart and retry from step 1...")
+                if not normal_available:
+                    ColorPrint.yellow("[LoginTryScreenshotController] Battle.net not normal_available (UI), restart and retry...")
                     get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
                     time.sleep(5)
                     continue
 
-                ColorPrint.yellow("[LoginTryScreenshotController] D3 small map not found, restart Battle.net and retry from step 1...")
-                get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
-                time.sleep(5)
-
-            if d3_small_map_match is None:
-                cfg = BATTLENET_TEMPLATE_CONFIGS.get(BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME)
-                tpath = str(cfg["path"]) if cfg and cfg.get("path") else None
-                save_no_match_debug_image(
-                    img, "SIFT", MATCH_DEBUG_DIR, template_path=tpath,
-                    filename_prefix="login_try_match_debug_d3_small_map",
-                )
-                get_screenshot_category_manager().clean_older_than("match_debug")
+                # normal_available: click D3 tab and Play via UI only
+                ColorPrint.green("[LoginTryScreenshotController] Battle.net normal_available (UI), click D3 tab + Play (UI only)")
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: click_d3_tab...")
+                if not op.click_d3_tab():
+                    ColorPrint.yellow("[LoginTryScreenshotController] D3 tab click failed (UI), restart and retry...")
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                time.sleep(0.8)
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: click_start_game...")
+                if not op.click_start_game():
+                    ColorPrint.yellow("[LoginTryScreenshotController] Play button click failed (UI), restart and retry...")
+                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
+                    time.sleep(5)
+                    continue
+                break
+            else:
                 continue
 
-            ColorPrint.green("[LoginTryScreenshotController] UI login success (D3 small map found by SIFT)")
-            cfg = BATTLENET_TEMPLATE_CONFIGS.get(BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME)
-            tpath = str(cfg["path"]) if cfg and cfg.get("path") else None
-            save_match_debug_image(
-                img, d3_small_map_match, "d3_small_map", MATCH_DEBUG_DIR, template_path=tpath,
-                filename_prefix="login_try_match_debug",
-            )
-            get_screenshot_category_manager().clean_older_than("match_debug")
-
-            cx = int(d3_small_map_match["center"][0])
-            cy = int(d3_small_map_match["center"][1])
-            get_battlenet_manager().activate_window()
-            time.sleep(0.3)
-            moment_data = self.screenshot_provider.gen(
-                use_optimized_capture=True,
-                window_titles=list(BATTLE_NET_WINDOW_TITLES),
-            )
-            if moment_data and moment_data.game_window_image:
-                ox, oy = moment_data.window_offset
-                click_x = ox + cx
-                click_y = oy + cy
-                save_click_debug_image(
-                    moment_data.game_window_image,
-                    [(cx, cy, "small_map")],
-                    MATCH_DEBUG_DIR,
-                    filename_prefix="login_try_small_map_click",
-                )
-                ColorPrint.blue(f"[LoginTryScreenshotController] [D7/D9] Click Battle.net D3 tab at ({click_x}, {click_y})")
-                clicker.click(click_x, click_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-            else:
-                ox, oy = screenshot_data.window_offset
-                click_x, click_y = ox + cx, oy + cy
-                ColorPrint.blue(f"[LoginTryScreenshotController] Clicking D3 small map at screen ({click_x}, {click_y}) (no moment capture)")
-                clicker.click(click_x, click_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-            time.sleep(0.8)
-
-            get_battlenet_manager().activate_window()
-            time.sleep(0.3)
-            screenshot_data2 = self.screenshot_provider.gen(
-                use_optimized_capture=True,
-                window_titles=list(BATTLE_NET_WINDOW_TITLES),
-            )
-            if screenshot_data2 and screenshot_data2.game_window_image:
-                img2 = screenshot_data2.game_window_image
-                w2, h2 = screenshot_data2.game_window_size or (img2.width, img2.height)
-                ox2, oy2 = screenshot_data2.window_offset
-                play_x = ox2 + BATTLE_NET_PLAY_BUTTON_LEFT_PX
-                play_y = oy2 + (h2 - BATTLE_NET_PLAY_BUTTON_BOTTOM_PX)
-                save_click_debug_image(
-                    img2,
-                    [(BATTLE_NET_PLAY_BUTTON_LEFT_PX, h2 - BATTLE_NET_PLAY_BUTTON_BOTTOM_PX, "Play")],
-                    MATCH_DEBUG_DIR,
-                    filename_prefix="login_try_play_click",
-                )
-                ColorPrint.blue(f"[LoginTryScreenshotController] [D11] Click Play at ({play_x}, {play_y})")
-                clicker.click(play_x, play_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-
-            # [D12] After Play sleep(5), poll for D3 window up to 10s; [D13] D3 window found within 10s?
+            # [D12] After Play sleep(5), poll for D3 window up to 10s; [D13] D3 window found -> C1_Entry (doc: D13 Yes -> C1)
+            ColorPrint.gray("[LoginTryScreenshotController] [D12] progress: sleep(5) then poll D3 window up to 10s...")
             time.sleep(5)
             _poll_sec = 10
             already_restarted = False
-            for _ in range(_poll_sec):
+            for poll_i in range(_poll_sec):
                 time.sleep(1)
-                windows = WindowFinder.find_windows_by_titles(
-                    titles=DIABLO_III_WINDOW_TITLES,
-                    match_mode="in",
-                    use_cache=True,
-                )
+                windows = get_d3_manager().find_windows()
+                if poll_i == 0 or (windows and poll_i % 2 == 0):
+                    ColorPrint.gray(f"[LoginTryScreenshotController] [D12] progress: poll #{poll_i + 1}/{_poll_sec} find_windows -> {'found' if windows else 'not found'}")
                 if windows:
                     get_game_interface_data().set_d3_status(True)
-                    resize_window_by_titles_to_client_size(
-                        DIABLO_III_WINDOW_TITLES,
-                        STANDARD_RESOLUTION_WIDTH,
-                        STANDARD_RESOLUTION_HEIGHT,
-                    )
-                    WindowFinder.invalidate_window_cache(list(DIABLO_III_WINDOW_TITLES))
-                    start_game_ok = wait_for_and_click_start_game(
-                        interval_sec=2.0,
-                        wait_after_click_sec=2.0,
-                    )
-                    if not start_game_ok:
-                        self._restart_battlenet_and_retry_from_step1(bn_path)
-                        already_restarted = True
-                        break
-                    ColorPrint.blue("[LoginTryScreenshotController] [D15/D16/D17] D3 window ready, start-game click OK; [D18] End existing ROSBOT, start ROSBOT, run after-start automation")
-                    get_rosbot_manager().kill_if_running()
-                    time.sleep(1)
-                    if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True):
-                        if get_rosbot_manager().start():
-                            start_rosbot_task()
-                            run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
-                    return True
+                    # [D13] Yes -> [C1] entry -> [C2] Resize -> [C3] loop (doc)
+                    if run_c1_entry(True, True):
+                        run_c2_resize()
+                        if self._run_c3_loop_and_handle_branch() == "success":
+                            return True
+                    self._restart_battlenet_and_retry_from_step1(bn_path)
+                    already_restarted = True
+                    break
             if not already_restarted:
                 self._restart_battlenet_and_retry_from_step1(bn_path)
             continue

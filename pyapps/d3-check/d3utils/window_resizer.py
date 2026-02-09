@@ -5,6 +5,7 @@ No game-specific titles or dimensions; caller passes window_titles and client wi
 Uses win32 GetWindowRect, GetClientRect, MoveWindow.
 Ensures window stays within primary monitor bounds (four edges not exceeding screen).
 """
+import ctypes
 import time
 from typing import List, Tuple
 
@@ -20,7 +21,6 @@ except ImportError:
 def _get_screen_size() -> Tuple[int, int]:
     """Primary monitor size (pixels). Uses GetSystemMetrics to avoid Tk/circular imports."""
     try:
-        import ctypes
         user32 = ctypes.windll.user32
         return (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))  # SM_CXSCREEN, SM_CYSCREEN
     except Exception:

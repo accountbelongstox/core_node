@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Component
-Two-row layout: row0 = macro + per-tab options, row1 = status (game status + window size).
-Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components to avoid offset.
+Row0 = macro + per-tab options, row1 = status, row2 = extra line (one line height).
+Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components.
 """
 
 import tkinter as tk
@@ -50,11 +50,13 @@ class BottomBar:
         )
         self.frame.grid_rowconfigure(0, weight=0)
         self.frame.grid_rowconfigure(1, weight=0)
+        self.frame.grid_rowconfigure(2, weight=0)
         self.frame.grid_columnconfigure(1, weight=1)
+        tab_pad = UnifiedStyles.TAB_PAD
 
         # Row 0: macro (col 0) + options strip (col 1). Main UI adds macro at row 0 col 0.
         options_container = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        options_container.grid(row=0, column=1, sticky="ew", padx=5, pady=(0, 2))
+        options_container.grid(row=0, column=1, sticky="ew", padx=tab_pad, pady=(0, tab_pad // 2))
         options_container.grid_columnconfigure(0, weight=1)
         self._options_block = BottomBarOptionsBlock(options_container, {
             'sound_var': self.sound_var,
@@ -65,9 +67,9 @@ class BottomBar:
         })
         self._options_block.frame.grid(row=0, column=0, sticky="ew")
 
-        # Row 1: status row (columnspan 2), single sub-component — merged Battle.net/ROS/D3/Map/Stage/OAuth + game status + window size
+        # Row 1: status row (columnspan 2)
         status_container = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        status_container.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=(0, 3))
+        status_container.grid(row=1, column=0, columnspan=2, sticky="ew", padx=tab_pad, pady=(0, tab_pad // 2))
         status_container.grid_columnconfigure(0, weight=1)
         status_vars = {
             "battlenet": self.battlenet_status,
@@ -81,6 +83,13 @@ class BottomBar:
         }
         self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
         self._status_block.frame.grid(row=0, column=0, sticky="ew")
+
+        # Row 2: extra line (one line height), placeholder
+        extra_line = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'), height=UnifiedStyles.LINE_HEIGHT)
+        extra_line.grid(row=2, column=0, columnspan=2, sticky="ew", padx=tab_pad, pady=(0, tab_pad))
+        extra_line.grid_propagate(False)
+        tk.Label(extra_line, text="—", bg=UITheme.get_color('bg_primary'), fg=UnifiedStyles.COLORS['text_muted'],
+                 font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, anchor="w")
 
     def _register_status_labels(self, value_labels: dict):
         """Called by BottomBarStatusBlock: value_labels = var_key -> Label (for fg updates)."""
@@ -132,7 +141,7 @@ class BottomBar:
             for key, lb in (self._value_labels or {}).items():
                 try:
                     if key == "window_size":
-                        lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['text_secondary'])
+                        lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
                 except tk.TclError:
                     pass
         except Exception:
@@ -141,27 +150,36 @@ class BottomBar:
     def update_status_from_state(self, state: dict):
         """Update all status vars and value label fg from state (state sync callback)."""
         try:
-            from d3utils.i18n_manager import I18nManager
-            from ..unified_styles import UnifiedStyles
-            i18n = I18nManager()
+            i18n = i18n_manager
             C = UnifiedStyles.COLORS
 
             bn_found = state.get("battlenet_window_found", False)
+            region_key = state.get("battlenet_region")
+            region_suffix = (i18n.get_ui_text("rosbot.server_cn") if region_key == "cn" else
+                             i18n.get_ui_text("rosbot.server_asia") if region_key == "asia" else
+                             i18n.get_ui_text("rosbot.server_unknown"))
+            bn_state_detected = False  # True only when UI state was detected (not "status undetected")
             if not bn_found:
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.not_found"))
+                bn_text = i18n.get_ui_text("rosbot.not_found")
                 bn_fg = C['error']
             elif state.get("battlenet_disconnected", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_disconnected"))
+                bn_text = i18n.get_ui_text("rosbot.battlenet_disconnected")
                 bn_fg = C['warning']
+                bn_state_detected = True
             elif state.get("battlenet_on_login_screen", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_on_login_screen"))
+                bn_text = i18n.get_ui_text("rosbot.battlenet_on_login_screen")
                 bn_fg = C['warning']
+                bn_state_detected = True
             elif state.get("battlenet_normal_available", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_normal_available"))
+                bn_text = i18n.get_ui_text("rosbot.battlenet_normal_available")
                 bn_fg = C['success']
+                bn_state_detected = True
             else:
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.found_unknown_state"))
-                bn_fg = C['text_secondary']
+                bn_text = i18n.get_ui_text("rosbot.found_unknown_state")
+                bn_fg = C['warning']
+            if bn_state_detected:
+                bn_text = f"{bn_text}({region_suffix})"
+            self.battlenet_status.set(bn_text)
 
             ros_ext = state.get("rosbot_extended_status") or "not_found"
             exe_name = (state.get("rosbot_found_exe_name") or "").strip()
@@ -200,17 +218,17 @@ class BottomBar:
 
             map_type = state.get("map_type", "unknown")
             self.map_status.set(i18n.get_ui_text(f"rosbot.map_{map_type}"))
-            map_fg = C['success'] if map_type != "unknown" else C['text_secondary']
+            map_fg = C['success'] if map_type != "unknown" else C['warning']
 
             game_stage = state.get("game_stage", "unknown")
             self.stage_status.set(i18n.get_ui_text(f"rosbot.stage_{game_stage}"))
-            stage_fg = C['success'] if game_stage != "unknown" else C['text_secondary']
+            stage_fg = C['success'] if game_stage != "unknown" else C['warning']
 
             oauth_connected = state.get("oauth_script_connected", False)
             self.oauth_status.set(
                 i18n.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
             )
-            oauth_fg = C['success'] if oauth_connected else C['warning']
+            oauth_fg = C['success'] if oauth_connected else C['error']
 
             fg_map = {
                 "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,

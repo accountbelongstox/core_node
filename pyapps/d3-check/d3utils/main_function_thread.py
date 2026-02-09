@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe
-from providor.app_constants import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
+from providor.constants.common import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
 
 
 class MainFunctionThread(threading.Thread):

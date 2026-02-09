@@ -192,21 +192,22 @@ class WindowActivator:
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 time.sleep(0.5)
             
-            # Bring window to foreground
+            # Bring window to foreground (SetForegroundWindow can fail with foreground lock from other process)
             ColorPrint.print_min_interval(f"[ACTIVATE] Activating window (handle: {hwnd})", "5min", "blue")
-            win32gui.SetForegroundWindow(hwnd)
-            
-            # Wait a bit for activation to take effect
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception as e:
+                ColorPrint.print_min_interval(f"[WARN] SetForegroundWindow failed (handle: {hwnd}): {e}", "5min", "yellow")
+                # Window is visible/restored; allow caller to proceed (clicks may still work)
+                return True
+
             time.sleep(0.5)
-            
-            # Verify window is now active
             active_hwnd = win32gui.GetForegroundWindow()
             if active_hwnd == hwnd:
                 ColorPrint.print_min_interval(f"[SUCCESS] Window activated (handle: {hwnd})", "5min", "green")
                 return True
-            else:
-                ColorPrint.print_min_interval(f"[WARN] Window activation may have failed (handle: {hwnd})", "5min", "yellow")
-                return False
+            ColorPrint.print_min_interval(f"[WARN] Window activation may have failed (handle: {hwnd})", "5min", "yellow")
+            return False
                 
         except Exception as e:
             ColorPrint.print_min_interval(f"[ERROR] Error activating window (handle: {hwnd}): {e}", "5min", "red")

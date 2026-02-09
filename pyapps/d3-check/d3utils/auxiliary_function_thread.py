@@ -12,7 +12,7 @@ from typing import Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 
-from providor.app_constants import CMD_SHUTDOWN
+from providor.constants.common import CMD_SHUTDOWN
 
 
 class AuxiliaryFunctionThread(threading.Thread):

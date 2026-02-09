@@ -8,14 +8,22 @@ Uses shared base share.scaled_template_matcher_base.ScaledTemplateMatcherBase fo
 
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Tuple, Union
+from typing import Optional, Dict, Tuple, Union, List
 
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT
+from providor.constants.d3 import (
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT,
+    D3_DISCONNECTED_TEMPLATE_NAME,
+    D3_START_GAME_BUTTON_TEMPLATE_NAME,
+    D3_GAME_TOOL_TEMPLATE_NAME,
+    D3_CONNECTING_TEMPLATE_NAME,
+    D3_CONNECTING_ALT_TEMPLATE_NAME,
+)
 from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha, get_template_match_method
 from share.game_interface_data import get_global_scale
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
@@ -74,6 +82,47 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             f"({scale_x:.4f}, {scale_y:.4f})"
         )
         return self._match_single_with_scale(target_img_array, template_name, scale_x, scale_y)
+
+    def match_all_d3_states(
+        self,
+        target_image: Union[str, Path, object],
+        template_names: Optional[List[str]] = None,
+    ) -> Dict[str, bool]:
+        """
+        Reusable: one game window image -> detect all D3 UI states (one scale, match all templates).
+        ROSBOT_FLOW_MERMAID [C3]: disconnected / start_game_button / game_tool / connecting.
+        Returns dict with keys: disconnected, start_game_button, game_tool, connecting.
+        """
+        names = template_names or [
+            D3_DISCONNECTED_TEMPLATE_NAME,
+            D3_START_GAME_BUTTON_TEMPLATE_NAME,
+            D3_GAME_TOOL_TEMPLATE_NAME,
+            D3_CONNECTING_TEMPLATE_NAME,
+            D3_CONNECTING_ALT_TEMPLATE_NAME,
+        ]
+        target_img_array = self._load_target_image(target_image)
+        if target_img_array is None:
+            return {n: False for n in names}
+        h, w = target_img_array.shape[:2]
+        scale_x = w / D3_STANDARD_WIDTH
+        scale_y = h / D3_STANDARD_HEIGHT
+        ColorPrint.gray(
+            f"{self.log_prefix} One-shot detect all D3 states from image {w}x{h} (scale {scale_x:.4f}, {scale_y:.4f})"
+        )
+        result: Dict[str, bool] = {}
+        for template_name in names:
+            r = self._match_single_with_scale(target_img_array, template_name, scale_x, scale_y)
+            result[template_name] = bool(r.get("total_matches", 0) >= 1)
+        disconnected = result.get(D3_DISCONNECTED_TEMPLATE_NAME, False)
+        start_game_button = result.get(D3_START_GAME_BUTTON_TEMPLATE_NAME, False)
+        game_tool = result.get(D3_GAME_TOOL_TEMPLATE_NAME, False)
+        connecting = result.get(D3_CONNECTING_TEMPLATE_NAME, False) or result.get(D3_CONNECTING_ALT_TEMPLATE_NAME, False)
+        return {
+            "disconnected": disconnected,
+            "start_game_button": start_game_button,
+            "game_tool": game_tool,
+            "connecting": connecting,
+        }
 
 
 _d3_scaled_matcher_instance: Optional[D3ScaledTemplateMatcher] = None

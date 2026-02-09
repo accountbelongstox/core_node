@@ -23,13 +23,8 @@ from d3utils.d3u_common.image_annotator_helper import save_anchor_detection_resu
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data, UIRegion
-from providor.app_constants import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    DEBUG,
-    TMP_DIR,
-    BORDER_LINE_COLOR_TOLERANCE_PERCENT,
-)
+from providor.constants.common import DEBUG, TMP_DIR, BORDER_LINE_COLOR_TOLERANCE_PERCENT
+from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha
 
 class UIRegionCollectorAnchor:

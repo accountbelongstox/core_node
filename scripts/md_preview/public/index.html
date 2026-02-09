@@ -53,6 +53,8 @@
     .content-area .mermaid .edgeLabel foreignObject,
     .content-area .mermaid .edgeLabel foreignObject body,
     .content-area .mermaid .edgeLabel foreignObject div { background-color: #1a2a3a !important; border: 1px solid #2d4a5c !important; outline: none !important; padding: 2px 6px; border-radius: 4px; box-shadow: none !important; }
+    .content-area .mermaid-block { margin: 1rem 0; }
+    .content-area .mermaid-block-title { font-weight: 600; color: #9cdcfe; font-size: 0.95rem; margin-bottom: 0.35rem; }
     .content-area .error { color: #f48771; }
     .content-area .path-hint { color: #9cdcfe; font-size: 0.9rem; margin-bottom: 1rem; }
     .content-area.fit-width { overflow-x: hidden; }
@@ -197,6 +199,25 @@
     function renderMarkdown(md) {
       if (typeof marked !== 'undefined') {
         if (marked.setOptions) marked.setOptions({ gfm: true, breaks: true });
+        marked.use({
+          renderer: {
+            code: function (token) {
+              var lang = (token.lang || '').trim();
+              var parts = lang ? lang.split(/\s+/) : [];
+              var mainLang = parts[0] || '';
+              var caption = parts.slice(1).join(' ').trim();
+              if (mainLang === 'mermaid') {
+                var code = token.escaped ? token.text : escapeHtml(token.text);
+                if (caption) {
+                  return '<div class="mermaid-block"><div class="mermaid-block-title">' + escapeHtml(caption) + '</div><pre><code class="language-mermaid">' + code + '</code></pre></div>';
+                }
+                return '<pre><code class="language-mermaid">' + code + '</code></pre>';
+              }
+              var langAttr = lang ? ' class="language-' + escapeHtml(lang) + '"' : '';
+              return '<pre><code' + langAttr + '>' + (token.escaped ? token.text : escapeHtml(token.text)) + '</code></pre>';
+            }
+          }
+        });
         return (marked.parse || marked)(md);
       }
       return md.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');

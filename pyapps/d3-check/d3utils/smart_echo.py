@@ -13,7 +13,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from providor.app_constants import ACTIVATE_BEFORE_CAPTURE_DELAY_SEC, SMART_ECHO_OCR_TICK_MAX_SEC
+from providor.constants.common import ACTIVATE_BEFORE_CAPTURE_DELAY_SEC, SMART_ECHO_OCR_TICK_MAX_SEC
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.d3u_common.game_window_region import crop_game_window_middle30_upper_half
 from d3utils.ocr_helper import ocr_get_result

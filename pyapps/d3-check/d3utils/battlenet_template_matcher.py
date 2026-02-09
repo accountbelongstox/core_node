@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, Tuple
 from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, cv2, np
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_matcher import ImageMatcher
-from providor.app_constants import BATTLENET_STANDARD_RESOLUTION_WIDTH, BATTLENET_STANDARD_RESOLUTION_HEIGHT
+from providor.constants.d3 import D3_BATTLENET_STANDARD_RESOLUTION_WIDTH, D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.d3u_common.image_conversion import convert_pil_to_bgr
 
@@ -44,17 +44,17 @@ def load_scaled_battlenet_template(
         path,
         window_width,
         window_height,
-        BATTLENET_STANDARD_RESOLUTION_WIDTH,
-        BATTLENET_STANDARD_RESOLUTION_HEIGHT,
+        D3_BATTLENET_STANDARD_RESOLUTION_WIDTH,
+        D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT,
         log_prefix="[BattlenetTemplateMatcher]",
     )
     if template_bgr is None:
         ColorPrint.yellow(f"[BattlenetTemplateMatcher] Template file not found or failed to load: {path}")
         return None, None
-    if window_width != BATTLENET_STANDARD_RESOLUTION_WIDTH or window_height != BATTLENET_STANDARD_RESOLUTION_HEIGHT:
+    if window_width != D3_BATTLENET_STANDARD_RESOLUTION_WIDTH or window_height != D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT:
         ColorPrint.gray(
             f"[BattlenetTemplateMatcher] Scaled {template_name}: "
-            f"{BATTLENET_STANDARD_RESOLUTION_WIDTH}x{BATTLENET_STANDARD_RESOLUTION_HEIGHT} -> "
+            f"{D3_BATTLENET_STANDARD_RESOLUTION_WIDTH}x{D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT} -> "
             f"{window_width}x{window_height}"
         )
     return template_bgr, config

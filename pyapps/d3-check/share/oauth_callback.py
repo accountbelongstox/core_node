@@ -9,7 +9,7 @@ Health: Tampermonkey script pings periodically; UI shows script connected / disc
 import threading
 import time
 
-from providor.app_constants import OAUTH_SCRIPT_PING_TIMEOUT_SEC
+from providor.constants.common import OAUTH_SCRIPT_PING_TIMEOUT_SEC
 
 _oauth_done = threading.Event()
 _last_ping_time: float = 0.0  # single float write is atomic under CPython GIL

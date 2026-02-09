@@ -17,8 +17,8 @@ from pycore.pyutils.click_handler import ClickHandler
 from d3utils.ui_control_operations import operate_button, operate_tab_item, click_at_control_rect
 from d3utils.ui_analysis_operations import run_sequence, find_control_in_window
 from d3utils.rosbot_ui_structure import get_resume_sequence, CMB_SEQUENCE, BTN_START, LIST_ITEM_RIFT_MODE
-from providor.app_constants import (
-    ROSBOT_UI_DEBUG_DIR,
+from providor.constants.common import ROSBOT_UI_DEBUG_DIR
+from providor.constants.d3 import (
     TAB_MAIN_PROFILE_NAMES,
     START_BUTTON_NAMES,
     START_BUTTON_AUTOMATION_ID,

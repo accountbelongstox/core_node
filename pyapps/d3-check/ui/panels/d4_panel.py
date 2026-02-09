@@ -57,11 +57,10 @@ class D4Panel:
         # Register UI status update callback
         self._register_ui_status_callback()
 
-        # Create main container with 2-column grid layout
+        # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True,
-                           padx=UnifiedStyles.SPACING['md'],
-                           pady=UnifiedStyles.SPACING['md'])
+        tab_pad = UnifiedStyles.TAB_PAD
+        self.container.pack(fill=tk.BOTH, expand=True, padx=tab_pad, pady=tab_pad)
 
         # Configure grid - 2 columns: left for sub-tab navigation, right for content
         self.container.grid_columnconfigure(0, weight=0, minsize=120)  # Sub-tab column (fixed width)
@@ -286,7 +285,7 @@ class D4Panel:
             ColorPrint.green(f"[D4] Window data initialized: fullscreen={d4_data.fullscreen_size}, window={d4_data.game_window_size}, windowed={d4_data.is_windowed_mode()}")
 
         # Check team formation status
-        from d4utils.team_formation_checker import get_d4_team_formation_checker
+        from d4utils.d4_team_formation_checker import get_d4_team_formation_checker
         team_checker = get_d4_team_formation_checker()
 
         # Run team check

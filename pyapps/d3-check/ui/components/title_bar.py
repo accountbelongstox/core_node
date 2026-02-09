@@ -54,8 +54,9 @@ class TitleBar:
         )
         self.title_label.pack(side=tk.LEFT, expand=True, fill=tk.X, pady=3, padx=(12, 12))  # Scaled to 60%
         
-        # Bind drag functionality to title label
+        # Bind drag and double-click (toggle maximize) to title label
         self._bind_drag_events()
+        self.title_label.bind("<Double-Button-1>", self._on_title_double_click)
 
         # Right side controls
         right_frame = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
@@ -125,6 +126,19 @@ class TitleBar:
         )
         self.maximize_btn.pack(side=tk.LEFT, padx=2)
 
+        # Restore to preset size button
+        self.restore_preset_btn = tk.Button(
+            parent,
+            text="⧉",
+            command=self._restore_to_preset_size,
+            width=2,
+            bg=UITheme.get_color('bg_secondary'),
+            fg=UITheme.get_color('text_primary'),
+            relief=tk.RAISED,
+            bd=1
+        )
+        self.restore_preset_btn.pack(side=tk.LEFT, padx=2)
+
         # Restart button
         self.restart_btn = tk.Button(
             parent,
@@ -192,6 +206,11 @@ class TitleBar:
         """Toggle maximize/restore; runs on main thread via event center."""
         trigger_window_maximize()
 
+    def _restore_to_preset_size(self):
+        """Restore window to initial preset size (e.g. 670x550)."""
+        if hasattr(self.parent, "restore_window_to_preset"):
+            self.parent.restore_window_to_preset()
+
     def _restart_application(self):
         """Restart application; dispatched to main thread via event center."""
         trigger_app_restart()
@@ -206,11 +225,15 @@ class TitleBar:
         self.title_label.bind("<Button-1>", self._start_drag)
         self.title_label.bind("<B1-Motion>", self._on_drag)
     
+    def _on_title_double_click(self, event):
+        """Double-click on title bar: toggle maximize/restore (same as maximize button)."""
+        trigger_window_maximize()
+
     def _start_drag(self, event):
         """Start window dragging"""
         self.drag_start_x = event.x_root
         self.drag_start_y = event.y_root
-    
+
     def _on_drag(self, event):
         """Handle window dragging"""
         if hasattr(self, 'drag_start_x'):

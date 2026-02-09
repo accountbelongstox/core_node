@@ -54,7 +54,7 @@ class MacroLoopThread(threading.Thread):
                 for skill_name, sk_cfg in skills.items():
                     if not c.macro_running:
                         break
-                    if sk_cfg.get('strategy') == '禁用':  # Disabled (CN config)
+                    if sk_cfg.get('strategy') == '禁用':  # Disabled (legacy CN config value)
                         continue
                     c._execute_skill(skill_name, sk_cfg)
                     time.sleep(0.01)
@@ -267,7 +267,7 @@ class D3MacroController:
             panel = self.ui.rosbot_extension_panel
 
             window_monitor.register_status_ui(panel.get_status_ui_callback())
-            panel.set_refresh_status_fn(window_monitor.check_window)
+            panel.set_refresh_status_fn(window_monitor.refresh_window_status_if_inactive)
 
             get_thread_registry().create_extension_threads(schedule, panel, self.current_skill_config)
 

@@ -19,7 +19,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 # =============================================================================
 # CONSTANTS AND ENUMS
 # =============================================================================
-from providor.app_constants import (
+from providor.constants.common import (
     GRID_ROWS,
     GRID_COLS,
     TOTAL_GRID_CELLS,

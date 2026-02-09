@@ -16,8 +16,10 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG, LOGS_FILE_PATH
 from share.game_interface_data import get_game_interface_data
+from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_ui_automation import try_close_no_items_popup, do_after_no_items_close_switch_rift_and_start
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
-from providor.app_constants import LOGIN_TRY_TRIGGER_DEFAULT
+from providor.constants.common import LOGIN_TRY_TRIGGER_DEFAULT
 from d3utils.i18n_manager import i18n_manager
 
 
@@ -175,7 +177,7 @@ class LogAnalyzer:
         login_try_trigger = _get_login_try_trigger()
         if login_try_trigger and login_try_trigger in line:
             try:
-                from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
+                from controller.login_try_screenshot_controller import get_login_try_screenshot_controller  # lazy: avoid circular
                 get_login_try_screenshot_controller().handle_login_try()
             except Exception as e:
                 ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")
@@ -228,12 +230,10 @@ class LogAnalyzer:
         if "Vendor loop done" not in line:
             return
         try:
-            from d3utils.rosbot_manager import get_rosbot_manager
-            from d3utils.rosbot_ui_automation import try_close_no_items_popup, do_after_no_items_close_switch_rift_and_start
+            detection = get_rosbot_manager().get_rosbot_detection()
         except Exception as e:
-            ColorPrint.red(f"[LogAnalyzer] Vendor loop done imports: {e}")
+            ColorPrint.red(f"[LogAnalyzer] Vendor loop done: {e}")
             return
-        detection = get_rosbot_manager().get_rosbot_detection()
         if detection.get("status") == "not_found":
             return
         if try_close_no_items_popup():

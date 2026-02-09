@@ -3,50 +3,42 @@
 """
 D3 status provider: D3 window detection and dynamic state (on_login_screen, disconnected, in_game).
 Uses shared refresh flow from status_provider_common; owns D3-specific find and detect logic.
-Disconnected: SIFT match of d3_disconnected template (providor.app_constants.D3_DISCONNECTED_TEMPLATE_NAME) in D3 window.
+Disconnected: SIFT match of d3_disconnected template (providor.constants.d3.D3_DISCONNECTED_TEMPLATE_NAME) in D3 window.
 """
 
 from typing import Optional, List, Dict, Any, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data, get_screen_resolution
-from pycore.pyutils.common.window_finder import WindowFinder
 
-from providor.app_constants import D3_DISCONNECTED_TEMPLATE_NAME
-from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
-from d3utils.screenshot_provider import get_screenshot_provider
+from d3utils.d3_manager import get_d3_manager
+from d3utils.d3_start_game_and_teleport_waiter import capture_and_detect_all_d3_states
 from d3utils.status_provider_common import refresh_window_state
 
 
 def _find_d3_windows() -> List[Dict[str, Any]]:
-    """Find D3 windows by title. Returns list; empty if none found."""
-    return WindowFinder.find_windows_by_titles(
-        titles=DIABLO_III_WINDOW_TITLES,
-        match_mode="in",
-        use_cache=True,
-    )
+    """Find D3 windows (by exe when d3_path set, else by title). Returns list; empty if none found."""
+    return get_d3_manager().find_windows()
 
 
 def _detect_d3_dynamic(found: bool, window_info_or_none: Optional[Dict[str, Any]]) -> Tuple[bool, bool, bool]:
     """
     Detect D3 dynamic state: (on_login_screen, disconnected, in_game).
-    Priority for display: disconnected > on_login_screen > in_game.
-    Disconnected: SIFT match of d3_disconnected template in D3 window; found => (False, True, False).
-    Uses screenshot_provider (window capture by title) to avoid "screen grab failed" when window is minimized.
+    Reuses capture_and_detect_all_d3_states (one capture, all templates) and uses disconnected result.
     """
     if not found or not window_info_or_none:
         return (False, False, False)
     try:
-        provider = get_screenshot_provider()
-        sd = provider.gen(use_optimized_capture=True, window_titles=list(DIABLO_III_WINDOW_TITLES))
-        if sd is None or sd.game_window_image is None:
-            return (False, False, False)
-        window_image = sd.game_window_image
-        matcher = get_scaled_template_matcher()
-        result = matcher.match_template_auto_scale(window_image, D3_DISCONNECTED_TEMPLATE_NAME)
-        if result.get("total_matches", 0) > 0:
-            return (False, True, False)
+        ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic (one capture, all D3 states)...")
+        _sd, state_dict = capture_and_detect_all_d3_states(
+            window_titles=tuple(get_d3_manager().get_capture_titles())
+        )
+        disconnected = state_dict.get("disconnected", False)
+        if disconnected:
+            ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (disconnected)")
+        else:
+            ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (no disconnect)")
+        return (False, disconnected, False)
     except Exception as e:
         ColorPrint.red(f"[D3StatusProvider] _detect_d3_dynamic error: {e}")
     return (False, False, False)
@@ -70,14 +62,21 @@ def _apply_d3_geometry(game_data: Any, window_info_or_none: Optional[Dict[str, A
             game_data._window_title = None
 
 
-def refresh_d3_status() -> Optional[Dict[str, Any]]:
+def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]:
     """
-    Detect D3 window and dynamic state; update game_interface_data via shared refresh flow.
+    Detect D3 window and optionally dynamic state; update game_interface_data.
+    skip_dynamic=True: only find window + geometry (no screenshot/SIFT). Use for status refresh (startup, manual). Flow uses skip_dynamic=False.
     Returns D3 window info or None.
     """
+    if not skip_dynamic:
+        ColorPrint.gray("[D3StatusProvider] progress: prime_window_cache_for_capture...")
+        get_d3_manager().prime_window_cache_for_capture()
     game_data = get_game_interface_data()
+    ColorPrint.gray("[D3StatusProvider] progress: find_windows...")
     windows = _find_d3_windows()
     window_info: Optional[Dict[str, Any]] = windows[0] if windows else None
+    ColorPrint.gray(f"[D3StatusProvider] D3 window: {'found' if window_info else 'not found'}")
+    ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state...")
 
     def set_running(g: Any, found: bool) -> None:
         g.set_d3_status(found)
@@ -85,16 +84,23 @@ def refresh_d3_status() -> Optional[Dict[str, Any]]:
     def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> None:
         g.set_d3_dynamic_status(on_login_screen=on_login, disconnected=disconnected, in_game=third)
 
+    detect_fn = (_noop_detect_dynamic if skip_dynamic else _detect_d3_dynamic)
     refresh_window_state(
         game_data,
         window_info,
         set_running_fn=set_running,
         set_dynamic_fn=set_dynamic,
-        detect_dynamic_fn=_detect_d3_dynamic,
+        detect_dynamic_fn=detect_fn,
         apply_geometry_fn=_apply_d3_geometry,
         log_prefix="[D3StatusProvider]",
     )
+    ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state done")
     return window_info
+
+
+def _noop_detect_dynamic(_found: bool, _window_info_or_none: Optional[Dict[str, Any]]) -> Tuple[bool, bool, bool]:
+    """No capture, no SIFT. Used by status refresh path only."""
+    return (False, False, False)
 
 
 def get_current_d3_window() -> Optional[Dict[str, Any]]:

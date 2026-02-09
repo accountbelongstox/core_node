@@ -15,18 +15,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
-from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
+from d3utils.rosbot_flow_state import is_flow_active
+from d3utils.rosbot_task_processor import run_full_status_refresh
 from timers.timer_manager import register_task
-from d3utils.d3_status_provider import refresh_d3_status, get_current_d3_window
-from d3utils.battlenet_status_provider import refresh_battlenet_status
-from d3utils.rosbot_status_provider import refresh_rosbot_status
+from d3utils.d3_status_provider import get_current_d3_window
 
-from providor.app_constants import DEFAULT_INTERVAL
+from providor.constants.common import DEFAULT_INTERVAL
 
 # Global window monitor state
 _callbacks: List[Callable] = []
 _last_window_found = False
+# When True, do not run full refresh again when flow inactive (startup already did one; flow-driven runs when flow active).
+_inactive_refresh_done = False
 
 
 
@@ -44,9 +45,6 @@ def add_callback(callback: Callable):
 
     if callback not in _callbacks:
         _callbacks.append(callback)
-        ColorPrint.blue(
-            f"[WindowMonitor] Added callback: {callback.__name__}"
-        )
 
 
 def remove_callback(callback: Callable):
@@ -60,9 +58,6 @@ def remove_callback(callback: Callable):
 
     if callback in _callbacks:
         _callbacks.remove(callback)
-        ColorPrint.blue(
-            f"[WindowMonitor] Removed callback: {callback.__name__}"
-        )
 
 
 def register_status_ui(callback: Callable):
@@ -74,77 +69,51 @@ def register_status_ui(callback: Callable):
     Called from controller (timer and UI are sibling modules; no cross-import).
     """
     get_game_interface_data().register_callback(callback)
-    ColorPrint.blue(f"[WindowMonitor] Status UI registered: {callback.__name__}")
 
 
 def _notify_callbacks(window_info: Optional[dict]):
-    """
-    Notify all registered callbacks with window information
-
-    Args:
-        window_info: Window information dictionary or None if not found
-    """
+    """Notify all registered callbacks with D3 window info (hwnd, rect, etc.)."""
     global _callbacks
-
     for callback in _callbacks:
         try:
             callback(window_info)
-        except Exception as e:
-            ColorPrint.red(
-                f"[WindowMonitor] Error in callback {callback.__name__}: {e}"
-            )
+        except Exception:
+            pass
 
 
-def check_window():
+def notify_window_callbacks(window_info: Optional[dict]) -> None:
+    """Public API: notify D3 window callbacks after a full refresh. Reusable from initial check or manual refresh."""
+    _notify_callbacks(window_info)
+
+
+def mark_inactive_refresh_done() -> None:
+    """Mark that the one-time inactive refresh has been done (startup). Timer will not run full refresh again when flow inactive."""
+    global _inactive_refresh_done
+    _inactive_refresh_done = True
+
+
+def refresh_window_status_if_inactive() -> None:
     """
-    Timer callback: refresh Battle.net then D3 then ROSBOT status (flow B1→B16 before A5; each provider owns its logic), then notify D3 window info callbacks.
-    Always push current game state to status UI so UI updates even when no field changed (fixes race: first callback may run before status widgets exist).
+    When flow active: no-op (process_task is single driver).
+    When flow inactive: run full refresh at most once (startup does it; then only flow-driven refresh when user enables flow).
     """
-    global _last_window_found
-
+    global _last_window_found, _inactive_refresh_done
     try:
-        g = get_game_interface_data()
-        bn_only = g.ensure_battlenet_only_master_enabled
-        flow_master = g.rosbot_flow_master_enabled
-        skip_d3 = bn_only and not flow_master
-
-        ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
-        refresh_battlenet_status()
-        g = get_game_interface_data()
-        bn_found = g.battlenet_window_found
-        ColorPrint.blue(f"[Refresh] Battle.net: {'found' if bn_found else 'not found'}")
-
-        d3_info = None
-        if not skip_d3:
-            d3_info = refresh_d3_status()
-            g = get_game_interface_data()
-            d3_running = g.d3_running
-            ColorPrint.blue(f"[Refresh] D3: {'found' if d3_running else 'not found'}")
-        else:
-            ColorPrint.gray("[Refresh] Ensure Battle.net only: skip D3 detection")
-
-        refresh_rosbot_status()
-        g = get_game_interface_data()
-
-        g.notify_state_sync()
-        ColorPrint.blue("[Refresh] State pushed to UI")
-
+        if is_flow_active():
+            return
+        if _inactive_refresh_done:
+            return
+        d3_info = run_full_status_refresh()
         _notify_callbacks(d3_info)
+        _last_window_found = bool(d3_info)
+        _inactive_refresh_done = True
+    except Exception:
+        pass
 
-        if d3_info:
-            if not _last_window_found:
-                ColorPrint.green(
-                    f"[WindowMonitor] Diablo III window found: "
-                    f"'{d3_info['title']}' ({d3_info['width']}x{d3_info['height']})"
-                )
-                _last_window_found = True
-        else:
-            if _last_window_found:
-                ColorPrint.yellow("[WindowMonitor] Diablo III window not found")
-                _last_window_found = False
 
-    except Exception as e:
-        ColorPrint.red(f"[WindowMonitor] Error checking window: {e}")
+def check_window() -> None:
+    """Deprecated alias for refresh_window_status_if_inactive."""
+    refresh_window_status_if_inactive()
 
 
 def get_current_window_info() -> Optional[dict]:
@@ -152,7 +121,6 @@ def get_current_window_info() -> Optional[dict]:
     try:
         return get_current_d3_window()
     except Exception as e:
-        ColorPrint.red(f"[WindowMonitor] Error getting current window: {e}")
         return None
 
 
@@ -170,18 +138,8 @@ def initialize_and_register(interval: float = DEFAULT_INTERVAL, enabled: bool = 
     success = register_task(
         name="window_monitor",
         interval=interval,
-        callback=check_window,
+        callback=refresh_window_status_if_inactive,
         enabled=enabled
     )
 
-    if success:
-        ColorPrint.green(
-            f"[WindowMonitor] Registered with timer manager "
-            f"(interval={interval}s, enabled={enabled})"
-        )
-
     return success
-
-
-# Initialize on module import
-ColorPrint.blue("[WindowMonitor] Module initialized (static global)")

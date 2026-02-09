@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROSBOT Task Processor
-Handles ROSBOT operations in background task thread
+ROSBOT Task Processor – tick entry only (FLOW_STATE_ARCHITECTURE Approach 3).
+
+Tick does not call third-party libs; it only invokes the flow library. Flow libraries
+call refresh/notify and all other providers.
+
+Chain:
+  - TaskThreadManager 1s: process_rosbot_task() -> process_task() when rosbot_task ENABLED.
+  - process_task(): read flow_state; 2s gate; re-read flow_state; if bn_only run tick_bn_only_flow();
+    if flow_master run tick_flow_master(). When both enabled, both run in same tick (BN-only first).
+  - flow_bn_only / flow_master_driver each do refresh, notify, re-read, then their steps.
+  - When flow inactive, window_monitor runs BN+D3 refresh (not by tick).
 """
 import os
 import sys
@@ -12,11 +21,18 @@ from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import LOGS_FILE_PATH
 from d3utils.log_monitor import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
+from d3utils.rosbot_flow_state import (
+    get_flow_master_enabled,
+    get_bn_only_enabled,
+    is_flow_active,
+)
 from d3utils.task_thread_manager import TaskStatus
-from d3utils.d3_status_provider import refresh_d3_status
+from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
+from d3utils.rosbot_flow.flow_master_driver import tick_flow_master
 from d3utils.battlenet_status_provider import refresh_battlenet_status
-from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow, set_battlenet_tick_confirmed, get_bn_flow_ever_confirmed, reset_confirmed_to_poll
-from d3utils.event_center import trigger_extension_rosbot_start
+from d3utils.d3_status_provider import refresh_d3_status
+from d3utils.rosbot_status_provider import refresh_rosbot_status
+from share.asia_credentials import is_asia_credentials_dialog_pending
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -79,34 +95,47 @@ class RosbotTaskProcessor:
             ColorPrint.red(f"[RosbotTaskProcessor] Error stopping ROSBOT: {e}")
     
     def process_task(self):
-        """Flow driver: 1s tick; flow uses % for 2s. When flow master on: full flow (BN then D3/ROSBOT). When ensure_battlenet_only on: BN-only, each tick re-polls after confirm (reconnect on disconnect)."""
-        bn_only = self.game_state.ensure_battlenet_only_master_enabled
-        flow_master = self.game_state.rosbot_flow_master_enabled
-        if not flow_master and not bn_only:
+        """Tick entry only: read flow state, 2s gate, re-read; then call flow library. No third-party calls here (Approach 3)."""
+        global _flow_last_run_time
+        if not is_flow_active():
             return
         _flow_tick_count[0] += 1
         if _flow_tick_count[0] % 2 != 0:
             return
-        try:
-            refresh_battlenet_status()
-            if flow_master and get_bn_flow_ever_confirmed():
-                refresh_d3_status()
-            self.game_state.notify_state_sync()
-        except Exception:
-            pass
-        done, result = tick_battlenet_ready_flow(no_activate=bn_only)
-        if done and result == "confirmed":
-            if flow_master:
-                set_battlenet_tick_confirmed()
-                trigger_extension_rosbot_start()
-            elif bn_only:
-                reset_confirmed_to_poll()
+        if is_asia_credentials_dialog_pending():
+            return
+        now = time.time()
+        time_since_previous = (now - _flow_last_run_time) if _flow_last_run_time > 0 else 0.0
+        _flow_last_run_time = now
+        bn_only = get_bn_only_enabled()
+        flow_master = get_flow_master_enabled()
+        ColorPrint.gray(
+            f"[A2/A3] Tick #{_flow_tick_count[0]} (2s step) flow_master={flow_master} bn_only={bn_only} | "
+            f"time since previous: {time_since_previous:.2f} s"
+        )
+        bn_only2 = get_bn_only_enabled()
+        flow_master2 = get_flow_master_enabled()
+        if not flow_master2 and not bn_only2:
+            return
+        # Both flows can run in the same tick when both switches are on (simultaneous).
+        # Order: BN-only first (ensure Battle.net), then flow-master (F0/extension/F3/F4).
+        if bn_only2:
+            tick_bn_only_flow()
+        if flow_master2:
+            tick_flow_master(_flow_tick_count[0], start_rosbot_task)
 
 
 # Global instance
 _rosbot_processor = None
 # 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0, ROSBOT_FLOW.md)
 _flow_tick_count = [0]
+# Time of last flow step run (for "time since previous" log)
+_flow_last_run_time = 0.0
+
+
+def get_flow_tick_count() -> int:
+    """Current flow tick (incremented every 2s when count % 2 == 0). Used by extension flow state machine for deadline_tick."""
+    return _flow_tick_count[0]
 
 
 def get_rosbot_processor() -> RosbotTaskProcessor:
@@ -140,6 +169,31 @@ def stop_rosbot_task():
 
 
 def process_rosbot_task():
-    """Process ROSBOT task (called by task thread)"""
+    """Process ROSBOT task (called by task thread)."""
     processor = get_rosbot_processor()
     processor.process_task()
+
+
+def run_full_status_refresh() -> Optional[dict]:
+    """
+    Reusable status refresh. Scope depends on flow switches at call time:
+    - Only bn_only (Ensure Battle.net only): BN only, no D3/ROSBOT (BN flow does not touch get_rosbot_window).
+    - Else (flow_master or both off): BN + D3 light + ROSBOT, then notify.
+
+    Callers (no conflict among the three):
+    - Startup initial check: submit_one_shot(do_window_monitor_initial_check) at timer start; reads bn_only/flow_master when run.
+    - Start ROSBOT: _start_rosbot sets flow_master=True then _request_status_refresh -> full refresh.
+    - Ensure Battle.net (on): _ensure_battlenet_only sets bn_only=True then _request_status_refresh -> BN-only refresh.
+    Returns D3 window info dict for window callbacks (optional); None when BN-only path.
+    """
+    bn_only = get_bn_only_enabled()
+    flow_master = get_flow_master_enabled()
+    if bn_only and not flow_master:
+        refresh_battlenet_status()
+        get_game_interface_data().notify_state_sync()
+        return None
+    refresh_battlenet_status()
+    d3_info = refresh_d3_status(skip_dynamic=True)
+    refresh_rosbot_status()
+    get_game_interface_data().notify_state_sync()
+    return d3_info

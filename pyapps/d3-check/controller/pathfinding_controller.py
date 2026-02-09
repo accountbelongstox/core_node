@@ -35,7 +35,7 @@ from pycore.pyutils.image_crop import ImageCrop
 from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
 from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.app_constants import TMP_DIR
+from providor.constants.common import TMP_DIR
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from config.grid_config import get_grid_config
 

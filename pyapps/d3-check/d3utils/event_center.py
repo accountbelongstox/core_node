@@ -7,7 +7,7 @@ to the event center, and the event center dispatches to registered handlers (whi
 may forward to specific threads or schedule main-thread UI updates).
 """
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Tuple
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
@@ -20,13 +20,7 @@ from d3utils.event_signals import (
     trigger_extension_rosbot_stopped,
     trigger_extension_shutdown,
 )
-from d3utils.shutdown_manager import (
-    is_shutdown_requested,
-    request_restart,
-    request_shutdown,
-)
-
-from providor.app_constants import (
+from providor.constants.common import (
     APP_EXIT,
     APP_RESTART,
     WINDOW_SHOW,
@@ -37,6 +31,20 @@ from providor.app_constants import (
     EXTENSION_ROSBOT_START,
     EXTENSION_ROSBOT_STOP,
 )
+
+# Shutdown provider: set by runtime so event_center does not import shutdown_manager (breaks cycle).
+_ShutdownProvider = Tuple[Callable[[], bool], Callable[[], None], Callable[[], None]]
+_shutdown_provider: Optional[_ShutdownProvider] = None
+
+
+def register_shutdown_provider(
+    is_shutdown_requested_fn: Callable[[], bool],
+    request_shutdown_fn: Callable[[], None],
+    request_restart_fn: Callable[[], None],
+) -> None:
+    """Register shutdown functions (called from runtime after both event_center and shutdown_manager are loaded)."""
+    global _shutdown_provider
+    _shutdown_provider = (is_shutdown_requested_fn, request_shutdown_fn, request_restart_fn)
 
 
 def _do_show(ui) -> None:
@@ -50,15 +58,20 @@ def _do_show(ui) -> None:
 
 
 def _do_toggle_maximize(ui) -> None:
-    """Run on main thread: toggle maximize/restore and sync title bar button text."""
+    """Run on main thread: toggle maximize/restore (saved geometry for overrideredirect) and sync title bar button text."""
     try:
         root = ui.root
-        if root.state() == "zoomed":
-            root.state("normal")
+        is_max = getattr(ui, "_is_maximized", False)
+        if is_max and getattr(ui, "_saved_geometry_restore", None):
+            root.geometry(ui._saved_geometry_restore)
+            ui._is_maximized = False
             if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
                 ui.title_bar.maximize_btn.configure(text="□")
         else:
-            root.state("zoomed")
+            ui._saved_geometry_restore = root.geometry()
+            w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+            root.geometry(f"{w}x{h}+0+0")
+            ui._is_maximized = True
             if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
                 ui.title_bar.maximize_btn.configure(text="❐")
     except Exception:
@@ -72,14 +85,20 @@ def register_main_thread_handlers(ui) -> None:
     """
 
     def on_exit(_data: Any = None) -> None:
-        if is_shutdown_requested():
+        if _shutdown_provider is None:
             return
-        request_shutdown()
+        is_req, req_shutdown, _ = _shutdown_provider
+        if is_req():
+            return
+        req_shutdown()
 
     def on_restart(_data: Any = None) -> None:
-        if is_shutdown_requested():
+        if _shutdown_provider is None:
             return
-        request_restart()
+        is_req, _, req_restart = _shutdown_provider
+        if is_req():
+            return
+        req_restart()
 
     def on_show(_data: Any = None) -> None:
         _do_show(ui)
@@ -180,13 +199,18 @@ def register_extension_handlers(
     def on_rosbot_started(data: Any = None) -> None:
         success = False
         err = None
-        if isinstance(data, (list, tuple)) and len(data) >= 2:
-            success, err = data[0], data[1]
+        ran_e_block = False
+        if isinstance(data, (list, tuple)):
+            if len(data) >= 3:
+                success, err, ran_e_block = data[0], data[1], data[2]
+            elif len(data) >= 2:
+                success, err = data[0], data[1]
         elif isinstance(data, dict):
             success = data.get("success", False)
             err = data.get("error")
+            ran_e_block = data.get("ran_e_block", False)
         try:
-            ui.root.after(0, lambda: panel._on_login_check_done(success, err))
+            ui.root.after(0, lambda: panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
         except Exception:
             pass
 

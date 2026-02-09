@@ -13,6 +13,9 @@
         "exit": "Exit"
       }
     },
+    "button_area": {
+      "start_d3": "Start D3"
+    },
     "tabs": {
       "main_functions": "D3 Main Functions",
       "auxiliary_functions": "D3 Auxiliary Functions",

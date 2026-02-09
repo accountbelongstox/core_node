@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Battle.net manager: config path, kill/start process, find/activate window.
-Reuses WindowFinder, WindowActivator, process_helper.
+Find window by process (Battle.net.exe) only; delegates to share.battlenet_window_finder.
 """
 
 import os
@@ -11,20 +11,21 @@ import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
 
-from providor.app_constants import BATTLE_NET_EXE_NAME
+from providor.constants.common import BATTLE_NET_EXE_NAME
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window_activator import WindowActivator
-from providor.providor_index import CONFIG, get_config_value_safe, BATTLE_NET_WINDOW_TITLES
-from pycore.pyutils.common.window_finder import WindowFinder
+from providor.providor_index import CONFIG, BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 
+from share.battlenet_window_finder import find_battlenet_windows, get_battlenet_path
 from d3utils.process_helper import kill_process_by_exe
 
 
 class BattleNetManager:
     """
     Battle.net process and window management.
-    Uses CONFIG for path; WindowFinder for window list; WindowActivator for bring-to-front.
+    Uses CONFIG for path; finds window by process (Battle.net.exe) only; WindowActivator for bring-to-front.
     """
 
     def __init__(
@@ -41,11 +42,7 @@ class BattleNetManager:
 
     def get_path(self) -> Optional[Path]:
         """Return Battle.net exe path from config battlenet.battlenet_path (thread-safe), or None."""
-        path = (get_config_value_safe("battlenet.battlenet_path") or "").strip()
-        if not path:
-            return None
-        p = Path(path)
-        return p if p.is_file() else None
+        return get_battlenet_path()
 
     def kill(self) -> bool:
         """Kill Battle.net process via taskkill. Returns True if killed or not found."""
@@ -84,13 +81,8 @@ class BattleNetManager:
         match_mode: str = "in",
         use_cache: bool = True,
     ) -> List[Dict[str, Any]]:
-        """Find Battle.net windows. Returns list of window dicts (hwnd, title, etc.). match_mode='in' finds any title containing a list item."""
-        return WindowFinder.find_windows_by_titles(
-            titles=self._window_titles,
-            match_mode=match_mode,
-            use_cache=use_cache,
-            skip_browser_if=self._skip_browser,
-        )
+        """Find Battle.net windows by process only (Battle.net.exe). Delegates to share.battlenet_window_finder."""
+        return find_battlenet_windows()
 
     def find_battlenet_window(self, match_mode: str = "in", use_cache: bool = True) -> Optional[Dict[str, Any]]:
         """Find first Battle.net window. Returns window dict or None. Prefer this over manual find_windows when only one window is needed."""
@@ -98,7 +90,7 @@ class BattleNetManager:
         return windows[0] if windows else None
 
     def activate_window(self, match_mode: str = "in") -> bool:
-        """Bring first found Battle.net window to front. Returns True if activated."""
+        """Bring first found Battle.net window to front. Returns True if window found (proceed even if SetForegroundWindow failed)."""
         windows = self.find_windows(match_mode=match_mode)
         if not windows:
             return False
@@ -106,6 +98,33 @@ class BattleNetManager:
         ColorPrint.blue("[BattleNetManager] Activating Battle.net window to front...")
         WindowActivator().activate_window_by_handle(hwnd)
         return True
+
+    def prime_window_cache_for_capture(self) -> bool:
+        """Find window by exe and prime ENCYCLOPEDIA under window_cache_battle.net for provider/analyzer. Returns True if found."""
+        windows = self.find_windows()
+        if not windows:
+            return False
+        w = windows[0]
+        rect = w.get("rect") or (0, 0, w.get("width", 0), w.get("height", 0))
+        if isinstance(rect, (list, tuple)) and len(rect) >= 4:
+            left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+        else:
+            left, top = 0, 0
+            right = left + (w.get("width") or 0)
+            bottom = top + (w.get("height") or 0)
+        ENCYCLOPEDIA.add("window_cache_battle.net", {
+            "hwnd": w["hwnd"],
+            "title": w.get("title") or "Battle.net",
+            "rect": (left, top, right, bottom),
+            "left": left, "top": top, "right": right, "bottom": bottom,
+            "width": right - left, "height": bottom - top,
+            "class_name": w.get("class_name") or "",
+        })
+        return True
+
+    def get_capture_titles(self) -> List[str]:
+        """Single source for titles passed to provider/analyzer after prime_window_cache_for_capture(). Same as BATTLE_NET_WINDOW_TITLES[0]."""
+        return [BATTLE_NET_WINDOW_TITLES[0]] if BATTLE_NET_WINDOW_TITLES else ["Battle.net"]
 
 
 _battlenet_manager: Optional[BattleNetManager] = None
