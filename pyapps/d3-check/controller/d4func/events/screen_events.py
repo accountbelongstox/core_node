@@ -26,17 +26,12 @@ def on_screen_size_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.game_window_size:
-            width, height = d4_data.game_window_size
-            ColorPrint.green(f"[Screen Event] Screen size changed: {width}x{height}")
-        else:
-            ColorPrint.blue("[Screen Event] Screen size changed: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Screen Event] Error in on_screen_size_changed: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.game_window_size:
+        width, height = d4_data.game_window_size
+        ColorPrint.green(f"[Screen Event] Screen size changed: {width}x{height}")
+    else:
+        ColorPrint.blue("[Screen Event] Screen size changed: No data")
 
 
 def on_screen_coordinates_changed():
@@ -45,17 +40,12 @@ def on_screen_coordinates_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.window_offset:
-            x, y = d4_data.window_offset
-            ColorPrint.green(f"[Screen Event] Screen coordinates changed: ({x}, {y})")
-        else:
-            ColorPrint.blue("[Screen Event] Screen coordinates changed: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Screen Event] Error in on_screen_coordinates_changed: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.window_offset:
+        x, y = d4_data.window_offset
+        ColorPrint.green(f"[Screen Event] Screen coordinates changed: ({x}, {y})")
+    else:
+        ColorPrint.blue("[Screen Event] Screen coordinates changed: No data")
 
 
 def on_display_mode_changed():
@@ -64,11 +54,6 @@ def on_display_mode_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        mode = "Windowed" if d4_data.is_windowed_mode() else "Fullscreen"
-        ColorPrint.green(f"[Screen Event] Display mode changed: {mode}")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Screen Event] Error in on_display_mode_changed: {e}")
+    d4_data = get_d4_interface_data()
+    mode = "Windowed" if d4_data.is_windowed_mode() else "Fullscreen"
+    ColorPrint.green(f"[Screen Event] Display mode changed: {mode}")

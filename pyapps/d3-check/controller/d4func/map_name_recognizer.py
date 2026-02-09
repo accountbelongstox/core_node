@@ -95,13 +95,9 @@ class MapNameRecognizer:
         Returns:
             bool: True if recognition was attempted, False otherwise
         """
-        try:
-            # Check if we should recognize (is_post_switch_idle is True)
-            if not self.d4_data.is_post_switch_idle:
-                return False
-                
-            # Check if we have region images available
-            if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
+        if not self.d4_data.is_post_switch_idle:
+            return False
+        if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
                 ColorPrint.yellow("[MapNameRecognizer] No detected_regions available")
                 return False
 

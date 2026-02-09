@@ -65,7 +65,7 @@ D3_FRAGMENT2_DISAPPEAR_ATTEMPTS = 5
 C3_C3W_TIMEOUT_SEC = 60.0
 C3_DEADLINE_TICKS = 30
 C3W_WAIT_SEC = 2.0
-D3_ONLINE_SIMILARITY_THRESHOLD = 0.98
+D3_ONLINE_SIMILARITY_THRESHOLD = 0.995  # C10b: only treat as disconnect when before/after-M screens almost identical; 0.98 caused false positives (e.g. 0.989 when online)
 D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 
 # ---------------------------------------------------------------------------
