@@ -274,8 +274,44 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
     IS_PRODUCTION=true
 fi
 
+# Return largest NTFS device by size (blockdev --getsize64)
+get_largest_ntfs_device() {
+    local best_device=""
+    local best_size=0
+    local device size
+    while IFS= read -r device; do
+        [ -z "$device" ] && continue
+        size=$($USE_SUDO blockdev --getsize64 "$device" 2>/dev/null || echo 0)
+        if [ -n "$size" ] && [ "$size" -gt "$best_size" ] 2>/dev/null; then
+            best_size="$size"
+            best_device="$device"
+        fi
+    done < <($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | cut -d: -f1)
+    echo "$best_device"
+}
+
+# Return largest data device (ext4/xfs/btrfs) by size, excluding root and boot
+get_largest_data_device() {
+    local best_device=""
+    local best_size=0
+    local device mount_point size
+    while IFS= read -r device; do
+        [ -z "$device" ] && continue
+        mount_point=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
+        [ "$mount_point" = "/" ] && continue
+        [ "$mount_point" = "/boot" ] && continue
+        [ -n "$mount_point" ] && [ "$mount_point" = "/boot/efi" ] && continue
+        size=$($USE_SUDO blockdev --getsize64 "$device" 2>/dev/null || echo 0)
+        if [ -n "$size" ] && [ "$size" -gt "$best_size" ] 2>/dev/null; then
+            best_size="$size"
+            best_device="$device"
+        fi
+    done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
+    echo "$best_device"
+}
+
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d -> NTFS mount -> Data disk mount -> /www
+# Priority: WSL /mnt/d -> Largest NTFS -> Largest data disk (ext4/xfs/btrfs) -> /www
 get_base_data_directory() {
     local base_dir=""
 
@@ -286,34 +322,45 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: NTFS mount point (derived from device detection)
+    # Priority 2: Largest NTFS (use standard mount path or current mount; allow root when not writable)
     if has_ntfs_disk; then
-        # Get first NTFS device
-        local ntfs_device=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | head -n 1 | cut -d: -f1)
+        local ntfs_device
+        ntfs_device=$(get_largest_ntfs_device)
         if [ -n "$ntfs_device" ]; then
-            # Derive standard mount point from device name
-            local ntfs_mount=$(device_to_mount_point "$ntfs_device")
-            if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
+            local ntfs_mount
+            ntfs_mount=$(device_to_mount_point "$ntfs_device")
+            if [ -d "$ntfs_mount" ] && ( [ -w "$ntfs_mount" ] || [ "$(id -u)" -eq 0 ] ); then
                 base_dir="$ntfs_mount"
+                echo "$base_dir"
+                return 0
+            fi
+            local current_mount
+            current_mount=$(findmnt -n -o TARGET "$ntfs_device" 2>/dev/null || echo "")
+            if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+                base_dir="$current_mount"
                 echo "$base_dir"
                 return 0
             fi
         fi
     fi
 
-    # Priority 3: Data disk mount point (derived from device detection)
-    local data_device=$($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | head -n 1 | cut -d: -f1)
+    # Priority 3: Largest data disk (ext4/xfs/btrfs; use standard or current mount; allow root when not writable)
+    local data_device
+    data_device=$(get_largest_data_device)
     if [ -n "$data_device" ]; then
-        # Check if it's not root or boot partition
-        local mount_point=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
-        if [ "$mount_point" != "/" ] && [ "$mount_point" != "/boot" ]; then
-            # Derive standard mount point from device name
-            local data_mount=$(device_to_mount_point "$data_device")
-            if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
-                base_dir="$data_mount"
-                echo "$base_dir"
-                return 0
-            fi
+        local data_mount
+        data_mount=$(device_to_mount_point "$data_device")
+        if [ -d "$data_mount" ] && ( [ -w "$data_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+            base_dir="$data_mount"
+            echo "$base_dir"
+            return 0
+        fi
+        local current_mount
+        current_mount=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
+        if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+            base_dir="$current_mount"
+            echo "$base_dir"
+            return 0
         fi
     fi
 

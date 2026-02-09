@@ -35,8 +35,9 @@
 #   1. PRE-REQUISITES
 #      Install if missing: curl (or wget), ca-certificates, sudo (when root), git.
 #
-#   2. REPO BASE URL
-#      From env REPO_BASE_URL or prompt user for region (GitHub / Gitee).
+#   2. REPO BASE URL (deployment stage only)
+#      Global = GitHub, China (Cn) = Gitee. Choice is saved to cache (e.g. ~/.core_node/SELECTED_REGION).
+#      Next run: prompt "Modify region? (N/y)" — N or Enter = use cached; y = show region menu and update cache.
 #
 #   3. DOWNLOAD REQUIRED PROJECT LIBRARIES (first priority)
 #      Download to launcher root subpaths (same layout as repo). Required libs:
@@ -84,11 +85,18 @@ GITHUB_REPO="https://github.com/accountbelongstox/core_node.git"
 GITEE_REPO="https://gitee.com/accountbelongstox/core_node.git"
 USE_SUDO=""
 CORE_NODE_PROJECT_ROOT=""
+REGION_CACHE_DIR=""
+REGION_CACHE_FILE=""
 
 # Resolve script path; launcher root = directory of temporary dd.sh and this bootstrap (resolve symlinks)
 BOOTSTRAP_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BOOTSTRAP_SCRIPT_DIR="$(dirname "$BOOTSTRAP_SCRIPT_PATH")"
 LAUNCHER_ROOT="$BOOTSTRAP_SCRIPT_DIR"
+
+# Region cache (deployment stage only): persist Global/China so next run prompts "Modify region? (N/y)"
+REGION_CACHE_DIR="${HOME}/.core_node"
+REGION_CACHE_FILE="$REGION_CACHE_DIR/SELECTED_REGION"
+[ "$(id -u)" -eq 0 ] && REGION_CACHE_DIR="/var/_core_node" && REGION_CACHE_FILE="$REGION_CACHE_DIR/SELECTED_REGION"
 
 # Use repo base URL from environment if set (passed by dd.sh after region selection)
 REPO_BASE_URL="${REPO_BASE_URL:-}"
@@ -98,22 +106,51 @@ log_ok() { echo -e "\033[32m[BOOTSTRAP] $1\033[0m"; }
 log_warn() { echo -e "\033[33m[BOOTSTRAP] $1\033[0m"; }
 log_err() { echo -e "\033[31m[BOOTSTRAP] $1\033[0m"; }
 
-# Step 0: Ensure repo base URL (region)
+# Step 0: Ensure repo base URL (region). Cache choice; next run prompt "Modify region? (N/y)" (deployment stage only).
 ensure_repo_base_url() {
     if [ -n "$REPO_BASE_URL" ]; then
         log_ok "Using repo base URL: $REPO_BASE_URL"
         return 0
     fi
-    echo ""
-    echo "Select download region:"
-    echo "  1) Global (GitHub)"
-    echo "  2) China (Gitee)"
-    echo -n "Choice (1 or 2) [1]: "
-    read -r choice
-    case "${choice:-1}" in
-        2) REPO_BASE_URL="$GITEE_RAW"; log_ok "Region: Gitee"; ;;
-        *) REPO_BASE_URL="$GITHUB_RAW"; log_ok "Region: GitHub"; ;;
-    esac
+
+    local cached_region=""
+    if [ -s "$REGION_CACHE_FILE" ]; then
+        cached_region=$(cat "$REGION_CACHE_FILE" 2>/dev/null | head -n1 | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    fi
+
+    if [ -n "$cached_region" ] && { [ "$cached_region" = "Global" ] || [ "$cached_region" = "China" ]; }; then
+        echo ""
+        echo -n "Modify region? (N/y) [current: $cached_region]: "
+        read -r modify_region
+        if [ "$modify_region" = "y" ] || [ "$modify_region" = "Y" ]; then
+            cached_region=""
+        fi
+    else
+        cached_region=""
+    fi
+
+    if [ -z "$cached_region" ]; then
+        echo ""
+        echo "Select download region:"
+        echo "  1) Global (GitHub)"
+        echo "  2) China (Gitee)"
+        echo -n "Choice (1 or 2) [1]: "
+        read -r choice
+        case "${choice:-1}" in
+            2) cached_region="China"; REPO_BASE_URL="$GITEE_RAW"; log_ok "Region: Gitee (China)"; ;;
+            *) cached_region="Global"; REPO_BASE_URL="$GITHUB_RAW"; log_ok "Region: GitHub (Global)"; ;;
+        esac
+        mkdir -p "$REGION_CACHE_DIR"
+        echo "$cached_region" > "$REGION_CACHE_FILE" 2>/dev/null || true
+    else
+        if [ "$cached_region" = "China" ]; then
+            REPO_BASE_URL="$GITEE_RAW"
+            log_ok "Using cached region: China (Gitee)"
+        else
+            REPO_BASE_URL="$GITHUB_RAW"
+            log_ok "Using cached region: Global (GitHub)"
+        fi
+    fi
 }
 
 # Step 1a: Pre-requisites - install curl and/or wget (needed for downloading bootstrap files)
@@ -243,19 +280,30 @@ install_git_if_missing() {
     return 1
 }
 
-# Download a single file from REPO_BASE_URL to destination path (under launcher root for libs)
+# Common download with progress (same behavior as dd.sh download_with_progress)
+download_with_progress() {
+    local url="$1"
+    local dest_path="$2"
+    local dir_dest
+    dir_dest="$(dirname "$dest_path")"
+    mkdir -p "$dir_dest"
+    if command -v curl >/dev/null 2>&1; then
+        curl -# -f -L -o "$dest_path" "$url" && [ -s "$dest_path" ] && return 0
+    fi
+    if command -v wget >/dev/null 2>&1; then
+        wget --progress=bar:force -O "$dest_path" "$url" && [ -s "$dest_path" ] && return 0
+    fi
+    return 1
+}
+
+# Download a single file from REPO_BASE_URL to destination path; show progress
 download_to() {
     local rel_path="$1"
     local dest_path="$2"
     local url="$REPO_BASE_URL/$rel_path"
-    local dir_dest
-    dir_dest="$(dirname "$dest_path")"
-    mkdir -p "$dir_dest"
-    if command -v wget >/dev/null 2>&1; then
-        wget -q -O "$dest_path" "$url" 2>/dev/null && [ -s "$dest_path" ] && return 0
-    fi
-    if command -v curl >/dev/null 2>&1; then
-        curl -f -s -L -o "$dest_path" "$url" 2>/dev/null && [ -s "$dest_path" ] && return 0
+    log_info "Downloading $rel_path ..."
+    if download_with_progress "$url" "$dest_path"; then
+        return 0
     fi
     return 1
 }
@@ -333,6 +381,7 @@ ensure_project_cloned() {
             read -r confirm
             if [[ "$confirm" =~ ^[Yy] ]]; then
                 log_info "Removing $CORE_NODE_PROJECT_ROOT"
+                echo "  $USE_SUDO rm -rf $CORE_NODE_PROJECT_ROOT"
                 $USE_SUDO rm -rf "$CORE_NODE_PROJECT_ROOT"
             else
                 log_err "Aborted. Empty or remove the directory manually and run again."
@@ -341,8 +390,10 @@ ensure_project_cloned() {
         fi
     fi
 
+    echo "  $USE_SUDO mkdir -p $(dirname "$CORE_NODE_PROJECT_ROOT")"
     $USE_SUDO mkdir -p "$(dirname "$CORE_NODE_PROJECT_ROOT")"
     log_info "Cloning full project from $repo_url into $CORE_NODE_PROJECT_ROOT"
+    echo "  $USE_SUDO git clone $repo_url $CORE_NODE_PROJECT_ROOT"
     if $USE_SUDO git clone "$repo_url" "$CORE_NODE_PROJECT_ROOT"; then
         log_ok "Project cloned successfully"
     else
@@ -350,7 +401,9 @@ ensure_project_cloned() {
         return 1
     fi
 
+    echo "  $USE_SUDO chown -R $(whoami):$(whoami) $CORE_NODE_PROJECT_ROOT"
     $USE_SUDO chown -R "$(whoami):$(whoami)" "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
+    echo "  $USE_SUDO chmod -R 755 $CORE_NODE_PROJECT_ROOT"
     $USE_SUDO chmod -R 755 "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
     return 0
 }
@@ -362,6 +415,7 @@ exec_project_dd() {
         log_err "Project dd.sh not found at $dd_sh"
         return 1
     fi
+    echo "  $USE_SUDO chmod +x $dd_sh"
     $USE_SUDO chmod +x "$dd_sh"
     log_ok "Handing off to project dd.sh at $dd_sh"
     exec bash "$dd_sh"

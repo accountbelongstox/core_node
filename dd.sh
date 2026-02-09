@@ -80,6 +80,22 @@ PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_valida
 # Temporary directory for core_node operations
 CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
 
+# Common download with progress (used in installation mode and can be reused by bootstrap)
+download_with_progress() {
+    local url="$1"
+    local dest="$2"
+    local dir_dest
+    dir_dest="$(dirname "$dest")"
+    mkdir -p "$dir_dest"
+    if command -v curl >/dev/null 2>&1; then
+        curl -# -f -L -o "$dest" "$url" && [ -s "$dest" ] && return 0
+    fi
+    if command -v wget >/dev/null 2>&1; then
+        wget --progress=bar:force -O "$dest" "$url" && [ -s "$dest" ] && return 0
+    fi
+    return 1
+}
+
 # Installation mode launcher: show menu, download bootstrap file, hand off to it. dd.sh does nothing else.
 run_installation_mode() {
     echo ""
@@ -104,15 +120,10 @@ run_installation_mode() {
     local base_url="$GITHUB_BASE_URL"
     [ "$region_choice" = "2" ] && base_url="$GITEE_BASE_URL"
     local bootstrap_dest="$SCRIPT_ACTUAL_DIR/install_bootstrap.sh"
-    echo "Downloading bootstrap file from $base_url ..."
-    local ok=0
-    if command -v wget >/dev/null 2>&1; then
-        wget -q -O "$bootstrap_dest" "$base_url/$BOOTSTRAP_RELATIVE" 2>/dev/null && [ -s "$bootstrap_dest" ] && ok=1
-    fi
-    if [ "$ok" -eq 0 ] && command -v curl >/dev/null 2>&1; then
-        curl -f -s -L -o "$bootstrap_dest" "$base_url/$BOOTSTRAP_RELATIVE" 2>/dev/null && [ -s "$bootstrap_dest" ] && ok=1
-    fi
-    if [ "$ok" -ne 1 ]; then
+    local bootstrap_url="$base_url/$BOOTSTRAP_RELATIVE"
+    echo "Downloading bootstrap file..."
+    echo "  URL: $bootstrap_url"
+    if ! download_with_progress "$bootstrap_url" "$bootstrap_dest"; then
         echo "[ERROR] Failed to download bootstrap file. Exiting."
         exit 1
     fi
