@@ -274,8 +274,8 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
     IS_PRODUCTION=true
 fi
 
-# Return largest NTFS device by size (blockdev --getsize64)
-get_largest_ntfs_device() {
+# Return largest NTFS device and its size (bytes), output "size device"
+get_largest_ntfs_with_size() {
     local best_device=""
     local best_size=0
     local device size
@@ -287,11 +287,11 @@ get_largest_ntfs_device() {
             best_device="$device"
         fi
     done < <($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | cut -d: -f1)
-    echo "$best_device"
+    [ -n "$best_device" ] && echo "$best_size $best_device"
 }
 
-# Return largest data device (ext4/xfs/btrfs) by size, excluding root and boot
-get_largest_data_device() {
+# Return largest data device (ext4/xfs/btrfs) and its size, excluding root and boot; output "size device"
+get_largest_data_with_size() {
     local best_device=""
     local best_size=0
     local device mount_point size
@@ -307,11 +307,30 @@ get_largest_data_device() {
             best_device="$device"
         fi
     done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
-    echo "$best_device"
+    [ -n "$best_device" ] && echo "$best_size $best_device"
+}
+
+# Resolve usable mount path for a device (standard path or current mount; allow root when not writable)
+_resolve_device_mount_path() {
+    local device="$1"
+    local std_mount current_mount
+    std_mount=$(device_to_mount_point "$device")
+    current_mount=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
+    if [ -d "$std_mount" ] && ( [ -w "$std_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+        echo "$std_mount"
+        return 0
+    fi
+    if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+        echo "$current_mount"
+        return 0
+    fi
+    echo ""
+    return 1
 }
 
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d -> Largest NTFS -> Largest data disk (ext4/xfs/btrfs) -> /www
+# Logic: Mount all NTFS and all data disks (done in 2_setting_base). Use the SINGLE LARGEST disk (by size) as data base, regardless of type (NTFS or ext4/xfs/btrfs).
+# Priority: WSL /mnt/d -> Largest of (largest NTFS, largest data disk) -> /www
 get_base_data_directory() {
     local base_dir=""
 
@@ -322,43 +341,33 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: Largest NTFS (use standard mount path or current mount; allow root when not writable)
-    if has_ntfs_disk; then
-        local ntfs_device
-        ntfs_device=$(get_largest_ntfs_device)
-        if [ -n "$ntfs_device" ]; then
-            local ntfs_mount
-            ntfs_mount=$(device_to_mount_point "$ntfs_device")
-            if [ -d "$ntfs_mount" ] && ( [ -w "$ntfs_mount" ] || [ "$(id -u)" -eq 0 ] ); then
-                base_dir="$ntfs_mount"
-                echo "$base_dir"
-                return 0
-            fi
-            local current_mount
-            current_mount=$(findmnt -n -o TARGET "$ntfs_device" 2>/dev/null || echo "")
-            if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
-                base_dir="$current_mount"
-                echo "$base_dir"
-                return 0
-            fi
+    # Compare largest NTFS vs largest data disk; use the absolute largest
+    local ntfs_line data_line ntfs_size data_size ntfs_device data_device chosen_device path
+    ntfs_line=$(get_largest_ntfs_with_size)
+    data_line=$(get_largest_data_with_size)
+    ntfs_size=0
+    data_size=0
+    ntfs_device=""
+    data_device=""
+    [ -n "$ntfs_line" ] && ntfs_size=$(echo "$ntfs_line" | awk '{print $1}') && ntfs_device=$(echo "$ntfs_line" | awk '{print $2}')
+    [ -n "$data_line" ] && data_size=$(echo "$data_line" | awk '{print $1}') && data_device=$(echo "$data_line" | awk '{print $2}')
+    chosen_device=""
+    if [ -n "$ntfs_device" ] && [ -n "$data_device" ]; then
+        if [ "${ntfs_size:-0}" -ge "${data_size:-0}" ] 2>/dev/null; then
+            chosen_device="$ntfs_device"
+        else
+            chosen_device="$data_device"
         fi
+    elif [ -n "$ntfs_device" ]; then
+        chosen_device="$ntfs_device"
+    elif [ -n "$data_device" ]; then
+        chosen_device="$data_device"
     fi
 
-    # Priority 3: Largest data disk (ext4/xfs/btrfs; use standard or current mount; allow root when not writable)
-    local data_device
-    data_device=$(get_largest_data_device)
-    if [ -n "$data_device" ]; then
-        local data_mount
-        data_mount=$(device_to_mount_point "$data_device")
-        if [ -d "$data_mount" ] && ( [ -w "$data_mount" ] || [ "$(id -u)" -eq 0 ] ); then
-            base_dir="$data_mount"
-            echo "$base_dir"
-            return 0
-        fi
-        local current_mount
-        current_mount=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
-        if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
-            base_dir="$current_mount"
+    if [ -n "$chosen_device" ]; then
+        path=$(_resolve_device_mount_path "$chosen_device")
+        if [ -n "$path" ]; then
+            base_dir="$path"
             echo "$base_dir"
             return 0
         fi

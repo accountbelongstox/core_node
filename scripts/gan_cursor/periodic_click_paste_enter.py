@@ -200,6 +200,11 @@ def run_at_coord(x, y, clipboard_override: str | None = None):
 
     pyautogui.press("enter")
 
+    time.sleep(0.5)
+    pyautogui.moveTo(x, y)
+    pyautogui.click()
+    pyautogui.press("enter")
+
     pyautogui.moveTo(saved.x, saved.y)
 
 
