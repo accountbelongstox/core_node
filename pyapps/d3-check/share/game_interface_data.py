@@ -35,7 +35,7 @@ from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESO
 from providor.providor_index import get_template_path
 from pycore.pyfoundations.color_print import ColorPrint
 
-# Global scale variables (moved from providor_index.py to avoid circular imports)
+# Global scale variables (moved from providor_index)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
 GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
 

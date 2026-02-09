@@ -32,7 +32,7 @@ from providor.constants.common import (
     EXTENSION_ROSBOT_STOP,
 )
 
-# Shutdown provider: set by runtime so event_center does not import shutdown_manager (breaks cycle).
+# Shutdown provider: set by runtime after event_center and shutdown_manager are loaded.
 _ShutdownProvider = Tuple[Callable[[], bool], Callable[[], None], Callable[[], None]]
 _shutdown_provider: Optional[_ShutdownProvider] = None
 
