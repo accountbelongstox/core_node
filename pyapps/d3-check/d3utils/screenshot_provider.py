@@ -356,8 +356,9 @@ class ScreenshotProvider:
                 ColorPrint.blue(f"[Provider] Using optimized capture for: {window_titles}")
                 result = self.screenshot_manager.screenshot_first_window_by_titles(
                     titles=window_titles,
-                    filename_prefix="temp_game_window", 
-                    use_cache=True
+                    filename_prefix="temp_game_window",
+                    use_cache=True,
+                    save_to_disk=False,
                 )
             else:
                 # Full screen: capture whole screen (no window filter)
@@ -376,20 +377,24 @@ class ScreenshotProvider:
                 )
                 return None
 
-            fullscreen_path = result["screenshot_path"]
-            captured_size = result["window_size"]  # This is the captured window size
+            captured_size = result["window_size"]
+            fullscreen_path = result.get("screenshot_path")
+            in_memory_image = result.get("image")
 
-            # Get actual screen resolution
             screen_width, screen_height = get_screen_resolution()
             screen_resolution = (screen_width, screen_height)
 
             ColorPrint.green(f"[Provider] Screenshot captured: {captured_size[0]}x{captured_size[1]}")
             ColorPrint.green(f"[Provider] Screen resolution: {screen_resolution[0]}x{screen_resolution[1]}")
 
-            # Load image to memory
-            fullscreen_image = Image.open(str(fullscreen_path))
+            if in_memory_image is not None:
+                fullscreen_image = in_memory_image
+            elif fullscreen_path is not None:
+                fullscreen_image = Image.open(str(fullscreen_path))
+            else:
+                ColorPrint.red("[Provider] No image in result (screenshot_path and image both missing)")
+                return None
 
-            # Save debug copy if DEBUG mode is enabled
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
             if DEBUG:
                 debug_path = TMP_DIR / f"debug_fullscreen_{timestamp}.png"
@@ -399,16 +404,13 @@ class ScreenshotProvider:
             # Step 2: Handle different capture modes
 
             if use_optimized_capture:
-                # Optimized mode: Only game window is captured, no fullscreen available
-                # fullscreen_image is set to NULL for compatibility
                 ColorPrint.green(f"[Provider] Optimized mode: using captured game window directly")
 
-                game_window_image = fullscreen_image  # The captured image is game window
-                game_window_size = captured_size  # Use actual captured window size, not screen resolution
+                game_window_image = fullscreen_image
+                game_window_size = captured_size
                 game_window_rect = (0, 0, captured_size[0], captured_size[1])
-                fullscreen_size = screen_resolution  # Use screen resolution for fullscreen_size
+                fullscreen_size = screen_resolution
 
-                # Get window offset from cache (same canonical key as WindowFinder)
                 window_offset = (0, 0)
                 if window_titles:
                     cache_key = f"window_cache_{window_titles[0].lower()}"
@@ -417,12 +419,12 @@ class ScreenshotProvider:
                         window_offset = (cached_info.get('left', 0), cached_info.get('top', 0))
                         ColorPrint.blue(f"[Provider] Got window offset from cache: {window_offset}")
 
-                # Clean up temporary file
-                try:
-                    fullscreen_path.unlink()
-                    ColorPrint.gray(f"[Provider] Cleaned up temp file: {fullscreen_path}")
-                except:
-                    pass
+                if fullscreen_path is not None:
+                    try:
+                        fullscreen_path.unlink()
+                        ColorPrint.gray(f"[Provider] Cleaned up temp file: {fullscreen_path}")
+                    except Exception:
+                        pass
 
                 # Update global resolution scale
                 update_global_scale(game_window_size[0], game_window_size[1])

@@ -462,12 +462,13 @@ class LoginTryScreenshotController:
         clicker = ClickHandler()
         return self._ensure_battlenet_logged_in_first(bn_path, clicker)
 
-    def _run_c3_loop_and_handle_branch(self) -> str:
+    def _run_c3_loop_and_handle_branch(self, d3_just_entered: bool = False) -> str:
         """
         [C3] One step per tick: screenshot -> match all (start/game_tool/disconnected/connecting); branch on result.
         Caller must have done C2 (resize) before. Returns "success" if start or game_tool path completed with ROSBOT;
         "disconnect" when F1d+F1c ran (caller must NOT restart Battle.net; next tick F_Entry->B2);
         "fallthrough" for other / timeout (caller may retry from D14).
+        d3_just_entered: True when D13 found D3 window within 10s (刚进入游戏); then game_tool skips C6/C10 and goes directly to C7a (ROSBOT_FLOW_MERMAID).
         Doc: no-match/timeout 1min -> C12. Timeout=1min from C3 loop entry; if d3_start_game_button detected then click and reset 1min (Start Game may be stuck and retry).
         """
         c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # Timer start: on C3 loop entry (after C2)
@@ -493,11 +494,18 @@ class LoginTryScreenshotController:
             time.sleep(C3W_WAIT_SEC)
         if time.time() >= c3_deadline and state not in ("disconnect", "start", "game_tool"):
             state = run_c3_screenshot_state()
-        ColorPrint.gray("[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> %s" % (state,))
-        branch_result = run_c4_branch_result(state)
-        ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s" % branch_result)
+        ColorPrint.gray("[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> %s (d3_just_entered=%s)" % (state, d3_just_entered))
+        if state == "game_tool" and d3_just_entered:
+            branch_result = "game_tool"
+            ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s (skip C10: D13 刚进入游戏, ROSBOT_FLOW_MERMAID)" % branch_result)
+        else:
+            branch_result = run_c4_branch_result(state)
+            ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s" % branch_result)
         if branch_result == "disconnect":
-            ColorPrint.yellow("[LoginTryScreenshotController][C4] D3 disconnected (template or C10b), F1d+F1c then C12->D1")
+            if state == "disconnect":
+                ColorPrint.yellow("[LoginTryScreenshotController][C4] D3 disconnected (C3 template: run_c3_screenshot_state matched d3_disconnected), F1d+F1c then C12->D1")
+            else:
+                ColorPrint.yellow("[LoginTryScreenshotController][C4] D3 disconnected (C10b: check_d3_online_by_m_similarity returned False, before/after M >= threshold), F1d+F1c then C12->D1")
             run_c4_disconnect_then_f1d_f1c()
             return "disconnect"  # Caller must NOT restart BN: next tick F_Entry->B2, BN window stays
         if branch_result == "start":
@@ -528,6 +536,9 @@ class LoginTryScreenshotController:
                 return "success"
             run_c12_end_d3()  # [C6] path fail -> C12 (doc: fallthrough to D)
             return "fallthrough"
+        if branch_result == "wait":
+            ColorPrint.gray("[LoginTryScreenshotController] [C3] connecting (wait): do not kill D3, next tick retry")
+            return "connecting"
         run_c12_end_d3()
         return "fallthrough"
 
@@ -582,14 +593,16 @@ class LoginTryScreenshotController:
             return False
         if has_bn_confirmed and has_d3_process:
             if run_c1_entry(has_bn_confirmed, has_d3_process):
-                ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3)")
+                ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3, 启动时已存在)")
                 run_c2_resize()
-                ColorPrint.gray("[LoginTryScreenshotController] [C] progress: _run_c3_loop_and_handle_branch...")
-                c3_result = self._run_c3_loop_and_handle_branch()
+                ColorPrint.gray("[LoginTryScreenshotController] [C] progress: _run_c3_loop_and_handle_branch(d3_just_entered=False)...")
+                c3_result = self._run_c3_loop_and_handle_branch(d3_just_entered=False)
                 if c3_result == "success":
                     return True
                 if c3_result == "disconnect":
                     return False  # F1d+F1c done, next tick F_Entry->B2, do not touch BN
+                if c3_result == "connecting":
+                    return False  # D3 in connecting, do not kill/restart BN, next tick retry
 
         # [D1] Launch D3 from Battle.net branch (UI-only: no screenshot/template)
         op = get_battlenet_operation()
@@ -696,14 +709,18 @@ class LoginTryScreenshotController:
                     ColorPrint.gray(f"[LoginTryScreenshotController] [D12] progress: poll #{poll_i + 1}/{_poll_sec} find_windows -> {'found' if windows else 'not found'}")
                 if windows:
                     get_game_interface_data().set_d3_status(True)
-                    # [D13] Yes -> [C1] entry -> [C2] Resize -> [C3] loop (doc)
+                    # [D13] Yes, 标记「刚进入游戏」-> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
                     if run_c1_entry(True, True):
                         run_c2_resize()
-                        c3_result = self._run_c3_loop_and_handle_branch()
+                        ColorPrint.gray("[LoginTryScreenshotController] [D13] 刚进入游戏 -> _run_c3_loop_and_handle_branch(d3_just_entered=True), skip C10 when game_tool")
+                        c3_result = self._run_c3_loop_and_handle_branch(d3_just_entered=True)
                         if c3_result == "success":
                             return True
                         # C4 disconnect: F1d+F1c already ran, D3 killed; next tick F_Entry->B2, do NOT restart BN
                         if c3_result == "disconnect":
+                            return False
+                        # connecting: 启动中不杀 D3、不重启 BN，下一 tick 重试
+                        if c3_result == "connecting":
                             return False
                     # 文档 D13 否 / C 未成功(非 disconnect) -> D13b -> D14_Restart -> D14w_Wait -> B2_HasWin
                     self._restart_battlenet_and_retry_from_step1(bn_path)

@@ -1260,5 +1260,145 @@
 
 此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_theme与d3_macro_controller及battlenet_asia_ops.md**，并已修正 theme.py 中 bg_input→input_bg，后续修改前以该说明为准，避免同类错误。
 
+---
+
+## 十二、login_try_screenshot_controller、d4_extension_thread、main_functions_panel 相关
+
+就您指定查阅的以下三处：
+
+- **controller/login_try_screenshot_controller.py**：ensure_battlenet_started_and_login_check 为启动 ROSBOT 前的步骤 1；C 分支（D3 已运行）与 D 块（从战网启 D3）不混用；C3 返回 "disconnect" 时已执行 F1d+F1c，**调用方不得重启战网**。ensure_battlenet_only、ensure_d3_running_from_battlenet_no_rosbot 语义不同；路径为 parent.parent。若 C/D 混用、disconnect 后误重启 BN、或 get_request_d_block_from_b7/battlenet_tick_confirmed 未同步，会导致流程错乱。
+- **d3utils/d4_extension_thread.py**：D4 专用线程，每 D4_TICK_INTERVAL 在 is_exp_farming_running 或 debug_window_open 时调 d4_controller.process()；替代 timer 注册。若 D4_TICK_INTERVAL 或条件改错、process 阻塞过长、或未在退出时 request_shutdown，会导致 D4 行为异常或无法退出。
+- **ui/panels/main_functions_panel.py**：主功能面板，CONFIG.macro_configs.skill_configs/auxiliary_config/current_skill_config 与 ConfigBinding、controller.get_skill_config 一致；策略存英文 key（continuous/single/hold），显示用 i18n。若 CONFIG 键路径或 strategy 中英混用、current_config 与 ConfigBinding 不同步、或误用 deprecated 的 _create_skill_panel，会导致配置错位或布局错。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_login_try_screenshot_controller与d4_extension_thread及main_functions_panel.md**，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十三、template_match_debug、rosbot_flow_f4_close_d3_send_f7、d3_status_provider 相关
+
+就您指定查阅的以下三处：
+
+- **share/template_match_debug.py**：模板匹配调试队列，仅内存、不落盘；仅当 `_ui_active` 为 True 时 `notify_match()` 才会入队；由 ScaledTemplateMatcherBase 调用，result 须含 total_matches/matches/error，first_match 可选 num_matches/match_threshold；图像约定 BGR numpy；push 同时写 _debug_queue 与 _entries，关闭 UI 须 clear() 清空两者。若未先 set_debug_ui_active(True) 即期望有数据、或改 result 结构未同步 _build_annotated_match_image、或传入 RGB/PIL 导致 cvtColor 错、或只清 queue 不清 _entries，会导致无数据或显示错或状态不一致。
+- **d3utils/rosbot_flow_f4_close_d3_send_f7.py**：F4 实现——先 kill D3，再 send_f7_to_system()，再 kill rosbot；执行完后**由调用方**进入 B2，本模块不写 B2 逻辑。若调换顺序（如先 F7 再杀 D3）、省略某步、或在本模块内写 enter_battlenet，会导致流程与 ROSBOT_FLOW 不符或职责混乱。
+- **d3utils/d3_status_provider.py**：refresh_d3_status(skip_dynamic)：找 D3 窗并可选做一次截屏+SIFT 得 disconnected；skip_dynamic=True 仅找窗+几何（不截屏），False 才跑 _detect_d3_dynamic；当前 _detect_d3_dynamic 只填 (False, disconnected, False)，on_login_screen/in_game 未实现。若需「掉线」却传 skip_dynamic=True、或改 capture_and_detect_all_d3_states 的 state_dict 未同步此处、或误以为 on_login/in_game 已在此更新，会导致状态不更新或取错。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_template_match_debug与rosbot_flow_f4及d3_status_provider.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十四、_obsolete_click_handler、ROSBOT_FLOW、i18n_main_window_en、log_panel、DESIGN_DETAIL 相关
+
+就您指定查阅的以下五处：
+
+- **utils/_obsolete_click_handler.py**：文件名带 _obsolete_，已废弃；战网点击（托盘、窗口消息、PyAutoGUI、UI Automation、D3/Play 按钮）未接入主流程，主流程用 battlenet_operation / battlenet_asia_ops。若在此文件内改战网点击或登录逻辑并期望生效、或与 app_constants/BattlenetOperation 不一致，会导致改错文件或行为不生效。
+- **docs/ROSBOT_FLOW.md**：流程设计文档，不指定代码/模块；约定 1 秒定时器、% 实现 2 秒 tick、wait vs 有导向、仅当出现 d3_game_tool 时才按 M、D3 在线五步（截图→M→截图→相似度→再按 M）、战网用 UI 自动化不 OCR、d3_disconnected.png 命名。若实现违反上述任一条（如未出现 d3_game_tool 就按 M、战网用 OCR、tick 非 2 秒），会导致流程错或与文档矛盾。
+- **providor/i18n/i18n_main_window_en.json**：主窗口英文文案，嵌套 key（ui.main_window.*、tabs.*、log_panel.* 等）；代码须用一致 key 调用 get_ui_text。若改 JSON 未同步代码或只改代码未补 JSON，会缺译或显示 key。
+- **ui/panels/log_panel.py**：主日志面板，ColorPrint 回调 add_log_message 在**调用方线程**执行，**不可在回调内读 ConfigBinding**（若调用来自 config worker 会死锁）；过滤须在主线程 _should_display_message 内读 log_settings。若在 add_log_message 内读 show_debug_logs/log_level，会导致死锁或竞态。
+- **docs/DESIGN_DETAIL.md**：Login Try 与战网断线重启详细设计（触发、截图、OCR、kill→等 2 秒→启动）。若实现与文档的触发/流程/常量不一致，会导致行为与文档不符。
+
+此前若因未先通读上述约定而在此五处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_obsolete_click_handler与ROSBOT_FLOW及i18n_log_panel及DESIGN_DETAIL.md**，写明五处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十五、template_config.json、reorganize_training_data、_obsolete_window_ops 相关
+
+就您指定查阅的以下三处：
+
+- **providor/template_config.json**：D3Check 默认/模板配置，定义完整配置树（log_settings、log_detection、battlenet、macro_configs 等）；读配置代码须使用与 JSON 一致的键路径与类型。若只改 JSON 未同步 get_config_value 的路径、或只改代码未在模板中补键、或类型不一致，会导致读不到、KeyError 或行为异常；log_detection.login_try、log_settings 等与 DESIGN_DETAIL、log_panel 约定一致，改名须同步。
+- **scripts/reorganize_training_data.py**：一次性脚本，将 source/progress_bar 的 yes/no 移至 processed/classification/progress_bar，并复制硬编码图片、更新 source/metadata.json。路径基于 `__file__` 的 parent.parent；子目录名与文件名写死。若从别处运行或目录/文件不存在会失败；目标已存在会 rmtree 再移，误运行可能清空已处理数据；重复运行因 source 已移走会仅 WARNING。
+- **utils/_obsolete_window_ops.py**：文件名带 _obsolete_，已废弃；Windows 窗口查找、发键、置顶等，**find_windows_by_title 多窗时只保留最后一个并 taskkill 其余**。主流程用 d3_manager、battlenet_manager、key_send，不依赖此处。若在主流程中调用此模块或改其多窗杀进程逻辑，会与设计不符或误关进程。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_template_config与reorganize_training_data及obsolete_window_ops.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十六、flow_bn_only_state、ui/utils、map_name_recognizer 相关
+
+就您指定查阅的以下三处：
+
+- **d3utils/rosbot_flow/flow_bn_only_state.py**：仅 BN-only 流程自身状态（BnOnlyTickStep、BnOnlyBlockResult、_last_bn_done/_last_bn_result）；**BN 块状态 B1..B16 在 flow_bn_block_state**；**Flow-master 不得 import 本模块**。若 Flow-master 引用本模块或把 B1..B16 状态放进此处、或改 BnOnlyTickStep/BnOnlyBlockResult 顺序与含义，会导致职责混乱或 BN-only 与主流程耦合错误。
+- **ui/utils/__init__.py**：仅导出 var_bool、var_str、var_int、var_double、get_app_root；__all__ 与 import 须一致。若新增/删除导出未同步、或在本包内写业务逻辑，会导致 import 失败或违反规范。
+- **controller/d4func/map_name_recognizer.py**：D4 地图名 OCR，仅当 **is_post_switch_idle 为 True** 时识别；从 detected_regions['region_images']['Map Name'] 取图，CnOCR 识别后经 **map_name_utils.set_current_map_name** 写回。若 region key 非 'Map Name'、或未设 is_post_switch_idle 即调用、或绕过 set_current_map_name 直接写 d4_data，会导致不识别或与 map_name_utils/事件约定不一致。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_flow_bn_only_state与ui_utils及map_name_recognizer.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十七、i18n_rosbot_panel_en、providor/constants、_obsolete_color_print、validate 相关
+
+就您指定查阅的以下四处：
+
+- **providor/i18n/i18n_rosbot_panel_en.json**：ROSBOT 扩展面板英文文案，结构为 ui.rosbot.*；代码须用一致 key（如 ui.rosbot.start_rosbot）调用 get_ui_text。若改 JSON 未同步代码或只改代码未补 JSON、或占位符格式与 i18n 实现不一致，会缺译或显示 key。
+- **providor/constants/__init__.py**：仅导入并导出子模块 common、d3、d4；约定「Direct reference only; no aggregation re-export」。若新增/删除子模块未在 __init__.py 的 import 与 __all__ 中同步、或在此做常量聚合导出，会导致 import 失败或违反文档约定。
+- **utils/_obsolete_color_print.py**：文件名带 _obsolete_，已废弃；无 register_callback/notify/log_level。主流程与 log_panel 使用 **pycore.pyfoundations.color_print**。若从此文件导入 ColorPrint 或在此文件上改逻辑期望主程序生效，会导致日志不进 UI 或两套 ColorPrint 混用。
+- **validate.py**：模型校验入口；路径基于 __file__ 的 d3-check 根，.cache/training_data/3_models/classification 与 detection，data.yaml 从 2_datasets/detection/unified_model；分类 class_id=1 为 "yes"。若运行目录或目录结构变化、或 data.yaml names 顺序与训练不一致，会找不到模型或类别反了。
+
+此前若因未先通读上述约定而在此四处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_i18n_rosbot_panel与constants及obsolete_color_print及validate.md**，写明四处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 十八、slot_line_scan_columns、interface_manager、coordinate_picker_window、d4_extension_thread、exp_farming 相关
+
+就您指定查阅的以下五处：
+
+- **scripts/slot_line_scan_columns.py**：调试脚本，用固定太古线色逐列扫描，MIN_LINE_HEIGHT_PX 以上为线；路径基于 __file__（_d3_check_root、_core_node_root），TARGET_DIR/TARGET_NAME 可硬编码或 argv。若脚本移动或未传参且默认路径不存在、或改 DEFAULT_PRIMAL_BGRS 未与使用场景一致，会失败或结果错。
+- **d3utils/interface_manager.py**：必须先 **collect_ui_info（或 collect_ui_info_anchor）再 collect_bag**；Optimized 与 Anchor 两套路径**不可混用**；无背包时送 I 键再试一次。collect_bag_info_quik/collect_bag_info_anchor 内部始终先调 collect_ui_info（anchor 版同理）。若顺序反、混用两套、或去掉送 I 再试，会导致采集失败或数据源不一致（已见第六节，此处技术说明统一）。
+- **ui/components/coordinate_picker_window.py**：坐标拾取窗口；**client_mode**（BATTLENET/D3/D4）决定模板列表与 match_templates；**on_picks_updated**、**pick_history_ref** 未传入则拾取不同步主 UI；pick 存**原图坐标**。若 client_mode 传错或未传回调/历史引用、或把 pick 当画布坐标用，会错。
+- **d3utils/d4_extension_thread.py**：D4 专用线程，每 D4_TICK_INTERVAL 在 **is_exp_farming_running 或 debug_window_open** 时调 d4_controller.process()；退出须 **request_shutdown**；sleep 分 0.1s 步以响应关闭。若条件改错、未调 request_shutdown、或 process 长时间阻塞，会不 tick 或无法退出（已见第十二节，此处技术说明统一）。
+- **controller/d4func/exp_farming.py**：**step1** 截图与 collect info → **step2** region_detection → **step3** map_switch_detector + map_name_recognizer → save/annotate。顺序不可调；step2/step3 依赖 step1 写入的 shared data/detected_regions。若先 step2 再 step1、或 step3 在 step2 前、或 d4_data 未正确写入，会失败或误判。
+
+此前若因未先通读上述约定而在此五处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_slot_line_scan与interface_manager及coord_picker及d4_extension及exp_farming.md**，写明五处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 二十、登陆后的战网元素-控件说明、_obsolete_rosbot_manager、_obsolete_tray_clicker、FLOW_STATE_OWNERSHIP_DESIGN、run_line_detect_on_image 相关
+
+就您指定查阅的以下五处：
+
+- **docs/登陆后的战网元素-控件说明.md**：战网登陆后主界面控件说明，数据来源为调试按钮导出到 docs/登陆后的战网元素.json；已用控件为 D3 Tab（game-nav-btn-D3CN）、Play 区域（play-btn-main/play-btn），判断逻辑与 BattlenetOperation 一致。若代码中 automation_id/name 与文档或 JSON 不一致、或把「待实现」当已实现，会导致战网操作失败或误判。
+- **utils/_obsolete_rosbot_manager.py**：文件名带 _obsolete_，已废弃；ROSBOT 启动与管理主流程应使用 d3utils/rosbot_manager 与 flow（flow_master_driver、rosbot_task_processor）。若在此文件内加功能或作为主入口调用，会绕过流程状态所有权与 DESIGN 约定，导致两套逻辑或行为不生效。
+- **utils/_obsolete_tray_clicker.py**：文件名带 _obsolete_，已废弃；托盘图标双击，主流程战网/托盘相关应使用 battlenet_operation、BattleNetManager、flow。若在此修改或作为主流程入口，与 battlenet_operation / flow 约定不一致，修改不会生效。
+- **docs/FLOW_STATE_OWNERSHIP_DESIGN.md**：流程状态所有权设计；流程类库持有 flow_master_enabled、bn_only_enabled 与步骤，其他类库不读流程开关做分支，Tick 只驱动 process_task()，被调用方仅通过返回值反馈。若在 provider 或 BN 流内读流程开关做分支、或用 game_interface_data 的流程开关做分支、或由 window_monitor 直接驱动 BN/extension，会违反设计。
+- **scripts/run_line_detect_on_image.py**：单张 slot 图太古/远古线检测调试脚本，依赖 debug_bag_hover 的 _find_line_in_crop、_draw_dots_on_matched 等；路径基于 __file__。若脚本移动、未传参、或 debug_bag_hover 接口/常量变更未同步，会失败或结果错。
+
+此前若因未先通读上述约定而在此五处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_登陆后战网控件与obsolete_rosbot_tray及FLOW_STATE_OWNERSHIP及run_line_detect.md**，写明五处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 二十一、scan_rosbot_running、neutral_color_matcher、ocr_helper 相关
+
+就您指定查阅的以下三处：
+
+- **scripts/scan_rosbot_running.py**：调试脚本，用 d3utils.rosbot_manager 扫描当前运行中的 ROSBOT（同目录 exe）；须从 pyapps/d3-check 运行。若在错误目录运行导致 import 失败、或 CONFIG.ros_directory 未加载导致输出全空被误判为无 ROSBOT、或改为依赖 _obsolete_rosbot_manager，会与主流程约定不一致或结果无效。
+- **scripts/neutral_color_matcher.py**：中性色匹配：模板缩放到宽 4px 取最多 5 色（BGR），在大图用原尺寸窗口只返回一个匹配位置；TEMPLATE_DIR、primal_native/ancient_native。若 haystack 传成 RGB、或 tolerance/min_ratio 与调用方不一致、或假定返回多结果，会匹配失败或误用。
+- **d3utils/ocr_helper.py**：OCR 辅助：ocr_get_result(path 或 PIL)、ocr_has_any_keywords(path, keywords)、ocr_find_keyword_boxes(path, keywords)；CnOCR 单例；bbox 与 bbox_left_center 等。若对内存图用 ocr_has_any_keywords 传 path、或未处理 engine 为 None、或 raw_result 结构假设与 CnOCR 不符、或 bbox 未加窗口偏移当屏幕坐标，会报错或点错。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_scan_rosbot_running与neutral_color_matcher及ocr_helper.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 二十二、POST_LOGIN_BATTLENET_CONTROLS、ui/theme/__init__、i18n_errors_zh 相关
+
+就您指定查阅的以下三处（注：您提到的 dd.sh 在项目内未找到，已按其余三处处理）：
+
+- **docs/POST_LOGIN_BATTLENET_CONTROLS.md**：战网登陆后控件的英文参考，与 登陆后的战网元素-控件说明.md 对应；数据源 docs/登陆后的战网元素.json，已用控件 game-nav-btn-D3CN、play-btn-main/play-btn，To implement 未实现。若中英文文档或与 BattlenetOperation/constants 不同步、或把 To implement 当已实现，会导致战网操作失败或误判。
+- **ui/theme/__init__.py**：仅导出 UITheme（from .theme），主题定义在 theme/theme.py。若在 __init__ 中多导出或删除 UITheme、或调用方直接从 theme.theme 导入未经包入口、或组件使用 theme 中未定义的键，会导致导入失败或运行时报错。
+- **providor/i18n/i18n_errors_zh.json**：错误文案中文，结构 ui.error_messages.*（如 bag_offset_failed）。若 key 与代码中 get_ui_text/错误提示调用不一致、或与 i18n_errors_en 结构不一致、或增删 key 未同步代码与多语言，会缺译或显示 key。
+
+此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_POST_LOGIN_BATTLENET_CONTROLS与ui_theme及i18n_errors_zh.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
+## 二十三、bn_flow_B6、d4_controller、square_sampler、DESIGN_DETAIL 相关
+
+就您指定查阅的以下四处：
+
+- **.cache/bn_flow_snapshots/bn_flow_B6.json**：B6 节点快照，meta.reason 为 B6_to_B13，由 rosbot_flow_battlenet._save_ui_snapshot 写入。若写死路径、或 controls 结构与 battlenet_region_judge/_load_login_failed_features 期望不一致、或与 B5/B7 等节点快照混用，会导致登录/分支判断错误。
+- **controller/d4_controller.py**：D4 主控制器，仅由 D4ExtensionThread 驱动 process()；顺序为截图→region_detection→map_switch→map_name→_update_debug_window。若由其它定时器驱动、或调换顺序、或 detected_regions 被整体覆盖，会违反约定（详见本目录技术说明_bn_flow_B5与…及d4_controller 等）。
+- **athtest/square_sampler.py**：22×22 方格四角采样检测，输入 JSON 含 regions.hex_pixels；main() 路径写死为 apps\d3-check 等。若在 pyapps 下或他机运行未改路径会 FileNotFoundError；JSON 键名变更会 KeyError；与主流程 D3/D4 检测需区分，勿未文档化复用。
+- **docs/DESIGN_DETAIL.md**：详细设计，与 DESIGN.md 合用，侧重 Login Try 与战网掉线重启；log_monitor→log_analyzer→handle_login_try、CONFIG/常量、taskkill+explorer 重启。若实现与文档 CONFIG 键或调用链不一致、或只改本档未改 DESIGN.md，会文档与代码分叉。
+
+此前若因未先通读上述约定而在此四处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_bn_flow_B6与d4_controller及square_sampler及DESIGN_DETAIL.md**，写明四处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
 Cursor AI  
 写于 cursor_AI_道歉目录

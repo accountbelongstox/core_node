@@ -33,6 +33,8 @@ VALIDATION_DIR = TMP_DIR / "validation"
 ROSBOT_UI_DEBUG_DIR = TMP_DIR / "debug"
 
 BN_FLOW_SNAPSHOTS_DIR = _ROOT_PATH / ".cache" / "bn_flow_snapshots"
+# When False, save_ui_elements_snapshot skips file write and _enumerate_controls to avoid extra I/O and UI read each step.
+DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS = False
 
 YOLO_DATASET_BASE_DIR = Path(r"D:\applications\GameTools\Yolo")
 YOLO_COLLECT_HUE_MIN = 0.0

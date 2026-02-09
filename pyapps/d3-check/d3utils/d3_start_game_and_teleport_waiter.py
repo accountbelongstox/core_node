@@ -321,11 +321,16 @@ def step_c10_compare(window_titles: Optional[Tuple[str, ...]] = None) -> Optiona
         return None
     img_b = sd_b.game_window_image
     sim = _image_similarity_0_1(_c10_img_a, img_b)
+    thresh = D3_ONLINE_SIMILARITY_THRESHOLD
     _c10_img_a = None
-    if sim >= D3_ONLINE_SIMILARITY_THRESHOLD:
-        ColorPrint.yellow(f"[D3StartGameWaiter][C10b] Similarity={sim:.3f} >= threshold, M no effect, disconnected")
+    if sim >= thresh:
+        ColorPrint.yellow(
+            f"[D3StartGameWaiter][C10b] Similarity={sim:.3f} >= threshold {thresh}: before/after M almost same -> M no effect -> disconnect (step_c10_compare)"
+        )
         return False
-    ColorPrint.green(f"[D3StartGameWaiter][C10b] Similarity={sim:.3f}, online")
+    ColorPrint.green(
+        f"[D3StartGameWaiter][C10b] Similarity={sim:.3f} < threshold {thresh}: M had effect -> online (step_c10_compare)"
+    )
     return True
 
 

@@ -102,7 +102,7 @@ flowchart TB
         F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT"]
         F_Entry --> F1_HasD3
         F1_HasD3 -->|否<br/>→B2 当前是否有战网窗口？| B2_HasWin
-        F1_HasD3 -->|是<br/>→C1 入口| C1_Entry
+        F1_HasD3 -->|是，启动时已存在<br/>→C1 入口| C1_Entry
         F1c_EndD3 --> F_Entry
         F1d_Offline --> F1c_EndD3
         F2_RosbotOnline -->|否<br/>→E1 结束已有 ROSBOT| E1_Kill
@@ -118,11 +118,12 @@ flowchart TB
         C2_Resize["[C2] 将 D3 窗口缩放到标准分辨率"]
         C3_Step["[C3] 截屏识图与识图结果<br/>一步内：截屏→识图→若识别到 d3_start_game_button 则点击并重置 1 分钟（开始游戏可能卡住并重新开始）；若识别到 game_tool/disconnected 则分支；若识别到 d3_connecting 或 d3_connecting_alt 则继续 wait；超时则未识别"]
         C3_Result{"[C3] 识图结果"}
+        C3_GameToolOrigin{"[C3] 游戏来源？<br/>刚进入游戏 or 启动时已存在"}
         C3w_Wait["[C3w] wait"]
         C5_StartGame["[C5] 点击开始游戏按钮"]
         C5w_Wait["[C5w] wait 直到出现 d3_game_tool 或超时"]
         C12_EndD3["[C12] 结束 D3 进程，进入 D 流程"]
-        C6_GameTool["[C6] 继续 d3_game_tool 流程"]
+        C6_GameTool["[C6] 继续 d3_game_tool 流程（含 C10 判掉线）"]
         C7a_PressM["[C7a] 再按 M 复位地图"]
         C7w_Wait["[C7w] 等待 2 秒"]
         C7b_Teleport["[C7b] 传送：打开地图按 M（前步已做）<br/>缩小地图 (751,413) 点击传送 (610,126)"]
@@ -135,7 +136,9 @@ flowchart TB
         C3_Result -->|未识别或 d3_connecting / d3_connecting_alt<br/>未超时，继续| C3w_Wait
         C3w_Wait --> C3_Step
         C3_Result -->|出现 d3_start_game_button<br/>在开始游戏界面| C5_StartGame
-        C3_Result -->|出现 d3_game_tool<br/>在游戏中，走 C6 流程| C6_GameTool
+        C3_Result -->|出现 d3_game_tool<br/>在游戏中| C3_GameToolOrigin
+        C3_GameToolOrigin -->|刚进入游戏（D13 找到窗口）<br/>跳过 C6/C10，直接 C7a| C7a_PressM
+        C3_GameToolOrigin -->|启动时已存在（F1 进入）<br/>走 C6→C10 判掉线| C6_GameTool
         C3_Result -->|游戏掉线（连续两次识图确认后分支）| F1d_Offline
         C3_Result -->|未识别/超时 1 分钟，进入 D| C12_EndD3
         C5_StartGame --> C5w_Wait
@@ -189,7 +192,7 @@ flowchart TB
         D13b_RestartD3 --> D14_Restart
         D14_Restart --> D14w_Wait
         D14w_Wait --> B2_HasWin
-        D13_HasD3Win -->|是<br/>→C1 入口| C1_Entry
+        D13_HasD3Win -->|是，标记「刚进入游戏」<br/>→C1 入口| C1_Entry
     end
 
     C12_EndD3 --> D1_Entry

@@ -31,6 +31,7 @@ from d3utils.battlenet_region_judge import (
 )
 from providor.constants.common import (
     BN_FLOW_SNAPSHOTS_DIR,
+    DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS,
     BN_CLICK_MOVE_DURATION_SEC,
     BN_CLICK_PAUSE_AFTER_MOVE_SEC,
     BATTLE_NET_DISCONNECT_AUTOMATION_IDS,
@@ -799,7 +800,10 @@ class BattlenetOperation:
         """
         Save current Battle.net UI elements to JSON under BN_FLOW_SNAPSHOTS_DIR (app_constants).
         Filename: fixed step name only, bn_flow_{node}.json (no timestamp). Meta: node, reason; body: controls list.
+        When DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS is False, skips enumeration and write (no disk I/O, no extra UI read).
         """
+        if not DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS:
+            return None
         controls = self._enumerate_controls()
         base = BN_FLOW_SNAPSHOTS_DIR
         try:

@@ -19,6 +19,7 @@ from providor.constants.d3 import (
     D3_STANDARD_RESOLUTION_WIDTH,
     D3_STANDARD_RESOLUTION_HEIGHT,
     D3_DISCONNECTED_TEMPLATE_NAME,
+    D3_DISCONNECTED_MIN_GOOD_MATCHES,
     D3_START_GAME_BUTTON_TEMPLATE_NAME,
     D3_GAME_TOOL_TEMPLATE_NAME,
     D3_CONNECTING_TEMPLATE_NAME,
@@ -89,9 +90,9 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         template_names: Optional[List[str]] = None,
     ) -> Dict[str, bool]:
         """
-        Reusable: one game window image -> detect all D3 UI states (one scale, match all templates).
-        ROSBOT_FLOW_MERMAID [C3]: disconnected / start_game_button / game_tool / connecting.
-        Returns dict with keys: disconnected, start_game_button, game_tool, connecting.
+        One image -> one state only. Match all templates, take the single winner by (value, priority).
+        Value = num_matches (good matches). Priority when tie: game_tool > start_game_button > connecting > disconnected.
+        Returns dict with keys: disconnected, start_game_button, game_tool, connecting (exactly one True).
         """
         names = template_names or [
             D3_DISCONNECTED_TEMPLATE_NAME,
@@ -102,26 +103,43 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         ]
         target_img_array = self._load_target_image(target_image)
         if target_img_array is None:
-            return {n: False for n in names}
+            return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
         h, w = target_img_array.shape[:2]
         scale_x = w / D3_STANDARD_WIDTH
         scale_y = h / D3_STANDARD_HEIGHT
         ColorPrint.gray(
             f"{self.log_prefix} One-shot detect all D3 states from image {w}x{h} (scale {scale_x:.4f}, {scale_y:.4f})"
         )
-        result: Dict[str, bool] = {}
+        values: Dict[str, int] = {}
         for template_name in names:
             r = self._match_single_with_scale(target_img_array, template_name, scale_x, scale_y)
-            result[template_name] = bool(r.get("total_matches", 0) >= 1)
-        disconnected = result.get(D3_DISCONNECTED_TEMPLATE_NAME, False)
-        start_game_button = result.get(D3_START_GAME_BUTTON_TEMPLATE_NAME, False)
-        game_tool = result.get(D3_GAME_TOOL_TEMPLATE_NAME, False)
-        connecting = result.get(D3_CONNECTING_TEMPLATE_NAME, False) or result.get(D3_CONNECTING_ALT_TEMPLATE_NAME, False)
+            num = 0
+            if r.get("total_matches", 0) >= 1 and r.get("matches"):
+                num = r["matches"][0].get("num_matches", 0)
+            values[template_name] = num
+        connecting_val = max(
+            values.get(D3_CONNECTING_TEMPLATE_NAME, 0),
+            values.get(D3_CONNECTING_ALT_TEMPLATE_NAME, 0),
+        )
+        d_val = values.get(D3_DISCONNECTED_TEMPLATE_NAME, 0)
+        if d_val < D3_DISCONNECTED_MIN_GOOD_MATCHES:
+            d_val = 0
+        s_val = values.get(D3_START_GAME_BUTTON_TEMPLATE_NAME, 0)
+        g_val = values.get(D3_GAME_TOOL_TEMPLATE_NAME, 0)
+        candidates: List[Tuple[str, int, int]] = [
+            ("game_tool", g_val, 3),
+            ("start_game_button", s_val, 2),
+            ("connecting", connecting_val, 1),
+            ("disconnected", d_val, 0),
+        ]
+        winner = max(candidates, key=lambda x: (x[1], x[2]))
+        if winner[1] == 0:
+            return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
         return {
-            "disconnected": disconnected,
-            "start_game_button": start_game_button,
-            "game_tool": game_tool,
-            "connecting": connecting,
+            "disconnected": winner[0] == "disconnected",
+            "start_game_button": winner[0] == "start_game_button",
+            "game_tool": winner[0] == "game_tool",
+            "connecting": winner[0] == "connecting",
         }
 
 

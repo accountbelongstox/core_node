@@ -51,6 +51,8 @@ D3_START_GAME_BUTTON_TEMPLATE_NAME = "d3_start_game_button"
 D3_GAME_TOOL_TEMPLATE_NAME = "d3_game_tool"
 D3_BOUNTY_PROGRESS_TEMPLATE_NAME = "d3_bounty_progress"
 D3_DISCONNECTED_TEMPLATE_NAME = "d3_disconnected"
+# d3_disconnected 匹配需达到的最小 good matches 数，避免连接中画面误判为掉线（净高 val）
+D3_DISCONNECTED_MIN_GOOD_MATCHES = 20
 D3_CONNECTING_TEMPLATE_NAME = "d3_connecting"
 D3_CONNECTING_ALT_TEMPLATE_NAME = "d3_connecting_alt"
 D3_MAP_MINIMIZE_CLICK = (751, 413)
@@ -65,7 +67,10 @@ D3_FRAGMENT2_DISAPPEAR_ATTEMPTS = 5
 C3_C3W_TIMEOUT_SEC = 60.0
 C3_DEADLINE_TICKS = 30
 C3W_WAIT_SEC = 2.0
-D3_ONLINE_SIMILARITY_THRESHOLD = 0.995  # C10b: only treat as disconnect when before/after-M screens almost identical; 0.98 caused false positives (e.g. 0.989 when online)
+# C10b 判掉线阈值：按 M 前后截图相似度 >= 此值视为「M 无反应」→ 掉线。仅 C10b（step_c10_compare）使用。
+# 原因：阈值过低会误判——在线时若地图开/关状态未变或画面变化小，相似度也可达 0.98~0.99，曾出现 0.989 误判掉线。
+# 故设为 0.995：仅当两张图几乎完全一致时才判掉线。
+D3_ONLINE_SIMILARITY_THRESHOLD = 0.995
 D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 
 # ---------------------------------------------------------------------------
