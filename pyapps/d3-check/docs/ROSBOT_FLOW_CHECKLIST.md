@@ -2,7 +2,7 @@
 
 按 `ROSBOT_FLOW_MERMAID.md` 一个步骤一个步骤对照代码，正确的打勾 ✓。
 
-**精细对比进度**：第 1–6 批完成（共 30 步）| 累计已精细对比：30 步
+**精细对比进度**：第 1–7 批完成（共 35 步）| 累计已精细对比：35 步
 
 ---
 
@@ -68,6 +68,16 @@
 | 29 | B5 → B5w 等待战网退出完成 | 同分支内 `ctx.set_wait_until(now + BN_FLOW_EXIT_WAIT_SEC)`（2s）、`ctx.set_current_step(BNNode.BN_ExitWait)`；B5w 内 `now < ctx.get_wait_until()` 时 return "wait" | ✓ |
 | 30 | B5w → B1_Entry 回到 B1 | BN_ExitWait 内当 `now >= ctx.get_wait_until()` 时 `ctx.set_current_step(BNNode.BN_Entry)` 并 return，下一 tick 从 B1 开始 | ✓ |
 
+### 第 7 批（B 块步骤 31–35）
+
+| # | 文档步骤 | 代码核对结论 | 状态 |
+|---|----------|--------------|------|
+| 31 | B6_Activate 激活战网窗口，需置顶 | BN_Act 分支内：`get_battlenet_manager().activate_window()`，再 `op.click_d3_tab()`（no_activate 时仅 log 不激活）；与文档“激活战网窗口、需置顶激活战网 UI”一致 | ✓ |
+| 32 | B6 → B13_Poll 轮询 UI 结果 | 同分支末尾 `ctx.set_current_step(BNNode.BN_Poll)` 并 return，下一 tick 进入 B13；B13 内 get_dynamic_state 判已登录/掉线/超时/其他，即“轮询 UI 结果” | ✓ |
+| 33 | B13 已登录 → B14_Ok → B16_Confirmed | BN_Poll 内 `normal_available` 为真时 `ctx.set_current_step(BNNode.BN_Confirmed)`、`ctx.set_bn_flow_ever_confirmed(True)`、`return True, "confirmed"`，log "flow B13→B16 continue" | ✓ |
+| 34 | B13 掉线 → B15a_Offline → B5_Exit | BN_Poll 内 `disconnected` 为真时 `ctx.set_b5_entry_reason("B13_disconnected")`、`ctx.set_current_step(BNNode.BN_Exit)`，log "flow B13→B5 | [B15a] disconnected" | ✓ |
+| 35 | B13 超时 → B15b_Timeout → B5_Exit | BN_Poll 内 `now >= ctx.get_b13_poll_deadline()` 时 `ctx.set_b13_poll_deadline(0.0)`、`ctx.set_b5_entry_reason("B13_timeout_no_elements")`、`ctx.set_current_step(BNNode.BN_Exit)`，deadline 为 BN_FLOW_POLL_TIMEOUT_SEC（2min） | ✓ |
+
 ---
 
 ## A 入口与定时器
@@ -111,11 +121,11 @@
 | B5_Exit | 退出战网 | get_battlenet_manager().kill() | ✓ 已精细对比 |
 | B5 → B5w | 等待战网退出完成 | BN_ExitWait，BN_FLOW_EXIT_WAIT_SEC (2s) | ✓ 已精细对比 |
 | B5w → B1_Entry | 回到 B1 | BN_ExitWait 到期 → BN_Entry | ✓ 已精细对比 |
-| B6_Activate | 激活战网窗口，需置顶 | activate_window + click_d3_tab | ✓ |
-| B6 → B13_Poll | 轮询 UI 结果 | BN_Act → BN_Poll | ✓ |
-| B13 已登录 | → B14_Ok → B16_Confirmed | normal_available → BN_Confirmed | ✓ |
-| B13 掉线 | → B15a_Offline → B5_Exit | disconnected → B5 | ✓ |
-| B13 超时 | → B15b_Timeout → B5_Exit | b13_poll_deadline 超时 → B5 | ✓ |
+| B6_Activate | 激活战网窗口，需置顶 | activate_window + click_d3_tab | ✓ 已精细对比 |
+| B6 → B13_Poll | 轮询 UI 结果 | BN_Act → BN_Poll | ✓ 已精细对比 |
+| B13 已登录 | → B14_Ok → B16_Confirmed | normal_available → BN_Confirmed | ✓ 已精细对比 |
+| B13 掉线 | → B15a_Offline → B5_Exit | disconnected → B5 | ✓ 已精细对比 |
+| B13 超时 | → B15b_Timeout → B5_Exit | b13_poll_deadline 超时 → B5 | ✓ 已精细对比 |
 | B13 其他 | → B15c_Other → B6_Activate | unknown → BN_Act (click_d3_tab 或直接 B6) | ✓ |
 | B12_Ok / B14_Ok | → B16_Confirmed | BN_Confirmed | ✓ |
 | B16_Confirmed | → D1_Entry | set_battlenet_tick_confirmed + trigger_extension_rosbot_start | ✓ |
@@ -130,7 +140,7 @@
 | F_Entry → F1_HasD3 | D3 是否在线？ | run_f1_d3_online | ✓ |
 | F1 否 | → B2 当前是否有战网窗口？ | 返回 b1 → tick_battlenet_ready_flow (B 块) | ✓ |
 | F1 是 | → C1 入口 | 返回 c1 → start_extension_flow_c_branch / extension_flow_tick_step 或 trigger_extension_rosbot_start | ✓ |
-| F1d_Offline | 识别到掉线 | run_f1d_disconnect_detected (C4 disconnect 分支) | ✓ |
+| F1d_Offline | 识别到掉线 | run_f1d_on_disconnect (C4 disconnect 分支) | ✓ |
 | F1d → F1c_EndD3 | 结束 D3 进程 | run_f1c_end_d3 | ✓ |
 | F1c → F_Entry | 下一 tick 从 F_Entry 再判 | reset 后 fallthrough，下一 tick 走 F0 | ✓ |
 | F2_RosbotOnline | ROSBOT 是否在线？ | A8 success 后由 panel/extension 走 F2；run_f2_rosbot_online | ✓ |
@@ -246,3 +256,4 @@
 |------|------|
 | 2026-02-09 | 全量核对 A/B/C/D/E/F 与跨块连接；结论为代码符合流程，无需改代码。修正 ROSBOT_FLOW_STEP_INDEX.md 中 F2/A8 描述（F2 在 extension thread 执行，a8_success_pending 未使用）；本清单增加「验证结论」与「更新记录」。 |
 | 2026-02-09 | 再次对照更新后文档核验代码：A/B/C/D/E/F 及 B6/B13/B5/B5w 与清单一致；仅修正清单内 B5_Exit 行号 387→386（kill 实际在第 386 行）。代码无需修复。 |
+| 2026-02-09 | 第三次核验：A/B/C/D/E/F、F0/F1/F2、C3_DEADLINE_TICKS=30、flow_master_driver 第 144 行、E 块与清单一致。仅修正清单 F 块表中 F1d 函数名 run_f1d_disconnect_detected → run_f1d_on_disconnect。代码无需修复。 |

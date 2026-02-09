@@ -68,81 +68,47 @@ class D4Controller:
         Main processing method. Called by D4ExtensionThread every D4_TICK_INTERVAL
         when exp_farming or debug_window is active.
         """
-        try:
-            # Check if EXP farming is running
-            exp_farming_running = self.d4_data.is_exp_farming_running()
-            debug_window_open = self.d4_data.debug_window_open
+        exp_farming_running = self.d4_data.is_exp_farming_running()
+        debug_window_open = self.d4_data.debug_window_open
 
-            if exp_farming_running:
-                # Full EXP farming process
-                # Increment tick counter
-                self.tick_counter += 1
+        if exp_farming_running:
+            self.tick_counter += 1
+            print("\n" + "="*80)
+            ColorPrint.blue(f"[D4 EXP Farming] Tick #{self.tick_counter}")
+            print("="*80)
+            success = self.exp_farming_manager.start_exp_farming_process(self.d4_data)
+            self.ui_status_updater.update_ui_status()
+            self.event_manager.check_state_changes()
+            self._update_debug_window_if_open()
+            self._print_tick_summary(success)
 
-                # Print tick header
-                print("\n" + "="*80)
-                ColorPrint.blue(f"[D4 EXP Farming] Tick #{self.tick_counter}")
-                print("="*80)
-
-                # Delegate to EXP farming manager
-                success = self.exp_farming_manager.start_exp_farming_process(self.d4_data)
-
-                # Update UI status with latest shared data
-                self.ui_status_updater.update_ui_status()
-
-                # Check for state changes and trigger events
-                self.event_manager.check_state_changes()
-
-                # Update debug window if open (interceptor pattern)
-                self._update_debug_window_if_open()
-
-                # Print tick summary
-                self._print_tick_summary(success)
-
-            elif debug_window_open:
-                # Debug window only mode - perform screenshot and region detection
-                ColorPrint.blue("[D4Controller] Debug window mode - performing screenshot and region detection...")
-                
-                # Use the same process as EXP farming but without the full farming logic
-                # Step 1: Capture screenshot
-                from .d4func.screenshot_handler import ScreenshotHandler
-                screenshot_handler = ScreenshotHandler()
-                screenshot_success = screenshot_handler.capture_and_collect_info(self.d4_data)
-                ColorPrint.blue(f"[D4Controller] Screenshot capture result: {screenshot_success}")
-                
-                if screenshot_success:
-                    # Step 2: Detect regions (this generates region_images)
-                    from .d4func.region_detector import RegionDetector
-                    region_detector = RegionDetector()
-                    ColorPrint.blue("[D4Controller] About to call detect_regions_from_shared_data...")
-                    detection_success = region_detector.detect_regions_from_shared_data()
-                    ColorPrint.blue(f"[D4Controller] Region detection result: {detection_success}")
-
-                    if detection_success:
-                        # Step 3: Detect map switching (monitors Map Name region for black screen)
-                        from .d4func.map_switch_detector import get_map_switch_detector
-                        map_switch_detector = get_map_switch_detector()
-                        map_switch_detector.detect_map_switch()
-                        
-                        # Step 4: Attempt map name recognition if in post-switch idle state
-                        from .d4func.map_name_recognizer import get_map_name_recognizer
-                        map_recognizer = get_map_name_recognizer()
-                        map_recognizer.recognize_map_name()
-
-                        # Update debug window with new data
-                        self._update_debug_window_if_open()
-                    else:
-                        ColorPrint.yellow("[D4Controller] Region detection failed for debug window")
+        elif debug_window_open:
+            ColorPrint.blue("[D4Controller] Debug window mode - performing screenshot and region detection...")
+            from .d4func.screenshot_handler import ScreenshotHandler
+            screenshot_handler = ScreenshotHandler()
+            screenshot_success = screenshot_handler.capture_and_collect_info(self.d4_data)
+            ColorPrint.blue(f"[D4Controller] Screenshot capture result: {screenshot_success}")
+            if screenshot_success:
+                from .d4func.region_detector import RegionDetector
+                region_detector = RegionDetector()
+                ColorPrint.blue("[D4Controller] About to call detect_regions_from_shared_data...")
+                detection_success = region_detector.detect_regions_from_shared_data()
+                ColorPrint.blue(f"[D4Controller] Region detection result: {detection_success}")
+                if detection_success:
+                    from .d4func.map_switch_detector import get_map_switch_detector
+                    map_switch_detector = get_map_switch_detector()
+                    map_switch_detector.detect_map_switch()
+                    from .d4func.map_name_recognizer import get_map_name_recognizer
+                    map_recognizer = get_map_name_recognizer()
+                    map_recognizer.recognize_map_name()
+                    self._update_debug_window_if_open()
                 else:
-                    ColorPrint.yellow("[D4Controller] Screenshot capture failed for debug window")
-
+                    ColorPrint.yellow("[D4Controller] Region detection failed for debug window")
             else:
-                # Neither EXP farming nor debug window - skip execution
-                return
+                ColorPrint.yellow("[D4Controller] Screenshot capture failed for debug window")
 
-        except Exception as e:
-            ColorPrint.red(f"[D4Controller] Error in process: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            return
 
     def get_interceptor(self):
         """
@@ -165,12 +131,8 @@ class D4Controller:
         Args:
             success: Whether the tick process was successful
         """
-        try:
-            # Import DEBUG flag
-            from providor.constants.common import DEBUG
-
-            # Get window info
-            window_size = self.d4_data.game_window_size if self.d4_data.game_window_size else (0, 0)
+        from providor.constants.common import DEBUG
+        window_size = self.d4_data.game_window_size if self.d4_data.game_window_size else (0, 0)
             is_windowed = self.d4_data.is_windowed_mode()
 
             # Get region/point counts
@@ -199,9 +161,6 @@ class D4Controller:
             if annotated_path:
                 ColorPrint.blue(f"[Summary] Annotated: {annotated_display}")
             print("=" * 80 + "\n")
-
-        except Exception as e:
-            ColorPrint.red(f"[D4Controller] Error printing tick summary: {e}")
 
     def start_exp_farming(self):
         """
@@ -282,11 +241,6 @@ class D4Controller:
                 ColorPrint.green("[D4Controller] Debug window images updated successfully")
             else:
                 ColorPrint.yellow("[D4Controller] Debug window instance is None")
-
-        except Exception as e:
-            ColorPrint.red(f"[D4Controller] Error updating debug window: {e}")
-            import traceback
-            traceback.print_exc()
 
 # Global D4 controller instance (singleton)
 _d4_controller = None

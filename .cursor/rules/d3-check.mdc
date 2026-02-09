@@ -15,3 +15,4 @@ alwaysApply: false
 7. **Prompts.** d3-check prompts → `pyapps/d3-check/.prompts/`.
 8. **Every edit.** Check: redundant → merge; similar code → extend; architecture → fit event center, CONFIG. See `.cursor/skills/d3-check/SKILL.md` §10–11.
 9. **Exception handling.** Remove unnecessary try/except. Keep only when required for basic program operation: websocket/network, task thread (so one failure does not kill process), Tk lifecycle (`tk.TclError`), queue (`queue.Full`/`Empty`), COM/OS, signal handlers. See `.cursor/skills/d3-check/SKILL.md` §11.
+10. **Imports.** All imports at file top. Exception: optional third-party at module level (`try: import x except ImportError: x = None`). Do not use lazy import to avoid cycles; fix circular references by architecture (split module, dependency injection, or shared layer). See `docs/PROJECT_STANDARDS.md` §六.
