@@ -59,11 +59,24 @@ d3-check prompts → `pyapps/d3-check/.prompts/` (append log or timestamped file
 
 (1) Redundant → merge. (2) Similar existing code → extend, do not duplicate. (3) Architecture → fit event center, CONFIG, direct imports. Apply to current diff.
 
-### 11. Updating rules/skills
+### 11. Exception handling: remove unnecessary catch
+
+- **Remove try/except unless truly required.** Keep catch only where necessary for basic program operation: e.g. websocket/network lifecycle, task/worker thread so one failure does not kill the process, Tk lifecycle (`tk.TclError` when widget may be destroyed), queue (`queue.Full`/`queue.Empty` in producer/consumer), COM/OS (e.g. `CoInitialize`), or similar. Else let exceptions propagate so failures are visible.
+- **No broad catch that only logs or passes.** Do not add or keep `except Exception:` that only `pass` or log; narrow to specific exception types and handle only where required (UI teardown, queues, websocket, signal handlers).
+
+### 12. Updating rules/skills
 
 Check existing rules/skills/AGENTS; no conflict or duplicate; merge into one; canonical = PROJECT_STANDARDS.md.
 
-### 12. Summary
+### 13. How to update Cursor skills (规范)
+
+Per Cursor docs (https://docs.cursor.com/context/skills):
+
+- **Location:** Skills live under `.cursor/skills/<skill-name>/`. Each skill is a folder that must contain `SKILL.md`. Optional: `scripts/`, `references/`, `assets/`.
+- **SKILL.md format:** YAML frontmatter (required: `name`, `description`) then Markdown body. Use sections such as "When to Use" and "Instructions". Keep `name` matching the parent folder (e.g. `d3-check`).
+- **Adding or changing a norm:** (1) Add or edit the relevant subsection under Instructions in this SKILL.md. (2) If it is a project-wide standard, also add to `.cursor/rules` (e.g. `d3-check.mdc`) and keep `docs/PROJECT_STANDARDS.md` as canonical. (3) No duplicate wording across rules/skills/AGENTS; reference by section (e.g. §11) where possible.
+
+### 14. Summary
 
 | Need | Where |
 |------|--------|
@@ -75,3 +88,5 @@ Check existing rules/skills/AGENTS; no conflict or duplicate; merge into one; ca
 | Lifecycle/threads/events | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
 | Threads | THREAD_BUS_AND_REGISTRY.md |
+| Exception handling | §11: remove unnecessary catch; keep only websocket/task thread/Tk/queue/COM/network essentials |
+| Updating Cursor skills | §13: `.cursor/skills/<name>/SKILL.md`; frontmatter name+description; sync rules, PROJECT_STANDARDS |

@@ -306,13 +306,10 @@ class Diablo3MacroUI:
 
     def restore_window_to_preset(self):
         """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
-        try:
-            self.root.geometry(DEFAULT_WINDOW_GEOMETRY)
-            self._is_maximized = False
-            if hasattr(self, "title_bar") and hasattr(self.title_bar, "maximize_btn"):
-                self.title_bar.maximize_btn.configure(text="□")
-        except Exception:
-            pass
+        self.root.geometry(DEFAULT_WINDOW_GEOMETRY)
+        self._is_maximized = False
+        if hasattr(self, "title_bar") and hasattr(self.title_bar, "maximize_btn"):
+            self.title_bar.maximize_btn.configure(text="□")
 
     def _save_window_geometry(self):
         """Persist current window position and size to config (skip when maximized to avoid saving fullscreen)."""
@@ -329,7 +326,7 @@ class Diablo3MacroUI:
                     CONFIG["ui_settings"] = {}
                 CONFIG["ui_settings"][UI_SETTINGS_WINDOW_GEOMETRY] = geos
                 save_config()
-        except (tk.TclError, Exception):
+        except tk.TclError:
             pass
 
     def _on_window_configure(self, event=None):

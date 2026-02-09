@@ -281,7 +281,7 @@ def _image_similarity_0_1(img_a, img_b) -> float:
         gray_b = cv2.cvtColor(cv2.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
         diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
         return 1.0 - min(diff / 255.0, 1.0)
-    except Exception:
+    except (TypeError, ValueError, AttributeError):
         return 0.0
 
 
@@ -400,20 +400,15 @@ def wait_for_game_tool_then_send_m_and_click(
 
     while time.monotonic() < deadline:
         attempt += 1
-        try:
-            state = detect_d3_already_running_state(window_titles=titles)
-            if state == "game_tool":
-                ColorPrint.green("[D3StartGameWaiter] Game tool found; C10 then C7a/C7w/C7b (ROSBOT_FLOW_MERMAID.md)")
-                if send_m_then_teleport_three_clicks(window_titles=titles):
-                    return True
-            elif state == "disconnect":
-                ColorPrint.yellow("[D3StartGameWaiter] d3_disconnected during game_tool wait -> return False")
-                return False
-            # start / wait / None -> keep waiting
-            time.sleep(interval_sec)
-        except Exception as e:
-            ColorPrint.yellow(f"[D3StartGameWaiter] Game tool attempt {attempt} error: {e}")
-            time.sleep(interval_sec)
+        state = detect_d3_already_running_state(window_titles=titles)
+        if state == "game_tool":
+            ColorPrint.green("[D3StartGameWaiter] Game tool found; C10 then C7a/C7w/C7b (ROSBOT_FLOW_MERMAID.md)")
+            if send_m_then_teleport_three_clicks(window_titles=titles):
+                return True
+        elif state == "disconnect":
+            ColorPrint.yellow("[D3StartGameWaiter] d3_disconnected during game_tool wait -> return False")
+            return False
+        time.sleep(interval_sec)
 
     ColorPrint.yellow(
         f"[D3StartGameWaiter] Game tool timeout after {timeout_sec}s ({attempt} attempts); no M+click"
@@ -578,38 +573,33 @@ def wait_for_and_click_start_game(
 
     while time.monotonic() < deadline:
         attempt += 1
-        try:
-            screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
-            if not screenshot_data:
-                ColorPrint.gray(
-                    f"[D3StartGameWaiter] Attempt {attempt}: no D3 window image, retry in {interval_sec}s"
-                )
-                time.sleep(interval_sec)
-                continue
-            if center is None:
-                time.sleep(interval_sec)
-                continue
-
-            cx, cy = center
-            window_offset = screenshot_data.window_offset or (0, 0)
-            screen_x = window_offset[0] + cx
-            screen_y = window_offset[1] + cy
-            ColorPrint.green(
-                f"[D3StartGameWaiter] Found Start Game at image ({cx}, {cy}), screen ({screen_x}, {screen_y}); clicking"
+        screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
+        if not screenshot_data:
+            ColorPrint.gray(
+                f"[D3StartGameWaiter] Attempt {attempt}: no D3 window image, retry in {interval_sec}s"
             )
-            clicker.click(screen_x, screen_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
-            time.sleep(wait_after_click_sec)
-            ColorPrint.green("[D3StartGameWaiter] Clicked Start Game, waited {}s; waiting for Game tool...".format(wait_after_click_sec))
-            game_tool_ok = wait_for_game_tool_then_send_m_and_click(
-                interval_sec=interval_sec,
-                max_attempts=max_attempts_game_tool,
-                window_titles=window_titles,
-            )
-            return game_tool_ok
-
-        except Exception as e:
-            ColorPrint.yellow(f"[D3StartGameWaiter] Attempt {attempt} error: {e}")
             time.sleep(interval_sec)
+            continue
+        if center is None:
+            time.sleep(interval_sec)
+            continue
+
+        cx, cy = center
+        window_offset = screenshot_data.window_offset or (0, 0)
+        screen_x = window_offset[0] + cx
+        screen_y = window_offset[1] + cy
+        ColorPrint.green(
+            f"[D3StartGameWaiter] Found Start Game at image ({cx}, {cy}), screen ({screen_x}, {screen_y}); clicking"
+        )
+        clicker.click(screen_x, screen_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
+        time.sleep(wait_after_click_sec)
+        ColorPrint.green("[D3StartGameWaiter] Clicked Start Game, waited {}s; waiting for Game tool...".format(wait_after_click_sec))
+        game_tool_ok = wait_for_game_tool_then_send_m_and_click(
+            interval_sec=interval_sec,
+            max_attempts=max_attempts_game_tool,
+            window_titles=window_titles,
+        )
+        return game_tool_ok
 
     ColorPrint.yellow(f"[D3StartGameWaiter] Timeout after {timeout_start}s ({attempt} attempts); no Start Game click")
     return False

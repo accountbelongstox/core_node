@@ -98,17 +98,14 @@ def refresh_window_status_if_inactive() -> None:
     When flow inactive: run full refresh at most once (startup does it; then only flow-driven refresh when user enables flow).
     """
     global _last_window_found, _inactive_refresh_done
-    try:
-        if is_flow_active():
-            return
-        if _inactive_refresh_done:
-            return
-        d3_info = run_full_status_refresh()
-        _notify_callbacks(d3_info)
-        _last_window_found = bool(d3_info)
-        _inactive_refresh_done = True
-    except Exception:
-        pass
+    if is_flow_active():
+        return
+    if _inactive_refresh_done:
+        return
+    d3_info = run_full_status_refresh()
+    _notify_callbacks(d3_info)
+    _last_window_found = bool(d3_info)
+    _inactive_refresh_done = True
 
 
 def check_window() -> None:

@@ -78,6 +78,7 @@ BOOTSTRAP_SCRIPT_DIR=""
 LAUNCHER_ROOT=""
 REPO_BASE_URL=""
 GVAR_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
+MOUNT_COMMON_RELATIVE="scripts/shells/linux/common/mount_common.sh"
 SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
 GITHUB_RAW="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
 GITEE_RAW="https://gitee.com/accountbelongstox/core_node/raw/main"
@@ -318,6 +319,12 @@ download_required_libraries() {
         return 1
     fi
     log_ok "gvar_common.sh"
+    local mount_path="$LAUNCHER_ROOT/$MOUNT_COMMON_RELATIVE"
+    if ! download_to "$MOUNT_COMMON_RELATIVE" "$mount_path"; then
+        log_err "Failed to download mount_common.sh"
+        return 1
+    fi
+    log_ok "mount_common.sh"
     if ! download_to "$SETTING_BASE_RELATIVE" "$setting_path"; then
         log_warn "Could not download 2_setting_base.sh (optional)"
     else

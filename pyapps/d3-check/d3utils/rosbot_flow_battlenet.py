@@ -98,10 +98,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
     now = time.monotonic()
 
     def _save_ui_snapshot(node: str, reason: str) -> None:
-        try:
-            op.save_ui_elements_snapshot(node, reason)
-        except Exception:
-            pass
+        op.save_ui_elements_snapshot(node, reason)
 
     # ----- [B1] BN_Entry -> B2_HasWin
     if ctx.get_current_step() == BNNode.BN_Entry:
@@ -146,23 +143,20 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ctx.set_b7_skip_count(0)
             return False, ""
         _save_ui_snapshot("B7", "B7_poll_elements")
-        try:
-            ColorPrint.gray("[BNFlow] progress: B7 get_dynamic_state...")
-            on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
-            elem_ready = normal_available or disconnected or (on_login and (op.is_login_screen_ready() or op.is_on_asia_login_screen()))
-            if elem_ready:
-                ctx.set_b7_skip_count(0)
-                if op.is_login_failed_screen():
-                    ColorPrint.yellow("[BNFlow] flow B7→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-                    ctx.set_b5_entry_reason("B7_login_failed")
-                    ctx.set_current_step(BNNode.BN_Exit)
-                    return False, ""
-                ColorPrint.blue("[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9")
-                ctx.set_current_step(BNNode.BN_WaitResult)
-                ctx.set_b7_poll_deadline(0.0)
+        ColorPrint.gray("[BNFlow] progress: B7 get_dynamic_state...")
+        on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+        elem_ready = normal_available or disconnected or (on_login and (op.is_login_screen_ready() or op.is_on_asia_login_screen()))
+        if elem_ready:
+            ctx.set_b7_skip_count(0)
+            if op.is_login_failed_screen():
+                ColorPrint.yellow("[BNFlow] flow B7→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
+                ctx.set_b5_entry_reason("B7_login_failed")
+                ctx.set_current_step(BNNode.BN_Exit)
                 return False, ""
-        except Exception as e:
-            ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: get_dynamic_state error: %s" % e)
+            ColorPrint.blue("[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9")
+            ctx.set_current_step(BNNode.BN_WaitResult)
+            ctx.set_b7_poll_deadline(0.0)
+            return False, ""
         if op.try_close_popup():
             ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: closed popup, wait next tick")
             return False, "wait"
@@ -185,6 +179,11 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
 
     # ----- [B9] BN_UI first screen -----
     if ctx.get_current_step() == BNNode.BN_UI:
+        # 文档 B9 需根据“当前界面”判断，无窗口时不应 get_dynamic_state 导致 unknown→误杀；回到 B2 重检
+        if not get_battlenet_manager().find_windows(use_cache=False):
+            ColorPrint.blue("[BNFlow] flow B9→B2 | reason: no window this tick, re-check (avoid unknown→B5)")
+            ctx.set_current_step(BNNode.BN_Win)
+            return False, ""
         _save_ui_snapshot("B9", "B9_first_screen")
         if op.is_login_failed_screen():
             ColorPrint.yellow("[BNFlow] flow B9→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
@@ -222,9 +221,9 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ctx.set_b5_entry_reason("B9_disconnected")
             ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        ColorPrint.yellow("[BNFlow] flow B9→B5 | reason: unknown state, exit and restart")
-        ctx.set_b5_entry_reason("B9_unknown_state")
-        ctx.set_current_step(BNNode.BN_Exit)
+        # [B9 其他/未知] 与文档 B13 其他→B15c→B6 一致：未知状态不杀战网，先 B6 再激活轮询
+        ColorPrint.blue("[BNFlow] flow B9→B6 | reason: unknown state (flowchart B15c→B6), re-activate and poll")
+        ctx.set_current_step(BNNode.BN_Act)
         return False, ""
 
     # ----- [B10] BN_Login1 -----
@@ -266,17 +265,13 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
 
     # ----- [BN_LoginAsia] Asia login -----
     if ctx.get_current_step() == BNNode.BN_LoginAsia:
-        try:
-            if is_asia_credentials_dialog_pending():
-                ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: credentials dialog open, skip tick until closed")
-                return False, "wait"
-            creds = get_asia_credentials()
-            if creds is None:
-                schedule_asia_credentials_dialog()
-                ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: no cached credentials, dialog scheduled once")
-                return False, "wait"
-        except Exception as e:
-            ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: credentials error: %s" % e)
+        if is_asia_credentials_dialog_pending():
+            ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: credentials dialog open, skip tick until closed")
+            return False, "wait"
+        creds = get_asia_credentials()
+        if creds is None:
+            schedule_asia_credentials_dialog()
+            ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: no cached credentials, dialog scheduled once")
             return False, "wait"
         _save_ui_snapshot("BN_LoginAsia", "asia_login")
         email, password = creds

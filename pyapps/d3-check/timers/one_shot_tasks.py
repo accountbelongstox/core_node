@@ -58,11 +58,8 @@ def do_path_scan(panel: Any, include_rosbot: bool = True) -> None:
         if getattr(panel, "_scan_status", None) is not None:
             panel._scan_status[0] = current_dir
 
-    try:
-        bn, ros, d3 = scan_for_paths(progress_callback=progress_cb, include_rosbot=include_rosbot)
-        panel.container.after(0, lambda: panel._apply_scan_results(bn, ros, d3))
-    except Exception as e:
-        panel.container.after(0, lambda: panel._apply_scan_results(None, [], None, str(e)))
+    bn, ros, d3 = scan_for_paths(progress_callback=progress_cb, include_rosbot=include_rosbot)
+    panel.container.after(0, lambda: panel._apply_scan_results(bn, ros, d3))
 
 
 def do_login_check(
@@ -78,18 +75,12 @@ def do_login_check(
     except Exception as e:
         err = e
     gen = generation
-    try:
-        panel.container.after(0, lambda: panel._on_login_check_done(result, err, generation=gen))
-    except Exception:
-        pass
+    panel.container.after(0, lambda: panel._on_login_check_done(result, err, generation=gen))
 
 
 def do_start_d3() -> None:
     """Start D3 (Battle.net + start game flow). Run in timer thread via submit_one_shot. No UI callback."""
-    try:
-        get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
-    except Exception as e:
-        ColorPrint.red(f"[OneShot] do_start_d3: {e}")
+    get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
 
 
 def do_ensure_d3_running_from_battlenet_no_rosbot() -> None:
@@ -99,10 +90,7 @@ def do_ensure_d3_running_from_battlenet_no_rosbot() -> None:
     If D3 online and not disconnected: no op.
     Run in timer thread via submit_one_shot. No UI callback.
     """
-    try:
-        get_login_try_screenshot_controller().ensure_d3_running_from_battlenet_no_rosbot()
-    except Exception as e:
-        ColorPrint.red(f"[OneShot] do_ensure_d3_running_from_battlenet_no_rosbot: {e}")
+    get_login_try_screenshot_controller().ensure_d3_running_from_battlenet_no_rosbot()
 
 
 def do_battlenet_only_check(panel: Any) -> None:
@@ -113,18 +101,12 @@ def do_battlenet_only_check(panel: Any) -> None:
         result = get_login_try_screenshot_controller().ensure_battlenet_only()
     except Exception as e:
         err = e
-    try:
-        panel.container.after(0, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
-    except Exception:
-        pass
+    panel.container.after(0, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
 
 
 def do_refresh_status(refresh_fn: Callable[[], None]) -> None:
     """Refresh status work. Run in timer thread via submit_one_shot."""
-    try:
-        refresh_fn()
-    except Exception as e:
-        ColorPrint.red(f"[RosbotPanel] Refresh status error: {e}")
+    refresh_fn()
 
 
 def _normalize_controls_for_compare(controls: List[Any]) -> str:
@@ -153,7 +135,7 @@ def _compute_docs_battlenet_json_path(
     try:
         with open(new_json_path, "r", encoding="utf-8") as f:
             new_data = json.load(f)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         new_data = {}
     new_controls = new_data.get("controls") if isinstance(new_data, dict) else []
     new_norm = _normalize_controls_for_compare(new_controls)
@@ -171,7 +153,7 @@ def _compute_docs_battlenet_json_path(
         try:
             with open(p, "r", encoding="utf-8") as f:
                 old_data = json.load(f)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         old_controls = old_data.get("controls") if isinstance(old_data, dict) else []
         if _normalize_controls_for_compare(old_controls) == new_norm:
@@ -199,17 +181,10 @@ def _do_window_ui_analyze(
     if pythoncom is not None:
         try:
             pythoncom.CoInitialize()
-        except Exception:
+        except OSError:
             pass
     output_dir = Path(CACHE_DIR) / cache_subdir
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        try:
-            panel.container.after(0, lambda err=e: ColorPrint.red(f"[RosbotPanel] {log_label}: mkdir failed: {err}"))
-        except Exception:
-            pass
-        return
+    output_dir.mkdir(parents=True, exist_ok=True)
     analyzer = WindowAnalyzer()
     analyzer.debug_dir = str(output_dir)
     result = analyzer.analyze_window(window_titles=window_titles, program_name=program_name)
@@ -236,8 +211,6 @@ def _do_window_ui_analyze(
                     docs_json_path = docs_dir / docs_json_filename
                     shutil.copy2(json_path, docs_json_path)
                     ColorPrint.green(f"[RosbotPanel] Copied JSON to docs: {docs_json_path}")
-            except Exception as copy_err:
-                ColorPrint.yellow(f"[RosbotPanel] Copy to docs failed: {copy_err}")
 
         def _on_done():
             ColorPrint.blue(f"[RosbotPanel] {log_label}: {jp}")
@@ -248,16 +221,10 @@ def _do_window_ui_analyze(
                 ColorPrint.blue(f"[RosbotPanel] {copy_message}")
             open_folder(Path(out_dir))
 
-        try:
-            panel.container.after(0, _on_done)
-        except Exception:
-            pass
+        panel.container.after(0, _on_done)
     else:
         err = result.get("error", error_not_found) if result else error_not_found
-        try:
-            panel.container.after(0, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
-        except Exception:
-            pass
+        panel.container.after(0, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
 
 
 def do_rosbot_debug(panel: Any) -> None:
@@ -270,10 +237,7 @@ def do_rosbot_debug(panel: Any) -> None:
     if status == "paused":
         winfo = mgr.get_rosbot_window()
         if not winfo or not winfo.get("hwnd"):
-            try:
-                panel.container.after(0, lambda: ColorPrint.red("[RosbotPanel] Debug ROSBOT: paused but no window"))
-            except Exception:
-                pass
+            panel.container.after(0, lambda: ColorPrint.red("[RosbotPanel] Debug ROSBOT: paused but no window"))
             return
         title = (winfo.get("title") or "").strip() or "ROSBOT"
         _do_window_ui_analyze(
@@ -333,10 +297,7 @@ def do_rosbot_debug(panel: Any) -> None:
         finally:
             _rosdebug_running_busy = False
         return
-    try:
-        panel.container.after(0, lambda: ColorPrint.yellow("[RosbotPanel] Debug ROSBOT: not found"))
-    except Exception:
-        pass
+    panel.container.after(0, lambda: ColorPrint.yellow("[RosbotPanel] Debug ROSBOT: not found"))
 
 
 def _send_f7_for_status(mgr: Any, status: str) -> bool:
@@ -385,22 +346,16 @@ def do_rosbot_update(panel: Any) -> None:
 
 def _rosbot_update_done(panel: Any) -> None:
     """Main-thread wrap-up after update: refresh status, update panel button."""
-    try:
-        refresh_rosbot_status()
-        get_game_interface_data().notify_state_sync()
-        if hasattr(panel, "container") and panel.container.winfo_exists():
-            panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
-    except Exception as e:
-        ColorPrint.red(f"[RosbotPanel] Update done callback: {e}")
+    refresh_rosbot_status()
+    get_game_interface_data().notify_state_sync()
+    if hasattr(panel, "container") and panel.container.winfo_exists():
+        panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
 
 
 def _update_rosbot_button_if_exists(panel: Any) -> None:
     """Refresh control button state on main thread."""
     if hasattr(panel, "_update_control_button") and callable(panel._update_control_button):
-        try:
-            panel._update_control_button()
-        except Exception:
-            pass
+        panel._update_control_button()
 
 
 def do_rosbot_test_pause_resume(panel: Any) -> None:
@@ -515,16 +470,13 @@ _WINDOW_MONITOR_INITIAL_DEBOUNCE_SEC: float = 3.0
 def do_window_monitor_initial_check() -> None:
     """Status refresh used by: (1) startup one-shot, (2) manual Refresh, (3) after flow/ensure_bn toggle. Scope = run_full_status_refresh (BN-only when only Ensure Battle.net, else BN+D3+ROSBOT). Debounced."""
     global _WINDOW_MONITOR_INITIAL_LAST_RUN
-    try:
-        now = time.time()
-        if now - _WINDOW_MONITOR_INITIAL_LAST_RUN < _WINDOW_MONITOR_INITIAL_DEBOUNCE_SEC:
-            ColorPrint.gray("[Refresh] Skipped (debounce)")
-            return
-        _WINDOW_MONITOR_INITIAL_LAST_RUN = now
-        ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
-        d3_info = run_full_status_refresh()
-        window_monitor.notify_window_callbacks(d3_info)
-        window_monitor.mark_inactive_refresh_done()
-        ColorPrint.gray("[Refresh] Done")
-    except Exception as e:
-        ColorPrint.red(f"[WindowMonitor] Initial check error: {e}")
+    now = time.time()
+    if now - _WINDOW_MONITOR_INITIAL_LAST_RUN < _WINDOW_MONITOR_INITIAL_DEBOUNCE_SEC:
+        ColorPrint.gray("[Refresh] Skipped (debounce)")
+        return
+    _WINDOW_MONITOR_INITIAL_LAST_RUN = now
+    ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
+    d3_info = run_full_status_refresh()
+    window_monitor.notify_window_callbacks(d3_info)
+    window_monitor.mark_inactive_refresh_done()
+    ColorPrint.gray("[Refresh] Done")

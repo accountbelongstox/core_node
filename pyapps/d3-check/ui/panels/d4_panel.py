@@ -32,6 +32,11 @@ from runtime import is_shutdown_requested
 
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
+from controller.d4func.screenshot_handler import ScreenshotHandler
+from controller.d4func import get_ui_status_updater
+from share.game_interface_data import get_d4_interface_data
+from d4utils.d4_team_formation_checker import get_d4_team_formation_checker
+from ui.components.debug_window import get_debug_window, close_debug_window
 # D4State functionality now integrated into D4InterfaceData
 
 
@@ -272,9 +277,6 @@ class D4Panel:
 
         # IMPORTANT: Capture screenshot first to update D4 data (window size, offset, etc.)
         # This is needed for TeamFormationChecker to correctly detect windowed mode
-        from controller.d4func.screenshot_handler import ScreenshotHandler
-        from share.game_interface_data import get_d4_interface_data
-
         screenshot_handler = ScreenshotHandler()
         d4_data = get_d4_interface_data()
 
@@ -285,13 +287,11 @@ class D4Panel:
             ColorPrint.green(f"[D4] Window data initialized: fullscreen={d4_data.fullscreen_size}, window={d4_data.game_window_size}, windowed={d4_data.is_windowed_mode()}")
 
         # Check team formation status
-        from d4utils.d4_team_formation_checker import get_d4_team_formation_checker
         team_checker = get_d4_team_formation_checker()
 
         # Run team check
         if team_checker.run():
             # Get result from shared data
-            from share.game_interface_data import get_d4_interface_data
             d4_data = get_d4_interface_data()
 
             if d4_data.has_team is None:
@@ -392,7 +392,7 @@ class D4Panel:
                 except queue.Empty:
                     break
                 self._add_exp_farming_log(message)
-        except Exception:
+        except tk.TclError:
             pass
         try:
             if self.container.winfo_exists():
@@ -496,7 +496,6 @@ class D4Panel:
             return
 
         # Get D4 interface data
-        from share.game_interface_data import get_d4_interface_data
         d4_data = get_d4_interface_data()
 
         # Update current map using unified method
@@ -589,7 +588,6 @@ class D4Panel:
         Reset game status data when stopping EXP farming
         """
         # Clear D4 interface data
-        from share.game_interface_data import get_d4_interface_data
         d4_data = get_d4_interface_data()
         d4_data.clear()
 
@@ -600,13 +598,9 @@ class D4Panel:
         """
         Register UI status update callback with UI status updater
         """
-        try:
-            from controller.d4func import get_ui_status_updater
-            ui_status_updater = get_ui_status_updater()
-            ui_status_updater.set_ui_update_callback(self._on_ui_status_update)
-            ColorPrint.blue("[D4Panel] UI status update callback registered")
-        except Exception as e:
-            ColorPrint.red(f"[D4Panel] Error registering UI status callback: {e}")
+        ui_status_updater = get_ui_status_updater()
+        ui_status_updater.set_ui_update_callback(self._on_ui_status_update)
+        ColorPrint.blue("[D4Panel] UI status update callback registered")
 
     def _on_ui_status_update(self, status_data: dict):
         """
@@ -615,11 +609,7 @@ class D4Panel:
         Args:
             status_data: Dictionary with status information
         """
-        try:
-            # Schedule UI update on main thread
-            self.parent.after(0, lambda: self._update_status_from_data(status_data))
-        except Exception as e:
-            ColorPrint.red(f"[D4Panel] Error handling UI status update: {e}")
+        self.parent.after(0, lambda: self._update_status_from_data(status_data))
 
     def _update_status_from_data(self, status_data: dict):
         """
@@ -699,31 +689,17 @@ class D4Panel:
 
     def _toggle_debug_window(self):
         """Toggle debug window visibility"""
-        try:
-            from share.game_interface_data import get_d4_interface_data
-            from ui.components.debug_window import get_debug_window
+        d4_data = get_d4_interface_data()
 
-            d4_data = get_d4_interface_data()
-
-            if not d4_data.debug_window_open:
-                # Open debug window
-                debug_window = get_debug_window(self.parent)
-                if debug_window:
-                    d4_data.debug_window_open = True
-                    self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
-                    ColorPrint.green("[D4Panel] Debug window opened")
-                    
-                    # Debug window will be automatically updated by the timer system
-                    ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
-            else:
-                # Close debug window
-                from ui.components.debug_window import close_debug_window
-                close_debug_window()
-                d4_data.debug_window_open = False
-                self.debug_btn.config(bg=UnifiedStyles.COLORS['btn_primary'])
-                ColorPrint.yellow("[D4Panel] Debug window closed")
-
-        except Exception as e:
-            ColorPrint.red(f"[D4Panel] Error toggling debug window: {e}")
-            import traceback
-            traceback.print_exc()
+        if not d4_data.debug_window_open:
+            debug_window = get_debug_window(self.parent)
+            if debug_window:
+                d4_data.debug_window_open = True
+                self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
+                ColorPrint.green("[D4Panel] Debug window opened")
+                ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
+        else:
+            close_debug_window()
+            d4_data.debug_window_open = False
+            self.debug_btn.config(bg=UnifiedStyles.COLORS['btn_primary'])
+            ColorPrint.yellow("[D4Panel] Debug window closed")

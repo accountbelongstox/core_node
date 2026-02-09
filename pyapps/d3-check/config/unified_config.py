@@ -358,21 +358,11 @@ class ConfigManager:
 
     def load_config(self, config_path: str = None) -> bool:
         """Load configuration from file"""
-        try:
-            # Implementation would load from config file
-            return True
-        except Exception as e:
-            ColorPrint.red(f"Error loading config: {e}")
-            return False
+        return True
 
     def save_config(self, config_path: str = None) -> bool:
         """Save configuration to file"""
-        try:
-            # Implementation would save to config file
-            return True
-        except Exception as e:
-            ColorPrint.red(f"Error saving config: {e}")
-            return False
+        return True
 
     def get_skill_config(self, config_name: str) -> Optional[SkillConfigSet]:
         """Get skill configuration by name"""

@@ -34,6 +34,13 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_th
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.interface_manager import D3InterfaceManager
 from d3utils.collectors.bag_info_collector import BagInfoCollector
+from d3utils.debug_bag_hover import run_debug_bag_hover
+from share.template_match_debug import (
+    set_debug_ui_active,
+    clear as debug_clear,
+    pop_all,
+    get_entries,
+)
 
 Image = get_third_package_PIL_Image()
 ImageTk = get_third_package_PIL_ImageTk()
@@ -426,7 +433,7 @@ class AuxiliaryFunctionsPanel:
                         try:
                             v = int(count_var.get())
                             v = max(1, min(999, v))
-                        except Exception:
+                        except (ValueError, TypeError):
                             v = 15
                         config_parts = key.split('.')
                         obj = CONFIG
@@ -501,8 +508,6 @@ class AuxiliaryFunctionsPanel:
             def _make_debug_cmd(slug):
                 def _run():
                     if slug == "kanai_upgrade":
-                        from timers import timer_manager
-                        from d3utils.debug_bag_hover import run_debug_bag_hover
                         timer_manager.submit_one_shot(run_debug_bag_hover)
                     else:
                         ColorPrint.blue(f"[AuxPanel] Debug: {slug} (placeholder)")
@@ -690,83 +695,70 @@ class AuxiliaryFunctionsPanel:
         def _refresh(info_widget, img_widget, w):
             no_img_msg = i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image")
             no_data_msg = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data")
-            try:
-                manager = D3InterfaceManager()
-                manager.collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
-                game_data = get_game_interface_data()
-                img = getattr(game_data, "game_window_image", None)
-                coords = getattr(game_data, "bag_coordinates", None)
-                layout = getattr(game_data, "bag_layout", None)
+            manager = D3InterfaceManager()
+            manager.collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
+            game_data = get_game_interface_data()
+            img = getattr(game_data, "game_window_image", None)
+            coords = getattr(game_data, "bag_coordinates", None)
+            layout = getattr(game_data, "bag_layout", None)
 
-                # Update info area
-                info_widget.delete("1.0", tk.END)
-                if coords is None and layout is None:
-                    info_widget.insert(tk.END, no_data_msg)
+            # Update info area
+            info_widget.delete("1.0", tk.END)
+            if coords is None and layout is None:
+                info_widget.insert(tk.END, no_data_msg)
+            else:
+                lines = []
+                if coords is not None:
+                    lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
+                    lines.append(f"TopLeft: {coords.top_left}")
+                    lines.append(f"BottomRight: {coords.bottom_right}")
+                    lines.append(f"Size: {coords.width}x{coords.height}")
+                if layout and getattr(layout, "items", None):
+                    items = layout.items
+                    occupied = sum(1 for v in items.values() if isinstance(v, dict) and v.get("type") != "empty")
+                    lines.append(f"Occupied: {occupied} / {coords.total_slots}" if coords else f"Occupied: {occupied}")
+                    quality_count = {'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0}
+                    for v in items.values():
+                        if isinstance(v, dict):
+                            q = v.get('quality', 'unknown')
+                            quality_count[q] = quality_count.get(q, 0) + 1
+                    lines.append("")
+                    lines.append("Quality stats:")
+                    lines.append(f"  Legendary set(green): {quality_count.get('legendary_set', 0)}  Legendary(orange): {quality_count.get('legendary', 0)}")
+                    lines.append(f"  Rare(yellow): {quality_count.get('rare', 0)}  Magic(blue): {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
+                    lines.append("")
+                    for (r, c), info in sorted(items.items()):
+                        if isinstance(info, dict) and info.get("type") != "empty":
+                            lines.append(f"  ({r},{c}) {info.get('type', '?')}  {info.get('quality', '?')}")
                 else:
-                    lines = []
-                    if coords is not None:
-                        lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
-                        lines.append(f"TopLeft: {coords.top_left}")
-                        lines.append(f"BottomRight: {coords.bottom_right}")
-                        lines.append(f"Size: {coords.width}x{coords.height}")
-                    if layout and getattr(layout, "items", None):
-                        items = layout.items
-                        occupied = sum(1 for v in items.values() if isinstance(v, dict) and v.get("type") != "empty")
-                        lines.append(f"Occupied: {occupied} / {coords.total_slots}" if coords else f"Occupied: {occupied}")
-                        quality_count = {'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0}
-                        for v in items.values():
-                            if isinstance(v, dict):
-                                q = v.get('quality', 'unknown')
-                                quality_count[q] = quality_count.get(q, 0) + 1
-                        lines.append("")
-                        lines.append("Quality stats:")
-                        lines.append(f"  Legendary set(green): {quality_count.get('legendary_set', 0)}  Legendary(orange): {quality_count.get('legendary', 0)}")
-                        lines.append(f"  Rare(yellow): {quality_count.get('rare', 0)}  Magic(blue): {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
-                        lines.append("")
-                        for (r, c), info in sorted(items.items()):
-                            if isinstance(info, dict) and info.get("type") != "empty":
-                                lines.append(f"  ({r},{c}) {info.get('type', '?')}  {info.get('quality', '?')}")
-                    else:
-                        lines.append("Layout: no item detail")
-                    info_widget.insert(tk.END, "\n".join(lines))
-                info_widget.see("1.0")
+                    lines.append("Layout: no item detail")
+                info_widget.insert(tk.END, "\n".join(lines))
+            info_widget.see("1.0")
 
-                # Update image area
-                if img is None:
-                    img_widget.configure(image="", text=no_img_msg)
-                    w._bag_photo = None
-                    w._bag_pil_original = None
-                    return
-                screenshot_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                detection_success = coords is not None
-                collector = BagInfoCollector()
-                pil_annotated = collector.get_annotated_detection_image(screenshot_bgr, detection_success)
-                if pil_annotated is None:
-                    img_widget.configure(image="", text=no_img_msg)
-                    w._bag_photo = None
-                    w._bag_pil_original = None
-                    return
-                w._bag_pil_original = pil_annotated
-                w._bag_base_width = min(520, pil_annotated.width)
-                w._bag_zoom_scale = max(0.25, min(3.0, float(ConfigBinding.get_config_value("ui_analysis.bag_adjust_zoom_scale", 1.0))))
-                _apply_zoom(w, img_widget)
-            except Exception as e:
-                info_widget.delete("1.0", tk.END)
-                info_widget.insert(tk.END, str(e))
-                img_widget.configure(image="", text=str(e))
+            # Update image area
+            if img is None:
+                img_widget.configure(image="", text=no_img_msg)
                 w._bag_photo = None
                 w._bag_pil_original = None
+                return
+            screenshot_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            detection_success = coords is not None
+            collector = BagInfoCollector()
+            pil_annotated = collector.get_annotated_detection_image(screenshot_bgr, detection_success)
+            if pil_annotated is None:
+                img_widget.configure(image="", text=no_img_msg)
+                w._bag_photo = None
+                w._bag_pil_original = None
+                return
+            w._bag_pil_original = pil_annotated
+            w._bag_base_width = min(520, pil_annotated.width)
+            w._bag_zoom_scale = max(0.25, min(3.0, float(ConfigBinding.get_config_value("ui_analysis.bag_adjust_zoom_scale", 1.0))))
+            _apply_zoom(w, img_widget)
 
         _refresh(info_text, img_label, win)
 
     def _open_template_match_debug_window(self):
         """Open template-match debug UI: left=log+list, right=match image, in-memory, queue-driven."""
-        from share.template_match_debug import (
-            set_debug_ui_active,
-            clear as debug_clear,
-            pop_all,
-            get_entries,
-        )
         win = tk.Toplevel(self.parent)
         win.title(i18n_manager.get_ui_text("ui.auxiliary_panel.template_match_debug_title"))
         win.configure(bg=UnifiedStyles.COLORS['bg_primary'])
@@ -854,19 +846,15 @@ class AuxiliaryFunctionsPanel:
                 img_label.configure(image="", text=entry.get("log", "")[:80])
                 win._debug_photo = None
                 return
-            try:
-                w, h = img.size
-                max_w, max_h = 480, 360
-                if w > max_w or h > max_h:
-                    r = min(max_w / w, max_h / h)
-                    w, h = int(w * r), int(h * r)
-                    img = img.resize((w, h), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                win._debug_photo = photo
-                img_label.configure(image=photo, text="")
-            except Exception:
-                img_label.configure(image="", text=entry.get("log", "")[:80])
-                win._debug_photo = None
+            w, h = img.size
+            max_w, max_h = 480, 360
+            if w > max_w or h > max_h:
+                r = min(max_w / w, max_h / h)
+                w, h = int(w * r), int(h * r)
+                img = img.resize((w, h), Image.Resampling.LANCZOS)
+            photo = ImageTk.PhotoImage(img)
+            win._debug_photo = photo
+            img_label.configure(image=photo, text="")
 
         def _on_list_select(evt):
             sel = listbox.curselection()
@@ -890,7 +878,7 @@ class AuxiliaryFunctionsPanel:
                     listbox.selection_set(tk.END)
                     listbox.see(tk.END)
                     _show_image_at_index(len(entries_ref) - 1)
-            except Exception:
+            except tk.TclError:
                 pass
             win.after(300, _poll)
 

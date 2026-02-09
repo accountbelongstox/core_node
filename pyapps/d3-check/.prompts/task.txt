@@ -1,126 +1,1009 @@
 
-● Now let me check the ConfigBinding and the i18n configuration files:
+[GameAssistantController] Initialized
+[REGISTER] Hotkey 'f3' registered (priority: 50)
+[HOTKEY] Registered 'F3' from 'hotkey_registry' (priority: 50)
+[HotkeyRegistry] Assistant hotkey registered: F3
+[HotkeyRegistry] All system hotkeys initialized successfully
+[INIT] Initializing timer system...
+[INIT] Initializing task thread manager...
+[TaskThreadManager] Initialized
+[INIT] Task thread manager initialized successfully
+[TaskThread] Created task thread: rosbot_task
+[TimerManager] Registered task 'log_monitor' with interval 1.0s (enabled=True)
+[TaskThreadManager] Registered task: rosbot_task
+[LogMonitor] Initialized (tick-driven fallback; install watchdog for file watcher)
+[TaskThread] Task thread 'rosbot_task' started
+[TaskThread] Started task thread: rosbot_task
+[TaskThreadManager] All task threads started
+[LogMonitor] Monitoring log file: C:\Users\accou/Documents\RoS-BoT/Logs/logs.txt
+[INIT] Timer system initialized (loop will start after UI ready)
+[INIT] GUI mode: Ctrl+C ignored (close via UI only)
+[TimerManager] Registered task 'sigint_guard' with interval 1.0s (enabled=True)
+[INIT] System initialization completed successfully
+[I18nManager] Loaded language from config: zh
+[CONFIG] Loaded hotkeys:
+  Macro Start: F2
+  Assistant: F3
+[INIT] GameInterfaceController initialized
+[HTTPBridge] Initialized on 127.0.0.1:8765
+[HTTPBridgeController] All handlers registered
+[HTTPBridgeController] Initialized on 127.0.0.1:8765
+[HTTPBridge] Server started on http://127.0.0.1:8765
+[HTTPBridgeController] Server started on http://127.0.0.1:8765
+[MAIN] HTTP bridge started on http://127.0.0.1:8765
+[INIT] Initializing game interface...
+[HOTKEY] Successfully registered 'f3'
+[START] Started listening for 1 hotkey(s)
+[SUCCESS] Game interface initialized successfully
+[I18nManager] Loaded language from config: zh
+[Theme] Initial theme: vista
+[Theme] Forcing switch from native theme 'vista' to 'clam'
+[UI] UI instance stored in ENCYCLOPEDIA
+[ConfigBinding] Registered binding for 'ui_settings.current_language'
+[UI] Current theme: clam, available: ('winnative', 'clam', 'alt', 'default', 'classic', 'vista', 'xpnative')
+[UI] Applied style to tab: None
+[ConfigBinding] Registered binding for 'macro_configs.current_skill_config'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.animation_speed'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.game_language'
+[UI] Forced notebook style update
+[UI] Applied style to tab: None
+[ConfigBinding] Registered binding for 'battlenet.battlenet_path'
+[ConfigBinding] Registered binding for 'd3.d3_path'
+[ConfigBinding] Registered binding for 'ui_analysis.bag_offset.use_in_calculation'
+[ConfigBinding] Registered binding for 'ui_analysis.bag_offset.left'
+[ConfigBinding] Registered binding for 'ui_analysis.bag_offset.right'
+[ConfigBinding] Registered binding for 'ui_analysis.bag_offset.top'
+[ConfigBinding] Registered binding for 'ui_analysis.bag_offset.bottom'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.blood_shard.enabled'
+[ConfigBinding-KV] Loaded from cache: macro_configs.auxiliary_config.blood_shard.type = weapon -> '武器'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.quick_pickup.enabled'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.blacksmith.enabled'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.kanai_reforge.enabled'
+[ConfigBinding-KV] Loaded from cache: macro_configs.auxiliary_config.kanai_reforge.mode = until_ancient -> '直到远古'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.kanai_upgrade.enabled'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.kanai_convert.enabled'
+[ConfigBinding-KV] Loaded from cache: macro_configs.auxiliary_config.kanai_convert.material = forgotten_soul -> '万用材料'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.auto_salvage.enabled'
+[ConfigBinding-KV] Loaded from cache: macro_configs.auxiliary_config.auto_salvage.keep = keep_ancient_plus -> '留远古+'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.drop_equipment.enabled'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.sound_feedback'
+[ConfigBinding] Registered binding for 'macro_configs.auxiliary_config.smart_pause'
+[UI] Applied style to tab: None
+[ConfigBinding] Registered binding for 'ros_settings.ros_directory'
+[ConfigBinding] Registered binding for 'battlenet.battlenet_path'
+[ConfigBinding] Registered binding for 'd3.d3_path'
+[ConfigBinding] Registered binding for 'ros_settings.auto_enable_latest_ros'
+[ConfigBinding] Registered binding for 'ros_settings.auto_start_rosbot'
+[ConfigBinding] Registered binding for 'ros_settings.auto_start_other_exe'
+[ConfigBinding] Registered binding for 'ros_settings.force_cleanup_restart'
+[ConfigBinding] Registered binding for 'ros_settings.auto_configure_ui'
+[ConfigBinding] Registered binding for 'ros_settings.detailed_logging'
+[ConfigBinding] Registered binding for 'rosbot.pickup_blood_shards'
+[ConfigBinding] Registered binding for 'rosbot.prevent_stuck'
+[ConfigBinding] Registered binding for 'rosbot.blue_portal_priority'
+[ConfigBinding] Registered binding for 'rosbot.smart_echo'
+[ConfigBinding] Registered binding for 'rosbot.startup'
+[ConfigBinding] Registered binding for 'rosbot.monitor_start_rosbot'
+[RosbotPanel] Updating control button, rosbot_running: False
+[RosbotPanel] Button updated to START (green)
+[ConfigBinding] Registered binding for 'log_settings.debug_log_latency'
+[UI] Applied style to tab: None
+[Global] D4 interface data initialized
+[INIT] WindowActivator initialized
+[INIT] WindowScreenshot initialized
+[TMP_DIR] Screenshot directory: C:\Users\accou\.core_node\pytools\tmp
+[MATCH_MODE] Title matching mode: endswith
+[D3ScaledTemplateMatcher] Initialized
+[GameWindowDetector] Initialized
+[GameWindowDetector] Found 4 anchor templates
+[ScreenshotProvider] Initialized
+[Global] Screenshot provider initialized
+[ScreenshotHandler] Initialized
+[D4WindowRegionDetector] Initialized
+[Global] D4 window region detector initialized
+[D4TeamHealthDetector] Initialized
+[Global] Team health detector initialized
+[D4ScaledTemplateMatcher] Initialized
+[D4SmallMapDetector] Initialized
+[D4SmallMapDetector] Template: D:\programing\core_node\pyapps\d3-check\images\d4\small_map.jpg
+[D4SmallMapDetector] Threshold: 0.6
+[D4SmallMapDetector] Method: SIFT
+[Global] Small map detector initialized
+[RegionDetector] Initialized
+[ImageAnnotator] Initialized
+[ExpFarmingManager] Initialized
+[UIStatusUpdater] Initialized
+[Global] UI status updater initialized
+[D4EventManager] Initialized
+[Global] D4 event manager initialized
+[D4Controller] Initialized
+[D4Controller] Screenshot directory: C:\Users\accou\.core_node\pytools\tmp\d4_screenshots
+[D4Controller] Annotated directory: C:\Users\accou\.core_node\pytools\tmp\d4_annotated
+[Global] D4 controller initialized
+[UIStatusUpdater] UI update callback registered
+[D4Panel] UI status update callback registered
+[UI] Applied style to tab: None
+[UI] Applied style to tab: None
+[ConfigBinding] Registered binding for 'log_settings.show_debug_logs'
+[ConfigBinding] Registered binding for 'log_settings.auto_scroll'
+[ConfigBinding] Registered binding for 'log_settings.log_level'
+[EventCenter] Main-thread handlers registered: exit/restart/show/minimize/maximize
+[Controller] Registered top-level language change listener
+[Controller] Registered UI window status callback to window monitor
+[D3State] Callback registered: _on_game_state_changed
+[ThreadRegistry] Initialized (central thread owner)
+[MainFunctionThread] Started
+[AuxiliaryFunctionThread] Started
+[D3ExtensionThread] Started
+[D4ExtensionThread] Started
+[ThreadRegistry] Extension threads created and started
+[EventCenter] Extension thread handlers registered (main/aux/rosbot/d4)
+[Controller] Extension threads and event center registered
+[TimerManager] Timer loop started
+[TimerManager] Started
+[ThreadRegistry] Timer loop started (UI ready)
+[TRAY] System tray started
+[UI] System tray started successfully
+[TRAY] System tray icon created (in tray thread)
+[DEBUG] Saving current CONFIG to file...
+[DEBUG] Fixing CONFIG with template...
+[DEBUG] CONFIG is already complete
+[DEBUG] Current CONFIG saved to file: C:\Users\accou\.core_node\.d3check\d3check_config.json
+[UI] Tab changed to: 2
+[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[D3StatusProvider] progress: find_windows...
 
-● Read(apps\d3-check\ui\utils\config_binding.py)
-  ⎿  Read 336 lines
+[WindowFinder] Searching for windows: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[WindowFinder] Match mode: in, Use cache: True
+[WindowFinder] Checking encyclopedia cache...
+[WindowFinder] Searching through visible windows...
+[WindowFinder] No windows found matching: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[D3StatusProvider] D3 window: not found
+[D3StatusProvider] progress: refresh_window_state...
+[D3StatusProvider] progress: set_running(found=False)
+[D3StatusProvider] progress: apply_geometry...
+[D3StatusProvider] progress: apply_geometry done
+[D3StatusProvider] progress: detect_dynamic...
+[D3StatusProvider] progress: detect_dynamic done -> set_dynamic...
+[D3StatusProvider] progress: set_dynamic done
+[D3StatusProvider] progress: refresh_window_state done
+[ROSBOTManager] get_rosbot_window Step 1: same-dir exe list -> ros_directory='D:\\applications\\GameTools\\ros-bot国服版35.1229\\ros-bot', count=1, list=['j8HB9fVlEi.exe']
+[ROSBOTManager] get_rosbot_window Step 2: no process/window for same-dir exe
+[Refresh] Done
+[UI] System tray started successfully
+[D3State] ROSBOT flow master: enabled
+[RosbotPanel] Updating control button, rosbot_running: True
+[TaskThread] Task 'rosbot_task' status: enabled
+[RosbotPanel] Button updated to STOP (red)
+[Refresh] Skipped (debounce)
+[RosbotTaskProcessor] Initialized
+[A2/A3] Tick #2 (2s step) flow_master=True bn_only=False | time since previous: 0.00 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Entry
+[BNFlow] flow B1→B2 | reason: entry (F1 No->B2 per diagram), check Battle.net window this tick
+[BNFlow] progress: B2 find_windows...
+[BNFlow] flow B2→B3 | reason: no window, start Battle.net
+[A2/A3] Tick #4 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Start
+[BNFlow] flow B3→B7 | reason: started Battle.net, wait 3s then poll elements
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[A2/A3] Tick #6 (2s step) flow_master=True bn_only=False | time since previous: 2.10 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Wait
+[BNFlow] flow B7 skip this tick | reason: wait deadline not reached, wait
+[A2/A3] Tick #8 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[D3State] Battle.net: found
+[BattlenetStatusProvider] progress: detect_dynamic...
+[D3State] Battle.net region: asia
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Wait
+[BNFlow] UI snapshot saved: bn_flow_B7.json | reason: B7_poll_elements
+[BNFlow] progress: B7 get_dynamic_state...
+[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9
+[A2/A3] Tick #10 (2s step) flow_master=True bn_only=False | time since previous: 2.07 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_WaitResult
+[BNFlow] UI snapshot saved: bn_flow_B8.json | reason: B8_to_B9
+[BNFlow] flow B8→B9 | reason: elements found, enter first screen B9
+[A2/A3] Tick #12 (2s step) flow_master=True bn_only=False | time since previous: 2.06 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[D3State] Battle.net: not found
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_UI
+[BNFlow] UI snapshot saved: bn_flow_B9.json | reason: B9_first_screen
+[BNFlow] flow B9 first screen | reason: decide current UI (login/main/disconnected/other)
+[BNFlow] progress: B9 get_dynamic_state...
+[BNFlow] flow B9→B5 | reason: unknown state, exit and restart
+[A2/A3] Tick #14 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[D3State] Battle.net: found
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Exit
+[BNFlow] UI snapshot saved: bn_flow_B5.json | reason: B5_exit
+[BNFlow] flow B5→B5w | reason: B9_unknown_state -> kill Battle.net, wait 2s then back to B1
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[A2/A3] Tick #16 (2s step) flow_master=True bn_only=False | time since previous: 2.35 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[D3State] Battle.net: not found
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_ExitWait
+[BNFlow] flow B5w skip this tick | reason: waiting Battle.net exit (2s), wait
+[A2/A3] Tick #18 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_ExitWait
+[BNFlow] flow B5w→B1 | reason: Battle.net exited, back to entry B1
+[A2/A3] Tick #20 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Entry
+[BNFlow] flow B1→B2 | reason: entry (F1 No->B2 per diagram), check Battle.net window this tick
+[BNFlow] progress: B2 find_windows...
+[BNFlow] flow B2→B3 | reason: no window, start Battle.net
+[A2/A3] Tick #22 (2s step) flow_master=True bn_only=False | time since previous: 2.02 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: not found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=False)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Start
+[BNFlow] flow B3→B7 | reason: started Battle.net, wait 3s then poll elements
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[A2/A3] Tick #24 (2s step) flow_master=True bn_only=False | time since previous: 2.07 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[D3State] Battle.net: found
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Wait
+[BNFlow] flow B7 skip this tick | reason: wait deadline not reached, wait
+[A2/A3] Tick #26 (2s step) flow_master=True bn_only=False | time since previous: 2.09 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_Wait
+[BNFlow] UI snapshot saved: bn_flow_B7.json | reason: B7_poll_elements
+[BNFlow] progress: B7 get_dynamic_state...
+[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9
+[A2/A3] Tick #28 (2s step) flow_master=True bn_only=False | time since previous: 2.01 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_WaitResult
+[BNFlow] UI snapshot saved: bn_flow_B8.json | reason: B8_to_B9
+[BNFlow] flow B8→B9 | reason: elements found, enter first screen B9
+[A2/A3] Tick #30 (2s step) flow_master=True bn_only=False | time since previous: 2.33 s
+[FlowMaster] step=refresh_notify: refresh_battlenet_status...
+[BattlenetStatusProvider] progress: find_windows...
+[BattlenetStatusProvider] Battle.net window: found
+[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...
+[BattlenetStatusProvider] progress: set_running(found=True)
+[BattlenetStatusProvider] progress: detect_dynamic...
+[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...
+[BattlenetStatusProvider] progress: get_dynamic_state done
+[BattlenetStatusProvider] progress: detect_dynamic done -> set_dynamic...
+[BattlenetStatusProvider] progress: set_dynamic done
+[BattlenetStatusProvider] progress: refresh_window_state done
+[FlowMaster] step=extension_tick (if not idle)
+[FlowMaster] step=f0_prejudge: run_f0_prejudge_entry...
+[F0] Pre-judge entry -> F1
+[F0] F1: D3 not online -> B2_HasWin
+[FlowMaster] F0 pre-judge -> b1 (b1=B2, c1=C1, b2=enter B2)
+[FlowMaster] step=f0_action_b1: tick_battlenet_ready_flow(no_activate=False)...
+[BNFlow] progress: tick_battlenet_ready_flow node=BN_UI
+[BNFlow] UI snapshot saved: bn_flow_B9.json | reason: B9_first_screen
+[BNFlow] flow B9 first screen | reason: decide current UI (login/main/disconnected/other)
+[BNFlow] progress: B9 get_dynamic_state...
+[BNFlow] flow B9→B12 continue | reason: main/logged-in (D3 tab+Play visible), confirmed
+[TaskThread] Error in task 'rosbot_task': 'NoneType' object is not callable
+[LoginTryScreenshotController] Initialized
+[LoginTryScreenshotController] progress: ensure_battlenet_started_and_login_check entry (battlenet_confirmed branch)...
+[LoginTryScreenshotController] progress: branch get_and_clear_battlenet_tick_confirmed (tick-confirmed)
+[LoginTryScreenshotController] Battle.net confirmed by tick flow, running D3 part only
+[LoginTryScreenshotController] [D fast] progress: find_windows...
+[LoginTryScreenshotController] [D fast] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 265384)
+[SUCCESS] Window activated (handle: 265384)
+[LoginTryScreenshotController] [D fast] progress: get_dynamic_state...
+[LoginTryScreenshotController] [D fast] Tick-confirmed: click D3 tab + Play (no kill/tray)
+[LoginTryScreenshotController] [D fast] progress: click_d3_tab...
+[BattlenetOperation] Asia Click D3 tab: automation_id=game-nav-btn-D3
+[BattleNetManager] Activating Battle.net window to front...
+[WARN] Window activation may have failed (handle: 265384)
+[LoginTryScreenshotController] [D fast] progress: click_start_game...
+[BattlenetOperation] Asia Click start game: automation_id=play-btn-main
+[BattleNetManager] Activating Battle.net window to front...
+[LoginTryScreenshotController] [D12] progress: sleep(5) then poll D3 window up to 10s...
+[LoginTryScreenshotController] [D12] progress: poll #1/10 find_windows -> found
+[D3State] D3: Running
+[Found] Window: 'Diablo III'
+[Cache] Cached window info for 'Diablo III'
+[WindowFinder] Found 1 window(s)
+[WindowResizer] Before: client 768x421, outer 770x423, frame 2x2 -> set outer 1302x802 so client = 1300x800
+[WindowResizer] Resize sent; could not verify (handle invalid, window may have been recreated)
+[WindowResizer] Retry in 0.4s with fresh handle (attempt 1/3)
+[WindowFinder] Match mode: in, Use cache: False
+[Found] Window: '?????III'
+[WindowResizer] Before: client 1300x800, outer 1316x839, frame 16x39 -> set outer 1316x839 so client = 1300x800
+[WindowResizer] Done: client area = 1300x800 (matches base size)
+[WindowFinder] Invalidated cache for 'Diablo III' (use fresh offset after resize)
+[ACTIVATE] Activating window (handle: 199898)
+[SUCCESS] Window activated (handle: 199898)
 
-● Read(apps\d3-check\providor\i18n\i18n_base.json)
-  ⎿  Read 6 lines
+[Provider] Generating new screenshot...
+[Provider] D3 already foreground, skip activate
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
 
-● Read(apps\d3-check\providor\template_config.json)
-  ⎿  Read 559 lines
+[FAST_SINGLE] Starting optimized single window capture...
+[FAST_SINGLE] Searching for titles: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Checking encyclopedia cache...
+[CACHE] Found cached window: 'Diablo III'
+[FAST_SINGLE] Window rect: (273, 889, 1589, 1728)
+[FAST_SINGLE] Capturing fullscreen...
+[FAST_SINGLE] Screen captured in 241.05ms
+[FAST_SINGLE] Cropped window region: 1316x839
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224651_382.png
+[FAST_SINGLE] Total time: 711.88ms
+[GameInterfaceData] Screen resolution cached: 3840x2160
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Fullscreen
+[GlobalScale] Effective: 1347x870 / 1331x831
+[GlobalScale] Scale factors: X=1.0120, Y=1.0469
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
+[D3ScaledMatcher] One-shot detect all D3 states from image 1316x839 (scale 1.0123, 1.0488)
+[D3ScaledMatcher] Loading original template from disk: d3_disconnected
+[D3ScaledMatcher] Cached original template: d3_disconnected
+[D3ScaledMatcher] Creating SIFT feature matcher
+[ImageMatcher] Feature ratio threshold: 0.8
+[ImageMatcher] Minimum inliers: 4
+[ImageMatcher] Max features: 10000
+[ImageMatcher] RANSAC threshold: 5.0px
+[ImageMatcher] Standard resolution: 1300x800
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 342x261 to 346x273
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_disconnected: Found 173 keypoints in template
+[DEBUG] d3_disconnected: Found 801 keypoints in target
+[DEBUG] d3_disconnected: knnMatch returned 173 match pairs
+[DEBUG] d3_disconnected: 1 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_disconnected: Not enough good matches
+[D3ScaledMatcher] Loading original template from disk: d3_start_game_button
+[D3ScaledMatcher] Cached original template: d3_start_game_button
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 251x53 to 254x55
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_start_game_button: Found 66 keypoints in template
+[DEBUG] d3_start_game_button: Found 801 keypoints in target
+[DEBUG] d3_start_game_button: knnMatch returned 66 match pairs
+[DEBUG] d3_start_game_button: 1 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_start_game_button: Not enough good matches
+[D3ScaledMatcher] Loading original template from disk: d3_game_tool
+[D3ScaledMatcher] Cached original template: d3_game_tool
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 144x52 to 145x54
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_game_tool: Found 84 keypoints in template
+[DEBUG] d3_game_tool: Found 801 keypoints in target
+[DEBUG] d3_game_tool: knnMatch returned 84 match pairs
+[DEBUG] d3_game_tool: 4 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_game_tool: Homography found successfully!
+[D3ScaledMatcher] Loading original template from disk: d3_connecting
+[D3ScaledMatcher] Cached original template: d3_connecting
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 96x38 to 97x39
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting: Found 21 keypoints in template
+[DEBUG] d3_connecting: Found 801 keypoints in target
+[DEBUG] d3_connecting: knnMatch returned 21 match pairs
+[DEBUG] d3_connecting: 0 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting: Not enough good matches
+[D3ScaledMatcher] Loading original template from disk: d3_connecting_alt
+[D3ScaledMatcher] Cached original template: d3_connecting_alt
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 588x154 to 595x161
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting_alt: Found 604 keypoints in template
+[DEBUG] d3_connecting_alt: Found 801 keypoints in target
+[DEBUG] d3_connecting_alt: knnMatch returned 604 match pairs
+[DEBUG] d3_connecting_alt: 129 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting_alt: Homography found successfully!
+[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> game_tool
 
-● Perfect! Now I understand the issue. Let me create a comprehensive analysis document:
+[Provider] Generating new screenshot...
+[Provider] D3 window activated before capture (was not foreground)
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Screen captured in 135.85ms
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224654_661.png
+[FAST_SINGLE] Total time: 559.33ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
 
-● Language Data Consistency Analysis
+[Provider] Generating new screenshot...
+[Provider] D3 window activated before capture (was not foreground)
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Screen captured in 133.50ms
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224658_089.png
+[FAST_SINGLE] Total time: 183.14ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
+[D3StartGameWaiter][C10b] Similarity=0.852, online
+[LoginTryScreenshotController] [C] progress: branch_result=game_tool
 
-  I've analyzed the language inconsistency issue in the d3-check UI. Here's what I
-  found:
+[Provider] Generating new screenshot...
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Screen captured in 137.53ms
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224659_129.png
+[FAST_SINGLE] Total time: 373.87ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
+[D3ScaledMatcher] One-shot detect all D3 states from image 1316x839 (scale 1.0123, 1.0488)
+[D3ScaledMatcher] Using cached scaled template: d3_disconnected
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 342x261 to 346x273
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_disconnected: Found 173 keypoints in template
+[DEBUG] d3_disconnected: Found 1575 keypoints in target
+[DEBUG] d3_disconnected: knnMatch returned 173 match pairs
+[DEBUG] d3_disconnected: 7 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_disconnected: Homography found successfully!
+[D3ScaledMatcher] Using cached scaled template: d3_start_game_button
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 251x53 to 254x55
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_start_game_button: Found 66 keypoints in template
+[DEBUG] d3_start_game_button: Found 1575 keypoints in target
+[DEBUG] d3_start_game_button: knnMatch returned 66 match pairs
+[DEBUG] d3_start_game_button: 2 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_start_game_button: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_game_tool
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 144x52 to 145x54
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_game_tool: Found 84 keypoints in template
+[DEBUG] d3_game_tool: Found 1575 keypoints in target
+[DEBUG] d3_game_tool: knnMatch returned 84 match pairs
+[DEBUG] d3_game_tool: 3 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_game_tool: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_connecting
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 96x38 to 97x39
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting: Found 21 keypoints in template
+[DEBUG] d3_connecting: Found 1575 keypoints in target
+[DEBUG] d3_connecting: knnMatch returned 21 match pairs
+[DEBUG] d3_connecting: 0 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_connecting_alt
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 588x154 to 595x161
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting_alt: Found 604 keypoints in template
+[DEBUG] d3_connecting_alt: Found 1575 keypoints in target
+[DEBUG] d3_connecting_alt: knnMatch returned 604 match pairs
+[DEBUG] d3_connecting_alt: 10 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting_alt: Homography found successfully!
+[D3Manager] D3 window(s) found, killing 1 process(es) by PID...
+[D3Manager] Process PID 32652 killed
+[LoginTryScreenshotController] Start Game / Game tool not found in time; restart Battle.net and retry from step 1...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[LoginTryScreenshotController] [D] progress: find_windows...
+[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...
+[Cache] Cached window invalid for 'Diablo III', removed
+[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s
+[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...
+🔍 Looking for Battle.net tray icon...
+   Tray area position: (0, 2120, 3840, 2160)
+⚠️  Battle.net tray icon not found
+[LoginTryScreenshotController] [D] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 265422)
+[SUCCESS] Window activated (handle: 265422)
+[LoginTryScreenshotController] [D] progress: get_dynamic_state...
+[LoginTryScreenshotController] Battle.net not normal_available (UI), restart and retry...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[LoginTryScreenshotController] [D] progress: find_windows...
+[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...
+[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s
+[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...
+🔍 Looking for Battle.net tray icon...
+   Tray area position: (0, 2120, 3840, 2160)
+⚠️  Battle.net tray icon not found
+[LoginTryScreenshotController] [D] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 396522)
+[SUCCESS] Window activated (handle: 396522)
+[LoginTryScreenshotController] [D] progress: get_dynamic_state...
+[LoginTryScreenshotController] Battle.net not normal_available (UI), restart and retry...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[LoginTryScreenshotController] [D] progress: find_windows...
+[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...
+[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s
+[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...
+🔍 Looking for Battle.net tray icon...
+   Tray area position: (0, 2120, 3840, 2160)
+⚠️  Battle.net tray icon not found
+[LoginTryScreenshotController] [D] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 264396)
+[SUCCESS] Window activated (handle: 264396)
+[LoginTryScreenshotController] [D] progress: get_dynamic_state...
+[LoginTryScreenshotController] Battle.net not normal_available (UI), restart and retry...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[LoginTryScreenshotController] [D] progress: find_windows...
+[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...
+[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s
+[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...
+🔍 Looking for Battle.net tray icon...
+   Tray area position: (0, 2120, 3840, 2160)
+⚠️  Battle.net tray icon not found
+[LoginTryScreenshotController] [D] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 593078)
+[WARN] SetForegroundWindow failed (handle: 593078): (0, 'SetForegroundWindow', 'No error message is available')
+[LoginTryScreenshotController] [D] progress: get_dynamic_state...
+[LoginTryScreenshotController] Battle.net not normal_available (UI), restart and retry...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent
+[LoginTryScreenshotController] [D] progress: find_windows...
+[LoginTryScreenshotController] [D] progress: kill_if_running + sleep(5)...
+[LoginTryScreenshotController] [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s
+[LoginTryScreenshotController] [D] progress: find_and_click_tray_icon...
+🔍 Looking for Battle.net tray icon...
+   Tray area position: (0, 2120, 3840, 2160)
+⚠️  Battle.net tray icon not found
+[LoginTryScreenshotController] [D] progress: activate_window...
+[BattleNetManager] Activating Battle.net window to front...
+[ACTIVATE] Activating window (handle: 1051882)
+[WARN] SetForegroundWindow failed (handle: 1051882): (0, 'SetForegroundWindow', 'No error message is available')
+[LoginTryScreenshotController] [D] progress: get_dynamic_state...
+[LoginTryScreenshotController] Battle.net normal_available (UI), click D3 tab + Play (UI only)
+[LoginTryScreenshotController] [D] progress: click_d3_tab...
+[BattlenetOperation] Asia Click D3 tab: automation_id=game-nav-btn-D3
+[BattleNetManager] Activating Battle.net window to front...
+[LoginTryScreenshotController] [D] progress: click_start_game...
+[BattlenetOperation] Asia Click start game: automation_id=play-btn-main
+[BattleNetManager] Activating Battle.net window to front...
+[SUCCESS] Window activated (handle: 1051882)
+[LoginTryScreenshotController] [D12] progress: sleep(5) then poll D3 window up to 10s...
+[LoginTryScreenshotController] [D12] progress: poll #1/10 find_windows -> found
+[Found] Window: 'Diablo III'
+[Cache] Cached window info for 'Diablo III'
+[WindowFinder] Found 1 window(s)
+[WindowResizer] Before: client 768x421, outer 770x423, frame 2x2 -> set outer 1302x802 so client = 1300x800
+[WindowResizer] Resize sent; could not verify (handle invalid, window may have been recreated)
+[WindowResizer] Retry in 0.4s with fresh handle (attempt 1/3)
+[WindowFinder] Match mode: in, Use cache: False
+[Found] Window: '?????III'
+[WindowResizer] Before: client 1300x800, outer 1316x839, frame 16x39 -> set outer 1316x839 so client = 1300x800
+[WindowResizer] Done: client area = 1300x800 (matches base size)
+[WindowFinder] Invalidated cache for 'Diablo III' (use fresh offset after resize)
+[ACTIVATE] Activating window (handle: 789666)
+[SUCCESS] Window activated (handle: 789666)
 
-  Root Cause
+[Provider] Generating new screenshot...
+[Provider] D3 already foreground, skip activate
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
 
-  The language dropdown shows "zh" (Chinese) while the entire UI displays in English.
-  This is happening because:
+[FAST_SINGLE] Starting optimized single window capture...
+[FAST_SINGLE] Searching for titles: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Checking encyclopedia cache...
+[CACHE] Found cached window: 'Diablo III'
+[FAST_SINGLE] Window rect: (273, 889, 1589, 1728)
+[FAST_SINGLE] Capturing fullscreen...
+[FAST_SINGLE] Screen captured in 158.03ms
+[FAST_SINGLE] Cropped window region: 1316x839
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224830_420.png
+[FAST_SINGLE] Total time: 568.15ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
+[D3ScaledMatcher] One-shot detect all D3 states from image 1316x839 (scale 1.0123, 1.0488)
+[D3ScaledMatcher] Using cached scaled template: d3_disconnected
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 342x261 to 346x273
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_disconnected: Found 173 keypoints in template
+[DEBUG] d3_disconnected: Found 981 keypoints in target
+[DEBUG] d3_disconnected: knnMatch returned 173 match pairs
+[DEBUG] d3_disconnected: 3 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_disconnected: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_start_game_button
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 251x53 to 254x55
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_start_game_button: Found 66 keypoints in template
+[DEBUG] d3_start_game_button: Found 981 keypoints in target
+[DEBUG] d3_start_game_button: knnMatch returned 66 match pairs
+[DEBUG] d3_start_game_button: 1 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_start_game_button: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_game_tool
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 144x52 to 145x54
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.75
+[DEBUG] d3_game_tool: Found 84 keypoints in template
+[DEBUG] d3_game_tool: Found 981 keypoints in target
+[DEBUG] d3_game_tool: knnMatch returned 84 match pairs
+[DEBUG] d3_game_tool: 4 good matches after ratio test (ratio_thresh=0.750, min required: 4)
+[DEBUG] d3_game_tool: Homography found successfully!
+[D3ScaledMatcher] Using cached scaled template: d3_connecting
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 96x38 to 97x39
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting: Found 21 keypoints in template
+[DEBUG] d3_connecting: Found 981 keypoints in target
+[DEBUG] d3_connecting: knnMatch returned 21 match pairs
+[DEBUG] d3_connecting: 0 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting: Not enough good matches
+[D3ScaledMatcher] Using cached scaled template: d3_connecting_alt
+[ImageMatcher] Auto-scale: Target 1316x839 vs Standard 1300x800
+[ImageMatcher] Auto-scale: scale_x=1.0123, scale_y=1.0488
+[ImageMatcher] Auto-scaling template from 588x154 to 595x161
+[ImageMatcher] Using SIFT feature detector
+[ImageMatcher] Using SIFT feature matching with threshold 0.7
+[DEBUG] d3_connecting_alt: Found 604 keypoints in template
+[DEBUG] d3_connecting_alt: Found 981 keypoints in target
+[DEBUG] d3_connecting_alt: knnMatch returned 604 match pairs
+[DEBUG] d3_connecting_alt: 137 good matches after ratio test (ratio_thresh=0.700, min required: 4)
+[DEBUG] d3_connecting_alt: Homography found successfully!
+[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> game_tool
 
-  1. template_config.json:7 - "current_language": "en" is set to English
-  2. i18n_base.json:3 - "default_language": "zh" is set to Chinese
-  3. Language combobox displays raw language code instead of a user-friendly name
+[Provider] Generating new screenshot...
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Screen captured in 119.52ms
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224832_785.png
+[FAST_SINGLE] Total time: 523.59ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
 
-  Data Flow Issues
-
-  1. Initialization mismatch:
-    - i18n_manager loads from template_config.json and sets language to "en"
-    - UI displays in English correctly
-    - Combobox is bound to ui_settings.current_language via ConfigBinding
-    - The combobox shows the raw code "zh" or "en" instead of "中文" or "English"
-  2. Configuration priority:
-    - i18n_manager.py:272-289 loads language from template_config.json
-    - This overrides the default from i18n_base.json
-    - Current value is "en", so UI is in English
-
-  Issues Identified
-
-  1. Combobox displays language codes not names (title_bar.py:90-93):
-  self.language_combo = ConfigBinding.create_combobox_binding(
-      parent, "ui_settings.current_language",
-      values=["zh", "en"], default_value="zh", width=5
-  )
-  1. Should display "中文" / "English" instead of "zh" / "en"
-  2. No visual feedback: Users see "zh" but UI is in English, creating confusion
-
-  Solutions
-
-  Option 1: Display user-friendly language names (Recommended)
-  - Modify the combobox to show "中文" / "English"
-  - Map display values to language codes internally
-  - More intuitive for users
-
-  Option 2: Update documentation
-  - Add tooltip explaining "zh" = Chinese, "en" = English
-  - Less user-friendly but minimal code change
-
-  Option 3: Sync default values
-  - Set i18n_base.json default to "en" to match template_config.json
-  - Maintains consistency but doesn't solve UX issue
-
-  Recommended Fix
-
-  Modify title_bar.py:77-97 to use a custom combobox that displays language names:
-
-  def _create_language_menu(self, parent):
-      """Create language selection menu"""
-      # Language label
-      self.lang_label = tk.Label(
-          parent,
-          text=i18n_manager.get_ui_text("main_window.language") + ":",
-          font=('Arial', 9),
-          fg=UITheme.get_color('test_high_contrast'),
-          bg=UITheme.get_color('bg_primary')
-      )
-      self.lang_label.pack(side=tk.LEFT, padx=(0, 5))
-
-      # Language display mapping
-      lang_display = {"zh": "中文", "en": "English"}
-      current_lang = i18n_manager.get_current_language()
-
-      # Create combobox with display names
-      self.language_var = tk.StringVar(value=lang_display.get(current_lang,
-  current_lang))
-      self.language_combo = ttk.Combobox(
-          parent,
-          textvariable=self.language_var,
-          values=list(lang_display.values()),
-          width=8,
-          state='readonly'
-      )
-      self.language_combo.pack(side=tk.LEFT, padx=(0, 10))
-
-      # Custom binding for language change
-      def on_language_change(event):
-          display_value = self.language_var.get()
-          # Reverse mapping: display name -> code
-          lang_code = {v: k for k, v in lang_display.items()}.get(display_value)
-          if lang_code:
-              ConfigBinding.set_config_value("ui_settings.current_language", lang_code)
-
-      self.language_combo.bind('<<ComboboxSelected>>', on_language_change)
-
-● Summary
-
-  The inconsistency occurs because:
-  - Actual UI language: English (correctly loaded from template_config.json:7)
-  - Dropdown display: Shows raw code "zh" instead of current language "en"
-  - Root cause: Combobox displays language codes, not reflecting actual UI state
-
-  The recommended fix displays user-friendly names ("中文"/"English") and properly syncs
-   with the actual UI language state.
-
-> Diablo III', 'Diablo 3', 'D3']
-[WindowFinder] No windows found matching: ['Diablo III', 'Diablo 3', 'D3']
-[FAST_SINGLE] No windows found matching: ['Diablo III', 'Diablo 3', 'D3']
-[COORD_CALIBRATION] Could not find window matching: ['Diablo III', 'Diablo 3', 这个是从
-那里来的,请引用providor/中的类库D:\programing\core_node\apps\d3-check\d3-check_tree.md
-
-· Brewing… (esc to interrupt)
-  ⎿ Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify
-    its suggested edits
+[Provider] Generating new screenshot...
+[Provider] Using optimized capture for: ['Diablo III', '暗黑破坏神III', '暗黑破壞神III', 'Diablo III - Blizzard Entertainment', '暗黑破坏神III - 暴雪娱乐', '暗黑破壞神III - 暴雪娛樂', 'Diablo III (32-bit)', 'Diablo III (64-bit)', '暗黑破坏神III (32位)', '暗黑破坏神III (64位)', '暗黑破壞神III (32位)', '暗黑破壞神III (64位)', 'III']
+[FAST_SINGLE] Screen captured in 136.51ms
+[FAST_SINGLE] Saved: C:\Users\accou\.core_node\pytools\tmp\temp_game_window_20260209_224835_389.png
+[FAST_SINGLE] Total time: 572.04ms
+[Provider] Screenshot captured: 1316x839
+[Provider] Screen resolution: 3840x2160
+[Provider] Optimized mode: using captured game window directly
+[Provider] Got window offset from cache: (273, 889)
+[GlobalScale] D3 Resolution: 1316x839 / 1300x800
+[GlobalScale] Window mode: Windowed
+[GlobalScale] Effective: 1300x800 / 1300x800
+[GlobalScale] Scale factors: X=1.0000, Y=1.0000
+[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)
+[Provider] Screenshot data created and stored in memory
+[Provider] Window offset: (273, 889)
+[Provider] Full screen size: 3840x2160
+[Provider] Game window size: 1316x839
+[Provider] Screenshot region size: 1316x839
+[Provider] Updated shared game interface data
+[D3StartGameWaiter][C10b] Similarity=0.988 >= threshold, M no effect, disconnected
+[LoginTryScreenshotController] [C] progress: branch_result=disconnect
+[LoginTryScreenshotController][C4] D3 disconnected (template or C10b), F1d+F1c then C12->D1
+[F1d] Disconnect detected, flow reset
+[D3Manager] D3 window(s) found, killing 1 process(es) by PID...
+[D3Manager] Process PID 12152 killed
+[F1c] D3 process ended, next tick F_Entry
+[LoginTryScreenshotController] Start Game / Game tool not found in time; restart Battle.net and retry from step 1...
+[BattleNetManager] Killing Battle.net...
+[BattleNetManager] Battle.net.exe killed
+[BattleNetManager] Starting Battle.net: D:\applications\Games\Battle.net\Battle.net.exe
+[BattleNetManager] Battle.net start command sent

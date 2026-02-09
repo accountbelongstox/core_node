@@ -435,7 +435,7 @@ def run_debug_bag_hover() -> bool:
 
     try:
         original_pos = win32api.GetCursorPos()
-    except Exception as e:
+    except OSError as e:
         ColorPrint.red(f"[DebugBagHover] GetCursorPos: {e}")
         return False
 
@@ -566,7 +566,7 @@ def run_debug_bag_hover() -> bool:
         try:
             win32api.SetCursorPos(original_pos)
             ColorPrint.blue(f"[DebugBagHover] Mouse restored to {original_pos}")
-        except Exception as e:
+        except OSError as e:
             ColorPrint.yellow(f"[DebugBagHover] Restore cursor: {e}")
 
     return True

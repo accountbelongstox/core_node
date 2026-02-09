@@ -58,7 +58,7 @@ class _ComInitializer:
         if pythoncom is not None:
             try:
                 pythoncom.CoInitialize()
-            except Exception:
+            except OSError:
                 pass
 
 
@@ -103,10 +103,7 @@ def window_has_rosbot_main_content(hwnd: int) -> bool:
 
 def _register_content_validator() -> None:
     """Register content-based main window validator with ROSBOTManager so get_rosbot_window uses content, not title."""
-    try:
-        get_rosbot_manager().set_main_window_content_validator(window_has_rosbot_main_content)
-    except Exception:
-        pass
+    get_rosbot_manager().set_main_window_content_validator(window_has_rosbot_main_content)
 
 
 _register_content_validator()

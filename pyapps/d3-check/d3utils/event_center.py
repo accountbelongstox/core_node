@@ -49,33 +49,27 @@ def register_shutdown_provider(
 
 def _do_show(ui) -> None:
     """Run on main thread: show window."""
-    try:
-        ui.root.deiconify()
-        ui.root.lift()
-        ui.root.focus_force()
-    except Exception:
-        pass
+    ui.root.deiconify()
+    ui.root.lift()
+    ui.root.focus_force()
 
 
 def _do_toggle_maximize(ui) -> None:
     """Run on main thread: toggle maximize/restore (saved geometry for overrideredirect) and sync title bar button text."""
-    try:
-        root = ui.root
-        is_max = getattr(ui, "_is_maximized", False)
-        if is_max and getattr(ui, "_saved_geometry_restore", None):
-            root.geometry(ui._saved_geometry_restore)
-            ui._is_maximized = False
-            if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
-                ui.title_bar.maximize_btn.configure(text="□")
-        else:
-            ui._saved_geometry_restore = root.geometry()
-            w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-            root.geometry(f"{w}x{h}+0+0")
-            ui._is_maximized = True
-            if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
-                ui.title_bar.maximize_btn.configure(text="❐")
-    except Exception:
-        pass
+    root = ui.root
+    is_max = getattr(ui, "_is_maximized", False)
+    if is_max and getattr(ui, "_saved_geometry_restore", None):
+        root.geometry(ui._saved_geometry_restore)
+        ui._is_maximized = False
+        if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
+            ui.title_bar.maximize_btn.configure(text="□")
+    else:
+        ui._saved_geometry_restore = root.geometry()
+        w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+        root.geometry(f"{w}x{h}+0+0")
+        ui._is_maximized = True
+        if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
+            ui.title_bar.maximize_btn.configure(text="❐")
 
 
 def register_main_thread_handlers(ui) -> None:
@@ -209,16 +203,10 @@ def register_extension_handlers(
             success = data.get("success", False)
             err = data.get("error")
             ran_e_block = data.get("ran_e_block", False)
-        try:
-            ui.root.after(0, lambda: panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
-        except Exception:
-            pass
+        ui.root.after(0, lambda: panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
 
     def on_rosbot_stopped(_data: Any = None) -> None:
-        try:
-            ui.root.after(0, lambda: panel._on_rosbot_stop_done())
-        except Exception:
-            pass
+        ui.root.after(0, lambda: panel._on_rosbot_stop_done())
 
     THREAD_BUS.register_event_handler(EXTENSION_MAIN_START_MACRO, on_main_start_macro, priority=50)
     THREAD_BUS.register_event_handler(EXTENSION_MAIN_STOP_MACRO, on_main_stop_macro, priority=50)

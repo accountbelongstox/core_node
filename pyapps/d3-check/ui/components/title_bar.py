@@ -167,11 +167,8 @@ class TitleBar:
     
     def _on_language_combo_changed(self, event=None):
         """Handle language combobox selection change - ConfigBinding will handle everything"""
-        try:
-            new_language = self.language_combo.get()
-            ColorPrint.blue(f"[TitleBar] Language combo changed to: {new_language}")
-        except Exception as e:
-            ColorPrint.red(f"[TitleBar] Error handling language change: {e}")
+        new_language = self.language_combo.get()
+        ColorPrint.blue(f"[TitleBar] Language combo changed to: {new_language}")
 
     def _on_language_changed(self, new_language: str):
         """Handle language change - update UI elements (called by i18n_manager)"""

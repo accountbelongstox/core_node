@@ -96,7 +96,7 @@ Every flowchart step is mapped to a code module and status (Done / TODO).
 
 ## Code vs diagram (current behaviour)
 
-- **F0:** Code runs **F1 only**; returns b1 (→ B2) or c1 (→ C1). F2/F3/F4 are **not** run from F0; they run only on the A8 path in `rosbot_task_processor` when `get_and_clear_a8_success_pending()` is true (after C8 success). Aligns with diagram: F0 → F1; F1 No → B2, F1 Yes → C1; A8_Success → F2.
+- **F0:** Code runs **F1 only**; returns b1 (→ B2) or c1 (→ C1). F2/F3/F4 are **not** run from F0.
+- **A8 → F2:** Diagram: after C8 success, go to F2. Code: (1) When C8 success happens inside **extension thread** (ensure_battlenet_started_and_login_check → D block → C block → C8), that call returns True and the same thread then runs **run_f2_rosbot_online()** (F2); if F2 returns "c1" it runs E1–E6. (2) When C8 success happens in **tick** (extension_flow_tick_step returns "success"), flow_master_driver calls trigger_extension_rosbot_started(True) and E block was already run inside C_C7b_TELEPORT; F2 is not run in tick. F3/F4 run in flow_master_driver when rosbot_extended_status in ("running", "paused"). `get_and_clear_a8_success_pending()` / set_a8_success_pending are currently unused.
 - **C4 disconnect → D1:** On branch_result "disconnect", code runs F1d+F1c then falls through to [D1] Launch D3 from Battle.net (C12_EndD3 → D1_Entry per diagram).
 - **B16 → D1:** Diagram says B16_Confirmed → D1_Entry. Code: after BN confirmed, `trigger_extension_rosbot_start` runs `ensure_battlenet_started_and_login_check`, which does D (or C) branch; D1 is the start of that branch. Done.
-- **A8 → F2:** Diagram: after C8 success, go to F2. Code: when A8 success is pending, task processor runs F2→F3→F4 then B2; otherwise runs F0→b1/c1. Done.

@@ -114,18 +114,14 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
     third-party return values. All steps and state are defined in this module.
     """
     # Step: REFRESH_NOTIFY
-    try:
-        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_battlenet_status...")
-        refresh_battlenet_status()
-        if get_bn_flow_ever_confirmed(_FM_BN):
-            ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_d3_status, refresh_rosbot_status...")
-            refresh_d3_status()
-            refresh_rosbot_status()
-        g = get_game_interface_data()
-        g.notify_state_sync()
-    except Exception as e:
-        ColorPrint.red(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value} error: {e}")
-        return
+    ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_battlenet_status...")
+    refresh_battlenet_status()
+    if get_bn_flow_ever_confirmed(_FM_BN):
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_d3_status, refresh_rosbot_status...")
+        refresh_d3_status()
+        refresh_rosbot_status()
+    g = get_game_interface_data()
+    g.notify_state_sync()
 
     # Step: RE_READ_ABORT
     if not get_flow_master_enabled():
@@ -155,7 +151,7 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
         done, result = tick_battlenet_ready_flow(no_activate=False)
         if done and result == "confirmed":
             set_battlenet_tick_confirmed(_FM_BN)
-            trigger_extension_rosbot_start()()
+            trigger_extension_rosbot_start()
     elif action == F0Action.B2.value:
         # Step: F0_ACTION_B2
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B2.value}: enter_battlenet_at_b2...")

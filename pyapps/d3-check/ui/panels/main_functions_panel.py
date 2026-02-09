@@ -319,34 +319,26 @@ class MainFunctionsPanel:
 
     def _on_skill_param_changed(self, skill_key, param_name, value):
         """Handle skill parameter change"""
-        try:
-            # Ensure macro_configs structure exists
-            if "macro_configs" not in CONFIG:
-                CONFIG["macro_configs"] = {}
-            if "skill_configs" not in CONFIG["macro_configs"]:
-                CONFIG["macro_configs"]["skill_configs"] = {}
-            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
-            if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
-            if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+        if "macro_configs" not in CONFIG:
+            CONFIG["macro_configs"] = {}
+        if "skill_configs" not in CONFIG["macro_configs"]:
+            CONFIG["macro_configs"]["skill_configs"] = {}
+        if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+        if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+        if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
 
-            # Convert value to appropriate type
-            if param_name in ['interval', 'delay', 'random_delay']:
-                try:
-                    value = int(value)
-                except (ValueError, tk.TclError):
-                    value = 0
+        if param_name in ['interval', 'delay', 'random_delay']:
+            try:
+                value = int(value)
+            except (ValueError, tk.TclError):
+                value = 0
 
-            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
-
-            # Save configuration
-            save_config()
-
-            ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}.{param_name}: {e}")
+        CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
+        save_config()
+        ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
 
     def _create_additional_skill_settings(self, parent):
         """Create additional skill settings (quick_switch, movement, potion)"""
@@ -706,19 +698,14 @@ class MainFunctionsPanel:
 
     def _update_config_info(self):
         """Update configuration info display"""
-        try:
-            if hasattr(self, 'info_text'):
-                self.info_text.delete(1.0, tk.END)
-
-                # Get current config from CONFIG
-                current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
-                skills_config = current_config.get("skills", {})
-
-                movement_key = current_config.get('movement', 'Space')
-                if movement_key == 'Space':
-                    movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
-
-                info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
+        if hasattr(self, 'info_text'):
+            self.info_text.delete(1.0, tk.END)
+            current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+            skills_config = current_config.get("skills", {})
+            movement_key = current_config.get('movement', 'Space')
+            if movement_key == 'Space':
+                movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
+            info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
 
 {i18n_manager.get_ui_text("main_functions_panel.config_file_path")}:
 {CONFIG_USER_PATH}
@@ -737,46 +724,33 @@ class MainFunctionsPanel:
 
 {i18n_manager.get_ui_text("status_bar.status")}: {i18n_manager.get_ui_text("main_functions_panel.status_config_loaded")}
 """
-                self.info_text.insert(1.0, info_text)
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Failed to update config info: {e}")
+            self.info_text.insert(1.0, info_text)
 
     def _on_skill_changed(self, skill_key, value):
         """Handle skill configuration change"""
-        try:
-            # Ensure macro_configs structure exists
-            if "macro_configs" not in CONFIG:
-                CONFIG["macro_configs"] = {}
-            if "skill_configs" not in CONFIG["macro_configs"]:
-                CONFIG["macro_configs"]["skill_configs"] = {}
-            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+        if "macro_configs" not in CONFIG:
+            CONFIG["macro_configs"] = {}
+        if "skill_configs" not in CONFIG["macro_configs"]:
+            CONFIG["macro_configs"]["skill_configs"] = {}
+        if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
 
-            # Handle different types of configuration
-            if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
-                # Direct config items (not under skills)
-                # Convert potion_interval to int
-                if skill_key == "potion_interval":
-                    try:
-                        value = int(value)
-                    except (ValueError, tk.TclError):
-                        value = 500
-                CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
-            else:
-                # Skills configuration
-                if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
-                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
-                if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
-                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+        if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
+            if skill_key == "potion_interval":
+                try:
+                    value = int(value)
+                except (ValueError, tk.TclError):
+                    value = 500
+            CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
+        else:
+            if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+            if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
 
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
-
-            # Save configuration
-            save_config()
-
-            ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}: {e}")
+        save_config()
+        ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
 
     def _on_config_changed(self, event=None):
         """Handle configuration change"""
@@ -798,26 +772,14 @@ class MainFunctionsPanel:
 
     def _recreate_skill_tabs(self):
         """Recreate skill configuration with updated configuration"""
-        try:
-            # Destroy existing skills frame if it exists
-            if hasattr(self, 'skills_config_frame'):
-                self.skills_config_frame.destroy()
-
-            # Clear skill variables to avoid conflicts
-            self.skill_vars.clear()
-
-            # Parent must be the skill_frame inside func1 sub-tab (not notebook)
-            parent = getattr(self, '_func1_skill_frame', None)
-            if parent is None:
-                ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
-                return
-
-            # Recreate skill configuration
-            self._create_skill_tabs(parent)
-
-            # Update config info display
-            self._update_config_info()
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error recreating skill configuration: {e}")
+        if hasattr(self, 'skills_config_frame'):
+            self.skills_config_frame.destroy()
+        self.skill_vars.clear()
+        parent = getattr(self, '_func1_skill_frame', None)
+        if parent is None:
+            ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
+            return
+        self._create_skill_tabs(parent)
+        self._update_config_info()
 
 # Language change is now handled by main UI - no individual panel methods needed

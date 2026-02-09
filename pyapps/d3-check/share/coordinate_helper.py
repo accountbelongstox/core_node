@@ -7,6 +7,7 @@ Unified coordinate calculation methods for D4 operations
 
 import random
 from typing import Tuple, Optional
+from tkinter import messagebox
 from share.game_interface_data import (
     get_d4_interface_data,
     calculate_unified_scaled_coordinate,
@@ -186,8 +187,6 @@ def debug_show_title_bar_range():
 
     Uses module-level constants from game_interface_data
     """
-    from tkinter import messagebox
-
     d4_data = get_d4_interface_data()
 
     window_offset_x, window_offset_y = d4_data.window_offset

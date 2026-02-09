@@ -6,7 +6,7 @@ Large screenshot display with coordinate picking tools
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, Toplevel
 from typing import Optional, Callable, List, Dict
 from pathlib import Path
 import sys
@@ -31,6 +31,7 @@ from d3utils.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_int, var_bool
 from ..utils.app_root import get_app_root
+from .template_matcher_helper import TemplateMatcherHelper
 
 
 class CoordinatePicker:
@@ -52,7 +53,6 @@ class CoordinatePicker:
         self.temp_points: List[tuple] = []
         self.pick_history_ref = pick_history_ref  # Reference to main UI's pick history
 
-        from .template_matcher_helper import TemplateMatcherHelper
         self.template_matcher = TemplateMatcherHelper()
 
         root = parent or get_app_root()
@@ -569,9 +569,6 @@ class CoordinatePicker:
         if not self.screenshot:
             ColorPrint.yellow("[COORD_PICKER] No screenshot to match templates on")
             return
-
-        from tkinter import Toplevel
-        from tkinter import ttk as tkinter_ttk
 
         dialog = Toplevel(self.window)
         dialog.title(i18n_manager.get_ui_text("ui.coord_picker.select_templates"))

@@ -28,20 +28,16 @@ def _detect_d3_dynamic(found: bool, window_info_or_none: Optional[Dict[str, Any]
     """
     if not found or not window_info_or_none:
         return (False, False, False)
-    try:
-        ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic (one capture, all D3 states)...")
-        _sd, state_dict = capture_and_detect_all_d3_states(
-            window_titles=tuple(get_d3_manager().get_capture_titles())
-        )
-        disconnected = state_dict.get("disconnected", False)
-        if disconnected:
-            ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (disconnected)")
-        else:
-            ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (no disconnect)")
-        return (False, disconnected, False)
-    except Exception as e:
-        ColorPrint.red(f"[D3StatusProvider] _detect_d3_dynamic error: {e}")
-    return (False, False, False)
+    ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic (one capture, all D3 states)...")
+    _sd, state_dict = capture_and_detect_all_d3_states(
+        window_titles=tuple(get_d3_manager().get_capture_titles())
+    )
+    disconnected = state_dict.get("disconnected", False)
+    if disconnected:
+        ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (disconnected)")
+    else:
+        ColorPrint.gray("[D3StatusProvider] progress: detect_dynamic done (no disconnect)")
+    return (False, disconnected, False)
 
 
 def _apply_d3_geometry(game_data: Any, window_info_or_none: Optional[Dict[str, Any]]) -> None:

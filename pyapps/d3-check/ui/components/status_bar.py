@@ -227,8 +227,6 @@ class StatusBar:
                 self.parent.after(0, self._update_window_size, "0x0")
         except tk.TclError:
             pass
-        except Exception as e:
-            ColorPrint.red(f"[StatusBar] Error in window status update callback: {e}")
 
     def update_status(self, status_text):
         """Update current status - deprecated, kept for compatibility"""
@@ -244,36 +242,18 @@ class StatusBar:
 
     def _on_language_changed(self, new_language):
         """Handle language change event"""
-        try:
-            # Update all text labels
-            self._update_ui_text()
-        except Exception as e:
-            ColorPrint.red(f"[StatusBar] Error updating language: {e}")
+        self._update_ui_text()
 
     def _update_ui_text(self):
         """Update all UI text elements"""
-        try:
-            # Update status text; match both EN and localized (e.g. zh) status strings
-            if "not running" in self.game_status.get():
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-            elif "running" in self.game_status.get():
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
-
-            # Note: Removed ready status handling as requested by user
-
-            # Recreate the content to update label frames
-            self._recreate_content()
-        except Exception as e:
-            ColorPrint.red(f"[StatusBar] Error updating UI text: {e}")
+        if "not running" in self.game_status.get():
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+        elif "running" in self.game_status.get():
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
+        self._recreate_content()
 
     def _recreate_content(self):
         """Recreate content with updated language"""
-        try:
-            # Clear existing content
-            for widget in self.frame.winfo_children():
-                widget.destroy()
-
-            # Recreate content
-            self._create_content()
-        except Exception as e:
-            ColorPrint.red(f"[StatusBar] Error recreating content: {e}")
+        for widget in self.frame.winfo_children():
+            widget.destroy()
+        self._create_content()

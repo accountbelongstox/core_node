@@ -14,3 +14,4 @@ alwaysApply: false
 6. **New standards.** Add to (1) `.cursor/rules` (2) `.cursor/skills` (3) `AGENTS.md`; no duplicate; canonical = PROJECT_STANDARDS.md.
 7. **Prompts.** d3-check prompts → `pyapps/d3-check/.prompts/`.
 8. **Every edit.** Check: redundant → merge; similar code → extend; architecture → fit event center, CONFIG. See `.cursor/skills/d3-check/SKILL.md` §10–11.
+9. **Exception handling.** Remove unnecessary try/except. Keep only when required for basic program operation: websocket/network, task thread (so one failure does not kill process), Tk lifecycle (`tk.TclError`), queue (`queue.Full`/`Empty`), COM/OS, signal handlers. See `.cursor/skills/d3-check/SKILL.md` §11.

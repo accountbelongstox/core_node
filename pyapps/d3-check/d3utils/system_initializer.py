@@ -31,6 +31,11 @@ import d3utils.log_monitor as log_monitor_module
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
+from d3utils.signal_utils import (
+    set_gui_mode_sigint_ignored,
+    _reapply_sigint_sigbreak_ignore,
+)
+from runtime.thread_registry import get_thread_registry
 
 def _is_console_foreground() -> bool:
     """True if the current process console (CMD) is the foreground window, or no console. Only then allow Ctrl+C to exit."""
@@ -244,8 +249,7 @@ class SystemInitializer:
 
             # GUI mode: ignore SIGINT/SIGBREAK after all init; re-apply every tick so Fortran/numpy (loaded later) cannot cause forrtl control-C abort
             if gui_mode:
-                global _gui_mode_sigint_ignored
-                _gui_mode_sigint_ignored = True
+                set_gui_mode_sigint_ignored(True)
                 try:
                     signal.signal(signal.SIGINT, signal.SIG_IGN)
                     if hasattr(signal, "SIGBREAK"):
@@ -277,8 +281,7 @@ class SystemInitializer:
         return is_shutdown_requested()
 
     def start_timer_loop_after_ui_ready(self):
-        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner). Lazy import to avoid circular: runtime.thread_registry -> system_initializer -> runtime."""
-        from runtime.thread_registry import get_thread_registry
+        """Start the timer loop and run one window check. Delegates to ThreadRegistry (central thread owner)."""
         get_thread_registry().start_timer_loop_after_ui_ready()
 
     def register_ui_instance(self, ui_instance):
@@ -303,25 +306,6 @@ class SystemInitializer:
 
 # Global system initializer instance
 _system_initializer: Optional[SystemInitializer] = None
-_gui_mode_sigint_ignored: bool = False
-
-
-def _reapply_sigint_sigbreak_ignore() -> None:
-    """Re-apply SIG_IGN so Fortran/numpy (loaded later) cannot override and cause forrtl control-C abort."""
-    global _gui_mode_sigint_ignored
-    if not _gui_mode_sigint_ignored:
-        return
-    try:
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        if hasattr(signal, "SIGBREAK"):
-            signal.signal(signal.SIGBREAK, signal.SIG_IGN)
-    except Exception:
-        pass
-
-
-def reapply_sigint_sigbreak_ignore_for_gui() -> None:
-    """Public: re-apply SIG_IGN for GUI mode (call when timer loop starts so forrtl control-C is ignored)."""
-    _reapply_sigint_sigbreak_ignore()
 
 
 def get_system_initializer() -> SystemInitializer:

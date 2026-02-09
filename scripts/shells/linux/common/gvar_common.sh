@@ -310,18 +310,19 @@ get_largest_data_with_size() {
     [ -n "$best_device" ] && echo "$best_size $best_device"
 }
 
-# Resolve usable mount path for a device (standard path or current mount; allow root when not writable)
+# Resolve usable mount path for a device. Prefer CURRENT mount so we use the path where data actually is
+# (e.g. /media/ubuntu/Soft); std path like /mnt/dev_nvme0n1p4 may exist but be empty until reboot.
 _resolve_device_mount_path() {
     local device="$1"
     local std_mount current_mount
     std_mount=$(device_to_mount_point "$device")
     current_mount=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
-    if [ -d "$std_mount" ] && ( [ -w "$std_mount" ] || [ "$(id -u)" -eq 0 ] ); then
-        echo "$std_mount"
-        return 0
-    fi
     if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
         echo "$current_mount"
+        return 0
+    fi
+    if [ -d "$std_mount" ] && ( [ -w "$std_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+        echo "$std_mount"
         return 0
     fi
     echo ""
@@ -983,14 +984,14 @@ mount_additional_disk() {
         # Set proper permissions
         $USE_SUDO chmod 755 "$mount_point"
         
-        # Add to fstab for persistent mounting
+        # Add to fstab for persistent mounting (single entry per UUID, no duplicates)
         local uuid=$(blkid -s UUID -o value "$disk_device")
         if [ -n "$uuid" ]; then
             local fstab_entry="UUID=$uuid $mount_point $filesystem_type defaults 0 2"
-            if ! grep -q "$mount_point" /etc/fstab; then
-                echo "Adding to /etc/fstab for persistent mounting..."
-                echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-            fi
+            echo "Adding to /etc/fstab for persistent mounting..."
+            $USE_SUDO cp /etc/fstab "/etc/fstab.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+            $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab 2>/dev/null || true
+            echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
         fi
         
         return 0

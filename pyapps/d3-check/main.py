@@ -18,7 +18,7 @@ try:
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal.SIG_IGN)
-except Exception:
+except OSError:
     pass
 
 # Add repo root and app root to path so pycore and d3-check imports resolve

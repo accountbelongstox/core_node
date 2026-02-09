@@ -733,7 +733,7 @@ def sync_config():
             else:
                 ColorPrint.debug("[DEBUG] User config file is up to date")
                 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error syncing config: {e}")
         ColorPrint.red(f"Error syncing config: {e}")
 
@@ -757,7 +757,7 @@ def fix_config_with_template():
             
         return modified
         
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
 
@@ -859,7 +859,7 @@ def save_config():
 
         ColorPrint.print_min_interval(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}", "1min", "gray")
 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
         ColorPrint.red(f"Error saving config: {e}")
 
@@ -873,13 +873,12 @@ def initialize_config():
         sync_config()
         
         try:
-            # Load from user config path
             ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
                 CONFIG.update(json.load(f))
             ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
             ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
             ColorPrint.red(f"Error loading config: {e}")
             CONFIG = {}
@@ -895,13 +894,12 @@ def load_config(force_sync: bool = False):
             sync_config()
         
         try:
-            # Always load from user config path
             ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
                 CONFIG.update(json.load(f))
             ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
             ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
             ColorPrint.red(f"Error loading config: {e}")
             CONFIG = {}

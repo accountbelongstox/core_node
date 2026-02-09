@@ -493,10 +493,7 @@ class RosbotExtensionPanel:
                                           pady=(UnifiedStyles.SPACING['xs'], 0))
         
         # Sync toggle from flow state (flow library owns state)
-        try:
-            self.rosbot_running = get_flow_master_enabled()
-        except Exception:
-            pass
+        self.rosbot_running = get_flow_master_enabled()
         self._update_control_button()
         self._update_ensure_battlenet_button()
 
@@ -730,7 +727,7 @@ class RosbotExtensionPanel:
                 on = get_bn_only_enabled()
                 key = "rosbot.ensure_battlenet_only_on" if on else "rosbot.ensure_battlenet_only"
                 self.ensure_battlenet_btn.config(text=i18n_manager.get_ui_text(key))
-        except Exception:
+        except tk.TclError:
             pass
 
     def _start_rosbot(self):
@@ -758,7 +755,7 @@ class RosbotExtensionPanel:
                     self.control_btn.config(state=tk.DISABLED)
                 else:
                     self.control_btn.config(state=tk.NORMAL)
-        except Exception:
+        except tk.TclError:
             pass
 
     def get_status_ui_callback(self):
@@ -804,13 +801,10 @@ class RosbotExtensionPanel:
             )
 
     def get_login_check_callable(self):
-        """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Used by ThreadRegistry."""
+        """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Used by ThreadRegistry. Caller (e.g. do_login_check) catches and passes error to callback."""
         def _run():
-            try:
-                result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
-                return (result, None)
-            except Exception as e:
-                return (False, e)
+            result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+            return (result, None)
         return _run
 
     def _on_login_check_done(self, success, error=None, ran_e_block=False, generation=None):
@@ -829,28 +823,19 @@ class RosbotExtensionPanel:
             return
         if not success:
             return
-        try:
-            if not get_flow_master_enabled():
-                reset_flow_master_bn_block()
-                get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
-                self.rosbot_running = False
-                self._update_control_button()
-                return
-            self.rosbot_running = True
-            self._update_control_button()
-            get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
-            rosbot_processor.get_rosbot_processor().initialize()
-            if not ran_e_block:
-                rosbot_processor.start_rosbot_task()
-            ColorPrint.green("[ROSBOT] Started monitoring")
-        except Exception as e:
-            ColorPrint.red(f"[RosbotPanel] Error after login check: {e}")
-            set_flow_master_enabled(False)
+        if not get_flow_master_enabled():
             reset_flow_master_bn_block()
             get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             self.rosbot_running = False
             self._update_control_button()
-            self._request_status_refresh()
+            return
+        self.rosbot_running = True
+        self._update_control_button()
+        get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
+        rosbot_processor.get_rosbot_processor().initialize()
+        if not ran_e_block:
+            rosbot_processor.start_rosbot_task()
+        ColorPrint.green("[ROSBOT] Started monitoring")
 
     def _on_rosbot_stop_done(self) -> None:
         """Main-thread cleanup: clear flow master so timer skips all branches; reset button (ROSBOT_FLOW.md)."""
@@ -883,58 +868,41 @@ class RosbotExtensionPanel:
 
     def _update_control_button(self):
         """Update control button toggle state (text and color) from rosbot_running; same pattern as ensure Battle.net button."""
-        try:
-            ColorPrint.debug(f"[RosbotPanel] Updating control button, rosbot_running: {self.rosbot_running}")
-
-            if self.rosbot_running:
-                self.control_btn.config(
-                    text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
-                    bg=UnifiedStyles.COLORS['btn_danger']
-                )
-                ColorPrint.debug("[RosbotPanel] Button updated to STOP (red)")
-            else:
-                self.control_btn.config(
-                    text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
-                    bg=UnifiedStyles.COLORS['btn_success']
-                )
-                ColorPrint.debug("[RosbotPanel] Button updated to START (green)")
-
-        except Exception as e:
-            ColorPrint.red(f"[RosbotPanel] Error in _update_control_button: {e}")
+        ColorPrint.debug(f"[RosbotPanel] Updating control button, rosbot_running: {self.rosbot_running}")
+        if self.rosbot_running:
+            self.control_btn.config(
+                text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
+                bg=UnifiedStyles.COLORS['btn_danger']
+            )
+            ColorPrint.debug("[RosbotPanel] Button updated to STOP (red)")
+        else:
+            self.control_btn.config(
+                text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
+                bg=UnifiedStyles.COLORS['btn_success']
+            )
+            ColorPrint.debug("[RosbotPanel] Button updated to START (green)")
 
     def _sync_status_ui_once(self):
         """Pull current game state and update status UI (main thread). Used once after status widgets exist so UI reflects state even if first callback ran too early."""
-        try:
-            if not self.container.winfo_exists():
-                return
-            state = self.game_state.get_summary()
-            self._update_ui_from_state(state)
-        except Exception as e:
-            ColorPrint.red(f"[RosbotPanel] _sync_status_ui_once error: {e}")
+        if not self.container.winfo_exists():
+            return
+        state = self.game_state.get_summary()
+        self._update_ui_from_state(state)
 
     def _on_game_state_changed(self, state):
         """Handle game state changes. On main thread (e.g. initial check): update UI immediately. On timer/other thread: schedule update via after(0)."""
         try:
             if not self.container.winfo_exists():
                 return
-        except Exception:
+        except tk.TclError:
             return
-        try:
-            if threading.current_thread() is threading.main_thread():
-                self._update_ui_from_state(state)
-            else:
-                self.container.after(0, lambda s=state: self._update_ui_from_state(s))
-        except Exception:
-            pass
+        if threading.current_thread() is threading.main_thread():
+            self._update_ui_from_state(state)
+        else:
+            self.container.after(0, lambda s=state: self._update_ui_from_state(s))
 
     def _update_ui_from_state(self, state):
         """Push state to bottom bar and ensure-BN button. Do not sync Start/Stop button here: button only drives tick state (Start ROSBOT: E block driven by extension thread after F2, not by E-pending)."""
         if getattr(self, "_bottom_bar", None):
-            try:
-                self._bottom_bar.update_status_from_state(state)
-            except Exception:
-                pass
-        try:
-            self._update_ensure_battlenet_button()
-        except Exception:
-            pass
+            self._bottom_bar.update_status_from_state(state)
+        self._update_ensure_battlenet_button()

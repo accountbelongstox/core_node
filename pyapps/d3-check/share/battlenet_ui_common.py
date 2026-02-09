@@ -22,7 +22,7 @@ def ensure_com() -> None:
     if pythoncom is not None:
         try:
             pythoncom.CoInitialize()
-        except Exception:
+        except OSError:
             pass
 
 

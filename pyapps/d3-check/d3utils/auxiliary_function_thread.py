@@ -39,14 +39,11 @@ class AuxiliaryFunctionThread(threading.Thread):
         ColorPrint.blue("[AuxiliaryFunctionThread] Started")
         while not self._shutdown.is_set():
             try:
-                try:
-                    cmd = self._command_queue.get(timeout=0.2)
-                except queue.Empty:
-                    continue
-                if cmd == CMD_SHUTDOWN:
-                    break
-            except Exception:
-                pass
+                cmd = self._command_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if cmd == CMD_SHUTDOWN:
+                break
         ColorPrint.yellow("[AuxiliaryFunctionThread] Stopped")
 
 

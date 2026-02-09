@@ -21,6 +21,7 @@ from d3utils.rosbot_ui_automation import try_close_no_items_popup, do_after_no_i
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
 from providor.constants.common import LOGIN_TRY_TRIGGER_DEFAULT
 from d3utils.i18n_manager import i18n_manager
+from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
 
 
 def _get_login_try_trigger() -> str:
@@ -177,7 +178,6 @@ class LogAnalyzer:
         login_try_trigger = _get_login_try_trigger()
         if login_try_trigger and login_try_trigger in line:
             try:
-                from controller.login_try_screenshot_controller import get_login_try_screenshot_controller  # lazy: avoid circular
                 get_login_try_screenshot_controller().handle_login_try()
             except Exception as e:
                 ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")

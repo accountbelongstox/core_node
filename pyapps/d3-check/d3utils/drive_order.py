@@ -62,7 +62,7 @@ def get_fixed_drive_roots_for_scan(use_cache: bool = True) -> List[str]:
             drive_type = kernel32.GetDriveTypeW(ctypes.c_wchar_p(root))
             if drive_type == DRIVE_FIXED:
                 fixed_letters.append(letter)
-    except Exception:
+    except OSError:
         fixed_letters = []
         for letter in string.ascii_uppercase:
             root = f"{letter}:\\"

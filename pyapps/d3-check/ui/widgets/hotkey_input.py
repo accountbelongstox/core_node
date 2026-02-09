@@ -105,72 +105,46 @@ class HotkeyInput(tk.Entry):
 
     def _apply_high_contrast_styling(self):
         """Apply high contrast styling to the widget"""
-        try:
-            # Force apply high contrast styling with enhanced visibility
-            # Use both normal and disabled colors to ensure visibility in all states
-            self.config(
-                bg=UnifiedStyles.COLORS['input_bg'],
-                fg=UnifiedStyles.COLORS['input_text'],
-                disabledbackground=UnifiedStyles.COLORS['input_bg'],
-                disabledforeground=UnifiedStyles.COLORS['input_text'],
-                readonlybackground=UnifiedStyles.COLORS['input_bg'],
-                selectbackground=UnifiedStyles.COLORS['accent'],
-                selectforeground=UnifiedStyles.COLORS['text_primary'],
-                insertbackground=UnifiedStyles.COLORS['text_primary'],
-                relief=tk.SOLID,
-                bd=1,
-                highlightbackground=UnifiedStyles.COLORS['input_border'],
-                highlightcolor=UnifiedStyles.COLORS['accent'],
-                highlightthickness=1,
-                state='readonly'
-            )
-        except Exception:
-            # Fallback to basic high contrast styling
-            self.config(
-                bg=UnifiedStyles.COLORS['input_bg'],
-                fg=UnifiedStyles.COLORS['input_text'],
-                disabledbackground=UnifiedStyles.COLORS['input_bg'],
-                disabledforeground=UnifiedStyles.COLORS['input_text'],
-                relief=tk.SOLID,
-                bd=1,
-                highlightbackground=UnifiedStyles.COLORS['input_border'],
-                highlightcolor=UnifiedStyles.COLORS['accent'],
-                highlightthickness=1,
-                state='readonly'
-            )
+        self.config(
+            bg=UnifiedStyles.COLORS['input_bg'],
+            fg=UnifiedStyles.COLORS['input_text'],
+            disabledbackground=UnifiedStyles.COLORS['input_bg'],
+            disabledforeground=UnifiedStyles.COLORS['input_text'],
+            readonlybackground=UnifiedStyles.COLORS['input_bg'],
+            selectbackground=UnifiedStyles.COLORS['accent'],
+            selectforeground=UnifiedStyles.COLORS['text_primary'],
+            insertbackground=UnifiedStyles.COLORS['text_primary'],
+            relief=tk.SOLID,
+            bd=1,
+            highlightbackground=UnifiedStyles.COLORS['input_border'],
+            highlightcolor=UnifiedStyles.COLORS['accent'],
+            highlightthickness=1,
+            state='readonly'
+        )
 
         # Register for language change events
         i18n_manager.add_language_change_listener(self._on_language_changed)
 
     def _force_final_styling(self):
         """Force apply final high contrast styling after Tkinter initialization"""
-        try:
-            # This is called after Tkinter finishes all initialization
-            # Force override any system-applied styles
-            current_state = str(self['state'])
-            self.config(state='normal')  # Temporarily enable to allow style changes
-
-            # Apply all high contrast styles with subtle borders
-            self.config(
-                bg=UnifiedStyles.COLORS['input_bg'],
-                fg=UnifiedStyles.COLORS['input_text'] if self.current_hotkey else UnifiedStyles.COLORS['text_secondary'],
-                disabledbackground=UnifiedStyles.COLORS['input_bg'],
-                disabledforeground=UnifiedStyles.COLORS['input_text'],
-                readonlybackground=UnifiedStyles.COLORS['input_bg'],
-                selectbackground=UnifiedStyles.COLORS['accent'],
-                selectforeground=UnifiedStyles.COLORS['text_primary'],
-                insertbackground=UnifiedStyles.COLORS['text_primary'],
-                relief=tk.SOLID,
-                bd=1,
-                highlightbackground=UnifiedStyles.COLORS['input_border'],
-                highlightcolor=UnifiedStyles.COLORS['accent'],
-                highlightthickness=1
-            )
-
-            # Restore original state
-            self.config(state=current_state)
-        except Exception:
-            pass  # Ignore any errors
+        current_state = str(self['state'])
+        self.config(state='normal')
+        self.config(
+            bg=UnifiedStyles.COLORS['input_bg'],
+            fg=UnifiedStyles.COLORS['input_text'] if self.current_hotkey else UnifiedStyles.COLORS['text_secondary'],
+            disabledbackground=UnifiedStyles.COLORS['input_bg'],
+            disabledforeground=UnifiedStyles.COLORS['input_text'],
+            readonlybackground=UnifiedStyles.COLORS['input_bg'],
+            selectbackground=UnifiedStyles.COLORS['accent'],
+            selectforeground=UnifiedStyles.COLORS['text_primary'],
+            insertbackground=UnifiedStyles.COLORS['text_primary'],
+            relief=tk.SOLID,
+            bd=1,
+            highlightbackground=UnifiedStyles.COLORS['input_border'],
+            highlightcolor=UnifiedStyles.COLORS['accent'],
+            highlightthickness=1
+        )
+        self.config(state=current_state)
 
     def _get_key_name(self, i18n_key):
         """Get internationalized key name"""
@@ -366,18 +340,9 @@ class HotkeyInput(tk.Entry):
 
     def _on_language_changed(self, new_language):
         """Handle language change event"""
-        try:
-            # Update placeholder if showing
-            current_value = self.get()
-            # Check if placeholder is currently shown (need to check both languages)
-            if not self.current_hotkey or current_value in ["Press hotkey..."]:
-                self._set_placeholder()
-            else:
-                # If showing a hotkey, we might need to update it if it contains i18n key names
-                # For now, just keep the current hotkey as-is since it's already saved
-                pass
-        except Exception as e:
-            pass  # Ignore errors during language change
+        current_value = self.get()
+        if not self.current_hotkey or current_value in ["Press hotkey..."]:
+            self._set_placeholder()
 
     def get_hotkey(self):
         """Get current hotkey value"""

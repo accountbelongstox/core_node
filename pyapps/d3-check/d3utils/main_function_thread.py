@@ -67,16 +67,10 @@ class MainFunctionThread(threading.Thread):
                     break
                 if cmd == CMD_START_MACRO:
                     self._macro_running = True
-                    try:
-                        self._schedule(lambda: self._on_macro_started and self._on_macro_started())
-                    except Exception:
-                        pass
+                    self._schedule(lambda: self._on_macro_started and self._on_macro_started())
                 elif cmd == CMD_STOP_MACRO:
                     self._macro_running = False
-                    try:
-                        self._schedule(lambda: self._on_macro_stopped and self._on_macro_stopped())
-                    except Exception:
-                        pass
+                    self._schedule(lambda: self._on_macro_stopped and self._on_macro_stopped())
             except Exception as e:
                 self._log.error("MainFunctionThread: %s", e)
                 time.sleep(1)

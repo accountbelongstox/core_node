@@ -187,9 +187,9 @@ pyapps/d3-check/
 
 ## 六、导入规范
 
-- **import 放在文件顶部**。例外：为打破循环依赖的延迟导入，须在代码或文档中注明。
+- **import 放在文件顶部**。除可选第三方包（如 `try: import pythoncom except ImportError: pythoncom = None` 在模块顶层）外，不在函数内写 import。
 - 禁止在业务逻辑中为“方便”在函数内写 import；新依赖一律顶部引入。
-- **已注明的延迟导入**：timers/one_shot_tasks（get_login_try_screenshot_controller）、d3utils/shutdown_manager（get_d3/d4_extension_thread）、runtime/thread_registry（reapply_sigint_sigbreak_ignore_for_gui）、d3utils/log_analyzer（get_login_try_screenshot_controller）。
+- **出现循环引用时**：通过调整架构解决（拆模块、依赖注入、提取公共层等），不通过延迟导入规避。
 
 ---
 

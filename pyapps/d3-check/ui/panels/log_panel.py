@@ -6,7 +6,8 @@ Contains log display and control functions with unified styling
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, filedialog
+import datetime
 import sys
 import os
 from typing import Optional, Callable
@@ -268,7 +269,7 @@ class LogPanel:
                     self.log_buffer = self.log_buffer[-self.max_log_lines:]
                 if self._should_display_message(log_entry):
                     self._display_message(log_entry)
-            except (tk.TclError, RuntimeError, Exception):
+            except (tk.TclError, RuntimeError):
                 pass
         try:
             if self.container.winfo_exists():
@@ -286,124 +287,86 @@ class LogPanel:
             if current_filter == "ALL":
                 return True
             return log_entry['level'] == current_filter
-        except Exception:
+        except (tk.TclError, RuntimeError, KeyError):
             return True
 
     def _display_message(self, log_entry):
         """Display a single log message. Auto-scroll only when option is on and user was at bottom before insert (reuse: same as ROSBOT; no scroll steal when mid-log copy)."""
+        self.log_text.configure(state=tk.NORMAL)
+        at_bottom = False
         try:
-            self.log_text.configure(state=tk.NORMAL)
-            # Check at-bottom before insert (after insert content grows and yview may no longer be 0.99)
-            at_bottom = False
-            try:
-                auto_on = ConfigBinding.get_config_value("log_settings.auto_scroll", True)
-                if auto_on:
-                    yview = self.log_text.yview()
-                    if yview and len(yview) >= 2:
-                        at_bottom = float(yview[1]) >= 0.99
-            except Exception:
-                pass
+            auto_on = ConfigBinding.get_config_value("log_settings.auto_scroll", True)
+            if auto_on:
+                yview = self.log_text.yview()
+                if yview and len(yview) >= 2:
+                    at_bottom = float(yview[1]) >= 0.99
+        except (tk.TclError, RuntimeError):
+            pass
 
-            # Determine tag based on level or color
-            tag = log_entry['level']
-            if log_entry['color']:
-                color_map = {
-                    'red': 'ERROR',
-                    'yellow': 'WARNING',
-                    'green': 'SUCCESS',
-                    'cyan': 'CYAN',
-                    'blue': 'INFO'
-                }
-                tag = color_map.get(log_entry['color'], log_entry['level'])
+        tag = log_entry['level']
+        if log_entry['color']:
+            color_map = {
+                'red': 'ERROR',
+                'yellow': 'WARNING',
+                'green': 'SUCCESS',
+                'cyan': 'CYAN',
+                'blue': 'INFO'
+            }
+            tag = color_map.get(log_entry['color'], log_entry['level'])
 
-            # Insert message with tag (no prefix in UI)
-            text = _strip_ui_log_prefix(log_entry['message'])
-            self.log_text.insert(tk.END, f"{text}\n", tag)
-
-            if at_bottom:
-                self.log_text.see(tk.END)
-
-            self.log_text.configure(state=tk.DISABLED)
-
-        except Exception as e:
-            print(f"Error displaying log message: {e}")
+        text = _strip_ui_log_prefix(log_entry['message'])
+        self.log_text.insert(tk.END, f"{text}\n", tag)
+        if at_bottom:
+            self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
 
     def _filter_logs(self, event=None):
         """Filter logs based on selected level"""
-        try:
-            # Clear current display
-            self.log_text.configure(state=tk.NORMAL)
-            self.log_text.delete(1.0, tk.END)
-            
-            # Redisplay filtered messages
-            for log_entry in self.log_buffer:
-                if self._should_display_message(log_entry):
-                    self._display_message_without_scroll(log_entry)
-            
-            self.log_text.configure(state=tk.DISABLED)
-            
-        except Exception as e:
-            print(f"Error filtering logs: {e}")
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
+        for log_entry in self.log_buffer:
+            if self._should_display_message(log_entry):
+                self._display_message_without_scroll(log_entry)
+        self.log_text.configure(state=tk.DISABLED)
 
     def _display_message_without_scroll(self, log_entry):
         """Display message without auto-scroll"""
-        try:
-            # Determine tag
-            tag = log_entry['level']
-            if log_entry['color']:
-                color_map = {
-                    'red': 'ERROR',
-                    'yellow': 'WARNING',
-                    'green': 'SUCCESS',
-                    'cyan': 'CYAN',
-                    'blue': 'INFO'
-                }
-                tag = color_map.get(log_entry['color'], log_entry['level'])
-            
-            # Insert message (no prefix in UI)
-            text = _strip_ui_log_prefix(log_entry['message'])
-            self.log_text.insert(tk.END, f"{text}\n", tag)
-            
-        except Exception as e:
-            print(f"Error displaying message: {e}")
+        tag = log_entry['level']
+        if log_entry['color']:
+            color_map = {
+                'red': 'ERROR',
+                'yellow': 'WARNING',
+                'green': 'SUCCESS',
+                'cyan': 'CYAN',
+                'blue': 'INFO'
+            }
+            tag = color_map.get(log_entry['color'], log_entry['level'])
+        text = _strip_ui_log_prefix(log_entry['message'])
+        self.log_text.insert(tk.END, f"{text}\n", tag)
 
     def clear_logs(self):
         """Clear all logs"""
-        try:
-            self.log_buffer.clear()
-            self.log_text.configure(state=tk.NORMAL)
-            self.log_text.delete(1.0, tk.END)
-            self.log_text.configure(state=tk.DISABLED)
-            ColorPrint.blue("[LogPanel] Logs cleared")
-        except Exception as e:
-            print(f"Error clearing logs: {e}")
+        self.log_buffer.clear()
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+        ColorPrint.blue("[LogPanel] Logs cleared")
 
     def save_logs(self):
         """Save logs to file"""
-        try:
-            from tkinter import filedialog
-            import datetime
-            
-            # Get save location
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                initialname=f"d3check_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-            )
-            
-            if filename:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(f"D3-Check Log Export\n")
-                    f.write(f"Generated: {datetime.datetime.now()}\n")
-                    f.write("=" * 50 + "\n\n")
-                    
-                    for log_entry in self.log_buffer:
-                        f.write(f"[{log_entry['level']}] {log_entry['message']}\n")
-                
-                ColorPrint.green(f"[LogPanel] Logs saved to: {filename}")
-                
-        except Exception as e:
-            ColorPrint.red(f"[LogPanel] Error saving logs: {e}")
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            initialname=f"d3check_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        if filename:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(f"D3-Check Log Export\n")
+                f.write(f"Generated: {datetime.datetime.now()}\n")
+                f.write("=" * 50 + "\n\n")
+                for log_entry in self.log_buffer:
+                    f.write(f"[{log_entry['level']}] {log_entry['message']}\n")
+            ColorPrint.green(f"[LogPanel] Logs saved to: {filename}")
 
     def _test_bag(self):
         """Test bag functionality"""

@@ -390,24 +390,19 @@ class LoginTryScreenshotController:
         has_d3 = bool(d3_windows)
         if has_d3:
             titles = tuple(get_d3_manager().get_capture_titles())
-            try:
-                _sd, state_dict = capture_and_detect_all_d3_states(window_titles=titles)
-                disconnected = state_dict.get("disconnected", False)
-                if not disconnected:
-                    ColorPrint.gray("[LoginTryScreenshotController] D3 online and not disconnected, skip")
-                    return True
-                ColorPrint.gray("[LoginTryScreenshotController] First capture: d3_disconnected template matched; confirming with second capture (avoid false positive)...")
-                # Confirm twice (same as C3) to avoid single weak match false positive (ROSBOT_FLOW_MERMAID.md)
-                time.sleep(C3W_WAIT_SEC)
-                _sd2, state_dict2 = capture_and_detect_all_d3_states(window_titles=titles)
-                if not state_dict2.get("disconnected", False):
-                    ColorPrint.gray("[LoginTryScreenshotController] D3 disconnect not confirmed (second capture != disconnect), skip")
-                    return True
-                ColorPrint.blue("[LoginTryScreenshotController] D3 online then disconnected (confirmed twice) -> restart from Battle.net")
-                kill_d3_first = True
-            except Exception as e:
-                ColorPrint.yellow(f"[LoginTryScreenshotController] detect D3 state error: {e}, treat as restart")
-                kill_d3_first = True
+            _sd, state_dict = capture_and_detect_all_d3_states(window_titles=titles)
+            disconnected = state_dict.get("disconnected", False)
+            if not disconnected:
+                ColorPrint.gray("[LoginTryScreenshotController] D3 online and not disconnected, skip")
+                return True
+            ColorPrint.gray("[LoginTryScreenshotController] First capture: d3_disconnected template matched; confirming with second capture (avoid false positive)...")
+            time.sleep(C3W_WAIT_SEC)
+            _sd2, state_dict2 = capture_and_detect_all_d3_states(window_titles=titles)
+            if not state_dict2.get("disconnected", False):
+                ColorPrint.gray("[LoginTryScreenshotController] D3 disconnect not confirmed (second capture != disconnect), skip")
+                return True
+            ColorPrint.blue("[LoginTryScreenshotController] D3 online then disconnected (confirmed twice) -> restart from Battle.net")
+            kill_d3_first = True
         else:
             ColorPrint.blue("[LoginTryScreenshotController] D3 not online -> start from Battle.net")
             kill_d3_first = False
@@ -686,7 +681,6 @@ class LoginTryScreenshotController:
             ColorPrint.gray("[LoginTryScreenshotController] [D12] progress: sleep(5) then poll D3 window up to 10s...")
             time.sleep(5)
             _poll_sec = 10
-            already_restarted = False
             for poll_i in range(_poll_sec):
                 time.sleep(1)
                 windows = get_d3_manager().find_windows()
@@ -699,12 +693,11 @@ class LoginTryScreenshotController:
                         run_c2_resize()
                         if self._run_c3_loop_and_handle_branch() == "success":
                             return True
+                    # 文档 D13 否 / C 未成功 -> D13b -> D14_Restart -> D14w_Wait -> B2_HasWin：D14 后交回 tick 做 B2，不再本线程内继续 D 轮（避免战网反复重启）
                     self._restart_battlenet_and_retry_from_step1(bn_path)
-                    already_restarted = True
-                    break
-            if not already_restarted:
-                self._restart_battlenet_and_retry_from_step1(bn_path)
-            continue
+                    return False
+            self._restart_battlenet_and_retry_from_step1(bn_path)
+            return False
 
         ColorPrint.yellow("[LoginTryScreenshotController] Exhausted outer retries; step 1 did not complete")
         return False
@@ -716,32 +709,24 @@ class LoginTryScreenshotController:
         Returns:
             Dict with fullscreen_path and optionally game_window_path, or None on failure.
         """
-        try:
-            ColorPrint.blue("[LoginTryScreenshotController] Capturing full-screen screenshot...")
-
-            screenshot_data = self.screenshot_provider.gen(
-                use_optimized_capture=False,
-                window_titles=None,
-            )
-
-            if screenshot_data is None:
-                ColorPrint.yellow("[LoginTryScreenshotController] Failed to capture screenshot")
-                return None
-
-            saved = screenshot_data.save(
-                output_dir=LOGIN_TRY_SCREENSHOT_DIR,
-                prefix=LOGIN_TRY_SCREENSHOT_PREFIX,
-            )
-            if saved:
-                get_screenshot_category_manager().clean_older_than("login_try")
-                ColorPrint.green(
-                    f"[LoginTryScreenshotController] Screenshot saved: {saved.get('fullscreen_path')}"
-                )
-            return saved
-
-        except Exception as e:
-            ColorPrint.red(f"[LoginTryScreenshotController] Error: {e}")
+        ColorPrint.blue("[LoginTryScreenshotController] Capturing full-screen screenshot...")
+        screenshot_data = self.screenshot_provider.gen(
+            use_optimized_capture=False,
+            window_titles=None,
+        )
+        if screenshot_data is None:
+            ColorPrint.yellow("[LoginTryScreenshotController] Failed to capture screenshot")
             return None
+        saved = screenshot_data.save(
+            output_dir=LOGIN_TRY_SCREENSHOT_DIR,
+            prefix=LOGIN_TRY_SCREENSHOT_PREFIX,
+        )
+        if saved:
+            get_screenshot_category_manager().clean_older_than("login_try")
+            ColorPrint.green(
+                f"[LoginTryScreenshotController] Screenshot saved: {saved.get('fullscreen_path')}"
+            )
+        return saved
 
 
 _login_try_controller: Optional[LoginTryScreenshotController] = None

@@ -61,7 +61,7 @@ def _load_asia_features_from_docs_json() -> None:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             data = None
         controls = data.get("controls") if isinstance(data, dict) else []
         for c in controls:

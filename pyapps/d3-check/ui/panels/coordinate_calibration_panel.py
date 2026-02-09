@@ -40,6 +40,8 @@ from d3utils.d3_manager import get_d3_manager
 from ..utils.tk_variables import var_str, var_bool
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
+from ..components.yolo_annotation_window import YoloAnnotationWindow
+from ..components.coordinate_picker_window import CoordinatePicker
 
 
 class CoordinateCalibrationPanel:
@@ -267,27 +269,24 @@ class CoordinateCalibrationPanel:
 
     def _capture_for_client(self):
         """Capture current client window to memory. Returns (screenshot, None) or (None, error_msg)."""
-        try:
-            window_titles = self.WINDOW_TITLES_MAP.get(
-                self.current_client_type,
-                self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET],
-            )
-            if self.current_client_type == CLIENT_TYPE_BATTLENET:
-                get_battlenet_manager().prime_window_cache_for_capture()
-            elif self.current_client_type == CLIENT_TYPE_D3_GAME:
-                get_d3_manager().prime_window_cache_for_capture()
-                window_titles = get_d3_manager().get_capture_titles()
-            if window_titles is None:
-                window_titles = self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
-            ws = WindowScreenshot(match_mode="endswith")
-            out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
-            if not out:
-                return (None, i18n_manager.get_ui_text("ui.coord_calibration.no_game_window") or "No window")
-            self.screenshot, info = out
-            self.screenshot_path = None
-            return (self.screenshot, None)
-        except Exception as e:
-            return (None, str(e))
+        window_titles = self.WINDOW_TITLES_MAP.get(
+            self.current_client_type,
+            self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET],
+        )
+        if self.current_client_type == CLIENT_TYPE_BATTLENET:
+            get_battlenet_manager().prime_window_cache_for_capture()
+        elif self.current_client_type == CLIENT_TYPE_D3_GAME:
+            get_d3_manager().prime_window_cache_for_capture()
+            window_titles = get_d3_manager().get_capture_titles()
+        if window_titles is None:
+            window_titles = self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
+        ws = WindowScreenshot(match_mode="endswith")
+        out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
+        if not out:
+            return (None, i18n_manager.get_ui_text("ui.coord_calibration.no_game_window") or "No window")
+        self.screenshot, info = out
+        self.screenshot_path = None
+        return (self.screenshot, None)
 
     def _on_capture_screenshot(self):
         """Activate client window, capture to memory (no file), open picker."""
@@ -313,7 +312,6 @@ class CoordinateCalibrationPanel:
                 err
             )
             return
-        from ..components.yolo_annotation_window import YoloAnnotationWindow
         YoloAnnotationWindow(
             initial_screenshot=screenshot,
             client_mode=self.current_client_type,
@@ -326,7 +324,6 @@ class CoordinateCalibrationPanel:
         if self.popup_window:
             self.popup_window.destroy()
 
-        from ..components.coordinate_picker_window import CoordinatePicker
         game_mode = self.vars.get('game_mode')
         game_mode_val = game_mode.get() if game_mode else 'd3'
         self.popup_window = CoordinatePicker(
@@ -468,31 +465,19 @@ class CoordinateCalibrationPanel:
             )
             return
 
-        try:
-            export_dir = Path(__file__).parent.parent.parent / "exports" / "calibration"
-            export_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            export_path = export_dir / f"calibration_export_{timestamp}.json"
-
-            export_data = {
-                'timestamp': datetime.now().isoformat(),
-                'total_picks': len(self.pick_history),
-                'picks': self.pick_history
-            }
-
-            with open(export_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-
-            messagebox.showinfo(
-                i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
-                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_success')}\n{export_path}"
-            )
-            ColorPrint.green(f"[COORD_CALIBRATION] Export saved to {export_path}")
-
-        except Exception as e:
-            ColorPrint.red(f"[COORD_CALIBRATION] Export error: {e}")
-            messagebox.showerror(
-                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
-                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_failed')}: {str(e)}"
-            )
+        export_dir = Path(__file__).parent.parent.parent / "exports" / "calibration"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_path = export_dir / f"calibration_export_{timestamp}.json"
+        export_data = {
+            'timestamp': datetime.now().isoformat(),
+            'total_picks': len(self.pick_history),
+            'picks': self.pick_history
+        }
+        with open(export_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        messagebox.showinfo(
+            i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
+            f"{i18n_manager.get_ui_text('ui.coord_calibration.export_success')}\n{export_path}"
+        )
+        ColorPrint.green(f"[COORD_CALIBRATION] Export saved to {export_path}")
