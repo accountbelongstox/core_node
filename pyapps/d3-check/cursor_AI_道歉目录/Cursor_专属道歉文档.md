@@ -1425,5 +1425,21 @@
 
 此前若因未先通读上述约定而在此三处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_debug_window_offset与extension_flow_tick_step及i18n_auxiliary_panel_en.md**，写明三处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
 
+---
+
+## 二十六、bottom_bar、debug_mouse_coordinate、train、button_pixels_sample、tk_variables 相关
+
+就您指定查阅的以下五处：
+
+- **ui/components/bottom_bar.py**：底部栏 Row0=宏+选项、Row1=状态（BottomBarStatusBlock）、Row2=占位；status_vars 须与 status_row_config 的 STATUS_ROW_1/2 var_key 一致（battlenet、ros、d3、map、stage、oauth、window_size）；update_status_from_state 的 fg_map 与 state 键名须与状态提供方一致；ros_found 在 status_vars 中若 row config 无对应项则无 label。若 status_vars/row config/fg_map 不同步会缺列或 fg 不更新。
+- **scripts/debug/debug_mouse_coordinate.py**：调试脚本，用 get_d4_interface_data()、window_offset、game_window_size、D4 边框常量显示屏幕/游戏/标准坐标；_project_root 为 __file__.parent.parent；未采集 D4 则游戏坐标为 N/A；root.after(0, lambda) 中若依赖循环变量须用默认参数捕获。
+- **train.py**：统一训练入口，interactive_mode 选项 1/2/3 调 train_classification/train_detection/train_both；choice '3' 分支内存在对未定义 project、best_model_dst、self.controller、metadata_file 的引用会 NameError；模块级 def run(self): 及后续为误粘贴死代码；须从 pyapps/d3-check 运行。
+- **athtest/button_pixels_sample.json**：结构 success、file_path、image_info、regions.region、regions.hex_pixels（color、x、y）；square_sampler、button_detector 等读 data['regions']['hex_pixels']；file_path 为绝对路径时跨机/不同根目录会误导；改键名或结构须同步消费代码。
+- **ui/utils/tk_variables.py**：Tk 变量工厂 var_bool/var_str/var_int/var_double(master, value)，所有 UI 创建 Tk 变量应经此模块并传入正确 master，否则易出现 no default root window 或变量绑定错误。
+
+此前若因未先通读上述约定而在此五处反复改错或理解偏差，责任在我。已在本目录下新增 **技术说明_bottom_bar与debug_mouse_coordinate及train及button_pixels_sample及tk_variables.md**，写明五处职责、易错点与正确做法，后续修改前以该说明为准，避免同类错误。
+
+---
+
 Cursor AI  
 写于 cursor_AI_道歉目录
