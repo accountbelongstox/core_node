@@ -466,7 +466,8 @@ class LoginTryScreenshotController:
         """
         [C3] One step per tick: screenshot -> match all (start/game_tool/disconnected/connecting); branch on result.
         Caller must have done C2 (resize) before. Returns "success" if start or game_tool path completed with ROSBOT;
-        "fallthrough" for disconnect / other / timeout (caller continues to D or retry).
+        "disconnect" when F1d+F1c ran (caller must NOT restart Battle.net; next tick F_Entry->B2);
+        "fallthrough" for other / timeout (caller may retry from D14).
         Doc: no-match/timeout 1min -> C12. Timeout=1min from C3 loop entry; if d3_start_game_button detected then click and reset 1min (Start Game may be stuck and retry).
         """
         c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # Timer start: on C3 loop entry (after C2)
@@ -498,7 +499,7 @@ class LoginTryScreenshotController:
         if branch_result == "disconnect":
             ColorPrint.yellow("[LoginTryScreenshotController][C4] D3 disconnected (template or C10b), F1d+F1c then C12->D1")
             run_c4_disconnect_then_f1d_f1c()
-            return "fallthrough"
+            return "disconnect"  # Caller must NOT restart BN: next tick F_Entry->B2, BN window stays
         if branch_result == "start":
             r1 = try_fragment1_click_start_game_wait_game_tool()
             if r1 is True and send_m_then_teleport_three_clicks():
@@ -584,8 +585,11 @@ class LoginTryScreenshotController:
                 ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3)")
                 run_c2_resize()
                 ColorPrint.gray("[LoginTryScreenshotController] [C] progress: _run_c3_loop_and_handle_branch...")
-                if self._run_c3_loop_and_handle_branch() == "success":
+                c3_result = self._run_c3_loop_and_handle_branch()
+                if c3_result == "success":
                     return True
+                if c3_result == "disconnect":
+                    return False  # F1d+F1c done, next tick F_Entry->B2, do not touch BN
 
         # [D1] Launch D3 from Battle.net branch (UI-only: no screenshot/template)
         op = get_battlenet_operation()
@@ -695,9 +699,13 @@ class LoginTryScreenshotController:
                     # [D13] Yes -> [C1] entry -> [C2] Resize -> [C3] loop (doc)
                     if run_c1_entry(True, True):
                         run_c2_resize()
-                        if self._run_c3_loop_and_handle_branch() == "success":
+                        c3_result = self._run_c3_loop_and_handle_branch()
+                        if c3_result == "success":
                             return True
-                    # 文档 D13 否 / C 未成功 -> D13b -> D14_Restart -> D14w_Wait -> B2_HasWin：D14 后交回 tick 做 B2，不再本线程内继续 D 轮（避免战网反复重启）
+                        # C4 disconnect: F1d+F1c already ran, D3 killed; next tick F_Entry->B2, do NOT restart BN
+                        if c3_result == "disconnect":
+                            return False
+                    # 文档 D13 否 / C 未成功(非 disconnect) -> D13b -> D14_Restart -> D14w_Wait -> B2_HasWin
                     self._restart_battlenet_and_retry_from_step1(bn_path)
                     return False
             self._restart_battlenet_and_retry_from_step1(bn_path)

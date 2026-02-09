@@ -47,8 +47,8 @@ class ScreenshotHandler:
         """
         ColorPrint.blue("[ScreenshotHandler] Capturing screenshot and collecting info...")
         screenshot_data = self.screenshot_provider.gen(
-                use_optimized_capture=True,
-                window_titles=DIABLO_IV_WINDOW_TITLES
+            use_optimized_capture=True,
+            window_titles=DIABLO_IV_WINDOW_TITLES
         )
         if screenshot_data is None:
             ColorPrint.yellow("[ScreenshotHandler] Failed to capture screenshot")

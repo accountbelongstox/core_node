@@ -26,17 +26,12 @@ def on_team_health_detected():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.team_health_info:
-            total_members = d4_data.team_health_info.get('total_members', 0)
-            ColorPrint.green(f"[Team Health Event] Team health detected: {total_members} members")
-        else:
-            ColorPrint.blue("[Team Health Event] Team health detected: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Team Health Event] Error in on_team_health_detected: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.team_health_info:
+        total_members = d4_data.team_health_info.get('total_members', 0)
+        ColorPrint.green(f"[Team Health Event] Team health detected: {total_members} members")
+    else:
+        ColorPrint.blue("[Team Health Event] Team health detected: No data")
 
 
 def on_team_member_joined():
@@ -45,17 +40,12 @@ def on_team_member_joined():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.team_health_info:
-            total_members = d4_data.team_health_info.get('total_members', 0)
-            ColorPrint.green(f"[Team Health Event] Team member joined: Total {total_members} members")
-        else:
-            ColorPrint.blue("[Team Health Event] Team member joined: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Team Health Event] Error in on_team_member_joined: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.team_health_info:
+        total_members = d4_data.team_health_info.get('total_members', 0)
+        ColorPrint.green(f"[Team Health Event] Team member joined: Total {total_members} members")
+    else:
+        ColorPrint.blue("[Team Health Event] Team member joined: No data")
 
 
 def on_team_member_left():
@@ -64,17 +54,12 @@ def on_team_member_left():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.team_health_info:
-            total_members = d4_data.team_health_info.get('total_members', 0)
-            ColorPrint.yellow(f"[Team Health Event] Team member left: Total {total_members} members")
-        else:
-            ColorPrint.blue("[Team Health Event] Team member left: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Team Health Event] Error in on_team_member_left: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.team_health_info:
+        total_members = d4_data.team_health_info.get('total_members', 0)
+        ColorPrint.yellow(f"[Team Health Event] Team member left: Total {total_members} members")
+    else:
+        ColorPrint.blue("[Team Health Event] Team member left: No data")
 
 
 def on_team_health_changed():
@@ -83,15 +68,10 @@ def on_team_health_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.team_health_info:
-            local_count = d4_data.team_health_info.get('local_map_members', 0)
-            non_local_count = d4_data.team_health_info.get('non_local_map_members', 0)
-            ColorPrint.blue(f"[Team Health Event] Team health changed: Local {local_count}, Non-Local {non_local_count}")
-        else:
-            ColorPrint.blue("[Team Health Event] Team health changed: No data")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Team Health Event] Error in on_team_health_changed: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.team_health_info:
+        local_count = d4_data.team_health_info.get('local_map_members', 0)
+        non_local_count = d4_data.team_health_info.get('non_local_map_members', 0)
+        ColorPrint.blue(f"[Team Health Event] Team health changed: Local {local_count}, Non-Local {non_local_count}")
+    else:
+        ColorPrint.blue("[Team Health Event] Team health changed: No data")

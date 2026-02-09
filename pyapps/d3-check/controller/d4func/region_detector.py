@@ -89,34 +89,29 @@ class RegionDetector:
 
         Note: Respects debug_window_paused flag - if paused, skips extraction to freeze current view.
         """
-        try:
-            # Check if debug window is paused
-            if self.d4_data.debug_window_paused:
-                ColorPrint.gray("[RegionDetector] Debug window paused - skipping region extraction")
-                return
+        if self.d4_data.debug_window_paused:
+            ColorPrint.gray("[RegionDetector] Debug window paused - skipping region extraction")
+            return
+        ColorPrint.blue("[RegionDetector] Extracting all regions to share...")
+        ColorPrint.blue(f"[RegionDetector] Screenshot data type: {type(screenshot_data)}")
+        ColorPrint.blue(f"[RegionDetector] Game window image: {screenshot_data.game_window_image is not None}")
+        if not screenshot_data.game_window_image:
+            ColorPrint.yellow("[RegionDetector] No game window image available")
+            return
+        game_window_image = screenshot_data.game_window_image
+        game_window_size = screenshot_data.game_window_size
+        is_windowed = self.d4_data.is_windowed_mode()
 
-            ColorPrint.blue("[RegionDetector] Extracting all regions to share...")
-            ColorPrint.blue(f"[RegionDetector] Screenshot data type: {type(screenshot_data)}")
-            ColorPrint.blue(f"[RegionDetector] Game window image: {screenshot_data.game_window_image is not None}")
+        # DEBUG: Print critical values for offset troubleshooting
+        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - game_window_size: {game_window_size}")
+        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - fullscreen_size: {screenshot_data.fullscreen_size}")
+        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - is_windowed: {is_windowed}")
+        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.fullscreen_size: {self.d4_data.fullscreen_size}")
+        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.game_window_size: {self.d4_data.game_window_size}")
 
-            if not screenshot_data.game_window_image:
-                ColorPrint.yellow("[RegionDetector] No game window image available")
-                return
-
-            game_window_image = screenshot_data.game_window_image
-            game_window_size = screenshot_data.game_window_size
-            is_windowed = self.d4_data.is_windowed_mode()
-
-            # DEBUG: Print critical values for offset troubleshooting
-            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - game_window_size: {game_window_size}")
-            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - fullscreen_size: {screenshot_data.fullscreen_size}")
-            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - is_windowed: {is_windowed}")
-            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.fullscreen_size: {self.d4_data.fullscreen_size}")
-            ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG - d4_data.game_window_size: {self.d4_data.game_window_size}")
-
-            # Initialize detected_regions if not exists
-            if self.d4_data.detected_regions is None:
-                self.d4_data.detected_regions = {}
+        # Initialize detected_regions if not exists
+        if self.d4_data.detected_regions is None:
+            self.d4_data.detected_regions = {}
 
             # Add 'region_images' key to store all cropped region images
             if 'region_images' not in self.d4_data.detected_regions:
@@ -153,91 +148,73 @@ class RegionDetector:
 
             # Extract each region
             for label, start_coord, end_coord in regions_to_extract:
-                try:
-                    # Calculate scaled coordinates
-                    scaled_start = calculate_unified_scaled_coordinate(
-                        start_coord,
-                        game_window_size,
-                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                        is_windowed
-                    )
-                    scaled_end = calculate_unified_scaled_coordinate(
-                        end_coord,
-                        game_window_size,
-                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                        is_windowed
-                    )
+                scaled_start = calculate_unified_scaled_coordinate(
+                    start_coord,
+                    game_window_size,
+                    (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                    is_windowed
+                )
+                scaled_end = calculate_unified_scaled_coordinate(
+                    end_coord,
+                    game_window_size,
+                    (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                    is_windowed
+                )
 
-                    # DEBUG: Print first region's coordinate transformation
-                    if label == "Team Count":
-                        ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG '{label}':")
-                        ColorPrint.blue(f"  Standard: {start_coord} -> {end_coord}")
-                        ColorPrint.blue(f"  Scaled:   {scaled_start} -> {scaled_end}")
-                        ColorPrint.blue(f"  Image size: {game_window_image.size}")
+                # DEBUG: Print first region's coordinate transformation
+                if label == "Team Count":
+                    ColorPrint.blue(f"[RegionDetector] 🔍 DEBUG '{label}':")
+                    ColorPrint.blue(f"  Standard: {start_coord} -> {end_coord}")
+                    ColorPrint.blue(f"  Scaled:   {scaled_start} -> {scaled_end}")
+                    ColorPrint.blue(f"  Image size: {game_window_image.size}")
 
-                    # Extract region using ImageCrop
-                    region_crop = ImageCrop.crop_region(
-                        game_window_image,
-                        scaled_start,
-                        scaled_end,
-                        output_format="pil"
-                    )
+                # Extract region using ImageCrop
+                region_crop = ImageCrop.crop_region(
+                    game_window_image,
+                    scaled_start,
+                    scaled_end,
+                    output_format="pil"
+                )
 
-                    # Store in detected_regions['region_images']
-                    self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
-                    ColorPrint.green(f"[RegionDetector] ✓ Extracted '{label}' - Size: {region_crop.size}")
-
-                except Exception as e:
-                    ColorPrint.red(f"[RegionDetector] Error extracting {label}: {e}")
-                    continue
+                self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
+                ColorPrint.green(f"[RegionDetector] ✓ Extracted '{label}' - Size: {region_crop.size}")
 
             # Extract point regions (create small 10x10 squares around points)
             for label, point_coord in point_regions_to_extract:
-                try:
-                    # Calculate scaled coordinate for the point
-                    scaled_point = calculate_unified_scaled_coordinate(
-                        point_coord,
-                        game_window_size,
-                        (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                        is_windowed
-                    )
+                scaled_point = calculate_unified_scaled_coordinate(
+                    point_coord,
+                    game_window_size,
+                    (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+                    is_windowed
+                )
 
-                    # Create a small 10x10 region around the point
-                    square_size = 10
-                    half_size = square_size // 2
-                    region_start = (scaled_point[0] - half_size, scaled_point[1] - half_size)
-                    region_end = (scaled_point[0] + half_size, scaled_point[1] + half_size)
+                # Create a small 10x10 region around the point
+                square_size = 10
+                half_size = square_size // 2
+                region_start = (scaled_point[0] - half_size, scaled_point[1] - half_size)
+                region_end = (scaled_point[0] + half_size, scaled_point[1] + half_size)
 
-                    # Ensure coordinates are within image bounds
-                    img_width, img_height = game_window_image.size
-                    region_start = (max(0, region_start[0]), max(0, region_start[1]))
-                    region_end = (min(img_width, region_end[0]), min(img_height, region_end[1]))
+                # Ensure coordinates are within image bounds
+                img_width, img_height = game_window_image.size
+                region_start = (max(0, region_start[0]), max(0, region_start[1]))
+                region_end = (min(img_width, region_end[0]), min(img_height, region_end[1]))
 
-                    # Extract region using ImageCrop
-                    region_crop = ImageCrop.crop_region(
-                        game_window_image,
-                        region_start,
-                        region_end,
-                        output_format="pil"
-                    )
+                # Extract region using ImageCrop
+                region_crop = ImageCrop.crop_region(
+                    game_window_image,
+                    region_start,
+                    region_end,
+                    output_format="pil"
+                )
 
-                    # Store in detected_regions['region_images']
-                    self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
-                    ColorPrint.green(f"[RegionDetector] ✓ Extracted point '{label}' - Size: {region_crop.size}")
-
-                except Exception as e:
-                    ColorPrint.red(f"[RegionDetector] Error extracting point {label}: {e}")
-                    continue
+                # Store in detected_regions['region_images']
+                self.d4_data.detected_regions['region_images'][label] = region_crop.copy()
+                ColorPrint.green(f"[RegionDetector] ✓ Extracted point '{label}' - Size: {region_crop.size}")
 
             total_regions = len(regions_to_extract) + len(point_regions_to_extract)
             region_count = len(self.d4_data.detected_regions.get('region_images', {}))
             ColorPrint.green(f"[RegionDetector] Extracted {region_count}/{total_regions} regions to detected_regions")
             ColorPrint.green(f"[RegionDetector] Region keys: {list(self.d4_data.detected_regions.get('region_images', {}).keys())}")
-
-        except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error in _extract_all_regions_to_share: {e}")
-            import traceback
-            traceback.print_exc()
 
     def _detect_and_update_regions(self, game_window_size, is_windowed, screenshot_image=None):
         """
@@ -251,39 +228,27 @@ class RegionDetector:
         Returns:
             bool: True if successful, False otherwise
         """
-        try:
-            ColorPrint.blue("[RegionDetector] Detecting regions and updating data...")
-
-            # Use region detector to detect regions
-            detection_result = self.region_detector.detect_regions(
-                game_window_size, is_windowed, screenshot_image
-            )
-            
-            if detection_result:
-                success = self.region_detector.update_interface_data(detection_result)
-                if success:
-                    if "annotated_image" in detection_result:
-                        annotated_image = detection_result["annotated_image"]
-                        # Save annotated image path to interface data
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-                        annotated_filename = f"d4_annotated_{timestamp}.png"
-                        annotated_path = D4_ANNOTATED_DIR / annotated_filename
-                        annotated_image.save(annotated_path)
-                        self.d4_data.last_annotated_screenshot_path = str(annotated_path)
-                        ColorPrint.blue("[RegionDetector] Annotated screenshot saved for DEBUG mode")
-                    
-                    return True
-                else:
-                    ColorPrint.yellow("[RegionDetector] Region detection completed but data update failed")
-                    return False
+        ColorPrint.blue("[RegionDetector] Detecting regions and updating data...")
+        detection_result = self.region_detector.detect_regions(
+            game_window_size, is_windowed, screenshot_image
+        )
+        if detection_result:
+            success = self.region_detector.update_interface_data(detection_result)
+            if success:
+                if "annotated_image" in detection_result:
+                    annotated_image = detection_result["annotated_image"]
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                    annotated_filename = f"d4_annotated_{timestamp}.png"
+                    annotated_path = D4_ANNOTATED_DIR / annotated_filename
+                    annotated_image.save(annotated_path)
+                    self.d4_data.last_annotated_screenshot_path = str(annotated_path)
+                    ColorPrint.blue("[RegionDetector] Annotated screenshot saved for DEBUG mode")
+                return True
             else:
-                ColorPrint.yellow("[RegionDetector] Region detection failed")
+                ColorPrint.yellow("[RegionDetector] Region detection completed but data update failed")
                 return False
-
-        except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error in region detection: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            ColorPrint.yellow("[RegionDetector] Region detection failed")
             return False
 
     def _detect_team_health(self, screenshot_data) -> bool:
@@ -296,39 +261,28 @@ class RegionDetector:
         Returns:
             bool: True if successful, False otherwise
         """
-        try:
-            ColorPrint.blue("[RegionDetector] Detecting team health bars...")
-            
-            if not screenshot_data or not screenshot_data.game_window_image:
-                ColorPrint.yellow("[RegionDetector] No game window image available for team health detection")
-                return False
-            
-            # Use team health detector to detect health bars
-            health_result = self.team_health_detector.detect_team_health(
-                screenshot_data.game_window_image
-            )
-            
-            if health_result and "error" not in health_result:
-                total_members = health_result.get('total_members', 0)
-                group1_count = health_result.get('group1_members', 0)
-                group2_count = health_result.get('group2_members', 0)
-                local_map_count = health_result.get('local_map_members', 0)
-                non_local_map_count = health_result.get('non_local_map_members', 0)
-                ColorPrint.green(f"[RegionDetector] Team health detection successful: {total_members} members detected")
-                ColorPrint.green(f"[RegionDetector] Groups: G1:{group1_count}, G2:{group2_count}")
-                local_map_text = self.i18n.translate("team_health.local_map")
-                non_local_map_text = self.i18n.translate("team_health.non_local_map")
-                ColorPrint.green(f"[RegionDetector] Maps: {local_map_text}:{local_map_count}, {non_local_map_text}:{non_local_map_count}")
-                return True
-            else:
-                error_msg = health_result.get("error", "Unknown error") if health_result else "No result"
-                ColorPrint.yellow(f"[RegionDetector] Team health detection failed: {error_msg}")
-                return False
-                
-        except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error in team health detection: {e}")
-            import traceback
-            traceback.print_exc()
+        ColorPrint.blue("[RegionDetector] Detecting team health bars...")
+        if not screenshot_data or not screenshot_data.game_window_image:
+            ColorPrint.yellow("[RegionDetector] No game window image available for team health detection")
+            return False
+        health_result = self.team_health_detector.detect_team_health(
+            screenshot_data.game_window_image
+        )
+        if health_result and "error" not in health_result:
+            total_members = health_result.get('total_members', 0)
+            group1_count = health_result.get('group1_members', 0)
+            group2_count = health_result.get('group2_members', 0)
+            local_map_count = health_result.get('local_map_members', 0)
+            non_local_map_count = health_result.get('non_local_map_members', 0)
+            ColorPrint.green(f"[RegionDetector] Team health detection successful: {total_members} members detected")
+            ColorPrint.green(f"[RegionDetector] Groups: G1:{group1_count}, G2:{group2_count}")
+            local_map_text = self.i18n.translate("team_health.local_map")
+            non_local_map_text = self.i18n.translate("team_health.non_local_map")
+            ColorPrint.green(f"[RegionDetector] Maps: {local_map_text}:{local_map_count}, {non_local_map_text}:{non_local_map_count}")
+            return True
+        else:
+            error_msg = health_result.get("error", "Unknown error") if health_result else "No result"
+            ColorPrint.yellow(f"[RegionDetector] Team health detection failed: {error_msg}")
             return False
 
     def _detect_small_map(self, screenshot_data) -> bool:
@@ -341,28 +295,18 @@ class RegionDetector:
         Returns:
             bool: True if successful, False otherwise
         """
-        try:
-            ColorPrint.blue("[RegionDetector] Detecting small map...")
-            
-            if not screenshot_data or not screenshot_data.game_window_image:
-                ColorPrint.yellow("[RegionDetector] No game window image available for small map detection")
-                return False
-            
-            # Use small map detector to detect location type
-            small_map_result = self.small_map_detector.detect_small_map()
-            
-            if small_map_result and "error" not in small_map_result:
-                is_in_town = small_map_result.get('is_in_town', False)
-                location_type = small_map_result.get('location_type', 'Unknown')
-                confidence = small_map_result.get('match_result', {}).get('confidence', 0.0)
-                
-                ColorPrint.green(f"[RegionDetector] Small map detection successful: {location_type} (confidence: {confidence:.3f})")
-                return True
-            else:
-                error_msg = small_map_result.get('error', 'Unknown error') if small_map_result else 'No result'
-                ColorPrint.yellow(f"[RegionDetector] Small map detection failed: {error_msg}")
-                return False
-                
-        except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error detecting small map: {e}")
+        ColorPrint.blue("[RegionDetector] Detecting small map...")
+        if not screenshot_data or not screenshot_data.game_window_image:
+            ColorPrint.yellow("[RegionDetector] No game window image available for small map detection")
+            return False
+        small_map_result = self.small_map_detector.detect_small_map()
+        if small_map_result and "error" not in small_map_result:
+            is_in_town = small_map_result.get('is_in_town', False)
+            location_type = small_map_result.get('location_type', 'Unknown')
+            confidence = small_map_result.get('match_result', {}).get('confidence', 0.0)
+            ColorPrint.green(f"[RegionDetector] Small map detection successful: {location_type} (confidence: {confidence:.3f})")
+            return True
+        else:
+            error_msg = small_map_result.get('error', 'Unknown error') if small_map_result else 'No result'
+            ColorPrint.yellow(f"[RegionDetector] Small map detection failed: {error_msg}")
             return False

@@ -2,7 +2,7 @@
 
 按 `ROSBOT_FLOW_MERMAID.md` 一个步骤一个步骤对照代码，正确的打勾 ✓。
 
-**精细对比进度**：第 1–18 批完成（共 90 步）| 累计已精细对比：90 步 | 全部对比完成
+**精细对比进度**：第 1–20 批完成（共 98 步）| 累计已精细对比：98 步 | 全部对比完成
 
 ---
 
@@ -178,6 +178,34 @@
 | 84 | D8 否 → D10_UIState → D1_Entry | disconnected/on_login/not normal_available 时 get_battlenet_manager().restart() 或 _run_cn_login_flow_ui_only、time.sleep、continue（回到 D 轮），与文档一致 | ✓ |
 | 85 | D8 是 → D9_ClickTab → D11w_WaitPlay → D11_Click | click_d3_tab() 后 time.sleep(0.8)；click_start_game() 成功则 break；与文档 D9→D11w→D11 一致 | ✓ |
 
+### 第 18 批（E 块步骤 86–90）
+
+| # | 文档步骤 | 代码核对结论 | 状态 |
+|---|----------|--------------|------|
+| 86 | E1_Kill 结束已有 ROSBOT | run_e1_kill() 内 get_rosbot_manager().kill_if_running()；d3_extension_thread 在 F2 返回 "c1" 后调用，与文档一致 | ✓ |
+| 87 | E1→E2_Sleep；E2→E3；E3 否→E4 | run_e2_sleep(1.0)；run_e3_config_check() 读 auto_start_rosbot，为 False 时 extension 不执行 run_e4_start，与文档一致 | ✓ |
+| 88 | E4_Start；E4→E5_Init；E5→E5a | run_e4_start()、run_e5_init(start_rosbot_task)、run_e5a_wait_win_srv_poll_click(run_after_rosbot_start,...)，与文档 E4→E5→E5a 一致 | ✓ |
+| 89 | E5a→E6_Done；E6_Done→F3 | run_e6_done() 为 pass，panel 回调收尾；trigger_extension_rosbot_started 后下一 tick flow_master 走 F3_F4（run_f3_log_timeout），与文档一致 | ✓ |
+| 90 | E3a～E3f 部分 | 文档有 zip 更新步骤，代码仅 E3 配置检查后直走 E4，清单已标「部分」 | ✓ |
+
+### 第 19 批（跨块连接 + 主线程收尾，步骤 91–95）
+
+| # | 文档步骤 | 代码核对结论 | 状态 |
+|---|----------|--------------|------|
+| 91 | B16_Confirmed → D1_Entry | flow_master_driver：tick_battlenet_ready_flow 返回 (True,"confirmed") 时 set_battlenet_tick_confirmed(_FM_BN)、trigger_extension_rosbot_start()；event_center 触发后 extension 线程执行 ensure_battlenet_started_and_login_check（D 块入口），与文档一致 | ✓ |
+| 92 | C12_EndD3 → D1_Entry | extension_flow_tick_step 内 run_c12_end_d3() 后 reset_state()、return "fallthrough"；extension 线程下次被 trigger_extension_rosbot_start 或 ensure_* 调用时进入 D 块，与文档一致 | ✓ |
+| 93 | A8_Success → F2_RosbotOnline | extension_flow_tick_step return "success" 后 flow_master_driver 调用 trigger_extension_rosbot_started(True)；extension 侧 ensure_* 返回 True 后执行 run_f2_rosbot_online()，与文档 A8→F2 一致 | ✓ |
+| 94 | D14w_Wait → B2_HasWin | ensure_battlenet_started_and_login_check 内 _restart_battlenet_and_retry_from_step1 后 return False，不设 flow 状态；下一 2s tick flow_master 仍从 F0 或 B 块入口执行，enter_battlenet_at_b2 将 BN 块置为 BN_Win（B2），与文档一致 | ✓ |
+| 95 | 主线程收尾 A9（ROSBOT_FLOW.md） | trigger_extension_rosbot_started 回调中 panel 成功分支：set_task_status("rosbot_task", ENABLED)、start_rosbot_task()（ran_e_block 为 False 时）、打日志等，与文档「启用 rosbot_task、再次任务初始化、ROSBOT Started monitoring」一致 | ✓ |
+
+### 第 20 批（C3 超时与 start 重置，步骤 96–98）
+
+| # | 文档步骤 | 代码核对结论 | 状态 |
+|---|----------|--------------|------|
+| 96 | 超时时长 1 分钟；计时起点 C2 完成后 | providor/constants/d3.py C3_DEADLINE_TICKS=30；extension_flow_tick_step 在 C_ENTRY 通过后 set_phase(C_C3_LOOP)、set_deadline_tick(current_tick + C3_DEADLINE_TICKS)，2s×30=60s，与文档一致 | ✓ |
+| 97 | 检测到 d3_start_game_button 则点击并重置 1 分钟 | C_C3_LOOP 内 state=="start" 且 click_start_game_button_if_found() 成功时 set_deadline_tick(current_tick + C3_DEADLINE_TICKS)，与文档「点击并重置」一致 | ✓ |
+| 98 | 游戏掉线：连续两次识图确认后分支 F1d | state=="disconnect" 时 set_phase(C_C3_DISCONFIRM)、set_wait_ticks_remaining(1)；下一 tick 再 run_c3_screenshot_state()，若 state2=="disconnect" 则 run_c4_disconnect_then_f1d_f1c()，与文档一致 | ✓ |
+
 ---
 
 ## A 入口与定时器
@@ -304,17 +332,17 @@
 
 | 文档步骤/转移 | 说明 | 代码位置 | 状态 |
 |---------------|------|----------|------|
-| E1_Kill | 结束已有 ROSBOT | run_e1_kill，get_rosbot_manager().kill_if_running() | ✓ |
-| E1 → E2_Sleep | 等待 1 秒 | run_e2_sleep(1.0) | ✓ |
-| E2 → E3_StartRosbot | 启动 ROSBOT？UI 是否开始更新 | run_e3_config_check (auto_start_rosbot) | ✓ |
-| E3 否 | → E4_Start | 不更新 zip，直接 E4 | ✓ |
-| E3 是 | → E3a～E3f（zip 更新等） | 配置为“开启更新”时走 E3a；当前 extension 路径多为 E3→E4 | ✓ |
+| E1_Kill | 结束已有 ROSBOT | run_e1_kill，get_rosbot_manager().kill_if_running() | ✓ 已精细对比 |
+| E1 → E2_Sleep | 等待 1 秒 | run_e2_sleep(1.0) | ✓ 已精细对比 |
+| E2 → E3_StartRosbot | 启动 ROSBOT？UI 是否开始更新 | run_e3_config_check (auto_start_rosbot) | ✓ 已精细对比 |
+| E3 否 | → E4_Start | 不更新 zip，直接 E4 | ✓ 已精细对比 |
+| E3 是 | → E3a～E3f（zip 更新等） | 配置为“开启更新”时走 E3a；当前 extension 路径多为 E3→E4 | ✓ 已精细对比 |
 | E3a～E3f | 找 zip、解压、复制配置、更新路径、启动 | 若实现则在 rosbot 更新逻辑中 | 部分 |
-| E4_Start | 启动 ROSBOT 进程 | run_e4_start，get_rosbot_manager().start() | ✓ |
-| E4 → E5_Init | 任务初始化 | run_e5_init(start_rosbot_task) | ✓ |
-| E5 → E5a | 等窗口、等服务器、轮询主 UI、点主档案、点 Start botting! | run_e5a_wait_win_srv_poll_click → run_after_rosbot_start | ✓ |
-| E5a → E6_Done | 主线程收尾，记录日志 | run_e6_done；panel 侧收尾 | ✓ |
-| E6_Done | → F3_LogTimeout | 回到 F3 轮询日志超时 | ✓ |
+| E4_Start | 启动 ROSBOT 进程 | run_e4_start，get_rosbot_manager().start() | ✓ 已精细对比 |
+| E4 → E5_Init | 任务初始化 | run_e5_init(start_rosbot_task) | ✓ 已精细对比 |
+| E5 → E5a | 等窗口、等服务器、轮询主 UI、点主档案、点 Start botting! | run_e5a_wait_win_srv_poll_click → run_after_rosbot_start | ✓ 已精细对比 |
+| E5a → E6_Done | 主线程收尾，记录日志 | run_e6_done；panel 侧收尾 | ✓ 已精细对比 |
+| E6_Done | → F3_LogTimeout | 回到 F3 轮询日志超时 | ✓ 已精细对比 |
 
 ---
 
@@ -322,10 +350,10 @@
 
 | 文档连接 | 说明 | 状态 |
 |----------|------|------|
-| B16_Confirmed → D1_Entry | 战网已确认 → 从战网启动 D3 | ✓（trigger_extension_rosbot_start 触发 extension 跑 D） |
-| C12_EndD3 → D1_Entry | 结束 D3 后进入 D 流程 | ✓（C12 后 extension fallthrough，下次 trigger 或同一轮内跑 D） |
-| A8_Success → F2_RosbotOnline | C8 成功 → 判 ROSBOT 是否在线 | ✓（trigger_extension_rosbot_started；F2 在 E 完成后由 UI/状态驱动） |
-| D14w_Wait → B2_HasWin | D14 重启战网并等 5s 后回到 B2 | ✓（D14 后 return False，tick 下一拍做 B2） |
+| B16_Confirmed → D1_Entry | 战网已确认 → 从战网启动 D3 | ✓ 已精细对比（第 19 批） |
+| C12_EndD3 → D1_Entry | 结束 D3 后进入 D 流程 | ✓ 已精细对比（第 19 批） |
+| A8_Success → F2_RosbotOnline | C8 成功 → 判 ROSBOT 是否在线 | ✓ 已精细对比（第 19 批） |
+| D14w_Wait → B2_HasWin | D14 重启战网并等 5s 后回到 B2 | ✓ 已精细对比（第 19 批） |
 
 ---
 
@@ -333,9 +361,9 @@
 
 | 文档说明 | 代码实现 | 状态 |
 |----------|----------|------|
-| 超时时长 1 分钟；计时起点 C2 完成后 | C3_DEADLINE_TICKS=30，2s×30=60s；C_ENTRY 进入 C_C3_LOOP 时 set_deadline_tick | ✓ |
-| 检测到 d3_start_game_button 则点击并重置 1 分钟 | click_start_game_button_if_found() 后 set_deadline_tick(current_tick + C3_DEADLINE_TICKS) | ✓ |
-| 游戏掉线：连续两次识图确认后分支 F1d | C_C3_DISCONFIRM，再跑一次 run_c3_screenshot_state，state2=="disconnect" → run_c4_disconnect_then_f1d_f1c | ✓ |
+| 超时时长 1 分钟；计时起点 C2 完成后 | C3_DEADLINE_TICKS=30，2s×30=60s；C_ENTRY 进入 C_C3_LOOP 时 set_deadline_tick | ✓ 已精细对比（第 20 批） |
+| 检测到 d3_start_game_button 则点击并重置 1 分钟 | click_start_game_button_if_found() 后 set_deadline_tick(current_tick + C3_DEADLINE_TICKS) | ✓ 已精细对比（第 20 批） |
+| 游戏掉线：连续两次识图确认后分支 F1d | C_C3_DISCONFIRM，再跑一次 run_c3_screenshot_state，state2=="disconnect" → run_c4_disconnect_then_f1d_f1c | ✓ 已精细对比（第 20 批） |
 
 ---
 
@@ -358,3 +386,5 @@
 | 2026-02-09 | 再次对照更新后文档核验代码：A/B/C/D/E/F 及 B6/B13/B5/B5w 与清单一致；仅修正清单内 B5_Exit 行号 387→386（kill 实际在第 386 行）。代码无需修复。 |
 | 2026-02-09 | 第三次核验：A/B/C/D/E/F、F0/F1/F2、C3_DEADLINE_TICKS=30、flow_master_driver 第 144 行、E 块与清单一致。仅修正清单 F 块表中 F1d 函数名 run_f1d_disconnect_detected → run_f1d_on_disconnect。代码无需修复。 |
 | 2026-02-09 | 第四次核验：对照更新后清单（第 1–7 批共 35 步）逐项核对；第 7 批 B6/B13（activate_window、click_d3_tab、BN_Poll 已登录/掉线/超时）与 rosbot_flow_battlenet 一致，flow_master_driver 第 144 行、BN 常量 3s/2min/2s 无误。代码无需修复。 |
+| 2026-02-09 | 精细对比续：第 13–14 批（C 块 C5w/C10/C8/C12 共 10 步）、第 15–16 批（D 块 10 步）、第 18 批（E 块 5 步）写入清单并标「已精细对比」；进度更新为第 1–18 批共 90 步，全部对比完成。 |
+| 2026-02-09 | 继续对比：第 19 批（跨块连接 4 条 + 主线程收尾 A9）、第 20 批（C3 超时与 start 重置 3 条）写入精细对比记录；跨块连接表、C3 超时表标「已精细对比」；进度更新为第 1–20 批共 98 步。 |

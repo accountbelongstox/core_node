@@ -93,25 +93,15 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            # Get random point in title bar (screen coordinates)
-            screen_point = get_title_bar_random_point()
-
-            if screen_point is None:
-                ColorPrint.yellow("[D4OperationBase] No window size available for title bar click")
-                return False
-
-            screen_x, screen_y = screen_point
-            ColorPrint.blue(f"[D4OperationBase] Clicking title bar at screen ({screen_x}, {screen_y})")
-
-            # Click title bar instantly
-            pyautogui.click(screen_x, screen_y)
-            ColorPrint.green(f"[D4OperationBase] ✓ Title bar clicked successfully")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error clicking title bar: {e}")
+        screen_point = get_title_bar_random_point()
+        if screen_point is None:
+            ColorPrint.yellow("[D4OperationBase] No window size available for title bar click")
             return False
+        screen_x, screen_y = screen_point
+        ColorPrint.blue(f"[D4OperationBase] Clicking title bar at screen ({screen_x}, {screen_y})")
+        pyautogui.click(screen_x, screen_y)
+        ColorPrint.green(f"[D4OperationBase] ✓ Title bar clicked successfully")
+        return True
 
     def _click_point(
         self,
@@ -132,21 +122,11 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            # Calculate screen coordinate
-            screen_x, screen_y = calculate_screen_coordinate(point, use_standard_resolution)
-
-            # Use random duration if not specified
-            if duration is None:
-                duration = calculate_random_delay()
-
-            ColorPrint.gray(f"[D4OperationBase] Clicking point at screen ({screen_x}, {screen_y})")
-
-            return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error clicking point {point}: {e}")
-            return False
+        screen_x, screen_y = calculate_screen_coordinate(point, use_standard_resolution)
+        if duration is None:
+            duration = calculate_random_delay()
+        ColorPrint.gray(f"[D4OperationBase] Clicking point at screen ({screen_x}, {screen_y})")
+        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
 
     def _click_region(
         self,
@@ -171,26 +151,16 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            # Calculate random screen coordinate in region
-            screen_x, screen_y = calculate_random_point_in_region(
-                region_start,
-                region_end,
-                use_standard_resolution,
-                margin
-            )
-
-            # Use random duration if not specified
-            if duration is None:
-                duration = calculate_random_delay()
-
-            ColorPrint.gray(f"[D4OperationBase] Clicking region at random screen ({screen_x}, {screen_y})")
-
-            return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error clicking region {region_start}-{region_end}: {e}")
-            return False
+        screen_x, screen_y = calculate_random_point_in_region(
+            region_start,
+            region_end,
+            use_standard_resolution,
+            margin
+        )
+        if duration is None:
+            duration = calculate_random_delay()
+        ColorPrint.gray(f"[D4OperationBase] Clicking region at random screen ({screen_x}, {screen_y})")
+        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
 
     def _move_to(self, x: int, y: int, duration: float = 0.2) -> bool:
         """
@@ -204,11 +174,7 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            return self.click_handler.move_mouse_to(x, y, duration=duration)
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error moving to ({x}, {y}): {e}")
-            return False
+        return self.click_handler.move_mouse_to(x, y, duration=duration)
 
     def _press_key(self, key: str, delay: float = 0.1) -> bool:
         """
@@ -221,18 +187,11 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            ColorPrint.blue(f"[D4OperationBase] Pressing key: '{key}'")
-            pyautogui.press(key)
-
-            if delay > 0:
-                time.sleep(delay)
-
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error pressing key '{key}': {e}")
-            return False
+        ColorPrint.blue(f"[D4OperationBase] Pressing key: '{key}'")
+        pyautogui.press(key)
+        if delay > 0:
+            time.sleep(delay)
+        return True
 
     def _wait(self, seconds: float):
         """
@@ -275,24 +234,11 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if operation succeeded
         """
-        try:
-            # Ensure window is active (only once per operation)
-            if not self._ensure_window_active():
-                ColorPrint.yellow("[D4OperationBase] Window activation failed, attempting operation anyway")
-
-            # Execute the operation
-            result = self.execute()
-
-            # Reset activation flag for next operation
-            self._window_activated = False
-
-            return result
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error running operation: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        if not self._ensure_window_active():
+            ColorPrint.yellow("[D4OperationBase] Window activation failed, attempting operation anyway")
+        result = self.execute()
+        self._window_activated = False
+        return result
 
     # ============================================================================
     # Extended Methods for Auto Team Formation
@@ -340,43 +286,25 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            # Get region info
-            region_info = self._get_region_info(region_name)
-            if not region_info:
-                return False
-
-            coords = region_info['coords']
-            x1, y1, x2, y2 = coords
-
-            # Calculate center
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-
-            # Add random offset
-            offset_x = random.randint(-margin, margin)
-            offset_y = random.randint(-margin, margin)
-
-            target_x = center_x + offset_x
-            target_y = center_y + offset_y
-
-            ColorPrint.blue(f"[D4OperationBase] Clicking region '{region_name}' at ({target_x}, {target_y})")
-
-            # Click
-            point = (target_x, target_y)
-            if not self._click_point(point, use_standard_resolution=False):
-                return False
-
-            # Random delay
-            delay_seconds = random.uniform(delay_ms[0], delay_ms[1]) / 1000.0
-            time.sleep(delay_seconds)
-
-            ColorPrint.green(f"[D4OperationBase] ✓ Region clicked")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error clicking region '{region_name}': {e}")
+        region_info = self._get_region_info(region_name)
+        if not region_info:
             return False
+        coords = region_info['coords']
+        x1, y1, x2, y2 = coords
+        center_x = (x1 + x2) // 2
+        center_y = (y1 + y2) // 2
+        offset_x = random.randint(-margin, margin)
+        offset_y = random.randint(-margin, margin)
+        target_x = center_x + offset_x
+        target_y = center_y + offset_y
+        ColorPrint.blue(f"[D4OperationBase] Clicking region '{region_name}' at ({target_x}, {target_y})")
+        point = (target_x, target_y)
+        if not self._click_point(point, use_standard_resolution=False):
+            return False
+        delay_seconds = random.uniform(delay_ms[0], delay_ms[1]) / 1000.0
+        time.sleep(delay_seconds)
+        ColorPrint.green(f"[D4OperationBase] ✓ Region clicked")
+        return True
 
     def type_text(
         self,
@@ -393,20 +321,13 @@ class D4OperationBase(ABC):
         Returns:
             bool: True if successful
         """
-        try:
-            ColorPrint.blue(f"[D4OperationBase] Typing text: '{text}'")
-
-            for char in text:
-                pyautogui.write(char)
-                delay_seconds = random.uniform(char_delay_ms[0], char_delay_ms[1]) / 1000.0
-                time.sleep(delay_seconds)
-
-            ColorPrint.green(f"[D4OperationBase] ✓ Text typed")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error typing text: {e}")
-            return False
+        ColorPrint.blue(f"[D4OperationBase] Typing text: '{text}'")
+        for char in text:
+            pyautogui.write(char)
+            delay_seconds = random.uniform(char_delay_ms[0], char_delay_ms[1]) / 1000.0
+            time.sleep(delay_seconds)
+        ColorPrint.green(f"[D4OperationBase] ✓ Text typed")
+        return True
 
     def type_number(
         self,
@@ -444,36 +365,18 @@ class D4OperationBase(ABC):
         Returns:
             (x, y) coordinate or None
         """
-        try:
-            # Get region info
-            region_info = self._get_region_info(region_name)
-            if not region_info:
-                return None
-
-            coords = region_info['coords']
-            x1, y1, x2, y2 = coords
-
-            # Calculate row height
-            region_height = y2 - y1
-            row_height = region_height / total_rows
-
-            # Calculate target row center Y coordinate
-            # Row 1 is at the top, so: y = y1 + (row_number - 0.5) * row_height
-            target_y = y1 + (target_row - 0.5) * row_height
-
-            # Calculate center X
-            center_x = (x1 + x2) // 2
-
-            # Add random offset
-            offset_x = random.randint(-random_offset, random_offset)
-            offset_y = random.randint(-random_offset, random_offset)
-
-            result_x = int(center_x + offset_x)
-            result_y = int(target_y + offset_y)
-
-            ColorPrint.blue(f"[D4OperationBase] Calculated row {target_row}/{total_rows} point: ({result_x}, {result_y})")
-            return (result_x, result_y)
-
-        except Exception as e:
-            ColorPrint.red(f"[D4OperationBase] Error calculating row point: {e}")
+        region_info = self._get_region_info(region_name)
+        if not region_info:
             return None
+        coords = region_info['coords']
+        x1, y1, x2, y2 = coords
+        region_height = y2 - y1
+        row_height = region_height / total_rows
+        target_y = y1 + (target_row - 0.5) * row_height
+        center_x = (x1 + x2) // 2
+        offset_x = random.randint(-random_offset, random_offset)
+        offset_y = random.randint(-random_offset, random_offset)
+        result_x = int(center_x + offset_x)
+        result_y = int(target_y + offset_y)
+        ColorPrint.blue(f"[D4OperationBase] Calculated row {target_row}/{total_rows} point: ({result_x}, {result_y})")
+        return (result_x, result_y)

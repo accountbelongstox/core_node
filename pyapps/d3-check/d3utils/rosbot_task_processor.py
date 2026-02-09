@@ -29,7 +29,7 @@ from d3utils.rosbot_flow_state import (
 from d3utils.task_thread_manager import TaskStatus
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
 from d3utils.rosbot_flow.flow_master_driver import tick_flow_master
-from d3utils.rosbot_task_registry import register_start_rosbot_task
+from d3utils.rosbot_task_registry import register_start_rosbot_task, register_stop_rosbot_task
 from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
@@ -163,3 +163,4 @@ def run_full_status_refresh() -> Optional[dict]:
 
 
 register_start_rosbot_task(start_rosbot_task)
+register_stop_rosbot_task(stop_rosbot_task)

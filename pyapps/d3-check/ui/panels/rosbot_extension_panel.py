@@ -867,7 +867,8 @@ class RosbotExtensionPanel:
             ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _update_control_button(self):
-        """Update control button toggle state (text and color) from rosbot_running; same pattern as ensure Battle.net button."""
+        """Update control button from flow state (single source of truth). Keeps self.rosbot_running in sync for _toggle_rosbot."""
+        self.rosbot_running = get_flow_master_enabled()
         ColorPrint.debug(f"[RosbotPanel] Updating control button, rosbot_running: {self.rosbot_running}")
         if self.rosbot_running:
             self.control_btn.config(
@@ -902,7 +903,8 @@ class RosbotExtensionPanel:
             self.container.after(0, lambda s=state: self._update_ui_from_state(s))
 
     def _update_ui_from_state(self, state):
-        """Push state to bottom bar and ensure-BN button. Do not sync Start/Stop button here: button only drives tick state (Start ROSBOT: E block driven by extension thread after F2, not by E-pending)."""
+        """Push state to bottom bar, ensure-BN button, and Start/Stop button from flow state (toggle reflects get_flow_master_enabled())."""
         if getattr(self, "_bottom_bar", None):
             self._bottom_bar.update_status_from_state(state)
         self._update_ensure_battlenet_button()
+        self._update_control_button()

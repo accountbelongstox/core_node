@@ -291,29 +291,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
     image_path = sys.argv[1]
-
-    try:
-        result = d4_detect_red_portal(image_path)
-
-        if result:
-            x, y, w, h = result
-            print(f"Red portal detected!")
-            print(f"  Position: ({x}, {y})")
-            print(f"  Size: {w}x{h}")
-
-            # Draw result for visualization
-            img = cv2.imread(image_path)
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(img, f"Portal ({w}x{h})", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-            output_path = Path(image_path).parent / f"{Path(image_path).stem}_portal_detected.png"
-            cv2.imwrite(str(output_path), img)
-            print(f"  Visualization saved: {output_path}")
-        else:
-            print("No red portal detected.")
-
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    result = d4_detect_red_portal(image_path)
+    if result:
+        x, y, w, h = result
+        print(f"Red portal detected!")
+        print(f"  Position: ({x}, {y})")
+        print(f"  Size: {w}x{h}")
+        img = cv2.imread(image_path)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(img, f"Portal ({w}x{h})", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        output_path = Path(image_path).parent / f"{Path(image_path).stem}_portal_detected.png"
+        cv2.imwrite(str(output_path), img)
+        print(f"  Visualization saved: {output_path}")
+    else:
+        print("No red portal detected.")

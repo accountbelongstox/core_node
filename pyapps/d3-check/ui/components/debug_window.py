@@ -207,55 +207,55 @@ class DebugWindow:
         if pil_img is None or coords is None:
             return pil_img
         img = pil_img.copy()
-            draw = ImageDraw.Draw(img)
-            w, h = img.size
-            rows, cols = coords.rows, coords.cols
-            slot_w = w / cols
-            slot_h = h / rows
-            # Quality color (RGB): same as image_annotator_helper
-            quality_colors = {
-                'empty': (100, 100, 100),
-                'legendary_set': (0, 200, 0),
-                'legendary': (255, 165, 0),
-                'rare': (255, 255, 0),
-                'magic': (0, 128, 255),
-                'unknown': (128, 128, 128),
-            }
-            grid_color = (160, 160, 160)
-            # Grid lines
-            for col in range(cols + 1):
-                x = int(col * slot_w)
-                draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
-            for row in range(rows + 1):
-                y = int(row * slot_h)
-                draw.line([(0, y), (w, y)], fill=grid_color, width=1)
-            # Slot quality labels
-            if layout and getattr(layout, "layout", None) and getattr(layout, "items", None):
-                layout_grid = layout.layout
-                items = layout.items
-                for row in range(rows):
-                    for col in range(cols):
-                        if layout_grid[row][col] == 'item_2slot_bottom':
-                            continue
-                        cx = int((col + 0.5) * slot_w)
-                        cy = int((row + 0.5) * slot_h)
-                        info = items.get((row, col))
-                        if not info:
-                            continue
-                        quality = info.get('quality', 'unknown')
-                        color = quality_colors.get(quality, (128, 128, 128))
-                        letter = quality[0].upper() if quality else '?'
-                        # Draw small filled rect as marker
-                        r = max(2, min(int(slot_w * 0.15), int(slot_h * 0.15)))
-                        draw.rectangle(
-                            [cx - r, cy - r, cx + r, cy + r],
-                            outline=color,
-                            fill=color,
-                            width=2
-                        )
-                        # Text (default font, small)
-                        tw, th = 8, 10
-                        draw.text((cx - tw // 2, cy - th // 2), letter, fill=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        rows, cols = coords.rows, coords.cols
+        slot_w = w / cols
+        slot_h = h / rows
+        # Quality color (RGB): same as image_annotator_helper
+        quality_colors = {
+            'empty': (100, 100, 100),
+            'legendary_set': (0, 200, 0),
+            'legendary': (255, 165, 0),
+            'rare': (255, 255, 0),
+            'magic': (0, 128, 255),
+            'unknown': (128, 128, 128),
+        }
+        grid_color = (160, 160, 160)
+        # Grid lines
+        for col in range(cols + 1):
+            x = int(col * slot_w)
+            draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
+        for row in range(rows + 1):
+            y = int(row * slot_h)
+            draw.line([(0, y), (w, y)], fill=grid_color, width=1)
+        # Slot quality labels
+        if layout and getattr(layout, "layout", None) and getattr(layout, "items", None):
+            layout_grid = layout.layout
+            items = layout.items
+            for row in range(rows):
+                for col in range(cols):
+                    if layout_grid[row][col] == 'item_2slot_bottom':
+                        continue
+                    cx = int((col + 0.5) * slot_w)
+                    cy = int((row + 0.5) * slot_h)
+                    info = items.get((row, col))
+                    if not info:
+                        continue
+                    quality = info.get('quality', 'unknown')
+                    color = quality_colors.get(quality, (128, 128, 128))
+                    letter = quality[0].upper() if quality else '?'
+                    # Draw small filled rect as marker
+                    r = max(2, min(int(slot_w * 0.15), int(slot_h * 0.15)))
+                    draw.rectangle(
+                        [cx - r, cy - r, cx + r, cy + r],
+                        outline=color,
+                        fill=color,
+                        width=2
+                    )
+                    # Text (default font, small)
+                    tw, th = 8, 10
+                    draw.text((cx - tw // 2, cy - th // 2), letter, fill=(255, 255, 255))
         return img
 
     def _update_d3_bag_section(self):

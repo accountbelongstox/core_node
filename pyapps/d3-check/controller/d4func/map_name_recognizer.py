@@ -68,35 +68,24 @@ class MapNameRecognizer:
         if not OCR_AVAILABLE:
             ColorPrint.yellow("[MapNameRecognizer] CnOCR engine not available, map recognition disabled")
             return
-
-        try:
-            # Get OCR configuration for map name recognition task
-            ocr_config = get_ocr_config_for_task('map_name')
-
-            if ocr_config is None:
-                ColorPrint.yellow("[MapNameRecognizer] No OCR config found for map_name task, using default")
-                from .ocr_config import OCRConfig
-                ocr_config = OCRConfig.get_default_config()
-
-            ColorPrint.blue("[MapNameRecognizer] Initializing CnOCR engine...")
-            ColorPrint.blue(f"[MapNameRecognizer] Using model: {ocr_config.rec_model_name}")
-            ColorPrint.blue(f"[MapNameRecognizer] Description: {ocr_config.description}")
-
-            self.cnocr_engine = CnOCREngine(
-                det_model_name=ocr_config.det_model_name,
-                rec_model_name=ocr_config.rec_model_name
-            )
-
-            if self.cnocr_engine.init():
-                ColorPrint.green("[MapNameRecognizer] CnOCR engine initialized successfully")
-                ColorPrint.green(f"[MapNameRecognizer] Model: {ocr_config.rec_model_name}")
-                ColorPrint.green(f"[MapNameRecognizer] Use case: {ocr_config.use_case}")
-            else:
-                ColorPrint.yellow("[MapNameRecognizer] CnOCR engine initialization failed")
-                self.cnocr_engine = None
-
-        except Exception as e:
-            ColorPrint.red(f"[MapNameRecognizer] Error initializing CnOCR: {e}")
+        ocr_config = get_ocr_config_for_task('map_name')
+        if ocr_config is None:
+            ColorPrint.yellow("[MapNameRecognizer] No OCR config found for map_name task, using default")
+            from .ocr_config import OCRConfig
+            ocr_config = OCRConfig.get_default_config()
+        ColorPrint.blue("[MapNameRecognizer] Initializing CnOCR engine...")
+        ColorPrint.blue(f"[MapNameRecognizer] Using model: {ocr_config.rec_model_name}")
+        ColorPrint.blue(f"[MapNameRecognizer] Description: {ocr_config.description}")
+        self.cnocr_engine = CnOCREngine(
+            det_model_name=ocr_config.det_model_name,
+            rec_model_name=ocr_config.rec_model_name
+        )
+        if self.cnocr_engine.init():
+            ColorPrint.green("[MapNameRecognizer] CnOCR engine initialized successfully")
+            ColorPrint.green(f"[MapNameRecognizer] Model: {ocr_config.rec_model_name}")
+            ColorPrint.green(f"[MapNameRecognizer] Use case: {ocr_config.use_case}")
+        else:
+            ColorPrint.yellow("[MapNameRecognizer] CnOCR engine initialization failed")
             self.cnocr_engine = None
 
     def recognize_map_name(self) -> bool:
