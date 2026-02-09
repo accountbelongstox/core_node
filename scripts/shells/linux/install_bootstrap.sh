@@ -346,6 +346,7 @@ resolve_project_root() {
     if [ -z "${CORE_NODE_PROJECT_ROOT:-}" ]; then
         CORE_NODE_PROJECT_ROOT="$(get_base_data_directory)/programing/core_node"
     fi
+    persist_base_data_directory "${CORE_NODE_PROJECT_ROOT%/programing/core_node}"
     log_ok "Project directory (map path): $CORE_NODE_PROJECT_ROOT"
     return 0
 }
@@ -365,6 +366,7 @@ run_setting_base_if_desired() {
         if [ -z "${CORE_NODE_PROJECT_ROOT:-}" ]; then
             CORE_NODE_PROJECT_ROOT="$(get_base_data_directory)/programing/core_node"
         fi
+        persist_base_data_directory "${CORE_NODE_PROJECT_ROOT%/programing/core_node}"
         log_ok "Project directory after base setup: $CORE_NODE_PROJECT_ROOT"
     fi
     return 0

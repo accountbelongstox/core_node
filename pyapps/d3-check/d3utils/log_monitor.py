@@ -22,6 +22,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_watchdog
 from providor.providor_index import get_config_value_safe
 from d3utils.log_analyzer import analyze_log_line
+import d3utils.log_monitor_api as _log_monitor_api
 
 # Log line timestamp pattern: "2026-02-07 14:52:46,114 INFO - ..." (some lines have no timestamp)
 _LOG_TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d{3})")
@@ -248,3 +249,6 @@ def set_rosbot_running(running: bool) -> None:
 def is_file_watcher_available() -> bool:
     """Return True if watchdog is installed and log is driven by file changes."""
     return _WATCHDOG_AVAILABLE
+
+
+_log_monitor_api.register(get_log_monitor)

@@ -70,8 +70,8 @@ log "Storage Detection:"
 base_dir=$(get_base_data_directory)
 log "  - Base Data Directory: $base_dir"
 
-# Show NTFS detection
-if has_ntfs_disk 2>&1 | grep -q "Found NTFS"; then
+# Show NTFS detection (has_ntfs_disk returns 0/1, no output)
+if has_ntfs_disk; then
     log "  - NTFS Disk: Detected"
 else
     log "  - NTFS Disk: Not found"

@@ -19,7 +19,7 @@ import time
 from typing import Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import LOGS_FILE_PATH
-from d3utils.log_monitor import set_log_file, set_rosbot_running
+from d3utils.log_monitor_api import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import (
     get_flow_master_enabled,
@@ -29,6 +29,7 @@ from d3utils.rosbot_flow_state import (
 from d3utils.task_thread_manager import TaskStatus
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
 from d3utils.rosbot_flow.flow_master_driver import tick_flow_master
+from d3utils.rosbot_task_registry import register_start_rosbot_task
 from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
@@ -159,3 +160,6 @@ def run_full_status_refresh() -> Optional[dict]:
     refresh_rosbot_status()
     get_game_interface_data().notify_state_sync()
     return d3_info
+
+
+register_start_rosbot_task(start_rosbot_task)

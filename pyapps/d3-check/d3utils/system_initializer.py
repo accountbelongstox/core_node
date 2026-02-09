@@ -25,9 +25,16 @@ from providor.providor_index import initialize_config, LOGS_FILE_PATH
 # Import static global modules
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
-from d3utils.shutdown_manager import is_shutdown_requested, register_hotkey_listener
+from d3utils.shutdown_manager import (
+    is_shutdown_requested,
+    register_hotkey_listener,
+    register_stop_log_watching,
+)
 from d3utils import event_center
 import d3utils.log_monitor as log_monitor_module
+
+register_stop_log_watching(lambda: log_monitor_module.get_log_monitor().stop_watching())
+
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
 import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys

@@ -133,34 +133,26 @@ class D4Controller:
         """
         from providor.constants.common import DEBUG
         window_size = self.d4_data.game_window_size if self.d4_data.game_window_size else (0, 0)
-            is_windowed = self.d4_data.is_windowed_mode()
-
-            # Get region/point counts
-            region_count = len(self.d4_data.detected_regions) if hasattr(self.d4_data, 'detected_regions') and self.d4_data.detected_regions else 0
-            point_count = len(self.d4_data.detected_points) if hasattr(self.d4_data, 'detected_points') and self.d4_data.detected_points else 0
-
-            # Get screenshot path
-            screenshot_path = self.d4_data.last_screenshot_path if hasattr(self.d4_data, 'last_screenshot_path') and self.d4_data.last_screenshot_path else "N/A"
-            if screenshot_path and screenshot_path != "N/A" and len(screenshot_path) > 60:
-                screenshot_path = "..." + screenshot_path[-57:]
-
-            # Get annotated image path
-            annotated_path = self.d4_data.last_annotated_screenshot_path if hasattr(self.d4_data, 'last_annotated_screenshot_path') else None
-            annotated_display = "N/A"
-            if annotated_path:
-                annotated_display = "..." + annotated_path[-57:] if len(annotated_path) > 60 else annotated_path
-
-            # Print summary
-            print("-" * 80)
-            ColorPrint.green(f"[Summary] Status: {'[OK] Success' if success else '[ERROR] Failed'}")
-            ColorPrint.blue(f"[Summary] DEBUG Mode: {'Enabled' if DEBUG else 'Disabled'}")
-            ColorPrint.blue(f"[Summary] Window: {window_size[0]}x{window_size[1]} ({'Windowed' if is_windowed else 'Fullscreen'})")
-            ColorPrint.blue(f"[Summary] Detected: {region_count} regions, {point_count} points")
-            if screenshot_path != "N/A":
-                ColorPrint.blue(f"[Summary] Screenshot: {screenshot_path}")
-            if annotated_path:
-                ColorPrint.blue(f"[Summary] Annotated: {annotated_display}")
-            print("=" * 80 + "\n")
+        is_windowed = self.d4_data.is_windowed_mode()
+        region_count = len(self.d4_data.detected_regions) if hasattr(self.d4_data, 'detected_regions') and self.d4_data.detected_regions else 0
+        point_count = len(self.d4_data.detected_points) if hasattr(self.d4_data, 'detected_points') and self.d4_data.detected_points else 0
+        screenshot_path = self.d4_data.last_screenshot_path if hasattr(self.d4_data, 'last_screenshot_path') and self.d4_data.last_screenshot_path else "N/A"
+        if screenshot_path and screenshot_path != "N/A" and len(screenshot_path) > 60:
+            screenshot_path = "..." + screenshot_path[-57:]
+        annotated_path = self.d4_data.last_annotated_screenshot_path if hasattr(self.d4_data, 'last_annotated_screenshot_path') else None
+        annotated_display = "N/A"
+        if annotated_path:
+            annotated_display = "..." + annotated_path[-57:] if len(annotated_path) > 60 else annotated_path
+        print("-" * 80)
+        ColorPrint.green(f"[Summary] Status: {'[OK] Success' if success else '[ERROR] Failed'}")
+        ColorPrint.blue(f"[Summary] DEBUG Mode: {'Enabled' if DEBUG else 'Disabled'}")
+        ColorPrint.blue(f"[Summary] Window: {window_size[0]}x{window_size[1]} ({'Windowed' if is_windowed else 'Fullscreen'})")
+        ColorPrint.blue(f"[Summary] Detected: {region_count} regions, {point_count} points")
+        if screenshot_path != "N/A":
+            ColorPrint.blue(f"[Summary] Screenshot: {screenshot_path}")
+        if annotated_path:
+            ColorPrint.blue(f"[Summary] Annotated: {annotated_display}")
+        print("=" * 80 + "\n")
 
     def start_exp_farming(self):
         """
@@ -213,34 +205,25 @@ class D4Controller:
         This method checks if debug window is open before updating images.
         This implements the interceptor pattern - only execute when condition is met.
         """
-        try:
-            ColorPrint.blue(f"[D4Controller] Checking debug window status: {self.d4_data.debug_window_open}")
-
-            # Check if debug window is open (interceptor logic)
-            if not self.d4_data.debug_window_open:
-                ColorPrint.yellow("[D4Controller] Debug window is closed, skipping update")
-                return  # Skip update if window is closed
-
-            ColorPrint.blue("[D4Controller] Debug window is open, updating images...")
-
-            # Check detected_regions status
-            if self.d4_data.detected_regions is None:
-                ColorPrint.yellow("[D4Controller] detected_regions is None")
-            elif 'region_images' not in self.d4_data.detected_regions:
-                ColorPrint.yellow(f"[D4Controller] 'region_images' not in detected_regions. Keys: {list(self.d4_data.detected_regions.keys())}")
-            else:
-                region_count = len(self.d4_data.detected_regions.get('region_images', {}))
-                ColorPrint.blue(f"[D4Controller] detected_regions has {region_count} region images")
-
-            # Get debug window and update images
-            from ui.components.debug_window import get_debug_window
-            debug_window = get_debug_window()
-
-            if debug_window is not None:
-                debug_window.update_images()
-                ColorPrint.green("[D4Controller] Debug window images updated successfully")
-            else:
-                ColorPrint.yellow("[D4Controller] Debug window instance is None")
+        ColorPrint.blue(f"[D4Controller] Checking debug window status: {self.d4_data.debug_window_open}")
+        if not self.d4_data.debug_window_open:
+            ColorPrint.yellow("[D4Controller] Debug window is closed, skipping update")
+            return
+        ColorPrint.blue("[D4Controller] Debug window is open, updating images...")
+        if self.d4_data.detected_regions is None:
+            ColorPrint.yellow("[D4Controller] detected_regions is None")
+        elif 'region_images' not in self.d4_data.detected_regions:
+            ColorPrint.yellow(f"[D4Controller] 'region_images' not in detected_regions. Keys: {list(self.d4_data.detected_regions.keys())}")
+        else:
+            region_count = len(self.d4_data.detected_regions.get('region_images', {}))
+            ColorPrint.blue(f"[D4Controller] detected_regions has {region_count} region images")
+        from ui.components.debug_window import get_debug_window
+        debug_window = get_debug_window()
+        if debug_window is not None:
+            debug_window.update_images()
+            ColorPrint.green("[D4Controller] Debug window images updated successfully")
+        else:
+            ColorPrint.yellow("[D4Controller] Debug window instance is None")
 
 # Global D4 controller instance (singleton)
 _d4_controller = None

@@ -18,7 +18,6 @@ from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 # Import static global modules
 import timers.timer_manager as timer_manager
-import d3utils.log_monitor as _log_mon
 from d3utils.task_thread_manager import get_task_manager
 from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
@@ -32,6 +31,15 @@ _hotkey_listener: Optional[HotkeyListener] = None
 
 # Hooks run during execute_shutdown (step 2). Modules like rosbot_flow_battlenet register here.
 _shutdown_hooks: List[Callable[[], None]] = []
+
+# Stop log watcher: registered by system_initializer (avoids importing log_monitor here and circular import).
+_stop_log_watching_fn: Optional[Callable[[], None]] = None
+
+
+def register_stop_log_watching(fn: Callable[[], None]) -> None:
+    """Register callable to stop log file watcher on shutdown. Called by system_initializer."""
+    global _stop_log_watching_fn
+    _stop_log_watching_fn = fn
 
 
 def register_shutdown_hook(hook: Callable[[], None]) -> None:
@@ -177,10 +185,11 @@ def execute_shutdown():
             ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")
 
         # Step 2.5: Stop log file watcher (watchdog observer)
-        try:
-            _log_mon.stop_log_watching()
-        except Exception:
-            pass
+        if _stop_log_watching_fn is not None:
+            try:
+                _stop_log_watching_fn()
+            except Exception:
+                pass
 
         # Step 3: Stop timer manager
         try:

@@ -211,6 +211,8 @@ def _do_window_ui_analyze(
                     docs_json_path = docs_dir / docs_json_filename
                     shutil.copy2(json_path, docs_json_path)
                     ColorPrint.green(f"[RosbotPanel] Copied JSON to docs: {docs_json_path}")
+            except Exception as copy_err:
+                ColorPrint.yellow(f"[RosbotPanel] Copy to docs failed: {copy_err}")
 
         def _on_done():
             ColorPrint.blue(f"[RosbotPanel] {log_label}: {jp}")

@@ -329,9 +329,11 @@ _resolve_device_mount_path() {
     return 1
 }
 
+# Centralized path for persisted base data directory (used by bootstrap and project)
+BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
+
 # Function to get optimal base directory for data storage
-# Logic: Mount all NTFS and all data disks (done in 2_setting_base). Use the SINGLE LARGEST disk (by size) as data base, regardless of type (NTFS or ext4/xfs/btrfs).
-# Priority: WSL /mnt/d -> Largest of (largest NTFS, largest data disk) -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir=""
 
@@ -342,7 +344,16 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Compare largest NTFS vs largest data disk; use the absolute largest
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
+    if [ -s "$BASE_DATA_DIR_FILE" ]; then
+        read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
+            echo "$read_base"
+            return 0
+        fi
+    fi
+
+    # Priority 3: Compare largest NTFS vs largest data disk; use the absolute largest
     local ntfs_line data_line ntfs_size data_size ntfs_device data_device chosen_device path
     ntfs_line=$(get_largest_ntfs_with_size)
     data_line=$(get_largest_data_with_size)
@@ -387,6 +398,18 @@ get_base_data_directory() {
     base_dir="/www"
     echo "$base_dir"
     return 0
+}
+
+# Persist base data directory to global var so all scripts (bootstrap, project dd.sh) use the same path
+persist_base_data_directory() {
+    local base_dir="${1:-$(get_base_data_directory)}"
+    local dir_file="${2:-$BASE_DATA_DIR_FILE}"
+    local parent_dir
+    parent_dir=$(dirname "$dir_file")
+    if [ ! -d "$parent_dir" ]; then
+        $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
+    fi
+    echo "$base_dir" | $USE_SUDO tee "$dir_file" >/dev/null 2>&1 || echo "$base_dir" > "$dir_file" 2>/dev/null || true
 }
 
 # Function to detect if system has NTFS disks

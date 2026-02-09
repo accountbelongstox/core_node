@@ -57,48 +57,28 @@ class RegionDetector:
         Returns:
             bool: True if successful, False otherwise
         """
-        try:
-            ColorPrint.blue("[RegionDetector] Detecting regions from shared data...")
-
-            # Get screenshot_data from shared memory
-            screenshot_data = self.d4_data.screenshot_data
-            ColorPrint.blue(f"[RegionDetector] Screenshot data from shared memory: {screenshot_data is not None}")
-            if screenshot_data is None:
-                ColorPrint.yellow("[RegionDetector] No screenshot data in shared memory")
-                return False
-
-            # Detect team health bars
-            self._detect_team_health(screenshot_data)
-
-            # Detect small map (town vs dungeon)
-            self._detect_small_map(screenshot_data)
-
-            # Detect regions and update interface data
-            is_windowed = self.d4_data.is_windowed_mode()
-            detection_success = self._detect_and_update_regions(
-                screenshot_data.game_window_size,
-                is_windowed,
-                screenshot_data.game_window_image  # Pass screenshot for annotation
-            )
-
-            # Extract ALL regions to detected_regions (executed AFTER region detection)
-            # This replaces separate team_regions and debug_regions extraction
-            ColorPrint.blue("[RegionDetector] About to extract all regions to share...")
-            self._extract_all_regions_to_share(screenshot_data)
-            ColorPrint.blue("[RegionDetector] Finished extracting all regions to share")
-
-            if detection_success:
-                ColorPrint.green("[RegionDetector] Region detection successful")
-            else:
-                ColorPrint.yellow("[RegionDetector] Region detection failed")
-            
-            return detection_success
-
-        except Exception as e:
-            ColorPrint.red(f"[RegionDetector] Error detecting regions: {e}")
-            import traceback
-            traceback.print_exc()
+        ColorPrint.blue("[RegionDetector] Detecting regions from shared data...")
+        screenshot_data = self.d4_data.screenshot_data
+        ColorPrint.blue(f"[RegionDetector] Screenshot data from shared memory: {screenshot_data is not None}")
+        if screenshot_data is None:
+            ColorPrint.yellow("[RegionDetector] No screenshot data in shared memory")
             return False
+        self._detect_team_health(screenshot_data)
+        self._detect_small_map(screenshot_data)
+        is_windowed = self.d4_data.is_windowed_mode()
+        detection_success = self._detect_and_update_regions(
+            screenshot_data.game_window_size,
+            is_windowed,
+            screenshot_data.game_window_image
+        )
+        ColorPrint.blue("[RegionDetector] About to extract all regions to share...")
+        self._extract_all_regions_to_share(screenshot_data)
+        ColorPrint.blue("[RegionDetector] Finished extracting all regions to share")
+        if detection_success:
+            ColorPrint.green("[RegionDetector] Region detection successful")
+        else:
+            ColorPrint.yellow("[RegionDetector] Region detection failed")
+        return detection_success
 
     def _extract_all_regions_to_share(self, screenshot_data):
         """

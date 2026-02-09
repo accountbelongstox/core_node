@@ -38,14 +38,11 @@ from providor.constants.d4 import (
 
 def _resolve_d4_battlenet_region() -> Optional[str]:
     """Resolve Battle.net region: game_interface_data first, then config cache."""
-    try:
-        r = get_game_interface_data().get_battlenet_region()
-        if r is not None:
-            return r
-        cached = get_config_value_safe("ros_settings.battlenet_region_cache")
-        return cached if cached in ("asia", "cn") else None
-    except Exception:
-        return None
+    r = get_game_interface_data().get_battlenet_region()
+    if r is not None:
+        return r
+    cached = get_config_value_safe("ros_settings.battlenet_region_cache")
+    return cached if cached in ("asia", "cn") else None
 
 
 def _play_button_indicates_starting(ctrl: Dict[str, Any]) -> bool:
@@ -205,21 +202,17 @@ class D4BattlenetOperation:
             return False
         import subprocess
         import os
-        try:
-            ColorPrint.blue("[D4BattlenetOperation] Starting Battle.net: %s" % path)
-            subprocess.run(
-                ["explorer", str(path)],
-                cwd=str(path.parent),
-                capture_output=True,
-                text=True,
-                timeout=30,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
-            ColorPrint.green("[D4BattlenetOperation] Battle.net start command sent")
-            return True
-        except Exception as e:
-            ColorPrint.red("[D4BattlenetOperation] Start error: %s" % e)
-            return False
+        ColorPrint.blue("[D4BattlenetOperation] Starting Battle.net: %s" % path)
+        subprocess.run(
+            ["explorer", str(path)],
+            cwd=str(path.parent),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        ColorPrint.green("[D4BattlenetOperation] Battle.net start command sent")
+        return True
 
     def close(self) -> bool:
         """Kill Battle.net process. Uses d3utils.process_helper (shared infra)."""

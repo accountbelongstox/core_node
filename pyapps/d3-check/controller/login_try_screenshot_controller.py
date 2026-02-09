@@ -51,7 +51,7 @@ from share.game_interface_data import (
     get_and_clear_request_d_block_from_b7,
 )
 from d3utils.battlenet_manager import get_battlenet_manager
-from d3utils.rosbot_flow_battlenet import is_bn_flow_in_login_phase
+from d3utils.rosbot_flow.flow_bn_block_state import is_bn_flow_in_login_phase as _is_bn_flow_in_login_phase
 from d3utils.d3_manager import get_d3_manager
 from d3utils.window_resizer import resize_window_by_titles_to_client_size
 from d3utils.d3_start_game_and_teleport_waiter import (
@@ -62,7 +62,7 @@ from d3utils.d3_start_game_and_teleport_waiter import (
     send_m_then_teleport_three_clicks,
 )
 from d3utils.rosbot_manager import get_rosbot_manager
-from d3utils.rosbot_task_processor import start_rosbot_task
+from d3utils.rosbot_task_registry import get_start_rosbot_task
 from d3utils.rosbot_ui_automation import run_after_rosbot_start
 from config.screenshot_categories import get_screenshot_category_manager, MATCH_DEBUG_DIR
 from d3utils.screenshot_provider import get_screenshot_provider
@@ -76,7 +76,7 @@ from d3utils.ocr_helper import (
 )
 from d3utils.battlenet_capture import capture_battlenet_and_save_to_category
 from d3utils.battlenet_operation import get_battlenet_operation
-from d3utils.rosbot_flow_battlenet import get_and_clear_battlenet_tick_confirmed, reset_flow_master_bn_block
+from d3utils.rosbot_flow.flow_bn_block_state import get_and_clear_battlenet_tick_confirmed as _get_and_clear_battlenet_tick_confirmed
 from d3utils.rosbot_flow.flow_c_d3_direct import (
     run_c1_entry,
     run_c2_resize,
@@ -506,7 +506,9 @@ class LoginTryScreenshotController:
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
                 if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
-                    start_rosbot_task()
+                    fn = get_start_rosbot_task()
+                    if fn:
+                        fn()
                     run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
                 return "success"
             if r1 is False or r1 is None:
@@ -518,7 +520,9 @@ class LoginTryScreenshotController:
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
                 if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
-                    start_rosbot_task()
+                    fn = get_start_rosbot_task()
+                    if fn:
+                        fn()
                     run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
                 return "success"
             run_c12_end_d3()  # [C6] path fail -> C12 (doc: fallthrough to D)
@@ -546,7 +550,7 @@ class LoginTryScreenshotController:
         # D block from B7: only treat as battlenet_confirmed when NOT on login screen (tick flow may have moved to BN_LoginAsia/BN_Login1/BN_Login2 after B7 triggered).
         if get_request_d_block_from_b7():
             ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_request_d_block_from_b7")
-            if is_bn_flow_in_login_phase():
+            if _is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False):
                 get_and_clear_request_d_block_from_b7()
                 battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
                 if not battlenet_confirmed:
@@ -555,7 +559,7 @@ class LoginTryScreenshotController:
                 get_and_clear_request_d_block_from_b7()
                 battlenet_confirmed = True
                 ColorPrint.blue("[LoginTryScreenshotController] D block from B7 (no operable UI): run D3 tab, Play, region (CN/Asia) then C or D")
-        elif get_and_clear_battlenet_tick_confirmed():
+        elif _get_and_clear_battlenet_tick_confirmed(True) or _get_and_clear_battlenet_tick_confirmed(False):
             ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_and_clear_battlenet_tick_confirmed (tick-confirmed)")
             battlenet_confirmed = True
             from_tick_fast_path = True
@@ -572,7 +576,7 @@ class LoginTryScreenshotController:
         has_bn_confirmed = battlenet_confirmed
         has_d3_process = get_d3_manager().is_running()
         # When tick flow is on login screen (BN_LoginAsia/BN_Login1/BN_Login2), do not run D block (kill D3, capture, expect small map). Let tick flow finish login; controller will be triggered again after BN_Confirmed.
-        if not has_bn_confirmed and is_bn_flow_in_login_phase():
+        if not has_bn_confirmed and (_is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False)):
             ColorPrint.blue("[LoginTryScreenshotController] Flow on login screen, skip D block (no kill/restart); tick flow will perform login")
             return False
         if has_bn_confirmed and has_d3_process:

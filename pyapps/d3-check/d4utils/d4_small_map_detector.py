@@ -77,74 +77,46 @@ class D4SmallMapDetector:
         Returns:
             Dictionary with detection results
         """
-        try:
-            # Get screenshot data from shared memory
-            screenshot_data = self.d4_data.screenshot_data
-            if not screenshot_data or not screenshot_data.game_window_image:
-                ColorPrint.yellow("[D4SmallMapDetector] No screenshot data available")
-                return self._create_detection_result(False, "No screenshot data")
-
-            # Get minimap region coordinates
-            minimap_start = D4_STANDARD_COORDS.minimap_region_start
-            minimap_end = D4_STANDARD_COORDS.minimap_region_end
-
-            # Calculate scaled coordinates
-            game_window_size = screenshot_data.game_window_size
-            is_windowed = self.d4_data.is_windowed_mode()
-
-            scaled_start = calculate_unified_scaled_coordinate(
-                minimap_start,
-                game_window_size,
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                is_windowed
-            )
-            scaled_end = calculate_unified_scaled_coordinate(
-                minimap_end,
-                game_window_size,
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                is_windowed
-            )
-
-            # Extract minimap region from screenshot_data
-            minimap_region = self._extract_minimap_region(
-                screenshot_data.game_window_image,
-                scaled_start,
-                scaled_end
-            )
-            
-            if minimap_region is None:
-                return self._create_detection_result(False, "Failed to extract minimap region")
-            
-            # Perform template matching
-            match_result = self._match_small_map_template(minimap_region)
-            
-            # Determine location type
-            is_in_town = match_result["found"]
-            location_type = "Town" if is_in_town else "Dungeon"
-            
-            # Create detection result
-            result = self._create_detection_result(
-                is_in_town,
-                f"Location: {location_type}",
-                match_result
-            )
-            
-            # Update shared data
-            self._update_shared_data(result)
-            
-            # Save debug image if enabled
-            if DEBUG:
-                self._save_debug_image(minimap_region, match_result, result)
-            
-            # Log detection result
-            ColorPrint.green(f"[D4SmallMapDetector] Detection result: {location_type} (confidence: {match_result.get('confidence', 0):.3f})")
-            
-            return result
-            
-        except Exception as e:
-            error_msg = f"Error in small map detection: {e}"
-            ColorPrint.red(f"[D4SmallMapDetector] {error_msg}")
-            return self._create_detection_result(False, error_msg)
+        screenshot_data = self.d4_data.screenshot_data
+        if not screenshot_data or not screenshot_data.game_window_image:
+            ColorPrint.yellow("[D4SmallMapDetector] No screenshot data available")
+            return self._create_detection_result(False, "No screenshot data")
+        minimap_start = D4_STANDARD_COORDS.minimap_region_start
+        minimap_end = D4_STANDARD_COORDS.minimap_region_end
+        game_window_size = screenshot_data.game_window_size
+        is_windowed = self.d4_data.is_windowed_mode()
+        scaled_start = calculate_unified_scaled_coordinate(
+            minimap_start,
+            game_window_size,
+            (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+            is_windowed
+        )
+        scaled_end = calculate_unified_scaled_coordinate(
+            minimap_end,
+            game_window_size,
+            (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+            is_windowed
+        )
+        minimap_region = self._extract_minimap_region(
+            screenshot_data.game_window_image,
+            scaled_start,
+            scaled_end
+        )
+        if minimap_region is None:
+            return self._create_detection_result(False, "Failed to extract minimap region")
+        match_result = self._match_small_map_template(minimap_region)
+        is_in_town = match_result["found"]
+        location_type = "Town" if is_in_town else "Dungeon"
+        result = self._create_detection_result(
+            is_in_town,
+            f"Location: {location_type}",
+            match_result
+        )
+        self._update_shared_data(result)
+        if DEBUG:
+            self._save_debug_image(minimap_region, match_result, result)
+        ColorPrint.green(f"[D4SmallMapDetector] Detection result: {location_type} (confidence: {match_result.get('confidence', 0):.3f})")
+        return result
 
     def _extract_minimap_region(self, screenshot: Image.Image, start: Tuple[int, int], end: Tuple[int, int]) -> Optional[np.ndarray]:
         """
