@@ -23,6 +23,7 @@ from d3utils.ui_control_operations import (
     click_at_control_rect,
 )
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +188,7 @@ def operate_by_spec(
         return False
 
     params = dict(click_params or {})
-    c = clicker if clicker is not None else ClickHandler()
+    c = clicker if clicker is not None else get_click_handler()
     type_hint = (target.get("type") or "").strip()
 
     if action == "invoke":

@@ -9,9 +9,7 @@ import tkinter as tk
 from ..theme import UITheme
 from ..unified_styles import UnifiedStyles
 from ..widgets import ThemedCheckbutton, ThemedEntry
-from d3utils.i18n_manager import I18nManager
-
-i18n_manager = I18nManager()
+from d3utils.i18n_manager import i18n_manager
 
 
 class BottomBarOptionsBlock:

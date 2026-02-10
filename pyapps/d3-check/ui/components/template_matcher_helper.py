@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Template Matcher Helper Component
-Handles template image matching and visualization on screenshots
+Handles template image matching and visualization on screenshots.
+类库：导出前实例化，通过 get_template_matcher_helper() / get_image_matcher() 获取单例，禁止各处自行 new。
 """
 
 import tkinter as tk
@@ -21,6 +22,7 @@ ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_matcher import ImageMatcher
+from d3utils.image_matcher_registry import get_image_matcher
 from providor.providor_index import (
     D3_TEMPLATE_CONFIGS,
     D4_TEMPLATE_CONFIGS,
@@ -32,6 +34,18 @@ from providor.providor_index import (
 )
 
 
+# 导出前实例化：ImageMatcher 由 d3utils.image_matcher_registry 统一提供；此处仅再导出便于 UI 引用
+_template_matcher_helper_instance: Optional["TemplateMatcherHelper"] = None
+
+
+def get_template_matcher_helper() -> "TemplateMatcherHelper":
+    """Return the global TemplateMatcherHelper instance (singleton). 导出前实例化。"""
+    global _template_matcher_helper_instance
+    if _template_matcher_helper_instance is None:
+        _template_matcher_helper_instance = TemplateMatcherHelper()
+    return _template_matcher_helper_instance
+
+
 class TemplateMatcherHelper:
     """
     Helper class for template matching visualization
@@ -39,7 +53,7 @@ class TemplateMatcherHelper:
     """
 
     def __init__(self):
-        """Initialize template matcher helper"""
+        """Initialize template matcher helper (uses shared ImageMatcher)"""
         self.original_image: Optional[Image.Image] = None
         self.display_image: Optional[Image.Image] = None
         self.backup_image: Optional[Image.Image] = None
@@ -50,7 +64,7 @@ class TemplateMatcherHelper:
             'rect': False,
             'circle': False
         }
-        self.image_matcher = ImageMatcher()
+        self.image_matcher = get_image_matcher()
 
     def set_image(self, image: Image.Image):
         """Set the main image and create backups"""
@@ -147,30 +161,25 @@ class TemplateMatcherHelper:
                 ColorPrint.yellow(f"[TEMPLATE_MATCHER] Template file not found: {template_path}")
                 continue
 
-            try:
-                template_image = Image.open(template_path)
-                match_method = config.get('match_method', 'ORB')
+            template_image = Image.open(template_path)
+            match_method = config.get('match_method', 'ORB')
 
-                matches = self.image_matcher.find_all_matches(
-                    self.original_image,
-                    template_image,
-                    threshold=config.get('threshold', 0.7),
-                    match_method=match_method
-                )
+            matches = self.image_matcher.find_all_matches(
+                self.original_image,
+                template_image,
+                threshold=config.get('threshold', 0.7),
+                match_method=match_method
+            )
 
-                for match in matches:
-                    self.matches.append({
-                        'template_name': template_name,
-                        'location': match,
-                        'config': config,
-                        'template_size': template_image.size
-                    })
+            for match in matches:
+                self.matches.append({
+                    'template_name': template_name,
+                    'location': match,
+                    'config': config,
+                    'template_size': template_image.size
+                })
 
-                ColorPrint.green(f"[TEMPLATE_MATCHER] Found {len(matches)} matches for {template_name}")
-
-            except Exception as e:
-                ColorPrint.red(f"[TEMPLATE_MATCHER] Error matching {template_name}: {e}")
-                continue
+            ColorPrint.green(f"[TEMPLATE_MATCHER] Found {len(matches)} matches for {template_name}")
 
         return len(self.matches) > 0
 
@@ -185,51 +194,46 @@ class TemplateMatcherHelper:
             ColorPrint.yellow("[TEMPLATE_MATCHER] No image or matches to draw")
             return False
 
-        try:
-            draw = ImageDraw.Draw(self.display_image)
-            colors = ['red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'white', 'orange']
+        draw = ImageDraw.Draw(self.display_image)
+        colors = ['red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 'white', 'orange']
 
-            for idx, match in enumerate(self.matches):
-                color = colors[idx % len(colors)]
-                location = match['location']
-                template_size = match['template_size']
+        for idx, match in enumerate(self.matches):
+            location = match.get('location')
+            template_size = match.get('template_size')
+            if location is None or template_size is None or len(location) != 2 or len(template_size) != 2:
+                continue
+            color = colors[idx % len(colors)]
 
-                if self.match_modes['rect']:
-                    x, y = location
-                    width, height = template_size
-                    draw.rectangle(
-                        [(x, y), (x + width, y + height)],
-                        outline=color,
-                        width=2
-                    )
-                    draw.text((x, y - 15), match['template_name'], fill=color)
+            if self.match_modes['rect']:
+                x, y = location
+                width, height = template_size
+                draw.rectangle(
+                    [(x, y), (x + width, y + height)],
+                    outline=color,
+                    width=2
+                )
+                draw.text((x, y - 15), match.get('template_name', ''), fill=color)
+            elif self.match_modes['circle']:
+                x, y = location
+                radius = max(template_size) // 2
+                draw.ellipse(
+                    [(x - radius, y - radius), (x + radius, y + radius)],
+                    outline=color,
+                    width=2
+                )
+                draw.text((x, y - 15), match.get('template_name', ''), fill=color)
+            else:
+                x, y = location
+                draw.ellipse(
+                    [(x - 5, y - 5), (x + 5, y + 5)],
+                    outline=color,
+                    width=2,
+                    fill=color
+                )
+                draw.text((x + 10, y), match.get('template_name', ''), fill=color)
 
-                elif self.match_modes['circle']:
-                    x, y = location
-                    radius = max(template_size) // 2
-                    draw.ellipse(
-                        [(x - radius, y - radius), (x + radius, y + radius)],
-                        outline=color,
-                        width=2
-                    )
-                    draw.text((x, y - 15), match['template_name'], fill=color)
-
-                else:
-                    x, y = location
-                    draw.ellipse(
-                        [(x - 5, y - 5), (x + 5, y + 5)],
-                        outline=color,
-                        width=2,
-                        fill=color
-                    )
-                    draw.text((x + 10, y), match['template_name'], fill=color)
-
-            ColorPrint.green(f"[TEMPLATE_MATCHER] Drew {len(self.matches)} matches on image")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[TEMPLATE_MATCHER] Error drawing matches: {e}")
-            return False
+        ColorPrint.green(f"[TEMPLATE_MATCHER] Drew {len(self.matches)} matches on image")
+        return True
 
     def reset_image(self):
         """Reset display image to original state"""

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Component
-Row0 = macro + per-tab options, row1 = status block (两行：战网/ROS/D3/地图、阶段/油猴/窗口尺寸). ROS 子状态如「需要输入KEY」在 ROS 后括号显示.
-Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components.
+Row0 = macro + per-tab options, row1 = status block. Uses BottomBarOptionsBlock and BottomBarStatusBlock.
+本类为 BottomBarOptionsBlock / BottomBarStatusBlock 的单一创建者，仅在此处实例化一次。
 """
 
 import tkinter as tk
@@ -12,13 +12,10 @@ from typing import Optional
 from ..theme import UITheme
 from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 from runtime import is_shutdown_requested
-from d3utils.rosbot_operation import get_rosbot_operation
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
-
-i18n_manager = I18nManager()
 
 
 class BottomBar:
@@ -118,10 +115,7 @@ class BottomBar:
     def on_window_status_update(self, window_info):
         if is_shutdown_requested():
             return
-        try:
-            self.parent.after(0, lambda w=window_info: self._do_window_status_ui_update(w))
-        except tk.TclError:
-            pass
+        self.parent.after(0, lambda w=window_info: self._do_window_status_ui_update(w))
 
     def _do_window_status_ui_update(self, window_info):
         if window_info:
@@ -132,11 +126,8 @@ class BottomBar:
         else:
             self.window_size.set("0x0")
         for key, lb in (self._value_labels or {}).items():
-            try:
-                if key == "window_size":
-                    lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
-            except tk.TclError:
-                pass
+            if key == "window_size":
+                lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
 
     def update_status_from_state(self, state: dict):
         """Update all status vars and value label fg from state (state sync callback)."""
@@ -188,14 +179,10 @@ class BottomBar:
         else:
             ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
             ros_fg = C['error']
-        try:
-            ui_state = get_rosbot_operation().get_ui_state()
-            if ui_state.get("need_key_input", False):
-                msg = (ui_state.get("message") or "").strip()
-                if msg:
-                    ros_val = f"{ros_val}({msg})"
-        except Exception:
-            pass
+        need_key = state.get("rosbot_need_key_input", False)
+        need_key_msg = (state.get("rosbot_need_key_message") or "").strip()
+        if need_key and need_key_msg:
+            ros_val = f"{ros_val}({need_key_msg})"
         self.ros_status.set(ros_val or "-")
 
         if not state.get("d3_running", False):
@@ -233,8 +220,5 @@ class BottomBar:
             "stage": stage_fg, "oauth": oauth_fg,
         }
         for key, lb in (self._value_labels or {}).items():
-            try:
-                if key in fg_map:
-                    lb.config(fg=fg_map[key])
-            except tk.TclError:
-                pass
+            if key in fg_map:
+                lb.config(fg=fg_map[key])

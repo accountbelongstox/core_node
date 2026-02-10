@@ -14,7 +14,7 @@ from typing import Callable, List, Optional
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from share.ui_registry import get_ui
 
 # Import static global modules
 import timers.timer_manager as timer_manager
@@ -77,7 +77,7 @@ def request_restart():
     _restart_requested.set()
     _shutdown_requested.set()
 
-    ui = ENCYCLOPEDIA.get('ui')
+    ui = get_ui()
     if ui:
         try:
             ColorPrint.blue("[ShutdownManager] Quitting UI mainloop for restart...")
@@ -103,7 +103,7 @@ def request_shutdown():
     ColorPrint.yellow("[ShutdownManager] ========================================")
     _shutdown_requested.set()
 
-    ui = ENCYCLOPEDIA.get('ui')
+    ui = get_ui()
     if ui:
         try:
             ColorPrint.blue("[ShutdownManager] Quitting UI mainloop...")
@@ -201,17 +201,16 @@ def execute_shutdown():
             ColorPrint.red(f"[ShutdownManager] [ERROR] Timer manager error: {e}")
 
         # Step 4: Destroy UI (cleanup window and system tray)
-        ui = ENCYCLOPEDIA.get('ui')
+        ui = get_ui()
         if ui:
             try:
                 ColorPrint.blue("[ShutdownManager] [4/5] Destroying UI...")
-                # Stop system tray first
-                if hasattr(ui, 'system_tray') and ui.system_tray:
-                    try:
-                        ui.system_tray.stop()
-                        time.sleep(0.2)  # Brief wait for tray cleanup
-                    except Exception:
-                        pass
+                # Stop system tray first (system_tray always exists after UI create)
+                try:
+                    ui.system_tray.stop()
+                    time.sleep(0.2)  # Brief wait for tray cleanup
+                except Exception:
+                    pass
 
                 # Destroy UI window
                 try:

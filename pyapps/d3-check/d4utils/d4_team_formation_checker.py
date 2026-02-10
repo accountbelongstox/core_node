@@ -9,24 +9,16 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from share.project_path import ensure_d3_check_in_sys_path, get_project_root
+from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from d4utils.d4_operation_base import D4OperationBase
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 from pycore.pyfoundations.color_print import ColorPrint
+from d4utils.d4_operation_base import D4OperationBase
+
+Image = get_third_package_PIL_Image()
 from share.game_interface_data import get_d4_interface_data
-from share.d4_ocr_config import get_ocr_config_for_task, OCRConfig
-
-# Add pycore path for OCR
-pycore_path = get_project_root().parent / "pycore"
-sys.path.insert(0, str(pycore_path))
-
-try:
-    from pyutils.ocr_cnocr_engine import CnOCREngine
-    OCR_AVAILABLE = True
-except ImportError as e:
-    ColorPrint.yellow(f"[D4TeamFormationChecker] CnOCR engine not available: {e}")
-    OCR_AVAILABLE = False
+from d3utils.cnocr_engine_registry import get_cnocr_engine_for_task
 
 
 class D4TeamFormationChecker(D4OperationBase):
@@ -42,32 +34,10 @@ class D4TeamFormationChecker(D4OperationBase):
     """
 
     def __init__(self):
-        """Initialize team formation checker"""
+        """Initialize team formation checker (OCR 引擎由类库统一初始化)"""
         super().__init__()
-        self.ocr_engine = None
-        self._init_ocr_engine()
+        self.ocr_engine = get_cnocr_engine_for_task('quest_text')
         ColorPrint.green("[D4TeamFormationChecker] Initialized")
-
-    def _init_ocr_engine(self):
-        """Initialize OCR engine"""
-        if not OCR_AVAILABLE:
-            ColorPrint.yellow("[D4TeamFormationChecker] OCR not available, team checking disabled")
-            return
-        ocr_config = get_ocr_config_for_task('quest_text')
-        if ocr_config is None:
-            ColorPrint.yellow("[D4TeamFormationChecker] No OCR config found, using default")
-            ocr_config = OCRConfig.get_default_config()
-        ColorPrint.blue("[D4TeamFormationChecker] Initializing OCR engine...")
-        ColorPrint.blue(f"[D4TeamFormationChecker] Using model: {ocr_config.rec_model_name}")
-        self.ocr_engine = CnOCREngine(
-            det_model_name=ocr_config.det_model_name,
-            rec_model_name=ocr_config.rec_model_name
-        )
-        if self.ocr_engine.init():
-            ColorPrint.green("[D4TeamFormationChecker] OCR engine initialized")
-        else:
-            ColorPrint.yellow("[D4TeamFormationChecker] OCR engine initialization failed")
-            self.ocr_engine = None
 
     def execute(self) -> bool:
         """
@@ -157,7 +127,7 @@ class D4TeamFormationChecker(D4OperationBase):
 
     def _has_find_team_region(self) -> bool:
         """Check if Find Team region is available in detected_regions"""
-        if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
+        if self.d4_data.detected_regions is None:
             return False
 
         if 'region_images' not in self.d4_data.detected_regions:
@@ -182,9 +152,10 @@ class D4TeamFormationChecker(D4OperationBase):
         if self.ocr_engine is None:
             ColorPrint.yellow("[D4TeamFormationChecker] OCR engine not available")
             return None
-        import tempfile
         import os
-        from PIL import Image
+        import tempfile
+        if Image is None:
+            return None
         if image.mode != 'RGB':
             image = image.convert('RGB')
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
@@ -193,15 +164,10 @@ class D4TeamFormationChecker(D4OperationBase):
         try:
             result = self.ocr_engine.ocr(temp_path)
             if result and 'text' in result:
-                recognized_text = result['text'].strip()
-                ColorPrint.blue(f"[D4TeamFormationChecker] OCR result: '{recognized_text}'")
-                return recognized_text
+                return result['text'].strip()
             return None
         finally:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
+            os.unlink(temp_path)
 
 
 # Global singleton instance

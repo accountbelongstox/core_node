@@ -31,7 +31,7 @@ from d3utils.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_int, var_bool
 from ..utils.app_root import get_app_root
-from .template_matcher_helper import TemplateMatcherHelper
+from .template_matcher_helper import get_template_matcher_helper
 
 
 class CoordinatePicker:
@@ -53,7 +53,8 @@ class CoordinatePicker:
         self.temp_points: List[tuple] = []
         self.pick_history_ref = pick_history_ref  # Reference to main UI's pick history
 
-        self.template_matcher = TemplateMatcherHelper()
+        self.template_matcher = get_template_matcher_helper()
+        self.scale_factor = None
 
         root = parent or get_app_root()
         self.window = tk.Toplevel(root) if root else tk.Tk()
@@ -341,7 +342,7 @@ class CoordinatePicker:
 
     def _draw_mark_at(self, x: int, y: int):
         """Draw a mark at given original coordinates"""
-        if not hasattr(self, 'scale_factor'):
+        if self.scale_factor is None:
             return
 
         # Convert original coordinates to canvas coordinates
@@ -380,7 +381,7 @@ class CoordinatePicker:
 
     def _to_canvas(self, x: int, y: int):
         """Convert original image coords to canvas coords."""
-        if not hasattr(self, 'scale_factor'):
+        if self.scale_factor is None:
             return (0, 0)
         cx = int(x * self.scale_factor) + self.canvas_offset_x
         cy = int(y * self.scale_factor) + self.canvas_offset_y
@@ -432,7 +433,7 @@ class CoordinatePicker:
         """Handle canvas click - always active since window is in constant picking mode"""
         # No need to check pick_mode - always active
 
-        if not hasattr(self, 'scale_factor'):
+        if self.scale_factor is None:
             return
 
         x = int((event.x - self.canvas_offset_x) / self.scale_factor)
@@ -508,7 +509,7 @@ class CoordinatePicker:
 
     def _on_canvas_motion(self, event):
         """Handle canvas motion"""
-        if not self.pick_mode or not hasattr(self, 'scale_factor'):
+        if not self.pick_mode or self.scale_factor is None:
             return
 
     def _draw_pick(self, x: int, y: int):
@@ -561,7 +562,7 @@ class CoordinatePicker:
 
     def destroy(self):
         """Destroy the coordinate picker window (delegate to internal window)"""
-        if hasattr(self, 'window') and self.window:
+        if self.window is not None:
             self.window.destroy()
 
     def _on_select_templates(self):

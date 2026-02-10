@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Region Detector for D4 Controller
-Handles region detection and extraction
+Region Detector for D4 Controller. 通过 get_region_detector() 获取单例，禁止各处自行 new。
 """
 
 import sys
@@ -14,7 +13,7 @@ current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 # D4State functionality now integrated into D4InterfaceData
 from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (
@@ -46,7 +45,7 @@ class RegionDetector:
         self.region_detector = get_d4_window_region_detector()
         self.team_health_detector = get_d4_team_health_detector()
         self.small_map_detector = get_d4_small_map_detector()
-        self.i18n = I18nManager()
+        self.i18n = i18n_manager
         # D4State functionality now integrated into D4InterfaceData
         ColorPrint.blue("[RegionDetector] Initialized")
 
@@ -310,3 +309,14 @@ class RegionDetector:
             error_msg = small_map_result.get('error', 'Unknown error') if small_map_result else 'No result'
             ColorPrint.yellow(f"[RegionDetector] Small map detection failed: {error_msg}")
             return False
+
+
+_region_detector_instance = None
+
+
+def get_region_detector() -> RegionDetector:
+    """Return the global RegionDetector instance (singleton). 导出前实例化."""
+    global _region_detector_instance
+    if _region_detector_instance is None:
+        _region_detector_instance = RegionDetector()
+    return _region_detector_instance

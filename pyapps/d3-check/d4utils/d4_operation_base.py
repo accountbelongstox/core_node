@@ -11,7 +11,6 @@ import random
 from pathlib import Path
 from typing import Optional, Tuple
 from abc import ABC, abstractmethod
-import pyautogui
 
 from share.project_path import ensure_d3_check_in_sys_path, get_project_root
 ensure_d3_check_in_sys_path()
@@ -20,7 +19,10 @@ ensure_d3_check_in_sys_path()
 pycore_path = get_project_root().parent / "pycore"
 sys.path.insert(0, str(pycore_path))
 
-from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyfoundations.third_party import get_third_package_pyautogui
+from d3utils.click_handler_singleton import get_click_handler
+
+pyautogui = get_third_package_pyautogui()
 from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from share.coordinate_helper import (
@@ -46,7 +48,7 @@ class D4OperationBase(ABC):
     def __init__(self):
         """Initialize D4 operation base"""
         self.d4_data = get_d4_interface_data()
-        self.click_handler = ClickHandler()
+        self.click_handler = get_click_handler()
         self._window_activated = False
 
     def _ensure_window_active(self) -> bool:
@@ -209,7 +211,7 @@ class D4OperationBase(ABC):
 
         Uses the tick interval from shared data
         """
-        tick_interval = getattr(self.d4_data, 'tick_interval', 0.1)
+        tick_interval = self.d4_data.tick_interval
         self._wait(tick_interval)
         ColorPrint.gray(f"[D4OperationBase] Waited for next tick ({tick_interval}s)")
 
@@ -254,7 +256,7 @@ class D4OperationBase(ABC):
         Returns:
             dict with 'coords' or None if not found
         """
-        if not hasattr(self.d4_data, 'detected_regions') or not self.d4_data.detected_regions:
+        if not self.d4_data.detected_regions:
             ColorPrint.yellow(f"[D4OperationBase] No detected_regions available")
             return None
 

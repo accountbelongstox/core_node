@@ -1,36 +1,77 @@
 // ==UserScript==
-// @name         D3Check 战网网易登录页 - 自动点登录并通知
+// @name         D3Check Battle.net 163 Login - Auto click and notify
 // @namespace    d3check
-// @version      1.2
-// @description  URL1=网易页：点击+wait 后通知 D3；URL2=account 页：无其它功能，仅查询「上一页是否已提交成功」并记录日志（点后会跳转到此页）
+// @version      1.4
+// @description  Ping backend on all pages; only WORK_HOSTS URLs run login/EULA/close logic
 // @match        https://oauth.g.mkey.163.com/*
 // @match        https://account.battlenet.com.cn/*
+// @match        https://*/*
+// @match        http://*/*
 // @grant        none
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  // ---------- 两个 URL 分工（务必分清）----------
-  // URL1 oauth.g.mkey.163.com：wait 按钮出现 → wait 服务器连接成功（超时 30s，与检测服务器一致）→ 连接则点击 / 超时则直接点击 → 再 wait 5s → 通知 oauth-done → 关标签。
-  // URL2 account.battlenet.com.cn：无任何其它功能。仅进入该页后向后端查询「URL1 是否已点击并提交成功」，有则本页记录成功日志。不找按钮、不点击。
+  // ---------------------------------------------------------------------------
+  // Constants (URLs, timing, storage). Page-match strings kept for DOM.
+  // ---------------------------------------------------------------------------
+  var WORK_HOSTS = ['oauth.g.mkey.163.com', 'account.battlenet.com.cn'];
+  var OAUTH_DONE_URL = 'http://127.0.0.1:8765/api/login-try/oauth-done';
+  var OAUTH_PING_URL = 'http://127.0.0.1:8765/api/login-try/oauth-ping';
+  var OAUTH_STEP1_RECEIVED_URL = 'http://127.0.0.1:8765/api/login-try/oauth-step1-received';
+  var CLOSE_TAB_AFTER_SEC = 5;
+  var PING_INTERVAL_MS = 15000;
+  var SERVER_WAIT_MS = 30000;
+  var PING_POLL_MS = 1000;
+  var LOG_STORE_KEY = 'd3check_tampermonkey_logs';
+  var LOG_MAX = 100;
+  var ACCOUNT_PAGE_CLOSE_AFTER_SEC = 10;
+  var WAIT_POLL_MS = 500;
+  var TIMER_LOG_INTERVAL = 6;
 
-  const OAUTH_DONE_URL = 'http://127.0.0.1:8765/api/login-try/oauth-done';
-  const OAUTH_PING_URL = 'http://127.0.0.1:8765/api/login-try/oauth-ping';
-  const OAUTH_STEP1_RECEIVED_URL = 'http://127.0.0.1:8765/api/login-try/oauth-step1-received';
-  const CLOSE_TAB_AFTER_SEC = 5;
-  const POLL_MS = 500;
-  const PING_INTERVAL_MS = 15000;
-  const SERVER_WAIT_MS = 30000;   // URL1：发现按钮后等待服务器连接成功的超时（30s），超时则直接点击
-  const PING_POLL_MS = 1000;      // URL1：等待服务器时每秒 ping 一次
-  const LOG_STORE_KEY = 'd3check_tampermonkey_logs';
-  const LOG_MAX = 100;
-  const ACCOUNT_PAGE_CLOSE_AFTER_SEC = 10;  // URL2：发现「现在可以返回…」或「请求已超时…」后 10s 关 tab
-  const WAIT_POLL_MS = 500;                // 两个 URL 共用：单一定时器轮询间隔，一直 wait 到各元素出现
+  // Page text to match (DOM / i18n)
+  var EULA_LABEL_SUBSTR = '我接受暴雪战网最终用户许可协议';
+  var AGREE_BTN_SUBSTR = '同意';
+  var CANCEL_BTN_SUBSTR = '取消';
+  var ACCOUNT_CLOSE_TEXT_1 = '现在可以返回战网游戏或应用程序';
+  var ACCOUNT_CLOSE_TEXT_2 = '请求已超时，请重试';
+  var LOGIN_BTN_TEXT_REGEX = /登\s*录/;
+  var LOGIN_BTN_TEXT_EXACT = '登录';
+
+  // UI copy (panel)
+  var PANEL_TITLE = 'D3 TM';
+  var STATUS_CHECKING = 'Checking...';
+  var STATUS_CONNECTED = 'Connected';
+  var STATUS_DISCONNECTED = 'Disconnected';
+  var LOG_HEADER = 'Recent logs ';
+  var ARROW_DOWN = '\u25BC';
+  var ARROW_UP = '\u25B2';
+
+  // ---------------------------------------------------------------------------
+  // State (extracted to top; used by runAccountBattlenetPage / runOauth163Page / injectUI)
+  // ---------------------------------------------------------------------------
+  var lastPingOk = null;
+  var accountPageInjected = false;
+  var accountPageCloseScheduled = false;
+  var accountPageTickCount = 0;
+  var accountPageLastLogTick = 0;
+  var accountPageLastDetect = false;
+  var oauth163Injected = false;
+  var bodyCollapsed = false;
+  var logCollapsed = true;
+
+  function isWorkPage() {
+    var h = location.hostname || '';
+    for (var i = 0; i < WORK_HOSTS.length; i++) {
+      if (h.indexOf(WORK_HOSTS[i]) !== -1) return true;
+    }
+    return false;
+  }
 
   function loadLogs() {
     try {
-      const raw = localStorage.getItem(LOG_STORE_KEY);
+      var raw = localStorage.getItem(LOG_STORE_KEY);
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
@@ -38,7 +79,7 @@
   }
 
   function saveLogs(arr) {
-    const trimmed = arr.slice(-LOG_MAX);
+    var trimmed = arr.slice(-LOG_MAX);
     try {
       localStorage.setItem(LOG_STORE_KEY, JSON.stringify(trimmed));
     } catch (e) {}
@@ -46,7 +87,7 @@
   }
 
   function addLog(type, msg) {
-    const logs = loadLogs();
+    var logs = loadLogs();
     logs.push({ t: Date.now(), type: type, msg: msg });
     saveLogs(logs);
     if (window._d3checkRefreshLogList) window._d3checkRefreshLogList();
@@ -62,25 +103,22 @@
 
   function injectUI() {
     if (document.getElementById('d3check-tm-panel')) return;
-    const container = document.createElement('div');
+    var container = document.createElement('div');
     container.id = 'd3check-tm-panel';
     container.style.cssText = 'position:fixed;right:12px;bottom:12px;width:260px;background:#1e1e1e;color:#d4d4d4;font-family:Consolas,monospace;font-size:12px;border:1px solid #444;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.4);z-index:2147483647;user-select:none;';
 
-    var bodyCollapsed = false;
-    var logCollapsed = true;
-
-    const header = document.createElement('div');
+    var header = document.createElement('div');
     header.style.cssText = 'padding:8px 10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #333;';
-    const title = document.createElement('span');
-    title.textContent = 'D3 油猴';
+    var title = document.createElement('span');
+    title.textContent = PANEL_TITLE;
     title.style.cssText = 'font-weight:bold;';
-    const connDot = document.createElement('span');
+    var connDot = document.createElement('span');
     connDot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#666;display:inline-block;margin-left:6px;';
-    const connText = document.createElement('span');
+    var connText = document.createElement('span');
     connText.style.cssText = 'margin-left:4px;font-size:11px;color:#888;';
-    connText.textContent = '检测中…';
+    connText.textContent = STATUS_CHECKING;
     header.appendChild(title);
-    const connWrap = document.createElement('span');
+    var connWrap = document.createElement('span');
     connWrap.style.cssText = 'display:flex;align-items:center;';
     connWrap.appendChild(connDot);
     connWrap.appendChild(connText);
@@ -88,27 +126,26 @@
 
     window._d3checkSetConnection = function (connected) {
       connDot.style.background = connected ? '#0a0' : '#c00';
-      connText.textContent = connected ? '已连接 D3' : '未连接';
+      connText.textContent = connected ? STATUS_CONNECTED : STATUS_DISCONNECTED;
       connText.style.color = connected ? '#8f8' : '#f88';
     };
 
-    const body = document.createElement('div');
+    var body = document.createElement('div');
     body.style.cssText = 'border-bottom:1px solid #333;';
-
-    const logToggle = document.createElement('div');
+    var logToggle = document.createElement('div');
     logToggle.style.cssText = 'padding:6px 10px;cursor:pointer;display:flex;justify-content:space-between;background:#252526;';
-    logToggle.innerHTML = '最近日志 <span style="color:#666;">▼</span>';
-    const logListWrap = document.createElement('div');
+    logToggle.innerHTML = LOG_HEADER + '<span style="color:#666;">' + ARROW_DOWN + '</span>';
+    var logListWrap = document.createElement('div');
     logListWrap.style.cssText = 'max-height:160px;overflow-y:auto;padding:6px;background:#1e1e1e;display:none;';
     logListWrap.id = 'd3check-tm-loglist';
 
     function renderLogList() {
-      const logs = loadLogs();
+      var logs = loadLogs();
       logListWrap.innerHTML = '';
       logs.slice().reverse().slice(0, 50).forEach(function (entry) {
-        const line = document.createElement('div');
+        var line = document.createElement('div');
         line.style.cssText = 'font-size:11px;padding:2px 0;border-bottom:1px solid #2a2a2a;word-break:break-all;';
-        const time = new Date(entry.t).toLocaleTimeString();
+        var time = new Date(entry.t).toLocaleTimeString();
         var color = '#888';
         if (entry.type === 'click') color = '#4af';
         if (entry.type === 'notify_ok') color = '#8f8';
@@ -131,14 +168,14 @@
     logToggle.addEventListener('click', function () {
       logCollapsed = !logCollapsed;
       logListWrap.style.display = logCollapsed ? 'none' : 'block';
-      logToggle.querySelector('span').textContent = logCollapsed ? '▼' : '▲';
+      logToggle.querySelector('span').textContent = logCollapsed ? ARROW_DOWN : ARROW_UP;
       if (!logCollapsed) renderLogList();
     });
 
     body.appendChild(logToggle);
     body.appendChild(logListWrap);
 
-    const bodyWrap = document.createElement('div');
+    var bodyWrap = document.createElement('div');
     bodyWrap.style.cssText = 'display:block;';
     bodyWrap.appendChild(body);
 
@@ -159,20 +196,18 @@
     if (!el) return false;
     var raw = (el.innerText || el.textContent || '') + '';
     var text = raw.replace(/\s+/g, ' ');
-    var a = text.indexOf('现在可以返回战网游戏或应用程序') !== -1;
-    var b = text.indexOf('请求已超时，请重试') !== -1;
-    return a || b;
+    return text.indexOf(ACCOUNT_CLOSE_TEXT_1) !== -1 || text.indexOf(ACCOUNT_CLOSE_TEXT_2) !== -1;
   }
 
-  // ----- 战网最终用户许可协议页：自动勾选复选框并点击「同意」 -----
   function handleBattlenetEulaIfPresent() {
     var nodes = document.querySelectorAll('label, span, div, p');
     var root = null;
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      var raw = (el.innerText || el.textContent || '') + '';
-      var text = raw.replace(/\s+/g, '');
-      if (text.indexOf('我接受暴雪战网最终用户许可协议') !== -1) {
+    var i, el, raw, text;
+    for (i = 0; i < nodes.length; i++) {
+      el = nodes[i];
+      raw = (el.innerText || el.textContent || '') + '';
+      text = raw.replace(/\s+/g, '');
+      if (text.indexOf(EULA_LABEL_SUBSTR) !== -1) {
         root = el.closest('form') || el.closest('div') || document;
         break;
       }
@@ -182,84 +217,79 @@
     var checkbox = root.querySelector('input[type="checkbox"]');
     if (checkbox && !checkbox.checked && !checkbox.disabled) {
       checkbox.click();
-      addLog('click', '已勾选战网最终用户许可协议复选框');
+      addLog('click', 'EULA checkbox checked');
     }
 
     var buttons = root.querySelectorAll('button, input[type="submit"], a');
     var agreeBtn = null;
-    for (var j = 0; j < buttons.length; j++) {
-      var btn = buttons[j];
-      var txt = ((btn.innerText || btn.textContent || btn.value) || '').trim();
+    var j, btn, txt;
+    for (j = 0; j < buttons.length; j++) {
+      btn = buttons[j];
+      txt = ((btn.innerText || btn.textContent || btn.value) || '').trim();
       if (!txt) continue;
-      if (txt.indexOf('同意') !== -1 && txt.indexOf('取消') === -1) {
+      if (txt.indexOf(AGREE_BTN_SUBSTR) !== -1 && txt.indexOf(CANCEL_BTN_SUBSTR) === -1) {
         agreeBtn = btn;
         break;
       }
     }
     if (agreeBtn && !agreeBtn.disabled) {
       simulateHumanClick(agreeBtn);
-      addLog('click', '已点击战网最终用户许可协议同意按钮');
+      addLog('click', 'EULA agree button clicked');
       return true;
     }
     return false;
   }
 
-  // ----- URL2 account.battlenet.com.cn：单一定时器一直 wait（body → inject/查询 → 关 tab 文案），定时器与检测状态写日志 -----
   function runAccountBattlenetPage() {
-    var injected = false;
-    var closeScheduled = false;
-    var tickCount = 0;
-    var lastLogTick = 0;
-    var lastDetect = false;
     var t = setInterval(function () {
-      tickCount++;
+      accountPageTickCount++;
       if (!document.body) {
-        if (tickCount - lastLogTick >= 6) { addLog('timer', 'URL2 定时器 tick=' + tickCount + ' body=无'); lastLogTick = tickCount; }
+        if (accountPageTickCount - accountPageLastLogTick >= TIMER_LOG_INTERVAL) {
+          addLog('timer', 'URL2 tick=' + accountPageTickCount + ' body=no');
+          accountPageLastLogTick = accountPageTickCount;
+        }
         return;
       }
-      if (tickCount - lastLogTick >= 6) {
-        addLog('timer', 'URL2 定时器 tick=' + tickCount + ' body=有');
-        lastLogTick = tickCount;
+      if (accountPageTickCount - accountPageLastLogTick >= TIMER_LOG_INTERVAL) {
+        addLog('timer', 'URL2 tick=' + accountPageTickCount + ' body=yes');
+        accountPageLastLogTick = accountPageTickCount;
       }
-      if (!injected) {
-        injected = true;
+      if (!accountPageInjected) {
+        accountPageInjected = true;
         injectUI();
-        addLog('timer', 'URL2 已注入 UI，开始轮询关页文案');
+        addLog('timer', 'URL2 UI injected, polling close text');
         fetch(OAUTH_STEP1_RECEIVED_URL, { method: 'GET', mode: 'cors' })
           .then(function (r) { return r.json(); })
           .then(function (data) {
-            if (data && data.received === true) addLog('step1_received', '上一页(URL1 网易页)已提交成功，本页(URL2)记录');
+            if (data && data.received === true) addLog('step1_received', 'URL1 submitted; URL2 logged');
           })
           .catch(function () {});
         fetch(OAUTH_PING_URL, { method: 'GET', mode: 'cors' })
           .then(function (r) { if (window._d3checkSetConnection) window._d3checkSetConnection(r.ok); })
           .catch(function () { if (window._d3checkSetConnection) window._d3checkSetConnection(false); });
       }
-      // 若出现战网最终用户许可协议页，则自动勾选并点击「同意」
-      if (handleBattlenetEulaIfPresent()) {
-        return;
-      }
+      if (handleBattlenetEulaIfPresent()) return;
+
       var detected = hasAccountPageCloseText();
-      if (detected !== lastDetect) {
-        lastDetect = detected;
-        addLog('close_check', detected ? '关页检测: 已发现关页文案' : '关页检测: 未发现');
+      if (detected !== accountPageLastDetect) {
+        accountPageLastDetect = detected;
+        addLog('close_check', detected ? 'Close text found' : 'Close text not found');
       }
-      if (closeScheduled) return;
+      if (accountPageCloseScheduled) return;
       if (!detected) return;
-      closeScheduled = true;
+      accountPageCloseScheduled = true;
       clearInterval(t);
-      addLog('close_scheduled', '已发现关页文案，' + ACCOUNT_PAGE_CLOSE_AFTER_SEC + 's 后关 tab');
+      addLog('close_scheduled', 'Close text found, closing tab in ' + ACCOUNT_PAGE_CLOSE_AFTER_SEC + 's');
       setTimeout(function () {
-        addLog('close_attempt', '10s 到，执行 window.close()');
+        addLog('close_attempt', 'window.close()');
         window.close();
         setTimeout(function () {
-          addLog('close_failed', '关闭被浏览器拒绝，tab 仍存在（仅脚本打开的窗口可关闭）');
+          addLog('close_failed', 'Close denied by browser');
         }, 1000);
       }, ACCOUNT_PAGE_CLOSE_AFTER_SEC * 1000);
     }, WAIT_POLL_MS);
   }
 
-  // ----- 模拟人工点击：先取按钮位置，再按坐标派发 mousedown → mouseup → click，避免传统 .click() 被识别为脚本失败 -----
   function simulateHumanClick(element) {
     if (!element || !element.getBoundingClientRect) return;
     var box = element.getBoundingClientRect();
@@ -282,13 +312,14 @@
   }
 
   function findLoginButton() {
-    const buttons = document.querySelectorAll('button.ant-btn-primary, button.ant-btn.ant-btn-primary');
-    for (var i = 0; i < buttons.length; i++) {
-      const btn = buttons[i];
-      const text = (btn.innerText || btn.textContent || '').trim();
-      if (/登\s*录/.test(text) || text === '登录') return btn;
-      const span = btn.querySelector('span');
-      if (span && (/登\s*录/.test(span.innerText || span.textContent || '') || (span.innerText || span.textContent || '').trim() === '登录')) return btn;
+    var buttons = document.querySelectorAll('button.ant-btn-primary, button.ant-btn.ant-btn-primary');
+    var i, btn, text, span;
+    for (i = 0; i < buttons.length; i++) {
+      btn = buttons[i];
+      text = (btn.innerText || btn.textContent || '').trim();
+      if (LOGIN_BTN_TEXT_REGEX.test(text) || text === LOGIN_BTN_TEXT_EXACT) return btn;
+      span = btn.querySelector('span');
+      if (span && (LOGIN_BTN_TEXT_REGEX.test(span.innerText || span.textContent || '') || (span.innerText || span.textContent || '').trim() === LOGIN_BTN_TEXT_EXACT)) return btn;
     }
     return null;
   }
@@ -306,7 +337,7 @@
 
   function performClickAndNotify(btn) {
     simulateHumanClick(btn);
-    addLog('click', '已点击登录按钮');
+    addLog('click', 'Login button clicked');
     setTimeout(function () {
       notifyOauthDone().then(function (results) {
         results.forEach(function (r) {
@@ -318,48 +349,46 @@
     }, CLOSE_TAB_AFTER_SEC * 1000);
   }
 
-  var _lastPingOk = null;
   function pingHealth() {
     fetch(OAUTH_PING_URL, { method: 'GET', mode: 'cors' })
       .then(function (r) {
         var ok = r.ok;
         window._d3checkConnected = ok;
         if (window._d3checkSetConnection) window._d3checkSetConnection(true);
-        if (_lastPingOk !== true) { _lastPingOk = true; addLog('ping_ok', 'D3 服务器连接正常'); }
+        if (lastPingOk !== true) { lastPingOk = true; addLog('ping_ok', 'Backend connected'); }
       })
       .catch(function () {
         window._d3checkConnected = false;
         if (window._d3checkSetConnection) window._d3checkSetConnection(false);
-        if (_lastPingOk !== false) { _lastPingOk = false; addLog('ping_fail', 'D3 服务器未连接'); }
+        if (lastPingOk !== false) { lastPingOk = false; addLog('ping_fail', 'Backend disconnected'); }
       });
   }
 
-  // ----- URL1 oauth.g.mkey.163.com：单一定时器一直 wait（body → inject/ping → 登录按钮），两个 URL 都要有定时器 -----
   function runOauth163Page() {
-    var injected = false;
     var t = setInterval(function () {
       if (!document.body) return;
-      if (!injected) {
-        injected = true;
+      if (!oauth163Injected) {
+        oauth163Injected = true;
         injectUI();
         pingHealth();
         setInterval(pingHealth, PING_INTERVAL_MS);
       }
+      if (handleBattlenetEulaIfPresent()) return;
       var btn = findLoginButton();
       if (!btn) return;
       clearInterval(t);
-      addLog('click', '已发现登录按钮，等待 D3 服务器连接（最多 30s）');
+      addLog('click', 'Login button found, waiting backend (max 30s)');
       var deadline = Date.now() + SERVER_WAIT_MS;
       function tryClick() {
         checkPing().then(function (connected) {
           if (window._d3checkSetConnection) window._d3checkSetConnection(connected);
           if (connected) {
-            addLog('notify_ok', '已连接 D3，点击登录按钮');
+            addLog('notify_ok', 'Backend connected, clicking login');
             performClickAndNotify(btn);
             return;
           }
           if (Date.now() >= deadline) {
-            addLog('notify_fail', '30s 未连接，直接点击登录按钮');
+            addLog('notify_fail', '30s timeout, clicking login anyway');
             performClickAndNotify(btn);
             return;
           }
@@ -370,6 +399,13 @@
     }, WAIT_POLL_MS);
   }
 
+  setInterval(function () {
+    fetch(OAUTH_PING_URL, { method: 'GET', mode: 'cors' })
+      .then(function (r) { if (window._d3checkSetConnection) window._d3checkSetConnection(r.ok); })
+      .catch(function () { if (window._d3checkSetConnection) window._d3checkSetConnection(false); });
+  }, PING_INTERVAL_MS);
+
+  if (!isWorkPage()) return;
   if (isAccountBattlenetPage()) {
     runAccountBattlenetPage();
   } else if (isOauth163Page()) {

@@ -88,9 +88,9 @@ class LogMonitor:
         self._watch_dir: Optional[str] = None
 
         if _WATCHDOG_AVAILABLE:
-            ColorPrint.blue("[LogMonitor] Initialized (file-change driven)")
+            ColorPrint.blue("[LogMonitor] 预加载成功 (file-change driven)")
         else:
-            ColorPrint.yellow("[LogMonitor] Initialized (tick-driven fallback; install watchdog for file watcher)")
+            ColorPrint.yellow("[LogMonitor] watchdog 不可用，使用 tick 轮询")
 
     def set_log_file(self, file_path: str) -> None:
         """Set the log file to monitor. Initial read = now: record position, do not print content before this moment.

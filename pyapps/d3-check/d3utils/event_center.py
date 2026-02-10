@@ -9,9 +9,12 @@ may forward to specific threads or schedule main-thread UI updates).
 
 from typing import Any, Callable, Optional, Tuple
 
+# Payload for EXTENSION_ROSBOT_STARTED: always (success, error, ran_e_block) from event_signals
+RosbotStartedPayload = Tuple[bool, Optional[Exception], bool]
+
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
+from share.ui_registry import get_ui
 from d3utils.event_signals import (
     EXTENSION_ROSBOT_STARTED,
     EXTENSION_ROSBOT_STOPPED,
@@ -57,19 +60,17 @@ def _do_show(ui) -> None:
 def _do_toggle_maximize(ui) -> None:
     """Run on main thread: toggle maximize/restore (saved geometry for overrideredirect) and sync title bar button text."""
     root = ui.root
-    is_max = getattr(ui, "_is_maximized", False)
-    if is_max and getattr(ui, "_saved_geometry_restore", None):
+    is_max = ui._is_maximized
+    if is_max and ui._saved_geometry_restore:
         root.geometry(ui._saved_geometry_restore)
         ui._is_maximized = False
-        if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
-            ui.title_bar.maximize_btn.configure(text="□")
+        ui.title_bar.maximize_btn.configure(text="□")
     else:
         ui._saved_geometry_restore = root.geometry()
         w, h = root.winfo_screenwidth(), root.winfo_screenheight()
         root.geometry(f"{w}x{h}+0+0")
         ui._is_maximized = True
-        if hasattr(ui, "title_bar") and hasattr(ui.title_bar, "maximize_btn"):
-            ui.title_bar.maximize_btn.configure(text="❐")
+        ui.title_bar.maximize_btn.configure(text="❐")
 
 
 def register_main_thread_handlers(ui) -> None:
@@ -113,8 +114,8 @@ def register_main_thread_handlers(ui) -> None:
 
 def _schedule_on_main_thread(event_name: str, event_data: Any = None) -> None:
     """Schedule THREAD_BUS.trigger_event on main thread so handlers run on main thread."""
-    ui = ENCYCLOPEDIA.get("ui")
-    if ui and hasattr(ui, "root"):
+    ui = get_ui()
+    if ui:
         ui.root.after(0, lambda: THREAD_BUS.trigger_event(event_name, event_data))
     else:
         THREAD_BUS.trigger_event(event_name, event_data)
@@ -186,23 +187,15 @@ def register_extension_handlers(
     def on_extension_shutdown(_data: Any = None) -> None:
         for getter in (get_main_function_thread, get_auxiliary_function_thread, get_d3_extension_thread, get_d4_extension_thread):
             th = getter()
-            if th and hasattr(th, "request_shutdown"):
+            if th:
                 th.request_shutdown()
 
-    # Completion -> main thread UI update
-    def on_rosbot_started(data: Any = None) -> None:
-        success = False
-        err = None
-        ran_e_block = False
-        if isinstance(data, (list, tuple)):
-            if len(data) >= 3:
-                success, err, ran_e_block = data[0], data[1], data[2]
-            elif len(data) >= 2:
-                success, err = data[0], data[1]
-        elif isinstance(data, dict):
-            success = data.get("success", False)
-            err = data.get("error")
-            ran_e_block = data.get("ran_e_block", False)
+    # Completion -> main thread UI update. Payload is (success, error, ran_e_block) from trigger_extension_rosbot_started.
+    def on_rosbot_started(data: Optional[RosbotStartedPayload] = None) -> None:
+        if data is None:
+            success, err, ran_e_block = False, None, False
+        else:
+            success, err, ran_e_block = data[0], data[1], data[2]
         ui.root.after(0, lambda: panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
 
     def on_rosbot_stopped(_data: Any = None) -> None:

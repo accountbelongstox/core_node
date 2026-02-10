@@ -10,8 +10,23 @@ from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_async
 from pycore.pyfoundations.color_print import ColorPrint
+from share.values.config_change_hub import get_config_change_hub
 from d3utils.i18n_manager import i18n_manager
 from .tk_variables import var_str, var_bool
+
+
+def _parse_float_safe(value_str: str, default: float) -> float:
+    """Parse float from string without raising. Returns default when invalid."""
+    s = str(value_str).strip()
+    if not s or s in ("-", ".", "-."):
+        return default
+    if s.count(".") > 1:
+        return default
+    minus = 1 if s.startswith("-") else 0
+    rest = s[minus:].replace(".", "", 1)
+    if not rest.isdigit():
+        return default
+    return float(s)
 
 
 class ConfigBinding:
@@ -40,15 +55,21 @@ class ConfigBinding:
 
     @staticmethod
     def _update_bindings(key_path: str, new_value: Any):
-        """Update all registered bindings for a config key"""
+        """Update all registered bindings for a config key. BooleanVar gets bool; others get str."""
         if ConfigBinding._updating:
             return
 
         ConfigBinding._updating = True
         try:
-            if key_path in ConfigBinding._bindings:
-                for var in ConfigBinding._bindings[key_path]:
-                    current_value = var.get()
+            if key_path not in ConfigBinding._bindings:
+                return
+            for var in ConfigBinding._bindings[key_path]:
+                current_value = var.get()
+                if isinstance(var, tk.BooleanVar):
+                    b = new_value if isinstance(new_value, bool) else (str(new_value).strip().lower() in ("1", "true", "yes"))
+                    if bool(current_value) != b:
+                        var.set(b)
+                else:
                     if str(current_value) != str(new_value):
                         var.set(str(new_value))
         finally:
@@ -59,28 +80,26 @@ class ConfigBinding:
         """
         Get value from CONFIG by key path (thread-safe for main and D3 extension thread).
         """
-        try:
-            return get_config_value_safe(key_path, default_value)
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBinding] Error getting config value for '{key_path}': {e}")
-            return default_value
+        return get_config_value_safe(key_path, default_value)
 
     @staticmethod
     def set_config_value(key_path: str, value: Any) -> bool:
         """
         Set value in CONFIG by key path. Uses async update so UI never blocks on config worker or file I/O.
+        Only notifies config_change_hub when this is a direct write (not re-entry from _update_bindings trace).
         """
-        try:
+        if ConfigBinding._updating:
             set_config_value_async(key_path, value)
-            ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
             ConfigBinding._update_bindings(key_path, value)
-            if key_path == "ui_settings.current_language":
-                i18n_manager.set_language(value)
-                ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
             return True
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBinding] Error setting config value for '{key_path}': {e}")
-            return False
+        set_config_value_async(key_path, value)
+        ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
+        ConfigBinding._update_bindings(key_path, value)
+        if key_path == "ui_settings.current_language":
+            i18n_manager.set_language(value)
+            ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
+        get_config_change_hub().notify_config_changed(key_path)
+        return True
     
     @staticmethod
     def create_input_binding(parent: tk.Widget, key_path: str, default_value: str = "", 
@@ -220,10 +239,7 @@ class ConfigBinding:
             if isinstance(increment, int):
                 ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
             else:
-                try:
-                    ConfigBinding.set_config_value(key_path, float(value_str))
-                except ValueError:
-                    ConfigBinding.set_config_value(key_path, default_value)
+                ConfigBinding.set_config_value(key_path, _parse_float_safe(value_str, default_value))
 
         var.trace_add('write', on_change)
 
@@ -244,10 +260,7 @@ class ConfigBinding:
             if isinstance(increment, int):
                 ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
             else:
-                try:
-                    ConfigBinding.set_config_value(key_path, float(value_str))
-                except ValueError:
-                    ConfigBinding.set_config_value(key_path, default_value)
+                ConfigBinding.set_config_value(key_path, _parse_float_safe(value_str, default_value))
         var.trace_add('write', on_change)
         return spinbox
 
@@ -282,16 +295,10 @@ class ConfigBinding:
         
         initial_value = ConfigBinding.get_config_value(key_path)
         if initial_value is not None:
-            try:
-                value_setter(initial_value)
-            except Exception as e:
-                ColorPrint.red(f"[ConfigBinding] Error setting initial value: {e}")
+            value_setter(initial_value)
         def on_change(*args):
-            try:
-                value = value_getter()
-                ConfigBinding.set_config_value(key_path, value)
-            except Exception as e:
-                ColorPrint.red(f"[ConfigBinding] Error in change handler: {e}")
+            value = value_getter()
+            ConfigBinding.set_config_value(key_path, value)
         
         # Bind event by widget type
         if event:

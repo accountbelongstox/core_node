@@ -12,10 +12,13 @@ from typing import Optional, Any
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_uiautomation
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
+
+uiautomation = get_third_package_uiautomation()
 
 
 def _uia() -> Any:
-    return get_third_package_uiautomation()
+    return uiautomation
 
 
 def try_invoke(control: Any) -> bool:
@@ -137,7 +140,7 @@ def click_at_control_rect(
         r = control.BoundingRectangle
         cx = (r.left + r.right) // 2
         cy = (r.top + r.bottom) // 2
-        c = clicker if clicker is not None else ClickHandler()
+        c = clicker if clicker is not None else get_click_handler()
         return c.click(cx, cy, direct_click=direct_click, return_to_original=return_to_original, **kwargs)
     except Exception as e:
         ColorPrint.red(f"[UI_OP] Click at rect error: {e}")

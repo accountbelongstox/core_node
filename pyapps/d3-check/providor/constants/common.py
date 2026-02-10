@@ -198,6 +198,10 @@ DRIVE_CDROM = 5
 # OAuth / Tampermonkey
 # ---------------------------------------------------------------------------
 OAUTH_SCRIPT_PING_TIMEOUT_SEC = 30.0
+# Browser login fallback (CN, when Tampermonkey not connected): wait for browser by title, OCR every 2s, click EULA/Login.
+BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC = 300.0
+# Titles at different stages (match if window title contains any): 战网登录, Loading, Login, 网易账号登录
+BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS = ("战网登录", "Loading", "Login", "网易账号登录")
 
 # ---------------------------------------------------------------------------
 # Thread / event command names

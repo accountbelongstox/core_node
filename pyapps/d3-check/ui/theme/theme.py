@@ -144,12 +144,11 @@ class UITheme:
         Args:
             root: Root Tk window
         """
-        try:
-            style = ttk.Style(root)
-            cls.apply_ttk_style(style)
-            print("[Theme] Successfully applied ttk style (delayed)")
-        except Exception as e:
-            print(f"[Theme] Error in delayed ttk style application: {e}")
+        if root is None or not root.winfo_exists():
+            return
+        style = ttk.Style(root)
+        cls.apply_ttk_style(style)
+        print("[Theme] Successfully applied ttk style (delayed)")
 
     @classmethod
     def apply_ttk_style(cls, style: ttk.Style):
@@ -159,14 +158,11 @@ class UITheme:
         Args:
             style: ttk.Style instance to configure
         """
-        # Force use 'clam' theme to override system defaults
-        try:
-            current = style.theme_use()
-            if current != 'clam':
-                style.theme_use('clam')
-                print(f"[Theme] Switched from '{current}' to 'clam' in apply_ttk_style")
-        except tk.TclError as e:
-            print(f"[Theme] Failed to set clam theme: {e}")
+        # Force use 'clam' theme to override system defaults. Call only with valid style.
+        current = style.theme_use()
+        if current != 'clam':
+            style.theme_use('clam')
+            print(f"[Theme] Switched from '{current}' to 'clam' in apply_ttk_style")
 
         # Configure Notebook style (scaled to 60%); tabmargins bottom=1 to align with Dark.TNotebook
         style.configure('TNotebook',
@@ -283,30 +279,20 @@ class UITheme:
         Args:
             root: Root Tk window
         """
-        try:
-            root.configure(bg=cls.get_color('bg_dark'))
-        except tk.TclError:
-            # Some Tkinter versions don't support bg option
-            pass
+        root.configure(bg=cls.get_color('bg_dark'))
 
-        # CRITICAL: Force non-native theme at startup
-        # Windows native themes (vista/xpnative) ignore custom colors
-        try:
+        # CRITICAL: Apply ttk style after main loop is running (avoid RuntimeError)
+        def _do_ttk_style():
+            if not root.winfo_exists():
+                return
             style = ttk.Style(root)
             current_theme = style.theme_use()
             print(f"[Theme] Initial theme: {current_theme}")
-
-            # Force switch to 'clam' theme for custom styling
             if current_theme in ('vista', 'xpnative', 'winnative'):
                 print(f"[Theme] Forcing switch from native theme '{current_theme}' to 'clam'")
                 style.theme_use('clam')
             elif current_theme != 'clam':
-                # Also switch other themes to clam for consistency
                 print(f"[Theme] Switching theme from '{current_theme}' to 'clam'")
                 style.theme_use('clam')
-
             cls.apply_ttk_style(style)
-        except RuntimeError as e:
-            # If main loop not started yet, schedule it for later
-            print(f"[Theme] Warning: Cannot apply ttk style immediately: {e}")
-            root.after(1, lambda: cls._delayed_apply_ttk_style(root))
+        root.after(1, _do_ttk_style)

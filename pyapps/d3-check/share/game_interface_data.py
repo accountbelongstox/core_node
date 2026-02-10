@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from share.ui_registry import get_ui
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
 numpy = get_third_package_numpy()
@@ -54,17 +54,14 @@ def get_screen_resolution() -> tuple[int, int]:
         if sys.platform == "win32":
             _screen_resolution = _get_screen_resolution_win32()
         else:
-            try:
-                ui = ENCYCLOPEDIA.get("ui")
-                if ui is not None and hasattr(ui, "root") and ui.root.winfo_exists():
-                    _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
-                else:
-                    root = tk.Tk()
-                    root.withdraw()
-                    _screen_resolution = (root.winfo_screenwidth(), root.winfo_screenheight())
-                    root.destroy()
-            except Exception:
-                _screen_resolution = (1920, 1080)
+            ui = get_ui()
+            if ui and ui.root.winfo_exists():
+                _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
+            else:
+                root = tk.Tk()
+                root.withdraw()
+                _screen_resolution = (root.winfo_screenwidth(), root.winfo_screenheight())
+                root.destroy()
         ColorPrint.blue(f"[GameInterfaceData] Screen resolution cached: {_screen_resolution[0]}x{_screen_resolution[1]}")
     return _screen_resolution
 
@@ -715,6 +712,9 @@ class D3InterfaceData(InterfaceDataBase):
     # Found ROSBOT display (process name + window title for status bar "process:xxx.exe title:xxx")
     rosbot_found_exe_name: str = ""
     rosbot_found_window_title: str = ""
+    # ROSBOT UI need-key state (set by refresh_rosbot_status from timer thread; main thread only reads from snapshot)
+    rosbot_need_key_input: bool = False
+    rosbot_need_key_message: str = ""
 
     # State change callbacks (merged from GameState). Invoked only on main thread via _drain_and_notify (no after() from background).
     _callbacks: List[Callable] = field(default_factory=list)
@@ -759,6 +759,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.battlenet_region = None
         self.rosbot_found_exe_name = ""
         self.rosbot_found_window_title = ""
+        self.rosbot_need_key_input = False
+        self.rosbot_need_key_message = ""
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -863,6 +865,12 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+
+    def set_rosbot_ui_need_key(self, need_key_input: bool, message: str = ""):
+        """Set ROSBOT need-key state (from timer thread via refresh_rosbot_status). Main thread only reads from snapshot."""
+        with self._lock:
+            self.rosbot_need_key_input = need_key_input
+            self.rosbot_need_key_message = message or ""
 
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
@@ -998,6 +1006,8 @@ class D3InterfaceData(InterfaceDataBase):
                 "battlenet_normal_available": self.battlenet_normal_available,
                 "rosbot_found_exe_name": self.rosbot_found_exe_name,
                 "rosbot_found_window_title": self.rosbot_found_window_title,
+                "rosbot_need_key_input": self.rosbot_need_key_input,
+                "rosbot_need_key_message": self.rosbot_need_key_message,
             }
 
     def start_main_thread_poll(self, after_fn: Callable, interval_ms: int = 100):
@@ -1008,13 +1018,24 @@ class D3InterfaceData(InterfaceDataBase):
 
     def _drain_and_notify(self):
         """Runs on main thread only (scheduled by after). Schedule next first so one failing callback does not stop the poll."""
+        import time as _t
+        t0 = _t.time()
         if self._poll_after_fn is not None:
             self._poll_after_fn(self._poll_interval_ms, self._drain_and_notify)
         state = self.get_state_snapshot()
         with self._lock:
             callbacks = self._callbacks.copy()
         for callback in callbacks:
-            callback(state)
+            try:
+                cb_t0 = _t.time()
+                callback(state)
+                elapsed = _t.time() - cb_t0
+                if elapsed > 0.05:
+                    ColorPrint.gray(f"[UI-DBG] _drain_and_notify callback {callback.__name__} took {elapsed:.3f}s")
+            except Exception:
+                pass
+        if _t.time() - t0 > 0.05:
+            ColorPrint.gray(f"[UI-DBG] _drain_and_notify total took {_t.time()-t0:.3f}s n_callbacks={len(callbacks)}")
 
     def notify_state_sync(self):
         """State changed; UI will reflect on next main-thread poll (no cross-thread after)."""

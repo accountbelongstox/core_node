@@ -3,6 +3,7 @@
 """
 Thread Registry - Central owner of all threads (THREAD BUS lifecycle side).
 Lives in runtime (lifecycle); share is for shared data only.
+类库：本模块为全项目线程的单一创建者（导出前/中心化），禁止在其他类中 new 上述线程类。
 
 - All thread instances are created and held only here; no dynamic thread creation.
 - One-shot work is submitted via timer_manager.submit_one_shot from timers.one_shot_tasks.

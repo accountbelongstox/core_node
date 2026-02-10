@@ -6,9 +6,13 @@ Progress bar analyzer based on color palette analysis
 
 import json
 import math
-from PIL import Image
 import os
 import colorsys
+
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
+
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 def hex_to_rgb(hex_color):
     """Convert hex color to RGB tuple"""
@@ -153,9 +157,8 @@ def analyze_progress_bar(image_path, pixel_data_file, tolerance=0.05):
 
 def create_visual_analysis(image_path, pixel_data_file, output_path, tolerance=0.05):
     """Create visual analysis of the progress bar"""
-    
-    from PIL import ImageDraw
-    
+    if ImageDraw is None:
+        raise RuntimeError("PIL ImageDraw not available")
     # Load color groups
     background_colors, foreground_colors = load_color_groups(pixel_data_file)
     

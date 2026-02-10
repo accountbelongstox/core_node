@@ -32,9 +32,9 @@ from ui.utils.config_binding import ConfigBinding
 from share.game_interface_data import get_game_interface_data, get_scaled_bag_region, get_global_scale
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk, get_third_package_cv2, get_third_package_numpy
 from d3utils.screenshot_provider import get_screenshot_provider
-from d3utils.interface_manager import D3InterfaceManager
-from d3utils.collectors.bag_info_collector import BagInfoCollector
-from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
+from d3utils.interface_manager import get_d3_interface_manager
+from d3utils.collectors.bag_info_collector import get_bag_info_collector
+from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_detector
 from d3utils.debug_bag_hover import run_debug_bag_hover
 from share.template_match_debug import (
     set_debug_ui_active,
@@ -255,11 +255,8 @@ class AuxiliaryFunctionsPanel:
         """Apply scan results: only set Battle.net and D3 paths (auxiliary panel, no ROSBOT)."""
         self._scan_in_progress = False
         if self._scan_progress_after_id is not None:
-            try:
-                self.container.after_cancel(self._scan_progress_after_id)
-            except (tk.TclError, RuntimeError):
-                pass
-            self._scan_progress_after_id = None
+            self.container.after_cancel(self._scan_progress_after_id)
+        self._scan_progress_after_id = None
         self._aux_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
         if error_msg:
             messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
@@ -492,11 +489,9 @@ class AuxiliaryFunctionsPanel:
                     spinbox.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
 
                     def on_count_change(key=count_config_key):
-                        try:
-                            v = int(count_var.get())
-                            v = max(1, min(999, v))
-                        except (ValueError, TypeError):
-                            v = 15
+                        s = str(count_var.get()).strip()
+                        v = int(s) if s.isdigit() else 15
+                        v = max(1, min(999, v))
                         config_parts = key.split('.')
                         obj = CONFIG
                         for part in config_parts[:-1]:
@@ -730,17 +725,16 @@ class AuxiliaryFunctionsPanel:
         win._bag_small_photo = None
 
         def _update_zoom_label(w):
-            lbl = getattr(w, "_bag_zoom_label", None)
-            if lbl and lbl.winfo_exists():
-                scale = getattr(w, "_bag_zoom_scale", 1.0)
-                lbl.configure(text="%d%%" % round(scale * 100))
+            lbl = w._bag_zoom_label
+            if lbl is not None and lbl.winfo_exists():
+                lbl.configure(text="%d%%" % round(w._bag_zoom_scale * 100))
 
         def _apply_zoom(w, img_widget):
-            if getattr(w, "_bag_pil_original", None) is None:
+            if w._bag_pil_original is None:
                 return
             pil = w._bag_pil_original
-            base = getattr(w, "_bag_base_width", 520)
-            scale = getattr(w, "_bag_zoom_scale", 1.0)
+            base = w._bag_base_width
+            scale = w._bag_zoom_scale
             new_w = max(50, min(2000, int(base * scale)))
             ratio = new_w / pil.width
             new_h = int(pil.height * ratio)
@@ -751,9 +745,9 @@ class AuxiliaryFunctionsPanel:
             _update_zoom_label(w)
 
         def _zoom(w, img_widget, direction):
-            if getattr(w, "_bag_pil_original", None) is None:
+            if w._bag_pil_original is None:
                 return
-            scale = getattr(w, "_bag_zoom_scale", 1.0)
+            scale = w._bag_zoom_scale
             if direction > 0:
                 w._bag_zoom_scale = min(3.0, scale * 1.25)
             else:
@@ -764,30 +758,30 @@ class AuxiliaryFunctionsPanel:
         def _refresh(info_widget, img_widget, small_img_widget, w):
             no_img_msg = i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image")
             no_data_msg = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data")
-            manager = D3InterfaceManager()
+            manager = get_d3_interface_manager()
             manager.collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
             game_data = get_game_interface_data()
-            img = getattr(game_data, "game_window_image", None)
-            coords = getattr(game_data, "bag_coordinates", None)
-            layout = getattr(game_data, "bag_layout", None)
+            img = game_data.game_window_image
+            coords = game_data.bag_coordinates
+            layout = game_data.bag_layout
 
             layout_result = None
             layout_result_detector = None
             if img is not None and coords is not None:
-                try:
-                    left, top = coords.top_left[0], coords.top_left[1]
-                    right, bottom = coords.bottom_right[0], coords.bottom_right[1]
+                top_left = coords.top_left
+                bottom_right = coords.bottom_right
+                if len(top_left) >= 2 and len(bottom_right) >= 2:
+                    left, top = top_left[0], top_left[1]
+                    right, bottom = bottom_right[0], bottom_right[1]
                     cropped = np.array(img)
                     if cropped.ndim == 3 and cropped.shape[2] == 3:
                         bag_region_bgr = cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR)[top:bottom, left:right]
                     else:
                         bag_region_bgr = cropped[top:bottom, left:right]
                     bag_coords_dict = {"top_left": coords.top_left, "bottom_right": coords.bottom_right, "rows": coords.rows, "cols": coords.cols}
-                    detector = BagLayoutDetector(rows=coords.rows, cols=coords.cols)
+                    detector = get_bag_layout_detector()
                     layout_result = detector.detect_layout(bag_region_bgr, bag_coords_dict)
                     layout_result_detector = detector
-                except Exception as e:
-                    ColorPrint.yellow(f"[BagAdjust] layout_result: {e}")
 
             info_widget.delete("1.0", tk.END)
             if coords is None and layout is None and layout_result is None:
@@ -805,28 +799,27 @@ class AuxiliaryFunctionsPanel:
                     lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
                     lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
                     lines.append(f"Size: {coords.width}x{coords.height}")
-                layout_grid = (layout_result or {}).get("layout") or (getattr(layout, "layout", None) if layout else None)
+                layout_grid = (layout_result or {}).get("layout") or (layout.layout if layout else None)
                 if layout_grid and len(layout_grid) > 0 and len(layout_grid[0]) > 0:
                     rows, cols = len(layout_grid), len(layout_grid[0])
                     empty_c = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "empty")
                     c1 = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "item_1slot")
                     c2 = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "item_2slot_top")
                     lines.append(f"Empty: {empty_c}  |  1-slot: {c1}  |  2-slot: {c2}")
-                items_src = (layout and getattr(layout, "items", None)) or (layout_result and layout_result.get("items"))
+                items_src = (layout.items if layout else None) or (layout_result and layout_result.get("items"))
                 if items_src:
-                    occupied = sum(1 for v in items_src.values() if isinstance(v, dict) and v.get("type") != "empty")
+                    occupied = sum(1 for v in items_src.values() if v.get("type") != "empty")
                     lines.append(f"Occupied: {occupied}" + (f" / {coords.total_slots}" if coords else ""))
                     quality_count = {'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0, 'see_top': 0}
                     for v in items_src.values():
-                        if isinstance(v, dict):
-                            q = v.get('quality', 'unknown')
-                            quality_count[q] = quality_count.get(q, 0) + 1
+                        q = v.get('quality', 'unknown')
+                        quality_count[q] = quality_count.get(q, 0) + 1
                     lines.append("")
                     lines.append("Quality: L_set L R M Unknown Empty see_top")
                     lines.append(f"  {quality_count.get('legendary_set', 0)}  {quality_count.get('legendary', 0)}  {quality_count.get('rare', 0)}  {quality_count.get('magic', 0)}  {quality_count.get('unknown', 0)}  {quality_count.get('empty', 0)}  {quality_count.get('see_top', 0)}")
                     lines.append("")
                     for (r, c), info in sorted(items_src.items()):
-                        if isinstance(info, dict) and info.get("type") != "empty":
+                        if info.get("type") != "empty":
                             lines.append(f"  ({r},{c}) {info.get('type', '?')}  {info.get('quality', '?')}")
                 else:
                     lines.append("Layout: no item detail")
@@ -840,7 +833,7 @@ class AuxiliaryFunctionsPanel:
             else:
                 screenshot_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                 detection_success = coords is not None
-                collector = BagInfoCollector()
+                collector = get_bag_info_collector()
                 pil_annotated = collector.get_annotated_detection_image(screenshot_bgr, detection_success)
                 if pil_annotated is None:
                     img_widget.configure(image="", text=no_img_msg)
@@ -855,20 +848,16 @@ class AuxiliaryFunctionsPanel:
             small_img_widget.configure(image="", text="")
             w._bag_small_photo = None
             if layout_result is not None and layout_result_detector is not None:
-                try:
-                    vis_bgr = layout_result_detector.build_visualization_image(layout_result)
-                    if vis_bgr is not None:
-                        vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
-                        pil_small = Image.fromarray(vis_rgb)
-                        max_w = 480
-                        if pil_small.width > max_w:
-                            ratio = max_w / pil_small.width
-                            pil_small = pil_small.resize((max_w, int(pil_small.height * ratio)), Image.Resampling.LANCZOS)
-                        w._bag_small_photo = ImageTk.PhotoImage(pil_small)
-                        small_img_widget.configure(image=w._bag_small_photo, text="")
-                except Exception as e:
-                    small_img_widget.configure(text=i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_small_image_failed") + f": {e}")
-                    ColorPrint.yellow(f"[BagAdjust] small image: {e}")
+                vis_bgr = layout_result_detector.build_visualization_image(layout_result)
+                if vis_bgr is not None:
+                    vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
+                    pil_small = Image.fromarray(vis_rgb)
+                    max_w = 480
+                    if pil_small.width > max_w:
+                        ratio = max_w / pil_small.width
+                        pil_small = pil_small.resize((max_w, int(pil_small.height * ratio)), Image.Resampling.LANCZOS)
+                    w._bag_small_photo = ImageTk.PhotoImage(pil_small)
+                    small_img_widget.configure(image=w._bag_small_photo, text="")
 
         _refresh(info_text, img_label, small_img_label, win)
 
@@ -981,20 +970,17 @@ class AuxiliaryFunctionsPanel:
         def _poll():
             if not win.winfo_exists():
                 return
-            try:
-                items = pop_all()
-                for it in items:
-                    entries_ref.append(it)
-                    log_text.insert(tk.END, it.get("title", "") + ": " + it.get("log", "") + "\n")
-                    log_text.see(tk.END)
-                    listbox.insert(tk.END, it.get("title", "") + " | " + (it.get("log", "")[:40] or ""))
-                if items:
-                    listbox.selection_clear(0, tk.END)
-                    listbox.selection_set(tk.END)
-                    listbox.see(tk.END)
-                    _show_image_at_index(len(entries_ref) - 1)
-            except tk.TclError:
-                pass
+            items = pop_all()
+            for it in items:
+                entries_ref.append(it)
+                log_text.insert(tk.END, it.get("title", "") + ": " + it.get("log", "") + "\n")
+                log_text.see(tk.END)
+                listbox.insert(tk.END, it.get("title", "") + " | " + (it.get("log", "")[:40] or ""))
+            if items:
+                listbox.selection_clear(0, tk.END)
+                listbox.selection_set(tk.END)
+                listbox.see(tk.END)
+                _show_image_at_index(len(entries_ref) - 1)
             win.after(300, _poll)
 
         def _on_close():

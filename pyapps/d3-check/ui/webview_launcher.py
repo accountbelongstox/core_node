@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Diablo 3 Macro - WebView UI Launcher
-Uses NativeUIFrameworkV2 with HTML/CSS/JS frontend
+Uses NativeUIFrameworkV2 with HTML/CSS/JS frontend.
+本模块为 D3MacroWebViewAPI / WebViewFramework 的单一创建者（每窗口各一份）。
 """
 
 # Check and install dependencies before importing
@@ -59,14 +60,9 @@ class D3MacroWebViewAPI:
 
         if hasattr(self, method_name):
             method = getattr(self, method_name)
-            try:
-                if params:
-                    return method(params)
-                else:
-                    return method()
-            except Exception as e:
-                ColorPrint.red(f"[WebViewAPI] Error calling {method_name}: {e}")
-                return {'success': False, 'error': str(e)}
+            if params:
+                return method(params)
+            return method()
         else:
             ColorPrint.yellow(f"[WebViewAPI] Unknown method: {method_name}")
             return {'success': False, 'error': f'Unknown method: {method_name}'}
@@ -296,17 +292,9 @@ class WebViewLauncher:
 
 
 def main():
-    """Main entry point"""
-    try:
-        # Create and start launcher
-        launcher = WebViewLauncher()
-        launcher.start()
-
-    except Exception as e:
-        ColorPrint.red(f"[Main] Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    """Main entry point. Launcher and start must succeed at code level."""
+    launcher = WebViewLauncher()
+    launcher.start()
 
 
 if __name__ == '__main__':

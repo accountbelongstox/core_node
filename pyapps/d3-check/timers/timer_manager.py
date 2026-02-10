@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Timer Manager
-Centralized timer management system for periodic task execution
+Centralized timer management system for periodic task execution.
+本模块为 TimerManagerThread 的单一创建者（start() 时创建）。
 """
 
 import os

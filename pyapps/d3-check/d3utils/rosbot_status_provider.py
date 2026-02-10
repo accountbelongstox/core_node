@@ -10,6 +10,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 
 from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_operation import get_rosbot_operation
 
 
 def _get_rosbot_detection() -> Dict[str, Any]:
@@ -38,6 +39,12 @@ def refresh_rosbot_status() -> Optional[Dict[str, Any]]:
             winfo = detection.get("window_info") or (first.get("window_info") if first else None)
             window_title = (winfo.get("title") or "") if winfo else ""
     game_data.set_rosbot_found_display(exe_name, window_title)
+
+    ui_state = get_rosbot_operation().get_ui_state()
+    game_data.set_rosbot_ui_need_key(
+        ui_state.get("need_key_input", False),
+        (ui_state.get("message") or "").strip(),
+    )
 
     return detection.get("window_info")
 

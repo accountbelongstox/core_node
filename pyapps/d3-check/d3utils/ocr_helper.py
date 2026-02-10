@@ -10,10 +10,10 @@ from typing import Optional, Sequence, Union, List, Dict, Any, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 
-# Use third-party manager singleton: load CnOCR engine once (pycore.pyfoundations.third_party).
+# 使用 d3-check 类库统一初始化的 CnOCR 引擎（APP 启动时已加载）
 def _get_default_engine():
-    from pycore.pyfoundations.third_party import get_third_package_CnOCREngine
-    return get_third_package_CnOCREngine()
+    from d3utils.cnocr_engine_registry import get_cnocr_engine_default
+    return get_cnocr_engine_default()
 
 
 def ocr_get_result(

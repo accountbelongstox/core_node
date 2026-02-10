@@ -121,31 +121,24 @@ class YoloAnnotationWindow:
 
     def _save_window_geometry(self) -> None:
         self._geometry_save_timer = None
-        try:
-            w = self.window.winfo_width()
-            h = self.window.winfo_height()
-            if w < 400 or h < 300:
-                return
-            saved = get_config_value_safe(CONFIG_KEY_YOLO_COLLECT, None) or {}
-            if not isinstance(saved, dict):
-                saved = {}
-            saved = dict(saved)
-            saved["window_width"] = w
-            saved["window_height"] = h
-            set_config_value_async(CONFIG_KEY_YOLO_COLLECT, saved)
-        except Exception:
-            pass
+        if not self.window.winfo_exists():
+            return
+        w = self.window.winfo_width()
+        h = self.window.winfo_height()
+        if w < 400 or h < 300:
+            return
+        saved = get_config_value_safe(CONFIG_KEY_YOLO_COLLECT, None) or {}
+        if not isinstance(saved, dict):
+            saved = {}
+        saved = dict(saved)
+        saved["window_width"] = w
+        saved["window_height"] = h
+        set_config_value_async(CONFIG_KEY_YOLO_COLLECT, saved)
 
     def _list_existing_session_dirs(self) -> List[Path]:
         if not YOLO_DATASET_BASE_DIR.is_dir():
             return []
-        out = []
-        try:
-            for p in YOLO_DATASET_BASE_DIR.iterdir():
-                if p.is_dir() and p.name.startswith("yolo_dataset_"):
-                    out.append(p)
-        except OSError:
-            pass
+        out = [p for p in YOLO_DATASET_BASE_DIR.iterdir() if p.is_dir() and p.name.startswith("yolo_dataset_")]
         out.sort(key=lambda x: x.name, reverse=True)
         return out
 
@@ -197,23 +190,20 @@ class YoloAnnotationWindow:
     def _load_class_config(self) -> None:
         config_path = self.session_dir / CONFIG_FILENAME
         if config_path.exists():
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                classes = data.get("classes") or []
-                if classes:
-                    self.class_names = [c.get("name", "object") for c in classes]
-                    self.class_colors = []
-                    for i, c in enumerate(classes):
-                        col = c.get("color")
-                        if col and isinstance(col, str):
-                            self.class_colors.append(col)
-                        else:
-                            self.class_colors.append(get_yolo_collect_class_color(i))
-                    self.zoom_factor = self._clamp_zoom(float(data.get("display_zoom", 1.0)))
-                    return
-            except Exception:
-                pass
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            classes = data.get("classes") or []
+            if classes:
+                self.class_names = [c.get("name", "object") for c in classes]
+                self.class_colors = []
+                for i, c in enumerate(classes):
+                    col = c.get("color")
+                    if col and isinstance(col, str):
+                        self.class_colors.append(col)
+                    else:
+                        self.class_colors.append(get_yolo_collect_class_color(i))
+                self.zoom_factor = self._clamp_zoom(float(data.get("display_zoom", 1.0)))
+                return
         saved = get_config_value_safe(CONFIG_KEY_YOLO_COLLECT, None)
         if isinstance(saved, dict) and saved.get("classes"):
             classes = saved["classes"]
@@ -240,11 +230,8 @@ class YoloAnnotationWindow:
             "updated": datetime.now().isoformat(),
         }
         config_path = self.session_dir / CONFIG_FILENAME
-        try:
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            ColorPrint.red(f"[YOLO_COLLECT] Save config to session dir failed: {e}")
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
         out = {
             "session_dir": str(self.session_dir),
             "classes": payload["classes"],
@@ -271,11 +258,8 @@ class YoloAnnotationWindow:
             "updated": datetime.now().isoformat(),
         }
         path = self.session_dir / SUBDATASET_SNAPSHOT_FILENAME
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(snapshot, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            ColorPrint.red(f"[YOLO_COLLECT] Save subdataset snapshot failed: {e}")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False)
         self._update_generate_preview()
 
     def _build_preview_text(self, last_result: Optional[Dict] = None) -> str:
@@ -733,14 +717,11 @@ class YoloAnnotationWindow:
 
     def _update_class_list_canvas_after_rebuild(self) -> None:
         """Refresh class list canvas scroll region and ensure new rows are visible (e.g. after add)."""
-        if not getattr(self, "class_canvas", None):
+        if not getattr(self, "class_canvas", None) or not self.class_canvas.winfo_exists():
             return
-        try:
-            self.class_canvas.configure(scrollregion=self.class_canvas.bbox("all"))
-            self.class_canvas.yview_moveto(0)
-            self.class_canvas.update_idletasks()
-        except Exception:
-            pass
+        self.class_canvas.configure(scrollregion=self.class_canvas.bbox("all"))
+        self.class_canvas.yview_moveto(0)
+        self.class_canvas.update_idletasks()
 
     def _select_class(self, index: int) -> None:
         if index == self._selected_class_index:
@@ -782,12 +763,10 @@ class YoloAnnotationWindow:
             return
         idx = self._edit_index
         new_name = self._edit_entry.get().strip()
-        try:
+        if self._edit_entry.winfo_exists():
             self._edit_entry.unbind("<FocusOut>")
             self._edit_entry.unbind("<Return>")
-        except Exception:
-            pass
-        self._edit_entry.destroy()
+            self._edit_entry.destroy()
         self._edit_entry = None
         self._edit_index = None
         if new_name:
@@ -801,10 +780,8 @@ class YoloAnnotationWindow:
 
     def _cancel_edit_class_name(self) -> None:
         if self._edit_entry is not None:
-            try:
+            if self._edit_entry.winfo_exists():
                 self._edit_entry.destroy()
-            except Exception:
-                pass
             self._edit_entry = None
             self._edit_index = None
 
@@ -858,22 +835,17 @@ class YoloAnnotationWindow:
         return get_yolo_collect_class_color(class_id) if class_id >= 0 else "#00FF00"
 
     def _clear_preview_line(self) -> None:
-        if self._preview_line_id is not None:
-            try:
-                self.canvas.delete(self._preview_line_id)
-            except Exception:
-                pass
-            self._preview_line_id = None
+        if self._preview_line_id is not None and self.canvas.winfo_exists():
+            self.canvas.delete(self._preview_line_id)
+        self._preview_line_id = None
 
     def _update_close_polygon_button(self) -> None:
         if not getattr(self, "btn_close_polygon", None):
             return
         can_close = self.current_pick_type == "polygon" and len(self.temp_points) >= 3
         self.btn_close_polygon.configure(state=tk.NORMAL if can_close else tk.DISABLED)
-        try:
+        if self.btn_close_polygon.winfo_exists():
             self.btn_close_polygon.update_idletasks()
-        except Exception:
-            pass
 
     def _close_polygon(self) -> None:
         if self.current_index < 0 or self.current_index >= len(self.screenshot_history):
@@ -980,11 +952,8 @@ class YoloAnnotationWindow:
         for s in self.class_names:
             if s and s.startswith(prefix):
                 m = re.match(r"^(.+)_(\d+)$", s)
-                if m:
-                    try:
-                        max_n = max(max_n, int(m.group(2)))
-                    except ValueError:
-                        pass
+                if m and m.group(2).isdigit():
+                    max_n = max(max_n, int(m.group(2)))
         return f"{prefix}{max_n + 1}"
 
     def _on_add_class(self) -> None:
@@ -1054,11 +1023,9 @@ class YoloAnnotationWindow:
             i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
             msg
         )
-        try:
+        if self.window.winfo_exists() and cmd:
             self.window.clipboard_clear()
             self.window.clipboard_append(cmd)
-        except Exception:
-            pass
         self._sync_subdataset_snapshot()
         self._update_generate_preview(last_result=result)
 
@@ -1067,20 +1034,26 @@ class YoloAnnotationWindow:
         if not sel:
             return
         item = sel[0]
-        try:
-            iid = item
-            if isinstance(iid, str) and iid.startswith("img") and "_ann" in iid:
-                a, b = iid.split("_ann", 1)
-                img_idx = int(a.replace("img", ""))
-                ann_idx = int(b)
-                if 0 <= img_idx < len(self.screenshot_history) and 0 <= ann_idx < len(self.screenshot_history[img_idx].get("annotations") or []):
-                    self.screenshot_history[img_idx]["annotations"].pop(ann_idx)
-                    self._update_ann_tree()
-                    if img_idx == self.current_index:
-                        self._redraw_canvas()
-                    self._sync_subdataset_snapshot()
-        except (ValueError, IndexError, KeyError):
-            pass
+        if not isinstance(item, str) or not item.startswith("img") or "_ann" not in item:
+            return
+        parts = item.split("_ann", 1)
+        if len(parts) != 2:
+            return
+        a, b = parts[0], parts[1]
+        if not a.replace("img", "").isdigit() or not b.isdigit():
+            return
+        img_idx = int(a.replace("img", ""))
+        ann_idx = int(b)
+        if img_idx < 0 or img_idx >= len(self.screenshot_history):
+            return
+        anns = self.screenshot_history[img_idx].get("annotations") or []
+        if ann_idx < 0 or ann_idx >= len(anns):
+            return
+        self.screenshot_history[img_idx]["annotations"].pop(ann_idx)
+        self._update_ann_tree()
+        if img_idx == self.current_index:
+            self._redraw_canvas()
+        self._sync_subdataset_snapshot()
 
     def _on_history_select(self, event) -> None:
         sel = self.history_listbox.curselection()
@@ -1162,11 +1135,9 @@ class YoloAnnotationWindow:
         return (cx, cy)
 
     def _redraw_canvas(self) -> None:
-        for mid in self.canvas_marks:
-            try:
+        if self.canvas.winfo_exists():
+            for mid in self.canvas_marks:
                 self.canvas.delete(mid)
-            except Exception:
-                pass
         self.canvas_marks = []
         if self.current_index < 0 or self.current_index >= len(self.screenshot_history):
             return

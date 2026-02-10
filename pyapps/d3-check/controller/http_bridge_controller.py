@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 HTTP Bridge Controller for D3Check
-Provides HTTP API endpoints for web-based GUI communication
+Provides HTTP API endpoints for web-based GUI communication.
+类库：HTTPBridgeServer 通过 get_http_bridge_server(host, port) 按 (host,port) 单例，禁止各处自行 new。
 """
 
 import sys
 import os
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Tuple, Optional
 
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
@@ -20,6 +21,17 @@ from providor.providor_index import CONFIG, queue_config_save, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
+
+# 导出前实例化：按 (host, port) 单例，禁止各处自行 new HTTPBridgeServer
+_http_bridge_cache: Dict[Tuple[str, int], HTTPBridgeServer] = {}
+
+
+def get_http_bridge_server(host: str, port: int) -> HTTPBridgeServer:
+    """Return cached HTTPBridgeServer for (host, port). 导出前实例化。"""
+    key = (host, port)
+    if key not in _http_bridge_cache:
+        _http_bridge_cache[key] = HTTPBridgeServer(host, port)
+    return _http_bridge_cache[key]
 
 
 class HTTPBridgeController:
@@ -40,7 +52,7 @@ class HTTPBridgeController:
 
         self.macro_controller = macro_controller if macro_controller is not None else D3MacroController()
 
-        self.bridge = HTTPBridgeServer(host, port)
+        self.bridge = get_http_bridge_server(host, port)
 
         self._register_handlers()
 

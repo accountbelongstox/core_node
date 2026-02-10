@@ -9,8 +9,6 @@ import tkinter as tk
 from typing import Optional, Callable
 from ..theme import UITheme
 from ..widgets import ThemedFrame, ThemedButton, ThemedLabel
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
 
 
 class MacroControls:

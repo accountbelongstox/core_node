@@ -18,6 +18,7 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from providor.constants.common import (
     TEMPLATE_DIR,
     LOGIN_TRY_SCREENSHOT_DIR,
@@ -198,7 +199,7 @@ class LoginTryScreenshotController:
             return
         if on_login:
             ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login (UI), run CN flow (UI only)")
-            self._run_cn_login_flow_ui_only(ClickHandler())
+            self._run_cn_login_flow_ui_only(get_click_handler())
             return
         ColorPrint.blue("[LoginTryScreenshotController] Battle.net state not login/disconnect/normal, skip")
 
@@ -402,7 +403,7 @@ class LoginTryScreenshotController:
         else:
             ColorPrint.blue("[LoginTryScreenshotController] D3 not online -> start from Battle.net")
             kill_d3_first = False
-        clicker = ClickHandler()
+        clicker = get_click_handler()
         return self._run_d_block_launch_d3_only(bn_path, clicker, kill_d3_first)
 
     def _ensure_battlenet_logged_in_first(self, bn_path: Path, clicker: ClickHandler) -> bool:
@@ -455,7 +456,7 @@ class LoginTryScreenshotController:
         if not bn_path:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path, skip ensure_battlenet_only")
             return False
-        clicker = ClickHandler()
+        clicker = get_click_handler()
         return self._ensure_battlenet_logged_in_first(bn_path, clicker)
 
     def _run_c3_loop_and_handle_branch(self, d3_just_entered: bool = False) -> str:
@@ -580,7 +581,7 @@ class LoginTryScreenshotController:
 
         # Doc F1->C1: check if D3 is running first; when D3 already running go direct to C branch, use this tick refresh to avoid re-querying Battle.net
         has_d3_process = get_d3_manager().is_running()
-        clicker = ClickHandler()
+        clicker = get_click_handler()
         from_tick_fast_path = False
         battlenet_confirmed = False
 

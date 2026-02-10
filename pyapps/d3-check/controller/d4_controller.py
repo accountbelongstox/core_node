@@ -18,14 +18,18 @@ current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.constants.common import TMP_DIR
+from providor.constants.common import TMP_DIR, DEBUG
 from providor.providor_index import DIABLO_IV_WINDOW_TITLES
-# D4State functionality now integrated into D4InterfaceData
 from d3utils.screenshot_provider import get_screenshot_provider
 from providor.constants.d4 import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 from share.game_interface_data import get_d4_interface_data
-from controller.d4func import ExpFarmingManager, get_ui_status_updater
+from controller.d4func import ExpFarmingManager, get_exp_farming_manager, get_ui_status_updater
 from controller.d4func.events.event_manager import get_event_manager
+from controller.d4func.screenshot_handler import get_screenshot_handler
+from controller.d4func.region_detector import get_region_detector
+from controller.d4func.map_switch_detector import get_map_switch_detector
+from controller.d4func.map_name_recognizer import get_map_name_recognizer
+from ui.components.debug_window import update_debug_window_images_if_open
 
 
 class D4Controller:
@@ -44,7 +48,7 @@ class D4Controller:
         self.d4_data = get_d4_interface_data()
 
         # Initialize EXP farming manager
-        self.exp_farming_manager = ExpFarmingManager()
+        self.exp_farming_manager = get_exp_farming_manager()
 
         # Initialize UI status updater
         self.ui_status_updater = get_ui_status_updater()
@@ -84,21 +88,17 @@ class D4Controller:
 
         elif debug_window_open:
             ColorPrint.blue("[D4Controller] Debug window mode - performing screenshot and region detection...")
-            from .d4func.screenshot_handler import ScreenshotHandler
-            screenshot_handler = ScreenshotHandler()
+            screenshot_handler = get_screenshot_handler()
             screenshot_success = screenshot_handler.capture_and_collect_info(self.d4_data)
             ColorPrint.blue(f"[D4Controller] Screenshot capture result: {screenshot_success}")
             if screenshot_success:
-                from .d4func.region_detector import RegionDetector
-                region_detector = RegionDetector()
+                region_detector = get_region_detector()
                 ColorPrint.blue("[D4Controller] About to call detect_regions_from_shared_data...")
                 detection_success = region_detector.detect_regions_from_shared_data()
                 ColorPrint.blue(f"[D4Controller] Region detection result: {detection_success}")
                 if detection_success:
-                    from .d4func.map_switch_detector import get_map_switch_detector
                     map_switch_detector = get_map_switch_detector()
                     map_switch_detector.detect_map_switch()
-                    from .d4func.map_name_recognizer import get_map_name_recognizer
                     map_recognizer = get_map_name_recognizer()
                     map_recognizer.recognize_map_name()
                     self._update_debug_window_if_open()
@@ -131,15 +131,14 @@ class D4Controller:
         Args:
             success: Whether the tick process was successful
         """
-        from providor.constants.common import DEBUG
         window_size = self.d4_data.game_window_size if self.d4_data.game_window_size else (0, 0)
         is_windowed = self.d4_data.is_windowed_mode()
-        region_count = len(self.d4_data.detected_regions) if hasattr(self.d4_data, 'detected_regions') and self.d4_data.detected_regions else 0
-        point_count = len(self.d4_data.detected_points) if hasattr(self.d4_data, 'detected_points') and self.d4_data.detected_points else 0
-        screenshot_path = self.d4_data.last_screenshot_path if hasattr(self.d4_data, 'last_screenshot_path') and self.d4_data.last_screenshot_path else "N/A"
-        if screenshot_path and screenshot_path != "N/A" and len(screenshot_path) > 60:
+        region_count = len(self.d4_data.detected_regions) if self.d4_data.detected_regions else 0
+        point_count = len(self.d4_data.detected_points) if self.d4_data.detected_points else 0
+        screenshot_path = self.d4_data.last_screenshot_path or "N/A"
+        if screenshot_path != "N/A" and len(screenshot_path) > 60:
             screenshot_path = "..." + screenshot_path[-57:]
-        annotated_path = self.d4_data.last_annotated_screenshot_path if hasattr(self.d4_data, 'last_annotated_screenshot_path') else None
+        annotated_path = self.d4_data.last_annotated_screenshot_path
         annotated_display = "N/A"
         if annotated_path:
             annotated_display = "..." + annotated_path[-57:] if len(annotated_path) > 60 else annotated_path
@@ -217,13 +216,8 @@ class D4Controller:
         else:
             region_count = len(self.d4_data.detected_regions.get('region_images', {}))
             ColorPrint.blue(f"[D4Controller] detected_regions has {region_count} region images")
-        from ui.components.debug_window import get_debug_window
-        debug_window = get_debug_window()
-        if debug_window is not None:
-            debug_window.update_images()
-            ColorPrint.green("[D4Controller] Debug window images updated successfully")
-        else:
-            ColorPrint.yellow("[D4Controller] Debug window instance is None")
+        update_debug_window_images_if_open()
+        ColorPrint.green("[D4Controller] Debug window images updated (if open)")
 
 # Global D4 controller instance (singleton)
 _d4_controller = None

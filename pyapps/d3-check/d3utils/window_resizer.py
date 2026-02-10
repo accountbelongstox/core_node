@@ -10,12 +10,10 @@ import time
 from typing import List, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_win32gui
 from pycore.pyutils.common.window_finder import WindowFinder
 
-try:
-    import win32gui
-except ImportError:
-    win32gui = None
+win32gui = get_third_package_win32gui()
 
 
 def _get_screen_size() -> Tuple[int, int]:

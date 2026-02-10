@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-from pycore.pyutils.image_annotator import ImageAnnotator
+from d3utils.d3u_common.image_annotator_helper import create_annotator
 
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
@@ -90,7 +90,7 @@ def _build_annotated_match_image(
     if target_bgr is None:
         return None
     try:
-        annotator = ImageAnnotator(np.ascontiguousarray(target_bgr.copy()))
+        annotator = create_annotator(np.ascontiguousarray(target_bgr.copy()))
         h, w = target_bgr.shape[:2]
         line_y = 24
         line_h = 22

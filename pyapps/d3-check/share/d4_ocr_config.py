@@ -31,8 +31,8 @@ class OCRConfig:
         ),
         'number': OCRModelConfig(
             det_model_name='naive_det',
-            rec_model_name='number-densenet_lite_136-gru',
-            description='Number-only model (0-9)',
+            rec_model_name='number-densenet_lite_136-fc',
+            description='Number-only model (0-9, cand_alphabet)',
             use_case='Health values, damage numbers, item quantities'
         ),
         'document': OCRModelConfig(

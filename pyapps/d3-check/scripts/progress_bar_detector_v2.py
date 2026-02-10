@@ -20,31 +20,20 @@ Algorithm:
 import os
 import sys
 import time
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 
 # Add project paths
 current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
+from share.project_path import get_project_root
+sys.path.insert(0, str(get_project_root().parent.parent))
 
-# Import ColorPrint directly to avoid dependency issues
-try:
-    from pycore.pyfoundations.color_print import ColorPrint
-except (ImportError, ModuleNotFoundError):
-    # Fallback: simple ColorPrint implementation
-    class ColorPrint:
-        @staticmethod
-        def blue(msg): print(f"\033[94m{msg}\033[0m")
-        @staticmethod
-        def green(msg): print(f"\033[92m{msg}\033[0m")
-        @staticmethod
-        def red(msg): print(f"\033[91m{msg}\033[0m")
-        @staticmethod
-        def yellow(msg): print(f"\033[93m{msg}\033[0m")
-        @staticmethod
-        def gray(msg): print(f"\033[90m{msg}\033[0m")
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 
 # ============================================================================

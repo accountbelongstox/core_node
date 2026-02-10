@@ -14,6 +14,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.third_party import get_third_package_win32api, get_third_package_numpy, get_third_package_PIL_Image
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.common.window_finder import WindowFinder
 from providor.constants.common import (
     DEBUG_BAG_HOVER_FOCUS_CLICK_DURATION_SEC,
@@ -23,7 +24,7 @@ from providor.constants.common import (
 )
 from share.game_interface_data import get_game_interface_data, get_scaled_game_focus_click_point
 from d3utils.d3_manager import get_d3_manager
-from d3utils.interface_manager import D3InterfaceManager
+from d3utils.interface_manager import get_d3_interface_manager
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from d3utils.screenshot_provider import get_screenshot_provider
 
@@ -416,7 +417,7 @@ def run_debug_bag_hover() -> bool:
 
     if not coords or not layout or not getattr(layout, "items", None):
         ColorPrint.blue("[DebugBagHover] No bag data, running collect_bag_info_quik...")
-        D3InterfaceManager().collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
+        get_d3_interface_manager().collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
         shared = get_game_interface_data()
         coords = getattr(shared, "bag_coordinates", None)
         layout = getattr(shared, "bag_layout", None)
@@ -465,7 +466,7 @@ def run_debug_bag_hover() -> bool:
     focus_cx, focus_cy = get_scaled_game_focus_click_point()
     focus_screen_x = window_offset[0] + focus_cx
     focus_screen_y = window_offset[1] + focus_cy
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     clicker.click(
         focus_screen_x,
         focus_screen_y,

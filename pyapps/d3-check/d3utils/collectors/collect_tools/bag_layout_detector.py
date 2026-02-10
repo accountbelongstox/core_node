@@ -2,16 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 Bag Layout Detector
-Detects bag slot usage by analyzing separator lines and empty slots
+Detects bag slot usage by analyzing separator lines and empty slots.
+类库：导出前实例化，通过 get_bag_layout_detector() 获取默认 6x10 单例，禁止各处自行 new。
 """
 
-import cv2
-import numpy as np
 from typing import List, Dict, Tuple, Optional, Set
 from pathlib import Path
-
 import sys
 import os
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+Image = get_third_package_PIL_Image()
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
@@ -1274,22 +1278,26 @@ class BagLayoutDetector:
 
 # Example usage
 if __name__ == "__main__":
-    from PIL import Image
-
-    # Load test image
+    if Image is None:
+        raise RuntimeError("PIL Image not available")
     test_image_path = "test_bag.png"
-    try:
-        pil_img = Image.open(test_image_path)
-        bag_image = np.array(pil_img)
-        bag_image = cv2.cvtColor(bag_image, cv2.COLOR_RGB2BGR)
+    pil_img = Image.open(test_image_path)
+    bag_image = np.array(pil_img)
+    bag_image = cv2.cvtColor(bag_image, cv2.COLOR_RGB2BGR)
+    bag_coords = {
+        "top_left": (0, 0),
+        "bottom_right": (bag_image.shape[1], bag_image.shape[0])
+    }
+    detector = get_bag_layout_detector()
+    layout = detector.detect_layout(bag_image, bag_coords)
 
-        bag_coords = {
-            "top_left": (0, 0),
-            "bottom_right": (bag_image.shape[1], bag_image.shape[0])
-        }
 
-        detector = BagLayoutDetector()
-        layout = detector.detect_layout(bag_image, bag_coords)
+_bag_layout_detector_default: Optional[BagLayoutDetector] = None
 
-    except Exception as e:
-        ColorPrint.red(f"Error: {e}")
+
+def get_bag_layout_detector(rows: int = 6, cols: int = 10) -> BagLayoutDetector:
+    """Return the global BagLayoutDetector instance for default grid (6x10). 导出前实例化."""
+    global _bag_layout_detector_default
+    if _bag_layout_detector_default is None:
+        _bag_layout_detector_default = BagLayoutDetector(rows=rows, cols=cols)
+    return _bag_layout_detector_default

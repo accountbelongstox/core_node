@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 UI Region Collector - Optimized Version
-Uses window cache from encyclopedia for fast detection
+Uses window cache from encyclopedia for fast detection.
+类库：导出前实例化，通过 get_ui_region_collector_optimized() 获取单例，禁止各处自行 new。
 """
 
 # Standard library imports
@@ -23,10 +24,8 @@ Image = get_third_package_PIL_Image()
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.image_annotator import ImageAnnotator
-
 # Local imports
-from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
+from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_game_interface_data, UIRegion
 from providor.constants.common import DEBUG, TMP_DIR
@@ -201,7 +200,7 @@ class UIRegionCollectorOptimized:
             ColorPrint.yellow("[Save] No image available for annotation")
             return
         img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-        annotator = ImageAnnotator(img_bgr)
+        annotator = create_annotator(img_bgr)
 
         # Draw UI region: on game_window_image use (0,0)-(w,h); on fullscreen use (x,y)-(x+w,y+h)
         if screenshot_data.game_window_image is not None:
@@ -258,4 +257,15 @@ class UIRegionCollectorOptimized:
         shared_data = get_game_interface_data()
         shared_data.error = error_msg
         shared_data.timestamp = timestamp
+
+
+_ui_region_collector_optimized_instance: Optional[UIRegionCollectorOptimized] = None
+
+
+def get_ui_region_collector_optimized() -> UIRegionCollectorOptimized:
+    """Return the global UIRegionCollectorOptimized instance (singleton). 导出前实例化."""
+    global _ui_region_collector_optimized_instance
+    if _ui_region_collector_optimized_instance is None:
+        _ui_region_collector_optimized_instance = UIRegionCollectorOptimized()
+    return _ui_region_collector_optimized_instance
 

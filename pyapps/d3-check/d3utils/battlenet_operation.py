@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Battle.net operation: start, close, restart, click D3 tab, start game, detect game state.
+类库：导出前实例化，通过 get_battlenet_operation() / get_battlenet_asia_ops() 按 path+region 单例，禁止各处自行 new。
 Reuses BattleNetManager for process/window; UI Automation for control find/click (Chromium Battle.net).
 When region (asia/cn) is known at startup, all operations use that region only; when unknown, first detection may try both.
 """
@@ -10,8 +11,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Set
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.click_handler import ClickHandler
-from pycore.pyfoundations.third_party import get_third_package_uiautomation, get_third_package_win32gui
+from d3utils.click_handler_singleton import get_click_handler
+from pycore.pyfoundations.third_party import get_third_package_pythoncom, get_third_package_uiautomation, get_third_package_win32gui
 from share.game_interface_data import get_game_interface_data
 from providor.providor_index import get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
@@ -63,11 +64,8 @@ from providor.constants.d3 import (
 )
 
 win32gui = get_third_package_win32gui()
-
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
+pythoncom = get_third_package_pythoncom()
+uiautomation = get_third_package_uiautomation()
 
 
 def _resolve_battlenet_region() -> Optional[str]:
@@ -231,8 +229,8 @@ class BattlenetOperation:
 
     def __init__(self, elements_json_path: Optional[Path] = None, region: Optional[str] = None):
         self._elements_json_path = elements_json_path or self._default_elements_json_path()
-        self._clicker = ClickHandler()
-        self._asia_ops = BattlenetAsiaOps(self)
+        self._clicker = get_click_handler()
+        self._asia_ops: Optional[BattlenetAsiaOps] = None  # 由 get_battlenet_operation() 在缓存后注入
         self._region = region if region in ("asia", "cn") else _resolve_battlenet_region() if region is None else None
 
     @staticmethod
@@ -265,15 +263,14 @@ class BattlenetOperation:
     def _enumerate_controls(self) -> List[Dict[str, Any]]:
         """Enumerate Battle.net window UI Automation controls; CoInitialize in current thread first."""
         _ensure_com()
-        auto = get_third_package_uiautomation()
-        if not auto:
+        if not uiautomation:
             return []
         windows = get_battlenet_manager().find_windows()
         if not windows:
             return []
         hwnd = int(windows[0]["hwnd"])
         try:
-            root = auto.ControlFromHandle(hwnd)
+            root = uiautomation.ControlFromHandle(hwnd)
             if not root.Exists():
                 return []
         except Exception as e:
@@ -315,11 +312,10 @@ class BattlenetOperation:
         ):
             return _BN_CONTROLS_LIGHT_CACHE["controls"]
         _ensure_com()
-        auto = get_third_package_uiautomation()
-        if not auto:
+        if not uiautomation:
             return []
         try:
-            root = auto.ControlFromHandle(hwnd)
+            root = uiautomation.ControlFromHandle(hwnd)
             if not root.Exists():
                 return []
         except Exception as e:
@@ -349,15 +345,14 @@ class BattlenetOperation:
     def _get_root_control(self):
         """Get root UI Automation control for Battle.net window, or None."""
         _ensure_com()
-        auto = get_third_package_uiautomation()
-        if not auto:
+        if not uiautomation:
             return None
         windows = get_battlenet_manager().find_windows()
         if not windows:
             return None
         hwnd = int(windows[0]["hwnd"])
         try:
-            root = auto.ControlFromHandle(hwnd)
+            root = uiautomation.ControlFromHandle(hwnd)
             return root if root.Exists() else None
         except Exception as e:
             ColorPrint.yellow(f"[BattlenetOperation] ControlFromHandle failed: {e}")
@@ -1101,9 +1096,30 @@ class BattlenetOperation:
             return None
 
 
+# 导出前实例化：按 (elements_json_path, region) 单例
+_battlenet_operation_cache: Dict[Tuple[Optional[Path], Optional[str]], BattlenetOperation] = {}
+_battlenet_asia_ops_cache: Dict[Tuple[Optional[Path], Optional[str]], BattlenetAsiaOps] = {}
+
+
+def get_battlenet_asia_ops(
+    elements_json_path: Optional[Path] = None,
+    region: Optional[str] = None,
+) -> BattlenetAsiaOps:
+    """Return BattlenetAsiaOps for the same key as get_battlenet_operation (singleton per path+region). 导出前实例化。"""
+    key = (elements_json_path, region)
+    if key not in _battlenet_asia_ops_cache:
+        _battlenet_asia_ops_cache[key] = BattlenetAsiaOps(get_battlenet_operation(elements_json_path, region))
+    return _battlenet_asia_ops_cache[key]
+
+
 def get_battlenet_operation(
     elements_json_path: Optional[Path] = None,
     region: Optional[str] = None,
 ) -> BattlenetOperation:
-    """Return Battle.net operation bound to current region (resolved from game_interface_data/config when region is None)."""
-    return BattlenetOperation(elements_json_path=elements_json_path, region=region)
+    """Return Battle.net operation bound to current region (singleton per path+region). 导出前实例化。"""
+    key = (elements_json_path, region)
+    if key not in _battlenet_operation_cache:
+        op = BattlenetOperation(elements_json_path=elements_json_path, region=region)
+        _battlenet_operation_cache[key] = op
+        op._asia_ops = get_battlenet_asia_ops(elements_json_path, region)
+    return _battlenet_operation_cache[key]

@@ -13,8 +13,8 @@ from pathlib import Path
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-from pycore.pyutils.image_matcher import ImageMatcher
 from share.template_match_debug import notify_match
+from d3utils.image_matcher_registry import get_image_matcher_for_method
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -25,8 +25,8 @@ __all__ = ["ScaledTemplateMatcherBase", "cv2", "np", "Image", "numpy", "load_tem
 
 
 def _ensure_provider_imports():
-    """Return ColorPrint and ImageMatcher (imports at module top to avoid late-binding issues)."""
-    return ColorPrint, ImageMatcher
+    """Return ColorPrint (imports at module top to avoid late-binding issues)."""
+    return ColorPrint
 
 
 def load_template_and_scale_by_resolution(
@@ -80,42 +80,18 @@ class ScaledTemplateMatcherBase:
         self._template_cache: Dict = {}
 
     def _get_matcher(self, match_method: str):
-        ColorPrint, ImageMatcher = _ensure_provider_imports()
         method_type = match_method.upper()
-        cache_key = method_type
-        feature_methods = ["SIFT", "ORB", "AKAZE"]
-        template_method_map = {
-            "TM_CCOEFF": cv2.TM_CCOEFF,
-            "TM_CCOEFF_NORMED": cv2.TM_CCOEFF_NORMED,
-            "TM_CCORR": cv2.TM_CCORR,
-            "TM_CCORR_NORMED": cv2.TM_CCORR_NORMED,
-            "TM_SQDIFF": cv2.TM_SQDIFF,
-            "TM_SQDIFF_NORMED": cv2.TM_SQDIFF_NORMED
-        }
-        if method_type in feature_methods:
-            if cache_key not in self._matchers:
-                ColorPrint.blue(f"{self.log_prefix} Creating {method_type} feature matcher")
-                self._matchers[cache_key] = ImageMatcher(
-                    ratio_thresh=0.80,
-                    min_inliers=4,
-                    nfeatures=10000,
-                    standard_width=self.standard_width,
-                    standard_height=self.standard_height
-                )
-        else:
-            if cache_key not in self._matchers:
-                ColorPrint.blue(f"{self.log_prefix} Creating {method_type} template matcher")
-                self._matchers[cache_key] = ImageMatcher(
-                    ratio_thresh=0.80,
-                    min_inliers=4,
-                    nfeatures=10000,
-                    standard_width=self.standard_width,
-                    standard_height=self.standard_height
-                )
-        return self._matchers[cache_key]
+        return get_image_matcher_for_method(
+            method_type,
+            self.standard_width,
+            self.standard_height,
+            ratio_thresh=0.80,
+            min_inliers=4,
+            nfeatures=10000,
+        )
 
     def _load_target_image(self, target_image: Union[str, Path, Image.Image, np.ndarray]) -> Optional[np.ndarray]:
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         try:
             if isinstance(target_image, np.ndarray):
                 return target_image
@@ -135,7 +111,7 @@ class ScaledTemplateMatcherBase:
             return None
 
     def _load_original_template(self, template_name: str) -> Optional[np.ndarray]:
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         if template_name in self._original_template_cache:
             ColorPrint.gray(f"{self.log_prefix} Using cached original template: {template_name}")
             return self._original_template_cache[template_name]
@@ -168,7 +144,7 @@ class ScaledTemplateMatcherBase:
         force_refresh: bool = False,
         silent: bool = False
     ) -> Optional[np.ndarray]:
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         cache_key = (template_name, round(scale_x, 4), round(scale_y, 4))
         if not force_refresh and cache_key in self._template_cache:
             if not silent:
@@ -199,7 +175,7 @@ class ScaledTemplateMatcherBase:
         output_dir: Optional[Path] = None,
         force_refresh_scale: bool = False
     ) -> Dict:
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         ColorPrint.blue(f"\n{self.log_prefix} Matching template: {template_name}")
         scale_x, scale_y = self.get_scale_factors()
         scaled_template_img = self._get_scaled_template_image(
@@ -256,7 +232,7 @@ class ScaledTemplateMatcherBase:
         Subclasses use this to implement game-specific match_template_auto_scale with their own constants.
         silent=True: suppress per-template and DEBUG logs (for one-shot multi-state, one summary line only).
         """
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         scaled_template_img = self._get_scaled_template_image(
             template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False, silent=silent
         )
@@ -289,7 +265,7 @@ class ScaledTemplateMatcherBase:
         output_dir: Optional[Path] = None,
         force_refresh_scale: bool = False
     ) -> Dict:
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         target_img_array = self._load_target_image(target_image)
         if target_img_array is None:
             return {"total_matches": 0, "matches": [], "error": "Failed to load target image"}
@@ -329,7 +305,7 @@ class ScaledTemplateMatcherBase:
         output_dir: Optional[Path] = None
     ) -> Dict:
         """Match a template in a given image (no scaling). Target image = region image."""
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         target_img_array = self._load_target_image(target_image)
         if target_img_array is None:
             return {"total_matches": 0, "matches": [], "error": "Failed to load target image"}
@@ -358,7 +334,7 @@ class ScaledTemplateMatcherBase:
     match_template_in_region = match_template_in_image
 
     def clear_cache(self):
-        ColorPrint, _ = _ensure_provider_imports()
+        ColorPrint = _ensure_provider_imports()
         self._original_template_cache.clear()
         self._template_cache.clear()
         ColorPrint.blue(f"{self.log_prefix} All template caches cleared")

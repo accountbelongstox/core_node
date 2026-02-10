@@ -66,18 +66,8 @@ class BlacksmithHandler:
         # Get shared data
         shared_data = get_game_interface_data()
 
-        # Get game window offset from shared data
-        window_offset = getattr(shared_data, "window_offset", None)
-
-        if (
-            not isinstance(window_offset, tuple)
-            or len(window_offset) != 2
-            or any(coord is None for coord in window_offset)
-        ):
-            ColorPrint.red("[BlacksmithHandler] Window offset unavailable in shared data")
-            return False
-
-        window_offset_x, window_offset_y = window_offset
+        window_offset = shared_data.window_offset
+        window_offset_x, window_offset_y = window_offset[0], window_offset[1]
 
         # Step 1: Click sidebar tab
         ColorPrint.blue("[BlacksmithHandler] Step 1: Clicking sidebar tab...")
@@ -210,15 +200,12 @@ class BlacksmithHandler:
         keep: "keep_ancient_plus" = salvage normal/rare/magic; "keep_primal" = salvage normal/ancient/rare/magic.
         """
         shared_data = get_game_interface_data()
-        coords = getattr(shared_data, "bag_coordinates", None)
-        layout = getattr(shared_data, "bag_layout", None)
-        if not coords or not layout or not getattr(layout, "items", None):
+        coords = shared_data.bag_coordinates
+        layout = shared_data.bag_layout
+        if not coords or not layout or not layout.items:
             ColorPrint.red("[BlacksmithHandler] No bag coordinates/layout for auto salvage")
             return False
-        window_offset = getattr(shared_data, "window_offset", (0, 0))
-        if not isinstance(window_offset, (tuple, list)) or len(window_offset) != 2:
-            ColorPrint.red("[BlacksmithHandler] Window offset unavailable")
-            return False
+        window_offset = shared_data.window_offset
         ox, oy = int(window_offset[0]), int(window_offset[1])
         top_left = coords.top_left
         w, h = coords.width, coords.height

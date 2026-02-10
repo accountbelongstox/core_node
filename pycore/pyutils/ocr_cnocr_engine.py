@@ -1,13 +1,12 @@
 """
-OCR CnOCR Engine Module
+OCR CnOCR Engine Module (pycore generic).
 Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, get_third_package_numpy.
-Supports 9-grid region recognition and offset calculation.
+Supports context (GPU/CPU) with CPU fallback, rec_model fallbacks (e.g. free doc model first), cand_alphabet for number-only.
 """
 import sys
 from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
 
-# Add parent directory to path for ColorPrint
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
@@ -21,83 +20,89 @@ from pycore.pyfoundations.third_party import (
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
 
+# Order for context: try GPU first, then CPU (code-level fallback when GPU unavailable)
+_CONTEXT_ORDER = ("gpu", "cpu")
+
 
 class CnOCREngine:
     """
-    OCR Recognition Tool Class
-
-    Features:
-    1. Uses pycore third_party package manager for cnocr/Pillow/numpy
-    2. Support 9-grid region recognition (1-9)
-    3. Return recognition results and coordinate offsets
-    4. Default support for Chinese, Traditional Chinese, English, and numbers
-
-    Usage Example:
-        ocr = OCRTool()
-        ocr.init()
-
-        # Recognize entire image
-        result = ocr.ocr('image.png')
-
-        # Recognize grid position 5 (center)
-        result = ocr.ocr('image.png', grid_position=5)
+    OCR engine over CnOCR. Lazy-loaded via pycore third_party.
+    - context: try GPU then CPU (fallback when no GPU / CUDA not available).
+    - rec_model_fallbacks: if primary rec model fails (e.g. paid model missing), try these (e.g. doc-densenet_lite_136-gru).
+    - cand_alphabet: optional, e.g. '0123456789' for number-only (use with number-densenet_lite_136-fc).
     """
 
-    def __init__(self, det_model_name: str = 'naive_det', rec_model_name: str = 'densenet_lite_136-gru'):
-        """
-        Initialize OCR Tool
-
-        Args:
-            det_model_name: Detection model name, default 'naive_det'
-            rec_model_name: Recognition model name, default 'densenet_lite_136-gru' (supports Chinese, English, numbers)
-        """
+    def __init__(
+        self,
+        det_model_name: str = "naive_det",
+        rec_model_name: str = "doc-densenet_lite_136-gru",
+        rec_model_fallbacks: Optional[List[str]] = None,
+        cand_alphabet: Optional[str] = None,
+    ):
         self.det_model_name = det_model_name
         self.rec_model_name = rec_model_name
+        self.rec_model_fallbacks = rec_model_fallbacks or []
+        self.cand_alphabet = cand_alphabet
         self._ocr_instance = None
         self._initialized = False
+        self._effective_context: Optional[str] = None
+        self._effective_rec_model: Optional[str] = None
 
     def init(self) -> bool:
         """
-        Initialize CnOCR engine.
-        Uses pycore third_party get_third_package_cnocr (DEPENDENCY_MAP: cnocr, PIL, numpy).
+        Initialize CnOCR engine. Tries (context, rec_model) in order: gpu then cpu,
+        primary rec_model then rec_model_fallbacks. First success wins; no catch at call site.
         """
         if self._initialized:
             ColorPrint.blue("[CnOCREngine] OCR already initialized, skipping re-initialization")
             return True
 
+        cnocr_module = get_third_package_cnocr()
+        if cnocr_module is None:
+            ColorPrint.red("[CnOCREngine] cnocr not available (install cnocr e.g. pip install cnocr[ort-cpu])")
+            return False
+
         ColorPrint.yellow(f"\n{'=' * 60}")
         ColorPrint.yellow("[CnOCREngine] Initializing CnOCR Engine")
         ColorPrint.yellow(f"{'=' * 60}\n")
+        ColorPrint.blue("[CnOCREngine] Loading CnOCR models...")
+        ColorPrint.blue(f"[CnOCREngine] Detection model: {self.det_model_name}")
+        ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
 
-        try:
-            cnocr_module = get_third_package_cnocr()
-            if cnocr_module is None:
-                ColorPrint.red("[CnOCREngine] cnocr not available (install via third_party DEPENDENCY_MAP)")
-                return False
-            ColorPrint.blue(f"\n[CnOCREngine] Loading CnOCR models...")
-            ColorPrint.blue(f"[CnOCREngine] Detection model: {self.det_model_name}")
-            ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
+        CnOcr = cnocr_module.CnOcr
+        rec_models = [self.rec_model_name] + self.rec_model_fallbacks
+        last_error = None
 
-            CnOcr = cnocr_module.CnOcr
-            self._ocr_instance = CnOcr(
-                det_model_name=self.det_model_name,
-                rec_model_name=self.rec_model_name
-            )
-            self._initialized = True
+        for context in _CONTEXT_ORDER:
+            for rec in rec_models:
+                kwargs = {
+                    "det_model_name": self.det_model_name,
+                    "rec_model_name": rec,
+                    "context": context,
+                }
+                if self.cand_alphabet is not None:
+                    kwargs["cand_alphabet"] = self.cand_alphabet
+                try:
+                    self._ocr_instance = CnOcr(**kwargs)
+                    self._initialized = True
+                    self._effective_context = context
+                    self._effective_rec_model = rec
+                    ColorPrint.green(f"\n{'=' * 60}")
+                    ColorPrint.green("[CnOCREngine] Engine initialized successfully!")
+                    ColorPrint.green(f"  Detection model: {self.det_model_name}")
+                    ColorPrint.green(f"  Recognition model: {self._effective_rec_model}")
+                    ColorPrint.green(f"  Context: {self._effective_context}")
+                    ColorPrint.green(f"{'=' * 60}\n")
+                    return True
+                except Exception as e:
+                    last_error = e
+                    ColorPrint.gray(f"[CnOCREngine] Init failed (context={context}, rec={rec}): {e}")
+                    continue
 
-            ColorPrint.green(f"\n{'=' * 60}")
-            ColorPrint.green(f"[CnOCREngine] Engine initialized successfully!")
-            ColorPrint.green(f"  Detection model: {self.det_model_name}")
-            ColorPrint.green(f"  Recognition model: {self.rec_model_name}")
-            ColorPrint.green(f"{'=' * 60}\n")
-            return True
-        except Exception as e:
-            ColorPrint.red(f"\n{'=' * 60}")
-            ColorPrint.red(f"[CnOCREngine] Engine initialization failed: {e}")
-            ColorPrint.red(f"{'=' * 60}\n")
-            import traceback
-            traceback.print_exc()
-            return False
+        ColorPrint.red(f"\n{'=' * 60}")
+        ColorPrint.red(f"[CnOCREngine] Engine initialization failed: {last_error}")
+        ColorPrint.red(f"{'=' * 60}\n")
+        return False
 
     def _calculate_grid_region(
         self,
@@ -274,18 +279,30 @@ class CnOCREngine:
 
 
 # Convenience function
-def create_ocr(det_model_name: str = 'naive_det', rec_model_name: str = 'densenet_lite_136-gru') -> CnOCREngine:
+def create_ocr(
+    det_model_name: str = "naive_det",
+    rec_model_name: str = "doc-densenet_lite_136-gru",
+    rec_model_fallbacks: Optional[List[str]] = None,
+    cand_alphabet: Optional[str] = None,
+) -> CnOCREngine:
     """
-    Create and initialize OCR tool
+    Create and initialize OCR tool.
 
     Args:
         det_model_name: Detection model name
-        rec_model_name: Recognition model name
+        rec_model_name: Recognition model name (prefer free: doc-densenet_lite_136-gru)
+        rec_model_fallbacks: Fallback rec models if primary fails
+        cand_alphabet: Optional e.g. '0123456789' for number-only
 
     Returns:
         CnOCREngine: Initialized CnOCR engine instance
     """
-    ocr = CnOCREngine(det_model_name=det_model_name, rec_model_name=rec_model_name)
+    ocr = CnOCREngine(
+        det_model_name=det_model_name,
+        rec_model_name=rec_model_name,
+        rec_model_fallbacks=rec_model_fallbacks,
+        cand_alphabet=cand_alphabet,
+    )
     ocr.init()
     return ocr
 

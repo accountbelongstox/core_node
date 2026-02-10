@@ -21,6 +21,8 @@ ImageDraw = get_third_package_PIL_ImageDraw()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
+from providor.constants.ui import POPUP_KEY_DEBUG_WINDOW
+from share.ui_registry import get_popup, register_popup, unregister_popup
 from ui.unified_styles import UnifiedStyles
 from ui.utils.app_root import get_app_root
 from pycore.pyfoundations.color_print import ColorPrint
@@ -230,7 +232,7 @@ class DebugWindow:
             y = int(row * slot_h)
             draw.line([(0, y), (w, y)], fill=grid_color, width=1)
         # Slot quality labels
-        if layout and getattr(layout, "layout", None) and getattr(layout, "items", None):
+        if layout and layout.layout and layout.items:
             layout_grid = layout.layout
             items = layout.items
             for row in range(rows):
@@ -260,36 +262,36 @@ class DebugWindow:
 
     def _update_d3_bag_section(self):
         """Refresh D3 bag section from get_game_interface_data() (bag_coordinates, bag_layout)."""
-        if not hasattr(self, 'd3_bag_info_label') or not self.d3_bag_info_label.winfo_exists():
+        if not self.d3_bag_info_label.winfo_exists():
             return
         no_data = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data", "No D3 bag data (run bag detection first)")
         d3_data = get_game_interface_data()
-        coords = getattr(d3_data, "bag_coordinates", None)
-        layout = getattr(d3_data, "bag_layout", None)
-        game_img = getattr(d3_data, "game_window_image", None)
+        coords = d3_data.bag_coordinates
+        layout = d3_data.bag_layout
+        game_img = d3_data.game_window_image
 
         if coords is None and layout is None:
             self.d3_bag_info_label.configure(text=no_data)
-            if hasattr(self, 'd3_bag_image_label') and self.d3_bag_image_label.winfo_exists():
+            if self.d3_bag_image_label.winfo_exists():
                 self.d3_bag_image_label.configure(image="", text="No Image")
             self.d3_bag_photo = None
             return
 
         lines = []
-        lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
-        lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
-        lines.append(f"Size: {coords.width}x{coords.height}")
+        if coords is not None:
+            lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
+            lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
+            lines.append(f"Size: {coords.width}x{coords.height}")
 
-        if layout and getattr(layout, "items", None):
+        if layout and layout.items:
             items = layout.items
-            occupied = sum(1 for v in items.values() if isinstance(v, dict) and v.get("type") != "empty")
-            lines.append(f"Occupied: {occupied} / {coords.total_slots}")
+            occupied = sum(1 for v in items.values() if v.get("type") != "empty")
+            total_slots = coords.total_slots if coords is not None else 0
+            lines.append(f"Occupied: {occupied} / {total_slots}")
             quality_count = {
                 'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0,
             }
             for v in items.values():
-                if not isinstance(v, dict):
-                    continue
                 q = v.get('quality', 'unknown')
                 quality_count[q] = quality_count.get(q, 0) + 1
             lines.append("")
@@ -297,8 +299,6 @@ class DebugWindow:
             lines.append(f"  Legendary set: {quality_count.get('legendary_set', 0)}  Legendary: {quality_count.get('legendary', 0)}  Rare: {quality_count.get('rare', 0)}  Magic: {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
             lines.append("")
             for (r, c), info in sorted(items.items()):
-                if not isinstance(info, dict):
-                    continue
                 t = info.get("type", "?")
                 q = info.get("quality", "?")
                 if t == "empty":
@@ -363,7 +363,7 @@ class DebugWindow:
 
     def update_images(self):
         """Update all debug images from detected_regions"""
-        if not hasattr(self, 'window') or not self.window.winfo_exists():
+        if not self.window.winfo_exists():
             ColorPrint.yellow("[DebugWindow] Window no longer exists, skipping update")
             return
 
@@ -385,7 +385,7 @@ class DebugWindow:
 
         updated_count = 0
         for region_key, img_label in self.image_labels.items():
-            if not hasattr(img_label, 'winfo_exists') or not img_label.winfo_exists():
+            if not img_label.winfo_exists():
                 ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping")
                 continue
 
@@ -393,7 +393,7 @@ class DebugWindow:
                 pil_image = region_images[region_key]
                 if pil_image is None or pil_image.width <= 0 or pil_image.height <= 0:
                     ColorPrint.yellow(f"[DebugWindow] Invalid image for '{region_key}': {pil_image.width if pil_image else 'None'}x{pil_image.height if pil_image else 'None'}")
-                    if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                    if img_label.winfo_exists():
                         img_label.configure(image="", text="Invalid Image")
                     continue
 
@@ -408,14 +408,14 @@ class DebugWindow:
 
                 photo_image = ImageTk.PhotoImage(pil_image)
                 self.photo_images[region_key] = photo_image
-                if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                if img_label.winfo_exists():
                     img_label.configure(image=photo_image, text="")
                     updated_count += 1
                     ColorPrint.green(f"[DebugWindow] ✓ Updated '{region_key}'")
                 else:
                     ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping update")
             else:
-                if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
+                if img_label.winfo_exists():
                     img_label.configure(image="", text="No Image Available")
                 ColorPrint.yellow(f"[DebugWindow] ✗ No image for '{region_key}'")
 
@@ -440,11 +440,9 @@ class DebugWindow:
 
     def _on_close(self):
         """Handle window close event"""
-        # Update shared data to indicate window is closed
         self.d4_data.debug_window_open = False
         ColorPrint.yellow("[DebugWindow] Debug window closed")
-
-        # Destroy window
+        unregister_popup(POPUP_KEY_DEBUG_WINDOW)
         self.window.destroy()
 
     def show(self):
@@ -456,41 +454,33 @@ class DebugWindow:
         self.window.withdraw()
 
 
-# Singleton instance
-_debug_window_instance = None
-
-
 def get_debug_window(parent=None) -> Optional[DebugWindow]:
     """
-    Get or create debug window singleton
-
-    Args:
-        parent: Parent window (optional)
-
-    Returns:
-        DebugWindow instance or None
+    Get or create debug window singleton. Uses share.ui_registry (get_popup/register_popup).
+    When parent is given and no valid instance exists, creates and registers.
     """
-    global _debug_window_instance
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst and inst.window.winfo_exists():
+        return inst
+    if inst:
+        unregister_popup(POPUP_KEY_DEBUG_WINDOW)
 
-    # Check if window exists and is valid
-    if _debug_window_instance is not None:
-        try:
-            _debug_window_instance.window.winfo_exists()
-            return _debug_window_instance
-        except tk.TclError:
-            _debug_window_instance = None
-
-    _debug_window_instance = DebugWindow(parent)
-    return _debug_window_instance
+    if parent is not None:
+        inst = DebugWindow(parent)
+        register_popup(POPUP_KEY_DEBUG_WINDOW, inst)
+        return inst
+    return None
 
 
-def close_debug_window():
-    """Close the debug window if it exists"""
-    global _debug_window_instance
+def close_debug_window() -> None:
+    """Close the debug window if it exists (uses share.ui_registry)."""
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst:
+        inst._on_close()
 
-    if _debug_window_instance is not None:
-        try:
-            _debug_window_instance._on_close()
-        except tk.TclError:
-            pass
-        _debug_window_instance = None
+
+def update_debug_window_images_if_open() -> None:
+    """Update debug window images if the window is open."""
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst and inst.window.winfo_exists():
+        inst.update_images()

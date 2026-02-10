@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Diablo 3 Skill Macro UI Library
-Main UI coordinator using modular components
+Main UI coordinator using modular components.
+本模块为主窗口子组件（TitleBar、BottomBar、各 Panel 等）的单一创建者，每类仅在此处实例化一次。
 """
 
 import tkinter as tk
@@ -10,13 +11,13 @@ from tkinter import ttk, messagebox
 import sys
 import os
 import time
+import ctypes
 from typing import Optional, Callable
 from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH
+from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe
 from providor.constants.common import (
     ROOT_DIR,
     UI_SETTINGS_WINDOW_GEOMETRY,
@@ -40,15 +41,31 @@ from .panels.coordinate_calibration_panel import CoordinateCalibrationPanel
 
 # Import theme
 from .theme import UITheme
+from ui.utils.config_binding import ConfigBinding
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
+from providor.constants.ui import (
+    TAB_INDEX_MAIN,
+    TAB_INDEX_AUXILIARY,
+    TAB_INDEX_ROSBOT,
+    TAB_INDEX_D4,
+    TAB_INDEX_CALIBRATION,
+    TAB_INDEX_LOG,
+    TAB_COUNT,
+)
+from share.ui_registry import register_ui
 
 # Lifecycle/event via runtime (THREAD_BUS -> main thread)
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
 from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
 from pycore.pyutils.icon_utils import get_icon_path_for_windows
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
+
+_PIL_Image = get_third_package_PIL_Image()
+_PIL_ImageDraw = get_third_package_PIL_ImageDraw()
+_PIL_ImageTk = get_third_package_PIL_ImageTk()
+
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
@@ -63,6 +80,10 @@ class Diablo3MacroUI:
         set_windows_app_user_model_id("pycore.d3check.1.0")
         self.root = tk.Tk()
         self._app_icon_photo = None
+        self.resize_direction = None
+        self._is_maximized = False
+        self.system_tray = None
+        self._initialization_complete = False  # Flag to avoid extra update() calls during tab selection init
 
         # Load language settings
         i18n_manager.load_language_from_config()
@@ -91,8 +112,8 @@ class Diablo3MacroUI:
         # Current configuration
         self.current_config = initial_config
 
-        # Register language change listener
-        i18n_manager.add_language_change_listener(self._on_language_changed)
+        # Language: main UI rebuild is driven only by Controller (single chain); see DESIGN_ISSUES_MAJOR §1
+        # Controller registers _on_language_changed and calls self.ui._on_language_changed(new_language)
 
         # Callbacks
         self.on_macro_start: Optional[Callable] = None
@@ -100,19 +121,22 @@ class Diablo3MacroUI:
         self.on_config_change: Optional[Callable] = None
         self.on_skill_config_switch: Optional[Callable] = None
 
-        # Store UI instance in ENCYCLOPEDIA for global access
-        ENCYCLOPEDIA['ui'] = self
-        ColorPrint.blue("[UI] UI instance stored in ENCYCLOPEDIA")
-
+        # Create UI (register_ui(self) called in _create_main_tabs / _recreate_ui_for_language_change → share.ui_registry)
         # Create UI
         self._create_ui()
-        # Taskbar: apply after map and on every Map (Tk may re-apply tool-window style when showing)
+        # Taskbar: apply once at 350ms; do NOT run again at 800ms (second SetWindowLong/SetWindowPos makes window unresponsive)
+        self._taskbar_fix_logged = False
+        self._taskbar_style_applied = False  # ensure_tk_root_in_taskbar only once
         self.root.after(350, self._apply_taskbar_fix)
-        self.root.after(800, self._apply_taskbar_fix)
         def _on_map(_e):
-            ensure_tk_root_in_taskbar(self.root)
-            if sys.platform == "win32":
-                self._set_window_icon()
+            self.root.after(1, lambda: self.root.focus_force())
+            self.root.after(0, _deferred_after_map)
+        def _deferred_after_map():
+            # Only claim focus on first map. Do NOT run ensure_tk_root_in_taskbar/SetForegroundWindow here:
+            # Win32 SetWindowLong/SetWindowPos in Map path can leave window unresponsive (no input). Run once in _apply_taskbar_fix (350ms).
+            self.root.focus_force()
+            for ms in (50, 150, 300):
+                self.root.after(ms, lambda m=ms: self.root.focus_force())
         self.root.bind("<Map>", _on_map)
 
         # First run only: bring window to top (geometry already set at init)
@@ -203,7 +227,7 @@ class Diablo3MacroUI:
 
     def _on_resize(self, direction, event):
         """Handle window resizing"""
-        if not hasattr(self, 'resize_direction'):
+        if self.resize_direction is None:
             return
             
         current_x = self.root.winfo_pointerx()
@@ -233,10 +257,7 @@ class Diablo3MacroUI:
 
     def _create_ui(self):
         """Create the main UI using components"""
-        # Remove OS title bar and make window frameless
-        self.root.overrideredirect(True)
-        
-        # Add resize borders for frameless window
+        # Add resize borders first (content needed before frameless)
         self._add_resize_borders()
         
         # Title bar with language switch and window controls (no outer margin)
@@ -267,6 +288,10 @@ class Diablo3MacroUI:
         )
         self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
+        # Remove OS title bar after window is fully configured (Tk/overrideredirect: call update_idletasks before setting flag or window can be disabled before it appears)
+        self.root.update_idletasks()
+        self.root.overrideredirect(True)
+
     def get_window_status_callback(self):
         """
         Get window status update callback for system_initializer to register
@@ -290,8 +315,6 @@ class Diablo3MacroUI:
 
     def start_system_tray_if_needed(self):
         """Start system tray if not already running. Call when UI is ready (e.g. before mainloop)."""
-        if not getattr(self, "system_tray", None):
-            return
         if self.system_tray.start():
             ColorPrint.green("[UI] System tray started successfully")
         else:
@@ -334,79 +357,86 @@ class Diablo3MacroUI:
             path = DEFAULT_APP_LOGO_PATH
         if not path and DEFAULT_APP_ICON_PNG_PATH.exists():
             path = DEFAULT_APP_ICON_PNG_PATH
-        if path and path.exists():
-            try:
-                if sys.platform == "win32":
-                    use_path = get_icon_path_for_windows(path)
-                    if str(use_path).lower().endswith(".ico"):
-                        self.root.iconbitmap(str(use_path))
-                        return
-                    path = use_path
-                _PIL = get_third_package_PIL_Image()
-                _ImageTk = get_third_package_PIL_ImageTk()
-                if _PIL and _ImageTk:
-                    img = _PIL.open(path).convert("RGBA")
-                    self._app_icon_photo = _ImageTk.PhotoImage(img)
-                    self.root.iconphoto(True, self._app_icon_photo)
+        if path and path.exists() and self.root.winfo_exists():
+            if sys.platform == "win32":
+                use_path = get_icon_path_for_windows(path)
+                if str(use_path).lower().endswith(".ico"):
+                    self.root.iconbitmap(str(use_path))
                     return
-            except Exception:
-                pass
-        _PIL = get_third_package_PIL_Image()
-        _Draw = get_third_package_PIL_ImageDraw()
-        _ImageTk = get_third_package_PIL_ImageTk()
-        if _PIL and _Draw and _ImageTk:
-            try:
-                w, h = 64, 64
-                image = _PIL.new("RGBA", (w, h), (0, 0, 0, 0))
-                draw = _Draw.Draw(image)
-                draw.ellipse([8, 8, w - 8, h - 8], fill=(200, 0, 0, 255), outline=(255, 255, 255, 255), width=2)
-                draw.rectangle([20, 20, 24, 44], fill=(255, 255, 255, 255))
-                draw.rectangle([20, 20, 32, 24], fill=(255, 255, 255, 255))
-                draw.rectangle([20, 40, 32, 44], fill=(255, 255, 255, 255))
-                draw.rectangle([30, 24, 32, 40], fill=(255, 255, 255, 255))
-                draw.rectangle([36, 20, 40, 44], fill=(255, 255, 255, 255))
-                draw.rectangle([36, 20, 44, 24], fill=(255, 255, 255, 255))
-                draw.rectangle([36, 32, 44, 36], fill=(255, 255, 255, 255))
-                draw.rectangle([36, 40, 44, 44], fill=(255, 255, 255, 255))
-                self._app_icon_photo = _ImageTk.PhotoImage(image)
+                path = use_path
+            if _PIL_Image and _PIL_ImageTk:
+                img = _PIL_Image.open(path).convert("RGBA")
+                self._app_icon_photo = _PIL_ImageTk.PhotoImage(img)
                 self.root.iconphoto(True, self._app_icon_photo)
-            except Exception:
-                pass
+                return
+        if _PIL_Image and _PIL_ImageDraw and _PIL_ImageTk and self.root.winfo_exists():
+            w, h = 64, 64
+            image = _PIL_Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            draw = _PIL_ImageDraw.Draw(image)
+            draw.ellipse([8, 8, w - 8, h - 8], fill=(200, 0, 0, 255), outline=(255, 255, 255, 255), width=2)
+            draw.rectangle([20, 20, 24, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([20, 20, 32, 24], fill=(255, 255, 255, 255))
+            draw.rectangle([20, 40, 32, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([30, 24, 32, 40], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 20, 40, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 20, 44, 24], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 32, 44, 36], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 40, 44, 44], fill=(255, 255, 255, 255))
+            self._app_icon_photo = _PIL_ImageTk.PhotoImage(image)
+            self.root.iconphoto(True, self._app_icon_photo)
 
     def _apply_taskbar_fix(self):
-        """Apply Windows taskbar visibility after window is shown (overrideredirect strips taskbar by default). Re-apply icon so taskbar uses app icon instead of Python."""
-        if ensure_tk_root_in_taskbar(self.root):
-            ColorPrint.blue("[UI] Main window set to show in taskbar")
+        """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls."""
+        if not self._taskbar_style_applied:
+            # Sync Tk state before Win32 API calls to avoid timing issues
+            self.root.update_idletasks()
+            if ensure_tk_root_in_taskbar(self.root):
+                self._taskbar_style_applied = True
+                if not self._taskbar_fix_logged:
+                    self._taskbar_fix_logged = True
+                    ColorPrint.blue("[UI] Main window set to show in taskbar")
+            # Sync Tk state after Win32 API calls, then immediately restore focus
+            self.root.update_idletasks()
         if sys.platform == "win32":
             self._set_window_icon()
+        # Restore focus immediately after all operations (Win32 SetWindowPos may have affected focus)
+        self.root.focus_force()
+
+    def _win32_set_foreground(self):
+        """Set this window as foreground on Windows (user32) so it receives input. Overrideredirect windows may not get focus from WM."""
+        if sys.platform != "win32":
+            return
+        self.root.update_idletasks()
+        hwnd = self.root.winfo_id()
+        if hwnd:
+            ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(hwnd))
 
     def _apply_first_run_topmost(self):
-        """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash)."""
+        """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash). Restore focus after topmost attr change."""
         self.root.lift()
         self.root.attributes("-topmost", True)
-        self.root.after(500, lambda: self.root.attributes("-topmost", False))
+        self.root.after(500, lambda: (
+            self.root.attributes("-topmost", False),
+            self.root.focus_force()  # Immediately restore focus after -topmost change to prevent input loss
+        ))
 
     def restore_window_to_preset(self):
         """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
         self.root.geometry(DEFAULT_WINDOW_GEOMETRY)
         self._is_maximized = False
-        if hasattr(self, "title_bar") and hasattr(self.title_bar, "maximize_btn"):
-            self.title_bar.maximize_btn.configure(text="□")
+        self.title_bar.maximize_btn.configure(text="□")
 
     def _save_window_geometry(self):
-        """Persist current window position and size to config (skip when maximized to avoid saving fullscreen)."""
-        try:
-            if getattr(self, "_is_maximized", False):
-                return
-            w = self.root.winfo_width()
-            h = self.root.winfo_height()
-            x = self.root.winfo_rootx()
-            y = self.root.winfo_rooty()
-            if w > 1 and h > 1:
-                geos = f"{w}x{h}+{x}+{y}"
-                set_config_value_async("ui_settings.window_geometry", geos)
-        except tk.TclError:
-            pass
+        """Persist current window position and size to config (skip when maximized to avoid saving fullscreen). Call only when root exists."""
+        if not self.root.winfo_exists() or self._is_maximized:
+            return
+        w = self.root.winfo_width()
+        h = self.root.winfo_height()
+        x = self.root.winfo_rootx()
+        y = self.root.winfo_rooty()
+        if w > 1 and h > 1:
+            geos = f"{w}x{h}+{x}+{y}"
+            set_config_value_async("ui_settings.window_geometry", geos)
 
     def _on_window_configure(self, event=None):
         """Debounce geometry save on move/resize (Configure fires for root and children)."""
@@ -427,33 +457,50 @@ class Diablo3MacroUI:
         self.main_notebook = ttk.Notebook(self.root, height=370)
         self.main_notebook.configure(takefocus=0)
         self.main_notebook.pack(fill=tk.X, padx=0, pady=0)
+        self.main_notebook.enable_traversal()
         
         # Apply dark theme to notebook
         self._apply_notebook_theme()
 
         # Load last selected tab
         self._load_last_tab()
-        
-        # Create tab frames
-        self._create_table1_tab()  # Main functions
-        self._create_table2_tab()  # Auxiliary functions
-        self._create_rosbot_tab()  # ROSBOT extension
-        self._create_d4_tab()  # D4 functions
-        self._create_coordinate_calibration_tab()  # Coordinate calibration
-        self._create_table3_tab()  # Test and logs
+
+        # Config change hub: controller subscribes in run() and defers sync to timer thread to avoid main-thread block
+
+        # Create tab frames (all UI built at startup)
+        self._create_table1_tab()
+        self._create_table2_tab()
+        self._create_rosbot_tab()
+        self._create_d4_tab()
+        self._create_coordinate_calibration_tab()
+        self._create_table3_tab()
+
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
+
         ColorPrint.green("[UI] Notebook style updated")
-        from ui.utils.config_binding import ConfigBinding
         ConfigBinding.log_registration_summary()
         
         # Bind tab change event
         self.main_notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-        
-        # Set initial tab
-        self.main_notebook.select(self.last_selected_tab)
-        self.bottom_bar.show_tab_content(self.last_selected_tab)
+
+        tab_ids = self.main_notebook.tabs()
+        n = len(tab_ids)
+        for tid in tab_ids:
+            self.main_notebook.tab(tid, state="normal")
+        idx = max(0, min(self.last_selected_tab, n - 1)) if n else TAB_INDEX_MAIN
+        self.last_selected_tab = idx
+        if n > 0:
+            self.main_notebook.select(tab_ids[idx])
+        self.bottom_bar.show_tab_content(idx)
+        self.root.update_idletasks()
+        self.root.update()
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
         self._reregister_log_callback()
+
+        # Mark initialization complete so _deferred_after_tab_changed can apply updates() normally after this
+        self._initialization_complete = True
     
     def _apply_notebook_theme(self):
         """Apply dark theme to notebook with multiple methods"""
@@ -671,12 +718,8 @@ class Diablo3MacroUI:
             self.bottom_bar  # Pass bottom bar for config display
         )
         
-        # Set callbacks
-        if hasattr(self.main_functions_panel, 'set_config_change_callback'):
-            self.main_functions_panel.set_config_change_callback(self._on_config_change)
-        if hasattr(self.main_functions_panel, 'set_skill_config_switch_callback'):
-            self.main_functions_panel.set_skill_config_switch_callback(self._on_skill_config_switch)
-    
+        self.main_functions_panel.set_skill_config_switch_callback(self._on_skill_config_switch)
+
     def _create_table2_tab(self):
         """Create TABLE2 - Auxiliary functions tab"""
         self.table2_frame = ttk.Frame(self.main_notebook)
@@ -691,11 +734,7 @@ class Diablo3MacroUI:
         
         # Create auxiliary functions panel
         self.auxiliary_functions_panel = AuxiliaryFunctionsPanel(self.table2_frame)
-        
-        # Set callbacks
-        if hasattr(self.auxiliary_functions_panel, 'set_config_change_callback'):
-            self.auxiliary_functions_panel.set_config_change_callback(self._on_config_change)
-    
+
     def _create_rosbot_tab(self):
         """Create ROSBOT Extension tab"""
         self.rosbot_frame = ttk.Frame(self.main_notebook)
@@ -710,10 +749,6 @@ class Diablo3MacroUI:
 
         # Create ROSBOT extension panel (status merged into bottom bar Game Status row)
         self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame, bottom_bar=self.bottom_bar)
-
-        # Set callbacks
-        if hasattr(self.rosbot_extension_panel, 'set_config_change_callback'):
-            self.rosbot_extension_panel.set_config_change_callback(self._on_config_change)
 
     def _create_d4_tab(self):
         """Create D4 Functions tab"""
@@ -730,10 +765,6 @@ class Diablo3MacroUI:
         # Create D4 panel
         self.d4_panel = D4Panel(self.d4_frame)
 
-        # Set callbacks
-        if hasattr(self.d4_panel, 'set_config_change_callback'):
-            self.d4_panel.set_config_change_callback(self._on_config_change)
-
     def _create_coordinate_calibration_tab(self):
         """Create Coordinate Calibration tab"""
         self.calibration_frame = ttk.Frame(self.main_notebook)
@@ -748,10 +779,6 @@ class Diablo3MacroUI:
 
         # Create coordinate calibration panel
         self.coordinate_calibration_panel = CoordinateCalibrationPanel(self.calibration_frame)
-
-        # Set callbacks
-        if hasattr(self.coordinate_calibration_panel, 'set_config_change_callback'):
-            self.coordinate_calibration_panel.set_config_change_callback(self._on_config_change)
 
     def _create_table3_tab(self):
         """Create TABLE3 - Test and logs tab"""
@@ -802,17 +829,11 @@ class Diablo3MacroUI:
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
-        if not hasattr(self, 'macro_controls') or not self.macro_controls:
-            self.macro_controls = MacroControls(
-                self.bottom_bar.frame,
-                on_start=self._on_start_macro,
-                on_stop=self._on_stop_macro
-            )
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
 
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
         self._register_panel_language_listeners()
-
-        if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
@@ -826,71 +847,99 @@ class Diablo3MacroUI:
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
-        if not hasattr(self, 'macro_controls') or not self.macro_controls:
-            self.macro_controls = MacroControls(
-                self.bottom_bar.frame,
-                on_start=self._on_start_macro,
-                on_stop=self._on_stop_macro
-            )
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
 
-        if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
-        try:
-            self.main_notebook.select(self.last_selected_tab)
-        except tk.TclError:
-            pass
-        self._reregister_log_callback()
+        if self.main_notebook.winfo_exists():
+            tab_ids = self.main_notebook.tabs()
+            n = len(tab_ids)
+            if n > 0:
+                idx = max(0, min(self.last_selected_tab, n - 1))
+                self.main_notebook.select(tab_ids[idx])
+                self.last_selected_tab = idx
+                self.bottom_bar.show_tab_content(idx)
+            self._reregister_log_callback()
+            self.root.update_idletasks()
+            self.root.update()
 
     def _reregister_log_callback(self):
-        """Register only the current tab's panel as ColorPrint callback. Tab order: 0=table1, 1=table2, 2=rosbot, 3=d4, 4=calibration, 5=log."""
+        """Register only the current tab's panel as ColorPrint callback."""
+        t0 = time.time()
         ColorPrint.clear_all_callbacks()
-        try:
+        ColorPrint.gray(f"[UI-DBG] _reregister_log_callback after clear t={time.time()-t0:.3f}")
+        if not self.main_notebook.winfo_exists():
+            idx = TAB_INDEX_MAIN
+        else:
             sel = self.main_notebook.select()
             idx = self.main_notebook.index(sel)
-        except tk.TclError:
-            idx = 0
-        # Panels live on self; tab frame's winfo_children() are container Frames, not panel objects
-        panel = None
-        if idx == 2 and hasattr(self, 'rosbot_extension_panel'):
-            panel = self.rosbot_extension_panel
-        elif idx == 3 and hasattr(self, 'd4_panel'):
-            panel = self.d4_panel
-        elif idx == 5 and hasattr(self, 'log_panel'):
-            panel = self.log_panel
-        if panel is not None and hasattr(panel, 'add_log_message'):
-            ColorPrint.register_callback(panel.add_log_message)
+        if idx == TAB_INDEX_ROSBOT:
+            ColorPrint.register_callback(self.rosbot_extension_panel.add_log_message)
+        elif idx == TAB_INDEX_D4:
+            ColorPrint.register_callback(self.d4_panel.add_log_message)
+        elif idx == TAB_INDEX_LOG:
+            ColorPrint.register_callback(self.log_panel.add_log_message)
+        ColorPrint.gray(f"[UI-DBG] _reregister_log_callback EXIT idx={idx} t={time.time()-t0:.3f}")
 
     def _register_panel_language_listeners(self):
-        """Register language change listeners for all panels"""
-        panels_to_register = []
-
-        for i in range(self.main_notebook.index("end")):
-            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
-            for child in tab_frame.winfo_children():
-                if hasattr(child, '_on_language_changed'):
-                    panels_to_register.append(child)
-
-        for panel in panels_to_register:
+        """Register language change listeners. Panels with _on_language_changed listed explicitly (code-level)."""
+        panels_with_language_listener = []
+        for panel in panels_with_language_listener:
             i18n_manager.add_language_change_listener(panel._on_language_changed)
             ColorPrint.blue(f"[UI] Registered language listener for: {panel.__class__.__name__}")
 
     def _load_last_tab(self):
-        """Load last selected tab from configuration"""
+        """Load last selected tab from configuration. Never restore to coordinate calibration (tab 4) on startup to avoid full UI freeze."""
         last_tab = CONFIG.get('ui_settings', {}).get('last_selected_tab', 0)
+        if last_tab == TAB_INDEX_CALIBRATION:
+            last_tab = TAB_INDEX_MAIN
         self.last_selected_tab = last_tab
-    
+
+    def switch_to_tab(self, index: int) -> None:
+        """Single entry: switch to tab by index (0-based). Used by tray Debug menu. Unbinds tab event during switch to avoid duplicate save/block, then forces redraw."""
+        nb = self.main_notebook
+        tab_ids = nb.tabs()
+        n = len(tab_ids)
+        if n == 0:
+            return
+        idx = max(0, min(index, n - 1))
+        nb.unbind("<<NotebookTabChanged>>")
+        nb.select(tab_ids[idx])
+        self.last_selected_tab = idx
+        self.bottom_bar.show_tab_content(idx)
+        set_config_value_async("ui_settings.last_selected_tab", idx)
+        self._reregister_log_callback()
+        if idx == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+        nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        nb.focus_set()
+        self.root.update_idletasks()
+        self.root.update()
+        ColorPrint.blue(f"[UI] Switched to tab {idx}")
+
     def _on_tab_changed(self, event=None):
-        """Handle tab change event"""
+        """Handle tab change event. Defer work to next idle so binding returns immediately and UI stays responsive."""
+        self.root.after(0, self._deferred_after_tab_changed)
+
+    def _deferred_after_tab_changed(self):
+        """Run after tab change: update state, bottom bar, config, log callback, then force redraw so tab content is drawn (same as switch_to_tab from tray). Skip update() if during initialization."""
+        if not self.main_notebook.winfo_exists():
+            return
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
         set_config_value_async("ui_settings.last_selected_tab", selected_tab)
-
         self.bottom_bar.show_tab_content(selected_tab)
-        # Lazy-create ROSBOT panel content on first select to avoid blocking startup
-        if selected_tab == 2 and hasattr(self, 'rosbot_extension_panel'):
-            self.root.after(50, lambda: getattr(self.rosbot_extension_panel, 'ensure_content', lambda: None)())
         self._reregister_log_callback()
+        if selected_tab == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+        # Only call update() after initialization is complete (skip during init to avoid double redraw)
+        if self._initialization_complete:
+            self.root.update_idletasks()
+            self.root.update()
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):
@@ -926,32 +975,19 @@ class Diablo3MacroUI:
 
     def set_bag_correction_image(self, image_input, display_size=(200, 150)):
         """Set bag correction image with flexible input support"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'set_bag_correction_image'):
-                return self.auxiliary_functions_panel.set_bag_correction_image(image_input, display_size)
-        ColorPrint.yellow("[UI] Auxiliary functions panel not available")
-        return False
+        return self.auxiliary_functions_panel.set_bag_correction_image(image_input, display_size)
 
     def get_bag_correction_image(self):
         """Get current bag correction image"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'get_bag_correction_image'):
-                return self.auxiliary_functions_panel.get_bag_correction_image()
-        return None
+        return self.auxiliary_functions_panel.get_bag_correction_image()
 
     def capture_bag_correction_image(self, screenshot_callback=None):
         """Capture bag correction image from game"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'capture_bag_correction_image'):
-                return self.auxiliary_functions_panel.capture_bag_correction_image(screenshot_callback)
-        return False
+        return self.auxiliary_functions_panel.capture_bag_correction_image(screenshot_callback)
 
     def generate_bag_correction_image(self):
         """Generate bag correction image using GameAssistantController"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, '_generate_bag_correction_image'):
-                return self.auxiliary_functions_panel._generate_bag_correction_image()
-        return False
+        return self.auxiliary_functions_panel._generate_bag_correction_image()
 
     # Callback setters
     
@@ -989,26 +1025,52 @@ class Diablo3MacroUI:
             'last_selected_tab': self.last_selected_tab
         }
 
+    def get_skill_config(self, config_name: str):
+        """Get skill config dict for controller sync. Reads from CONFIG (thread-safe)."""
+        skill_configs = get_config_value_safe("macro_configs.skill_configs", {})
+        if not isinstance(skill_configs, dict):
+            return {}
+        return skill_configs.get(config_name, {})
+
+    def get_auxiliary_config(self):
+        """Get auxiliary config dict for controller sync. Reads from CONFIG (thread-safe)."""
+        aux = get_config_value_safe("macro_configs.auxiliary_config", {})
+        return dict(aux) if isinstance(aux, dict) else {}
+
     def run(self):
-        """Run the UI"""
+        """Run the UI. Release any stray grab; do not focus_force before mainloop (focus is applied in Map handler after(1) to avoid overrideredirect window losing input)."""
+        self._release_any_grab()
+        self.root.update_idletasks()
         self.root.mainloop()
+
+    def _release_any_grab(self):
+        """Release grab on any widget that holds it so main window and all controls receive events (Tk: grab subtree owns pointer until released)."""
+        try:
+            current = self.root.grab_current()
+            if not current:
+                return
+            paths = current if isinstance(current, (list, tuple)) else [current]
+            for path in paths:
+                if not isinstance(path, str):
+                    continue
+                w = self.root.nametowidget(path)
+                if w.winfo_exists():
+                    w.grab_release()
+        except (tk.TclError, KeyError):
+            pass
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""
-        if self._geometry_save_after_id:
-            try:
-                self.root.after_cancel(self._geometry_save_after_id)
-            except (tk.TclError, Exception):
-                pass
-            self._geometry_save_after_id = None
+        if self._geometry_save_after_id and self.root.winfo_exists():
+            self.root.after_cancel(self._geometry_save_after_id)
+        self._geometry_save_after_id = None
         self._save_window_geometry()
         ColorPrint.blue("[UI] Starting UI destruction...")
 
-        if hasattr(self, 'system_tray') and self.system_tray:
-            ColorPrint.blue("[UI] Stopping system tray...")
-            self.system_tray.stop()
-            time.sleep(0.2)
-            ColorPrint.blue("[UI] System tray stopped")
+        ColorPrint.blue("[UI] Stopping system tray...")
+        self.system_tray.stop()
+        time.sleep(0.2)
+        ColorPrint.blue("[UI] System tray stopped")
 
         self.root.quit()
 

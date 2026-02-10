@@ -19,7 +19,7 @@ ensure_d3_check_in_sys_path()
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.hotkey_listener import HotkeyListener
+from pycore.pyutils.hotkey_listener import HotkeyListener, get_global_hotkey_listener
 from providor.providor_index import initialize_config, LOGS_FILE_PATH
 
 # Import static global modules
@@ -96,8 +96,7 @@ class SystemInitializer:
     def _setup_ctrl_c_hotkey(self):
         """Setup Ctrl+C hotkey using hotkey_listener"""
         try:
-            # Create hotkey listener instance
-            self.hotkey_listener = HotkeyListener()
+            self.hotkey_listener = get_global_hotkey_listener()
 
             # Register to shutdown manager
             register_hotkey_listener(self.hotkey_listener)
@@ -237,6 +236,11 @@ class SystemInitializer:
             if not self.initialize_configuration():
                 return False
 
+            # CnOCR: third_party 一次性加载/安装，并预初始化所有引擎（general/number/document）
+            from d3utils.cnocr_engine_registry import ensure_cnocr_loaded_and_engines_initialized
+            if not ensure_cnocr_loaded_and_engines_initialized():
+                ColorPrint.yellow("[INIT] CnOCR load/init skipped or failed, OCR features may be limited")
+
             # Initialize hotkeys
             if not initialize_hotkeys():
                 ColorPrint.yellow("[INIT] Hotkey initialization had issues, but continuing...")
@@ -279,7 +283,7 @@ class SystemInitializer:
     def register_ui_instance(self, ui_instance):
         """
         Register UI instance for window monitoring
-        (UI is automatically stored in ENCYCLOPEDIA on creation)
+        (UI is registered in share.ui_registry on creation)
 
         Args:
             ui_instance: UI instance
@@ -288,10 +292,9 @@ class SystemInitializer:
             True if registered successfully, False otherwise
         """
         # Register window status callback to window monitor (static global)
-        if hasattr(ui_instance, 'get_window_status_callback'):
-            callback = ui_instance.get_window_status_callback()
-            window_monitor.add_callback(callback)
-            ColorPrint.green("[SYSTEM] UI callback registered to window_monitor")
+        callback = ui_instance.get_window_status_callback()
+        window_monitor.add_callback(callback)
+        ColorPrint.green("[SYSTEM] UI callback registered to window_monitor")
 
         ColorPrint.green("[SYSTEM] UI instance registered to system")
         return True

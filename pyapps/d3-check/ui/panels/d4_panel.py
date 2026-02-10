@@ -5,7 +5,7 @@ D4 Functions Panel - Unified Style Version
 Contains D4-specific automation features with unified styling
 """
 
-import queue
+import threading
 import tkinter as tk
 from tkinter import ttk
 import sys
@@ -32,7 +32,7 @@ from runtime import is_shutdown_requested
 
 # Import D4 controller and state
 from controller.d4_controller import get_d4_controller
-from controller.d4func.screenshot_handler import ScreenshotHandler
+from controller.d4func.screenshot_handler import get_screenshot_handler
 from controller.d4func import get_ui_status_updater
 from share.game_interface_data import get_d4_interface_data
 from d4utils.d4_team_formation_checker import get_d4_team_formation_checker
@@ -72,8 +72,11 @@ class D4Panel:
         self.container.grid_columnconfigure(1, weight=1)  # Content column (expandable)
         self.container.grid_rowconfigure(0, weight=1)
 
-        # Log queue for D4 messages (enqueue from any thread, drain on main thread)
-        self._log_queue = queue.Queue(maxsize=500)
+        # Log buffer for D4 messages (append from any thread, drain on main thread; no queue.Full/Empty)
+        self._log_list = []
+        self._log_list_lock = threading.Lock()
+        self.status_labels = {}
+        self.exp_farming_log = None
 
         # Create content
         self.create_content()
@@ -277,7 +280,7 @@ class D4Panel:
 
         # IMPORTANT: Capture screenshot first to update D4 data (window size, offset, etc.)
         # This is needed for TeamFormationChecker to correctly detect windowed mode
-        screenshot_handler = ScreenshotHandler()
+        screenshot_handler = get_screenshot_handler()
         d4_data = get_d4_interface_data()
 
         ColorPrint.blue("[D4] Capturing screenshot to initialize window data...")
@@ -358,47 +361,30 @@ class D4Panel:
         Args:
             message: Log message
         """
-        if hasattr(self, 'exp_farming_log'):
-            self.exp_farming_log.configure(state=tk.NORMAL)
-            self.exp_farming_log.insert(tk.END, f"{message}\n")
-            self.exp_farming_log.see(tk.END)
-            self.exp_farming_log.configure(state=tk.DISABLED)
+        self.exp_farming_log.configure(state=tk.NORMAL)
+        self.exp_farming_log.insert(tk.END, f"{message}\n")
+        self.exp_farming_log.see(tk.END)
+        self.exp_farming_log.configure(state=tk.DISABLED)
 
     def add_log_message(self, message, level="INFO", color=None):
-        """Enqueue only D4-related messages; no Tk access. Main thread _drain_log_queue updates exp_farming_log."""
+        """Append only D4-related messages; no Tk access. Main thread _drain_log_queue updates exp_farming_log."""
         if is_shutdown_requested():
             return
         if "[D4]" not in message and "D4" not in message:
             return
-        log_queue = getattr(self, "_log_queue", None)
-        if log_queue is None:
-            return
-        try:
-            log_queue.put_nowait(message)
-        except queue.Full:
-            pass
+        with self._log_list_lock:
+            self._log_list.append(message)
+            if len(self._log_list) > 500:
+                self._log_list = self._log_list[-500:]
 
     def _drain_log_queue(self):
-        """Drain log queue on main thread and write to exp_farming_log."""
-        log_queue = getattr(self, "_log_queue", None)
-        if log_queue is None:
-            return
-        try:
-            if not self.container.winfo_exists():
-                return
-            while True:
-                try:
-                    message = log_queue.get_nowait()
-                except queue.Empty:
-                    break
-                self._add_exp_farming_log(message)
-        except tk.TclError:
-            pass
-        try:
-            if self.container.winfo_exists():
-                self.container.after(100, self._drain_log_queue)
-        except tk.TclError:
-            pass
+        """Drain log buffer on main thread and write to exp_farming_log. Only scheduled after panel created."""
+        with self._log_list_lock:
+            messages = self._log_list
+            self._log_list = []
+        for message in messages:
+            self._add_exp_farming_log(message)
+        self.container.after(100, self._drain_log_queue)
 
     def _on_log_message(self, message: str, level: str = "INFO"):
         """
@@ -484,15 +470,13 @@ class D4Panel:
         value_label.grid(row=1, column=0, sticky="ew", padx=4, pady=(0, 2))
 
         # Store reference for dynamic updates
-        if not hasattr(self, 'status_labels'):
-            self.status_labels = {}
         self.status_labels[value_key] = value_label
 
     def _update_game_status(self):
         """
         Update game status display with current data
         """
-        if not hasattr(self, 'status_labels'):
+        if not self.status_labels:
             return
 
         # Get D4 interface data
@@ -554,15 +538,13 @@ class D4Panel:
             screen_size = f"{width}x{height} ({mode})"
         self._update_status_value("screen_size", screen_size)
 
-        # Update map switch count
-        map_switch_count = d4_data.map_switch_count if hasattr(d4_data, 'map_switch_count') else 0
-        self._update_status_value("map_switch_count", str(map_switch_count))
+        # Update map switch count (D4InterfaceData.map_switch_count)
+        self._update_status_value("map_switch_count", str(d4_data.map_switch_count))
 
-        # Update map switch state
-        map_switch_state = "-"
-        if hasattr(d4_data, 'is_switching_map') and d4_data.is_switching_map:
+        # Update map switch state (D4InterfaceData.is_switching_map, is_post_switch_idle)
+        if d4_data.is_switching_map:
             map_switch_state = "Switching"
-        elif hasattr(d4_data, 'is_post_switch_idle') and d4_data.is_post_switch_idle:
+        elif d4_data.is_post_switch_idle:
             map_switch_state = "Post-Switch"
         else:
             map_switch_state = "Normal"
@@ -580,7 +562,7 @@ class D4Panel:
             key: Status key
             value: New value
         """
-        if hasattr(self, 'status_labels') and key in self.status_labels:
+        if key in self.status_labels:
             self.status_labels[key].config(text=str(value))
 
     def _reset_game_status_data(self):
@@ -618,9 +600,9 @@ class D4Panel:
         Args:
             status_data: Dictionary with status information
         """
-        if not hasattr(self, 'status_labels'):
+        if not self.status_labels:
             return
-        
+
         # Update each status value with proper i18n translation
         for key, value in status_data.items():
             translated_value = self._translate_status_value(key, value)
@@ -693,11 +675,11 @@ class D4Panel:
 
         if not d4_data.debug_window_open:
             debug_window = get_debug_window(self.parent)
-            if debug_window:
-                d4_data.debug_window_open = True
-                self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
-                ColorPrint.green("[D4Panel] Debug window opened")
-                ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
+            d4_data.debug_window_open = True
+            self.debug_btn.config(bg=UnifiedStyles.COLORS['accent'])
+            debug_window.show()
+            ColorPrint.green("[D4Panel] Debug window opened")
+            ColorPrint.blue("[D4Panel] Debug window will be updated automatically by timer")
         else:
             close_debug_window()
             d4_data.debug_window_open = False

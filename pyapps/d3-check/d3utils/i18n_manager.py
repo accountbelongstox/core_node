@@ -323,5 +323,5 @@ class I18nManager:
         self._load_i18n_config()
         ColorPrint.green("[I18nManager] Configuration reloaded successfully")
 
-# Global internationalization manager instance
+# 导出前实例化：全项目唯一 I18n 实例
 i18n_manager = I18nManager()

@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.window_activator import WindowActivator
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
@@ -49,6 +50,9 @@ from providor.constants.d3 import (
 from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
 from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
 
+np_mod = get_third_package_numpy()
+cv2_mod = get_third_package_cv2()
+
 
 def step_c7b_minimize_only(
     provider,
@@ -59,7 +63,7 @@ def step_c7b_minimize_only(
 ) -> bool:
     """[C7b] One tick: minimize map click (751,413) only. Call step_c7b_teleport_only on next tick. No sleep."""
     standard_resolution = (D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT)
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     scaled1 = calculate_unified_scaled_coordinate(
         D3_MAP_MINIMIZE_CLICK, game_window_size, standard_resolution, is_windowed,
     )
@@ -90,7 +94,7 @@ def step_c7b_teleport_only(
 ) -> bool:
     """[C7b] Teleport: 1) large/small map D3_TELEPORT_CLICK, 2) secret camp minimap D3_TELEPORT_CLICK_2, interval C7B_TELEPORT_CLICK_INTERVAL_SEC between clicks."""
     standard_resolution = (D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT)
-    clicker = ClickHandler()
+    clicker = get_click_handler()
 
     # 1) Large/small map
     scaled1 = calculate_unified_scaled_coordinate(
@@ -197,7 +201,7 @@ def click_start_game_button_if_found(window_titles: Optional[Tuple[str, ...]] = 
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
     if center is None:
         return False
@@ -295,21 +299,14 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
 
 def _image_similarity_0_1(img_a, img_b) -> float:
     """Compare two PIL/numpy images: resize to D3_ONLINE_SIMILARITY_RESIZE, grayscale, return 1 - mean_abs_diff/255 (1 = identical)."""
-    np_mod = get_third_package_numpy()
-    if np_mod is None:
+    if np_mod is None or cv2_mod is None:
         return 0.0
-    try:
-        bgr_a = normalize_image_to_bgr(img_a)
-        bgr_b = normalize_image_to_bgr(img_b)
-        cv2 = get_third_package_cv2()
-        if cv2 is None:
-            return 0.0
-        gray_a = cv2.cvtColor(cv2.resize(bgr_a, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
-        gray_b = cv2.cvtColor(cv2.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
-        diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
-        return 1.0 - min(diff / 255.0, 1.0)
-    except (TypeError, ValueError, AttributeError):
-        return 0.0
+    bgr_a = normalize_image_to_bgr(img_a)
+    bgr_b = normalize_image_to_bgr(img_b)
+    gray_a = cv2_mod.cvtColor(cv2_mod.resize(bgr_a, D3_ONLINE_SIMILARITY_RESIZE), cv2_mod.COLOR_BGR2GRAY)
+    gray_b = cv2_mod.cvtColor(cv2_mod.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2_mod.COLOR_BGR2GRAY)
+    diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
+    return 1.0 - min(diff / 255.0, 1.0)
 
 
 # For tick-driven C10: step_c10_send_m stores img_a here; step_c10_compare reads it (no thread, same flow)
@@ -514,7 +511,7 @@ def try_fragment1_click_start_game_wait_game_tool(
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
     if center is None:
         return None
@@ -647,7 +644,7 @@ def wait_for_and_click_start_game(
     timeout_start = n_start * interval_sec
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     deadline = time.monotonic() + timeout_start
     attempt = 0
 

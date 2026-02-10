@@ -220,8 +220,7 @@ class KanaiCubeHandler:
         ColorPrint.blue("[KanaiReset] Checking Kanai right page state...")
         ColorPrint.blue(f"[KanaiReset] Current state: kanai_right_page_opened = {shared_data.kanai_right_page_opened}")
 
-        # Check if right page state is available
-        if not hasattr(shared_data, 'kanai_right_page_opened') or shared_data.kanai_right_page_opened is None:
+        if shared_data.kanai_right_page_opened is None:
             ColorPrint.yellow("[KanaiReset] kanai_right_page_opened state not available")
             return False
 
@@ -356,7 +355,7 @@ class KanaiCubeHandler:
 
         # Get bag layout
         bag_layout = shared_data.bag_layout
-        if not bag_layout or not hasattr(bag_layout, 'items'):
+        if not bag_layout or not bag_layout.items:
             ColorPrint.yellow("[KanaiProcess] No bag layout available")
             return False
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Image Annotator for D4 Controller
-Handles image annotation and visualization
+Image Annotator for D4 Controller. 通过 get_image_annotator() 获取单例，禁止各处自行 new。
 """
 
 import sys
@@ -325,3 +324,14 @@ class ImageAnnotator:
         annotated_image.save(annotated_path)
         ColorPrint.green(f"[ImageAnnotator] Annotated screenshot saved: {annotated_path}")
         return str(annotated_path)
+
+
+_image_annotator_instance = None
+
+
+def get_image_annotator() -> ImageAnnotator:
+    """Return the global ImageAnnotator instance (singleton). 导出前实例化."""
+    global _image_annotator_instance
+    if _image_annotator_instance is None:
+        _image_annotator_instance = ImageAnnotator()
+    return _image_annotator_instance

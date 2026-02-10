@@ -47,7 +47,7 @@ class MapSwitchDetector:
         Returns:
             bool: True if detection successful, False otherwise
         """
-        if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
+        if self.d4_data.detected_regions is None:
             return False
         if 'region_images' not in self.d4_data.detected_regions:
             return False

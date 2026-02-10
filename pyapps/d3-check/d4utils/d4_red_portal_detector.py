@@ -10,12 +10,11 @@ Usage:
     # From file path
     result = d4_detect_red_portal("screenshot.png")
 
-    # From PIL Image
-    from PIL import Image
+    # From PIL Image (Image from pycore third_party at module head)
     img = Image.open("screenshot.png")
     result = d4_detect_red_portal(img)
 
-    # From numpy array
+    # From numpy/BGR array (cv2 from pycore third_party at module head)
     img = cv2.imread("screenshot.png")
     result = d4_detect_red_portal(img)
 
@@ -39,6 +38,7 @@ ensure_d3_check_in_sys_path()
 
 from share.game_interface_data import (
     D4StandardCoordinates,
+    D4_STANDARD_COORDS,
     calculate_unified_scaled_coordinate,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
@@ -270,8 +270,8 @@ def d4_detect_red_portal(image_input: Union[str, Image.Image, np.ndarray]) -> Op
     # Get current screen dimensions
     current_height, current_width = image_bgr.shape[:2]
 
-    # Get D4 standard coordinates
-    coords = D4StandardCoordinates()
+    # Get D4 standard coordinates (use shared singleton)
+    coords = D4_STANDARD_COORDS
 
     # Create color mask
     mask = _create_color_mask(image_bgr, TARGET_COLORS, COLOR_TOLERANCE)

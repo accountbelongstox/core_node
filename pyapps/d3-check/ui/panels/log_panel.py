@@ -212,26 +212,21 @@ class LogPanel:
         self.log_text.bind("<Button-3>", self._show_log_context_menu)
 
     def _show_log_context_menu(self, event):
-        """Show right-click context menu for log area (Copy)."""
+        """Show right-click context menu for log area (Copy). Bound to log_text (code-level guarantee)."""
         menu = tk.Menu(self.log_text, tearoff=0)
         menu.add_command(label=i18n_manager.get_ui_text("log_panel.copy"), command=self._copy_log_to_clipboard)
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
+        menu.tk_popup(event.x_root, event.y_root)
+        menu.grab_release()
 
     def _copy_log_to_clipboard(self):
-        """Copy log content to clipboard (selection if any, else all)."""
-        try:
-            if self.log_text.tag_ranges(tk.SEL):
-                text = self.log_text.get(tk.SEL_FIRST, tk.SEL_LAST)
-            else:
-                text = self.log_text.get("1.0", tk.END)
-            if text.strip():
-                self.container.clipboard_clear()
-                self.container.clipboard_append(text)
-        except tk.TclError:
-            pass
+        """Copy log content to clipboard (selection if any, else all). Only called from context menu after content created."""
+        if self.log_text.tag_ranges(tk.SEL):
+            text = self.log_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+        else:
+            text = self.log_text.get("1.0", tk.END)
+        if text.strip():
+            self.container.clipboard_clear()
+            self.container.clipboard_append(text)
 
     def _configure_log_tags(self):
         """Configure text tags for different log levels"""
@@ -261,50 +256,38 @@ class LogPanel:
         }
 
         def _append():
-            try:
-                if not self.container.winfo_exists():
-                    return
-                self.log_buffer.append(log_entry)
-                if len(self.log_buffer) > self.max_log_lines:
-                    self.log_buffer = self.log_buffer[-self.max_log_lines:]
-                if self._should_display_message(log_entry):
-                    self._display_message(log_entry)
-            except (tk.TclError, RuntimeError):
-                pass
-        try:
-            if self.container.winfo_exists():
-                self.container.after(0, _append)
-        except (tk.TclError, RuntimeError):
-            pass
+            self.log_buffer.append(log_entry)
+            if len(self.log_buffer) > self.max_log_lines:
+                self.log_buffer = self.log_buffer[-self.max_log_lines:]
+            if self._should_display_message(log_entry):
+                self._display_message(log_entry)
+        self.container.after(0, _append)
 
     def _should_display_message(self, log_entry):
         """Check if message should be displayed based on current filter and show_debug_logs."""
-        try:
-            if log_entry.get('level') == "DEBUG":
-                if not ConfigBinding.get_config_value("log_settings.show_debug_logs", True):
-                    return False
-            current_filter = ConfigBinding.get_config_value("log_settings.log_level", "ALL")
-            if current_filter == "ALL":
-                return True
-            return log_entry['level'] == current_filter
-        except (tk.TclError, RuntimeError, KeyError):
+        level = log_entry.get("level", "INFO")
+        if level == "DEBUG":
+            if not ConfigBinding.get_config_value("log_settings.show_debug_logs", True):
+                return False
+        current_filter = ConfigBinding.get_config_value("log_settings.log_level", "ALL")
+        if current_filter == "ALL":
             return True
+        return level == current_filter
 
     def _display_message(self, log_entry):
-        """Display a single log message. Auto-scroll only when option is on and user was at bottom before insert (reuse: same as ROSBOT; no scroll steal when mid-log copy)."""
+        """Display a single log message. Call only when log_text exists and panel is active."""
+        if not self.log_text.winfo_exists():
+            return
         self.log_text.configure(state=tk.NORMAL)
         at_bottom = False
-        try:
-            auto_on = ConfigBinding.get_config_value("log_settings.auto_scroll", True)
-            if auto_on:
-                yview = self.log_text.yview()
-                if yview and len(yview) >= 2:
-                    at_bottom = float(yview[1]) >= 0.99
-        except (tk.TclError, RuntimeError):
-            pass
-
-        tag = log_entry['level']
-        if log_entry['color']:
+        auto_on = ConfigBinding.get_config_value("log_settings.auto_scroll", True)
+        if auto_on:
+            yview = self.log_text.yview()
+            if yview and len(yview) >= 2:
+                at_bottom = float(yview[1]) >= 0.99
+        tag = log_entry.get("level", "INFO")
+        color = log_entry.get("color")
+        if color:
             color_map = {
                 'red': 'ERROR',
                 'yellow': 'WARNING',
@@ -312,9 +295,8 @@ class LogPanel:
                 'cyan': 'CYAN',
                 'blue': 'INFO'
             }
-            tag = color_map.get(log_entry['color'], log_entry['level'])
-
-        text = _strip_ui_log_prefix(log_entry['message'])
+            tag = color_map.get(color, tag)
+        text = _strip_ui_log_prefix(log_entry.get("message", ""))
         self.log_text.insert(tk.END, f"{text}\n", tag)
         if at_bottom:
             self.log_text.see(tk.END)

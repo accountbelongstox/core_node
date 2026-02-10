@@ -20,6 +20,7 @@ from providor.constants.common import (
     BN_FLOW_POLL_TIMEOUT_SEC,
     BN_FLOW_OAUTH_WAIT_SEC,
     BN_FLOW_EXIT_WAIT_SEC,
+    BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC,
 )
 from share.game_interface_data import get_game_interface_data, set_request_d_block_from_b7
 from share.asia_credentials import (
@@ -27,7 +28,8 @@ from share.asia_credentials import (
     is_asia_credentials_dialog_pending,
     schedule_asia_credentials_dialog,
 )
-from share.oauth_callback import is_oauth_done, reset_oauth_done
+from share.oauth_callback import is_oauth_done, reset_oauth_done, get_oauth_script_connected, notify_oauth_done
+from d3utils.browser_login_ocr_flow import run_one_poll
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.battlenet_operation import get_battlenet_operation
 from d3utils.rosbot_flow_state import get_bn_only_enabled
@@ -255,6 +257,32 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ctx.set_current_step(BNNode.BN_Confirmed)
             ctx.set_bn_flow_ever_confirmed(True)
             return True, "confirmed"
+        if not get_oauth_script_connected():
+            if ctx.get_browser_fallback_deadline() == 0.0:
+                ctx.set_browser_fallback_deadline(now + BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC)
+                ColorPrint.blue("[BNFlow] flow B11 | Tampermonkey not connected, browser OCR fallback (timeout %ds)" % int(BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC))
+            deadline = ctx.get_browser_fallback_deadline()
+            if now >= deadline:
+                ColorPrint.yellow("[BNFlow] flow B11→B5 | reason: browser fallback timeout %ds, exit and restart" % int(BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC))
+                ctx.set_b5_entry_reason("B11_browser_fallback_timeout")
+                ctx.set_browser_fallback_deadline(0.0)
+                ctx.set_current_step(BNNode.BN_Exit)
+                return False, ""
+            status = run_one_poll(deadline, notify_oauth_done=notify_oauth_done)
+            if status == "timeout":
+                ColorPrint.yellow("[BNFlow] flow B11→B5 | reason: browser fallback timeout, exit and restart")
+                ctx.set_b5_entry_reason("B11_browser_fallback_timeout")
+                ctx.set_browser_fallback_deadline(0.0)
+                ctx.set_current_step(BNNode.BN_Exit)
+                return False, ""
+            if status == "success":
+                ColorPrint.green("[BNFlow] flow B11→B12 continue | reason: browser OCR success, confirmed")
+                ctx.set_browser_fallback_deadline(0.0)
+                ctx.set_current_step(BNNode.BN_Confirmed)
+                ctx.set_bn_flow_ever_confirmed(True)
+                return True, "confirmed"
+            ColorPrint.gray("[BNFlow] flow B11 skip this tick | reason: browser fallback polling, wait")
+            return False, "wait"
         if now >= ctx.get_oauth_wait_until():
             ColorPrint.yellow("[BNFlow] flow B11→B5 | reason: OAuth timeout %ds (2 min) reached, exit and restart" % int(BN_FLOW_OAUTH_WAIT_SEC))
             ctx.set_b5_entry_reason("B11_oauth_timeout")

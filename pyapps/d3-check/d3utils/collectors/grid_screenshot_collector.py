@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 Grid Screenshot Collector
-Captures grid-based screenshots from game window
-Supports nine-grid (three by three) and eighteen by eighteen grid modes
+Captures grid-based screenshots from game window. Supports nine-grid and eighteen by eighteen grid modes.
+类库：导出前实例化，通过 get_grid_screenshot_collector() 获取单例，禁止各处自行 new。
 """
 
 # Standard library imports
 import os
 import sys
 from typing import Optional, Tuple
+
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
@@ -20,7 +21,7 @@ ensure_d3_check_in_sys_path()
 
 # Third-party imports
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.window_screenshot import WindowScreenshot
+from d3utils.screenshot_provider import get_window_screenshot
 
 # Local imports
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
@@ -41,8 +42,8 @@ class GridScreenshotCollector:
     """
 
     def __init__(self):
-        """Initialize grid screenshot collector"""
-        self.screenshot_manager = WindowScreenshot()
+        """Initialize grid screenshot collector (uses shared singleton)"""
+        self.screenshot_manager = get_window_screenshot()
         ColorPrint.green("[GridScreenshotCollector] Initialized")
 
     def capture_grid_region(
@@ -175,4 +176,15 @@ class GridScreenshotCollector:
 
         ColorPrint.gray(f"[GridCollector] Cell ({cell_row},{cell_col}) center: ({center_x},{center_y})")
         return (center_x, center_y)
+
+
+_grid_screenshot_collector_instance: Optional[GridScreenshotCollector] = None
+
+
+def get_grid_screenshot_collector() -> GridScreenshotCollector:
+    """Return the global GridScreenshotCollector instance (singleton). 导出前实例化."""
+    global _grid_screenshot_collector_instance
+    if _grid_screenshot_collector_instance is None:
+        _grid_screenshot_collector_instance = GridScreenshotCollector()
+    return _grid_screenshot_collector_instance
 

@@ -862,29 +862,85 @@ def get_third_package_pystray():
     return _PACKAGE_CACHE['pystray']
 
 
+def get_third_package_pythoncom():
+    """
+    Get pythoncom module (Windows COM, optional). Returns None on non-Windows or import failure.
+    Same style as get_third_package_pystray(); callers must check for None.
+    """
+    if 'pythoncom' not in _PACKAGE_CACHE:
+        if platform.system() != 'Windows':
+            _PACKAGE_CACHE['pythoncom'] = None
+        else:
+            try:
+                import pythoncom as _pythoncom
+                _PACKAGE_CACHE['pythoncom'] = _pythoncom
+            except Exception:
+                _PACKAGE_CACHE['pythoncom'] = None
+    return _PACKAGE_CACHE['pythoncom']
+
+
+def get_third_package_runtime():
+    """
+    Get application runtime module (optional). Returns None when not available.
+    Used for trigger_window_show, trigger_app_exit, etc. Callers must check for None.
+    """
+    if 'runtime' not in _PACKAGE_CACHE:
+        try:
+            _PACKAGE_CACHE['runtime'] = importlib.import_module('runtime')
+        except Exception:
+            _PACKAGE_CACHE['runtime'] = None
+    return _PACKAGE_CACHE['runtime']
+
+
+def get_third_package_PIL_Image_optional():
+    """Get PIL.Image module or None on failure. For optional use (e.g. tray icon); callers must check for None."""
+    if 'PIL_Image_optional' not in _PACKAGE_CACHE:
+        try:
+            from PIL import Image as PIL_Image
+            _PACKAGE_CACHE['PIL_Image_optional'] = PIL_Image
+        except Exception:
+            _PACKAGE_CACHE['PIL_Image_optional'] = None
+    return _PACKAGE_CACHE['PIL_Image_optional']
+
+
+def get_third_package_PIL_ImageDraw_optional():
+    """Get PIL.ImageDraw module or None on failure. For optional use; callers must check for None."""
+    if 'PIL_ImageDraw_optional' not in _PACKAGE_CACHE:
+        try:
+            from PIL import ImageDraw as PIL_ImageDraw
+            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = PIL_ImageDraw
+        except Exception:
+            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = None
+    return _PACKAGE_CACHE['PIL_ImageDraw_optional']
+
+
 def get_third_package_cnocr():
-    """Get cnocr package (lazy load) - Heavy package"""
-    return _lazy_import('cnocr', 'import cnocr')
+    """
+    Get cnocr package (lazy load). Returns None on import failure so callers can check without catch.
+    Heavy package; install via pip if missing.
+    """
+    if 'cnocr' not in _PACKAGE_CACHE:
+        try:
+            import cnocr
+            _PACKAGE_CACHE['cnocr'] = cnocr
+        except Exception:
+            _PACKAGE_CACHE['cnocr'] = None
+    return _PACKAGE_CACHE['cnocr']
 
 
 def get_third_package_CnOCREngine():
     """
     Get CnOCR engine singleton (lazy load, init once).
-    Tries db_shufflenet_v2_small then ch_PP-OCRv5_det then naive_det; first successful init is cached.
+    Uses naive_det + doc-densenet_lite_136-gru with fallbacks; GPU/CPU auto-selected in engine.
     """
     if 'CnOCREngine_instance' not in _PACKAGE_CACHE:
         from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
-        _DET_MODELS = ("db_shufflenet_v2_small", "ch_PP-OCRv5_det")
-        eng = None
-        for det_name in _DET_MODELS:
-            eng = CnOCREngine(det_model_name=det_name)
-            if eng.init():
-                break
-            ColorPrint.yellow(f"[OCR] Det model {det_name} init failed, try next.")
-        if eng is None or not eng._initialized:
-            ColorPrint.yellow("[OCR] All det models failed, trying naive_det (no position/boxes).")
-            eng = CnOCREngine()
-            eng.init()
+        eng = CnOCREngine(
+            det_model_name='naive_det',
+            rec_model_name='doc-densenet_lite_136-gru',
+            rec_model_fallbacks=['densenet_lite_136-gru'],
+        )
+        eng.init()
         _PACKAGE_CACHE['CnOCREngine_instance'] = eng
     return _PACKAGE_CACHE['CnOCREngine_instance']
 
@@ -1051,14 +1107,40 @@ def get_third_package_whisper():
     return _PACKAGE_CACHE['whisper']
 
 
+def _ensure_watchdog_submodules():
+    """Load watchdog.observers and watchdog.events so callers can use Observer/FileSystemEventHandler.
+    Official API: from watchdog.observers import Observer; from watchdog.events import FileSystemEventHandler."""
+    import watchdog.observers  # noqa: F401
+    import watchdog.events  # noqa: F401
+
+
 def get_third_package_watchdog():
-    """Get watchdog package (lazy load, optional). For file-change driven log monitor."""
+    """Get watchdog package (lazy load, optional). For file-change driven log monitor.
+    On first use: try import; if missing, install via pip (OPTIONAL_PACKAGES) then retry; still fail -> cache None.
+    Ensures observers/events submodules are loaded so .observers.Observer and .events.FileSystemEventHandler exist."""
     if 'watchdog' not in _PACKAGE_CACHE:
         try:
             import watchdog
             _PACKAGE_CACHE['watchdog'] = watchdog
+            _ensure_watchdog_submodules()
         except ImportError:
-            _PACKAGE_CACHE['watchdog'] = None
+            pip_package = OPTIONAL_PACKAGES.get('watchdog')
+            if pip_package:
+                ColorPrint.yellow(f"[INSTALL] watchdog not found. Installing '{pip_package}' for file-change driven log monitor...")
+                pip_cmd = build_pip_install_command(pip_package)
+                if run_pip_install_with_realtime_output(pip_cmd, pip_package):
+                    importlib.invalidate_caches()
+                    try:
+                        import watchdog
+                        _PACKAGE_CACHE['watchdog'] = watchdog
+                        _ensure_watchdog_submodules()
+                        ColorPrint.green("[SUCCESS] watchdog installed (file-change driven log monitor enabled)")
+                    except ImportError:
+                        _PACKAGE_CACHE['watchdog'] = None
+                else:
+                    _PACKAGE_CACHE['watchdog'] = None
+            else:
+                _PACKAGE_CACHE['watchdog'] = None
     return _PACKAGE_CACHE['watchdog']
 
 
@@ -1164,6 +1246,18 @@ def get_third_package_win32api():
         else:
             _PACKAGE_CACHE['win32api'] = None
     return _PACKAGE_CACHE['win32api']
+
+
+def get_third_package_win32process():
+    """Get win32process package (lazy load, Windows only)"""
+    if 'win32process' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32process
+            _PACKAGE_CACHE['win32process'] = win32process
+        else:
+            _PACKAGE_CACHE['win32process'] = None
+    return _PACKAGE_CACHE['win32process']
 
 
 def get_third_package_win32ui():
@@ -1328,6 +1422,7 @@ __all__ = [
     'get_third_package_win32gui',
     'get_third_package_win32con',
     'get_third_package_win32api',
+    'get_third_package_win32process',
     'get_third_package_win32ui',
     'get_third_package_pywinauto',
     'get_third_package_pygetwindow',

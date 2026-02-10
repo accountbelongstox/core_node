@@ -21,18 +21,9 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 from .map_name_utils import set_current_map_name
-from .ocr_config import get_ocr_config_for_task
-
-# Import OCR engine from pycore (only CnOCR, no PaddleOCR)
-sys.path.insert(0, str(Path(current_dir).parent / "pycore"))
-try:
-    from pyutils.ocr_cnocr_engine import CnOCREngine
-    OCR_AVAILABLE = True
-except ImportError as e:
-    ColorPrint.yellow(f"[MapNameRecognizer] CnOCR engine not available: {e}")
-    OCR_AVAILABLE = False
+from d3utils.cnocr_engine_registry import get_cnocr_engine_for_task
 
 
 class MapNameRecognizer:
@@ -50,43 +41,17 @@ class MapNameRecognizer:
     def __init__(self):
         """Initialize map name recognizer"""
         self.d4_data = get_d4_interface_data()
-        self.i18n = I18nManager()
+        self.i18n = i18n_manager
 
-        # Initialize OCR engine (CnOCR only, no PaddleOCR)
-        self.cnocr_engine = None
-        self._init_ocr_engines()
-        
+        # OCR 引擎由类库统一初始化，APP 启动时已加载
+        self.cnocr_engine = get_cnocr_engine_for_task('map_name')
+
         # Recognition state
         self.last_recognized_map = "Unknown"
         self.recognition_attempts = 0
         self.max_recognition_attempts = 3
         
         ColorPrint.green("[MapNameRecognizer] Initialized")
-
-    def _init_ocr_engines(self):
-        """Initialize OCR engine (CnOCR only, no PaddleOCR)"""
-        if not OCR_AVAILABLE:
-            ColorPrint.yellow("[MapNameRecognizer] CnOCR engine not available, map recognition disabled")
-            return
-        ocr_config = get_ocr_config_for_task('map_name')
-        if ocr_config is None:
-            ColorPrint.yellow("[MapNameRecognizer] No OCR config found for map_name task, using default")
-            from .ocr_config import OCRConfig
-            ocr_config = OCRConfig.get_default_config()
-        ColorPrint.blue("[MapNameRecognizer] Initializing CnOCR engine...")
-        ColorPrint.blue(f"[MapNameRecognizer] Using model: {ocr_config.rec_model_name}")
-        ColorPrint.blue(f"[MapNameRecognizer] Description: {ocr_config.description}")
-        self.cnocr_engine = CnOCREngine(
-            det_model_name=ocr_config.det_model_name,
-            rec_model_name=ocr_config.rec_model_name
-        )
-        if self.cnocr_engine.init():
-            ColorPrint.green("[MapNameRecognizer] CnOCR engine initialized successfully")
-            ColorPrint.green(f"[MapNameRecognizer] Model: {ocr_config.rec_model_name}")
-            ColorPrint.green(f"[MapNameRecognizer] Use case: {ocr_config.use_case}")
-        else:
-            ColorPrint.yellow("[MapNameRecognizer] CnOCR engine initialization failed")
-            self.cnocr_engine = None
 
     def recognize_map_name(self) -> bool:
         """
@@ -97,7 +62,7 @@ class MapNameRecognizer:
         """
         if not self.d4_data.is_post_switch_idle:
             return False
-        if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
+        if self.d4_data.detected_regions is None:
             ColorPrint.yellow("[MapNameRecognizer] No detected_regions available")
             return False
         if 'region_images' not in self.d4_data.detected_regions:

@@ -2,22 +2,23 @@
 # -*- coding: utf-8 -*-
 """
 UI Region Collector - Ultralytics Version
-Uses YOLO object detection for AI-based window detection
+Uses YOLO object detection for AI-based window detection.
+类库：YOLO 模型通过 get_yolo_model(path) 按路径单例，禁止各处自行 new YOLO。
 """
 
 import os
 import sys
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from pathlib import Path
 from datetime import datetime
-import numpy as np
 
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_ultralytics
+np = get_third_package_numpy()
 from share.project_path import ensure_d3_check_in_sys_path, get_project_root
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.image_annotator import ImageAnnotator
-from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
+from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_game_interface_data, UIRegion
 from providor.providor_index import (
@@ -26,12 +27,28 @@ from providor.providor_index import (
 )
 import tempfile
 
-try:
-    from ultralytics import YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    ULTRALYTICS_AVAILABLE = False
+_ultralytics = get_third_package_ultralytics()
+ULTRALYTICS_AVAILABLE = _ultralytics is not None
+YOLO = getattr(_ultralytics, "YOLO", None) if _ultralytics else None
+if not ULTRALYTICS_AVAILABLE:
     ColorPrint.yellow("[UIRegionCollectorUltralytics] Ultralytics not installed")
+
+# 导出前实例化：按 model_path 单例，禁止各处自行 new YOLO
+_yolo_model_cache: Dict[str, Any] = {}
+
+
+def get_yolo_model(model_path: str):
+    """Return cached YOLO model for path. 导出前实例化。"""
+    if not ULTRALYTICS_AVAILABLE or YOLO is None:
+        return None
+    if model_path not in _yolo_model_cache:
+        try:
+            _yolo_model_cache[model_path] = YOLO(model_path)
+        except Exception as e:
+            ColorPrint.red(f"[YOLO] Failed to load model {model_path}: {e}")
+            return None
+    return _yolo_model_cache[model_path]
+
 
 class UIRegionCollectorUltralytics:
     """
@@ -76,14 +93,11 @@ class UIRegionCollectorUltralytics:
             config_dir = get_project_root() / "config" / "models"
             self._model_path = config_dir / "d3_ui_detector.pt"
 
-        # Load model if exists
+        # Load model if exists（使用中心 getter，按路径单例）
         if Path(self._model_path).exists():
-            try:
-                self._model = YOLO(str(self._model_path))
+            self._model = get_yolo_model(str(self._model_path))
+            if self._model is not None:
                 ColorPrint.green(f"[UIRegionCollectorUltralytics] Loaded model: {self._model_path}")
-            except Exception as e:
-                ColorPrint.red(f"[UIRegionCollectorUltralytics] Failed to load model: {e}")
-                self._model = None
         else:
             ColorPrint.yellow(f"[UIRegionCollectorUltralytics] Model not found: {self._model_path}")
             ColorPrint.yellow("[UIRegionCollectorUltralytics] Use train() method to train a new model")
@@ -314,7 +328,7 @@ class UIRegionCollectorUltralytics:
             screenshot_data.fullscreen_image.save(temp_screenshot_path)
 
             # Create annotator
-            annotator = ImageAnnotator(temp_screenshot_path)
+            annotator = create_annotator(temp_screenshot_path)
 
             # Draw all detections (lower confidence in gray)
             for detection in detections:
@@ -438,8 +452,8 @@ class UIRegionCollectorUltralytics:
         ColorPrint.blue("=" * 60)
 
         try:
-            # Initialize model (YOLOv8n - nano version)
-            model = YOLO("yolov8n.pt")
+            # Initialize model (YOLOv8n - nano version, use central cache)
+            model = get_yolo_model("yolov8n.pt")
 
             # Train model
             ColorPrint.blue(f"[Train] Starting training...")
@@ -462,12 +476,13 @@ class UIRegionCollectorUltralytics:
             ColorPrint.green("[Train] Training complete!")
             ColorPrint.green(f"[Train] Model saved to: config/models/d3_ui_detector/weights/best.pt")
 
-            # Load trained model
+            # Load trained model（使用中心 getter）
             best_model_path = Path("config/models/d3_ui_detector/weights/best.pt")
             if best_model_path.exists():
-                self._model = YOLO(str(best_model_path))
+                self._model = get_yolo_model(str(best_model_path))
                 self._model_path = best_model_path
-                ColorPrint.green(f"[Train] Loaded trained model")
+                if self._model is not None:
+                    ColorPrint.green(f"[Train] Loaded trained model")
 
         except Exception as e:
             ColorPrint.red(f"[Train] Training failed: {e}")

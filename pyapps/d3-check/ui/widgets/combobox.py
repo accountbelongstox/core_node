@@ -12,8 +12,6 @@ ensure_d3_check_in_sys_path()
 
 from ui.theme.theme import UITheme
 from ui.utils.tk_variables import var_str
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
 from providor.providor_index import CONFIG, save_config
 
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Coordinate Calibration Panel (TABLE5) - Unified Style Version
-Contains coordinate picking and calibration tools for game window analysis
+Contains coordinate picking and calibration tools. CoordinatePicker 为按需弹出的临时对话框，用毕即关，不缓存。
 """
 
 import tkinter as tk
@@ -18,10 +18,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyutils.window_screenshot import WindowScreenshot
-from pycore.pyutils.click_handler import ClickHandler
-from pycore.pyutils.image_annotator import ImageAnnotator
+from d3utils.screenshot_provider import get_window_screenshot
 from providor.providor_index import (
     CONFIG,
     save_config,
@@ -43,6 +40,9 @@ from ui.utils.config_binding import ConfigBinding
 from ..components.yolo_annotation_window import YoloAnnotationWindow
 from ..components.coordinate_picker_window import CoordinatePicker
 
+# Config key for client type (class-library style: module-level constant)
+CONFIG_KEY_CLIENT_TYPE = "coord_calibration.client_type"
+
 
 class CoordinateCalibrationPanel:
     """
@@ -57,8 +57,6 @@ class CoordinateCalibrationPanel:
         CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES,
     }
 
-    CONFIG_KEY_CLIENT_TYPE = "coord_calibration.client_type"
-
     def __init__(self, parent):
         """Initialize coordinate calibration panel"""
         self.parent = parent
@@ -67,13 +65,14 @@ class CoordinateCalibrationPanel:
         self.screenshot_path = None
         self.pick_history: List[Dict] = []
 
-        saved = get_config_value_safe(self.CONFIG_KEY_CLIENT_TYPE, None)
+        saved = get_config_value_safe(CONFIG_KEY_CLIENT_TYPE, None)
         self.current_client_type = (
             saved if saved in VALID_CLIENT_TYPES else CLIENT_TYPE_BATTLENET
         )
         self.should_save_screenshot = True
         self.should_compress_screenshot = False
         self.popup_window = None
+        self.selected_item = None
 
         self.style = UnifiedStyles.configure_ttk_styles()
 
@@ -98,7 +97,7 @@ class CoordinateCalibrationPanel:
     def _on_client_type_change(self, value: str) -> None:
         """Update current client type and persist so next launch restores selection."""
         self.current_client_type = value
-        set_config_value_async(self.CONFIG_KEY_CLIENT_TYPE, value)
+        set_config_value_async(CONFIG_KEY_CLIENT_TYPE, value)
 
     def _create_client_row(self):
         """Client selector at top, left-aligned and grouped."""
@@ -280,7 +279,7 @@ class CoordinateCalibrationPanel:
             window_titles = get_d3_manager().get_capture_titles()
         if window_titles is None:
             window_titles = self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
-        ws = WindowScreenshot(match_mode="endswith")
+        ws = get_window_screenshot(match_mode="endswith")
         out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
         if not out:
             return (None, i18n_manager.get_ui_text("ui.coord_calibration.no_game_window") or "No window")
@@ -376,75 +375,86 @@ class CoordinateCalibrationPanel:
             )
 
     def _on_history_context_menu(self, event):
-        """Show context menu for history item"""
+        """Show context menu for history item. Call only when widget exists."""
+        if not self.history_tree.winfo_exists():
+            return
         item = self.history_tree.identify('item', event.x, event.y)
         if item:
             self.history_tree.selection_set(item)
             self.selected_item = item
-            try:
+            if self.context_menu.winfo_exists():
                 self.context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                self.context_menu.grab_release()
 
     def _on_rename_item(self):
         """Rename selected history item"""
-        if not hasattr(self, 'selected_item') or not self.selected_item:
+        if self.selected_item is None or not self.selected_item:
             messagebox.showwarning(
                 i18n_manager.get_ui_text("ui.coord_calibration.warning_title"),
                 i18n_manager.get_ui_text("ui.coord_calibration.select_item_first")
             )
             return
-
-        try:
-            item_id = int(self.selected_item.split('_')[1]) - 1
-            old_name = self.pick_history[item_id].get('name', '')
-
-            dialog = tk.Toplevel(self.parent)
-            dialog.title(i18n_manager.get_ui_text("ui.coord_calibration.rename_title"))
-            dialog.geometry("300x100")
-            dialog.resizable(False, False)
-
-            label = tk.Label(dialog, text=i18n_manager.get_ui_text("ui.coord_calibration.new_name"))
-            label.pack(padx=10, pady=5)
-
-            entry = tk.Entry(dialog)
-            entry.insert(0, old_name)
-            entry.pack(padx=10, pady=5, fill=tk.X)
-            entry.focus()
-
-            def on_ok():
-                new_name = entry.get()
-                self.pick_history[item_id]['name'] = new_name
-                self._update_history_display()
-                dialog.destroy()
-
-            btn = tk.Button(dialog, text="OK", command=on_ok)
-            btn.pack(pady=5)
-
-        except (ValueError, IndexError):
+        parts = self.selected_item.split('_')
+        if len(parts) != 2 or not parts[1].isdigit():
             messagebox.showerror(
                 i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
                 i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
             )
+            return
+        item_id = int(parts[1]) - 1
+        if item_id < 0 or item_id >= len(self.pick_history):
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
+            )
+            return
+        old_name = self.pick_history[item_id].get('name', '')
+
+        dialog = tk.Toplevel(self.parent)
+        dialog.title(i18n_manager.get_ui_text("ui.coord_calibration.rename_title"))
+        dialog.geometry("300x100")
+        dialog.resizable(False, False)
+
+        label = tk.Label(dialog, text=i18n_manager.get_ui_text("ui.coord_calibration.new_name"))
+        label.pack(padx=10, pady=5)
+
+        entry = tk.Entry(dialog)
+        entry.insert(0, old_name)
+        entry.pack(padx=10, pady=5, fill=tk.X)
+        entry.focus()
+
+        def on_ok():
+            new_name = entry.get()
+            self.pick_history[item_id]['name'] = new_name
+            self._update_history_display()
+            dialog.destroy()
+
+        btn = tk.Button(dialog, text="OK", command=on_ok)
+        btn.pack(pady=5)
 
     def _on_delete_item(self):
         """Delete selected history item"""
-        if not hasattr(self, 'selected_item') or not self.selected_item:
+        if self.selected_item is None or not self.selected_item:
             messagebox.showwarning(
                 i18n_manager.get_ui_text("ui.coord_calibration.warning_title"),
                 i18n_manager.get_ui_text("ui.coord_calibration.select_item_first")
             )
             return
-
-        try:
-            item_id = int(self.selected_item.split('_')[1]) - 1
-            del self.pick_history[item_id]
-            self._update_history_display()
-        except (ValueError, IndexError):
+        parts = self.selected_item.split('_')
+        if len(parts) != 2 or not parts[1].isdigit():
             messagebox.showerror(
                 i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
                 i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
             )
+            return
+        item_id = int(parts[1]) - 1
+        if item_id < 0 or item_id >= len(self.pick_history):
+            messagebox.showerror(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                i18n_manager.get_ui_text("ui.coord_calibration.invalid_selection")
+            )
+            return
+        del self.pick_history[item_id]
+        self._update_history_display()
 
     def _on_clear_history(self):
         """Clear all history"""

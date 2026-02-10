@@ -235,7 +235,7 @@ def ask_yes_no_on_main_thread(panel: Any, title: str, message: str) -> bool:
             result[0] = False
         done.set()
 
-    if hasattr(panel, "container") and panel.container.winfo_exists():
+    if panel.container.winfo_exists():
         panel.container.after(0, _ask)
         done.wait(timeout=60)
     return result[0] is True

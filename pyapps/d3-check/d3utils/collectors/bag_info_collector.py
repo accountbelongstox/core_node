@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Bag Information Collector
-Collects bag coordinates and layout information
-Updates shared game interface data
+Collects bag coordinates and layout information. Updates shared game interface data.
+类库：导出前实例化，通过 get_bag_info_collector() 获取单例，禁止各处自行 new。
 """
 
 # Standard library imports
@@ -38,9 +38,9 @@ from share.game_interface_data import (
     TITLE_BAR_HEIGHT,
     WINDOW_BORDER_BOTTOM,
 )
-from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
+from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_detector
 from d3utils.d3u_common import draw_match_result
-from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp, get_image_pil
+from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp, get_image_pil
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from providor.providor_index import (
     CONFIG,
@@ -65,7 +65,7 @@ class BagInfoCollector:
         """Initialize bag info collector"""
         # Use ScaledTemplateMatcher for automatic template scaling
         self.scaled_matcher = get_scaled_template_matcher()
-        self.bag_layout_detector = BagLayoutDetector(rows=6, cols=10)
+        self.bag_layout_detector = get_bag_layout_detector()
 
         ColorPrint.green("[BagInfoCollector] Initialized with ScaledTemplateMatcher")
 
@@ -415,7 +415,7 @@ class BagInfoCollector:
         if screenshot_image is None:
             return
         try:
-            annotator = ImageAnnotator(screenshot_image)
+            annotator = create_annotator(screenshot_image)
             self._draw_comprehensive_detection_annotation(annotator, detection_success)
             if save_to_disk:
                 timestamp = generate_timestamp()
@@ -450,7 +450,7 @@ class BagInfoCollector:
         if screenshot_image is None:
             return None
         try:
-            annotator = ImageAnnotator(screenshot_image)
+            annotator = create_annotator(screenshot_image)
             self._draw_comprehensive_detection_annotation(annotator, detection_success)
             return get_image_pil(annotator)
         except Exception as e:
@@ -1157,9 +1157,20 @@ class BagInfoCollector:
         return detection_results
 
 
+_bag_info_collector_instance: Optional[BagInfoCollector] = None
+
+
+def get_bag_info_collector() -> BagInfoCollector:
+    """Return the global BagInfoCollector instance (singleton). 导出前实例化."""
+    global _bag_info_collector_instance
+    if _bag_info_collector_instance is None:
+        _bag_info_collector_instance = BagInfoCollector()
+    return _bag_info_collector_instance
+
+
 # Example usage
 if __name__ == "__main__":
-    collector = BagInfoCollector()
+    collector = get_bag_info_collector()
     bag_coords = collector.collect()
 
     if bag_coords:

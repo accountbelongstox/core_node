@@ -6,13 +6,11 @@ Enumerate controls, find by automation_id/name, click at rect or Invoke. No D3/D
 import time
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_uiautomation
+from pycore.pyfoundations.third_party import get_third_package_pythoncom, get_third_package_uiautomation
 from pycore.pyutils.click_handler import ClickHandler
 
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
+pythoncom = get_third_package_pythoncom()
+uiautomation = get_third_package_uiautomation()
 
 UIA_IS_OFFSCREEN_PROPERTY_ID = 10022
 
@@ -20,20 +18,16 @@ UIA_IS_OFFSCREEN_PROPERTY_ID = 10022
 def ensure_com() -> None:
     """Ensure COM is initialized in current thread for UI Automation."""
     if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except OSError:
-            pass
+        pythoncom.CoInitialize()
 
 
 def get_root_control(hwnd: int):
     """Get root UI Automation control for given hwnd, or None."""
     ensure_com()
-    auto = get_third_package_uiautomation()
-    if not auto:
+    if not uiautomation:
         return None
     try:
-        root = auto.ControlFromHandle(hwnd)
+        root = uiautomation.ControlFromHandle(hwnd)
         return root if root.Exists() else None
     except Exception:
         return None
@@ -177,8 +171,7 @@ def find_raw_control_matching(root, control_dict: Dict[str, Any]):
 def try_invoke(control) -> bool:
     """Invoke control via InvokePattern. Returns True if succeeded."""
     try:
-        auto = get_third_package_uiautomation()
-        if auto is None:
+        if uiautomation is None:
             return False
         get_invoke = getattr(control, "GetInvokePattern", None)
         if get_invoke is None:

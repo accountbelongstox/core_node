@@ -12,15 +12,13 @@ import time
 from ..theme import UITheme
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 import sys
 import os
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from runtime import is_shutdown_requested
-
-i18n_manager = I18nManager()
 
 class StatusBar:
     """Bottom status bar with game status, window size, and main log area"""
@@ -158,75 +156,54 @@ class StatusBar:
         def log_callback(message, level="INFO"):
             if is_shutdown_requested():
                 return
-            try:
-                self.parent.after(0, lambda: self._add_log_message(message, level))
-            except (RuntimeError, Exception):
-                pass
+            self.parent.after(0, lambda: self._add_log_message(message, level))
         ColorPrint.register_callback(log_callback)
 
     def _add_log_message(self, message, level="INFO"):
-        """Add message to log area"""
-        try:
-            self.log_text.config(state=tk.NORMAL)
-            
-            # Add timestamp
-            timestamp = time.strftime("%H:%M:%S")
-            formatted_message = f"[{timestamp}] {message}\n"
-            
-            self.log_text.insert(tk.END, formatted_message)
-            
-            # Auto-scroll to bottom
-            self.log_text.see(tk.END)
-            
-            # Limit log size (keep last 100 lines)
-            lines = self.log_text.get("1.0", tk.END).split('\n')
-            if len(lines) > 100:
-                self.log_text.delete("1.0", f"{len(lines)-100}.0")
-            
-            self.log_text.config(state=tk.DISABLED)
-        except:
-            pass  # Ignore errors
+        """Add message to log area. ColorPrint callback; only registered when status bar exists."""
+        if is_shutdown_requested():
+            return
+        self.log_text.config(state=tk.NORMAL)
+        timestamp = time.strftime("%H:%M:%S")
+        formatted_message = f"[{timestamp}] {message}\n"
+        self.log_text.insert(tk.END, formatted_message)
+        self.log_text.see(tk.END)
+        lines = self.log_text.get("1.0", tk.END).split('\n')
+        if len(lines) > 100:
+            self.log_text.delete("1.0", f"{len(lines)-100}.0")
+        self.log_text.config(state=tk.DISABLED)
 
     def _update_game_status(self, running):
-        """Update game status display"""
-        try:
-            if running:
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
-                self.game_status_label.config(fg=UnifiedStyles.COLORS['success'])
-            else:
-                self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
-                self.game_status_label.config(fg=UnifiedStyles.COLORS['error'])
-        except:
-            pass
+        """Update game status display. Only called from window monitor callback while UI exists."""
+        if running:
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_running"))
+            self.game_status_label.config(fg=UnifiedStyles.COLORS['success'])
+        else:
+            self.game_status.set(i18n_manager.get_ui_text("ui.status_bar.diablo_not_running"))
+            self.game_status_label.config(fg=UnifiedStyles.COLORS['error'])
 
     def _update_window_size(self, size_text):
-        """Update window size display"""
-        try:
-            self.window_size.set(size_text)
-        except:
-            pass
+        """Update window size display. Only called from window monitor callback while UI exists."""
+        self.window_size.set(size_text)
 
     def on_window_status_update(self, window_info):
         """
         Callback for window monitor timer updates. Schedules UI update on main thread.
-        Skips scheduling when shutdown requested to avoid "main thread is not in main loop".
+        Call only when not shutdown and parent exists.
         """
         if is_shutdown_requested():
             return
-        try:
-            if window_info:
-                width = window_info.get('width', 0)
-                height = window_info.get('height', 0)
-                size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(
-                    width=width, height=height
-                )
-                self.parent.after(0, self._update_game_status, True)
-                self.parent.after(0, self._update_window_size, size_text)
-            else:
-                self.parent.after(0, self._update_game_status, False)
-                self.parent.after(0, self._update_window_size, "0x0")
-        except tk.TclError:
-            pass
+        if window_info:
+            width = window_info.get('width', 0)
+            height = window_info.get('height', 0)
+            size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(
+                width=width, height=height
+            )
+            self.parent.after(0, self._update_game_status, True)
+            self.parent.after(0, self._update_window_size, size_text)
+        else:
+            self.parent.after(0, self._update_game_status, False)
+            self.parent.after(0, self._update_window_size, "0x0")
 
     def update_status(self, status_text):
         """Update current status - deprecated, kept for compatibility"""

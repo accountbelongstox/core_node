@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 D3 Interface Manager
-Manages game interface information collection
-Coordinates collectors and provides unified API
+Manages game interface information collection. Coordinates collectors and provides unified API.
+类库：导出前实例化，通过 get_d3_interface_manager() 获取单例，禁止各处自行 new。
 """
 
 import os
@@ -21,8 +21,10 @@ from share.game_interface_data import (
     BagCoordinates,
     UIRegion,
 )
-# Import both UI region collectors
 from d3utils.collectors import UIRegionCollectorOptimized, UIRegionCollectorAnchor, BagInfoCollector
+from d3utils.collectors.ui_region_collector_optimized import get_ui_region_collector_optimized
+from d3utils.collectors.ui_region_collector_anchor import get_ui_region_collector_anchor
+from d3utils.collectors.bag_info_collector import get_bag_info_collector
 from d3utils.d3_manager import get_d3_manager
 from providor.constants.common import VK_I
 
@@ -71,9 +73,8 @@ class D3InterfaceManager:
         ColorPrint.blue("[InterfaceManager] Collecting UI Information (Test 1)")
         ColorPrint.blue("=" * 60)
 
-        # Create collector if needed
         if self._ui_collector is None:
-            self._ui_collector = UIRegionCollectorOptimized()
+            self._ui_collector = get_ui_region_collector_optimized()
 
         # Call collector to detect UI region
         ui_region = self._ui_collector.collect(
@@ -131,9 +132,8 @@ class D3InterfaceManager:
             ColorPrint.red("[InterfaceManager] Failed to collect UI region")
             return None
 
-        # Create bag collector if needed
         if self._bag_collector is None:
-            self._bag_collector = BagInfoCollector()
+            self._bag_collector = get_bag_info_collector()
 
         # Collect bag information (same as regular method)
         # If force_new_capture is True, also force bag refresh to ensure fresh detection
@@ -179,7 +179,7 @@ class D3InterfaceManager:
             ColorPrint.red("[InterfaceManager] No game_window_image in shared data; call collect_ui_info first")
             return None
         if self._bag_collector is None:
-            self._bag_collector = BagInfoCollector()
+            self._bag_collector = get_bag_info_collector()
         return self._bag_collector.collect(force_refresh=True, save_screenshot=save_screenshot)
 
     def collect_ui_info_anchor(
@@ -210,9 +210,8 @@ class D3InterfaceManager:
         ColorPrint.blue("[InterfaceManager] Collecting UI Information (Anchor-based)")
         ColorPrint.blue("=" * 60)
 
-        # Create anchor collector if needed
         if self._ui_collector_anchor is None:
-            self._ui_collector_anchor = UIRegionCollectorAnchor()
+            self._ui_collector_anchor = get_ui_region_collector_anchor()
 
         # Call collector to detect UI region
         ui_region = self._ui_collector_anchor.collect(
@@ -272,9 +271,8 @@ class D3InterfaceManager:
             ColorPrint.red("[InterfaceManager] Failed to collect UI region (anchor)")
             return None
 
-        # Create bag collector if needed
         if self._bag_collector is None:
-            self._bag_collector = BagInfoCollector()
+            self._bag_collector = get_bag_info_collector()
 
         # Collect bag information from shared data (NO parameters needed for data)
         # BagInfoCollector will extract game_window_image from shared data
@@ -393,9 +391,21 @@ class D3InterfaceManager:
 
         ColorPrint.blue("=" * 60)
 
+
+_d3_interface_manager_instance: Optional[D3InterfaceManager] = None
+
+
+def get_d3_interface_manager() -> D3InterfaceManager:
+    """Return the global D3InterfaceManager instance (singleton). 导出前实例化."""
+    global _d3_interface_manager_instance
+    if _d3_interface_manager_instance is None:
+        _d3_interface_manager_instance = D3InterfaceManager()
+    return _d3_interface_manager_instance
+
+
 # Example usage
 if __name__ == "__main__":
-    manager = D3InterfaceManager()
+    manager = get_d3_interface_manager()
 
     # Collect UI info
     ui_region = manager.collect_ui_info()

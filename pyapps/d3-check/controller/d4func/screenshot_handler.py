@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Screenshot Handler for D4 Controller
-Handles screenshot capture and data collection
+Screenshot Handler for D4 Controller. 通过 get_screenshot_handler() 获取单例，禁止各处自行 new。
 """
 
 import sys
@@ -100,3 +99,14 @@ class ScreenshotHandler:
         screenshot_data.game_window_image.save(screenshot_path)
         ColorPrint.green(f"[ScreenshotHandler] Screenshot saved: {screenshot_path}")
         return str(screenshot_path)
+
+
+_screenshot_handler_instance = None
+
+
+def get_screenshot_handler() -> ScreenshotHandler:
+    """Return the global ScreenshotHandler instance (singleton). 导出前实例化."""
+    global _screenshot_handler_instance
+    if _screenshot_handler_instance is None:
+        _screenshot_handler_instance = ScreenshotHandler()
+    return _screenshot_handler_instance

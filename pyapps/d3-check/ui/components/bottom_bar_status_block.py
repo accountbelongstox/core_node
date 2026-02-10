@@ -6,11 +6,9 @@ Bottom Bar Status Block: two rows (STATUS_ROW_1/2), no frame title. All value la
 
 import tkinter as tk
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 from .status_item import make_status_item
 from .status_row_config import STATUS_ROW_1, STATUS_ROW_2
-
-i18n_manager = I18nManager()
 
 
 def _build_row(parent, items, status_vars):
@@ -18,9 +16,7 @@ def _build_row(parent, items, status_vars):
     row.pack(fill=tk.X, padx=4, pady=2)
     labels = {}
     for label_key, var_key, fg_key in items:
-        var = status_vars.get(var_key)
-        if var is None:
-            continue
+        var = status_vars[var_key]
         label_text = i18n_manager.get_ui_text(label_key)
         fg = UnifiedStyles.COLORS.get(fg_key) if isinstance(fg_key, str) else fg_key
         item_frame, value_label = make_status_item(row, label_text, var, fg)

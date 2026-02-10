@@ -28,8 +28,20 @@ from d3utils.i18n_manager import i18n_manager
 from providor.providor_index import CONFIG, CONFIG_USER_PATH, queue_config_save
 from ..utils.tk_variables import var_str, var_int
 from ui.utils.config_binding import ConfigBinding
+from share.values.config_change_hub import get_config_change_hub
 
 # i18n key prefix for main functions sub-tabs (aligned with providor/i18n and providor/i18n_config.json)
+
+
+def _parse_int_from_ui(value, default: int) -> int:
+    """Parse int from UI binding without using try/except. Returns default when invalid."""
+    if isinstance(value, int):
+        return value
+    s = str(value).strip()
+    if not s or not s.lstrip("-").isdigit():
+        return default
+    return int(s)
+
 
 class MainFunctionsPanel:
     """
@@ -48,6 +60,10 @@ class MainFunctionsPanel:
         """
         self.parent = parent
         self.bottom_bar = bottom_bar  # Store bottom bar reference
+        self.info_text = None
+        self.config_combo = None
+        self.skills_config_frame = None
+        self._func1_skill_frame = None
 
         # Use provided initial_config or default
         # ConfigBinding will automatically load the saved value in _create_config_selection
@@ -55,6 +71,7 @@ class MainFunctionsPanel:
         self.config_vars = {}
         self.skill_vars = {}
         self.additional_vars = {}
+        self._skill_config_switch_callback: Optional[Callable[[str], None]] = None
 
         # KEY-VALUE pattern: Strategy mapping
         # Display: i18n multi-language text (Chinese, English, etc.)
@@ -87,9 +104,8 @@ class MainFunctionsPanel:
         # Update config info
         self._update_config_info()
 
-        # Initialize bottom bar with current config
-        if self.bottom_bar:
-            self.bottom_bar.update_config_status(self.current_config)
+        # Initialize bottom bar with current config (bottom_bar always passed by main window)
+        self.bottom_bar.update_config_status(self.current_config)
 
         # Note: Language change is handled by main UI, not individual panels
 
@@ -331,13 +347,11 @@ class MainFunctionsPanel:
             CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
 
         if param_name in ['interval', 'delay', 'random_delay']:
-            try:
-                value = int(value)
-            except (ValueError, tk.TclError):
-                value = 0
+            value = _parse_int_from_ui(value, 0)
 
         CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
         queue_config_save()
+        get_config_change_hub().notify_config_changed("macro_configs.skill_configs")
         ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
 
     def _create_additional_skill_settings(self, parent):
@@ -447,30 +461,29 @@ class MainFunctionsPanel:
         self.skill_vars['potion_interval'] = potion_interval_var
 
         # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar; no block background
-        if self.bottom_bar:
-            bb = self.bottom_bar
-            ThemedCheckbutton.create(
-                additional_frame, text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
-                variable=bb.sound_var, bg_color='bg_primary', select_color='text_secondary'
-            ).grid(row=2, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            ThemedCheckbutton.create(
-                additional_frame, text=i18n_manager.get_ui_text("options.smart_pause"),
-                variable=bb.smart_pause_var, bg_color='bg_primary', select_color='text_secondary'
-            ).grid(row=2, column=2, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
-            custom_f.grid(row=3, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            ThemedCheckbutton.create(
-                custom_f, text=i18n_manager.get_ui_text("options.use_custom_stand_key") + ":",
-                variable=bb.custom_stand_var, bg_color='bg_primary', select_color='text_secondary'
-            ).pack(side=tk.LEFT)
-            ThemedEntry.create(custom_f, textvariable=bb.custom_stand_key_var, width=8).pack(side=tk.LEFT, padx=5)
-            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
-            right_f.grid(row=3, column=2, columnspan=2, sticky="e", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            tk.Label(right_f, text=i18n_manager.get_ui_text("options.current_active_config") + " ",
-                     bg=UnifiedStyles.COLORS['bg_primary'], fg=UnifiedStyles.COLORS['success'],
-                     font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT)
-            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_primary'],
-                     fg=UnifiedStyles.COLORS['success'], font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT, padx=(0, 5))
+        bb = self.bottom_bar
+        ThemedCheckbutton.create(
+            additional_frame, text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
+            variable=bb.sound_var, bg_color='bg_primary', select_color='text_secondary'
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        ThemedCheckbutton.create(
+            additional_frame, text=i18n_manager.get_ui_text("options.smart_pause"),
+            variable=bb.smart_pause_var, bg_color='bg_primary', select_color='text_secondary'
+        ).grid(row=2, column=2, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
+        custom_f.grid(row=3, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        ThemedCheckbutton.create(
+            custom_f, text=i18n_manager.get_ui_text("options.use_custom_stand_key") + ":",
+            variable=bb.custom_stand_var, bg_color='bg_primary', select_color='text_secondary'
+        ).pack(side=tk.LEFT)
+        ThemedEntry.create(custom_f, textvariable=bb.custom_stand_key_var, width=8).pack(side=tk.LEFT, padx=5)
+        right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
+        right_f.grid(row=3, column=2, columnspan=2, sticky="e", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        tk.Label(right_f, text=i18n_manager.get_ui_text("options.current_active_config") + " ",
+                 bg=UnifiedStyles.COLORS['bg_primary'], fg=UnifiedStyles.COLORS['success'],
+                 font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT)
+        tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_primary'],
+                 fg=UnifiedStyles.COLORS['success'], font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT, padx=(0, 5))
 
     def _get_skill_key(self, skill_name):
         """Convert internationalized skill name to English key"""
@@ -697,15 +710,14 @@ class MainFunctionsPanel:
                            pady=UnifiedStyles.SPACING['sm'])
 
     def _update_config_info(self):
-        """Update configuration info display"""
-        if hasattr(self, 'info_text'):
-            self.info_text.delete(1.0, tk.END)
-            current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
-            skills_config = current_config.get("skills", {})
-            movement_key = current_config.get('movement', 'Space')
-            if movement_key == 'Space':
-                movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
-            info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
+        """Update configuration info display (info_text created in create_content)."""
+        self.info_text.delete(1.0, tk.END)
+        current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+        skills_config = current_config.get("skills", {})
+        movement_key = current_config.get('movement', 'Space')
+        if movement_key == 'Space':
+            movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
+        info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
 
 {i18n_manager.get_ui_text("main_functions_panel.config_file_path")}:
 {CONFIG_USER_PATH}
@@ -724,7 +736,7 @@ class MainFunctionsPanel:
 
 {i18n_manager.get_ui_text("status_bar.status")}: {i18n_manager.get_ui_text("main_functions_panel.status_config_loaded")}
 """
-            self.info_text.insert(1.0, info_text)
+        self.info_text.insert(1.0, info_text)
 
     def _on_skill_changed(self, skill_key, value):
         """Handle skill configuration change"""
@@ -737,10 +749,7 @@ class MainFunctionsPanel:
 
         if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
             if skill_key == "potion_interval":
-                try:
-                    value = int(value)
-                except (ValueError, tk.TclError):
-                    value = 500
+                value = _parse_int_from_ui(value, 500)
             CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
         else:
             if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
@@ -750,35 +759,30 @@ class MainFunctionsPanel:
             CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
 
         queue_config_save()
+        get_config_change_hub().notify_config_changed("macro_configs.skill_configs")
         ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
 
+    def set_skill_config_switch_callback(self, callback: Callable[[str], None]) -> None:
+        """Set callback when user switches current skill config (config combo)."""
+        self._skill_config_switch_callback = callback
+
     def _on_config_changed(self, event=None):
-        """Handle configuration change"""
-        if hasattr(self, 'config_combo'):
-            new_config = self.config_combo.get()
-            if new_config != self.current_config:
-                self.current_config = new_config
-
-                # ConfigBinding will auto-save, no need to manually save here
-
-                # Update bottom bar with current config
-                if self.bottom_bar:
-                    self.bottom_bar.update_config_status(new_config)
-
-                self._update_config_info()
-                # Recreate skill tabs with new config
-                self._recreate_skill_tabs()
-                ColorPrint.green(f"[MainFunctionsPanel] Configuration changed to: {new_config}")
+        """Handle configuration change (config_combo created in create_content)."""
+        new_config = self.config_combo.get()
+        if new_config != self.current_config:
+            self.current_config = new_config
+            self.bottom_bar.update_config_status(new_config)
+            self._update_config_info()
+            self._recreate_skill_tabs()
+            if self._skill_config_switch_callback:
+                self._skill_config_switch_callback(new_config)
+            ColorPrint.green(f"[MainFunctionsPanel] Configuration changed to: {new_config}")
 
     def _recreate_skill_tabs(self):
-        """Recreate skill configuration with updated configuration"""
-        if hasattr(self, 'skills_config_frame'):
-            self.skills_config_frame.destroy()
+        """Recreate skill configuration with updated configuration (skills_config_frame created in create_content)."""
+        self.skills_config_frame.destroy()
         self.skill_vars.clear()
-        parent = getattr(self, '_func1_skill_frame', None)
-        if parent is None:
-            ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
-            return
+        parent = self._func1_skill_frame
         self._create_skill_tabs(parent)
         self._update_config_info()
 

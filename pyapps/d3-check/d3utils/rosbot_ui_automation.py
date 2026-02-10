@@ -8,12 +8,15 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any
 
 from pycore.pyfoundations.third_party import (
+    get_third_package_psutil,
+    get_third_package_pythoncom,
     get_third_package_uiautomation,
     get_third_package_win32gui,
     get_third_package_win32con,
 )
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 
 from d3utils.ui_control_operations import operate_button, operate_tab_item, click_at_control_rect
 from d3utils.ui_analysis_operations import run_sequence, find_control_in_window
@@ -36,26 +39,23 @@ from providor.constants.d3 import (
 )
 from d3utils.rosbot_manager import get_rosbot_manager
 
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
-try:
-    import psutil
-except ImportError:
-    psutil = None
+pythoncom = get_third_package_pythoncom()
+psutil = get_third_package_psutil()
+uiautomation = get_third_package_uiautomation()
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
 
 
 def _auto():
-    return get_third_package_uiautomation()
+    return uiautomation
 
 
 def _win32gui():
-    return get_third_package_win32gui()
+    return win32gui
 
 
 def _win32con():
-    return get_third_package_win32con()
+    return win32con
 
 
 class _ComInitializer:
@@ -63,10 +63,7 @@ class _ComInitializer:
 
     def ensure_thread(self) -> None:
         if pythoncom is not None:
-            try:
-                pythoncom.CoInitialize()
-            except OSError:
-                pass
+            pythoncom.CoInitialize()
 
 
 _COM_INIT = _ComInitializer()
@@ -270,7 +267,7 @@ def click_tab_main_profile(window_control, clicker: Optional[ClickHandler] = Non
     try:
         ColorPrint.blue(f"[ROSBOT_UI] Clicking tab: '{tab.get('name', '')}'")
         params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
-        c = clicker if clicker is not None else ClickHandler()
+        c = clicker if clicker is not None else get_click_handler()
         ok = operate_tab_item(tab["control"], clicker=c, **params)
         if ok:
             time.sleep(UI_OPERATION_DELAY)
@@ -301,7 +298,7 @@ def click_start_botting(window_control, clicker: Optional[ClickHandler] = None, 
     try:
         ColorPrint.blue(f"[ROSBOT_UI] Clicking button: '{start_btn.get('name', '')}'")
         params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
-        c = clicker if clicker is not None else ClickHandler()
+        c = clicker if clicker is not None else get_click_handler()
         ok = operate_button(start_btn["control"], clicker=c, **params)
         if ok:
             time.sleep(UI_OPERATION_DELAY)
@@ -442,7 +439,7 @@ def try_close_d3_must_be_launched_dialog() -> bool:
                 ok_btn = _find_ok_button_in_control(root)
             if not ok_btn:
                 continue
-            clicker = ClickHandler()
+            clicker = get_click_handler()
             if operate_button(ok_btn, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
                 ColorPrint.green("[ROSBOT_UI] D3 must be launched dialog closed (OK by AutomationId)")
                 return True
@@ -522,7 +519,7 @@ def try_close_no_items_popup() -> bool:
     if not ok_btn:
         ColorPrint.yellow("[ROSBOT_UI] No items popup: OK button not found")
         return False
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     if operate_button(ok_btn, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
         ColorPrint.green("[ROSBOT_UI] No items popup closed (OK clicked)")
         return True
@@ -540,7 +537,7 @@ def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
                 return True
     except Exception:
         pass
-    c = clicker or ClickHandler()
+    c = clicker or get_click_handler()
     return click_at_control_rect(control, clicker=c, **_ROSBOT_CLICK_PARAMS)
 
 
@@ -552,7 +549,7 @@ def switch_to_rift_mode_and_start(window_control: Any) -> bool:
     """
     if not window_control:
         return False
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     ok = False
     cmb = find_control_in_window(window_control, CMB_SEQUENCE, max_depth=12)
     if cmb:
@@ -686,7 +683,7 @@ def run_after_rosbot_start(
         ColorPrint.gray("[ROSBOT_UI] Re-got window (get_rosbot_window -> find_window_by_pid -> GetWindowText) before ControlFromHandle")
 
     kw = dict(click_params or {})
-    clicker = ClickHandler()
+    clicker = get_click_handler()
 
     def _do_ui():
         try:
@@ -751,7 +748,7 @@ def resume_rosbot_ui(
         return False
 
     kw = dict(click_params or {})
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     if do_tab or do_start_botting:
         run_seq = get_resume_sequence()
         results = run_sequence(window_control, run_seq, clicker=clicker, click_params=kw, delay_after_step=UI_OPERATION_DELAY)

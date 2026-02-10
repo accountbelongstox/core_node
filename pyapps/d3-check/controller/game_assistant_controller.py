@@ -7,6 +7,7 @@ Controls game assistant functions like Kanai's Cube operations
 
 import os
 import sys
+from typing import Optional
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +16,7 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.interface_manager import D3InterfaceManager
+from d3utils.interface_manager import D3InterfaceManager, get_d3_interface_manager
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data
 from share.template_match_debug import is_debug_ui_active, push as debug_push
@@ -64,7 +65,7 @@ class GameAssistantController:
     def __init__(self):
         """Initialize game assistant controller"""
         ColorPrint.green("[GameAssistantController] Initializing...")
-        self.interface_manager = D3InterfaceManager()
+        self.interface_manager = get_d3_interface_manager()
         ColorPrint.green("[GameAssistantController] Initialized")
 
     def _detect_interface_from_full_window(self, full_window_image):
@@ -126,7 +127,7 @@ class GameAssistantController:
         # Step 2: Detect interface (match on full window, then require match center in left 30%)
         ColorPrint.blue("[AutoUseInterface] Step 2: Detecting interface (full window match, center in left 30%)...")
         shared_data = get_game_interface_data()
-        full_window = getattr(shared_data, "game_window_image", None)
+        full_window = shared_data.game_window_image
         interface_type = self._detect_interface_from_full_window(full_window)
 
         if interface_type is None:
@@ -239,3 +240,14 @@ class GameAssistantController:
         ColorPrint.yellow("[AutoUpgrade]   3. Wait for interface to fully load")
         ColorPrint.yellow("[AutoUpgrade]   4. Run this function again")
         return False
+
+
+_game_assistant_controller_instance: Optional["GameAssistantController"] = None
+
+
+def get_game_assistant_controller() -> "GameAssistantController":
+    """Return the global GameAssistantController instance (singleton). 导出前实例化."""
+    global _game_assistant_controller_instance
+    if _game_assistant_controller_instance is None:
+        _game_assistant_controller_instance = GameAssistantController()
+    return _game_assistant_controller_instance

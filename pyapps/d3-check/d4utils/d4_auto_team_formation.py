@@ -113,7 +113,7 @@ class D4AutoTeamFormation(D4OperationBase):
             bool: True if needs team formation
         """
         ColorPrint.blue("[D4AutoTeamFormation] Checking if team formation is needed...")
-        if not hasattr(self.d4_data, 'detected_regions') or not self.d4_data.detected_regions:
+        if not self.d4_data.detected_regions:
             ColorPrint.yellow("[D4AutoTeamFormation] No detected_regions available, assuming team needed")
             return True
         if 'ocr_results' not in self.d4_data.detected_regions:

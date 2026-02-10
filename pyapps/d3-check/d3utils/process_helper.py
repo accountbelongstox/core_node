@@ -10,11 +10,9 @@ import subprocess
 from typing import Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_win32process
 
-try:
-    import win32process
-except ImportError:
-    win32process = None
+win32process = get_third_package_win32process()
 
 
 def get_pid_from_hwnd(hwnd: int) -> Optional[int]:

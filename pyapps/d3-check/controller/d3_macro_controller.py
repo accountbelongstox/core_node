@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 D3Check Macro Controller
-Main controller for Diablo 3 Macro application
+Main controller for Diablo 3 Macro application.
+本类为 Diablo3MacroUI 的单一创建者，仅在此处实例化一次。
 """
 
 import os
@@ -16,10 +17,10 @@ from typing import Optional, Callable
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH
+from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH, get_config_value_safe
 from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
-from controller.game_interface_controller import GameInterfaceController
+from controller.game_interface_controller import GameInterfaceController, get_game_interface_controller
 from d3utils.i18n_manager import i18n_manager
 from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
@@ -37,7 +38,11 @@ from runtime import (
     execute_shutdown,
 )
 from share.game_interface_data import get_game_interface_data
+from ui.utils.app_root import get_ui_panel
+from providor.constants.ui import PANEL_KEY_ROSBOT
 import timers.window_monitor_timer as window_monitor
+import timers.timer_manager as timer_manager
+from share.values.config_change_hub import get_config_change_hub
 
 
 class MacroLoopThread(threading.Thread):
@@ -50,23 +55,19 @@ class MacroLoopThread(threading.Thread):
     def run(self) -> None:
         c = self._controller
         while c.macro_running:
-            try:
-                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(c.current_skill_config, {})
-                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
-                config = {**skill_config, **auxiliary_config}
-                skills = config.get('skills', {})
+            skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(c.current_skill_config, {})
+            auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+            config = {**skill_config, **auxiliary_config}
+            skills = config.get('skills', {})
 
-                for skill_name, sk_cfg in skills.items():
-                    if not c.macro_running:
-                        break
-                    if sk_cfg.get('strategy') == '禁用':  # Disabled (legacy CN config value)
-                        continue
-                    c._execute_skill(skill_name, sk_cfg)
-                    time.sleep(0.01)
-                time.sleep(0.1)
-            except Exception as e:
-                c.logger.error("Macro error: %s", e)
-                time.sleep(1)
+            for skill_name, sk_cfg in skills.items():
+                if not c.macro_running:
+                    break
+                if sk_cfg.get('strategy') == '禁用':  # Disabled (legacy CN config value)
+                    continue
+                c._execute_skill(skill_name, sk_cfg)
+                time.sleep(0.01)
+            time.sleep(0.1)
 
 
 class D3MacroController:
@@ -77,7 +78,7 @@ class D3MacroController:
         self.logger = logging.getLogger(__name__)
         
         # Game interface controller
-        self.game_interface_controller = GameInterfaceController()
+        self.game_interface_controller = get_game_interface_controller()
 
         # Wire d3utils/timers callbacks (d3utils and timers must not import controller)
         _login_ctrl = get_login_try_screenshot_controller()
@@ -108,10 +109,9 @@ class D3MacroController:
         self._language_change_debounce_ms = 500  # 500ms debounce
     
     def start_macro(self):
-        """Start the macro (sends command to MainFunctionThread if available)."""
+        """Start the macro (sends command to MainFunctionThread if available). Called from UI when running."""
         if self.macro_running:
-            if self.ui:
-                self.ui.show_message("Warning", "Macro is already running.", "warning")
+            self.ui.show_message("Warning", "Macro is already running.", "warning")
             return
 
         main_thread = get_main_function_thread()
@@ -123,24 +123,21 @@ class D3MacroController:
             self.macro_running = True
             get_thread_registry().start_macro_fallback(self)
 
-        if self.ui:
-            self.ui.show_message("Info", "Macro started.", "info")
+        self.ui.show_message("Info", "Macro started.", "info")
         if self.on_macro_start:
             self.on_macro_start()
 
     def stop_macro(self):
-        """Stop the macro (sends command to MainFunctionThread if available)."""
+        """Stop the macro (sends command to MainFunctionThread if available). Called from UI when running."""
         if not self.macro_running:
-            if self.ui:
-                self.ui.show_message("Warning", "Macro is not running.", "warning")
+            self.ui.show_message("Warning", "Macro is not running.", "warning")
             return
 
         trigger_extension_main_stop_macro()
         self.macro_running = False
         get_thread_registry().stop_macro_fallback()
 
-        if self.ui:
-            self.ui.show_message("Info", "Macro stopped.", "info")
+        self.ui.show_message("Info", "Macro stopped.", "info")
         if self.on_macro_stop:
             self.on_macro_stop()
 
@@ -208,83 +205,80 @@ class D3MacroController:
         self.stop_macro()
     
     def on_ui_config_change(self):
-        """Handle UI configuration change"""
-        if self.ui:
-            # Get current UI state and update configuration
-            current_skill_config = self.ui.get_skill_config(self.current_skill_config)
-            current_auxiliary_config = self.ui.get_auxiliary_config()
-            
-            # Update configurations
-            self.update_skill_config(self.current_skill_config, current_skill_config)
-            self.update_auxiliary_config(current_auxiliary_config)
-            
-    
+        """Handle UI configuration change. Called from UI when running. Prefer apply_config_sync from deferred hub path to avoid main-thread block."""
+        current_skill_config = self.ui.get_skill_config(self.current_skill_config)
+        current_auxiliary_config = self.ui.get_auxiliary_config()
+        self.update_skill_config(self.current_skill_config, current_skill_config)
+        self.update_auxiliary_config(current_auxiliary_config)
+
+    def apply_config_sync(self, skill_config_dict: dict, auxiliary_config_dict: dict) -> None:
+        """Apply config sync from pre-fetched data (called on main thread). Avoids blocking main thread on get_config_value_safe in hub path."""
+        if skill_config_dict is not None:
+            self.update_skill_config(self.current_skill_config, skill_config_dict)
+        if auxiliary_config_dict is not None:
+            self.update_auxiliary_config(auxiliary_config_dict)
+
+    def _on_config_change_from_hub(self, key_path: Optional[str] = None) -> None:
+        """Hub callback: defer config read to timer thread so main thread does not block on get_config_value_safe."""
+        timer_manager.submit_one_shot(self._deferred_config_sync)
+
+    def _deferred_config_sync(self) -> None:
+        """Run in timer thread: fetch config then schedule apply on main thread."""
+        skill_configs = get_config_value_safe("macro_configs.skill_configs", {})
+        skill_dict = skill_configs.get(self.current_skill_config, {}) if isinstance(skill_configs, dict) else {}
+        aux = get_config_value_safe("macro_configs.auxiliary_config", {})
+        aux_dict = dict(aux) if isinstance(aux, dict) else {}
+        root = self.ui.root
+        if root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+            root.after(0, lambda: self.apply_config_sync(skill_dict, aux_dict))
+
     def on_ui_skill_config_switch(self, config_name: str):
         """Handle UI skill configuration switch"""
         self.switch_skill_config(config_name)
 
     def _register_language_listener(self):
         """Register language change listener at controller level (top-level)"""
-        try:
-            i18n_manager.add_language_change_listener(self._on_language_changed)
-            ColorPrint.blue("[Controller] Registered top-level language change listener")
-        except Exception as e:
-            ColorPrint.red(f"[Controller] Failed to register language listener: {e}")
+        i18n_manager.add_language_change_listener(self._on_language_changed)
+        ColorPrint.blue("[Controller] Registered top-level language change listener")
 
     def _on_language_changed(self, new_language: str):
         """Handle language change at controller level with debouncing"""
-        try:
-            current_time = time.time() * 1000  # Convert to milliseconds
+        current_time = time.time() * 1000  # Convert to milliseconds
 
-            # Debouncing: ignore rapid successive calls
-            if current_time - self._last_language_change_time < self._language_change_debounce_ms:
-                ColorPrint.yellow(f"[Controller] Language change to {new_language} debounced (too soon)")
-                return
+        # Debouncing: ignore rapid successive calls
+        if current_time - self._last_language_change_time < self._language_change_debounce_ms:
+            ColorPrint.yellow(f"[Controller] Language change to {new_language} debounced (too soon)")
+            return
 
-            self._last_language_change_time = current_time
-            ColorPrint.green(f"[Controller] Language changed to: {new_language}")
+        self._last_language_change_time = current_time
+        ColorPrint.green(f"[Controller] Language changed to: {new_language}")
 
-            if self.ui and hasattr(self.ui, '_on_language_changed'):
-                # Call UI's language change method directly
-                self.ui._on_language_changed(new_language)
-            else:
-                ColorPrint.yellow("[Controller] UI not available for language change")
-        except Exception as e:
-            ColorPrint.red(f"[Controller] Error handling language change: {e}")
+        self.ui._on_language_changed(new_language)
     
     def run(self):
         """Run the application and return UI instance"""
+        if not self.game_interface_controller.initialize_game_interface():
+            self.logger.error("Failed to initialize game interface")
+            return None
+
+        self.ui = Diablo3MacroUI(self.current_skill_config)
+
         try:
-            # Initialize game interface
-            if not self.game_interface_controller.initialize_game_interface():
-                self.logger.error("Failed to initialize game interface")
-                return None
-
-            # Create UI
-            self.ui = Diablo3MacroUI(self.current_skill_config)
-
-            # Set UI callbacks
             self.ui.set_macro_start_callback(self.on_ui_macro_start)
             self.ui.set_macro_stop_callback(self.on_ui_macro_stop)
             self.ui.set_config_change_callback(self.on_ui_config_change)
             self.ui.set_skill_config_switch_callback(self.on_ui_skill_config_switch)
-
-            # Register language change listener at controller level (top-level)
+            get_config_change_hub(self.ui.root).subscribe(self._on_config_change_from_hub)
             self._register_language_listener()
-
-            # Register window status callback to window monitor (static global)
-            # UI calls request_shutdown directly when close/exit is requested
-            if hasattr(self.ui, 'get_window_status_callback'):
-                callback = self.ui.get_window_status_callback()
-                window_monitor.add_callback(callback)
-                ColorPrint.green("[Controller] Registered UI window status callback to window monitor")
+            callback = self.ui.get_window_status_callback()
+            window_monitor.add_callback(callback)
+            ColorPrint.green("[Controller] Registered UI window status callback to window monitor")
 
             schedule = lambda f: self.ui.root.after(0, f)
-            panel = self.ui.rosbot_extension_panel
-
-            window_monitor.register_status_ui(panel.get_status_ui_callback())
-            get_game_interface_data().start_main_thread_poll(self.ui.root.after, 100)
+            panel = get_ui_panel(PANEL_KEY_ROSBOT)
+            panel.set_register_status_ui_fn(lambda: window_monitor.register_status_ui(panel.get_status_ui_callback()))
             panel.set_refresh_status_fn(window_monitor.refresh_window_status_if_inactive)
+            get_game_interface_data().start_main_thread_poll(self.ui.root.after, 100)
 
             get_thread_registry().create_extension_threads(
                 schedule,
@@ -293,7 +287,6 @@ class D3MacroController:
                 battlenet_login_check_provider=lambda: get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check(),
                 d4_process_fn=get_d4_controller().process,
             )
-
             register_extension_handlers(
                 self.ui,
                 panel,
@@ -302,27 +295,12 @@ class D3MacroController:
                 get_d3_extension_thread,
                 get_d4_extension_thread,
             )
-
             ColorPrint.green("[Controller] Extension threads and event center registered")
-
             get_thread_registry().start_timer_loop_after_ui_ready()
-
-            # Start tray before mainloop so icon and menu are visible (after(200) alone can miss)
-            if hasattr(self.ui, "start_system_tray_if_needed"):
-                self.ui.start_system_tray_if_needed()
-
-            # Run UI (BLOCKING)
+            self.ui.start_system_tray_if_needed()
             self.ui.run()
-
-            # After mainloop ends, run full shutdown (hotkey/timer stop, UI destroy, process exit)
             execute_shutdown()
-
-            # Return UI instance for main.py global variable
             return self.ui
-
-        except Exception as e:
-            self.logger.error(f"Application error: {e}")
-            raise
         finally:
             self.macro_running = False
             get_thread_registry().stop_macro_fallback()
@@ -333,12 +311,6 @@ class D3MacroController:
         try:
             self.logger.info("Starting controller shutdown...")
             
-            # Use UI's unified exit method if available
-            if self.ui and hasattr(self.ui, '_unified_exit'):
-                self.logger.info("Using UI unified exit method...")
-                self.ui._unified_exit()
-                return
-            
             # Fallback to manual shutdown
             self.logger.info("Using fallback shutdown method...")
             
@@ -347,13 +319,12 @@ class D3MacroController:
                 self.logger.info("Stopping macro...")
                 self.stop_macro()
             
-            # Shutdown game interface first
-            if hasattr(self, 'game_interface_controller'):
-                self.logger.info("Shutting down game interface...")
-                self.game_interface_controller.shutdown_game_interface()
-            
-            # Stop system tray if available
-            if self.ui and hasattr(self.ui, 'system_tray') and self.ui.system_tray:
+            # Shutdown game interface first (always set in __init__)
+            self.logger.info("Shutting down game interface...")
+            self.game_interface_controller.shutdown_game_interface()
+
+            # Stop system tray when UI was created (run() was called)
+            if self.ui is not None:
                 try:
                     self.logger.info("Stopping system tray...")
                     self.ui.system_tray.stop()

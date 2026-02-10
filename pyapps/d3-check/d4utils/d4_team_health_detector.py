@@ -25,7 +25,7 @@ ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.common import DEBUG, TMP_DIR
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
 from d3utils.d3u_common.image_annotator_helper import (
     create_annotator,
@@ -54,7 +54,7 @@ class D4TeamHealthDetector:
     def __init__(self):
         """Initialize team health detector"""
         self.d4_data = get_d4_interface_data()
-        self.i18n = I18nManager()
+        self.i18n = i18n_manager
         # D4State functionality now integrated into D4InterfaceData
         
         # Team health color groups (BGR format for OpenCV)

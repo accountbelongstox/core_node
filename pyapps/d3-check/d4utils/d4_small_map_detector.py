@@ -26,7 +26,7 @@ ensure_d3_check_in_sys_path()
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.common import DEBUG, TMP_DIR
 from providor.providor_index import D4_TEMPLATE_CONFIGS
-from d3utils.i18n_manager import I18nManager
+from d3utils.i18n_manager import i18n_manager
 from d4utils.d4_scaled_template_matcher import get_d4_scaled_template_matcher
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import (
@@ -49,7 +49,7 @@ class D4SmallMapDetector:
     def __init__(self):
         """Initialize small map detector"""
         self.d4_data = get_d4_interface_data()
-        self.i18n = I18nManager()
+        self.i18n = i18n_manager
         # D4State functionality now integrated into D4InterfaceData
         
         # Get template configuration

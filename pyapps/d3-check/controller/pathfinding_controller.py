@@ -32,8 +32,8 @@ sys.path.insert(0, controller_path)
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
 from pycore.pyutils.image_crop import ImageCrop
-from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
-from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
+from d3utils.cnocr_engine_registry import get_cnocr_engine_default
+from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector, get_grid_screenshot_collector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
 from providor.constants.common import TMP_DIR
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
@@ -52,9 +52,9 @@ class PathfindingController:
 
     def __init__(self):
         """Initialize pathfinding controller"""
-        self.grid_collector = GridScreenshotCollector()
-        self.ocr_engine = CnOCREngine()
-        self.ocr_initialized = False
+        self.grid_collector = get_grid_screenshot_collector()
+        self.ocr_engine = get_cnocr_engine_default()
+        self.ocr_initialized = self.ocr_engine is not None
         self.click_handler = get_state_aware_click_handler()
 
         # Ensure TMP_DIR exists
@@ -64,21 +64,19 @@ class PathfindingController:
 
     def _ensure_ocr_initialized(self) -> bool:
         """
-        Ensure OCR is initialized
-
-        Returns:
-            bool: Success status
+        Ensure OCR is initialized (engine from registry, inited at app startup).
         """
-        if not self.ocr_initialized:
-            ColorPrint.blue("[PathfindingController] Initializing CnOCR Engine...")
-            if self.ocr_engine.init():
-                self.ocr_initialized = True
-                ColorPrint.green("[PathfindingController] CnOCR Engine initialized successfully")
-                return True
-            else:
-                ColorPrint.red("[PathfindingController] CnOCR Engine initialization failed")
-                return False
-        return True
+        if self.ocr_engine is None:
+            return False
+        if self.ocr_initialized:
+            return True
+        if self.ocr_engine._initialized:
+            self.ocr_initialized = True
+            return True
+        if self.ocr_engine.init():
+            self.ocr_initialized = True
+            return True
+        return False
 
     def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default CN "附魔", EN use "Enchanter"
         """

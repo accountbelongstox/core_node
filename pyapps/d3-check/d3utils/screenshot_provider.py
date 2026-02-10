@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Screenshot Provider
-Unified screenshot provider for the entire application
+Unified screenshot provider for the entire application.
+类库：导出前实例化，通过 get_screenshot_provider() / get_window_screenshot() / get_game_window_detector() 获取单例，禁止各处自行 new。
 
 Features:
 - Single source of truth for screenshots
@@ -21,30 +22,32 @@ from typing import Optional, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
-
-numpy = get_third_package_numpy()
-np = numpy
-cv2 = get_third_package_cv2()
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-Image = get_third_package_PIL_Image()
-
-from share.project_path import ensure_d3_check_in_sys_path
-ensure_d3_check_in_sys_path()
-
+from pycore.pyfoundations.third_party import (
+    get_third_package_numpy,
+    get_third_package_cv2,
+    get_third_package_PIL_Image,
+    get_third_package_win32gui,
+)
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.third_party import get_third_package_win32gui
 from pycore.pyutils.window_screenshot import WindowScreenshot
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
-from d3utils.game_window_detector import GameWindowDetector
-
-win32gui = get_third_package_win32gui()
+from d3utils.game_window_detector import get_game_window_detector
+from share.project_path import ensure_d3_check_in_sys_path
 from providor.constants.common import TMP_DIR, TEMPLATE_DIR, ACTIVATE_BEFORE_CAPTURE_DELAY_SEC
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data, update_global_scale, get_screen_resolution
 from d3utils.d3_manager import get_d3_manager
+
+ensure_d3_check_in_sys_path()
+
+numpy = get_third_package_numpy()
+np = numpy
+cv2 = get_third_package_cv2()
+Image = get_third_package_PIL_Image()
+win32gui = get_third_package_win32gui()
+
 DEBUG = False
 
 
@@ -166,9 +169,9 @@ class ScreenshotProvider:
     """
 
     def __init__(self):
-        """Initialize screenshot provider"""
-        self.screenshot_manager = WindowScreenshot(match_mode="endswith")
-        self.window_detector = GameWindowDetector()
+        """Initialize screenshot provider (uses shared singletons)"""
+        self.screenshot_manager = get_window_screenshot()
+        self.window_detector = get_game_window_detector()
 
         # Current screenshot data (shared across application)
         self.current_screenshot = None
@@ -695,6 +698,18 @@ class ScreenshotProvider:
             ColorPrint.red(f"[Provider] Error capturing grid cell ({cell_row},{cell_col}): {e}")
             traceback.print_exc()
             return None
+
+# 导出前实例化：全项目唯一 WindowScreenshot 实例
+_window_screenshot_instance = None
+
+
+def get_window_screenshot(match_mode: str = "endswith"):
+    """Return the global WindowScreenshot instance (singleton)."""
+    global _window_screenshot_instance
+    if _window_screenshot_instance is None:
+        _window_screenshot_instance = WindowScreenshot(match_mode=match_mode)
+    return _window_screenshot_instance
+
 
 # Global screenshot provider instance (singleton)
 _screenshot_provider = None

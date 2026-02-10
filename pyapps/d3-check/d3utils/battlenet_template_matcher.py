@@ -8,9 +8,13 @@ Uses share.scaled_template_matcher_base.load_template_and_scale_by_resolution.
 
 from typing import Optional, Dict, Any, Tuple
 
-from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, cv2, np
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from share.scaled_template_matcher_base import load_template_and_scale_by_resolution
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.image_matcher import ImageMatcher
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+from d3utils.image_matcher_registry import get_image_matcher_for_resolution
 from providor.constants.d3 import D3_BATTLENET_STANDARD_RESOLUTION_WIDTH, D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.d3u_common.image_conversion import convert_pil_to_bgr
@@ -80,7 +84,7 @@ def match_battlenet_template(
     method = match_method or config.get("match_method", "TM_CCOEFF_NORMED")
     threshold = config.get("threshold", 0.75)
     use_alpha = config.get("use_alpha", False)
-    matcher = ImageMatcher(standard_width=window_width, standard_height=window_height)
+    matcher = get_image_matcher_for_resolution(window_width, window_height)
     result = matcher.match_single_template(
         target_image=target_bgr,
         template_image=template_bgr,

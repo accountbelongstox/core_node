@@ -17,9 +17,9 @@ from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.d4 import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 from share.game_interface_data import get_d4_interface_data
 # D4State functionality now integrated into D4InterfaceData
-from .screenshot_handler import ScreenshotHandler
-from .region_detector import RegionDetector
-from .image_annotator import ImageAnnotator
+from .screenshot_handler import ScreenshotHandler, get_screenshot_handler
+from .region_detector import RegionDetector, get_region_detector
+from .image_annotator import ImageAnnotator, get_image_annotator
 
 
 class ExpFarmingManager:
@@ -35,9 +35,9 @@ class ExpFarmingManager:
     def __init__(self):
         """Initialize EXP farming manager"""
         self.d4_data = get_d4_interface_data()
-        self.screenshot_handler = ScreenshotHandler()
-        self.region_detector = RegionDetector()
-        self.image_annotator = ImageAnnotator()
+        self.screenshot_handler = get_screenshot_handler()
+        self.region_detector = get_region_detector()
+        self.image_annotator = get_image_annotator()
         ColorPrint.blue("[ExpFarmingManager] Initialized")
 
     def start_exp_farming_process(self, d4_data) -> bool:
@@ -107,7 +107,7 @@ class ExpFarmingManager:
             self.d4_data.last_screenshot_path = screenshot_path
             self.d4_data.last_screenshot_time = time.time()
         annotated_image = None
-        if not (hasattr(self.d4_data, 'last_annotated_screenshot_path') and self.d4_data.last_annotated_screenshot_path):
+        if not self.d4_data.last_annotated_screenshot_path:
             is_windowed = self.d4_data.is_windowed_mode()
             annotated_image = self.image_annotator.annotate_screenshot_with_coordinates(
                 screenshot_data.game_window_image,
@@ -120,3 +120,14 @@ class ExpFarmingManager:
                 )
                 if annotated_path:
                     self.d4_data.last_annotated_screenshot_path = annotated_path
+
+
+_exp_farming_manager_instance = None
+
+
+def get_exp_farming_manager() -> ExpFarmingManager:
+    """Return the global ExpFarmingManager instance (singleton). 导出前实例化."""
+    global _exp_farming_manager_instance
+    if _exp_farming_manager_instance is None:
+        _exp_farming_manager_instance = ExpFarmingManager()
+    return _exp_farming_manager_instance

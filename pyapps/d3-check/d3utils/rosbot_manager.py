@@ -16,25 +16,21 @@ from typing import List, Optional, Dict, Any, Tuple, Callable
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
 
+from pycore.pyfoundations.third_party import (
+    get_third_package_psutil,
+    get_third_package_win32api,
+    get_third_package_win32con,
+    get_third_package_win32gui,
+    get_third_package_win32process,
+)
 from providor.constants.d3 import ROSBOT_EXE_PATTERNS
 from d3utils.process_helper import kill_process_by_pid
 
-try:
-    import psutil
-except ImportError:
-    psutil = None
-try:
-    import win32gui
-    import win32process
-except ImportError:
-    win32gui = None
-    win32process = None
-try:
-    import win32api
-    import win32con
-except ImportError:
-    win32api = None
-    win32con = None
+psutil = get_third_package_psutil()
+win32gui = get_third_package_win32gui()
+win32api = get_third_package_win32api()
+win32con = get_third_package_win32con()
+win32process = get_third_package_win32process()
 
 # Default exclude for same-dir other exe (main launcher + installers)
 _DEFAULT_EXCLUDE = ("RoS-BoT.exe", "Uninstall", "setup", "install")

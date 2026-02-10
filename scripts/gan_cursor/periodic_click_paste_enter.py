@@ -105,12 +105,16 @@ def _build_file_prompt(paths: list[str]) -> str:
     return base + "\n\n" + _APPENDIX_DOC_REQUIREMENT
 
 
+# Split on punctuation only (no space). Dot before file extension (e.g. .py, .md) is not used as separator.
+_KEYWORD_SPLIT_PATTERN = re.compile(r"[，。,、；;：:！？!?]+|\.(?![a-zA-Z]{2,5}(?:\s|$))")
+
+
 def _build_prompt1() -> str:
     """Build prompt1 only (shuffled base + random code)."""
     base = CLIPBOARD_TEXT or ""
     fragments = [
         part.strip()
-        for part in re.split(r"[，。,\.、；;：:！？!?\s]+", base)
+        for part in _KEYWORD_SPLIT_PATTERN.split(base)
         if part.strip()
     ]
     if not fragments:
@@ -138,7 +142,7 @@ def _build_dynamic_prompt() -> tuple[str, str]:
     base = CLIPBOARD_TEXT or ""
     fragments = [
         part.strip()
-        for part in re.split(r"[，。,\.、；;：:！？!?\s]+", base)
+        for part in _KEYWORD_SPLIT_PATTERN.split(base)
         if part.strip()
     ]
     if not fragments:

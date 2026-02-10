@@ -2,26 +2,23 @@
 # -*- coding: utf-8 -*-
 """
 Application Root Helper
-Get main window root for Toplevel reuse; avoid creating multiple tk.Tk() which causes blank Tk windows.
+委托 share.ui_registry 总常量库；主 UI 启动后全部注册，此处仅做兼容导出。
 """
 
 import tkinter as tk
-from typing import Optional
+from typing import Any, Optional
 
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from share.ui_registry import get_root, get_panel
 
 
 def get_app_root() -> Optional[tk.Tk]:
+    """Return main application root. Delegates to share.ui_registry.get_root()."""
+    return get_root()
+
+
+def get_ui_panel(key: str) -> Any:
     """
-    Return main application root window if it exists.
-    Used so child/popup windows attach to the same root and do not create a new Tk().
+    Return panel by key. Delegates to share.ui_registry.get_panel(key).
+    Keys: providor.constants.ui.PANEL_KEY_* (main, auxiliary, rosbot, d4, calibration, log).
     """
-    try:
-        ui = ENCYCLOPEDIA.get("ui")
-        if ui is not None and hasattr(ui, "root"):
-            r = getattr(ui, "root", None)
-            if r is not None and getattr(r, "winfo_exists", lambda: False)():
-                return r
-    except Exception:
-        pass
-    return None
+    return get_panel(key)

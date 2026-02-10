@@ -59,24 +59,25 @@ from share.asia_credentials import schedule_battlenet_credentials_dialog
 
 def _fetch_rosbot_config_then_create(panel: "RosbotExtensionPanel") -> None:
     """Run in timer thread: fetch all config values, then schedule UI creation on main thread (THREAD_BUS_AND_REGISTRY §5)."""
-    if getattr(panel, '_content_created', False):
+    t0 = time.time()
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create ENTER (timer thread) t={t0:.3f}")
+    if panel._content_created:
+        ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create SKIP already created")
         return
     snapshot = {}
-    for key_path, default in ROSBOT_PANEL_CONFIG_KEYS:
-        try:
-            snapshot[key_path] = get_config_value_safe(key_path, default)
-        except Exception:
-            snapshot[key_path] = default
-
+    for i, (key_path, default) in enumerate(ROSBOT_PANEL_CONFIG_KEYS):
+        snapshot[key_path] = get_config_value_safe(key_path, default)
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create snapshot done n={len(snapshot)} t={time.time()-t0:.3f}")
     def on_main():
-        if getattr(panel, '_content_created', False):
+        t1 = time.time()
+        ColorPrint.gray(f"[UI-DBG] on_main (create_content_with_snapshot) ENTER t={t1:.3f}")
+        if panel._content_created:
+            ColorPrint.gray(f"[UI-DBG] on_main SKIP already created")
             return
         panel._create_content_with_snapshot(snapshot)
-
-    try:
-        panel.container.after(0, on_main)
-    except tk.TclError:
-        pass
+        ColorPrint.gray(f"[UI-DBG] on_main EXIT t={time.time()-t1:.3f}")
+    panel.container.after(0, on_main)
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create EXIT after(0) scheduled t={time.time()-t0:.3f}")
 
 
 # Config keys and defaults for this panel; read in timer thread to avoid main-thread block (THREAD_BUS: no blocking on config worker).
@@ -119,6 +120,7 @@ class RosbotExtensionPanel:
 
         # Status UI callback and refresh fn are registered by controller (timer and UI are sibling modules; no cross-import)
         self._refresh_status_fn: Optional[Callable[[], None]] = None
+        self._register_status_ui_fn: Optional[Callable[[], None]] = None
 
         # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -135,11 +137,12 @@ class RosbotExtensionPanel:
 
         # Lazy content: create on first tab select to avoid blocking startup with many get_config_value_safe
         self._content_created = False
+        self.ensure_battlenet_btn = None
+        self.control_btn = None
+        self._login_check_generation = 0
+        self._last_control_button_state = None
 
-        # Register as ColorPrint callback for rosbot-specific logs
-        ColorPrint.register_callback(self.add_log_message)
-
-        # Note: State callback already registered in __init__
+        # ColorPrint and status UI callbacks registered when content is created (code-level guarantee)
 
         # Note: Language change is handled by main UI, not individual panels
 
@@ -149,20 +152,41 @@ class RosbotExtensionPanel:
 
     def ensure_content(self):
         """Create panel content on first call (lazy). Config is read in timer thread to avoid main-thread block (THREAD_BUS_AND_REGISTRY §5); UI is then created on main thread with snapshot."""
-        if getattr(self, '_content_created', False):
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] ensure_content ENTER t={t0:.3f}")
+        if self._content_created:
+            ColorPrint.gray(f"[UI-DBG] ensure_content SKIP already created")
             return
         timer_manager.submit_one_shot(lambda: _fetch_rosbot_config_then_create(self))
+        ColorPrint.gray(f"[UI-DBG] ensure_content EXIT submit_one_shot done t={time.time()-t0:.3f}")
 
     def _create_content_with_snapshot(self, snapshot: dict) -> None:
-        """Build panel widgets on main thread using pre-fetched config snapshot. Must run on main thread only."""
+        """Build panel widgets on main thread using pre-fetched config snapshot. Split into two chunks so UI does not freeze (yield after config panel)."""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot ENTER t={t0:.3f}")
         self._content_created = True
         self._create_config_panel(snapshot)
+        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot after _create_config_panel t={time.time()-t0:.3f}")
+        # 第二段延后一帧执行，避免主线程长时间连续建控件导致卡顿
+        self.container.after(0, self._create_control_and_log_then_sync)
+        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot EXIT (chunk2 scheduled) t={time.time()-t0:.3f}")
+
+    def _create_control_and_log_then_sync(self) -> None:
+        """Second chunk: control panel + log row, then sync status. Runs on main thread after yield."""
+        t0 = time.time()
         self._create_control_panel()
+        ColorPrint.gray(f"[UI-DBG] _create_control_and_log_then_sync after _create_control_panel t={time.time()-t0:.3f}")
         self._create_log_display_row()
+        ColorPrint.gray(f"[UI-DBG] _create_control_and_log_then_sync after _create_log_display_row t={time.time()-t0:.3f}")
+        ColorPrint.register_callback(self.add_log_message)
+        if self._register_status_ui_fn:
+            self._register_status_ui_fn()
         self.container.after(100, self._sync_status_ui_once)
 
     def _create_config_panel(self, snapshot: dict):
         """Create ROSBOT configuration panel (no top label to save space). Uses snapshot to avoid main-thread config read."""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_config_panel ENTER t={t0:.3f}")
         config_frame = ttk.Frame(self.container)
         config_frame.grid(row=0, column=0, sticky="new",
                          padx=(0, UnifiedStyles.SPACING['sm']),
@@ -173,12 +197,15 @@ class RosbotExtensionPanel:
 
         # ROSBOT path configuration
         self._create_path_section(config_frame, snapshot)
-
+        ColorPrint.gray(f"[UI-DBG] _create_config_panel after _create_path_section t={time.time()-t0:.3f}")
         # Bot settings
         self._create_bot_settings(config_frame, snapshot)
+        ColorPrint.gray(f"[UI-DBG] _create_config_panel EXIT t={time.time()-t0:.3f}")
 
     def _create_path_section(self, parent, snapshot: dict):
         """Create path section (no title to save space). Uses snapshot to avoid main-thread config read."""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_path_section ENTER t={t0:.3f}")
         path_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         path_frame.grid(row=0, column=0, columnspan=2, sticky="ew",
                        padx=UnifiedStyles.SPACING['sm'],
@@ -286,6 +313,7 @@ class RosbotExtensionPanel:
         self._path_scan_btn.grid(row=0, column=3, rowspan=3, sticky="ns",
                                  padx=(UnifiedStyles.SPACING['sm'], 0),
                                  pady=UnifiedStyles.SPACING['xs'])
+        ColorPrint.gray(f"[UI-DBG] _create_path_section EXIT t={time.time()-t0:.3f}")
 
     def _run_one_click_scan(self):
         """Run path scan in background thread; UI stays responsive, progress shown via _scan_progress_tick."""
@@ -312,24 +340,16 @@ class RosbotExtensionPanel:
                 display = display[:69] + "..."
         else:
             display = i18n_manager.get_ui_text("rosbot.scan_searching")
-        if self._scan_progress_label:
-            try:
-                self._scan_progress_label.config(text=display)
-            except (tk.TclError, RuntimeError):
-                pass
+        self._scan_progress_label.config(text=display)
         self._scan_progress_after_id = self.container.after(200, self._scan_progress_tick)
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, d3_path=None, error_msg=None):
-        """Apply scan results: set config and optionally show choice dialog for multiple ROSBOT."""
+        """Apply scan results: set config and optionally show choice dialog for multiple ROSBOT. Only called after content created (code-level)."""
         self._scan_in_progress = False
         if self._scan_progress_after_id is not None:
-            try:
-                self.container.after_cancel(self._scan_progress_after_id)
-            except (tk.TclError, RuntimeError):
-                pass
-            self._scan_progress_after_id = None
-        if self._scan_progress_label:
-            self._scan_progress_label.config(text="")
+            self.container.after_cancel(self._scan_progress_after_id)
+        self._scan_progress_after_id = None
+        self._scan_progress_label.config(text="")
         self._path_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
         if error_msg:
             messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
@@ -391,6 +411,8 @@ class RosbotExtensionPanel:
 
     def _create_bot_settings(self, parent, snapshot: dict):
         """Create bot settings section. Uses snapshot to avoid main-thread config read."""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_bot_settings ENTER t={t0:.3f}")
         settings_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.bot_settings"),
                                       bg=UnifiedStyles.COLORS['bg_secondary'],
                                       fg=UnifiedStyles.COLORS['text_primary'],
@@ -465,9 +487,12 @@ class RosbotExtensionPanel:
         tk.Label(timeout_frame, text=i18n_manager.get_ui_text("rosbot.minutes"),
                  bg=UnifiedStyles.COLORS['bg_secondary'],
                  fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
+        ColorPrint.gray(f"[UI-DBG] _create_bot_settings EXIT t={time.time()-t0:.3f}")
 
     def _create_control_panel(self):
         """Create ROSBOT control and status panel"""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_control_panel ENTER t={t0:.3f}")
         control_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("rosbot.control_panel"), style='TLabelframe')
         control_frame.grid(row=0, column=1, sticky="new",
                           padx=(UnifiedStyles.SPACING['sm'], 0),
@@ -479,6 +504,7 @@ class RosbotExtensionPanel:
 
         # Control buttons (status display merged into bottom bar Game Status row)
         self._create_control_buttons(control_frame)
+        ColorPrint.gray(f"[UI-DBG] _create_control_panel EXIT t={time.time()-t0:.3f}")
 
     def _create_control_buttons(self, parent):
         """Create control buttons with toggle functionality (same as ensure Battle.net: click toggles, button state updates on click)."""
@@ -568,6 +594,8 @@ class RosbotExtensionPanel:
 
     def _create_log_display_row(self):
         """Create log display in row 1. Header: one-click scan (left) + scan progress + log title (right) + status + latency + checkbox. Then log text + scrollbar."""
+        t0 = time.time()
+        ColorPrint.gray(f"[UI-DBG] _create_log_display_row ENTER t={t0:.3f}")
         self._last_log_time: Optional[float] = None
         self._last_latency_sec: Optional[float] = None
 
@@ -637,97 +665,75 @@ class RosbotExtensionPanel:
 
         self.log_text.bind("<Button-3>", self._show_rosbot_log_context_menu)
         self._schedule_rosbot_log_status_tick()
+        ColorPrint.gray(f"[UI-DBG] _create_log_display_row EXIT t={time.time()-t0:.3f}")
 
     def _update_rosbot_log_status_display(self) -> None:
-        """Update last-log-ago and latency label (latency only when debug_log_latency is on)."""
-        try:
-            if self._last_log_time is None:
-                self._rosbot_log_status_var.set("")
-                self._rosbot_log_latency_var.set("")
-                return
-            elapsed = time.time() - self._last_log_time
-            if elapsed < 60:
-                ago_val = "{:.1f}s".format(elapsed)
-                status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
-            else:
-                ago_val = "{:.0f}min".format(elapsed / 60)
-                status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago_min", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
-            self._rosbot_log_status_var.set(status_text)
-            show_latency = bool(ConfigBinding.get_config_value("log_settings.debug_log_latency", False))
-            if show_latency and self._last_latency_sec is not None:
-                lat_val = "{:.1f}".format(self._last_latency_sec)
-                self._rosbot_log_latency_var.set((i18n_manager.get_ui_text("rosbot.log_latency", default="latency +{0}s") or "latency +{0}s").format(lat_val))
-                self._rosbot_log_latency_lbl.grid()
-            else:
-                self._rosbot_log_latency_var.set("")
-                self._rosbot_log_latency_lbl.grid_remove()
-        except (tk.TclError, RuntimeError):
-            pass
+        """Update last-log-ago and latency label (latency only when debug_log_latency is on). Only called from tick scheduled after content created."""
+        if self._last_log_time is None:
+            self._rosbot_log_status_var.set("")
+            self._rosbot_log_latency_var.set("")
+            return
+        elapsed = time.time() - self._last_log_time
+        if elapsed < 60:
+            ago_val = "{:.1f}s".format(elapsed)
+            status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
+        else:
+            ago_val = "{:.0f}min".format(elapsed / 60)
+            status_text = (i18n_manager.get_ui_text("rosbot.log_last_ago_min", default="Last: {0} ago") or "Last: {0} ago").format(ago_val)
+        self._rosbot_log_status_var.set(status_text)
+        show_latency = bool(ConfigBinding.get_config_value("log_settings.debug_log_latency", False))
+        if show_latency and self._last_latency_sec is not None:
+            lat_val = "{:.1f}".format(self._last_latency_sec)
+            self._rosbot_log_latency_var.set((i18n_manager.get_ui_text("rosbot.log_latency", default="latency +{0}s") or "latency +{0}s").format(lat_val))
+            self._rosbot_log_latency_lbl.grid()
+        else:
+            self._rosbot_log_latency_var.set("")
+            self._rosbot_log_latency_lbl.grid_remove()
 
     def _schedule_rosbot_log_status_tick(self) -> None:
-        """Tick every 1s to update last-log-ago label."""
-        try:
-            if not self.container.winfo_exists():
-                return
-            self._update_rosbot_log_status_display()
-            self.container.after(1000, self._schedule_rosbot_log_status_tick)
-        except (tk.TclError, RuntimeError):
-            pass
+        """Tick every 1s to update last-log-ago label. Only scheduled after content created."""
+        self._update_rosbot_log_status_display()
+        self.container.after(1000, self._schedule_rosbot_log_status_tick)
 
     def _show_rosbot_log_context_menu(self, event):
-        """Show right-click context menu for ROSBOT log area (Copy)."""
+        """Show right-click context menu for ROSBOT log area (Copy). Bound to log_text after content created."""
         menu = tk.Menu(self.log_text, tearoff=0)
         menu.add_command(label=i18n_manager.get_ui_text("rosbot.copy"), command=self._copy_rosbot_log_to_clipboard)
-        try:
-            menu.tk_popup(event.x_root, event.y_root)
-        finally:
-            menu.grab_release()
+        menu.tk_popup(event.x_root, event.y_root)
+        menu.grab_release()
 
     def _copy_rosbot_log_to_clipboard(self):
-        """Copy ROSBOT log content to clipboard (selection if any, else all)."""
-        try:
-            if self.log_text.tag_ranges(tk.SEL):
-                text = self.log_text.get(tk.SEL_FIRST, tk.SEL_LAST)
-            else:
-                text = self.log_text.get("1.0", tk.END)
-            if text.strip():
-                self.container.clipboard_clear()
-                self.container.clipboard_append(text)
-        except tk.TclError:
-            pass
+        """Copy ROSBOT log content to clipboard (selection if any, else all). Only called from context menu after content created."""
+        if self.log_text.tag_ranges(tk.SEL):
+            text = self.log_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+        else:
+            text = self.log_text.get("1.0", tk.END)
+        if text.strip():
+            self.container.clipboard_clear()
+            self.container.clipboard_append(text)
 
     def add_log_message(self, message, level="INFO", color=None):
-        """ColorPrint callback when ROSBOT tab is active. Accept [ROSBOT], [PathScan], LogAnalyzer; display strips prefix via _strip_ui_log_prefix."""
+        """ColorPrint callback for ROSBOT log. Only registered after content created (code-level)."""
         if is_shutdown_requested():
-            return
-        if not getattr(self, '_content_created', True):
             return
         if not any(m in message for m in ("[ROSBOT]", "[PathScan]", "LogAnalyzer")):
             return
         self._last_log_time = time.time()
         if "[ROSBOT~" in message and "s]" in message:
-            try:
-                start = message.index("[ROSBOT~") + len("[ROSBOT~")
-                end = message.index("s]", start)
-                self._last_latency_sec = float(message[start:end])
-            except (ValueError, TypeError):
+            start = message.index("[ROSBOT~") + len("[ROSBOT~")
+            end = message.index("s]", start)
+            segment = message[start:end]
+            if segment.replace(".", "", 1).replace("-", "", 1).isdigit():
+                self._last_latency_sec = float(segment)
+            else:
                 self._last_latency_sec = None
         def _append():
-            try:
-                if not self.log_text.winfo_exists():
-                    return
-                self.log_text.configure(state=tk.NORMAL)
-                text = _strip_ui_log_prefix(message)
-                self.log_text.insert(tk.END, f"{text}\n")
-                self.log_text.see(tk.END)
-                self.log_text.configure(state=tk.DISABLED)
-            except (tk.TclError, RuntimeError):
-                pass
-        try:
-            if self.container.winfo_exists():
-                self.container.after(0, _append)
-        except (tk.TclError, RuntimeError):
-            pass
+            self.log_text.configure(state=tk.NORMAL)
+            text = _strip_ui_log_prefix(message)
+            self.log_text.insert(tk.END, f"{text}\n")
+            self.log_text.see(tk.END)
+            self.log_text.configure(state=tk.DISABLED)
+        self.container.after(0, _append)
 
     def _browse_rosbot_path(self):
         """Browse for ROSBOT executable; when current value exists, open that directory."""
@@ -790,14 +796,10 @@ class RosbotExtensionPanel:
         self._update_ensure_battlenet_button()
 
     def _update_ensure_battlenet_button(self):
-        """Update ensure-Battle.net button text to show on/off."""
-        try:
-            if hasattr(self, 'ensure_battlenet_btn') and self.ensure_battlenet_btn.winfo_exists():
-                on = self.game_state.ensure_battlenet_only_master_enabled
-                key = "rosbot.ensure_battlenet_only_on" if on else "rosbot.ensure_battlenet_only"
-                self.ensure_battlenet_btn.config(text=i18n_manager.get_ui_text(key))
-        except tk.TclError:
-            pass
+        """Update ensure-Battle.net button text. Only called after content created (code-level)."""
+        on = self.game_state.ensure_battlenet_only_master_enabled
+        key = "rosbot.ensure_battlenet_only_on" if on else "rosbot.ensure_battlenet_only"
+        self.ensure_battlenet_btn.config(text=i18n_manager.get_ui_text(key))
 
     def _start_rosbot(self):
         """Start ROSBOT: only set flow master + enable task; tick drives flow library, flow library calls extension thread (which calls third-party). Do not submit one-shot here (FLOW_STATE_ARCHITECTURE)."""
@@ -810,15 +812,11 @@ class RosbotExtensionPanel:
         self._request_status_refresh()
 
     def _control_btn_set_busy(self, busy):
-        """Set control button to busy (disabled) or normal."""
-        try:
-            if hasattr(self, 'control_btn') and self.control_btn.winfo_exists():
-                if busy:
-                    self.control_btn.config(state=tk.DISABLED)
-                else:
-                    self.control_btn.config(state=tk.NORMAL)
-        except tk.TclError:
-            pass
+        """Set control button to busy (disabled) or normal. Only called after content created (code-level)."""
+        if busy:
+            self.control_btn.config(state=tk.DISABLED)
+        else:
+            self.control_btn.config(state=tk.NORMAL)
 
     def get_status_ui_callback(self):
         """Return callback for status UI (controller registers it with window_monitor)."""
@@ -827,6 +825,10 @@ class RosbotExtensionPanel:
     def set_refresh_status_fn(self, fn: Callable[[], None]):
         """Set the refresh-status callable (controller injects window_monitor.refresh_window_status_if_inactive)."""
         self._refresh_status_fn = fn
+
+    def set_register_status_ui_fn(self, fn: Callable[[], None]):
+        """Set callable to register status UI callback with window_monitor. Called once when content is created (code-level)."""
+        self._register_status_ui_fn = fn
 
     def _open_set_account_password(self):
         """Open Battle.net account/password dialog (Asia/CN region dropdown, account/password per region)."""
@@ -870,7 +872,7 @@ class RosbotExtensionPanel:
 
     def _on_login_check_done(self, success, error=None, ran_e_block=False, generation=None):
         """Main-thread cleanup: on success keep running and enable rosbot_task (ROSBOT_FLOW_MERMAID). ran_e_block=True: E1-E6 already ran in extension thread, do not call start_rosbot_task. When generation is not None, only accept callback matching current generation."""
-        if generation is not None and generation != getattr(self, "_login_check_generation", 0):
+        if generation is not None and generation != self._login_check_generation:
             return
         self._control_btn_set_busy(False)
         if error is not None:
@@ -924,7 +926,7 @@ class RosbotExtensionPanel:
         """Update control button from game_interface_data (flow writes, UI read-only). Keeps self.rosbot_running in sync for _toggle_rosbot. Shows need-key hint when get_ui_state().need_key_input."""
         self.rosbot_running = self.game_state.rosbot_flow_master_enabled
         state_str = "STOP (red)" if self.rosbot_running else "START (green)"
-        if getattr(self, "_last_control_button_state", None) != state_str:
+        if self._last_control_button_state != state_str:
             self._last_control_button_state = state_str
             ColorPrint.debug(f"[RosbotPanel] Control button: {state_str}")
         if self.rosbot_running:
@@ -940,21 +942,19 @@ class RosbotExtensionPanel:
         # need_key 显示在底部状态栏第三行（扩展状态），不在此处显示
 
     def _sync_status_ui_once(self):
-        """Pull current game state and update status UI (main thread). Used once after status widgets exist so UI reflects state even if first callback ran too early."""
-        if not self.container.winfo_exists() or not getattr(self, '_content_created', True):
-            return
+        """Pull current game state and update status UI (main thread). Only called after content created (code-level)."""
         state = self.game_state.get_summary()
         self._update_ui_from_state(state)
 
     def _on_game_state_changed(self, state):
-        """Invoked only on main thread by game_interface_data poll; update UI directly."""
-        if not self.container.winfo_exists() or not getattr(self, '_content_created', True):
-            return
+        """Invoked only on main thread by game_interface_data poll. Only when content created (code-level)."""
+        t0 = time.time()
         self._update_ui_from_state(state)
+        if time.time() - t0 > 0.05:
+            ColorPrint.gray(f"[UI-DBG] _on_game_state_changed took {time.time()-t0:.3f}s")
 
     def _update_ui_from_state(self, state):
         """Push state to bottom bar, ensure-BN button, and Start/Stop button from game_interface_data (flow writes, UI read-only)."""
-        if getattr(self, "_bottom_bar", None):
-            self._bottom_bar.update_status_from_state(state)
+        self._bottom_bar.update_status_from_state(state)
         self._update_ensure_battlenet_button()
         self._update_control_button()

@@ -19,7 +19,7 @@ ensure_d3_check_in_sys_path()
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from providor.providor_index import CONFIG
-from controller.game_assistant_controller import GameAssistantController
+from controller.game_assistant_controller import GameAssistantController, get_game_assistant_controller
 from runtime import get_thread_registry
 
 
@@ -74,7 +74,7 @@ class GameInterfaceController:
     def run_assistant_auto_use(self) -> None:
         """Run assistant auto-use interface function (used by hotkey callback from d3utils)."""
         if self.assistant_controller is None:
-            self.assistant_controller = GameAssistantController()
+            self.assistant_controller = get_game_assistant_controller()
         self.assistant_controller.auto_use_interface_function()
 
     def _load_hotkey_config(self):
@@ -301,8 +301,7 @@ def main():
     """Main function for testing"""
     ColorPrint.blue("=== Game Interface Controller Test ===")
     
-    # Create controller
-    controller = GameInterfaceController()
+    controller = get_game_interface_controller()
     
     # Initialize
     if controller.initialize_game_interface():
@@ -327,6 +326,18 @@ def main():
             ColorPrint.green("[TEST] Test completed")
     else:
         ColorPrint.red("[TEST] Failed to initialize game interface")
+
+
+_game_interface_controller_instance: Optional[GameInterfaceController] = None
+
+
+def get_game_interface_controller() -> GameInterfaceController:
+    """Return the global GameInterfaceController instance (singleton). 导出前实例化."""
+    global _game_interface_controller_instance
+    if _game_interface_controller_instance is None:
+        _game_interface_controller_instance = GameInterfaceController()
+    return _game_interface_controller_instance
+
 
 if __name__ == "__main__":
     main()

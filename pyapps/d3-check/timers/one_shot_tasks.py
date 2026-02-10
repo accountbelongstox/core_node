@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
-from pycore.pyutils.window_analyzer import WindowAnalyzer
+from d3utils.window_analyzer_singleton import get_window_analyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
 from providor.providor_index import CACHE_DIR, CONFIG
 from d3utils.battlenet_manager import get_battlenet_manager
@@ -59,10 +59,8 @@ def register_login_controller_actions(
     _ensure_bn_only_fn = ensure_bn_only
 
 
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
+from pycore.pyfoundations.third_party import get_third_package_pythoncom
+pythoncom = get_third_package_pythoncom()
 
 _rosdebug_running_busy = False
 
@@ -71,7 +69,7 @@ def do_path_scan(panel: Any, include_rosbot: bool = True) -> None:
     """Path scan work. Run in timer thread via submit_one_shot; schedules UI update on main.
     When include_rosbot is False, only Battle.net and D3 are scanned; panel._apply_scan_results receives empty ros list."""
     def progress_cb(current_dir: str) -> None:
-        if getattr(panel, "_scan_status", None) is not None:
+        if panel._scan_status is not None:
             panel._scan_status[0] = current_dir
 
     bn, ros, d3 = scan_for_paths(progress_callback=progress_cb, include_rosbot=include_rosbot)
@@ -212,13 +210,10 @@ def _do_window_ui_analyze(
 ) -> None:
     """CoInitialize, mkdir, WindowAnalyzer.analyze_window, copy to docs, open folder. Schedules UI updates on main."""
     if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except OSError:
-            pass
+        pythoncom.CoInitialize()
     output_dir = Path(CACHE_DIR) / cache_subdir
     output_dir.mkdir(parents=True, exist_ok=True)
-    analyzer = WindowAnalyzer()
+    analyzer = get_window_analyzer()
     analyzer.debug_dir = str(output_dir)
     result = analyzer.analyze_window(window_titles=window_titles, program_name=program_name)
     if result and result.get("success"):
@@ -275,13 +270,10 @@ def _do_window_ui_analyze_by_hwnd(
 ) -> None:
     """Same as _do_window_ui_analyze but find window by hwnd (ROSBOT: same-dir exe / PID, not by title)."""
     if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except OSError:
-            pass
+        pythoncom.CoInitialize()
     output_dir = Path(CACHE_DIR) / cache_subdir
     output_dir.mkdir(parents=True, exist_ok=True)
-    analyzer = WindowAnalyzer()
+    analyzer = get_window_analyzer()
     analyzer.debug_dir = str(output_dir)
     hwnd = winfo.get("hwnd")
     title = (winfo.get("title") or "").strip() or "ROSBOT"
@@ -339,14 +331,10 @@ def do_rosbot_debug(panel: Any) -> None:
     refresh_rosbot_status()
     mgr = get_rosbot_manager()
 
-    # When debugging ROSBOT UI,优先尝试关掉「Diablo III must be launched!」弹窗（小对话框 + OK 按钮，无 TextBox）
-    # 仅依赖 UI 特征（尺寸 + 是否有 TextBox + OK 按钮），即使窗口最小化也通过 uiautomation 关闭。
-    try:
-        closed = try_close_d3_must_be_launched_dialog()
-        if closed:
-            ColorPrint.gray("[RosbotPanel] Auto-closed 'D3 must be launched' dialog before debug")
-    except Exception as e:
-        ColorPrint.yellow(f"[RosbotPanel] try_close_d3_must_be_launched_dialog error: {e}")
+    # When debugging ROSBOT UI, 优先尝试关掉「Diablo III must be launched!」弹窗
+    closed = try_close_d3_must_be_launched_dialog()
+    if closed:
+        ColorPrint.gray("[RosbotPanel] Auto-closed 'D3 must be launched' dialog before debug")
 
     winfo_visible = mgr.get_any_visible_rosbot_window()
     if winfo_visible and winfo_visible.get("hwnd"):
@@ -461,14 +449,13 @@ def _rosbot_update_done(panel: Any) -> None:
     """Main-thread wrap-up after update: refresh status, update panel button."""
     refresh_rosbot_status()
     get_game_interface_data().notify_state_sync()
-    if hasattr(panel, "container") and panel.container.winfo_exists():
+    if panel.container.winfo_exists():
         panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
 
 
 def _update_rosbot_button_if_exists(panel: Any) -> None:
     """Refresh control button state on main thread."""
-    if hasattr(panel, "_update_control_button") and callable(panel._update_control_button):
-        panel._update_control_button()
+    panel._update_control_button()
 
 
 def do_rosbot_test_pause_resume(panel: Any) -> None:

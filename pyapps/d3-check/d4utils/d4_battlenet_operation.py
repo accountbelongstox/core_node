@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.window_activator import WindowActivator
 from share.game_interface_data import get_game_interface_data
 from share.battlenet_window_finder import find_battlenet_windows, get_battlenet_path
@@ -63,7 +63,7 @@ class D4BattlenetOperation:
     """
 
     def __init__(self, region: Optional[str] = None):
-        self._clicker = ClickHandler()
+        self._clicker = get_click_handler()
         self._region = region if region in ("asia", "cn") else _resolve_d4_battlenet_region() if region is None else None
 
     def activate_window(self) -> bool:

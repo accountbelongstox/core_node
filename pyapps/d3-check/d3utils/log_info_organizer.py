@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Log Info Organizer library.
+类库：导出前实例化，通过 get_log_info_organizer(log_path) 按路径单例，禁止各处自行 new。
 
 Uses LogStateReader / log_indent_spec: read log by position or time, detect and parse
 stats lines (Botting duration, Game #, Run, Failed runs, Deaths, Keys, Shards, Xp, Legendaries,
@@ -14,7 +15,7 @@ import re
 import time
 from typing import List, Optional, Tuple
 
-from d3utils.log_state_reader import LogStateReader
+from d3utils.log_state_reader import LogStateReader, get_log_state_reader
 
 
 # Stats line detection: line with both duration and Performance is a full stats line (accept Boting/Botting, earned/eared)
@@ -77,7 +78,7 @@ class LogInfoOrganizer:
 
     def __init__(self, log_path: str) -> None:
         self._log_path = log_path
-        self._reader = LogStateReader(log_path)
+        self._reader = get_log_state_reader(log_path)
         self._last_position: int = 0
 
     def get_log_path(self) -> str:
@@ -133,6 +134,17 @@ class LogInfoOrganizer:
         Poll once: read new lines since last position, parse stats lines, return one-per-line list.
         """
         return self.get_latest_stats_as_lines()
+
+
+# 导出前实例化：按 log_path 单例
+_organizer_cache: dict = {}
+
+
+def get_log_info_organizer(log_path: str) -> LogInfoOrganizer:
+    """Return cached LogInfoOrganizer for log_path (singleton per path). 导出前实例化。"""
+    if log_path not in _organizer_cache:
+        _organizer_cache[log_path] = LogInfoOrganizer(log_path)
+    return _organizer_cache[log_path]
 
 
 def get_default_log_path() -> str:

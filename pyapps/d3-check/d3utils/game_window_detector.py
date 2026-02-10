@@ -2,16 +2,18 @@
 # -*- coding: utf-8 -*-
 """
 Game Window Detector
-Detects game window position by finding anchor points in full screen screenshot
+Detects game window position by finding anchor points in full screen screenshot.
+类库：导出前实例化，通过 get_game_window_detector() 获取单例，禁止各处自行 new。
 """
 
 import os
 import sys
 from typing import Optional, Tuple, Dict
 from pathlib import Path
-import cv2
-import numpy as np
 
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
@@ -278,3 +280,14 @@ if __name__ == "__main__":
         print(f"  Bottom-right anchor: {result['bottom_right_anchor']['name']}")
     else:
         print("\nGame window not detected")
+
+# 导出前实例化：全项目唯一 GameWindowDetector 实例
+_game_window_detector_instance: Optional[GameWindowDetector] = None
+
+
+def get_game_window_detector() -> GameWindowDetector:
+    """Return the global GameWindowDetector instance (singleton)."""
+    global _game_window_detector_instance
+    if _game_window_detector_instance is None:
+        _game_window_detector_instance = GameWindowDetector()
+    return _game_window_detector_instance

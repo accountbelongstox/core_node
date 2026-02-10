@@ -166,11 +166,7 @@ class D4WindowRegionDetector:
         d4_data = get_d4_interface_data()
         window_info = detection_result.get("window_info", {})
         d4_data.game_window_size = window_info.get("game_window_size", (0, 0))
-        if not hasattr(d4_data, 'detected_regions'):
-            d4_data.detected_regions = {}
-        if not hasattr(d4_data, 'detected_points'):
-            d4_data.detected_points = {}
-        existing_region_images = d4_data.detected_regions.get('region_images', {})
+        existing_region_images = (d4_data.detected_regions or {}).get('region_images', {})
         d4_data.detected_regions = detection_result.get("regions", {})
         if existing_region_images:
             d4_data.detected_regions['region_images'] = existing_region_images
