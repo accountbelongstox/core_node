@@ -224,7 +224,8 @@ class WindowScreenshot:
         self,
         titles: List[str],
         filename_prefix: str = "window_fast",
-        use_cache: bool = True
+        use_cache: bool = True,
+        save_to_disk: bool = True
     ) -> Optional[Dict]:
         """
         Find and screenshot FIRST matching window (optimized with encyclopedia cache)
@@ -241,21 +242,13 @@ class WindowScreenshot:
 
         Args:
             titles: List of window titles to search (finds FIRST match)
-            filename_prefix: Prefix for screenshot filename
+            filename_prefix: Prefix for screenshot filename (ignored when save_to_disk=False)
             use_cache: Whether to use encyclopedia cache
+            save_to_disk: If False, keep image in memory only (result["image"]), no temp file
 
         Returns:
-            Same structure as capture_window_fast() for consistency:
-            {
-                "screenshot_path": Path,
-                "window_title": str or None,
-                "window_rect": tuple or None,
-                "window_offset": tuple,  # (offset_x, offset_y)
-                "window_size": tuple,  # (width, height)
-                "scaled_screenshot_path": None,
-                "scaled_offset": None,
-                "scale_ratio": None
-            }
+            Dict with window_title, window_rect, window_offset, window_size; when save_to_disk
+            also screenshot_path; when save_to_disk=False has "image" (PIL Image) and screenshot_path=None.
         """
         ColorPrint.print_min_interval(f"\n[FAST_SINGLE] Starting optimized single window capture...", "1min", "blue")
         ColorPrint.print_min_interval(f"[FAST_SINGLE] Searching for titles: {titles}", "1min", "blue")
@@ -353,16 +346,7 @@ class WindowScreenshot:
             window_screenshot = screenshot_full.crop((left, top, right, bottom))
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Cropped window region: {window_width}x{window_height}", "1min", "blue")
 
-            # Save screenshot
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            filename = f"{filename_prefix}_{timestamp}.png"
-            filepath = self.tmp_dir / filename
-
-            window_screenshot.save(filepath)
-            ColorPrint.print_min_interval(f"[FAST_SINGLE] Saved: {filepath}", "1min", "green")
-
             result = {
-                "screenshot_path": filepath,
                 "window_title": title,
                 "window_rect": rect,
                 "window_offset": (left, top),
@@ -371,6 +355,16 @@ class WindowScreenshot:
                 "scaled_offset": None,
                 "scale_ratio": None
             }
+            if save_to_disk:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                filename = f"{filename_prefix}_{timestamp}.png"
+                filepath = self.tmp_dir / filename
+                window_screenshot.save(filepath)
+                ColorPrint.print_min_interval(f"[FAST_SINGLE] Saved: {filepath}", "1min", "green")
+                result["screenshot_path"] = filepath
+            else:
+                result["screenshot_path"] = None
+                result["image"] = window_screenshot
 
             total_time = time.time() - start_time
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Total time: {total_time*1000:.2f}ms", "1min", "green")

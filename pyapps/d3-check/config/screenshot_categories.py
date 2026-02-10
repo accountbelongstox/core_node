@@ -10,12 +10,10 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import (
+from providor.constants.common import (
     TMP_DIR,
     SCALED_TEMPLATES_CACHE_DIR,
     LOGIN_TRY_SCREENSHOT_DIR,
-    D4_SCREENSHOT_DIR,
-    D4_ANNOTATED_DIR,
     MATCH_DEBUG_DIR,
     PATHFINDING_DIR,
     DEBUG_CAPTURE_DIR,
@@ -23,6 +21,7 @@ from providor.app_constants import (
     VALIDATION_DIR,
     DEFAULT_CLEANUP_MAX_AGE_SECONDS,
 )
+from providor.constants.d4 import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 
 SCREENSHOT_CATEGORIES: Dict[str, Path] = {
     "login_try": LOGIN_TRY_SCREENSHOT_DIR,

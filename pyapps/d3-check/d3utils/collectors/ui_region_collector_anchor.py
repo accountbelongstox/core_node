@@ -23,13 +23,8 @@ from d3utils.d3u_common.image_annotator_helper import save_anchor_detection_resu
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data, UIRegion
-from providor.app_constants import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    DEBUG,
-    TMP_DIR,
-    BORDER_LINE_COLOR_TOLERANCE_PERCENT,
-)
+from providor.constants.common import DEBUG, TMP_DIR, BORDER_LINE_COLOR_TOLERANCE_PERCENT
+from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha
 
 class UIRegionCollectorAnchor:
@@ -72,94 +67,80 @@ class UIRegionCollectorAnchor:
         ColorPrint.blue("[UIRegionCollectorAnchor] Collecting UI region")
         ColorPrint.blue("=" * 60)
 
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
-            # Step 1: Capture screenshot (no optimized mode, use fullscreen)
-            if force_new_capture:
-                ColorPrint.blue("[Step 1/3] Generating fullscreen screenshot...")
-                screenshot_data = self._screenshot_provider.gen(
-                    use_optimized_capture=False
-                )
-            else:
-                ColorPrint.blue("[Step 1/3] Using shared screenshot...")
-                screenshot_data = self._screenshot_provider.share()
-
-            if screenshot_data is None or screenshot_data.fullscreen_image is None:
-                ColorPrint.red("[ERROR] Failed to get screenshot")
-                self._update_shared_data_error("Failed to get screenshot", timestamp)
-                return None
-
-            ColorPrint.green(f"[Step 1/3] Screenshot ready: {screenshot_data.fullscreen_size[0]}x{screenshot_data.fullscreen_size[1]}")
-
-            # Step 2: Detect window position using anchors
-            ColorPrint.blue("[Step 2/3] Detecting window position using anchors...")
-
-            window_position = self._detect_window_position_by_anchors(screenshot_data)
-            if not window_position:
-                ColorPrint.red("[ERROR] Failed to detect window position")
-                self._update_shared_data_error("Failed to detect window position", timestamp)
-                return None
-
-            ColorPrint.green(f"[Step 2/3] Window detected: ({window_position['x']}, {window_position['y']}) {window_position['width']}x{window_position['height']}")
-
-            # Step 3: Create UI region
-            ColorPrint.blue("[Step 3/3] Creating UI region data...")
-
-            ui_region = UIRegion(
-                x=window_position["x"],
-                y=window_position["y"],
-                width=window_position["width"],
-                height=window_position["height"],
-                ui_offset_x=window_position["ui_offset_x"],
-                ui_offset_y=window_position["ui_offset_y"],
-                is_fullscreen=window_position.get("is_fullscreen", False),
-                source="anchor_match"
+        # Step 1: Capture screenshot (no optimized mode, use fullscreen)
+        if force_new_capture:
+            ColorPrint.blue("[Step 1/3] Generating fullscreen screenshot...")
+            screenshot_data = self._screenshot_provider.gen(
+                use_optimized_capture=False
             )
+        else:
+            ColorPrint.blue("[Step 1/3] Using shared screenshot...")
+            screenshot_data = self._screenshot_provider.share()
 
-            # Update shared data
-            shared_data = get_game_interface_data()
-            shared_data.ui_region = ui_region
-            shared_data.timestamp = timestamp
-            shared_data.error = None
-
-            # Verify game_window_image was updated by _detect_window_position_by_anchors
-            if not shared_data.game_window_image:
-                ColorPrint.red("[ERROR] Game window image is NULL - anchor detection failed to update shared data")
-                self._update_shared_data_error("Game window image is NULL", timestamp)
-                return None
-
-            ColorPrint.green(f"[SUCCESS] UI region detected:")
-            ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
-            ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
-            ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
-            ColorPrint.green(f"  Fullscreen: {ui_region.is_fullscreen}")
-            ColorPrint.green(f"  Source: {ui_region.source}")
-            ColorPrint.green(f"  Game window image size: {shared_data.game_window_size}")
-
-            # Log resolution info
-            actual_width = screenshot_data.fullscreen_size[0]
-            actual_height = screenshot_data.fullscreen_size[1]
-            ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
-            if actual_width != D3_STANDARD_RESOLUTION_WIDTH or actual_height != D3_STANDARD_RESOLUTION_HEIGHT:
-                scale_x = actual_width / D3_STANDARD_RESOLUTION_WIDTH
-                scale_y = actual_height / D3_STANDARD_RESOLUTION_HEIGHT
-                ColorPrint.blue(f"[Resolution] Auto-scaling enabled: {scale_x:.4f}x, {scale_y:.4f}y")
-
-            # Save screenshot if requested
-            if save_screenshot:
-                saved_paths = self._screenshot_provider.save_current_screenshot()
-                if saved_paths:
-                    ColorPrint.blue(f"[Saved] {saved_paths['fullscreen_path']}")
-
-            return ui_region
-
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Collection failed: {e}")
-            import traceback
-            traceback.print_exc()
-            self._update_shared_data_error(str(e), timestamp)
+        if screenshot_data is None or screenshot_data.fullscreen_image is None:
+            ColorPrint.red("[ERROR] Failed to get screenshot")
+            self._update_shared_data_error("Failed to get screenshot", timestamp)
             return None
+
+        ColorPrint.green(f"[Step 1/3] Screenshot ready: {screenshot_data.fullscreen_size[0]}x{screenshot_data.fullscreen_size[1]}")
+
+        # Step 2: Detect window position using anchors
+        ColorPrint.blue("[Step 2/3] Detecting window position using anchors...")
+        window_position = self._detect_window_position_by_anchors(screenshot_data)
+        if not window_position:
+            ColorPrint.red("[ERROR] Failed to detect window position")
+            self._update_shared_data_error("Failed to detect window position", timestamp)
+            return None
+
+        ColorPrint.green(f"[Step 2/3] Window detected: ({window_position['x']}, {window_position['y']}) {window_position['width']}x{window_position['height']}")
+
+        # Step 3: Create UI region
+        ColorPrint.blue("[Step 3/3] Creating UI region data...")
+        ui_region = UIRegion(
+            x=window_position["x"],
+            y=window_position["y"],
+            width=window_position["width"],
+            height=window_position["height"],
+            ui_offset_x=window_position["ui_offset_x"],
+            ui_offset_y=window_position["ui_offset_y"],
+            is_fullscreen=window_position.get("is_fullscreen", False),
+            source="anchor_match"
+        )
+
+        shared_data = get_game_interface_data()
+        shared_data.ui_region = ui_region
+        shared_data.timestamp = timestamp
+        shared_data.error = None
+
+        if not shared_data.game_window_image:
+            ColorPrint.red("[ERROR] Game window image is NULL - anchor detection failed to update shared data")
+            self._update_shared_data_error("Game window image is NULL", timestamp)
+            return None
+
+        ColorPrint.green(f"[SUCCESS] UI region detected:")
+        ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
+        ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
+        ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
+        ColorPrint.green(f"  Fullscreen: {ui_region.is_fullscreen}")
+        ColorPrint.green(f"  Source: {ui_region.source}")
+        ColorPrint.green(f"  Game window image size: {shared_data.game_window_size}")
+
+        actual_width = screenshot_data.fullscreen_size[0]
+        actual_height = screenshot_data.fullscreen_size[1]
+        ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
+        if actual_width != D3_STANDARD_RESOLUTION_WIDTH or actual_height != D3_STANDARD_RESOLUTION_HEIGHT:
+            scale_x = actual_width / D3_STANDARD_RESOLUTION_WIDTH
+            scale_y = actual_height / D3_STANDARD_RESOLUTION_HEIGHT
+            ColorPrint.blue(f"[Resolution] Auto-scaling enabled: {scale_x:.4f}x, {scale_y:.4f}y")
+
+        if save_screenshot:
+            saved_paths = self._screenshot_provider.save_current_screenshot()
+            if saved_paths:
+                ColorPrint.blue(f"[Saved] {saved_paths['fullscreen_path']}")
+
+        return ui_region
 
     def _detect_window_position_by_anchors(self, screenshot_data) -> Optional[Dict]:
         """
@@ -358,32 +339,22 @@ class UIRegionCollectorAnchor:
                 return None
 
             # Crop UI region from fullscreen and update both provider and shared data
-            try:
-                ui_image = screenshot_data.fullscreen_image.crop((
-                    ui_region["x"],
-                    ui_region["y"],
-                    ui_region["x"] + ui_region["width"],
-                    ui_region["y"] + ui_region["height"]
-                ))
-
-                # Update screenshot_data game_window_image (for provider)
-                screenshot_data.game_window_image = ui_image
-                ColorPrint.green(f"[UIRegion] Created game_window_image: {ui_region['width']}x{ui_region['height']}")
-
-                # Update shared data game_window_image (for downstream collectors)
-                shared_data = get_game_interface_data()
-                shared_data.game_window_image = ui_image
-                shared_data.game_window_size = (ui_region["width"], ui_region["height"])
-                ColorPrint.green(f"[UIRegion] Updated shared_data.game_window_image")
-
-                # Save debug copy if DEBUG mode is enabled
-                if DEBUG:
-                    debug_ui_path = TMP_DIR / f"debug_ui_anchor_{screenshot_data.timestamp}.png"
-                    ui_image.save(debug_ui_path)
-                    ColorPrint.gray(f"[DEBUG] Saved UI region (anchor): {debug_ui_path}")
-
-            except Exception as e:
-                ColorPrint.red(f"[UIRegion] Error cropping UI region: {e}")
+            ui_image = screenshot_data.fullscreen_image.crop((
+                ui_region["x"],
+                ui_region["y"],
+                ui_region["x"] + ui_region["width"],
+                ui_region["y"] + ui_region["height"]
+            ))
+            screenshot_data.game_window_image = ui_image
+            ColorPrint.green(f"[UIRegion] Created game_window_image: {ui_region['width']}x{ui_region['height']}")
+            shared_data = get_game_interface_data()
+            shared_data.game_window_image = ui_image
+            shared_data.game_window_size = (ui_region["width"], ui_region["height"])
+            ColorPrint.green(f"[UIRegion] Updated shared_data.game_window_image")
+            if DEBUG:
+                debug_ui_path = TMP_DIR / f"debug_ui_anchor_{screenshot_data.timestamp}.png"
+                ui_image.save(debug_ui_path)
+                ColorPrint.gray(f"[DEBUG] Saved UI region (anchor): {debug_ui_path}")
 
             # Save annotated image
             tmp_dir = get_tmp_dir()
@@ -409,17 +380,12 @@ class UIRegionCollectorAnchor:
                 "source": "anchor_match"
             }
 
-        except Exception as e:
-            ColorPrint.red(f"[AnchorDetect] Error: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
         finally:
             # Clean up temporary file
             try:
                 if temp_screenshot_path.exists():
                     temp_screenshot_path.unlink()
-            except:
+            except OSError:
                 pass
 
     @staticmethod
@@ -445,74 +411,52 @@ class UIRegionCollectorAnchor:
         Returns:
             Dictionary with line info or None
         """
-        try:
-            # Load screenshot image
-            img = cv2.imread(str(temp_screenshot_path))
-            if img is None:
-                ColorPrint.red("[BorderDetect] Failed to load screenshot")
-                return None
-
-            img_height, img_width = img.shape[:2]
-
-            # Determine starting point (top-left corner of anchor)
-            if anchor_polygon is not None:
-                top_left_idx = np.argmin(anchor_polygon[:, 0] + anchor_polygon[:, 1])
-                start_x = int(anchor_polygon[top_left_idx, 0])
-                start_y = int(anchor_polygon[top_left_idx, 1])
-            else:
-                start_x = int(anchor_position[0])
-                start_y = int(anchor_position[1])
-
-            ColorPrint.blue(f"[BorderDetect] Starting scan from ({start_x}, {start_y})")
-
-            # Scan upward from starting point
-            for y in range(start_y, -1, -1):
-                if y < 0 or y >= img_height:
-                    continue
-
-                if start_x < 0 or start_x >= img_width:
-                    continue
-
-                reference_color = tuple(img[y, start_x])
-
-                # Scan leftward to find consecutive same-color pixels
-                consecutive_count = 0
-                left_x = start_x
-
-                while left_x >= 0:
-                    current_color = tuple(img[y, left_x])
-                    if self._colors_match_with_tolerance(reference_color, current_color):
-                        consecutive_count += 1
-                        left_x -= 1
-                    else:
-                        break
-
-                # Check if we found a line > 600 pixels
-                if consecutive_count > 600:
-                    line_end_x = left_x + 1
-                    line_start_x = start_x
-                    line_length = consecutive_count
-
-                    ColorPrint.green(f"[BorderDetect] Found border line at y={y}")
-                    ColorPrint.green(f"[BorderDetect] Length: {line_length} pixels")
-
-                    return {
-                        "start_x": line_start_x,
-                        "start_y": y,
-                        "end_x": line_end_x,
-                        "end_y": y,
-                        "length": line_length,
-                        "color": reference_color
-                    }
-
-            ColorPrint.yellow("[BorderDetect] No border line > 600 pixels found")
+        img = cv2.imread(str(temp_screenshot_path))
+        if img is None:
+            ColorPrint.red("[BorderDetect] Failed to load screenshot")
             return None
 
-        except Exception as e:
-            ColorPrint.red(f"[BorderDetect] Error: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+        img_height, img_width = img.shape[:2]
+        if anchor_polygon is not None:
+            top_left_idx = np.argmin(anchor_polygon[:, 0] + anchor_polygon[:, 1])
+            start_x = int(anchor_polygon[top_left_idx, 0])
+            start_y = int(anchor_polygon[top_left_idx, 1])
+        else:
+            start_x = int(anchor_position[0])
+            start_y = int(anchor_position[1])
+
+        ColorPrint.blue(f"[BorderDetect] Starting scan from ({start_x}, {start_y})")
+        for y in range(start_y, -1, -1):
+            if y < 0 or y >= img_height:
+                continue
+            if start_x < 0 or start_x >= img_width:
+                continue
+            reference_color = tuple(img[y, start_x])
+            consecutive_count = 0
+            left_x = start_x
+            while left_x >= 0:
+                current_color = tuple(img[y, left_x])
+                if self._colors_match_with_tolerance(reference_color, current_color):
+                    consecutive_count += 1
+                    left_x -= 1
+                else:
+                    break
+            if consecutive_count > 600:
+                line_end_x = left_x + 1
+                line_start_x = start_x
+                line_length = consecutive_count
+                ColorPrint.green(f"[BorderDetect] Found border line at y={y}")
+                ColorPrint.green(f"[BorderDetect] Length: {line_length} pixels")
+                return {
+                    "start_x": line_start_x,
+                    "start_y": y,
+                    "end_x": line_end_x,
+                    "end_y": y,
+                    "length": line_length,
+                    "color": reference_color
+                }
+        ColorPrint.yellow("[BorderDetect] No border line > 600 pixels found")
+        return None
 
     def _update_shared_data_error(self, error_msg: str, timestamp: str) -> None:
         """Update shared data with error"""

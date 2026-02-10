@@ -21,7 +21,7 @@ def send_f7_to_system() -> bool:
     try:
         win32api.keybd_event(VK_F7, 0, 0, 0)
         time.sleep(0.05)
-        win32api.keybd_event(VK_F7, 0, 2, 0)
+        win32api.keybd_event(VK_F7, 0, 1, 0)  # 1 = KEYEVENTF_KEYUP
         return True
     except Exception:
         return False

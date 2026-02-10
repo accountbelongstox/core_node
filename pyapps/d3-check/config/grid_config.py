@@ -8,7 +8,7 @@ This configuration is used across all grid-based operations in the application.
 Note: pyutils public library does not use this config to maintain its generality.
 """
 
-from providor.app_constants import (
+from providor.constants.common import (
     GRID_ROWS,
     GRID_COLS,
     TOTAL_GRID_CELLS,

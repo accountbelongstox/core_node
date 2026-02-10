@@ -35,7 +35,7 @@ from pycore.pyutils.image_crop import ImageCrop
 from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
 from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.app_constants import TMP_DIR
+from providor.constants.common import TMP_DIR
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from config.grid_config import get_grid_config
 
@@ -80,7 +80,7 @@ class PathfindingController:
                 return False
         return True
 
-    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; EN client use "Enchanter"
+    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default CN "附魔", EN use "Enchanter"
         """
         Find enchanter NPC using grid-based OCR search with mouse movement
 

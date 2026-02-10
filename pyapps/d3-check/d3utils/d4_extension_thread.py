@@ -2,31 +2,29 @@
 # -*- coding: utf-8 -*-
 """
 D4 Extension Thread (D4 extension).
-Dedicated thread for D4 controller: runs d4_controller.process() every 3s when
-exp_farming or debug_window. Replaces timer_manager registration for d4_controller.
+Runs injected process callable every 3s when exp_farming or debug_window. No controller import.
 """
 
 import threading
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
-from controller.d4_controller import get_d4_controller
 from share.game_interface_data import get_d4_interface_data
 
-from providor.app_constants import D4_TICK_INTERVAL
+from providor.constants.d4 import D4_TICK_INTERVAL
 
 
 class D4ExtensionThread(threading.Thread):
     """
-    Dedicated thread for D4: every 3s calls d4_controller.process() when
-    d4_data.is_exp_farming_running() or debug_window_open. Shared data via d4_data (thread-safe).
+    Dedicated thread for D4: every 3s calls process_fn() when exp_farming or debug_window_open.
+    process_fn injected by controller (no controller import here).
     """
 
-    def __init__(self):
+    def __init__(self, process_fn: Callable[[], None]):
         super().__init__(daemon=True)
         self._shutdown = threading.Event()
-        self._d4_controller = get_d4_controller()
+        self._process_fn = process_fn
         self._d4_data = get_d4_interface_data()
 
     def request_shutdown(self) -> None:
@@ -38,7 +36,7 @@ class D4ExtensionThread(threading.Thread):
         while not self._shutdown.is_set():
             try:
                 if self._d4_data.is_exp_farming_running() or self._d4_data.debug_window_open:
-                    self._d4_controller.process()
+                    self._process_fn()
                 # Sleep in small steps so shutdown is responsive
                 for _ in range(int(D4_TICK_INTERVAL * 10)):
                     if self._shutdown.is_set():

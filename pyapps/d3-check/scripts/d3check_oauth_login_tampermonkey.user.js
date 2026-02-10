@@ -164,6 +164,46 @@
     return a || b;
   }
 
+  // ----- 战网最终用户许可协议页：自动勾选复选框并点击「同意」 -----
+  function handleBattlenetEulaIfPresent() {
+    var nodes = document.querySelectorAll('label, span, div, p');
+    var root = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var raw = (el.innerText || el.textContent || '') + '';
+      var text = raw.replace(/\s+/g, '');
+      if (text.indexOf('我接受暴雪战网最终用户许可协议') !== -1) {
+        root = el.closest('form') || el.closest('div') || document;
+        break;
+      }
+    }
+    if (!root) return false;
+
+    var checkbox = root.querySelector('input[type="checkbox"]');
+    if (checkbox && !checkbox.checked && !checkbox.disabled) {
+      checkbox.click();
+      addLog('click', '已勾选战网最终用户许可协议复选框');
+    }
+
+    var buttons = root.querySelectorAll('button, input[type="submit"], a');
+    var agreeBtn = null;
+    for (var j = 0; j < buttons.length; j++) {
+      var btn = buttons[j];
+      var txt = ((btn.innerText || btn.textContent || btn.value) || '').trim();
+      if (!txt) continue;
+      if (txt.indexOf('同意') !== -1 && txt.indexOf('取消') === -1) {
+        agreeBtn = btn;
+        break;
+      }
+    }
+    if (agreeBtn && !agreeBtn.disabled) {
+      simulateHumanClick(agreeBtn);
+      addLog('click', '已点击战网最终用户许可协议同意按钮');
+      return true;
+    }
+    return false;
+  }
+
   // ----- URL2 account.battlenet.com.cn：单一定时器一直 wait（body → inject/查询 → 关 tab 文案），定时器与检测状态写日志 -----
   function runAccountBattlenetPage() {
     var injected = false;
@@ -194,6 +234,10 @@
         fetch(OAUTH_PING_URL, { method: 'GET', mode: 'cors' })
           .then(function (r) { if (window._d3checkSetConnection) window._d3checkSetConnection(r.ok); })
           .catch(function () { if (window._d3checkSetConnection) window._d3checkSetConnection(false); });
+      }
+      // 若出现战网最终用户许可协议页，则自动勾选并点击「同意」
+      if (handleBattlenetEulaIfPresent()) {
+        return;
       }
       var detected = hasAccountPageCloseText();
       if (detected !== lastDetect) {

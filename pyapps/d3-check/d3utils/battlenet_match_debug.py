@@ -10,10 +10,10 @@ from typing import Optional, List, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
-from providor.app_constants import BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME
+from providor.constants.d3 import BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME
 from config.screenshot_categories import get_screenshot_category_manager, MATCH_DEBUG_DIR
 from d3utils.screenshot_provider import get_screenshot_provider
+from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.battlenet_template_matcher import match_battlenet_template, get_best_attempt_tm
 from d3utils.d3u_common.image_annotator_helper import (
     save_match_debug_image,
@@ -46,10 +46,13 @@ def debug_all_match_methods(
     Returns list of saved file paths.
     """
     if pil_image is None:
+        if not get_battlenet_manager().prime_window_cache_for_capture():
+            ColorPrint.yellow("[BattlenetMatchDebug] Battle.net window not found")
+            return []
         provider = get_screenshot_provider()
         screenshot_data = provider.gen(
             use_optimized_capture=True,
-            window_titles=list(BATTLE_NET_WINDOW_TITLES),
+            window_titles=["Battle.net"],
         )
         if screenshot_data is None or screenshot_data.game_window_image is None:
             ColorPrint.yellow("[BattlenetMatchDebug] Battle.net window not found")

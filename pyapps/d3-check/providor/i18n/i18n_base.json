@@ -1,5 +1,12 @@
 {
   "description": "Internationalization configuration for D3-Check application",
   "default_language": "zh",
-  "supported_languages": ["zh", "en"]
+  "supported_languages": [
+    "zh",
+    "en"
+  ],
+  "language_names": {
+    "zh": "ä¸­æ–‡",
+    "en": "English"
+  }
 }

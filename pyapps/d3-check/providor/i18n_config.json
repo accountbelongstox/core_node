@@ -153,10 +153,10 @@
         "bag_offset": {
           "title": "背包范围截取偏移值",
           "description": "正数向内缩进，负数向外扩展 (像素)",
-          "left_offset": "左偏移",
-          "right_offset": "右偏移",
-          "top_offset": "上偏移",
-          "bottom_offset": "下偏移",
+          "left_offset": "左",
+          "right_offset": "右",
+          "top_offset": "上",
+          "bottom_offset": "下",
           "apply_settings": "应用设置"
         },
         "error_messages": {
@@ -190,7 +190,7 @@
           "smart_echo_pause_log": "智能暂停ROSBOT防止游戏退出。",
           "rosbot_path": "ROSBOT路径",
           "browse": "浏览",
-          "timeout_restart": "超时X分钟自动重启ROSBOT/暗黑",
+          "timeout_restart": "超时重启",
           "minutes": "分钟",
           "startup_on_boot": "开机启动",
           "start_rosbot_on_monitor": "启动监控时启动ROSBOT",
@@ -221,7 +221,8 @@
           "config_loaded": "配置已加载",
           "config_saved": "配置已保存",
           "load_config_failed": "加载配置失败",
-          "save_config_failed": "保存配置失败"
+          "save_config_failed": "保存配置失败",
+          "test_mode": "测试模式"
         },
         "auxiliary_panel": {
           "bag_correction": "背包校正与图像显示",
@@ -319,10 +320,10 @@
           "enable_custom_potion": "启用自定义药水",
           "bag_offset_title": "背包范围截取偏移值",
           "bag_offset_desc": "正数向内缩进，负数向外扩展 (像素)",
-          "left_offset": "左偏移",
-          "right_offset": "右偏移",
-          "top_offset": "上偏移",
-          "bottom_offset": "下偏移",
+          "left_offset": "左",
+          "right_offset": "右",
+          "top_offset": "上",
+          "bottom_offset": "下",
           "apply_settings": "应用设置",
           "update_bag_offset_failed": "更新背包偏移值配置失败",
           "generate_bag_correction_failed": "生成背包校正图失败",
@@ -655,7 +656,8 @@
           "config_loaded": "Configuration Loaded",
           "config_saved": "Configuration Saved",
           "load_config_failed": "Load Configuration Failed",
-          "save_config_failed": "Save Configuration Failed"
+          "save_config_failed": "Save Configuration Failed",
+          "test_mode": "Test Mode"
         },
         "auxiliary_panel": {
           "bag_correction": "Bag Correction & Image Display",

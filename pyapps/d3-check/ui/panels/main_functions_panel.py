@@ -25,7 +25,7 @@ from ..theme import UITheme
 from d3utils.i18n_manager import i18n_manager
 
 # Import CONFIG and ConfigBinding
-from providor.providor_index import CONFIG, CONFIG_USER_PATH, save_config
+from providor.providor_index import CONFIG, CONFIG_USER_PATH, queue_config_save
 from ..utils.tk_variables import var_str, var_int
 from ui.utils.config_binding import ConfigBinding
 
@@ -71,11 +71,10 @@ class MainFunctionsPanel:
         # Configure TTK styles
         self.style = UnifiedStyles.configure_ttk_styles()
         
-        # Create main container
+        # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True, 
-                           padx=UnifiedStyles.SPACING['md'], 
-                           pady=UnifiedStyles.SPACING['md'])
+        tab_pad = UnifiedStyles.TAB_PAD
+        self.container.pack(fill=tk.BOTH, expand=True, padx=tab_pad, pady=tab_pad)
         
         # Configure grid weights
         self.container.grid_columnconfigure(0, weight=1)
@@ -109,8 +108,8 @@ class MainFunctionsPanel:
         """Create skill configuration panel (left column)."""
         skill_frame = ttk.LabelFrame(parent_frame, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
         skill_frame.grid(row=0, column=0, sticky="nsew",
-                        padx=(0, UnifiedStyles.SPACING['sm']),
-                        pady=UnifiedStyles.SPACING['xs'])
+                        padx=(0, UnifiedStyles.SPACING['md']),
+                        pady=UnifiedStyles.SPACING['sm'])
 
         skill_frame.grid_columnconfigure(0, weight=1)
         skill_frame.grid_rowconfigure(1, weight=1)
@@ -125,8 +124,8 @@ class MainFunctionsPanel:
         # Create left frame for skill configuration
         skill_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("skill_config.title"), style='TLabelframe')
         skill_frame.grid(row=0, column=0, sticky="nsew",
-                        padx=(0, UnifiedStyles.SPACING['sm']),
-                        pady=UnifiedStyles.SPACING['xs'])
+                        padx=(0, UnifiedStyles.SPACING['md']),
+                        pady=UnifiedStyles.SPACING['sm'])
         
         # Configure skill frame grid
         skill_frame.grid_columnconfigure(0, weight=1)
@@ -254,7 +253,7 @@ class MainFunctionsPanel:
         key_input.grid(row=row, column=1, sticky="ew", padx=1, pady=1)
 
         # Strategy combobox - KEY-VALUE pattern
-        # Display: i18n text (e.g., "连续", "Continuous")
+        # Display: i18n text (e.g. Continuous mode)
         # Save: Fixed English key (e.g., "continuous")
         strategy_en = skill_data.get('strategy', 'continuous')
         strategy_zh = self.strategy_en_to_zh.get(strategy_en, strategy_en)
@@ -320,34 +319,26 @@ class MainFunctionsPanel:
 
     def _on_skill_param_changed(self, skill_key, param_name, value):
         """Handle skill parameter change"""
-        try:
-            # Ensure macro_configs structure exists
-            if "macro_configs" not in CONFIG:
-                CONFIG["macro_configs"] = {}
-            if "skill_configs" not in CONFIG["macro_configs"]:
-                CONFIG["macro_configs"]["skill_configs"] = {}
-            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
-            if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
-            if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+        if "macro_configs" not in CONFIG:
+            CONFIG["macro_configs"] = {}
+        if "skill_configs" not in CONFIG["macro_configs"]:
+            CONFIG["macro_configs"]["skill_configs"] = {}
+        if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+        if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+        if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
 
-            # Convert value to appropriate type
-            if param_name in ['interval', 'delay', 'random_delay']:
-                try:
-                    value = int(value)
-                except (ValueError, tk.TclError):
-                    value = 0
+        if param_name in ['interval', 'delay', 'random_delay']:
+            try:
+                value = int(value)
+            except (ValueError, tk.TclError):
+                value = 0
 
-            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
-
-            # Save configuration
-            save_config()
-
-            ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}.{param_name}: {e}")
+        CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
+        queue_config_save()
+        ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
 
     def _create_additional_skill_settings(self, parent):
         """Create additional skill settings (quick_switch, movement, potion)"""
@@ -455,30 +446,30 @@ class MainFunctionsPanel:
         self.skill_vars['potion'] = potion_input  # Store widget instead of var
         self.skill_vars['potion_interval'] = potion_interval_var
 
-        # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar
+        # Macro options (sound, smart pause, custom stand key, current config) merged here from bottom bar; no block background
         if self.bottom_bar:
             bb = self.bottom_bar
             ThemedCheckbutton.create(
                 additional_frame, text=i18n_manager.get_ui_text("options.play_sound_on_switch"),
-                variable=bb.sound_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.sound_var, bg_color='bg_primary', select_color='text_secondary'
             ).grid(row=2, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             ThemedCheckbutton.create(
                 additional_frame, text=i18n_manager.get_ui_text("options.smart_pause"),
-                variable=bb.smart_pause_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.smart_pause_var, bg_color='bg_primary', select_color='text_secondary'
             ).grid(row=2, column=2, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
-            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            custom_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
             custom_f.grid(row=3, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             ThemedCheckbutton.create(
                 custom_f, text=i18n_manager.get_ui_text("options.use_custom_stand_key") + ":",
-                variable=bb.custom_stand_var, bg_color='bg_secondary', select_color='text_secondary'
+                variable=bb.custom_stand_var, bg_color='bg_primary', select_color='text_secondary'
             ).pack(side=tk.LEFT)
             ThemedEntry.create(custom_f, textvariable=bb.custom_stand_key_var, width=8).pack(side=tk.LEFT, padx=5)
-            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+            right_f = tk.Frame(additional_frame, bg=UnifiedStyles.COLORS['bg_primary'])
             right_f.grid(row=3, column=2, columnspan=2, sticky="e", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
             tk.Label(right_f, text=i18n_manager.get_ui_text("options.current_active_config") + " ",
-                     bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['success'],
+                     bg=UnifiedStyles.COLORS['bg_primary'], fg=UnifiedStyles.COLORS['success'],
                      font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT)
-            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_secondary'],
+            tk.Label(right_f, textvariable=bb.config_name_var, bg=UnifiedStyles.COLORS['bg_primary'],
                      fg=UnifiedStyles.COLORS['success'], font=UnifiedStyles.FONTS['default']).pack(side=tk.LEFT, padx=(0, 5))
 
     def _get_skill_key(self, skill_name):
@@ -629,7 +620,7 @@ class MainFunctionsPanel:
                     config_obj[part] = {}
                 config_obj = config_obj[part]
             config_obj[config_parts[-1]] = hotkey
-            save_config()
+            queue_config_save()
             ColorPrint.blue(f"[ConfigBinding-Hotkey] {config_key} = {hotkey}")
 
         # HotkeyInput widget with high contrast styling passed as parameters
@@ -658,8 +649,8 @@ class MainFunctionsPanel:
         """Create right panel: other settings (animation/language/hotkey) + basic info (Text), merged into one column."""
         right_column = tk.Frame(parent_frame, bg=UnifiedStyles.COLORS['bg_primary'])
         right_column.grid(row=0, column=1, sticky="nsew",
-                         padx=(UnifiedStyles.SPACING['sm'], 0),
-                         pady=UnifiedStyles.SPACING['xs'])
+                         padx=(UnifiedStyles.SPACING['md'], 0),
+                         pady=UnifiedStyles.SPACING['sm'])
         right_column.grid_columnconfigure(0, weight=1)
         right_column.grid_rowconfigure(0, weight=0)
         right_column.grid_rowconfigure(1, weight=1)
@@ -707,19 +698,14 @@ class MainFunctionsPanel:
 
     def _update_config_info(self):
         """Update configuration info display"""
-        try:
-            if hasattr(self, 'info_text'):
-                self.info_text.delete(1.0, tk.END)
-
-                # Get current config from CONFIG
-                current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
-                skills_config = current_config.get("skills", {})
-
-                movement_key = current_config.get('movement', 'Space')
-                if movement_key == 'Space':
-                    movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
-
-                info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
+        if hasattr(self, 'info_text'):
+            self.info_text.delete(1.0, tk.END)
+            current_config = CONFIG.get("macro_configs", {}).get("skill_configs", {}).get(self.current_config, {})
+            skills_config = current_config.get("skills", {})
+            movement_key = current_config.get('movement', 'Space')
+            if movement_key == 'Space':
+                movement_key = i18n_manager.get_ui_text("main_functions_panel.space_key")
+            info_text = f"""{i18n_manager.get_ui_text("main_functions_panel.current_config")}: {self.current_config}
 
 {i18n_manager.get_ui_text("main_functions_panel.config_file_path")}:
 {CONFIG_USER_PATH}
@@ -738,46 +724,33 @@ class MainFunctionsPanel:
 
 {i18n_manager.get_ui_text("status_bar.status")}: {i18n_manager.get_ui_text("main_functions_panel.status_config_loaded")}
 """
-                self.info_text.insert(1.0, info_text)
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Failed to update config info: {e}")
+            self.info_text.insert(1.0, info_text)
 
     def _on_skill_changed(self, skill_key, value):
         """Handle skill configuration change"""
-        try:
-            # Ensure macro_configs structure exists
-            if "macro_configs" not in CONFIG:
-                CONFIG["macro_configs"] = {}
-            if "skill_configs" not in CONFIG["macro_configs"]:
-                CONFIG["macro_configs"]["skill_configs"] = {}
-            if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
-                CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
+        if "macro_configs" not in CONFIG:
+            CONFIG["macro_configs"] = {}
+        if "skill_configs" not in CONFIG["macro_configs"]:
+            CONFIG["macro_configs"]["skill_configs"] = {}
+        if self.current_config not in CONFIG["macro_configs"]["skill_configs"]:
+            CONFIG["macro_configs"]["skill_configs"][self.current_config] = {"skills": {}}
 
-            # Handle different types of configuration
-            if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
-                # Direct config items (not under skills)
-                # Convert potion_interval to int
-                if skill_key == "potion_interval":
-                    try:
-                        value = int(value)
-                    except (ValueError, tk.TclError):
-                        value = 500
-                CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
-            else:
-                # Skills configuration
-                if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
-                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
-                if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
-                    CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+        if skill_key in ["movement", "quick_switch", "potion", "potion_interval"]:
+            if skill_key == "potion_interval":
+                try:
+                    value = int(value)
+                except (ValueError, tk.TclError):
+                    value = 500
+            CONFIG["macro_configs"]["skill_configs"][self.current_config][skill_key] = value
+        else:
+            if "skills" not in CONFIG["macro_configs"]["skill_configs"][self.current_config]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"] = {}
+            if skill_key not in CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"]:
+                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
+            CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
 
-                CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
-
-            # Save configuration
-            save_config()
-
-            ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error updating {skill_key}: {e}")
+        queue_config_save()
+        ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
 
     def _on_config_changed(self, event=None):
         """Handle configuration change"""
@@ -799,26 +772,14 @@ class MainFunctionsPanel:
 
     def _recreate_skill_tabs(self):
         """Recreate skill configuration with updated configuration"""
-        try:
-            # Destroy existing skills frame if it exists
-            if hasattr(self, 'skills_config_frame'):
-                self.skills_config_frame.destroy()
-
-            # Clear skill variables to avoid conflicts
-            self.skill_vars.clear()
-
-            # Parent must be the skill_frame inside func1 sub-tab (not notebook)
-            parent = getattr(self, '_func1_skill_frame', None)
-            if parent is None:
-                ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
-                return
-
-            # Recreate skill configuration
-            self._create_skill_tabs(parent)
-
-            # Update config info display
-            self._update_config_info()
-        except Exception as e:
-            ColorPrint.red(f"[MainFunctionsPanel] Error recreating skill configuration: {e}")
+        if hasattr(self, 'skills_config_frame'):
+            self.skills_config_frame.destroy()
+        self.skill_vars.clear()
+        parent = getattr(self, '_func1_skill_frame', None)
+        if parent is None:
+            ColorPrint.red("[MainFunctionsPanel] _func1_skill_frame not found, skip recreate")
+            return
+        self._create_skill_tabs(parent)
+        self._update_config_info()
 
 # Language change is now handled by main UI - no individual panel methods needed

@@ -17,7 +17,7 @@ from datetime import datetime
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
-from providor.app_constants import TMP_DIR
+from providor.constants.common import TMP_DIR
 from share.scaled_template_matcher_base import cv2, np, Image
 
 # Built-in color palette for annotations (BGR format for OpenCV)
@@ -116,30 +116,23 @@ def create_annotator(image_source) -> ImageAnnotator:
     Returns:
         ImageAnnotator instance
     """
-    try:
-        if isinstance(image_source, (str, Path)):
+    if isinstance(image_source, (str, Path)):
             # File path
-            return ImageAnnotator(str(image_source))
-        elif isinstance(image_source, np.ndarray):
-            # Numpy array
-            annotator = ImageAnnotator()
-            annotator.set_image(image_source)
-            return annotator
+        return ImageAnnotator(str(image_source))
+    elif isinstance(image_source, np.ndarray):
+        annotator = ImageAnnotator()
+        annotator.set_image(image_source)
+        return annotator
+    else:
+        annotator = ImageAnnotator()
+        if hasattr(image_source, 'mode'):
+            img_array = np.array(image_source)
+            if image_source.mode == 'RGB':
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            annotator.set_image(img_array)
         else:
-            # Assume PIL Image or compatible
-            annotator = ImageAnnotator()
-            # Convert PIL to numpy if needed
-            if hasattr(image_source, 'mode'):  # PIL Image
-                img_array = np.array(image_source)
-                if image_source.mode == 'RGB':
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                annotator.set_image(img_array)
-            else:
-                annotator.set_image(image_source)
-            return annotator
-    except Exception as e:
-        ColorPrint.red(f"[ImageAnnotatorHelper] Error creating annotator: {e}")
-        raise
+            annotator.set_image(image_source)
+        return annotator
 
 def get_image_pil(annotator: ImageAnnotator) -> Image.Image:
     """

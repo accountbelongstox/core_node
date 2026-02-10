@@ -49,6 +49,10 @@ CPU_COUNT = os.cpu_count() or 4
 MAX_CONCURRENT_ZIP_TASKS = max(2, min(CPU_COUNT // 2, 6))
 DEFAULT_ZIP_THREADS = MAX_CONCURRENT_ZIP_TASKS
 
+# Machine-unique id (global, stable per machine)
+from pycore.pyutils.security.machine_id import get_machine_id
+MACHINE_ID = get_machine_id()
+
 # System Information (Auto-detected)
 from pycore.pyfoundations.system_info import (
     SCREEN_RESOLUTION,
@@ -180,6 +184,9 @@ __all__ = [
     'SEVEN_ZIP_EXECUTABLE',
     'ensure_directory',
     'get_available_drives',
+    # Machine-unique id
+    'MACHINE_ID',
+    'get_machine_id',
     # System Information
     'SYSTEM_SCREEN_RESOLUTION',
     'SYSTEM_MEMORY_INFO',

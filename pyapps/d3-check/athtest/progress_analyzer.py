@@ -96,8 +96,10 @@ def analyze_progress_bar(image_path, pixel_data_file, tolerance=0.05):
     
     # Load image
     img = Image.open(image_path)
-    width, height = img.getbbox()[2], img.getbbox()[3]
-    
+    bbox = img.getbbox()
+    width = bbox[2] - bbox[0] if bbox else img.size[0]
+    height = bbox[3] - bbox[1] if bbox else img.size[1]
+
     print(f"Image size: {width}x{height}")
     
     # Get middle row

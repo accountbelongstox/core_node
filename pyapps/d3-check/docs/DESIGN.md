@@ -184,7 +184,7 @@
 
 ### 3.8 LoginTryScreenshotController 接口（登陆功能类库）
 
-- **ensure_battlenet_started_and_login_check()**：**启动 ROSBOT 第一步**。**状态1 = 完整游戏流程（唯一流程）；状态2、3 = 检测客户端是否掉线**，检测到没掉线则**回到 1 的流程、从中间处继续**。**三个流程的共同最后一步（与前面如何到达无关）**：M 打开地图；按一次 M、等 2s、检测一次悬赏进度，共两轮；检测到有进度图即地图已打开，再三连点。由 `open_map_verify_bounty_then_teleport_three_clicks()` 实现。① 若 D3 已运行：resize → `detect_d3_already_running_state()` 做掉线检测；`"start"` 或 `"game_tool"` = 没掉线，从 1 的流程中间继续（start→fragment1+send_m_then_teleport_three_clicks；game_tool→fragment2），二者最后均走共同最后一步；None 或失败则 kill D3 后走战网。② 战网流程（状态1）：战网窗口未找到则 `start(bn_path)`；杀 D3、等 5 秒；托盘→activate、截图；need-login 则 restart；有 D3 小图则点小图、Play、sleep(5)、轮询 D3、resize、`wait_for_and_click_start_game`（内部找到 game_tool 后也走共同最后一步）、k ROSBOT、start、start_rosbot_task、run_after_rosbot_start；无小图则国服或 restart。**最多 3 轮**外层重试；重启后等 5 秒再进入下一轮。
+- **ensure_battlenet_started_and_login_check()**：**启动 ROSBOT 第一步**。**状态1 = 完整游戏流程（唯一流程）；状态2、3 = 检测客户端是否掉线**，检测到没掉线则**回到 1 的流程、从中间处继续**。**三个流程的共同最后一步（与前面如何到达无关）**：M 打开地图；按一次 M、等 2s、检测一次悬赏进度，共两轮；检测到有进度图即地图已打开，再三连点。由 `open_map_verify_bounty_then_teleport_three_clicks()` 实现。① 若 D3 已运行：resize → `detect_d3_already_running_state()` 做掉线检测；`"start"` 或 `"game_tool"` = 没掉线，从 1 的流程中间继续（start→fragment1+send_m_then_teleport_three_clicks；game_tool→fragment2），二者最后均走共同最后一步；None 或失败则 kill D3 后走战网。② 战网流程（状态1）：战网窗口未找到则 `start(bn_path)`；杀 D3、等 5 秒；托盘→activate、截图；need-login 则 restart；有 D3 小图则点小图、Play、sleep(5)、轮询 D3；找到 D3 窗口则 resize、**C3 循环+分支**（与 C 块相同，`_run_c3_loop_and_handle_branch`）、成功则 k ROSBOT、start、start_rosbot_task、run_after_rosbot_start；无小图则国服或 restart。**最多 3 轮**外层重试；重启后等 5 秒再进入下一轮。
 - **handle_screenshot_trigger()**：截图 → `ocr_has_any_keywords(path, BATTLE_NET_NEED_LOGIN_KEYWORDS)` → 若命中则 `get_battlenet_manager().restart(bn_path)`。
 - **handle_login_try()**：截图 → `ocr_has_any_keywords(path, BATTLE_NET_DISCONNECT_KEYWORDS)` → 若掉线则 `get_battlenet_manager().restart(bn_path)`；未配置时退化为全屏截图。
 - **capture_screenshot()**：全屏截图并保存到 `LOGIN_TRY_SCREENSHOT_DIR`。
@@ -250,9 +250,14 @@
 - **数据来源**：`battlenet_status_provider.refresh_battlenet_status()` → `BattlenetOperation.is_on_login_screen()`、`is_disconnected()`、`is_logged_in()` 写入 `game_interface_data` 的 `battlenet_on_login_screen`、`battlenet_disconnected`、`battlenet_normal_available`；面板 `_update_ui_from_state(state)` 按优先级显示对应 i18n 文案（见 `i18n_rosbot_panel_*` 中 `rosbot.battlenet_disconnected`、`rosbot.battlenet_on_login_screen`、`rosbot.battlenet_normal_available`、`rosbot.found_unknown_state`）。
 - **实现情况**：`d3utils/battlenet_operation.py` 中战网动态状态**仅用 UI 元素**（JSON 控件树），不截图、不用 OCR。`get_dynamic_state()` 一次枚举控件，按控件名/automation_id 判断登录界面、掉线、正常可用；刷新后战网一行将按优先级显示「掉线」「登录界面」「正常可用」或「已找到(状态未检测)」。
 
-#### 3.12.3 统一定时器与按钮立即调用（设计思路）
+#### 3.12.3 事件驱动与定时驱动（设计思路）
 
-- **设计原则**：定时器**周期性**调用同一套模块逻辑；面板上的按钮**立即**调用同一套逻辑。入口统一为 `check_window()`，定时器 = 定时调用，按钮 = 立即调用，不重复实现。
+- **事件驱动**：由事件触发执行，而非固定周期轮询。当前事件触发包括：① 用户点击「刷新状态」→ `submit_one_shot(check_window)`；② 用户切换 flow master（Start/Stop）或 Ensure Battle.net → 同上，立即 `_request_status_refresh()` 即 `submit_one_shot(check_window)`，状态区即时更新；③ 注册状态 UI 时由 controller 在 UI 就绪后执行一次 `check_window()`；④ 日志出现 Login try 等 → `handle_login_try()`；⑤ 扩展线程命令完成 → 主线程回调更新 UI。
+- **定时驱动**：定时器每 10 秒调用 `check_window()`；ROSBOT 流程由 2 秒 tick 驱动 F0/F1/F2…（见 ROSBOT_FLOW.md）。与事件驱动并存：事件保证「操作后立即反馈」，定时保证「无操作时周期更新」。
+
+#### 3.12.3a 统一定时器与按钮立即调用
+
+- **设计原则**：定时器**周期性**调用同一套模块逻辑；面板上的按钮与**状态切换事件****立即**调用同一套逻辑。入口统一为 `check_window()`，定时器 = 定时调用，按钮 / flow master 与 ensure_bn 切换 = 事件调用，不重复实现。
 - **定时器与 UI 为平级子模块**：`timers/` 与 `ui/` 互不导入。由**主线程（controller）**统一导入并接线：controller 导入 `window_monitor_timer` 和创建 UI（含 ROSBOT 面板）；controller 调用 `window_monitor.register_status_ui(panel.get_status_ui_callback())` 注册状态回调；controller 调用 `panel.set_refresh_status_fn(window_monitor.check_window)` 注入「刷新」可调用，使「刷新状态」按钮可触发同一套逻辑而面板不导入定时器。所有包引入放在文件开头，不在函数内导入。
 - **统一定时器**（`timers/window_monitor_timer.py`）：
   - 定时器每 10 秒调用 `check_window()`；`check_window()` 内依次调用 `refresh_d3_status()`、`refresh_battlenet_status()`，再 `get_game_interface_data().notify_state_sync()`、`_notify_callbacks(d3_info)`（D3 窗口信息回调）。
@@ -275,9 +280,10 @@
 
 | 触发方式 | 入口 | 行为 |
 |----------|------|------|
-| 定时器 | 每 10s 由 timer_manager 调用（timer 在 UI 就绪后启动） | `check_window()` → refresh_d3_status() + refresh_battlenet_status() → 更新 game_interface_data → 回调 |
-| 面板「刷新状态」按钮 | 用户点击，调用 controller 注入的 _refresh_status_fn | 同上：后台线程中调用 `check_window()`，逻辑与定时器一致；面板不导入 timer |
-| UI 就绪后 | controller 调用 start_timer_loop_after_ui_ready() | 启动 timer_manager 并在后台线程执行一次 `check_window()`，避免 0～10s 状态区为默认 |
+| 定时器 | 每 10s 由 timer_manager 调用（timer 在 UI 就绪后启动） | `check_window()` → refresh_d3_status() + refresh_battlenet_status() + refresh_rosbot_status() → 更新 game_interface_data → 回调 |
+| 面板「刷新状态」按钮 | 用户点击 → _refresh_status_now → submit_one_shot | 同上：后台线程中调用 `check_window()`，逻辑与定时器一致 |
+| flow master / Ensure BN 切换 | 用户点击 Start/Stop 或 Ensure Battle.net → _request_status_refresh → submit_one_shot | 事件驱动：切换后立即提交一次 `check_window()`，状态区即时更新 |
+| UI 就绪后 | controller 调用 start_timer_loop_after_ui_ready() | 启动 timer_manager 并 submit_one_shot(do_window_monitor_initial_check)：执行一次 BN+D3+ROS 刷新并 notify_state_sync，更新底部状态栏（战网/ROS/D3/地图/阶段/窗口尺寸）；不驱动流程。详见 [INITIAL_STATE_DETECTION.md](INITIAL_STATE_DETECTION.md)。 |
 
 #### 3.12.6 相关文件索引
 
@@ -315,7 +321,7 @@
 
 | 步骤 | 类库/模块 | 路径 | 主要接口/职责 |
 |------|------------|------|----------------|
-| ① 战网 | LoginTryScreenshotController | `controller/login_try_screenshot_controller.py` | `ensure_battlenet_started_and_login_check()`（**状态1=完整流程；状态2、3=掉线检测**，检测到没掉线则回到 1 的流程从中间继续。D3 已运行时 `detect_d3_already_running_state()`；战网流程：杀 D3→托盘→截图→有 D3 小图则点小图→Play→轮询 D3→wait_for_and_click_start_game→k ROSBOT→start→run_after_rosbot_start；**最多 3 轮**；掉线/需要登陆用 `restart(bn_path)`） |
+| ① 战网 | LoginTryScreenshotController | `controller/login_try_screenshot_controller.py` | `ensure_battlenet_started_and_login_check()`（**状态1=完整流程；状态2、3=掉线检测**，检测到没掉线则回到 1 的流程从中间继续。D3 已运行时 `detect_d3_already_running_state()`；战网流程：杀 D3→托盘→截图→有 D3 小图则点小图→Play→轮询 D3→D13 找到窗口则 C2 resize + C3 循环+分支→成功则 k ROSBOT→start→run_after_rosbot_start；**最多 3 轮**；掉线/需要登陆用 `restart(bn_path)`） |
 | ① 战网 | ClickHandler（托盘点击激活） | pycore/pyutils/click_handler.py | `find_and_click_tray_icon()`：通过托盘图标点击激活战网窗口，**不重启** |
 | ① 战网 | 配置 / 截图 / 战网截图保存 | `providor.providor_index`、`d3utils.screenshot_provider`、`d3utils.battlenet_capture` | `CONFIG["battlenet"]["battlenet_path"]`，`BATTLE_NET_WINDOW_TITLES`；战网截图统一 `capture_battlenet_and_save_to_category("login_try")` |
 | ② D3 | d3_status_provider / battlenet_status_provider / WindowMonitor / GameState | `d3utils/d3_status_provider.py`、`d3utils/battlenet_status_provider.py`、`timers/window_monitor_timer.py`、`share/game_interface_data.py` | 定时器 `check_window()` 依次调用 `refresh_d3_status()`、`refresh_battlenet_status()` 更新 d3_running / battlenet_window_found 及动态状态；**d3_running 仅由窗口检测维护**（d3_status_provider + controller 轮询到 D3 时 set_d3_status(True)）；log_analyzer 不读写 d3_running。见 3.12。 |

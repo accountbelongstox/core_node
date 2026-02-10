@@ -11,14 +11,30 @@ import re
 import sys
 import time
 from collections import deque
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG, LOGS_FILE_PATH
 from share.game_interface_data import get_game_interface_data
+from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_ui_automation import (
+    try_close_d3_must_be_launched_dialog,
+    try_close_no_items_popup,
+    do_after_no_items_close_switch_rift_and_start,
+)
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
-from providor.app_constants import LOGIN_TRY_TRIGGER_DEFAULT
+from providor.constants.common import LOGIN_TRY_TRIGGER_DEFAULT
 from d3utils.i18n_manager import i18n_manager
+
+
+# Injected by controller at startup; d3utils does not import controller.
+_login_try_callback: Optional[Callable[[], None]] = None
+
+
+def register_login_try_callback(cb: Callable[[], None]) -> None:
+    """Register handler for 'Login try' log line. Called from controller layer."""
+    global _login_try_callback
+    _login_try_callback = cb
 
 
 def _get_login_try_trigger() -> str:
@@ -174,11 +190,11 @@ class LogAnalyzer:
         # On "Login try" in log
         login_try_trigger = _get_login_try_trigger()
         if login_try_trigger and login_try_trigger in line:
-            try:
-                from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
-                get_login_try_screenshot_controller().handle_login_try()
-            except Exception as e:
-                ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")
+            if _login_try_callback:
+                try:
+                    _login_try_callback()
+                except Exception as e:
+                    ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")
             updated = True
         
         if updated:
@@ -228,14 +244,13 @@ class LogAnalyzer:
         if "Vendor loop done" not in line:
             return
         try:
-            from d3utils.rosbot_manager import get_rosbot_manager
-            from d3utils.rosbot_ui_automation import try_close_no_items_popup, do_after_no_items_close_switch_rift_and_start
+            detection = get_rosbot_manager().get_rosbot_detection()
         except Exception as e:
-            ColorPrint.red(f"[LogAnalyzer] Vendor loop done imports: {e}")
+            ColorPrint.red(f"[LogAnalyzer] Vendor loop done: {e}")
             return
-        detection = get_rosbot_manager().get_rosbot_detection()
         if detection.get("status") == "not_found":
             return
+        try_close_d3_must_be_launched_dialog()
         if try_close_no_items_popup():
             do_after_no_items_close_switch_rift_and_start()
 

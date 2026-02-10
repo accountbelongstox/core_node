@@ -68,7 +68,7 @@ All timer components are static global modules. They are initialized on module i
 
 - Controller imports `timers.window_monitor_timer` and creates UI (which creates ROSBOT panel).
 - Controller registers status UI: `window_monitor.register_status_ui(panel.get_status_ui_callback())`.
-- Controller injects refresh fn: `panel.set_refresh_status_fn(window_monitor.check_window)` so the panel’s “刷新状态” button can trigger the same check without importing the timer.
+- Controller injects refresh fn: `panel.set_refresh_status_fn(window_monitor.check_window)` so the panel’s “refresh-status” button can trigger the same check without importing the timer.
 - Controller starts the timer loop and first check only after UI is ready: `get_system_initializer().start_timer_loop_after_ui_ready()` (called before `ui.run()`).
 
 All imports are at the top of each file; no inline imports. No cross-import between timer and UI.
@@ -226,7 +226,7 @@ window_monitor.initialize_and_register(interval=10.0, enabled=True)
 # Register status UI from controller (callback = panel.get_status_ui_callback())
 window_monitor.register_status_ui(my_state_callback)
 
-# Inject refresh fn into panel so "刷新状态" button can call check_window without importing timer
+# Inject refresh fn into panel so refresh-status button can call check_window without importing timer
 panel.set_refresh_status_fn(window_monitor.check_window)
 
 # Add D3 window info callback (receives D3 window dict or None)
@@ -460,5 +460,5 @@ execute_shutdown()
 - Tasks are checked every 100ms for execution
 - Tasks with 5 consecutive errors are automatically disabled
 - All operations are thread-safe
-- Timer tasks should not perform operations that 卡住 (get stuck)
+- Timer tasks should not perform operations that block (get stuck)
 - For UI updates, use `parent.after(0, update_function, args)` to ensure thread safety

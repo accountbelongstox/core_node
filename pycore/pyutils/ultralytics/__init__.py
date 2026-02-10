@@ -12,6 +12,10 @@ from pycore.pyutils.ultralytics.dataset_generator_yolo import (
     ClassificationDatasetGenerator,
     DetectionDatasetGenerator
 )
+from pycore.pyutils.ultralytics.annotation_to_yolo_dataset import (
+    generate_yolo_dataset,
+    build_train_command,
+)
 
 __all__ = [
     'ClassificationTrainer',
@@ -19,4 +23,6 @@ __all__ = [
     'YOLODatasetGenerator',
     'ClassificationDatasetGenerator',
     'DetectionDatasetGenerator',
+    'generate_yolo_dataset',
+    'build_train_command',
 ]

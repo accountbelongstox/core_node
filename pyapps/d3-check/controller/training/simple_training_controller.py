@@ -7,7 +7,7 @@ Only needs to pass source data directory
 """
 
 import os
-# 天天见！
+# See you daily!
 import sys
 from pathlib import Path
  

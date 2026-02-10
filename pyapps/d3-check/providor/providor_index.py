@@ -20,22 +20,29 @@ ImageFont = get_third_package_PIL_ImageFont()
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import (
+from providor.constants.common import (
     ROOT_DIR,
     TMP_DIR,
     TEMPLATE_DIR,
     SCALED_TEMPLATES_CACHE_DIR,
     DEBUG,
-    KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO,
-    STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT,
-    D4_STANDARD_RESOLUTION_WIDTH,
-    D4_STANDARD_RESOLUTION_HEIGHT,
-    BATTLENET_STANDARD_RESOLUTION_WIDTH,
-    BATTLENET_STANDARD_RESOLUTION_HEIGHT,
+)
+from providor.constants.d3 import (
+    D3_KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO,
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT,
+    D3_BATTLENET_STANDARD_RESOLUTION_WIDTH,
+    D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT,
     START_GAME_AUTOMATION_IDS,
     D3_TAB_AUTOMATION_IDS,
+    D3_START_GAME_BUTTON_TEMPLATE_NAME,
+    D3_GAME_TOOL_TEMPLATE_NAME,
+    D3_BOUNTY_PROGRESS_TEMPLATE_NAME,
+    D3_DISCONNECTED_TEMPLATE_NAME,
+    D3_CONNECTING_TEMPLATE_NAME,
+    D3_CONNECTING_ALT_TEMPLATE_NAME,
 )
+from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
 
 # ============================================================================
 # ASSISTANT EXECUTION STATE - Controls auto_use_interface_function execution
@@ -95,7 +102,7 @@ D3_TEMPLATE_CONFIGS = {
         "threshold": 0.80,  # SIFT matching threshold for bag opened indicator
         "category": "bag",
         "use_alpha": False,
-        "match_method": "ORB",
+        "match_method": "SIFT",
         "note": "Bag opened indicator - detects if bag is open"
     },
     "bag_left": {
@@ -184,7 +191,7 @@ D3_TEMPLATE_CONFIGS = {
         "threshold": 0.80,  # SIFT matching threshold for Kanai Cube indicator
         "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "ORB",
+        "match_method": "SIFT",
         "note": "Detects if Kanai's Cube left panel is opened - indicates kanai_cube interface is active"
     },
     # DEPRECATED: kanai_right_panel_toggle_icon - Now using (366, 613) in game_interface_data.py; was (514, 997) at 1826x1301
@@ -206,8 +213,8 @@ D3_TEMPLATE_CONFIGS = {
     },
 
     # D3 in-game "Start Game" button (after Battle.net Play + D3 resize); poll then SIFT match, click, wait 2s then start ROSBOT
-    "d3_start_game_button": {
-        "path": os.path.join(TEMPLATE_DIR, "d3_start_game_button.png"),
+    D3_START_GAME_BUTTON_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_START_GAME_BUTTON_TEMPLATE_NAME + ".png"),
         "threshold": 0.75,
         "category": "button",
         "use_alpha": False,
@@ -216,8 +223,8 @@ D3_TEMPLATE_CONFIGS = {
     },
 
     # D3 in-game "Game tool" indicator (after Start Game); wait every 2s until found, then send M key and click (602,94) scaled
-    "d3_game_tool": {
-        "path": os.path.join(TEMPLATE_DIR, "d3_game_tool.png"),
+    D3_GAME_TOOL_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_GAME_TOOL_TEMPLATE_NAME + ".png"),
         "threshold": 0.75,
         "category": "interface_indicator",
         "use_alpha": False,
@@ -226,8 +233,8 @@ D3_TEMPLATE_CONFIGS = {
     },
 
     # D3 in-game bounty progress UI; Fragment2: after M twice, two screenshots; both missing = timeout.
-    "d3_bounty_progress": {
-        "path": os.path.join(TEMPLATE_DIR, "d3_bounty_progress.png"),
+    D3_BOUNTY_PROGRESS_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_BOUNTY_PROGRESS_TEMPLATE_NAME + ".png"),
         "threshold": 0.75,
         "category": "interface_indicator",
         "use_alpha": False,
@@ -236,13 +243,29 @@ D3_TEMPLATE_CONFIGS = {
     },
 
     # D3 status: disconnected overlay; SIFT match in D3 window; found => d3_disconnected (d3_status_provider)
-    "d3_disconnected": {
-        "path": os.path.join(TEMPLATE_DIR, "d3_disconnected.png"),
+    D3_DISCONNECTED_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_DISCONNECTED_TEMPLATE_NAME + ".png"),
         "threshold": 0.70,
         "category": "interface_indicator",
         "use_alpha": False,
         "match_method": "SIFT",
         "note": "D3 disconnected overlay; SIFT match in D3 window during refresh_d3_status; found => set d3_disconnected for status UI"
+    },
+    D3_CONNECTING_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_CONNECTING_TEMPLATE_NAME + ".png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "[C3C4] one-step state: continue wait (C3C4w)"
+    },
+    D3_CONNECTING_ALT_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_CONNECTING_ALT_TEMPLATE_NAME + ".png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "[C3C4] one-step state: continue wait (C3C4w)"
     },
 
     # Item quality templates
@@ -710,14 +733,14 @@ def sync_config():
             else:
                 ColorPrint.debug("[DEBUG] User config file is up to date")
                 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error syncing config: {e}")
         ColorPrint.red(f"Error syncing config: {e}")
 
 def fix_config_with_template():
     """Fix current CONFIG with template before saving"""
     try:
-        ColorPrint.debug("[DEBUG] Fixing CONFIG with template...")
+        ColorPrint.gray("[DEBUG] Fixing CONFIG with template...")
         
         # Load template config
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -728,13 +751,13 @@ def fix_config_with_template():
         modified = merge_template_to_config(template_config, CONFIG)
         
         if modified:
-            ColorPrint.debug("[DEBUG] CONFIG fixed with missing keys from template")
+            ColorPrint.gray("[DEBUG] CONFIG fixed with missing keys from template")
         else:
-            ColorPrint.debug("[DEBUG] CONFIG is already complete")
+            ColorPrint.gray("[DEBUG] CONFIG is already complete")
             
         return modified
         
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
 
@@ -798,6 +821,14 @@ def set_config_value_async(key_path: str, value: Any) -> None:
     CONFIG_QUEUE.put(("set", key_path, value, None))
 
 
+def queue_config_save() -> None:
+    """Request one save in background. Use from UI after direct CONFIG update so main thread never blocks on file I/O."""
+    try:
+        SAVE_QUEUE.put_nowait(None)
+    except queue.Full:
+        pass
+
+
 def get_config_value_safe(key_path: str, default: Any = None) -> Any:
     """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
     result_q: queue.Queue = queue.Queue()
@@ -815,16 +846,16 @@ def set_config_value_safe(key_path: str, value: Any) -> bool:
 def save_config():
     """Save current CONFIG to user config file after fixing with template"""
     try:
-        ColorPrint.debug("[DEBUG] Saving current CONFIG to file...")
+        ColorPrint.gray("[DEBUG] Saving current CONFIG to file...")
 
         # Create user data directory if it doesn't exist
         if not os.path.exists(CURRENT_USER_DATA_PATH):
             os.makedirs(CURRENT_USER_DATA_PATH)
-            ColorPrint.debug(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
+            ColorPrint.gray(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
 
         # Clean up incorrect skill_configs at root level (legacy bug fix)
         if "skill_configs" in CONFIG and "macro_configs" in CONFIG:
-            ColorPrint.debug("[DEBUG] Removing incorrect root-level skill_configs")
+            ColorPrint.gray("[DEBUG] Removing incorrect root-level skill_configs")
             del CONFIG["skill_configs"]
 
         # Fix CONFIG with template before saving
@@ -834,9 +865,9 @@ def save_config():
         with open(CONFIG_USER_PATH, 'w', encoding='utf-8') as f:
             json.dump(CONFIG, f, indent=2, ensure_ascii=False)
 
-        ColorPrint.debug(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
+        ColorPrint.gray(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
         ColorPrint.red(f"Error saving config: {e}")
 
@@ -850,13 +881,12 @@ def initialize_config():
         sync_config()
         
         try:
-            # Load from user config path
             ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
                 CONFIG.update(json.load(f))
             ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
             ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
             ColorPrint.red(f"Error loading config: {e}")
             CONFIG = {}
@@ -872,13 +902,12 @@ def load_config(force_sync: bool = False):
             sync_config()
         
         try:
-            # Always load from user config path
             ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
                 CONFIG.update(json.load(f))
             ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
             ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
             ColorPrint.red(f"Error loading config: {e}")
             CONFIG = {}
@@ -925,7 +954,7 @@ PLAY_BUTTON_AUTO_ID = START_GAME_AUTOMATION_IDS[1]        # "play-btn"
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
-# D3 small map: rename ScreenShot_2026-01-29_225845_569.png to d3_small_map.png under images/battlenet/
+# D3 small map: copy from images/logo.png (or login_try dir) to images/battlenet/d3_small_map.png when missing
 BATTLENET_TEMPLATE_CONFIGS = {
     "battlenet_d3_small_map": {
         "path": os.path.join(TEMPLATE_DIR, "battlenet", "d3_small_map.png"),

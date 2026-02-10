@@ -1,0 +1,131 @@
+{
+  "timestamp": "2026-02-10T19:31:24.680636",
+  "program_name": "rosbot",
+  "window_info": {
+    "hwnd": 919398,
+    "title": "ROSBOT",
+    "left": 2045,
+    "top": 1172,
+    "width": 205,
+    "height": 140,
+    "is_active": false,
+    "is_maximized": false,
+    "is_minimized": false
+  },
+  "controls": [
+    {
+      "id": 0,
+      "parent_id": null,
+      "type": "WindowControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "#32770",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 2045,
+        "top": 1172,
+        "right": 2250,
+        "bottom": 1312,
+        "width": 205,
+        "height": 140
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 0
+    },
+    {
+      "id": 1,
+      "parent_id": 0,
+      "type": "ButtonControl",
+      "name": "OK",
+      "automation_id": "2",
+      "class_name": "Button",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 2152,
+        "top": 1271,
+        "right": 2227,
+        "bottom": 1294,
+        "width": 75,
+        "height": 23
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 1
+    },
+    {
+      "id": 2,
+      "parent_id": 0,
+      "type": "TextControl",
+      "name": "Diablo III must be launched !",
+      "automation_id": "65535",
+      "class_name": "Static",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 2064,
+        "top": 1226,
+        "right": 2213,
+        "bottom": 1241,
+        "width": 149,
+        "height": 15
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 1
+    },
+    {
+      "id": 3,
+      "parent_id": 0,
+      "type": "TitleBarControl",
+      "name": "",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 2053,
+        "top": 1175,
+        "right": 2242,
+        "bottom": 1203,
+        "width": 189,
+        "height": 28
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 1
+    },
+    {
+      "id": 4,
+      "parent_id": 3,
+      "type": "ButtonControl",
+      "name": "Close",
+      "automation_id": "",
+      "class_name": "",
+      "value": null,
+      "help_text": null,
+      "patterns": [],
+      "rect": {
+        "left": 2209,
+        "top": 1173,
+        "right": 2243,
+        "bottom": 1203,
+        "width": 34,
+        "height": 30
+      },
+      "is_enabled": true,
+      "is_visible": null,
+      "level": 2
+    }
+  ],
+  "files": {
+    "screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\rosbot_ui_analyze\\window_analysis_20260210_193123\\rosbot_screenshot.png",
+    "annotated_screenshot": "C:\\Users\\accou\\.core_node\\.d3check\\.cache\\rosbot_ui_analyze\\window_analysis_20260210_193123\\rosbot_annotated.png"
+  }
+}

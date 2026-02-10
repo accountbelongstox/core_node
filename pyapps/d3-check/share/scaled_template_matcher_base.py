@@ -10,8 +10,11 @@ Subclass provides: standard_width, standard_height, get_scale_factors(), get_tem
 from typing import Optional, Union, Dict, List, Tuple, Callable
 from pathlib import Path
 
+from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyutils.image_matcher import ImageMatcher
+from share.template_match_debug import notify_match
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -19,6 +22,11 @@ np = numpy
 Image = get_third_package_PIL_Image()
 
 __all__ = ["ScaledTemplateMatcherBase", "cv2", "np", "Image", "numpy", "load_template_and_scale_by_resolution"]
+
+
+def _ensure_provider_imports():
+    """Return ColorPrint and ImageMatcher (imports at module top to avoid late-binding issues)."""
+    return ColorPrint, ImageMatcher
 
 
 def load_template_and_scale_by_resolution(
@@ -45,13 +53,6 @@ def load_template_and_scale_by_resolution(
     new_h = max(1, int(h * scale_y))
     interp = cv2.INTER_AREA if (scale_x < 1.0 or scale_y < 1.0) else cv2.INTER_CUBIC
     return cv2.resize(img, (new_w, new_h), interpolation=interp)
-
-
-def _ensure_provider_imports():
-    """Lazy import to avoid circular imports when share is loaded first."""
-    from pycore.pyfoundations.color_print import ColorPrint
-    from pycore.pyutils.image_matcher import ImageMatcher
-    return ColorPrint, ImageMatcher
 
 
 class ScaledTemplateMatcherBase:
@@ -164,12 +165,14 @@ class ScaledTemplateMatcherBase:
         template_name: str,
         scale_x: float,
         scale_y: float,
-        force_refresh: bool = False
+        force_refresh: bool = False,
+        silent: bool = False
     ) -> Optional[np.ndarray]:
         ColorPrint, _ = _ensure_provider_imports()
         cache_key = (template_name, round(scale_x, 4), round(scale_y, 4))
         if not force_refresh and cache_key in self._template_cache:
-            ColorPrint.gray(f"{self.log_prefix} Using cached scaled template: {template_name}")
+            if not silent:
+                ColorPrint.gray(f"{self.log_prefix} Using cached scaled template: {template_name}")
             return self._template_cache[cache_key]
         template_img = self._load_original_template(template_name)
         if template_img is None:
@@ -225,9 +228,20 @@ class ScaledTemplateMatcherBase:
             use_alpha=use_alpha,
             detection_method=match_method
         )
-        if match_result and match_result.get("success"):
-            return {"total_matches": 1, "matches": [match_result]}
-        return {"total_matches": 0, "matches": []}
+        result = {"total_matches": 1, "matches": [match_result]} if (match_result and match_result.get("success")) else {"total_matches": 0, "matches": []}
+        try:
+            notify_match(
+                template_name=template_name,
+                result=result,
+                target_img_array=target_img_array,
+                template_img_array=scaled_template_img,
+                match_method=cfg.get("match_method", "ORB"),
+                expected_threshold=threshold,
+                first_match=result.get("matches", [None])[0] if result.get("matches") else None,
+            )
+        except Exception:
+            pass
+        return result
 
     def _match_single_with_scale(
         self,
@@ -235,14 +249,16 @@ class ScaledTemplateMatcherBase:
         template_name: str,
         scale_x: float,
         scale_y: float,
+        silent: bool = False,
     ) -> Dict:
         """
         Internal: match one template at given scale. Caller supplies pre-loaded target array and scale.
         Subclasses use this to implement game-specific match_template_auto_scale with their own constants.
+        silent=True: suppress per-template and DEBUG logs (for one-shot multi-state, one summary line only).
         """
         ColorPrint, _ = _ensure_provider_imports()
         scaled_template_img = self._get_scaled_template_image(
-            template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False
+            template_name=template_name, scale_x=scale_x, scale_y=scale_y, force_refresh=False, silent=silent
         )
         if scaled_template_img is None:
             return {"total_matches": 0, "matches": [], "error": "Failed to scale template"}
@@ -259,7 +275,8 @@ class ScaledTemplateMatcherBase:
             template_name=template_name,
             custom_threshold=threshold,
             use_alpha=use_alpha,
-            detection_method=match_method
+            detection_method=match_method,
+            silent=silent,
         )
         if match_result and match_result.get("success"):
             return {"total_matches": 1, "matches": [match_result]}

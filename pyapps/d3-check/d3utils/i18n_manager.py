@@ -34,9 +34,10 @@ class I18nManager:
         self.i18n_dir = os.path.join(self.providor_dir, "i18n")
         self.i18n_config_path = os.path.join(self.providor_dir, "i18n_config.json")
 
-        # Language configuration
-        self.current_language = "zh"  # Default Chinese
-        self.supported_languages = ["zh", "en"]
+        # Language configuration (only from config; no hardcoded defaults in code)
+        self.current_language = ""
+        self.supported_languages = []
+        self._language_names = {}
         self.translations = {}
         
         # Listener list for language changes
@@ -59,8 +60,9 @@ class I18nManager:
                 with open(self.i18n_config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                 
-                self.current_language = config.get('default_language', 'zh')
-                self.supported_languages = config.get('supported_languages', ['zh', 'en'])
+                self.current_language = config.get('default_language') or ""
+                self.supported_languages = config.get('supported_languages') or []
+                self._language_names = config.get('language_names') or {}
                 self.translations = config.get('translations', {})
                 
                 ColorPrint.green(f"[I18nManager] Loaded single file i18n config, current language: {self.current_language}")
@@ -68,7 +70,7 @@ class I18nManager:
                 ColorPrint.yellow("[I18nManager] i18n config files not found, using default settings")
                 self._create_default_config()
                 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.red(f"[I18nManager] Failed to load i18n config: {e}")
             self._create_default_config()
     
@@ -81,11 +83,13 @@ class I18nManager:
                 with open(base_config_path, 'r', encoding='utf-8') as f:
                     base_config = json.load(f)
                 
-                self.current_language = base_config.get('default_language', 'zh')
-                self.supported_languages = base_config.get('supported_languages', ['zh', 'en'])
+                self.current_language = base_config.get('default_language') or ""
+                self.supported_languages = base_config.get('supported_languages') or []
+                self._language_names = base_config.get('language_names') or {}
             else:
-                self.current_language = "zh"
-                self.supported_languages = ["zh", "en"]
+                self.current_language = ""
+                self.supported_languages = []
+                self._language_names = {}
             
             # Load translation files for each language
             self.translations = {}
@@ -94,7 +98,7 @@ class I18nManager:
             
             ColorPrint.green(f"[I18nManager] Loaded multi-file i18n config, current language: {self.current_language}")
             
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.red(f"[I18nManager] Failed to load multi-file config: {e}")
             self._create_default_config()
     
@@ -115,6 +119,7 @@ class I18nManager:
             f"i18n_errors_{language}.json"
         ]
         
+        loaded = []
         for pattern in file_patterns:
             file_path = os.path.join(self.i18n_dir, pattern)
             if os.path.exists(file_path):
@@ -124,10 +129,12 @@ class I18nManager:
                     
                     # Merge into translation dictionary
                     self._merge_dict(translations, file_data)
-                    ColorPrint.blue(f"[I18nManager] Loaded {pattern}")
+                    loaded.append(pattern)
                     
-                except Exception as e:
+                except (OSError, json.JSONDecodeError) as e:
                     ColorPrint.red(f"[I18nManager] Failed to load {pattern}: {e}")
+        if loaded:
+            ColorPrint.blue(f"[I18nManager] Loaded {', '.join(loaded)}")
         
         return translations
     
@@ -173,10 +180,7 @@ class I18nManager:
     def _notify_language_change(self):
         """Notify language change to all listeners"""
         for listener in self.language_change_listeners:
-            try:
-                listener(self.current_language)
-            except Exception as e:
-                ColorPrint.red(f"[I18nManager] Error in language change listener: {e}")
+            listener(self.current_language)
     
     def set_language(self, language: str, force: bool = False):
         """Set current language with debouncing"""
@@ -217,23 +221,14 @@ class I18nManager:
     
     def translate(self, key: str, default: str = None) -> str:
         """Translate text"""
-        try:
-            # Support dot-separated key paths, e.g., "ui.main_window.title"
-            keys = key.split('.')
-            value = self.translations.get(self.current_language, {})
-            
-            for k in keys:
-                if isinstance(value, dict) and k in value:
-                    value = value[k]
-                else:
-                    # If translation not found, return default value or key itself
-                    return default if default is not None else key
-            
-            return value if isinstance(value, str) else (default if default is not None else key)
-            
-        except Exception as e:
-            ColorPrint.red(f"[I18nManager] Translation error for key '{key}': {e}")
-            return default if default is not None else key
+        keys = key.split('.')
+        value = self.translations.get(self.current_language, {})
+        for k in keys:
+            if isinstance(value, dict) and k in value:
+                value = value[k]
+            else:
+                return default if default is not None else key
+        return value if isinstance(value, str) else (default if default is not None else key)
     
     def get_ui_text(self, ui_key: str, default: Optional[str] = None) -> str:
         """Get UI text, with optional fallback when key is missing."""
@@ -267,7 +262,7 @@ class I18nManager:
             
             ColorPrint.green(f"[I18nManager] Language setting saved to template_config.json")
             
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.red(f"[I18nManager] Failed to save language setting: {e}")
     
     def load_language_from_config(self):
@@ -286,7 +281,7 @@ class I18nManager:
                     self.current_language = saved_language
                     ColorPrint.green(f"[I18nManager] Loaded language from config: {self.current_language}")
                 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             ColorPrint.red(f"[I18nManager] Failed to load language from config: {e}")
     
     def get_translation_keys(self, language: str = None) -> List[str]:
@@ -324,12 +319,9 @@ class I18nManager:
     
     def reload_config(self):
         """Reload i18n configuration"""
-        try:
-            self.translations = {}
-            self._load_i18n_config()
-            ColorPrint.green("[I18nManager] Configuration reloaded successfully")
-        except Exception as e:
-            ColorPrint.red(f"[I18nManager] Failed to reload configuration: {e}")
+        self.translations = {}
+        self._load_i18n_config()
+        ColorPrint.green("[I18nManager] Configuration reloaded successfully")
 
 # Global internationalization manager instance
 i18n_manager = I18nManager()

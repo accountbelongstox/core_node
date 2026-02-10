@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Component
-Two-row layout: row0 = macro + per-tab options, row1 = status (game status + window size).
-Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components to avoid offset.
+Row0 = macro + per-tab options, row1 = status block (两行：战网/ROS/D3/地图、阶段/油猴/窗口尺寸). ROS 子状态如「需要输入KEY」在 ROS 后括号显示.
+Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components.
 """
 
 import tkinter as tk
@@ -14,6 +14,7 @@ from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
 from runtime import is_shutdown_requested
+from d3utils.rosbot_operation import get_rosbot_operation
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 
@@ -50,11 +51,13 @@ class BottomBar:
         )
         self.frame.grid_rowconfigure(0, weight=0)
         self.frame.grid_rowconfigure(1, weight=0)
+        self.frame.grid_rowconfigure(2, weight=0)
         self.frame.grid_columnconfigure(1, weight=1)
+        tab_pad = UnifiedStyles.TAB_PAD
 
         # Row 0: macro (col 0) + options strip (col 1). Main UI adds macro at row 0 col 0.
         options_container = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        options_container.grid(row=0, column=1, sticky="ew", padx=5, pady=(0, 2))
+        options_container.grid(row=0, column=1, sticky="ew", padx=tab_pad, pady=(0, tab_pad // 2))
         options_container.grid_columnconfigure(0, weight=1)
         self._options_block = BottomBarOptionsBlock(options_container, {
             'sound_var': self.sound_var,
@@ -65,9 +68,9 @@ class BottomBar:
         })
         self._options_block.frame.grid(row=0, column=0, sticky="ew")
 
-        # Row 1: status row (columnspan 2), single sub-component — merged Battle.net/ROS/D3/Map/Stage/OAuth + game status + window size
+        # Row 1: status row (columnspan 2)
         status_container = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'))
-        status_container.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=(0, 3))
+        status_container.grid(row=1, column=0, columnspan=2, sticky="ew", padx=tab_pad, pady=(0, tab_pad // 2))
         status_container.grid_columnconfigure(0, weight=1)
         status_vars = {
             "battlenet": self.battlenet_status,
@@ -121,106 +124,117 @@ class BottomBar:
             pass
 
     def _do_window_status_ui_update(self, window_info):
-        try:
-            if window_info:
-                width = window_info.get('width', 0)
-                height = window_info.get('height', 0)
-                size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
-                self.window_size.set(size_text)
-            else:
-                self.window_size.set("0x0")
-            for key, lb in (self._value_labels or {}).items():
-                try:
-                    if key == "window_size":
-                        lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['text_secondary'])
-                except tk.TclError:
-                    pass
-        except Exception:
-            pass
+        if window_info:
+            width = window_info.get('width', 0)
+            height = window_info.get('height', 0)
+            size_text = i18n_manager.get_ui_text("ui.status_bar.size_format").format(width=width, height=height)
+            self.window_size.set(size_text)
+        else:
+            self.window_size.set("0x0")
+        for key, lb in (self._value_labels or {}).items():
+            try:
+                if key == "window_size":
+                    lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
+            except tk.TclError:
+                pass
 
     def update_status_from_state(self, state: dict):
         """Update all status vars and value label fg from state (state sync callback)."""
+        i18n = i18n_manager
+        C = UnifiedStyles.COLORS
+
+        bn_found = state.get("battlenet_window_found", False)
+        region_key = state.get("battlenet_region")
+        region_suffix = (i18n.get_ui_text("rosbot.server_cn") if region_key == "cn" else
+                         i18n.get_ui_text("rosbot.server_asia") if region_key == "asia" else
+                         i18n.get_ui_text("rosbot.server_unknown"))
+        bn_state_detected = False  # True only when UI state was detected (not "status undetected")
+        if not bn_found:
+            bn_text = i18n.get_ui_text("rosbot.not_found")
+            bn_fg = C['error']
+        elif state.get("battlenet_disconnected", False):
+            bn_text = i18n.get_ui_text("rosbot.battlenet_disconnected")
+            bn_fg = C['warning']
+            bn_state_detected = True
+        elif state.get("battlenet_on_login_screen", False):
+            bn_text = i18n.get_ui_text("rosbot.battlenet_on_login_screen")
+            bn_fg = C['warning']
+            bn_state_detected = True
+        elif state.get("battlenet_normal_available", False):
+            bn_text = i18n.get_ui_text("rosbot.battlenet_normal_available")
+            bn_fg = C['success']
+            bn_state_detected = True
+        else:
+            bn_text = i18n.get_ui_text("rosbot.found_unknown_state")
+            bn_fg = C['warning']
+        if bn_state_detected:
+            bn_text = f"{bn_text}({region_suffix})"
+        self.battlenet_status.set(bn_text)
+
+        ros_ext = state.get("rosbot_extended_status") or "not_found"
+        exe_name = (state.get("rosbot_found_exe_name") or "").strip()
+        window_title = (state.get("rosbot_found_window_title") or "").strip()
+        ros_val = "-"
+        if ros_ext == "running":
+            ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
+            ros_fg = C['success']
+        elif ros_ext == "paused":
+            if exe_name or window_title:
+                fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
+                ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
+            else:
+                ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
+            ros_fg = C['warning']
+        else:
+            ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
+            ros_fg = C['error']
         try:
-            from d3utils.i18n_manager import I18nManager
-            from ..unified_styles import UnifiedStyles
-            i18n = I18nManager()
-            C = UnifiedStyles.COLORS
-
-            bn_found = state.get("battlenet_window_found", False)
-            if not bn_found:
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.not_found"))
-                bn_fg = C['error']
-            elif state.get("battlenet_disconnected", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_disconnected"))
-                bn_fg = C['warning']
-            elif state.get("battlenet_on_login_screen", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_on_login_screen"))
-                bn_fg = C['warning']
-            elif state.get("battlenet_normal_available", False):
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.battlenet_normal_available"))
-                bn_fg = C['success']
-            else:
-                self.battlenet_status.set(i18n.get_ui_text("rosbot.found_unknown_state"))
-                bn_fg = C['text_secondary']
-
-            ros_ext = state.get("rosbot_extended_status") or "not_found"
-            exe_name = (state.get("rosbot_found_exe_name") or "").strip()
-            window_title = (state.get("rosbot_found_window_title") or "").strip()
-            ros_val = "-"
-            if ros_ext == "running":
-                ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
-                ros_fg = C['success']
-            elif ros_ext == "paused":
-                if exe_name or window_title:
-                    fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
-                    ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
-                else:
-                    ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
-                ros_fg = C['warning']
-            else:
-                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
-                ros_fg = C['error']
-            self.ros_status.set(ros_val or "-")
-
-            if not state.get("d3_running", False):
-                self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))
-                d3_fg = C['error']
-            elif state.get("d3_disconnected", False):
-                self.d3_status.set(i18n.get_ui_text("rosbot.d3_disconnected"))
-                d3_fg = C['warning']
-            elif state.get("d3_on_login_screen", False):
-                self.d3_status.set(i18n.get_ui_text("rosbot.d3_on_login_screen"))
-                d3_fg = C['warning']
-            elif state.get("d3_in_game", False):
-                self.d3_status.set(i18n.get_ui_text("rosbot.d3_in_game"))
-                d3_fg = C['success']
-            else:
-                self.d3_status.set(i18n.get_ui_text("rosbot.found"))
-                d3_fg = C['success']
-
-            map_type = state.get("map_type", "unknown")
-            self.map_status.set(i18n.get_ui_text(f"rosbot.map_{map_type}"))
-            map_fg = C['success'] if map_type != "unknown" else C['text_secondary']
-
-            game_stage = state.get("game_stage", "unknown")
-            self.stage_status.set(i18n.get_ui_text(f"rosbot.stage_{game_stage}"))
-            stage_fg = C['success'] if game_stage != "unknown" else C['text_secondary']
-
-            oauth_connected = state.get("oauth_script_connected", False)
-            self.oauth_status.set(
-                i18n.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
-            )
-            oauth_fg = C['success'] if oauth_connected else C['warning']
-
-            fg_map = {
-                "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
-                "stage": stage_fg, "oauth": oauth_fg,
-            }
-            for key, lb in (self._value_labels or {}).items():
-                try:
-                    if key in fg_map:
-                        lb.config(fg=fg_map[key])
-                except tk.TclError:
-                    pass
+            ui_state = get_rosbot_operation().get_ui_state()
+            if ui_state.get("need_key_input", False):
+                msg = (ui_state.get("message") or "").strip()
+                if msg:
+                    ros_val = f"{ros_val}({msg})"
         except Exception:
             pass
+        self.ros_status.set(ros_val or "-")
+
+        if not state.get("d3_running", False):
+            self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))
+            d3_fg = C['error']
+        elif state.get("d3_disconnected", False):
+            self.d3_status.set(i18n.get_ui_text("rosbot.d3_disconnected"))
+            d3_fg = C['warning']
+        elif state.get("d3_on_login_screen", False):
+            self.d3_status.set(i18n.get_ui_text("rosbot.d3_on_login_screen"))
+            d3_fg = C['warning']
+        elif state.get("d3_in_game", False):
+            self.d3_status.set(i18n.get_ui_text("rosbot.d3_in_game"))
+            d3_fg = C['success']
+        else:
+            self.d3_status.set(i18n.get_ui_text("rosbot.found"))
+            d3_fg = C['success']
+
+        map_type = state.get("map_type", "unknown")
+        self.map_status.set(i18n.get_ui_text(f"rosbot.map_{map_type}"))
+        map_fg = C['success'] if map_type != "unknown" else C['warning']
+
+        game_stage = state.get("game_stage", "unknown")
+        self.stage_status.set(i18n.get_ui_text(f"rosbot.stage_{game_stage}"))
+        stage_fg = C['success'] if game_stage != "unknown" else C['warning']
+
+        oauth_connected = state.get("oauth_script_connected", False)
+        self.oauth_status.set(
+            i18n.get_ui_text("rosbot.oauth_script_connected" if oauth_connected else "rosbot.oauth_script_disconnected")
+        )
+        oauth_fg = C['success'] if oauth_connected else C['error']
+
+        fg_map = {
+            "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
+            "stage": stage_fg, "oauth": oauth_fg,
+        }
+        for key, lb in (self._value_labels or {}).items():
+            try:
+                if key in fg_map:
+                    lb.config(fg=fg_map[key])
+            except tk.TclError:
+                pass

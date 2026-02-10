@@ -8,7 +8,6 @@ Uses window cache from encyclopedia for fast detection
 # Standard library imports
 import os
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -17,9 +16,12 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_cv2, get_third_package_numpy
 
 Image = get_third_package_PIL_Image()
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
 
@@ -27,7 +29,8 @@ from pycore.pyutils.image_annotator import ImageAnnotator
 from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_game_interface_data, UIRegion
-from providor.app_constants import STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT, DEBUG, TMP_DIR
+from providor.constants.common import DEBUG, TMP_DIR
+from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 
 class UIRegionCollectorOptimized:
@@ -90,8 +93,6 @@ class UIRegionCollectorOptimized:
 
         # Step 2: Get window position from encyclopedia cache
         ColorPrint.blue("[Step 2/3] Getting window position from cache...")
-
-        from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
         # Same canonical cache key as WindowFinder (first title only)
         canonical_label = DIABLO_III_WINDOW_TITLES[0] if DIABLO_III_WINDOW_TITLES else ""
@@ -194,17 +195,24 @@ class UIRegionCollectorOptimized:
         """
         ColorPrint.blue("[Save] Creating annotated screenshot...")
 
-        # Save temp screenshot
-        temp_screenshot_path = Path(tempfile.gettempdir()) / f"temp_fullscreen_{screenshot_data.timestamp}.png"
-        screenshot_data.fullscreen_image.save(temp_screenshot_path)
+        # Use in-memory image (no temp file): prefer game_window_image in optimized mode
+        pil_img = screenshot_data.game_window_image or screenshot_data.fullscreen_image
+        if pil_img is None:
+            ColorPrint.yellow("[Save] No image available for annotation")
+            return
+        img_bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        annotator = ImageAnnotator(img_bgr)
 
-        # Create annotator
-        annotator = ImageAnnotator(temp_screenshot_path)
-
-        # Draw UI region rectangle
+        # Draw UI region: on game_window_image use (0,0)-(w,h); on fullscreen use (x,y)-(x+w,y+h)
+        if screenshot_data.game_window_image is not None:
+            rx, ry = 0, 0
+            rw, rh = ui_region.width, ui_region.height
+        else:
+            rx, ry = ui_region.x, ui_region.y
+            rw, rh = ui_region.width, ui_region.height
         annotator.draw_rectangle(
-            top_left=(ui_region.x, ui_region.y),
-            bottom_right=(ui_region.x + ui_region.width, ui_region.y + ui_region.height),
+            top_left=(rx, ry),
+            bottom_right=(rx + rw, ry + rh),
             color=(0, 255, 0),
             thickness=3
         )
@@ -213,7 +221,7 @@ class UIRegionCollectorOptimized:
         label_text = f"UI Region (Cache): {ui_region.width}x{ui_region.height}"
         annotator.draw_text(
             text=label_text,
-            position=(ui_region.x + 10, ui_region.y + 30),
+            position=(rx + 10, ry + 30),
             font_scale=0.8,
             color=(0, 255, 0),
             thickness=2
@@ -239,15 +247,11 @@ class UIRegionCollectorOptimized:
                 bg_color=(0, 0, 0)
             )
 
-        # Save annotated image
+        # Save annotated image to tmp only when this method is called (save_screenshot=True)
         tmp_dir = get_tmp_dir()
         annotated_path = tmp_dir / f"optimized_detection_{screenshot_data.timestamp}.png"
         annotator.save(annotated_path)
         ColorPrint.green(f"[Save] Annotated screenshot saved: {annotated_path}")
-
-        # Clean up temp file
-        if temp_screenshot_path.exists():
-            temp_screenshot_path.unlink()
 
     def _update_shared_data_error(self, error_msg: str, timestamp: str) -> None:
         """Update shared data with error"""

@@ -25,19 +25,23 @@ from pycore.pyutils.image_annotator import ImageAnnotator
 from providor.providor_index import (
     CONFIG,
     save_config,
-    # Client type constants
     CLIENT_TYPE_BATTLENET,
     CLIENT_TYPE_D3_GAME,
     CLIENT_TYPE_D4_GAME,
-    # Window title lists
+    VALID_CLIENT_TYPES,
+    get_config_value_safe,
+    set_config_value_async,
     DIABLO_III_WINDOW_TITLES,
-    DIABLO_IV_WINDOW_TITLES
+    DIABLO_IV_WINDOW_TITLES,
 )
-from providor.providor_index import BATTLE_NET_WINDOW_TITLES
 from ..unified_styles import UnifiedStyles
+from d3utils.battlenet_manager import get_battlenet_manager
+from d3utils.d3_manager import get_d3_manager
 from ..utils.tk_variables import var_str, var_bool
 from d3utils.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
+from ..components.yolo_annotation_window import YoloAnnotationWindow
+from ..components.coordinate_picker_window import CoordinatePicker
 
 
 class CoordinateCalibrationPanel:
@@ -46,12 +50,14 @@ class CoordinateCalibrationPanel:
     Handles coordinate picking and analysis for game windows
     """
 
-    # Window title mappings for different client types (Battle.net list from battlenet_manager)
+    # Window title mappings (Battle.net/D3: by exe when path set, else title; use get_capture_titles() for D3 at runtime)
     WINDOW_TITLES_MAP = {
-        CLIENT_TYPE_BATTLENET: list(BATTLE_NET_WINDOW_TITLES),
-        CLIENT_TYPE_D3_GAME: DIABLO_III_WINDOW_TITLES,
-        CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES
+        CLIENT_TYPE_BATTLENET: ["Battle.net"],
+        CLIENT_TYPE_D3_GAME: None,  # resolved at capture time via get_d3_manager().get_capture_titles()
+        CLIENT_TYPE_D4_GAME: DIABLO_IV_WINDOW_TITLES,
     }
+
+    CONFIG_KEY_CLIENT_TYPE = "coord_calibration.client_type"
 
     def __init__(self, parent):
         """Initialize coordinate calibration panel"""
@@ -60,17 +66,21 @@ class CoordinateCalibrationPanel:
         self.screenshot = None
         self.screenshot_path = None
         self.pick_history: List[Dict] = []
-        self.current_client_type = CLIENT_TYPE_BATTLENET  # Use constant instead of hardcoded string
+
+        saved = get_config_value_safe(self.CONFIG_KEY_CLIENT_TYPE, None)
+        self.current_client_type = (
+            saved if saved in VALID_CLIENT_TYPES else CLIENT_TYPE_BATTLENET
+        )
         self.should_save_screenshot = True
         self.should_compress_screenshot = False
         self.popup_window = None
 
         self.style = UnifiedStyles.configure_ttk_styles()
 
+        # Tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
-        self.container.pack(fill=tk.BOTH, expand=True,
-                           padx=UnifiedStyles.SPACING['md'],
-                           pady=UnifiedStyles.SPACING['md'])
+        tab_pad = UnifiedStyles.TAB_PAD
+        self.container.pack(fill=tk.BOTH, expand=True, padx=tab_pad, pady=tab_pad)
 
         self.container.grid_columnconfigure(0, weight=1)
         self.container.grid_rowconfigure(0, weight=0)
@@ -84,6 +94,11 @@ class CoordinateCalibrationPanel:
         self._create_client_row()
         self._create_control_panel()
         self._create_history_panel()
+
+    def _on_client_type_change(self, value: str) -> None:
+        """Update current client type and persist so next launch restores selection."""
+        self.current_client_type = value
+        set_config_value_async(self.CONFIG_KEY_CLIENT_TYPE, value)
 
     def _create_client_row(self):
         """Client selector at top, left-aligned and grouped."""
@@ -123,7 +138,7 @@ class CoordinateCalibrationPanel:
                 activebackground=UnifiedStyles.COLORS['bg_secondary'],
                 activeforeground=UnifiedStyles.COLORS['text_primary'],
                 font=UnifiedStyles.FONTS['label'],
-                command=lambda v=val: setattr(self, 'current_client_type', v)
+                command=lambda v=val: self._on_client_type_change(v)
             )
             rb.pack(side=tk.LEFT, padx=(0, pad * 2))
 
@@ -181,6 +196,22 @@ class CoordinateCalibrationPanel:
         )
         export_btn.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
 
+        yolo_btn = tk.Button(
+            button_frame,
+            text=i18n_manager.get_ui_text("ui.coord_calibration.yolo_collect_button"),
+            command=self._on_yolo_collect,
+            bg=UnifiedStyles.COLORS['accent'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            activebackground=UnifiedStyles.COLORS['accent_light'],
+            activeforeground=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['button'],
+            padx=UnifiedStyles.SPACING['md'],
+            pady=UnifiedStyles.SPACING['sm'],
+            relief=tk.FLAT,
+            cursor='hand2'
+        )
+        yolo_btn.pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
+
     def _create_history_panel(self):
         """Create history list panel"""
         history_frame = ttk.LabelFrame(
@@ -236,42 +267,63 @@ class CoordinateCalibrationPanel:
             command=self._on_delete_item
         )
 
+    def _capture_for_client(self):
+        """Capture current client window to memory. Returns (screenshot, None) or (None, error_msg)."""
+        window_titles = self.WINDOW_TITLES_MAP.get(
+            self.current_client_type,
+            self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET],
+        )
+        if self.current_client_type == CLIENT_TYPE_BATTLENET:
+            get_battlenet_manager().prime_window_cache_for_capture()
+        elif self.current_client_type == CLIENT_TYPE_D3_GAME:
+            get_d3_manager().prime_window_cache_for_capture()
+            window_titles = get_d3_manager().get_capture_titles()
+        if window_titles is None:
+            window_titles = self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
+        ws = WindowScreenshot(match_mode="endswith")
+        out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
+        if not out:
+            return (None, i18n_manager.get_ui_text("ui.coord_calibration.no_game_window") or "No window")
+        self.screenshot, info = out
+        self.screenshot_path = None
+        return (self.screenshot, None)
+
     def _on_capture_screenshot(self):
         """Activate client window, capture to memory (no file), open picker."""
         ColorPrint.blue(f"[COORD_CALIBRATION] Capturing for client: {self.current_client_type}...")
-        try:
-            window_titles = self.WINDOW_TITLES_MAP.get(
-                self.current_client_type,
-                self.WINDOW_TITLES_MAP[CLIENT_TYPE_BATTLENET]
-            )
-            ws = WindowScreenshot(match_mode="endswith")
-            out = ws.capture_first_window_to_memory(titles=window_titles, use_cache=True)
-            if not out:
-                messagebox.showwarning(
-                    i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
-                    i18n_manager.get_ui_text("ui.coord_calibration.no_game_window")
-                )
-                ColorPrint.yellow(f"[COORD_CALIBRATION] No window: {window_titles}")
-                return
-            self.screenshot, info = out
-            self.screenshot_path = None
-            ColorPrint.green(f"[COORD_CALIBRATION] Captured in memory {info.get('window_size')}")
-            self._open_calibration_window()
-        except Exception as e:
-            ColorPrint.red(f"[COORD_CALIBRATION] Error capturing screenshot: {e}")
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror(
+        screenshot, err = self._capture_for_client()
+        if err:
+            messagebox.showwarning(
                 i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
-                f"{i18n_manager.get_ui_text('ui.coord_calibration.error_prefix')}: {str(e)}"
+                err
             )
+            ColorPrint.yellow(f"[COORD_CALIBRATION] No window")
+            return
+        ColorPrint.green(f"[COORD_CALIBRATION] Captured in memory")
+        self._open_calibration_window()
+
+    def _on_yolo_collect(self):
+        """Capture for current client and open YOLO training data collection window."""
+        ColorPrint.blue(f"[COORD_CALIBRATION] YOLO collect for client: {self.current_client_type}...")
+        screenshot, err = self._capture_for_client()
+        if err:
+            messagebox.showwarning(
+                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
+                err
+            )
+            return
+        YoloAnnotationWindow(
+            initial_screenshot=screenshot,
+            client_mode=self.current_client_type,
+            on_capture=self._capture_for_client,
+            parent=self.parent,
+        )
 
     def _open_calibration_window(self):
         """Open calibration window for coordinate picking"""
         if self.popup_window:
             self.popup_window.destroy()
 
-        from ..components.coordinate_picker_window import CoordinatePicker
         game_mode = self.vars.get('game_mode')
         game_mode_val = game_mode.get() if game_mode else 'd3'
         self.popup_window = CoordinatePicker(
@@ -413,31 +465,19 @@ class CoordinateCalibrationPanel:
             )
             return
 
-        try:
-            export_dir = Path(__file__).parent.parent.parent / "exports" / "calibration"
-            export_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            export_path = export_dir / f"calibration_export_{timestamp}.json"
-
-            export_data = {
-                'timestamp': datetime.now().isoformat(),
-                'total_picks': len(self.pick_history),
-                'picks': self.pick_history
-            }
-
-            with open(export_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-
-            messagebox.showinfo(
-                i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
-                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_success')}\n{export_path}"
-            )
-            ColorPrint.green(f"[COORD_CALIBRATION] Export saved to {export_path}")
-
-        except Exception as e:
-            ColorPrint.red(f"[COORD_CALIBRATION] Export error: {e}")
-            messagebox.showerror(
-                i18n_manager.get_ui_text("ui.coord_calibration.error_title"),
-                f"{i18n_manager.get_ui_text('ui.coord_calibration.export_failed')}: {str(e)}"
-            )
+        export_dir = Path(__file__).parent.parent.parent / "exports" / "calibration"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_path = export_dir / f"calibration_export_{timestamp}.json"
+        export_data = {
+            'timestamp': datetime.now().isoformat(),
+            'total_picks': len(self.pick_history),
+            'picks': self.pick_history
+        }
+        with open(export_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+        messagebox.showinfo(
+            i18n_manager.get_ui_text("ui.coord_calibration.success_title"),
+            f"{i18n_manager.get_ui_text('ui.coord_calibration.export_success')}\n{export_path}"
+        )
+        ColorPrint.green(f"[COORD_CALIBRATION] Export saved to {export_path}")

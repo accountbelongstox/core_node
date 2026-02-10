@@ -10,7 +10,7 @@ import sys
 import time
 import threading
 import traceback
-from typing import Optional
+from typing import Callable, List, Optional
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
@@ -19,14 +19,32 @@ from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 # Import static global modules
 import timers.timer_manager as timer_manager
 from d3utils.task_thread_manager import get_task_manager
-from d3utils.rosbot_flow_battlenet import reset_battlenet_flow_state
 from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
+# Lazy import d3/d4 extension thread getters to avoid circular import (rosbot_flow -> shutdown_manager -> d3_extension_thread)
 
 # Global hotkey listener reference
 _hotkey_listener: Optional[HotkeyListener] = None
+
+# Hooks run during execute_shutdown (step 2). Modules like rosbot_flow_battlenet register here.
+_shutdown_hooks: List[Callable[[], None]] = []
+
+# Stop log watcher: registered by system_initializer (avoids importing log_monitor here and circular import).
+_stop_log_watching_fn: Optional[Callable[[], None]] = None
+
+
+def register_stop_log_watching(fn: Callable[[], None]) -> None:
+    """Register callable to stop log file watcher on shutdown. Called by system_initializer."""
+    global _stop_log_watching_fn
+    _stop_log_watching_fn = fn
+
+
+def register_shutdown_hook(hook: Callable[[], None]) -> None:
+    """Register a callable to run during execute_shutdown (e.g. reset BN flow state)."""
+    if hook not in _shutdown_hooks:
+        _shutdown_hooks.append(hook)
 
 # Global shutdown events
 _shutdown_requested = threading.Event()
@@ -127,7 +145,6 @@ def execute_shutdown():
 
         # Step 0: Signal extension shutdown via event center, then join all 4 threads
         trigger_extension_shutdown()
-        # Lazy import to avoid circular: shutdown_manager -> d3_extension_thread -> ... -> event_center -> shutdown_manager
         from d3utils.d3_extension_thread import get_d3_extension_thread
         from d3utils.d4_extension_thread import get_d4_extension_thread
         for name, getter, label in [
@@ -155,21 +172,25 @@ def execute_shutdown():
             except Exception as e:
                 ColorPrint.red(f"[ShutdownManager] [ERROR] Hotkey listener error: {e}")
 
-        # Step 2: Stop task thread manager (rosbot_task etc.) and reset BN flow state
+        # Step 2: Run registered shutdown hooks (e.g. reset BN flow state), then stop task thread manager
         try:
+            for hook in _shutdown_hooks:
+                try:
+                    hook()
+                except Exception as e:
+                    ColorPrint.red(f"[ShutdownManager] Shutdown hook error: {e}")
             ColorPrint.blue("[ShutdownManager] [2/5] Stopping task thread manager...")
-            reset_battlenet_flow_state()
             get_task_manager().stop_all()
             ColorPrint.green("[ShutdownManager] [OK] Task thread manager stopped")
         except Exception as e:
             ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")
 
         # Step 2.5: Stop log file watcher (watchdog observer)
-        try:
-            import d3utils.log_monitor as _log_mon
-            _log_mon.stop_log_watching()
-        except Exception:
-            pass
+        if _stop_log_watching_fn is not None:
+            try:
+                _stop_log_watching_fn()
+            except Exception:
+                pass
 
         # Step 3: Stop timer manager
         try:

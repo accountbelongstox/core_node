@@ -27,6 +27,7 @@ from d3utils.shutdown_manager import (
 from d3utils.event_center import (
     register_main_thread_handlers,
     register_extension_handlers,
+    register_shutdown_provider,
     trigger_app_exit,
     trigger_app_restart,
     trigger_window_show,
@@ -38,6 +39,9 @@ from d3utils.event_center import (
     trigger_extension_rosbot_stop,
 )
 from d3utils.task_thread_manager import get_task_manager, TaskStatus
+
+# Wire shutdown into event_center so exit/restart handlers use shutdown_manager (avoids event_center importing shutdown_manager).
+register_shutdown_provider(is_shutdown_requested, request_shutdown, request_restart)
 
 __all__ = [
     "get_system_initializer",

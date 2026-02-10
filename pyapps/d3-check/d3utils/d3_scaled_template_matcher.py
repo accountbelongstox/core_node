@@ -8,14 +8,23 @@ Uses shared base share.scaled_template_matcher_base.ScaledTemplateMatcherBase fo
 
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Tuple, Union
+from typing import Optional, Dict, Tuple, Union, List
 
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH, STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT
+from providor.constants.d3 import (
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT,
+    D3_DISCONNECTED_TEMPLATE_NAME,
+    D3_DISCONNECTED_MIN_GOOD_MATCHES,
+    D3_START_GAME_BUTTON_TEMPLATE_NAME,
+    D3_GAME_TOOL_TEMPLATE_NAME,
+    D3_CONNECTING_TEMPLATE_NAME,
+    D3_CONNECTING_ALT_TEMPLATE_NAME,
+)
 from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha, get_template_match_method
 from share.game_interface_data import get_global_scale
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
@@ -74,6 +83,83 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             f"({scale_x:.4f}, {scale_y:.4f})"
         )
         return self._match_single_with_scale(target_img_array, template_name, scale_x, scale_y)
+
+    def match_all_d3_states(
+        self,
+        target_image: Union[str, Path, object],
+        template_names: Optional[List[str]] = None,
+    ) -> Dict[str, bool]:
+        """
+        C3 识图：按文档优先级分支。ROSBOT_FLOW_MERMAID.md / ROSBOT_FLOW_C_BLOCK_DOC_VS_CODE.md：
+        若识别到 disconnected/start/game_tool 之一则分支；若识别到 connecting 则 wait；否则 未识别。
+        优先级：disconnected -> game_tool -> start_game_button -> connecting -> 未匹配。
+        各模板满足阈值即视为识别（disconnected 需 >= D3_DISCONNECTED_MIN_GOOD_MATCHES，其余 >= 4）。
+        """
+        names = template_names or [
+            D3_DISCONNECTED_TEMPLATE_NAME,
+            D3_START_GAME_BUTTON_TEMPLATE_NAME,
+            D3_GAME_TOOL_TEMPLATE_NAME,
+            D3_CONNECTING_TEMPLATE_NAME,
+            D3_CONNECTING_ALT_TEMPLATE_NAME,
+        ]
+        target_img_array = self._load_target_image(target_image)
+        if target_img_array is None:
+            ColorPrint.gray(
+                f"{self.log_prefix} C3 识图: 无图 | disconnected=- start=- game_tool=- connecting=- | export: 未匹配"
+            )
+            return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
+        scale_x = target_img_array.shape[1] / D3_STANDARD_WIDTH
+        scale_y = target_img_array.shape[0] / D3_STANDARD_HEIGHT
+        values: Dict[str, int] = {}
+        for template_name in names:
+            r = self._match_single_with_scale(
+                target_img_array, template_name, scale_x, scale_y, silent=True
+            )
+            num = 0
+            if r.get("total_matches", 0) >= 1 and r.get("matches"):
+                num = r["matches"][0].get("num_matches", 0)
+            values[template_name] = num
+        connecting_val = max(
+            values.get(D3_CONNECTING_TEMPLATE_NAME, 0),
+            values.get(D3_CONNECTING_ALT_TEMPLATE_NAME, 0),
+        )
+        d_val = values.get(D3_DISCONNECTED_TEMPLATE_NAME, 0)
+        s_val = values.get(D3_START_GAME_BUTTON_TEMPLATE_NAME, 0)
+        g_val = values.get(D3_GAME_TOOL_TEMPLATE_NAME, 0)
+        # 优先级：disconnected -> game_tool -> start -> connecting -> 未匹配
+        # 加载中若 connecting 匹配数高于 game_tool，判为 connecting 等待，避免未进游戏就点传送
+        d_ok = d_val >= D3_DISCONNECTED_MIN_GOOD_MATCHES
+        s_ok = s_val >= 4
+        g_ok = g_val >= 4
+        c_ok = connecting_val >= 4
+        if g_ok and c_ok and connecting_val > g_val:
+            g_ok = False  # 仍为加载中，不判 game_tool
+        if d_ok:
+            export_name = "disconnected"
+        elif g_ok:
+            export_name = "game_tool"
+        elif s_ok:
+            export_name = "start_game_button"
+        elif c_ok:
+            export_name = "connecting"
+        else:
+            export_name = "未匹配"
+        parts = [
+            "disconnected=%d%s" % (d_val, "✓" if d_ok else ""),
+            "start=%d%s" % (s_val, "✓" if s_ok else ""),
+            "game_tool=%d%s" % (g_val, "✓" if g_ok else ""),
+            "connecting=%d%s" % (connecting_val, "✓" if c_ok else ""),
+        ]
+        ColorPrint.gray(
+            f"{self.log_prefix} C3 识图: %s | export: %s"
+            % (" ".join(parts), export_name)
+        )
+        return {
+            "disconnected": d_ok,
+            "start_game_button": s_ok,
+            "game_tool": g_ok,
+            "connecting": c_ok,
+        }
 
 
 _d3_scaled_matcher_instance: Optional[D3ScaledTemplateMatcher] = None

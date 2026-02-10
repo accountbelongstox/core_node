@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tk Variable Factory
-统一创建 tk.Variable，强制传入 master，避免 "no default root window"。
-所有 UI 创建 Variable 时请使用本模块的工厂函数。
+Tk Variable Factory.
+Create tk.Variable with master required to avoid "no default root window".
+Use this module's factory functions when creating variables for UI.
 """
 
 import tkinter as tk

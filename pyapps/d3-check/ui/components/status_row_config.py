@@ -12,7 +12,7 @@ STATUS_ROW_1 = [
     ("rosbot.d3_status", "d3", None),
     ("rosbot.map_status", "map", None),
 ]
-# Row 2 (game_status removed: redundant with D3 status)
+# Row 2
 STATUS_ROW_2 = [
     ("rosbot.stage", "stage", None),
     ("rosbot.oauth_script_status", "oauth", None),

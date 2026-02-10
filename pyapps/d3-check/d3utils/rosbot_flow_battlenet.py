@@ -15,96 +15,80 @@ from enum import Enum
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import (
+from providor.constants.common import (
     BN_FLOW_WAIT_AFTER_START_SEC,
     BN_FLOW_POLL_TIMEOUT_SEC,
     BN_FLOW_OAUTH_WAIT_SEC,
     BN_FLOW_EXIT_WAIT_SEC,
 )
+from share.game_interface_data import get_game_interface_data, set_request_d_block_from_b7
+from share.asia_credentials import (
+    get_asia_credentials,
+    is_asia_credentials_dialog_pending,
+    schedule_asia_credentials_dialog,
+)
+from share.oauth_callback import is_oauth_done, reset_oauth_done
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.battlenet_operation import get_battlenet_operation
-from share.oauth_callback import is_oauth_done, reset_oauth_done
+from d3utils.rosbot_flow_state import get_bn_only_enabled
+from d3utils.event_center import trigger_extension_rosbot_start
+from d3utils.shutdown_manager import register_shutdown_hook
+from d3utils.rosbot_flow.flow_bn_block_state import (
+    BNNode,
+    B7_TRIGGER_D_AFTER_SKIPS,
+    B7_TRIGGER_D_COOLDOWN_SEC,
+    get_bn_block_ctx,
+    get_current_step,
+    reset_bn_block_state,
+    is_bn_flow_in_login_phase as _is_bn_flow_in_login_phase,
+    get_and_clear_battlenet_tick_confirmed as _get_and_clear_battlenet_tick_confirmed,
+)
 
 
-class BNNode(str, Enum):
-    """Battle.net ready flow nodes (ROSBOT_FLOW_MERMAID.md)."""
-    BN_Entry = "BN_Entry"
-    BN_Win = "BN_Win"
-    BN_Start = "BN_Start"
-    BN_Wait = "BN_Wait"
-    BN_WaitResult = "BN_WaitResult"
-    BN_UI = "BN_UI"
-    BN_Login1 = "BN_Login1"
-    BN_Login2 = "BN_Login2"
-    BN_First = "BN_First"
-    BN_Act = "BN_Act"
-    BN_Poll = "BN_Poll"
-    BN_Exit = "BN_Exit"
-    BN_ExitWait = "BN_ExitWait"
-    BN_Confirmed = "BN_Confirmed"
+def _get_bn_preferred_region() -> Optional[str]:
+    """Return cached Battle.net region (asia/cn) for get_dynamic_state."""
+    return get_game_interface_data().get_battlenet_region()
 
 
-# Flow state (module-level; reset when flow master off)
-_current_node: BNNode = BNNode.BN_Entry
-_wait_until: float = 0.0
-_b7_poll_deadline: float = 0.0  # B7 poll phase: timeout at this time (2 min from first poll tick)
-_oauth_wait_until: float = 0.0
-# When tick flow reaches BN_Confirmed, set this so ensure_battlenet_started_and_login_check skips BN part
-_battlenet_tick_confirmed: bool = False
-# True once flow has returned (True, "confirmed") this run; gates D3 window detection until BN is OK
-_bn_flow_ever_confirmed: bool = False
-
-
-def set_battlenet_tick_confirmed() -> None:
-    """Set when tick flow reaches BN_Confirmed; ensure_battlenet_started_and_login_check skips BN and runs D3 part."""
-    global _battlenet_tick_confirmed
-    _battlenet_tick_confirmed = True
-
-
-def get_and_clear_battlenet_tick_confirmed() -> bool:
-    """Return and clear tick-confirmed flag (called by ensure_battlenet_started_and_login_check)."""
-    global _battlenet_tick_confirmed
-    v = _battlenet_tick_confirmed
-    _battlenet_tick_confirmed = False
-    return v
+def reset_flow_master_bn_block() -> None:
+    """Reset Flow-master's BN block to entry (e.g. when flow master turns off)."""
+    reset_bn_block_state(False)
 
 
 def reset_battlenet_flow_state() -> None:
-    """Reset flow to entry (e.g. when flow master turns off)."""
-    global _current_node, _wait_until, _b7_poll_deadline, _oauth_wait_until, _battlenet_tick_confirmed, _bn_flow_ever_confirmed
-    _current_node = BNNode.BN_Entry
-    _wait_until = 0.0
-    _b7_poll_deadline = 0.0
-    _oauth_wait_until = 0.0
-    _battlenet_tick_confirmed = False
-    _bn_flow_ever_confirmed = False
+    """Deprecated alias for reset_flow_master_bn_block. Use reset_flow_master_bn_block."""
+    reset_flow_master_bn_block()
 
 
-def get_bn_flow_ever_confirmed() -> bool:
-    """True once this run has reached BN_Confirmed; D3 window detection only after this."""
-    return _bn_flow_ever_confirmed
+def get_battlenet_flow_node(for_bn_only: bool = False) -> BNNode:
+    """Current node (for debug). for_bn_only True=BN-only flow, False=Flow-master flow."""
+    return get_current_step(for_bn_only)
 
 
-def reset_confirmed_to_poll() -> None:
-    """For BN-only mode: after confirmed, reset to BN_Poll so next tick re-checks (detect disconnect)."""
-    global _current_node
-    if _current_node == BNNode.BN_Confirmed:
-        _current_node = BNNode.BN_Poll
+def is_bn_flow_in_login_phase() -> bool:
+    """True if either flow is on a login screen (for callers that do not care which flow)."""
+    return _is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False)
 
 
-def get_battlenet_flow_node() -> BNNode:
-    """Current node (for debug)."""
-    return _current_node
+def get_and_clear_battlenet_tick_confirmed() -> bool:
+    """Clear both flows' tick-confirmed and return True if either was set."""
+    return _get_and_clear_battlenet_tick_confirmed(True) or _get_and_clear_battlenet_tick_confirmed(False)
 
 
 def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
     """
     Run one step of Battle.net ready flow. Call every 2s tick when flow master on.
-    no_activate: when True (ensure_battlenet_only mode), do not activate window; UI detection only. Other flow unchanged.
-    Returns (done, result): done=True when flow exits (confirmed or not); result in ("confirmed", "exit", "wait").
+    no_activate: when True (ensure_battlenet_only mode), do not activate window; UI detection only.
+    Returns (done, result): done=True when flow exits; result in ("confirmed", "exit", "wait").
+    Each flow uses its own BN block state (two flows can run at the same time).
     """
-    global _current_node, _wait_until, _b7_poll_deadline, _oauth_wait_until, _bn_flow_ever_confirmed
-
+    for_bn_only = no_activate
+    ctx = get_bn_block_ctx(for_bn_only)
+    ColorPrint.gray(f"[BNFlow] progress: tick_battlenet_ready_flow node={ctx.get_current_step().value}")
+    if no_activate and not get_bn_only_enabled():
+        ColorPrint.gray("[BNFlow] flow aborted | reason: Ensure Battle.net only disabled this tick")
+        reset_bn_block_state(True)
+        return True, "exit"
     bn_path = get_battlenet_manager().get_path()
     if not bn_path:
         ColorPrint.yellow("[BNFlow] No battlenet path, skip")
@@ -114,111 +98,136 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
     now = time.monotonic()
 
     def _save_ui_snapshot(node: str, reason: str) -> None:
-        try:
-            op.save_ui_elements_snapshot(node, reason)
-        except Exception:
-            pass
+        op.save_ui_elements_snapshot(node, reason)
 
-    # ----- [B1] BN_Entry -----
-    if _current_node == BNNode.BN_Entry:
-        ColorPrint.blue("[BNFlow] flow B1→B2 | reason: entry, check Battle.net window")
-        _current_node = BNNode.BN_Win
-        return False, ""
+    # ----- [B1] BN_Entry -> B2_HasWin
+    if ctx.get_current_step() == BNNode.BN_Entry:
+        ColorPrint.blue("[BNFlow] flow B1→B2 | reason: entry (F1 No->B2 per diagram), check Battle.net window this tick")
+        ctx.set_current_step(BNNode.BN_Win)
 
     # ----- [B2] BN_Win -----
-    if _current_node == BNNode.BN_Win:
-        windows = get_battlenet_manager().find_windows(use_cache=False)
-        if not windows:
+    if ctx.get_current_step() == BNNode.BN_Win:
+        # Use same-tick refresh result to avoid redundant find_windows (one read per tick)
+        has_window = get_game_interface_data().battlenet_window_found
+        if not has_window:
             ColorPrint.blue("[BNFlow] flow B2→B3 | reason: no window, start Battle.net")
-            _current_node = BNNode.BN_Start
+            ctx.set_current_step(BNNode.BN_Start)
             return False, ""
+        ColorPrint.gray("[BNFlow] progress: B2 has window (from refresh)")
         _save_ui_snapshot("B2", "B2_has_window")
         ColorPrint.blue("[BNFlow] flow B2→B4 | reason: has window, check if current is login page (flowchart B4)")
-        _current_node = BNNode.BN_First
+        ctx.set_current_step(BNNode.BN_First)
         return False, ""
 
     # ----- [B3] BN_Start -----
-    if _current_node == BNNode.BN_Start:
+    if ctx.get_current_step() == BNNode.BN_Start:
         ColorPrint.blue("[BNFlow] flow B3→B7 | reason: started Battle.net, wait %ss then poll elements" % int(BN_FLOW_WAIT_AFTER_START_SEC))
         get_battlenet_manager().start(bn_path)
-        _wait_until = now + BN_FLOW_WAIT_AFTER_START_SEC
-        _b7_poll_deadline = 0.0
-        _current_node = BNNode.BN_Wait
+        ctx.set_wait_until(now + BN_FLOW_WAIT_AFTER_START_SEC)
+        ctx.set_b7_poll_deadline(0.0)
+        ctx.set_b7_skip_count(0)
+        ctx.set_current_step(BNNode.BN_Wait)
         return False, ""
 
     # ----- [B7] BN_Wait -----
-    if _current_node == BNNode.BN_Wait:
-        if now < _wait_until:
+    if ctx.get_current_step() == BNNode.BN_Wait:
+        if now < ctx.get_wait_until():
             ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: wait deadline not reached, wait")
             return False, "wait"
-        if _b7_poll_deadline == 0.0:
-            _b7_poll_deadline = now + BN_FLOW_POLL_TIMEOUT_SEC
-        if now >= _b7_poll_deadline:
+        if ctx.get_b7_poll_deadline() == 0.0:
+            ctx.set_b7_poll_deadline(now + BN_FLOW_POLL_TIMEOUT_SEC)
+        if now >= ctx.get_b7_poll_deadline():
             ColorPrint.yellow("[BNFlow] flow B7→B5 | reason: [B8] timeout no elements found (%ds = 2 min), exit and restart" % int(BN_FLOW_POLL_TIMEOUT_SEC))
-            _current_node = BNNode.BN_Exit
-            _b7_poll_deadline = 0.0
+            ctx.set_b5_entry_reason("B7_timeout_no_elements")
+            ctx.set_current_step(BNNode.BN_Exit)
+            ctx.set_b7_poll_deadline(0.0)
+            ctx.set_b7_skip_count(0)
             return False, ""
         _save_ui_snapshot("B7", "B7_poll_elements")
-        try:
-            on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
-            elem_ready = normal_available or disconnected or (on_login and op.is_login_screen_ready())
-            if elem_ready:
-                if op.is_login_failed_screen():
-                    ColorPrint.yellow("[BNFlow] flow B7→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-                    _current_node = BNNode.BN_Exit
-                    return False, ""
-                ColorPrint.blue("[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9")
-                _current_node = BNNode.BN_WaitResult
-                _b7_poll_deadline = 0.0
+        ColorPrint.gray("[BNFlow] progress: B7 get_dynamic_state...")
+        on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
+        elem_ready = normal_available or disconnected or (on_login and (op.is_login_screen_ready() or op.is_on_asia_login_screen()))
+        if elem_ready:
+            ctx.set_b7_skip_count(0)
+            if op.is_login_failed_screen():
+                ColorPrint.yellow("[BNFlow] flow B7→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
+                ctx.set_b5_entry_reason("B7_login_failed")
+                ctx.set_current_step(BNNode.BN_Exit)
                 return False, ""
-        except Exception as e:
-            ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: get_dynamic_state error: %s" % e)
+            ColorPrint.blue("[BNFlow] flow B7→B8→B9 | reason: operable UI found (main/disconnected/login-ready), first screen B9")
+            ctx.set_current_step(BNNode.BN_WaitResult)
+            ctx.set_b7_poll_deadline(0.0)
+            return False, ""
+        if op.try_close_popup():
+            ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: closed popup, wait next tick")
+            return False, "wait"
+        ctx.set_b7_skip_count(ctx.get_b7_skip_count() + 1)
+        if ctx.get_b7_skip_count() >= B7_TRIGGER_D_AFTER_SKIPS and (now - ctx.get_b7_last_trigger_time()) >= B7_TRIGGER_D_COOLDOWN_SEC:
+            ColorPrint.blue("[BNFlow] flow B7: no operable elements for %d ticks -> trigger D block (D3 tab, Play, region)" % ctx.get_b7_skip_count())
+            set_request_d_block_from_b7()
+            trigger_extension_rosbot_start()
+            ctx.set_b7_skip_count(0)
+            ctx.set_b7_last_trigger_time(now)
         ColorPrint.gray("[BNFlow] flow B7 skip this tick | reason: no operable elements yet (may still be loading), wait")
         return False, "wait"
 
     # ----- [B8] BN_WaitResult -----
-    if _current_node == BNNode.BN_WaitResult:
+    if ctx.get_current_step() == BNNode.BN_WaitResult:
         _save_ui_snapshot("B8", "B8_to_B9")
         ColorPrint.blue("[BNFlow] flow B8→B9 | reason: elements found, enter first screen B9")
-        _current_node = BNNode.BN_UI
+        ctx.set_current_step(BNNode.BN_UI)
         return False, ""
 
     # ----- [B9] BN_UI first screen -----
-    if _current_node == BNNode.BN_UI:
+    if ctx.get_current_step() == BNNode.BN_UI:
+        if not get_game_interface_data().battlenet_window_found:
+            ColorPrint.blue("[BNFlow] flow B9→B2 | reason: no window this tick, re-check (avoid unknown→B5)")
+            ctx.set_current_step(BNNode.BN_Win)
+            return False, ""
         _save_ui_snapshot("B9", "B9_first_screen")
         if op.is_login_failed_screen():
             ColorPrint.yellow("[BNFlow] flow B9→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B9_login_failed")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         ColorPrint.blue("[BNFlow] flow B9 first screen | reason: decide current UI (login/main/disconnected/other)")
-        on_login, disconnected, normal_available, play_button_name, connecting = op.get_dynamic_state()
+        ColorPrint.gray("[BNFlow] progress: B9 get_dynamic_state...")
+        on_login, disconnected, normal_available, play_button_name, connecting, *_ = op.get_dynamic_state()
         if connecting:
             ColorPrint.gray("[BNFlow] connecting, keep wait")
             return False, "wait"
         if normal_available:
             _play_label = "Playing" if (play_button_name and ("Playing" in (play_button_name or "") or "\u6b63\u5728" in (play_button_name or ""))) else "Play"
             ColorPrint.green("[BNFlow] flow B9→B12 continue | reason: main/logged-in (D3 tab+%s visible), confirmed" % _play_label)
-            _current_node = BNNode.BN_Confirmed
-            _bn_flow_ever_confirmed = True
+            ctx.set_current_step(BNNode.BN_Confirmed)
+            ctx.set_bn_flow_ever_confirmed(True)
             return True, "confirmed"
         if on_login:
             if op.is_on_browser_login_wait_screen():
                 ColorPrint.blue("[BNFlow] flow B9→B5 | reason: browser login wait popup, exit Battle.net (flowchart)")
-                _current_node = BNNode.BN_Exit
+                ctx.set_b5_entry_reason("B9_browser_login_wait")
+                ctx.set_current_step(BNNode.BN_Exit)
                 return False, ""
-            ColorPrint.blue("[BNFlow] flow B9→B10 | reason: login screen, step1 agree and confirm")
-            _current_node = BNNode.BN_Login1
+            region = _get_bn_preferred_region()
+            if region == "asia":
+                ColorPrint.blue("[BNFlow] flow B9→BN_LoginAsia | reason: region Asia, run Asia login")
+                ctx.set_current_step(BNNode.BN_LoginAsia)
+            else:
+                ColorPrint.blue("[BNFlow] flow B9→B10 | reason: login screen (CN), step1 agree and confirm")
+                ctx.set_current_step(BNNode.BN_Login1)
             return False, ""
         if disconnected:
             ColorPrint.blue("[BNFlow] flow B9→B5 | reason: disconnected, exit and restart")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B9_disconnected")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        ColorPrint.yellow("[BNFlow] flow B9→B5 | reason: unknown state, exit and restart")
-        _current_node = BNNode.BN_Exit
+        # [B9 other/unknown] Consistent with doc B13 other->B15c->B6: unknown state do not kill Battle.net, B6 first then activate poll
+        ColorPrint.blue("[BNFlow] flow B9→B6 | reason: unknown state (flowchart B15c→B6), re-activate and poll")
+        ctx.set_current_step(BNNode.BN_Act)
         return False, ""
 
     # ----- [B10] BN_Login1 -----
-    if _current_node == BNNode.BN_Login1:
+    if ctx.get_current_step() == BNNode.BN_Login1:
         _save_ui_snapshot("B10", "B10_agree_netease")
         ColorPrint.blue("[BNFlow] flow B10 run | reason: step1 agree+NetEase; either way go B11 wait OAuth (timeout %ds = 2 min)" % int(BN_FLOW_OAUTH_WAIT_SEC))
         if not no_activate:
@@ -229,107 +238,207 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
         else:
             ColorPrint.blue("[BNFlow] flow B10→B11 | reason: agree/NetEase done, wait OAuth return (timeout %ds = 2 min)" % int(BN_FLOW_OAUTH_WAIT_SEC))
         reset_oauth_done()
-        _oauth_wait_until = now + BN_FLOW_OAUTH_WAIT_SEC
-        _current_node = BNNode.BN_Login2
+        ctx.set_oauth_wait_until(now + BN_FLOW_OAUTH_WAIT_SEC)
+        ctx.set_current_step(BNNode.BN_Login2)
         return False, ""
 
     # ----- [B11] BN_Login2 -----
-    if _current_node == BNNode.BN_Login2:
+    if ctx.get_current_step() == BNNode.BN_Login2:
         _save_ui_snapshot("B11", "B11_wait_oauth")
         if op.is_login_failed_screen():
             ColorPrint.yellow("[BNFlow] flow B11→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B11_login_failed")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         if is_oauth_done():
             ColorPrint.green("[BNFlow] flow B11→B12 continue | reason: OAuth returned, confirmed")
-            _current_node = BNNode.BN_Confirmed
-            _bn_flow_ever_confirmed = True
+            ctx.set_current_step(BNNode.BN_Confirmed)
+            ctx.set_bn_flow_ever_confirmed(True)
             return True, "confirmed"
-        if now >= _oauth_wait_until:
+        if now >= ctx.get_oauth_wait_until():
             ColorPrint.yellow("[BNFlow] flow B11→B5 | reason: OAuth timeout %ds (2 min) reached, exit and restart" % int(BN_FLOW_OAUTH_WAIT_SEC))
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B11_oauth_timeout")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         ColorPrint.gray("[BNFlow] flow B11 skip this tick | reason: waiting OAuth return, wait")
         return False, "wait"
 
-    # ----- [B4] BN_First: two first-launch states (login page / browser-wait); yes->B5 no->B6 -----
-    if _current_node == BNNode.BN_First:
+    # ----- [BN_LoginAsia] Asia login -----
+    if ctx.get_current_step() == BNNode.BN_LoginAsia:
+        if is_asia_credentials_dialog_pending():
+            ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: credentials dialog open, skip tick until closed")
+            return False, "wait"
+        creds = get_asia_credentials()
+        if creds is None:
+            schedule_asia_credentials_dialog()
+            ColorPrint.gray("[BNFlow] flow BN_LoginAsia skip | reason: no cached credentials, dialog scheduled once")
+            return False, "wait"
+        _save_ui_snapshot("BN_LoginAsia", "asia_login")
+        email, password = creds
+        if not no_activate:
+            op.activate_window()
+            time.sleep(0.2)
+        if op.is_on_asia_login_screen():
+            ok = op.perform_asia_login_fill_and_submit(email, password)
+            if ok:
+                ColorPrint.blue("[BNFlow] flow BN_LoginAsia | reason: fill whatever present + submit done, re-poll UI")
+            ctx.set_current_step(BNNode.BN_UI)
+            return False, ""
+        ctx.set_current_step(BNNode.BN_UI)
+        return False, ""
+
+    # ----- [B4] BN_First -----
+    if ctx.get_current_step() == BNNode.BN_First:
         _save_ui_snapshot("B4", "B4_first_check")
         if op.is_login_failed_screen():
             ColorPrint.yellow("[BNFlow] flow B4→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B4_login_failed")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         if op.is_on_browser_login_wait_screen():
             ColorPrint.blue("[BNFlow] flow B4→B5 | reason: browser login wait popup, exit Battle.net (flowchart)")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B4_browser_login_wait")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        if op.is_on_login_screen():
-            ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (flowchart: yes->exit Battle.net), exit then B1→B3→B7→B9→B10")
-            _current_node = BNNode.BN_Exit
+        # Use same-tick refresh result for login page (no extra UI enum)
+        is_login = get_game_interface_data().battlenet_on_login_screen
+        if is_login:
+            ColorPrint.blue("[BNFlow] flow B4→B5 | reason: current is login page (CN/Asia), exit then B1→B3→B7→B9→B10/BN_LoginAsia")
+            ctx.set_b5_entry_reason("B4_login_page_CN_Asia")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         ColorPrint.blue("[BNFlow] flow B4→B6 | reason: current not login page (flowchart: no->activate, poll UI)")
-        _current_node = BNNode.BN_Act
+        ctx.set_current_step(BNNode.BN_Act)
         return False, ""
 
     # ----- [B6] BN_Act -----
-    if _current_node == BNNode.BN_Act:
-        _save_ui_snapshot("B6", "B6_to_B13")
-        ColorPrint.blue("[BNFlow] flow B6→B13 | reason: %s, enter B13 poll state" % ("window activated" if not no_activate else "UI poll only (no activate)"))
+    if ctx.get_current_step() == BNNode.BN_Act:
+        _save_ui_snapshot("B6", "B6_to_WaitPlay_or_B13")
         if not no_activate:
             get_battlenet_manager().activate_window()
-            time.sleep(0.5)
-        _current_node = BNNode.BN_Poll
+            if op.click_d3_tab():
+                ColorPrint.blue("[BNFlow] flow B6→BN_WaitPlay | reason: clicked D3 tab, wait Play only (skip full UI traverse)")
+                ctx.set_b13_poll_deadline(now + 8.0)
+                ctx.set_current_step(BNNode.BN_WaitPlay)
+                return False, ""
+            ColorPrint.blue("[BNFlow] flow B6→B13 | reason: D3 tab not found or already selected, enter B13 poll")
+        else:
+            ColorPrint.blue("[BNFlow] flow B6→B13 | reason: UI poll only (no activate), enter B13 poll state")
+        ctx.set_current_step(BNNode.BN_Poll)
         return False, ""
 
+    # ----- [BN_WaitPlay] after tab click: only poll Play then click, no full get_dynamic_state -----
+    if ctx.get_current_step() == BNNode.BN_WaitPlay:
+        if op.click_play_button_if_visible(force_refresh=True):
+            ColorPrint.green("[BNFlow] flow BN_WaitPlay→BN_Confirmed | reason: Play visible, clicked (skip full traverse)")
+            ctx.set_current_step(BNNode.BN_Confirmed)
+            ctx.set_bn_flow_ever_confirmed(True)
+            return True, "confirmed"
+        if now >= ctx.get_b13_poll_deadline():
+            ColorPrint.blue("[BNFlow] flow BN_WaitPlay→B13 | reason: wait Play timeout, full poll")
+            ctx.set_b13_poll_deadline(now + BN_FLOW_POLL_TIMEOUT_SEC)
+            ctx.set_current_step(BNNode.BN_Poll)
+            return False, ""
+        return False, "wait"
+
     # ----- [B13] BN_Poll -----
-    if _current_node == BNNode.BN_Poll:
+    if ctx.get_current_step() == BNNode.BN_Poll:
+        if ctx.get_b13_poll_deadline() == 0.0:
+            ctx.set_b13_poll_deadline(now + BN_FLOW_POLL_TIMEOUT_SEC)
         _save_ui_snapshot("B13", "B13_poll")
         if op.is_login_failed_screen():
             ColorPrint.yellow("[BNFlow] flow B13→B5 | reason: login failed (Continue Offline/Cancel), exit Battle.net and back to B1")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B13_login_failed")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        on_login, disconnected, normal_available, play_button_name, connecting = op.get_dynamic_state()
+        on_login, disconnected, normal_available, play_button_name, connecting, *_ = op.get_dynamic_state()
         if connecting:
             ColorPrint.gray("[BNFlow] connecting, keep wait")
             return False, "wait"
         if normal_available:
             _play_label = "Playing" if (play_button_name and ("Playing" in (play_button_name or "") or "\u6b63\u5728" in (play_button_name or ""))) else "Play"
             ColorPrint.green("[BNFlow] flow B13→B16 continue | reason: [B14] poll logged-in (D3 tab+%s visible), confirmed" % _play_label)
-            _current_node = BNNode.BN_Confirmed
-            _bn_flow_ever_confirmed = True
+            ctx.set_current_step(BNNode.BN_Confirmed)
+            ctx.set_bn_flow_ever_confirmed(True)
             return True, "confirmed"
         if disconnected:
             ColorPrint.blue("[BNFlow] flow B13→B5 | reason: [B15a] disconnected, exit and restart")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B13_disconnected")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         if op.is_on_browser_login_wait_screen():
             ColorPrint.blue("[BNFlow] flow B13→B5 | reason: browser login wait popup, exit Battle.net (flowchart)")
-            _current_node = BNNode.BN_Exit
+            ctx.set_b5_entry_reason("B13_browser_login_wait")
+            ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
         if on_login:
-            ColorPrint.blue("[BNFlow] flow B13→B10 | reason: poll result login screen, go B10/B11")
-            _current_node = BNNode.BN_Login1
+            region = _get_bn_preferred_region()
+            if region == "asia":
+                ColorPrint.blue("[BNFlow] flow B13→BN_LoginAsia | reason: region Asia, go Asia login")
+                ctx.set_current_step(BNNode.BN_LoginAsia)
+            else:
+                ColorPrint.blue("[BNFlow] flow B13→B10 | reason: poll result login screen (CN), go B10/B11")
+                ctx.set_current_step(BNNode.BN_Login1)
             return False, ""
-        ColorPrint.yellow("[BNFlow] flow B13→B5 | reason: [B15b/B15c] timeout no elements or unknown state, exit and restart")
-        _current_node = BNNode.BN_Exit
+        if now >= ctx.get_b13_poll_deadline():
+            ColorPrint.yellow("[BNFlow] flow B13→B5 | reason: [B15b] timeout no elements (%ds), exit and restart" % int(BN_FLOW_POLL_TIMEOUT_SEC))
+            ctx.set_b13_poll_deadline(0.0)
+            ctx.set_b5_entry_reason("B13_timeout_no_elements")
+            ctx.set_current_step(BNNode.BN_Exit)
+            return False, ""
+        # [B15c] Unknown state: D3 tab may be present but Play not in tree (e.g. Asia main web view). Click D3 tab then re-activate.
+        if not no_activate and op.click_d3_tab():
+            ColorPrint.blue("[BNFlow] flow B13→B6 | reason: [B15c] unknown state, clicked D3 tab (Asia/CN), re-activate and poll")
+        else:
+            ColorPrint.blue("[BNFlow] flow B13→B6 | reason: [B15c] unknown state, re-activate and poll (flowchart B15c→B6)")
+        ctx.set_b13_poll_deadline(0.0)
+        ctx.set_current_step(BNNode.BN_Act)
+        return False, ""
+
+    # ----- [BN_Confirmed] Main UI: close in-UI floating popup (ad) if present; stay confirmed or re-detect -----
+    if ctx.get_current_step() == BNNode.BN_Confirmed:
+        if not get_game_interface_data().battlenet_window_found:
+            ctx.set_current_step(BNNode.BN_Win)
+            return False, ""
+        if op.try_close_popup():
+            ColorPrint.gray("[BNFlow] flow BN_Confirmed: closed in-UI popup (floating ad), wait next tick")
+            return False, "wait"
+        on_login, disconnected, normal_available, play_button_name, connecting, *_ = op.get_dynamic_state()
+        if connecting:
+            return False, "wait"
+        if normal_available:
+            return True, "confirmed"
+        if on_login:
+            ctx.set_current_step(BNNode.BN_UI)
+            return False, ""
+        if disconnected:
+            ctx.set_b5_entry_reason("BN_Confirmed_disconnected")
+            ctx.set_current_step(BNNode.BN_Exit)
+            return False, ""
+        ctx.set_current_step(BNNode.BN_UI)
         return False, ""
 
     # ----- [B5] BN_Exit -----
-    if _current_node == BNNode.BN_Exit:
+    if ctx.get_current_step() == BNNode.BN_Exit:
         _save_ui_snapshot("B5", "B5_exit")
-        ColorPrint.blue("[BNFlow] flow B5→B5w | reason: kill Battle.net, wait %ss then back to B1" % int(BN_FLOW_EXIT_WAIT_SEC))
+        entry_reason = ctx.get_b5_entry_reason() or "exit"
+        ColorPrint.blue("[BNFlow] flow B5→B5w | reason: %s -> kill Battle.net, wait %ss then back to B1" % (entry_reason, int(BN_FLOW_EXIT_WAIT_SEC)))
         get_battlenet_manager().kill()
-        _wait_until = now + BN_FLOW_EXIT_WAIT_SEC
-        _current_node = BNNode.BN_ExitWait
+        ctx.set_wait_until(now + BN_FLOW_EXIT_WAIT_SEC)
+        ctx.set_current_step(BNNode.BN_ExitWait)
         return False, ""
 
     # ----- [B5w] BN_ExitWait -----
-    if _current_node == BNNode.BN_ExitWait:
-        if now < _wait_until:
+    if ctx.get_current_step() == BNNode.BN_ExitWait:
+        if now < ctx.get_wait_until():
             ColorPrint.gray("[BNFlow] flow B5w skip this tick | reason: waiting Battle.net exit (%ss), wait" % int(BN_FLOW_EXIT_WAIT_SEC))
             return False, "wait"
         ColorPrint.blue("[BNFlow] flow B5w→B1 | reason: Battle.net exited, back to entry B1")
-        _current_node = BNNode.BN_Entry
+        ctx.set_current_step(BNNode.BN_Entry)
         return False, ""
 
     return False, ""
+
+
+# Register so shutdown_manager runs this during execute_shutdown (no direct import of this module from shutdown_manager).
+register_shutdown_hook(reset_flow_master_bn_block)

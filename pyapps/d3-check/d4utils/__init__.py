@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-D4Utils Package
-Diablo IV utility modules
+D4Utils Package (PROJECT_STANDARDS §3.4).
+All modules use d4_ prefix. D4-only; no D3/ROSBOT imports.
 """
 
-# D4State functionality now integrated into D4InterfaceData
-from .red_portal_detector import d4_detect_red_portal
+from .d4_red_portal_detector import d4_detect_red_portal
 
-__all__ = ['d4_detect_red_portal']
+__all__ = [
+    "d4_detect_red_portal",
+]

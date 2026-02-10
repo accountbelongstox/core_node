@@ -19,6 +19,7 @@ from d3utils.main_function_thread import MainFunctionThread, set_main_function_t
 from d3utils.auxiliary_function_thread import AuxiliaryFunctionThread, set_auxiliary_function_thread
 from d3utils.d3_extension_thread import D3ExtensionThread, set_d3_extension_thread
 from d3utils.d4_extension_thread import D4ExtensionThread, set_d4_extension_thread
+from d3utils.signal_utils import reapply_sigint_sigbreak_ignore_for_gui
 
 
 class ThreadRegistry:
@@ -38,8 +39,12 @@ class ThreadRegistry:
         schedule: Callable[[Callable], None],
         panel: Any,
         current_skill_config: str = "config1",
+        battlenet_login_check_provider: Optional[Callable[[], bool]] = None,
+        d4_process_fn: Optional[Callable[[], None]] = None,
     ) -> None:
-        """Create and store the four extension threads; start them. Call from main thread once after UI ready."""
+        """Create and store the four extension threads; start them. Call from main thread once after UI ready.
+        battlenet_login_check_provider and d4_process_fn are injected by controller (runtime does not import controller).
+        """
         self._main_function_thread = MainFunctionThread(schedule_on_main_thread=schedule)
         self._main_function_thread.set_current_skill_config(current_skill_config)
         self._main_function_thread.start()
@@ -47,11 +52,13 @@ class ThreadRegistry:
         self._auxiliary_function_thread = AuxiliaryFunctionThread()
         self._auxiliary_function_thread.start()
 
-        self._d3_extension_thread = D3ExtensionThread()
+        self._d3_extension_thread = D3ExtensionThread(battlenet_login_check_provider=battlenet_login_check_provider)
         panel.set_d3_extension_thread(self._d3_extension_thread)
         self._d3_extension_thread.start()
 
-        self._d4_extension_thread = D4ExtensionThread()
+        if d4_process_fn is None:
+            raise ValueError("d4_process_fn is required for D4ExtensionThread")
+        self._d4_extension_thread = D4ExtensionThread(process_fn=d4_process_fn)
         self._d4_extension_thread.start()
 
         set_main_function_thread(self._main_function_thread)
@@ -103,6 +110,8 @@ class ThreadRegistry:
         self._game_interface_macro_thread = None
 
     def start_timer_loop_after_ui_ready(self) -> None:
+        """Start timer loop. Submit initial status refresh once in timer thread (non-blocking); further refresh only when flow-driven."""
+        reapply_sigint_sigbreak_ignore_for_gui()
         if not timer_manager.is_running():
             timer_manager.start()
             ColorPrint.green("[ThreadRegistry] Timer loop started (UI ready)")

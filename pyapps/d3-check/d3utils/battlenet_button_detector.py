@@ -17,10 +17,10 @@ Image = get_third_package_PIL_Image()
 
 try:
     from pycore.pyfoundations.color_print import ColorPrint
-except Exception:
+except ImportError:
     ColorPrint = None
 
-from providor.app_constants import (
+from providor.constants.common import (
     BATTLE_NET_BUTTON_HEX,
     BATTLE_NET_BUTTON_RGB,
     DEFAULT_BRIGHTNESS_TOL,
@@ -90,12 +90,7 @@ def find_battlenet_blue_button(
     Use any #0074E0 pixel as top-left; try to build box (button_w x button_h).
     Validate left, top, right edges only (not bottom). First success is the button.
     """
-    try:
-        rgb = _image_to_rgb(image)
-    except Exception as e:
-        if ColorPrint:
-            ColorPrint.yellow(f"{log_prefix} Load image failed: {e}")
-        return None
+    rgb = _image_to_rgb(image)
     if rgb.ndim != 3 or rgb.shape[2] != 3:
         return None
     H, W = rgb.shape[0], rgb.shape[1]

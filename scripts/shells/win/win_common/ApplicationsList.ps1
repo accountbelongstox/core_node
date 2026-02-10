@@ -365,6 +365,22 @@ $Global:BasePackages = @{
             }
         )
     }
+    RipGrep    = @{
+        PackageId          = "BurntSushi.ripgrep.MSVC"
+        Exec               = "rg.exe"
+        Name               = "RipGrep"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description        = "RipGrep - Recursive search tool (MSVC build)"
+        InstallType        = "winget"
+        ForceToInstallDir  = $false
+        VerifySuffix       = "--version"
+        DesktopShortcuts   = @()
+        EnvVars            = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     DartSDK    = @{
         PackageId          = "Google.DartSDK"
         Exec              = "dart.exe"
@@ -767,6 +783,11 @@ $Global:APPLICATIONS_PACKAGES = @{
         EnvVars             = @(
             @{
                 Type = @("AddExec")
+            }
+        )
+        PostInstallCallbacks = @(
+            @{
+                Type = "CursorAgent"
             }
         )
     }
@@ -1270,23 +1291,6 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
         # TODO: Unknown callback requirements for OpenAI Codex
-    }
-    CursorAgent = @{
-        Exec              = "cursor-agent.exe"
-        Name              = "CursorAgent"
-        DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Cursor Agent - AI-powered coding assistant"
-        InstallType       = "web"
-        ForceToInstallDir = $false
-        VerifySuffix      = "--version"
-        PackageId         = "https://cursor.com/install"
-        AdditionalKeywords = @("cursor", "cursor-agent")
-        EnvVars           = @(
-            @{
-                Type = @("Path")
-            }
-        )
-        # TODO: Unknown callback requirements and exact download mechanism for Cursor Agent
     }
     Antigravity = @{
         PackageId         = "Google.Antigravity"

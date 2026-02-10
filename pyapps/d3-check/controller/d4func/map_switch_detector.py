@@ -14,7 +14,7 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
-from d4utils.black_screen_detector import d4_is_black_screen
+from d4utils.d4_black_screen_detector import d4_is_black_screen
 
 
 class MapSwitchDetector:
@@ -47,86 +47,49 @@ class MapSwitchDetector:
         Returns:
             bool: True if detection successful, False otherwise
         """
-        try:
-            # Check if we have region images available
-            if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
-                return False
-
-            if 'region_images' not in self.d4_data.detected_regions:
-                return False
-
-            region_images = self.d4_data.detected_regions['region_images']
-
-            # Get Map Name region image
-            if 'Map Name' not in region_images:
-                ColorPrint.yellow("[MapSwitchDetector] Map Name region not found in detected_regions")
-                return False
-
-            map_name_image = region_images['Map Name']
-
-            if map_name_image is None:
-                ColorPrint.yellow("[MapSwitchDetector] Map Name region image is None")
-                return False
-
-            # Check if the Map Name region is black
-            is_currently_black = d4_is_black_screen(map_name_image)
-
-            # State machine transitions
-            if is_currently_black and not self._previous_is_black:
+        if not hasattr(self.d4_data, 'detected_regions') or self.d4_data.detected_regions is None:
+            return False
+        if 'region_images' not in self.d4_data.detected_regions:
+            return False
+        region_images = self.d4_data.detected_regions['region_images']
+        if 'Map Name' not in region_images:
+            ColorPrint.yellow("[MapSwitchDetector] Map Name region not found in detected_regions")
+            return False
+        map_name_image = region_images['Map Name']
+        if map_name_image is None:
+            ColorPrint.yellow("[MapSwitchDetector] Map Name region image is None")
+            return False
+        is_currently_black = d4_is_black_screen(map_name_image)
+        if is_currently_black and not self._previous_is_black:
                 # Transition: Normal → Switching (black screen just appeared)
                 self.d4_data.is_switching_map = True
                 self.d4_data.is_post_switch_idle = False
                 ColorPrint.blue("[MapSwitchDetector] 🗺️  Map switching started (black screen detected)")
 
-            elif not is_currently_black and self._previous_is_black:
-                # Transition: Switching → Post-Switch Idle (black screen just cleared)
-                self.d4_data.is_switching_map = False
-                self.d4_data.is_post_switch_idle = True
-                self.d4_data.map_switch_count += 1
-                ColorPrint.green(f"[MapSwitchDetector] ✅ Map switch completed (count: {self.d4_data.map_switch_count})")
-                
-                # Trigger map name recognition when switching to post-switch idle
-                self._trigger_map_name_recognition()
-
-            elif is_currently_black:
-                # Still switching (black screen persists)
-                # Keep is_switching_map = True
-                pass
-
-            else:
-                # Not black and wasn't black before
-                # Keep current state (either Normal or Post-Switch Idle)
-                pass
-
-            # Update previous state for next tick
-            self._previous_is_black = is_currently_black
-
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[MapSwitchDetector] Error detecting map switch: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        elif not is_currently_black and self._previous_is_black:
+            self.d4_data.is_switching_map = False
+            self.d4_data.is_post_switch_idle = True
+            self.d4_data.map_switch_count += 1
+            ColorPrint.green(f"[MapSwitchDetector] ✅ Map switch completed (count: {self.d4_data.map_switch_count})")
+            self._trigger_map_name_recognition()
+        elif is_currently_black:
+            pass
+        else:
+            pass
+        self._previous_is_black = is_currently_black
+        return True
 
     def _trigger_map_name_recognition(self):
         """
         Trigger map name recognition when switching to post-switch idle state
         """
-        try:
-            from .map_name_recognizer import get_map_name_recognizer
-            
-            # Get map name recognizer and attempt recognition
-            map_recognizer = get_map_name_recognizer()
-            recognition_success = map_recognizer.recognize_map_name()
-            
-            if recognition_success:
-                ColorPrint.blue("[MapSwitchDetector] Map name recognition triggered successfully")
-            else:
-                ColorPrint.yellow("[MapSwitchDetector] Map name recognition not triggered or failed")
-                
-        except Exception as e:
-            ColorPrint.red(f"[MapSwitchDetector] Error triggering map name recognition: {e}")
+        from .map_name_recognizer import get_map_name_recognizer
+        map_recognizer = get_map_name_recognizer()
+        recognition_success = map_recognizer.recognize_map_name()
+        if recognition_success:
+            ColorPrint.blue("[MapSwitchDetector] Map name recognition triggered successfully")
+        else:
+            ColorPrint.yellow("[MapSwitchDetector] Map name recognition not triggered or failed")
 
     def reset_post_switch_idle(self):
         """

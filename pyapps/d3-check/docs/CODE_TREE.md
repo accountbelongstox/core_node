@@ -1,6 +1,8 @@
 # d3-check Code Tree
 
-Layers and modules. Entry uses **runtime** only for lifecycle/thread/event; runtime re-exports from d3utils and runtime.thread_registry. **share = shared data only** (no business logic).
+> **层次与模块角色已整合至 `docs/PROJECT_STANDARDS.md`** §一、§二；本档为分层细节展开。
+
+Layers and modules. Entry uses **runtime** only for lifecycle/thread/event; runtime re-exports from d3utils and runtime.thread_registry. **share** = shared data (**share/values/**) + shared functions (**share/common/**); no run_/do_ in share. See `PROJECT_STANDARDS.md` §1.3.
 
 ## Layer 1: Entry
 
@@ -58,15 +60,14 @@ Single facade for startup, shutdown, event center, thread registry, task threads
 | `d3utils/key_send.py` | System key send (e.g. F7). |
 | Others | Screenshot, path scanner, window resizer, etc. |
 
-## Layer 5: share (shared data only)
+## Layer 5: share (values = data, common = shared functions)
+
+Per **PROJECT_STANDARDS.md §1.3**: share/values = data + data access only; share/common = shared functions and base classes. No run_/do_; no gitignore-prone dir names. Module list and roles see §1.3.
 
 | Path | Role |
 |------|------|
-| `share/game_interface_data.py` | Shared D3/D4 interface data. |
-| `share/project_path.py` | Path and sys.path. |
-| `share/oauth_callback.py` | OAuth done event. |
-| `share/scaled_template_matcher_base.py` | Base template matcher. |
-| (others) | Data/state only; no business logic or one-shot tasks. |
+| share/values/ (或 share 根) | 数据与 get_*/set_* only |
+| share/common/ (或 share 根) | 共用工具与基类，无 d3/d4 业务 |
 
 ## Layer 6: timers
 
@@ -97,7 +98,7 @@ Single facade for startup, shutdown, event center, thread registry, task threads
 ## Import rules
 
 - **main.py** and **controllers** / **ui** that need lifecycle or thread/event: import from **runtime** only (get_system_initializer, execute_shutdown, get_thread_registry, event_center triggers, get_task_manager, is_shutdown_requested).
-- **d3utils** and **share** (data only) internals: keep importing as needed; no business logic in share.
+- **d3utils** and **share** (share/values = data, share/common = shared functions) internals: keep importing as needed; no business logic in share; see PROJECT_STANDARDS §1.3.
 - One-shot work: `timers.timer_manager.submit_one_shot`, **`timers.one_shot_tasks.do_*`**; SmartEcho: `d3utils.smart_echo.do_smart_echo_pause_after_complete`.
 
 ## Related docs

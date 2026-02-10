@@ -63,7 +63,7 @@ class GameInterfaceController:
         self.macro_running = False
         # Macro thread owned by ThreadRegistry; no self.macro_thread
 
-        # Initialize game assistant controller
+        # Initialize game assistant controller (lazy)
         self.assistant_controller: Optional[GameAssistantController] = None
 
         # Load hotkey configuration
@@ -71,6 +71,12 @@ class GameInterfaceController:
 
         ColorPrint.green("[INIT] GameInterfaceController initialized")
     
+    def run_assistant_auto_use(self) -> None:
+        """Run assistant auto-use interface function (used by hotkey callback from d3utils)."""
+        if self.assistant_controller is None:
+            self.assistant_controller = GameAssistantController()
+        self.assistant_controller.auto_use_interface_function()
+
     def _load_hotkey_config(self):
         """Load hotkey configuration from CONFIG"""
         try:

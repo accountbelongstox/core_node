@@ -14,7 +14,7 @@ current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.app_constants import DEBUG
+from providor.constants.common import DEBUG
 from d3utils.i18n_manager import I18nManager
 from share.game_interface_data import get_d4_interface_data
 from .map_name_utils import get_current_map_name_from_shared_data
@@ -56,23 +56,13 @@ class UIStatusUpdater:
         
         Called at the end of each tick to ensure UI reflects latest state
         """
-        try:
-            if not self.ui_update_callback:
-                return
-            
-            # Get current data from shared memory
-            status_data = self._collect_status_data()
-            
-            # Update UI via callback
-            self.ui_update_callback(status_data)
-            
-            # Print summary if DEBUG mode is enabled
-            if DEBUG:
-                self._print_status_summary(status_data)
-            
-        except Exception as e:
-            ColorPrint.red(f"[UIStatusUpdater] Error updating UI status: {e}")
-    
+        if not self.ui_update_callback:
+            return
+        status_data = self._collect_status_data()
+        self.ui_update_callback(status_data)
+        if DEBUG:
+            self._print_status_summary(status_data)
+
     def _collect_status_data(self) -> Dict[str, Any]:
         """
         Collect current status data from shared memory
@@ -195,66 +185,44 @@ class UIStatusUpdater:
         Args:
             status_data: Dictionary with status information
         """
-        try:
-            ColorPrint.blue("\n" + "="*60)
-            ColorPrint.blue("[UIStatusUpdater] Status Summary (DEBUG)")
-            ColorPrint.blue("="*60)
-            
-            # D4 Running Status
-            ColorPrint.green(f"D4 Running Status: {status_data.get('d4_running_status', 'Unknown')}")
-            
-            # Screen Information
-            ColorPrint.green(f"Screen Coordinates: {status_data.get('screen_coordinates', 'Unknown')}")
-            ColorPrint.green(f"Screen Size: {status_data.get('screen_size', 'Unknown')}")
-            
-            # Game Information
-            ColorPrint.green(f"Current Map: {status_data.get('current_map', 'Unknown')}")
-            ColorPrint.green(f"Game State: {status_data.get('game_state', 'Unknown')}")
-            ColorPrint.green(f"Team Count: {status_data.get('team_count', 'Unknown')}")
-            ColorPrint.green(f"Dungeon Progress: {status_data.get('dungeon_progress', 'Unknown')}")
-            
-            # Team Health Details (if available)
-            if self.d4_data.team_health_info:
-                team_info = self.d4_data.team_health_info
-                total_members = team_info.get('total_members', 0)
-                local_map_count = team_info.get('local_map_members', 0)
-                non_local_map_count = team_info.get('non_local_map_members', 0)
-                
-                ColorPrint.yellow(f"Team Health Details:")
-                ColorPrint.yellow(f"  Total Members: {total_members}")
-                ColorPrint.yellow(f"  Local Map: {local_map_count}")
-                ColorPrint.yellow(f"  Non-Local Map: {non_local_map_count}")
-                
-                # Show individual member details
-                members = team_info.get('members', [])
-                if members:
-                    ColorPrint.yellow(f"  Member Details:")
-                    for i, member in enumerate(members):
-                        hp_offset = member.get('hp_screen_offset', {})
-                        absolute_x = hp_offset.get('absolute_x', 0)
-                        absolute_y = hp_offset.get('absolute_y', 0)
-                        is_local = member.get('is_local_map', False)
-                        group = member.get('group', 'Unknown')
-                        scan_direction = member.get('scan_direction', 'Unknown')
-                        
-                        local_status = "Local" if is_local else "Non-Local"
-                        ColorPrint.yellow(f"    Member {i+1}: {local_status} ({group}) - HP:({absolute_x},{absolute_y}) - Scan:{scan_direction}")
-            
-            # Detection Timestamps
-            if self.d4_data.region_detection_timestamp:
-                ColorPrint.blue(f"Region Detection: {self.d4_data.region_detection_timestamp}")
-            
-            if self.d4_data.team_health_detection_timestamp:
-                ColorPrint.blue(f"Team Health Detection: {self.d4_data.team_health_detection_timestamp}")
-            
-            # Screenshot Information
-            if self.d4_data.last_annotated_screenshot_path:
-                ColorPrint.blue(f"Last Annotated Screenshot: {self.d4_data.last_annotated_screenshot_path}")
-            
-            ColorPrint.blue("="*60)
-            
-        except Exception as e:
-            ColorPrint.red(f"[UIStatusUpdater] Error printing status summary: {e}")
+        ColorPrint.blue("\n" + "="*60)
+        ColorPrint.blue("[UIStatusUpdater] Status Summary (DEBUG)")
+        ColorPrint.blue("="*60)
+        ColorPrint.green(f"D4 Running Status: {status_data.get('d4_running_status', 'Unknown')}")
+        ColorPrint.green(f"Screen Coordinates: {status_data.get('screen_coordinates', 'Unknown')}")
+        ColorPrint.green(f"Screen Size: {status_data.get('screen_size', 'Unknown')}")
+        ColorPrint.green(f"Current Map: {status_data.get('current_map', 'Unknown')}")
+        ColorPrint.green(f"Game State: {status_data.get('game_state', 'Unknown')}")
+        ColorPrint.green(f"Team Count: {status_data.get('team_count', 'Unknown')}")
+        ColorPrint.green(f"Dungeon Progress: {status_data.get('dungeon_progress', 'Unknown')}")
+        if self.d4_data.team_health_info:
+            team_info = self.d4_data.team_health_info
+            total_members = team_info.get('total_members', 0)
+            local_map_count = team_info.get('local_map_members', 0)
+            non_local_map_count = team_info.get('non_local_map_members', 0)
+            ColorPrint.yellow(f"Team Health Details:")
+            ColorPrint.yellow(f"  Total Members: {total_members}")
+            ColorPrint.yellow(f"  Local Map: {local_map_count}")
+            ColorPrint.yellow(f"  Non-Local Map: {non_local_map_count}")
+            members = team_info.get('members', [])
+            if members:
+                ColorPrint.yellow(f"  Member Details:")
+                for i, member in enumerate(members):
+                    hp_offset = member.get('hp_screen_offset', {})
+                    absolute_x = hp_offset.get('absolute_x', 0)
+                    absolute_y = hp_offset.get('absolute_y', 0)
+                    is_local = member.get('is_local_map', False)
+                    group = member.get('group', 'Unknown')
+                    scan_direction = member.get('scan_direction', 'Unknown')
+                    local_status = "Local" if is_local else "Non-Local"
+                    ColorPrint.yellow(f"    Member {i+1}: {local_status} ({group}) - HP:({absolute_x},{absolute_y}) - Scan:{scan_direction}")
+        if self.d4_data.region_detection_timestamp:
+            ColorPrint.blue(f"Region Detection: {self.d4_data.region_detection_timestamp}")
+        if self.d4_data.team_health_detection_timestamp:
+            ColorPrint.blue(f"Team Health Detection: {self.d4_data.team_health_detection_timestamp}")
+        if self.d4_data.last_annotated_screenshot_path:
+            ColorPrint.blue(f"Last Annotated Screenshot: {self.d4_data.last_annotated_screenshot_path}")
+        ColorPrint.blue("="*60)
 
 
 # Global UI status updater instance (singleton)

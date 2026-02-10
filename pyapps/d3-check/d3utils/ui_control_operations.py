@@ -45,6 +45,57 @@ def try_invoke(control: Any) -> bool:
         return False
 
 
+UIA_VALUE_PATTERN_ID = 10002
+
+
+def try_set_value(control: Any, value: str) -> bool:
+    """
+    Set value via UIA ValuePattern (no keyboard). Preferred for Edit when focus+type fails.
+    Returns True if ValuePattern.SetValue succeeded.
+    """
+    try:
+        get_pattern = getattr(control, "GetPattern", None)
+        if get_pattern is None:
+            return False
+        pattern = get_pattern(UIA_VALUE_PATTERN_ID)
+        if pattern is None:
+            return False
+        set_val = getattr(pattern, "SetValue", None)
+        if set_val is None:
+            return False
+        set_val(value)
+        return True
+    except Exception as e:
+        try:
+            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+                return False
+        except Exception:
+            pass
+        ColorPrint.gray(f"[UI_OP] ValuePattern.SetValue failed: {e}")
+        return False
+
+
+def try_set_focus(control: Any) -> bool:
+    """
+    Set keyboard focus to control via UIA (no mouse). Preferred for Edit, ComboBox, etc.
+    Returns True if SetFocus succeeded.
+    """
+    try:
+        set_focus = getattr(control, "SetFocus", None)
+        if set_focus is None:
+            return False
+        set_focus()
+        return True
+    except Exception as e:
+        try:
+            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+                return False
+        except Exception:
+            pass
+        ColorPrint.gray(f"[UI_OP] SetFocus failed: {e}")
+        return False
+
+
 def try_select_selection_item(control: Any) -> bool:
     """
     Select control via SelectionItemPattern (no mouse). Preferred for TabItem, ListItem, RadioButton.

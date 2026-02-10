@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe
-from providor.app_constants import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
+from providor.constants.common import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
 
 
 class MainFunctionThread(threading.Thread):
@@ -67,16 +67,10 @@ class MainFunctionThread(threading.Thread):
                     break
                 if cmd == CMD_START_MACRO:
                     self._macro_running = True
-                    try:
-                        self._schedule(lambda: self._on_macro_started and self._on_macro_started())
-                    except Exception:
-                        pass
+                    self._schedule(lambda: self._on_macro_started and self._on_macro_started())
                 elif cmd == CMD_STOP_MACRO:
                     self._macro_running = False
-                    try:
-                        self._schedule(lambda: self._on_macro_stopped and self._on_macro_stopped())
-                    except Exception:
-                        pass
+                    self._schedule(lambda: self._on_macro_stopped and self._on_macro_stopped())
             except Exception as e:
                 self._log.error("MainFunctionThread: %s", e)
                 time.sleep(1)

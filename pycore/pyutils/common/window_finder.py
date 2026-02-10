@@ -72,21 +72,26 @@ class WindowFinder:
 
             if cached_info:
                 hwnd = cached_info.get("hwnd")
+                title = cached_info.get("title")
                 if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                    try:
-                        rect = win32gui.GetWindowRect(hwnd)
-                        window_info = {
-                            "hwnd": hwnd,
-                            "title": cached_info.get("title"),
-                            "class_name": cached_info.get("class_name"),
-                            "rect": rect,
-                            "width": rect[2] - rect[0],
-                            "height": rect[3] - rect[1]
-                        }
-                        found_windows.append(window_info)
-                        ColorPrint.print_min_interval(f"[Cache] Found cached window: '{canonical_label}'", "1min", "green")
-                    except Exception as e:
-                        ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
+                    if skip_browser_if is not None and skip_browser_if(hwnd, title or ""):
+                        ENCYCLOPEDIA.remove(cache_key)
+                        ColorPrint.print_min_interval(f"[Cache] Cached window skipped by filter for '{canonical_label}', re-searching", "1min", "yellow")
+                    else:
+                        try:
+                            rect = win32gui.GetWindowRect(hwnd)
+                            window_info = {
+                                "hwnd": hwnd,
+                                "title": title,
+                                "class_name": cached_info.get("class_name"),
+                                "rect": rect,
+                                "width": rect[2] - rect[0],
+                                "height": rect[3] - rect[1]
+                            }
+                            found_windows.append(window_info)
+                            ColorPrint.print_min_interval(f"[Cache] Found cached window: '{canonical_label}'", "1min", "green")
+                        except Exception as e:
+                            ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
                 else:
                     ENCYCLOPEDIA.remove(cache_key)
                     ColorPrint.print_min_interval(f"[Cache] Cached window invalid for '{canonical_label}', removed", "1min", "yellow")
@@ -162,7 +167,7 @@ class WindowFinder:
         if found_windows:
             ColorPrint.print_min_interval(f"[WindowFinder] Found {len(found_windows)} window(s)", "1min", "green")
         else:
-            ColorPrint.yellow(f"[WindowFinder] No windows found matching: {titles}")
+            ColorPrint.print_min_interval(f"[WindowFinder] No windows found matching: {titles}", "1min", "yellow")
 
         return found_windows
 

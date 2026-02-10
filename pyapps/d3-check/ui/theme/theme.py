@@ -235,14 +235,14 @@ class UITheme:
 
         # Configure Entry style
         style.configure('TEntry',
-                       fieldbackground=cls.get_color('bg_input'),
+                       fieldbackground=cls.get_color('input_bg'),
                        foreground=cls.get_color('text_primary'),
                        insertcolor=cls.get_color('text_primary'),
                        font=cls.get_font('body'))
 
         # Configure Combobox style
         style.configure('TCombobox',
-                       fieldbackground=cls.get_color('bg_input'),
+                       fieldbackground=cls.get_color('input_bg'),
                        foreground=cls.get_color('text_primary'),
                        insertcolor=cls.get_color('text_primary'),
                        font=cls.get_font('body'))
@@ -262,7 +262,7 @@ class UITheme:
 
         # Configure Spinbox style
         style.configure('TSpinbox',
-                       fieldbackground=cls.get_color('bg_input'),
+                       fieldbackground=cls.get_color('input_bg'),
                        foreground=cls.get_color('text_primary'),
                        insertcolor=cls.get_color('text_primary'),
                        font=cls.get_font('body'))
@@ -270,7 +270,7 @@ class UITheme:
         # Configure Progressbar style
         style.configure('TProgressbar',
                        background=cls.get_color('btn_primary'),
-                       troughcolor=cls.get_color('bg_input'),
+                       troughcolor=cls.get_color('input_bg'),
                        borderwidth=0,
                        lightcolor=cls.get_color('btn_primary'),
                        darkcolor=cls.get_color('btn_primary'))

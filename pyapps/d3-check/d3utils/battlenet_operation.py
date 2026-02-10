@@ -2,7 +2,7 @@
 """
 Battle.net operation: start, close, restart, click D3 tab, start game, detect game state.
 Reuses BattleNetManager for process/window; UI Automation for control find/click (Chromium Battle.net).
-Control names reference docs JSON (exported via debug button).
+When region (asia/cn) is known at startup, all operations use that region only; when unknown, first detection may try both.
 """
 import time
 import json
@@ -12,23 +12,50 @@ from typing import Optional, List, Dict, Any, Tuple, Set
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
 from pycore.pyfoundations.third_party import get_third_package_uiautomation, get_third_package_win32gui
+from share.game_interface_data import get_game_interface_data
+from providor.providor_index import get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
-from providor.app_constants import (
+from d3utils.battlenet_asia_ops import BattlenetAsiaOps
+from d3utils.battlenet_ui_inspector import (
+    is_main_window_close_button,
+    is_popup_close_button_by_automation_id,
+    is_popup_close_button_by_name,
+)
+from d3utils.ui_control_operations import operate_button, try_set_focus, try_set_value
+from d3utils.battlenet_region_judge import (
+    build_judge_from_controls,
+    get_asia_d3_automation_ids,
+    get_asia_d3_name_keywords,
+    get_asia_play_automation_ids,
+    get_asia_play_name_keywords,
+)
+from providor.constants.common import (
     BN_FLOW_SNAPSHOTS_DIR,
+    DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS,
     BN_CLICK_MOVE_DURATION_SEC,
     BN_CLICK_PAUSE_AFTER_MOVE_SEC,
+    BATTLE_NET_DISCONNECT_AUTOMATION_IDS,
     BATTLE_NET_DISCONNECT_KEYWORDS,
     BATTLE_NET_NEED_LOGIN_KEYWORDS,
     BATTLE_NET_CN_AGREE_KEYWORDS,
     BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS,
+    BATTLE_NET_CN_LOGIN_BUTTON_AUTOMATION_IDS,
     BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS,
     BATTLE_NET_CN_AFTER_NETEASE_CLICK_SETTLE_SEC,
+    BATTLE_NET_BROWSER_LOGIN_WAIT_AUTOMATION_IDS,
     BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS,
+    BATTLE_NET_LOGIN_FAILED_PRIMARY_AUTOMATION_IDS,
+    BATTLE_NET_LOGIN_FAILED_SECONDARY_AUTOMATION_IDS,
     BATTLE_NET_LOGIN_FAILED_KEYWORDS,
+    BATTLE_NET_CONNECTING_AUTOMATION_IDS,
     BATTLE_NET_CONNECTING_KEYWORDS,
     LOGIN_SCREEN_UI_KEYWORDS_STRICT,
+    LOGIN_SCREEN_UI_KEYWORDS_STRICT_ASIA,
     LOGIN_SCREEN_UI_KEYWORDS,
     LOGIN_WINDOW_AUTOMATION_ID_MARKERS,
+    LOGIN_WINDOW_AUTOMATION_ID_MARKERS_ASIA,
+)
+from providor.constants.d3 import (
     D3_TAB_AUTOMATION_IDS,
     D3_TAB_NAME_KEYWORDS,
     START_GAME_AUTOMATION_IDS,
@@ -42,11 +69,22 @@ try:
 except ImportError:
     pythoncom = None
 
+
+def _resolve_battlenet_region() -> Optional[str]:
+    """Resolve current Battle.net region: game_interface_data first, then config cache. Flow uses one region once known."""
+    try:
+        r = get_game_interface_data().get_battlenet_region()
+        if r is not None:
+            return r
+        cached = get_config_value_safe("ros_settings.battlenet_region_cache")
+        return cached if cached in ("asia", "cn") else None
+    except Exception:
+        return None
+
 # Login-failed features loaded from bn_flow_*.json snapshots (EN/CN dynamic UI)
 _login_failed_names: Optional[Set[str]] = None
 _login_failed_ids: Optional[Set[str]] = None
 _login_failed_loaded: bool = False
-
 
 def _load_login_failed_features_from_snapshots() -> Tuple[Set[str], Set[str]]:
     """Load bn_flow_*.json; extract control name/automation_id that contain any BATTLE_NET_LOGIN_FAILED_KEYWORDS."""
@@ -93,12 +131,41 @@ def _ensure_com() -> None:
             pass
 
 
+UIA_IS_OFFSCREEN_PROPERTY_ID = 10022
+
+
+def _safe_control_dict_light(control) -> Optional[Dict[str, Any]]:
+    """Light dict for state judgment: name, automation_id, is_enabled, is_offscreen. Skips BoundingRectangle/ControlTypeName."""
+    try:
+        name = (control.Name or "").strip()
+        aid = (control.AutomationId or "").strip()
+        try:
+            is_enabled = control.IsEnabled
+        except Exception:
+            is_enabled = None
+        try:
+            is_offscreen = getattr(control, "IsOffscreen", None)
+            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
+                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+        except Exception:
+            is_offscreen = None
+        return {
+            "name": name,
+            "automation_id": aid,
+            "is_enabled": is_enabled,
+            "is_offscreen": is_offscreen,
+        }
+    except Exception:
+        return None
+
+
 def _safe_control_dict(control) -> Optional[Dict[str, Any]]:
     try:
         r = control.BoundingRectangle
+        w, h = r.width(), r.height()
         rect = {
             "left": r.left, "top": r.top, "right": r.right, "bottom": r.bottom,
-            "width": r.width(), "height": r.height(),
+            "width": w, "height": h,
         }
         name = (control.Name or "").strip()
         aid = (control.AutomationId or "").strip()
@@ -107,12 +174,26 @@ def _safe_control_dict(control) -> Optional[Dict[str, Any]]:
             is_enabled = control.IsEnabled
         except Exception:
             is_enabled = None
+        try:
+            is_offscreen = getattr(control, "IsOffscreen", None)
+            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
+                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+        except Exception:
+            is_offscreen = None
+        has_valid_rect = (w is not None and h is not None and w > 0 and h > 0)
+        is_clickable = (
+            (is_enabled is not False)
+            and (is_offscreen is not True)
+            and has_valid_rect
+        )
         return {
             "name": name,
             "automation_id": aid,
             "type": ctype,
             "rect": rect,
             "is_enabled": is_enabled,
+            "is_offscreen": is_offscreen,
+            "is_clickable": is_clickable,
         }
     except Exception:
         return None
@@ -126,21 +207,39 @@ def _rect_center(rect: Dict[str, Any]) -> tuple:
     return (left + w // 2, top + h // 2)
 
 
+def _play_button_indicates_starting(ctrl: Dict[str, Any]) -> bool:
+    """True if Play control indicates game starting or running (disabled or name Playing Now / in-game label)."""
+    name = (ctrl.get("name") or "").strip()
+    if "Playing Now" in name or "\u6b63\u5728" in name:  # "正在" in-game
+        return True
+    is_enabled = ctrl.get("is_enabled")
+    if is_enabled is not None:
+        return not bool(is_enabled)
+    return False
+
+
+# Short TTL cache for UI controls so same-tick BN flow reuses refresh result (one read per tick).
+_BN_CONTROLS_LIGHT_CACHE: Dict[str, Any] = {"controls": None, "time": 0.0, "hwnd": None}
+BN_CONTROLS_LIGHT_CACHE_TTL_SEC = 2.0
+
+
 class BattlenetOperation:
     """
     Battle.net operation: start, close, restart, activate window, click D3 tab, start game, detect state.
-    Control lookup via UI Automation (Chromium Battle.net); process/window via BattleNetManager.
+    When region (asia/cn) is set, only that region's UI path is used; when None, first detection may try both.
     """
 
-    def __init__(self, elements_json_path: Optional[Path] = None):
+    def __init__(self, elements_json_path: Optional[Path] = None, region: Optional[str] = None):
         self._elements_json_path = elements_json_path or self._default_elements_json_path()
         self._clicker = ClickHandler()
+        self._asia_ops = BattlenetAsiaOps(self)
+        self._region = region if region in ("asia", "cn") else _resolve_battlenet_region() if region is None else None
 
     @staticmethod
     def _default_elements_json_path() -> Path:
         """Path to battlenet elements JSON under docs (filename may be CN)."""
         base = Path(__file__).resolve().parent.parent
-        return base / "docs" / "登陆后的战网元素.json"
+        return base / "docs" / "battlenet_post_login_elements.json"
 
     def start(self) -> bool:
         """Start Battle.net. Reuses BattleNetManager.start()."""
@@ -184,7 +283,7 @@ class BattlenetOperation:
         collected: List[Dict[str, Any]] = []
 
         def walk(control, depth: int = 0):
-            if depth > 20:
+            if depth > 25:
                 return
             info = _safe_control_dict(control)
             if info:
@@ -197,6 +296,54 @@ class BattlenetOperation:
                 pass
 
         walk(root)
+        return collected
+
+    def _enumerate_controls_light(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """Enumerate name, automation_id, is_enabled, is_offscreen (for get_dynamic_state). Skips BoundingRectangle/ControlTypeName.
+        Uses module-level cache for BN_CONTROLS_LIGHT_CACHE_TTL_SEC so same-tick BN flow reuses one read.
+        When force_refresh=True, skip cache and enumerate fresh (e.g. after tab click to see Play)."""
+        global _BN_CONTROLS_LIGHT_CACHE
+        windows = get_battlenet_manager().find_windows()
+        if not windows:
+            return []
+        hwnd = int(windows[0]["hwnd"])
+        now = time.monotonic()
+        if not force_refresh and (
+            _BN_CONTROLS_LIGHT_CACHE["hwnd"] == hwnd
+            and _BN_CONTROLS_LIGHT_CACHE["controls"] is not None
+            and (now - _BN_CONTROLS_LIGHT_CACHE["time"]) < BN_CONTROLS_LIGHT_CACHE_TTL_SEC
+        ):
+            return _BN_CONTROLS_LIGHT_CACHE["controls"]
+        _ensure_com()
+        auto = get_third_package_uiautomation()
+        if not auto:
+            return []
+        try:
+            root = auto.ControlFromHandle(hwnd)
+            if not root.Exists():
+                return []
+        except Exception as e:
+            ColorPrint.yellow(f"[BattlenetOperation] ControlFromHandle failed: {e}")
+            return []
+
+        collected: List[Dict[str, Any]] = []
+
+        def walk(control, depth: int = 0):
+            if depth > 25:
+                return
+            info = _safe_control_dict_light(control)
+            if info:
+                collected.append(info)
+            try:
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+        _BN_CONTROLS_LIGHT_CACHE["controls"] = collected
+        _BN_CONTROLS_LIGHT_CACHE["time"] = now
+        _BN_CONTROLS_LIGHT_CACHE["hwnd"] = hwnd
         return collected
 
     def _get_root_control(self):
@@ -267,6 +414,122 @@ class BattlenetOperation:
         walk(root)
         return found[0]
 
+    def _find_raw_control_matching(self, control_dict: Dict[str, Any]):
+        """Find raw UIA control matching dict. Use exact automation_id match so D3 tab is not confused with D4 (game-nav-btn-D34)."""
+        root = self._get_root_control()
+        if not root or not control_dict:
+            return None
+        want_aid = (control_dict.get("automation_id") or "").strip()
+        want_name = (control_dict.get("name") or "").strip()
+        found = [None]
+
+        def walk(control, depth: int = 0):
+            if depth > 25 or found[0] is not None:
+                return
+            try:
+                aid = (control.AutomationId or "").strip()
+                name = (control.Name or "").strip()
+                if want_aid and aid == want_aid and (not want_name or want_name in name):
+                    found[0] = control
+                    return
+                if not want_aid and want_name and want_name in name:
+                    found[0] = control
+                    return
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+        return found[0]
+
+    def click_control(self, control: Dict[str, Any], require_clickable: bool = False) -> bool:
+        """Prefer UI Automation Invoke (no mouse); fallback to click at control rect center.
+        When require_clickable=True, skip click and return False if control is not clickable (enabled, visible)."""
+        if require_clickable and control.get("is_clickable") is not True:
+            ColorPrint.gray("[BattlenetOperation] click_control: control not clickable (enabled=%s, offscreen=%s), skip" % (
+                control.get("is_enabled"), control.get("is_offscreen")))
+            return False
+        self.activate_window()
+        time.sleep(0.2)
+        raw = self._find_raw_control_matching(control)
+        if raw is not None:
+            if operate_button(raw, clicker=self._clicker, prefer_invoke=True):
+                return True
+        rect = control.get("rect")
+        if not rect:
+            return False
+        cx, cy = _rect_center(rect)
+        # Avoid (0,0) or invalid rect: moveTo(0,0) triggers PyAutoGUI fail-safe
+        if (cx <= 0 and cy <= 0) or (rect.get("width") or 0) <= 0 or (rect.get("height") or 0) <= 0:
+            ColorPrint.gray("[BattlenetOperation] click_control: rect invalid or zero (center=%s,%s), skip click" % (cx, cy))
+            return False
+        return self._clicker.click(cx, cy, direct_click=True, return_to_original=True,
+                                   duration=BN_CLICK_MOVE_DURATION_SEC, pause_after_move=BN_CLICK_PAUSE_AFTER_MOVE_SEC)
+
+    def focus_control(self, control: Dict[str, Any]) -> bool:
+        """Prefer UIA SetFocus (no mouse); fallback to click_control for focus."""
+        self.activate_window()
+        time.sleep(0.2)
+        raw = self._find_raw_control_matching(control)
+        if raw is not None and try_set_focus(raw):
+            return True
+        return self.click_control(control)
+
+    def set_control_value(self, control: Dict[str, Any], value: str) -> bool:
+        """Set control text via UIA ValuePattern (no keyboard). Returns True if succeeded."""
+        if not value:
+            return True
+        raw = self._find_raw_control_matching(control)
+        if raw is not None and try_set_value(raw, value):
+            return True
+        return False
+
+    def is_control_clickable(self, control: Dict[str, Any]) -> bool:
+        """True if control is considered clickable: enabled, not offscreen, valid rect."""
+        return control.get("is_clickable") is True
+
+    def get_clickable_buttons(self, controls: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+        """Return list of controls that are ButtonControl and clickable (enabled, visible)."""
+        if controls is None:
+            controls = self._enumerate_controls()
+        out = []
+        for c in controls:
+            ctype = (c.get("type") or "").strip().lower()
+            if "button" not in ctype:
+                continue
+            if c.get("is_clickable") is not True:
+                continue
+            out.append(c)
+        return out
+
+    def get_controls_state_summary(
+        self, controls: Optional[List[Dict[str, Any]]] = None, button_only: bool = False
+    ) -> List[Dict[str, Any]]:
+        """Return summary of controls with state (name, automation_id, is_enabled, is_offscreen, is_clickable). For debug."""
+        if controls is None:
+            controls = self._enumerate_controls()
+        out = []
+        for c in controls:
+            if button_only:
+                ctype = (c.get("type") or "").strip().lower()
+                if "button" not in ctype:
+                    continue
+            out.append({
+                "name": (c.get("name") or "")[:48],
+                "automation_id": (c.get("automation_id") or "")[:32],
+                "type": (c.get("type") or "")[:24],
+                "is_enabled": c.get("is_enabled"),
+                "is_offscreen": c.get("is_offscreen"),
+                "is_clickable": c.get("is_clickable"),
+            })
+        return out
+
+    def get_clickable_button_names(self, controls: Optional[List[Dict[str, Any]]] = None) -> List[str]:
+        """Return list of (name, automation_id) of buttons that are clickable. For display/logging."""
+        buttons = self.get_clickable_buttons(controls)
+        return [(c.get("name") or "", c.get("automation_id") or "") for c in buttons]
+
     def find_control_by_name(self, name_substrings: tuple, controls: Optional[List[Dict]] = None) -> Optional[Dict[str, Any]]:
         """Find control by name containing any of the given substrings. If controls is None, enumerate live."""
         if controls is None:
@@ -279,13 +542,23 @@ class BattlenetOperation:
                     return c
         return None
 
-    def find_control_by_automation_id(self, automation_id_substr: str, controls: Optional[List[Dict]] = None) -> Optional[Dict[str, Any]]:
-        """Find control by AutomationId containing the given substring."""
+    def find_control_by_automation_id(
+        self,
+        automation_id_substr: str,
+        controls: Optional[List[Dict]] = None,
+        exact_match: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Find control by AutomationId. If exact_match=True, aid must equal; else aid may contain substring (avoid e.g. game-nav-btn-D34 matching game-nav-btn-D3)."""
         if controls is None:
             controls = self._enumerate_controls()
         for c in controls:
             aid = (c.get("automation_id") or "").strip()
-            if automation_id_substr and automation_id_substr in aid:
+            if not automation_id_substr:
+                continue
+            if exact_match:
+                if aid == automation_id_substr:
+                    return c
+            elif automation_id_substr in aid:
                 return c
         return None
 
@@ -300,60 +573,139 @@ class BattlenetOperation:
                     return True
         return False
 
-    def click_control(self, control: Dict[str, Any]) -> bool:
-        """Click at control rect center. Instant click (duration=0), return mouse to original after click."""
-        rect = control.get("rect")
-        if not rect:
-            return False
-        cx, cy = _rect_center(rect)
-        self.activate_window()
-        time.sleep(0.2)
-        self._clicker.click(cx, cy, direct_click=True, return_to_original=True,
-                            duration=BN_CLICK_MOVE_DURATION_SEC, pause_after_move=BN_CLICK_PAUSE_AFTER_MOVE_SEC)
-        return True
+    def try_close_popup(self) -> bool:
+        """If an in-UI popup Close button is present, click it. Does NOT click the main window title-bar close (login/client X)."""
+        controls = self._enumerate_controls()
+        for c in controls:
+            if (c.get("type") or "") != "ButtonControl":
+                continue
+            aid = (c.get("automation_id") or "").strip()
+            if is_main_window_close_button(aid):
+                continue
+            if is_popup_close_button_by_automation_id(aid):
+                ColorPrint.blue("[BattlenetOperation] Closing in-UI popup: automation_id=%s" % aid)
+                return self.click_control(c)
+        for c in controls:
+            if (c.get("type") or "") != "ButtonControl":
+                continue
+            aid = (c.get("automation_id") or "").strip()
+            if is_main_window_close_button(aid):
+                continue
+            name = (c.get("name") or "").strip()
+            if is_popup_close_button_by_name(name):
+                ColorPrint.blue("[BattlenetOperation] Closing in-UI popup: name=%s" % name)
+                return self.click_control(c)
+        return False
 
     def click_d3_tab(self) -> bool:
-        """Click D3 game tab (prefer automation_id game-nav-btn-D3CN / game-nav-btn-D3, else name Diablo III)."""
+        """Click D3 game tab. Use exact automation_id match so game-nav-btn-D34 (D4) is not matched by game-nav-btn-D3."""
+        controls = self._enumerate_controls()
+        if self._region != "cn":
+            if controls:
+                for aid in get_asia_d3_automation_ids():
+                    ctrl = self.find_control_by_automation_id(aid, controls, exact_match=True)
+                    if ctrl:
+                        ColorPrint.blue("[BattlenetOperation] Asia Click D3 tab: automation_id=%s" % aid)
+                        return self.click_control(ctrl)
+                ctrl = self.find_control_by_name(get_asia_d3_name_keywords(), controls)
+                if ctrl and "Playing Now" not in (ctrl.get("name") or "") and "Game Version" not in (ctrl.get("name") or ""):
+                    ColorPrint.blue("[BattlenetOperation] Asia Click D3 tab: name=%s" % ctrl.get("name"))
+                    return self.click_control(ctrl)
+            if self._region == "asia":
+                ColorPrint.yellow("[BattlenetOperation] D3 tab control not found (Asia)")
+                return False
         for aid in D3_TAB_AUTOMATION_IDS:
-            ctrl = self.find_control_by_automation_id(aid)
+            ctrl = self.find_control_by_automation_id(aid, controls if controls else None, exact_match=True)
             if ctrl:
-                ColorPrint.blue(f"[BattlenetOperation] Click D3 tab: automation_id={aid}, name={ctrl.get('name')}")
+                ColorPrint.blue("[BattlenetOperation] CN Click D3 tab: automation_id=%s" % aid)
                 return self.click_control(ctrl)
-        ctrl = self.find_control_by_name(D3_TAB_NAME_KEYWORDS)
+        ctrl = self.find_control_by_name(D3_TAB_NAME_KEYWORDS, controls)
         if not ctrl:
             ColorPrint.yellow("[BattlenetOperation] D3 tab control not found")
             return False
         if "Playing Now" in (ctrl.get("name") or "") or "Game Version" in (ctrl.get("name") or ""):
             return False
-        ColorPrint.blue(f"[BattlenetOperation] Click D3 tab: name={ctrl.get('name')}")
+        ColorPrint.blue("[BattlenetOperation] CN Click D3 tab: name=%s" % ctrl.get("name"))
         return self.click_control(ctrl)
 
     def click_start_game(self) -> bool:
-        """Click start game button (prefer automation_id play-btn-main/play-btn, else name Play or locale equivalent)."""
+        """Click start game button. When region is bound use only that region; otherwise try Asia then CN."""
+        controls = self._enumerate_controls()
+        if self._region != "cn":
+            if controls:
+                for aid in get_asia_play_automation_ids():
+                    ctrl = self.find_control_by_automation_id(aid, controls)
+                    if ctrl:
+                        ColorPrint.blue("[BattlenetOperation] Asia Click start game: automation_id=%s" % aid)
+                        return self.click_control(ctrl)
+                ctrl = self.find_control_by_name(get_asia_play_name_keywords(), controls)
+                if ctrl:
+                    ColorPrint.blue("[BattlenetOperation] Asia Click start game: name=%s" % ctrl.get("name"))
+                    return self.click_control(ctrl)
+            if self._region == "asia":
+                ColorPrint.yellow("[BattlenetOperation] Start game button not found (Asia)")
+                return False
         for aid in START_GAME_AUTOMATION_IDS:
-            ctrl = self.find_control_by_automation_id(aid)
+            ctrl = self.find_control_by_automation_id(aid, controls if controls else None)
             if ctrl:
-                ColorPrint.blue(f"[BattlenetOperation] Click start game: automation_id={aid}")
+                ColorPrint.blue("[BattlenetOperation] CN Click start game: automation_id=%s" % aid)
                 return self.click_control(ctrl)
-        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS)
+        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
         if not ctrl:
             ColorPrint.yellow("[BattlenetOperation] Start game button not found")
             return False
-        ColorPrint.blue(f"[BattlenetOperation] Click start game: name={ctrl.get('name')}")
+        ColorPrint.blue("[BattlenetOperation] CN Click start game: name=%s" % ctrl.get("name"))
         return self.click_control(ctrl)
 
+    def _find_play_control_in_list(self, controls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find Play button control in a controls list (Asia then CN by region). Returns control dict or None."""
+        if not controls:
+            return None
+        if self._region != "cn":
+            for aid in get_asia_play_automation_ids():
+                ctrl = self.find_control_by_automation_id(aid, controls)
+                if ctrl:
+                    return ctrl
+            ctrl = self.find_control_by_name(get_asia_play_name_keywords(), controls)
+            if ctrl:
+                return ctrl
+            if self._region == "asia":
+                return None
+        for aid in START_GAME_AUTOMATION_IDS:
+            ctrl = self.find_control_by_automation_id(aid, controls)
+            if ctrl:
+                return ctrl
+        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
+        return ctrl
+
+    def click_play_button_if_visible(self, force_refresh: bool = True) -> bool:
+        """Only check for Play button and click if found. Uses one light enum (no full get_dynamic_state).
+        Use after D3 tab was just clicked: wait for Play to appear then click. Returns True if clicked."""
+        controls = self._enumerate_controls_light(force_refresh=force_refresh)
+        ctrl = self._find_play_control_in_list(controls)
+        if ctrl:
+            ColorPrint.gray("[BattlenetOperation] Play button visible, click (skip full UI traverse)")
+            return self.click_control(ctrl)
+        return False
+
     def is_game_starting(self) -> bool:
-        """True if game is starting or already running: Play button disabled or name contains Playing Now."""
-        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS)
+        """True if game is starting or already running. When region bound check only that region's Play control."""
+        controls = self._enumerate_controls_light()
+        if self._region != "cn":
+            for aid in get_asia_play_automation_ids():
+                ctrl = self.find_control_by_automation_id(aid, controls)
+                if ctrl:
+                    return _play_button_indicates_starting(ctrl)
+            if self._region == "asia":
+                return False
+        for aid in START_GAME_AUTOMATION_IDS:
+            ctrl = self.find_control_by_automation_id(aid, controls)
+            if ctrl:
+                return _play_button_indicates_starting(ctrl)
+        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
         if not ctrl:
             return False
-        name = (ctrl.get("name") or "").strip()
-        if "Playing Now" in name or ("正在" in name):  # CN: "Playing now"
-            return True
-        is_enabled = ctrl.get("is_enabled")
-        if is_enabled is not None:
-            return not bool(is_enabled)
-        return False
+        return _play_button_indicates_starting(ctrl)
 
     def _get_checkbox_toggle_state(self, raw_control) -> Optional[int]:
         """
@@ -388,8 +740,10 @@ class BattlenetOperation:
             ColorPrint.blue("[BattlenetOperation] Agree checkbox already checked (confirm by state)")
             return True
         try:
-            raw_control.Click()
-            time.sleep(0.2)
+            if operate_button(raw_control, clicker=self._clicker, prefer_invoke=True):
+                time.sleep(0.2)
+            else:
+                return False
             if state is None:
                 ColorPrint.blue("[BattlenetOperation] Agree checkbox clicked once (fallback; state unknown)")
             else:
@@ -460,13 +814,19 @@ class BattlenetOperation:
         return self.perform_cn_login_flow()
 
     def click_cn_login_button(self) -> bool:
-        """Click the final Login button (CN web agreement) via UI Automation only."""
+        """Click the final Login button (CN web agreement). Prefer automation_id, fallback name."""
+        controls = self._enumerate_controls()
+        for aid in BATTLE_NET_CN_LOGIN_BUTTON_AUTOMATION_IDS:
+            ctrl = self.find_control_by_automation_id(aid, controls)
+            if ctrl:
+                ColorPrint.blue("[BattlenetOperation] Click Login button: automation_id=%s" % aid)
+                return self.click_control(ctrl)
         keywords = BATTLE_NET_CN_LOGIN_BUTTON_KEYWORDS + ("Login",)
-        ctrl = self.find_control_by_name(keywords)
+        ctrl = self.find_control_by_name(keywords, controls)
         if not ctrl:
-            ColorPrint.yellow("[BattlenetOperation] Login button (UI name) not found")
+            ColorPrint.yellow("[BattlenetOperation] Login button (UI) not found")
             return False
-        ColorPrint.blue(f"[BattlenetOperation] Click Login button (UI): name={ctrl.get('name')}")
+        ColorPrint.blue("[BattlenetOperation] Click Login button: name=%s" % ctrl.get("name"))
         return self.click_control(ctrl)
 
     def click_confirm_login(self) -> bool:
@@ -474,51 +834,134 @@ class BattlenetOperation:
         return self.click_cn_login_button()
 
     def is_login_screen_ready(self) -> bool:
-        """
-        True when login screen is ready for interaction. Maximized: require BOTH automation_id (legalAcceptance or ntes) AND control name (agree or NetEase keywords), so spinning login-wrapper alone does not pass.
-        """
-        controls = self._enumerate_controls()
+        """True when login screen is ready for interaction. Use automation_id only (legalAcceptance or ntes)."""
+        controls = self._enumerate_controls_light()
         if not controls:
             return False
         has_agree_id = self.find_control_by_automation_id("legalAcceptance", controls) is not None
         has_netease_id = self.find_control_by_automation_id("ntes", controls) is not None
-        has_agree_name = self.find_control_by_name(BATTLE_NET_CN_AGREE_KEYWORDS, controls) is not None
-        has_netease_name = self.find_control_by_name(BATTLE_NET_CN_NETEASE_LOGIN_KEYWORDS, controls) is not None
-        return (has_agree_id or has_netease_id) and (has_agree_name or has_netease_name)
+        return has_agree_id or has_netease_id
 
-    def get_dynamic_state(self) -> Tuple[bool, bool, bool, Optional[str], bool]:
-        """Return (on_login_screen, disconnected, normal_available, play_button_name, connecting). At most one of on_login/disconnected/normal_available True. connecting=True => main UI visible but not logged in yet."""
-        controls = self._enumerate_controls()
-        if not controls:
-            return (False, False, False, None, False)
-        d3_tab = self.find_control_by_automation_id("game-nav-btn-D3CN", controls) or self.find_control_by_automation_id("game-nav-btn-D3", controls)
-        play_ctrl = (
-            self.find_control_by_automation_id("play-btn-main", controls)
-            or self.find_control_by_automation_id("play-btn", controls)
-            or self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
-        )
-        has_login_markers = self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS)
-        on_login_strict = has_login_markers or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
-        disconnected = self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
-        has_main_ui = d3_tab is not None and play_ctrl is not None and not has_login_markers
-        connecting = self.find_control_by_name(BATTLE_NET_CONNECTING_KEYWORDS, controls) is not None
-        normal_available = has_main_ui and not connecting
-        play_button_name = (play_ctrl.get("name") or "").strip() or None if play_ctrl else None
-        if normal_available:
-            return (False, False, True, play_button_name or "Play", False)
-        if has_main_ui and connecting:
-            return (False, False, False, None, True)
-        if disconnected:
-            return (False, True, False, None, False)
-        if on_login_strict:
-            return (True, False, False, None, False)
-        return (False, False, False, None, False)
+    def _get_dynamic_state_one_walk(
+        self, preferred_region: Optional[str]
+    ) -> Tuple[bool, bool, bool, Optional[str], bool, Optional[str]]:
+        """One tree walk, only read AutomationId and Name per control; resolve state from flags. No full control list.
+        Precondition: preferred_region in ('asia', 'cn') or None (tries both). UI preconditions: Play needs D3 tab,
+        D3 tab needs login; Asia vs CN use different automation_id/name sets."""
+        root = self._get_root_control()
+        if not root:
+            return (False, False, False, None, False, None)
+        region = preferred_region if preferred_region in ("asia", "cn") else self._region
+        flags = {
+            "login_asia": False,
+            "login_cn": False,
+            "disconnect": False,
+            "connecting": False,
+            "d3_asia": False,
+            "play_asia": False,
+            "play_name_asia": None,
+            "d3_cn": False,
+            "play_cn": False,
+            "play_name_cn": None,
+        }
+        asia_d3_aids = get_asia_d3_automation_ids()
+        asia_d3_names = get_asia_d3_name_keywords()
+        asia_play_aids = get_asia_play_automation_ids()
+        asia_play_names = get_asia_play_name_keywords()
+
+        def _aid_contains_any(aid: str, markers: Tuple[str, ...]) -> bool:
+            return any(m and m in aid for m in markers)
+
+        def _name_contains_any(name: str, keywords: Tuple[str, ...]) -> bool:
+            return any(kw and kw in name for kw in keywords)
+
+        def walk(control, depth: int = 0):
+            if depth > 25:
+                return
+            try:
+                aid = (control.AutomationId or "").strip()
+                name = (control.Name or "").strip()
+                if _aid_contains_any(aid, LOGIN_WINDOW_AUTOMATION_ID_MARKERS_ASIA) or _name_contains_any(name, LOGIN_SCREEN_UI_KEYWORDS_STRICT_ASIA):
+                    flags["login_asia"] = True
+                if _aid_contains_any(aid, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or _name_contains_any(name, LOGIN_SCREEN_UI_KEYWORDS_STRICT):
+                    flags["login_cn"] = True
+                if BATTLE_NET_DISCONNECT_KEYWORDS and _name_contains_any(name, BATTLE_NET_DISCONNECT_KEYWORDS):
+                    flags["disconnect"] = True
+                if BATTLE_NET_CONNECTING_KEYWORDS and _name_contains_any(name, BATTLE_NET_CONNECTING_KEYWORDS):
+                    flags["connecting"] = True
+                if any(a and a in aid for a in asia_d3_aids) or _name_contains_any(name, asia_d3_names):
+                    flags["d3_asia"] = True
+                if any(a and a in aid for a in asia_play_aids) or _name_contains_any(name, asia_play_names):
+                    flags["play_asia"] = True
+                    if name and not flags["play_name_asia"]:
+                        flags["play_name_asia"] = name
+                if any(a and a in aid for a in D3_TAB_AUTOMATION_IDS) or _name_contains_any(name, D3_TAB_NAME_KEYWORDS):
+                    flags["d3_cn"] = True
+                if any(a and a in aid for a in START_GAME_AUTOMATION_IDS) or _name_contains_any(name, START_GAME_NAME_KEYWORDS):
+                    flags["play_cn"] = True
+                    if name and not flags["play_name_cn"]:
+                        flags["play_name_cn"] = name
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+
+        def resolve_asia():
+            if flags["d3_asia"] and flags["play_asia"] and not flags["login_asia"]:
+                if flags["connecting"]:
+                    return (False, False, False, None, True, "asia")
+                return (False, False, True, flags["play_name_asia"] or "Play", False, "asia")
+            if flags["disconnect"]:
+                return (False, True, False, None, False, "asia")
+            if flags["login_asia"]:
+                return (True, False, False, None, False, "asia")
+            return None
+
+        def resolve_cn():
+            if flags["d3_cn"] and flags["play_cn"] and not flags["login_cn"]:
+                if flags["connecting"]:
+                    return (False, False, False, None, True, "cn")
+                return (False, False, True, flags["play_name_cn"] or "Play", False, "cn")
+            if flags["disconnect"]:
+                return (False, True, False, None, False, "cn")
+            if flags["login_cn"]:
+                return (True, False, False, None, False, "cn")
+            return None
+
+        if region == "asia":
+            res = resolve_asia()
+            return res if res else (False, False, False, None, False, None)
+        if region == "cn":
+            res = resolve_cn()
+            return res if res else (False, False, False, None, False, None)
+        res = resolve_asia()
+        if res:
+            return res
+        res = resolve_cn()
+        if res:
+            return res
+        return (False, False, False, None, False, None)
+
+    def get_dynamic_state(self, preferred_region: Optional[str] = None) -> Tuple[bool, bool, bool, Optional[str], bool, Optional[str]]:
+        """Return (on_login_screen, disconnected, normal_available, play_button_name, connecting, region_detected).
+        When region is known (asia/cn), uses one-walk fast path (no full control list). Otherwise full enum for region detection."""
+        region = preferred_region if preferred_region in ("asia", "cn") else self._region
+        if region in ("asia", "cn"):
+            return self._get_dynamic_state_one_walk(preferred_region)
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls, region)
+        return judge.get_dynamic_state_result()
 
     def save_ui_elements_snapshot(self, node_name: str, reason: str) -> Optional[Path]:
         """
         Save current Battle.net UI elements to JSON under BN_FLOW_SNAPSHOTS_DIR (app_constants).
         Filename: fixed step name only, bn_flow_{node}.json (no timestamp). Meta: node, reason; body: controls list.
+        When DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS is False, skips enumeration and write (no disk I/O, no extra UI read).
         """
+        if not DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS:
+            return None
         controls = self._enumerate_controls()
         base = BN_FLOW_SNAPSHOTS_DIR
         try:
@@ -542,69 +985,107 @@ class BattlenetOperation:
             return None
 
     def is_on_login_screen(self) -> bool:
-        """True if Battle.net is on login screen. Maximized: automation_id contains login-window markers OR control name contains strict long phrases."""
-        controls = self._enumerate_controls()
-        if not controls:
+        """True if Battle.net is on CN login screen (agree + NetEase). When region is Asia returns False."""
+        if self._region == "asia":
             return False
-        return (
-            self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS)
-            or self.find_control_by_name(LOGIN_SCREEN_UI_KEYWORDS_STRICT, controls) is not None
-        )
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls, "cn" if self._region == "cn" else None)
+        return judge.is_cn_login_ui()
+
+    def is_on_asia_login_screen(self) -> bool:
+        """True if current UI is Asia login (email or password step). When region is CN returns False."""
+        if self._region == "cn":
+            return False
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls, "asia" if self._region == "asia" else None)
+        return judge.is_asia_login_ui()
+
+    def is_on_asia_email_step(self) -> bool:
+        """True if Asia login UI shows email/account step (accountName + Continue)."""
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls)
+        return judge.is_asia_email_step()
+
+    def is_on_asia_password_step(self) -> bool:
+        """True if Asia login UI shows password step (password + submit)."""
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls)
+        return judge.is_asia_password_step()
+
+    def perform_asia_email_step(self, email: str) -> bool:
+        """Asia login: fill email (automation_id accountName) and click Continue."""
+        return self._asia_ops.perform_asia_email_step(email)
+
+    def perform_asia_password_step(self, password: Optional[str] = None) -> bool:
+        """Asia login: fill password (automation_id password) and click submit."""
+        return self._asia_ops.perform_asia_password_step(password)
+
+    def perform_asia_login_flow(self, password: Optional[str] = None) -> bool:
+        """Asia password step only: fill password and click submit (backward compatible)."""
+        return self._asia_ops.perform_asia_password_step(password)
+
+    def is_on_asia_combined_login_ui(self) -> bool:
+        """True when both account and password fields visible on same Asia login screen."""
+        return self._asia_ops.is_on_asia_combined_login_ui()
+
+    def perform_asia_combined_login(self, email: str, password: Optional[str] = None) -> bool:
+        """When both account and password on same screen: fill both via keyboard then click submit."""
+        return self._asia_ops.perform_asia_combined_login(email, password)
+
+    def perform_asia_login_fill_and_submit(
+        self, email: Optional[str] = None, password: Optional[str] = None
+    ) -> bool:
+        """Fill whatever account/password fields are present then click submit (no step ordering)."""
+        return self._asia_ops.perform_asia_login_fill_and_submit(email, password)
 
     def is_login_failed_screen(self) -> bool:
-        """True if Battle.net shows post-web-login dialog. Maximized: exclude browser-wait first; require BOTH primary (Continue Offline) AND secondary (Cancel) present in current UI."""
-        controls = self._enumerate_controls()
+        """True if Battle.net shows post-web-login dialog. Prefer automation_id for primary/secondary, fallback name. Exclude browser-wait first."""
+        controls = self._enumerate_controls_light()
         if not controls:
             return False
         if self.is_on_browser_login_wait_screen():
             return False
-        primary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[:2]
-        secondary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[2:4]
-        has_primary = False
-        has_secondary = False
-        for c in controls:
-            name = (c.get("name") or "").strip()
-            aid = (c.get("automation_id") or "").strip()
-            if name and any(kw in name for kw in primary_kw if kw):
-                has_primary = True
-            if aid and any(kw in aid for kw in primary_kw if kw):
-                has_primary = True
-            if name and any(kw in name for kw in secondary_kw if kw):
-                has_secondary = True
-            if aid and any(kw in aid for kw in secondary_kw if kw):
-                has_secondary = True
+        has_primary = self._has_control_automation_id_containing_any(controls, BATTLE_NET_LOGIN_FAILED_PRIMARY_AUTOMATION_IDS)
+        has_secondary = self._has_control_automation_id_containing_any(controls, BATTLE_NET_LOGIN_FAILED_SECONDARY_AUTOMATION_IDS)
+        if not has_primary or not has_secondary:
+            primary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[:2]
+            secondary_kw = BATTLE_NET_LOGIN_FAILED_KEYWORDS[2:4]
+            for c in controls:
+                name = (c.get("name") or "").strip()
+                aid = (c.get("automation_id") or "").strip()
+                if not has_primary and (name and any(kw in name for kw in primary_kw if kw) or aid and any(kw in aid for kw in primary_kw if kw)):
+                    has_primary = True
+                if not has_secondary and (name and any(kw in name for kw in secondary_kw if kw) or aid and any(kw in aid for kw in secondary_kw if kw)):
+                    has_secondary = True
         return has_primary and has_secondary
 
     def is_on_browser_login_wait_screen(self) -> bool:
-        """True if current window is the browser-login-wait popup. Maximized: detect by main text only (do not use Cancel alone)."""
-        controls = self._enumerate_controls()
+        """True if current window is the browser-login-wait popup. Prefer automation_id, fallback name (main text only)."""
+        controls = self._enumerate_controls_light()
         if not controls:
             return False
+        if BATTLE_NET_BROWSER_LOGIN_WAIT_AUTOMATION_IDS and self._has_control_automation_id_containing_any(controls, BATTLE_NET_BROWSER_LOGIN_WAIT_AUTOMATION_IDS):
+            return True
         return self.find_control_by_name(BATTLE_NET_BROWSER_LOGIN_WAIT_MAIN_KEYWORDS, controls) is not None
 
     def is_disconnected(self) -> bool:
-        """True if Battle.net shows disconnect. Maximized: must have Retry control (unique keywords)."""
-        controls = self._enumerate_controls()
+        """True if Battle.net shows disconnect. Prefer automation_id (Retry), fallback name."""
+        controls = self._enumerate_controls_light()
         if not controls:
             return False
+        if BATTLE_NET_DISCONNECT_AUTOMATION_IDS and self._has_control_automation_id_containing_any(controls, BATTLE_NET_DISCONNECT_AUTOMATION_IDS):
+            return True
         return self.find_control_by_name(BATTLE_NET_DISCONNECT_KEYWORDS, controls) is not None
 
     def is_logged_in(self) -> bool:
-        """True if logged in and normal available. Maximized: D3 tab and Play both present, and no login-window automation_id (avoid false positive when login overlay on main)."""
-        controls = self._enumerate_controls()
-        if not controls:
-            return False
-        if self._has_control_automation_id_containing_any(controls, LOGIN_WINDOW_AUTOMATION_ID_MARKERS):
-            return False
-        d3_tab = self.find_control_by_automation_id("game-nav-btn-D3CN", controls) or self.find_control_by_automation_id("game-nav-btn-D3", controls)
-        if not d3_tab:
-            return False
-        play_ctrl = (
-            self.find_control_by_automation_id("play-btn-main", controls)
-            or self.find_control_by_automation_id("play-btn", controls)
-            or self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
-        )
-        return play_ctrl is not None
+        """True if logged in and main UI visible. When region bound only that region's main UI is checked."""
+        controls = self._enumerate_controls_light()
+        judge = build_judge_from_controls(controls, self._region)
+        if self._region == "asia":
+            return judge.has_asia_main_ui()
+        if self._region == "cn":
+            return judge.has_cn_main_ui()
+        return judge.is_logged_in()
 
     def load_controls_from_docs_json(self) -> Optional[List[Dict]]:
         """Load controls list from docs JSON (reference only; click uses live enumeration)."""
@@ -620,6 +1101,9 @@ class BattlenetOperation:
             return None
 
 
-def get_battlenet_operation(elements_json_path: Optional[Path] = None) -> BattlenetOperation:
-    """Return Battle.net operation instance (not singleton; optional elements_json_path)."""
-    return BattlenetOperation(elements_json_path=elements_json_path)
+def get_battlenet_operation(
+    elements_json_path: Optional[Path] = None,
+    region: Optional[str] = None,
+) -> BattlenetOperation:
+    """Return Battle.net operation bound to current region (resolved from game_interface_data/config when region is None)."""
+    return BattlenetOperation(elements_json_path=elements_json_path, region=region)
