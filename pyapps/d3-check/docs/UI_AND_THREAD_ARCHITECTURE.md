@@ -39,12 +39,11 @@
 ### 1.4 Rosbot 面板当前实现（与卡顿相关）
 
 - **懒加载**: `RosbotExtensionPanel.__init__` 不调用 `create_content()`，设 `_content_created = False`。
-- **首次创建**: 在 `_on_tab_changed` 中当 `selected_tab == 2` 时，`root.after(50, ensure_content)`；50ms 后主线程执行 `ensure_content()` → `create_content()`。
-- **create_content()** 会:
-  - `_create_config_panel()`：路径区 3 个 `ConfigBinding.create_input_binding` + 若干 `create_checkbox_binding` / `create_spinbox_binding`
-  - `_create_control_panel()`、`_create_log_display_row()`
-  - 最后 `container.after(100, _sync_status_ui_once)`
-- **ConfigBinding**: 每个 `create_*_binding` 内部会调用 `ConfigBinding.get_config_value(key_path, default)`，其实现为 **主线程** 调用 `get_config_value_safe(key_path, default)`，即向 CONFIG_QUEUE 投递一次 `("get", key_path, default, result_q)` 并 **阻塞** `result_q.get()` 直到 config 线程返回。因此创建 N 个绑定 = 主线程阻塞 N 次。
+- **首次创建**（snapshot 路径）: `_on_tab_changed` 中当 `selected_tab == 2` 时 `root.after(50, ensure_content)`；50ms 后主线程执行 `ensure_content()` → `timer_manager.submit_one_shot(_fetch_rosbot_config_then_create)`。
+  - **Timer 线程**：`_fetch_rosbot_config_then_create` 内对 `ROSBOT_PANEL_CONFIG_KEYS` 逐项 `get_config_value_safe(...)` 得到 snapshot，再 `panel.container.after(0, on_main)`。
+  - **主线程**：`on_main` 调用 `_create_content_with_snapshot(snapshot)` → `_create_config_panel(snapshot)`（路径区用 `create_input_binding_with_initial(..., snapshot.get(...))`，不触发主线程 config 读）、`_create_control_panel()`、`_create_log_display_row()`，最后 `after(100, _sync_status_ui_once)`。
+- **不一致点**：`_create_config_panel(snapshot)` 会调用 `_create_bot_settings(config_frame, snapshot)`，但 `_create_bot_settings(self, parent)` 当前未接受 snapshot，内部仍用 `create_checkbox_binding` / `create_spinbox_binding`，会再次在主线程调用 `get_config_value_safe`（详见第六章）。另存在无参的 `create_content()` 调用 `_create_config_panel()` 无参，签名不匹配。
+- **ConfigBinding 通则**：未使用 `*_with_initial` 的 `create_*_binding` 会在创建时调用 `get_config_value_safe`，主线程阻塞一次；批量创建即主线程连续阻塞。
 
 ---
 
@@ -124,3 +123,56 @@
 - ConfigBinding: `ui/utils/config_binding.py`（`get_config_value` → `get_config_value_safe`）
 - 主线程轮询: `share/game_interface_data.py`（`start_main_thread_poll`, `_drain_and_notify`）
 - 启动与 timer: `controller/d3_macro_controller.py`（`run()`）；`runtime/thread_registry.py`（`start_timer_loop_after_ui_ready`）；`timers/one_shot_tasks.py`（`do_window_monitor_initial_check`）
+
+---
+
+## 六、不合理与规范不一致之处
+
+以下为当前实现中与文档约定不符或容易导致问题的点，**仅做罗列，不改代码**。
+
+### 6.1 CONFIG 写：双写来源，与「仅 config 线程写」不一致
+
+- **约定**：CONFIG 的写应仅由 config 线程在 `_config_set_by_path` 中执行（来自 `set_config_value_async`）。
+- **实际**：多处由**主线程**直接写 CONFIG，再调用 `queue_config_save()`，形成「主线程写 CONFIG + save 线程写文件」的第二条写路径。
+  - `controller/d3_macro_controller.py`：`update_skill_config` / `update_auxiliary_config` 中 `CONFIG['macro_configs']... = ...` 后 `queue_config_save()`。
+  - `ui/panels/main_functions_panel.py`：技能参数/热键等多处 `CONFIG["macro_configs"]["skill_configs"]... = ...` 后 `queue_config_save()`。
+  - `ui/panels/auxiliary_functions_panel.py`：热键、spinbox、combobox 等 `CONFIG[...] = ...` 后 `queue_config_save()`。
+  - `ui/panels/d4_panel.py`：`CONFIG["d4_settings"]["exp_farming_running"] = ...` 后 `queue_config_save()`。
+- **问题**：主线程与 config 线程都可能写 CONFIG，存在竞态；若先 `set_config_value_async("a", 1)` 再主线程 `CONFIG["b"]=2` + `queue_config_save()`，save 线程看到的 CONFIG 同时包含两者，顺序依赖调度，语义不清晰。
+
+### 6.2 CONFIG 读：混用直接读与队列读，无统一规范
+
+- **约定**：若强调线程安全，应通过 `get_config_value_safe` 经 config 线程读；主线程会阻塞。
+- **实际**：大量代码**直接** `CONFIG.get(...)`，不经过 config 线程。
+  - 主线程：`diablo3_macro_ui.py`（initial_geos、app_icon、`_load_last_tab`）、`main_functions_panel.py`（skill_configs、current_config）、`auxiliary_functions_panel.py`（bag_offset、hotkey）、`controller`（get_skill_config、get_auxiliary_config）等。
+  - 后台：`rosbot_flow_state`、`rosbot_manager`、`path_scanner`、`log_analyzer`、`battlenet_status_provider` 等大量 `CONFIG.get(...)`。
+- **问题**：直接读与 config 线程写（或主线程写）之间无锁，存在读撕裂/可见性；且「何时用 get_config_value_safe、何时用 CONFIG.get」无成文规则，规范不一致。
+
+### 6.3 Rosbot 面板：create_content 与 _create_config_panel 签名/调用不一致
+
+- **实际**：
+  - `ensure_content()` 已改为 `timer_manager.submit_one_shot(_fetch_rosbot_config_then_create)`，在 timer 线程拉取 snapshot 后 `after(0, _create_content_with_snapshot(snapshot))`，符合「主线程不批量 get」的思路。
+  - 但 `create_content()` 仍存在且内部调用 `self._create_config_panel()` **无参**，而 `_create_config_panel(self, snapshot: dict)` 需要必选参数 `snapshot`，若被调用会 `TypeError`。
+  - `_create_config_panel(snapshot)` 内部调用 `self._create_bot_settings(config_frame, snapshot)`，而 `_create_bot_settings(self, parent)` 当前仅接受 `(self, parent)`，未声明 `snapshot`，调用处多传了一个参数，存在签名与调用不一致。
+- **问题**：要么 `create_content()` 已废弃却仍可被误调，要么需统一「仅 snapshot 路径」并让 `_create_bot_settings` 接受并使用 snapshot；当前处于半迁移状态，易出错。
+
+### 6.4 Rosbot 面板：bot_settings 仍用会阻塞主线程的 Binding
+
+- **实际**：`_create_bot_settings(parent)` 内使用 `ConfigBinding.create_checkbox_binding`、`ConfigBinding.create_spinbox_binding`，二者内部会调用 `ConfigBinding.get_config_value` → `get_config_value_safe`，即在**主线程**上阻塞。
+- **问题**：若实际走的是 `_create_content_with_snapshot(snapshot)`，且 `_create_bot_settings` 被改成接收 snapshot 并改用 `create_checkbox_binding_with_initial` / `create_spinbox_binding_with_initial`，则不会在主线程再打 config；若未改，则 snapshot 路径下 bot 区仍会在主线程多次调用 get_config_value_safe，与「用 snapshot 避免主线程阻塞」的目标不一致。
+
+### 6.5 主线程在「单次回调内」多次 get_config_value_safe
+
+- **约定**：主线程应避免在单次回调中**批量**调用 `get_config_value_safe`（见第三章）。
+- **实际**：除 Rosbot 已部分改为 snapshot 外，其余面板在**创建时**若大量使用 `create_*_binding`（未提供 `*_with_initial`），仍会在一次创建流程中多次调用 `get_config_value_safe`（如 main_functions_panel、auxiliary_functions_panel、log_panel 的 ConfigBinding 创建）。
+- **问题**：这些创建发生在启动阶段，若集中在一帧或同一回调中，会拉长主线程阻塞时间，加重「启动或首次切某 TAB 卡一下」的观感；与「主线程不批量阻塞」的规范不一致。
+
+### 6.6 其他零散不一致
+
+- **providor_index**：`save_config()` 内直接 `del CONFIG["skill_configs"]`、写文件等，仅应在 save 线程调用；若某处误在主线程调用（已改为 queue_config_save 的除外），仍会阻塞。当前主流程已改为 queue，但约定应明确「禁止主线程调用 save_config」。
+- **unified_config**：存在同名方法 `save_config(self, config_path)`，与 providor 的 `save_config()` 语义不同，易混淆。
+- **HTTP bridge**：`_handle_config_save` 调 `queue_config_save()`，未写 CONFIG，仅触发保存；若运行在 uvicorn 工作线程，则「从非主线程调 queue_config_save」是可接受的（不阻塞），但与「配置变更应由主线程或 config 线程写入」的叙事不完全一致（此处是「仅请求保存」）。
+
+---
+
+以上为基于当前代码梳理的**不合理与规范不一致**项，便于后续统一约定或重构时对标。

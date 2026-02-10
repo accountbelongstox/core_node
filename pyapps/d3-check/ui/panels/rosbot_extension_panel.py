@@ -147,20 +147,6 @@ class RosbotExtensionPanel:
         """All output via ColorPrint only (no popup)."""
         ColorPrint.debug_messagebox(title, message, icon)
 
-    def create_content(self):
-        """Create panel content"""
-        # Row 1, Column 1 - Configuration panel
-        self._create_config_panel()
-
-        # Row 1, Column 2 - Control panel
-        self._create_control_panel()
-
-        # Row 2 - Log display (spans both columns)
-        self._create_log_display_row()
-
-        # One-time sync so status UI shows current state (avoids race: first callback may run before status widgets existed)
-        self.container.after(100, self._sync_status_ui_once)
-
     def ensure_content(self):
         """Create panel content on first call (lazy). Config is read in timer thread to avoid main-thread block (THREAD_BUS_AND_REGISTRY §5); UI is then created on main thread with snapshot."""
         if getattr(self, '_content_created', False):
@@ -403,8 +389,8 @@ class RosbotExtensionPanel:
         top.wait_window()
         return result[0]
 
-    def _create_bot_settings(self, parent):
-        """Create bot settings section"""
+    def _create_bot_settings(self, parent, snapshot: dict):
+        """Create bot settings section. Uses snapshot to avoid main-thread config read."""
         settings_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.bot_settings"),
                                       bg=UnifiedStyles.COLORS['bg_secondary'],
                                       fg=UnifiedStyles.COLORS['text_primary'],
@@ -431,8 +417,10 @@ class RosbotExtensionPanel:
         row = 0
         col = 0
         for i18n_key, config_key, default in bot_settings:
-            check = ConfigBinding.create_checkbox_binding(
-                settings_frame, config_key, text=i18n_manager.get_ui_text(i18n_key), default_value=default,
+            val = snapshot.get(config_key, default)
+            check = ConfigBinding.create_checkbox_binding_with_initial(
+                settings_frame, config_key, val,
+                text=i18n_manager.get_ui_text(i18n_key), default_value=default,
                 bg=UnifiedStyles.COLORS['bg_secondary'],
                 fg=UnifiedStyles.COLORS['text_primary'],
                 selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
@@ -453,8 +441,9 @@ class RosbotExtensionPanel:
         timeout_frame.grid(row=row, column=0, columnspan=1, sticky="w",
                           padx=UnifiedStyles.SPACING['sm'],
                           pady=UnifiedStyles.SPACING['xs'])
-        timeout_check = ConfigBinding.create_checkbox_binding(
-            timeout_frame, "battlenet.timeout_restart",
+        timeout_val = snapshot.get("battlenet.timeout_restart", True)
+        timeout_check = ConfigBinding.create_checkbox_binding_with_initial(
+            timeout_frame, "battlenet.timeout_restart", timeout_val,
             text=i18n_manager.get_ui_text("rosbot.timeout_restart"),
             default_value=True,
             bg=UnifiedStyles.COLORS['bg_secondary'],
@@ -464,8 +453,9 @@ class RosbotExtensionPanel:
             activeforeground=UnifiedStyles.COLORS['text_primary']
         )
         timeout_check.pack(side=tk.LEFT)
-        timeout_spin = ConfigBinding.create_spinbox_binding(
-            timeout_frame, "rosbot.timeout_minutes",
+        minutes_val = snapshot.get("rosbot.timeout_minutes", 8)
+        timeout_spin = ConfigBinding.create_spinbox_binding_with_initial(
+            timeout_frame, "rosbot.timeout_minutes", minutes_val,
             from_=1, to=120, increment=1, default_value=8, width=4,
             bg=UnifiedStyles.COLORS['bg_tertiary'],
             fg=UnifiedStyles.COLORS['text_primary'],
