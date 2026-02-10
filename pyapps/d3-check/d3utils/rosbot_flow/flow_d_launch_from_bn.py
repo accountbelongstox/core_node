@@ -12,6 +12,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.d3_manager import get_d3_manager
+from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
 from d3utils.rosbot_manager import get_rosbot_manager
 
 
@@ -79,6 +80,7 @@ def run_d18_kill_then_start_rosbot(start_rosbot_task_fn, run_after_rosbot_start_
     if not CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True):
         return True
     if get_rosbot_manager().start():
+        set_f3_rosbot_started_at()
         start_rosbot_task_fn()
         run_after_rosbot_start_fn(do_debug=True, do_tab=True, do_start_botting=True)
         return True

@@ -69,18 +69,18 @@ def get_screen_resolution() -> tuple[int, int]:
     return _screen_resolution
 
 # ============================================================================
-# Window Border and Title Bar Constants / Scale 计算规范
+# Window Border and Title Bar Constants / Scale specification
 # ============================================================================
-# 1) 尺寸关系（标准 1300x800 为内容区）
-#    - 客户区（内容区）= 1300 x 800 (D3_STANDARD_RESOLUTION)
-#    - 截图/GetWindowRect 得到的是外框 OUTER：含左右空白、标题栏、底部空白
-#    - 外框与内容区：outer_w = 1300 + 左(8) + 右(8) = 1316，outer_h = 800 + 标题(31) + 底(8) = 839
+# 1) Size relation (standard 1300x800 is content area)
+#    - Client (content) = 1300 x 800 (D3_STANDARD_RESOLUTION)
+#    - Screenshot/GetWindowRect gives OUTER frame: left/right margins, title bar, bottom margin
+#    - Outer vs content: outer_w = 1300 + left(8) + right(8) = 1316, outer_h = 800 + title(31) + bottom(8) = 839
 #
-# 2) 实际截图为 1316x839 时的处理
-#    - 有效内容宽 = actual_width  - (WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT) = 1316 - 16 = 1300
-#    - 有效内容高 = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM)    = 839  - 39 = 800
-#    - 标准有效内容 = standard_resolution 即 (1300, 800)，不再减边（已是内容区）
-#    - scale_x = 有效内容宽_实际 / 1300，scale_y = 有效内容高_实际 / 800 → 此时为 1.0
+# 2) When actual screenshot is 1316x839
+#    - Effective content width = actual_width  - (WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT) = 1316 - 16 = 1300
+#    - Effective content height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM) = 839 - 39 = 800
+#    - Standard effective content = standard_resolution (1300, 800), no further border subtract (already content)
+#    - scale_x = effective_content_width_actual / 1300, scale_y = effective_content_height_actual / 800 -> 1.0 here
 #
 # 3) Coord: standard outer (0..1316, 0..839). scaled = (std - border) * scale + border. See COORDINATE_SCALE_SPEC.md
 # ============================================================================
@@ -716,9 +716,11 @@ class D3InterfaceData(InterfaceDataBase):
     rosbot_found_exe_name: str = ""
     rosbot_found_window_title: str = ""
 
-    # State change callbacks (merged from GameState)
+    # State change callbacks (merged from GameState). Invoked only on main thread via _drain_and_notify (no after() from background).
     _callbacks: List[Callable] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _poll_after_fn: Optional[Callable] = None  # (ms, callable) -> id; set by start_main_thread_poll from main thread
+    _poll_interval_ms: int = 100
 
     def clear(self):
         """Clear all data"""
@@ -971,46 +973,56 @@ class D3InterfaceData(InterfaceDataBase):
             self._notify_callbacks()
 
     def register_callback(self, callback: Callable):
-        """Register state change callback"""
+        """Register state change callback. Callbacks are invoked only on main thread by the poll started with start_main_thread_poll."""
         with self._lock:
             self._callbacks.append(callback)
             ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
 
+    def get_state_snapshot(self) -> Dict:
+        """Thread-safe copy of state for UI. Call from any thread."""
+        with self._lock:
+            return {
+                "battlenet_window_found": self.battlenet_window_found,
+                "battlenet_region": self.battlenet_region,
+                "rosbot_window_found": self.rosbot_window_found,
+                "rosbot_extended_status": self.rosbot_extended_status,
+                "rosbot_running": self.rosbot_running,
+                "d3_running": self.d3_running,
+                "map_type": self.map_type,
+                "game_stage": self.game_stage,
+                "d3_on_login_screen": self.d3_on_login_screen,
+                "d3_disconnected": self.d3_disconnected,
+                "d3_in_game": self.d3_in_game,
+                "battlenet_on_login_screen": self.battlenet_on_login_screen,
+                "battlenet_disconnected": self.battlenet_disconnected,
+                "battlenet_normal_available": self.battlenet_normal_available,
+                "rosbot_found_exe_name": self.rosbot_found_exe_name,
+                "rosbot_found_window_title": self.rosbot_found_window_title,
+            }
+
+    def start_main_thread_poll(self, after_fn: Callable, interval_ms: int = 100):
+        """Start main-thread-only notification. Must be called from main thread (e.g. when UI is ready). after_fn(ms, callable) schedules callable on main thread."""
+        self._poll_after_fn = after_fn
+        self._poll_interval_ms = interval_ms
+        after_fn(interval_ms, self._drain_and_notify)
+
+    def _drain_and_notify(self):
+        """Runs on main thread only (scheduled by after). Schedule next first so one failing callback does not stop the poll."""
+        if self._poll_after_fn is not None:
+            self._poll_after_fn(self._poll_interval_ms, self._drain_and_notify)
+        state = self.get_state_snapshot()
+        with self._lock:
+            callbacks = self._callbacks.copy()
+        for callback in callbacks:
+            callback(state)
+
     def notify_state_sync(self):
-        """Push current state to all registered callbacks (e.g. after timer refresh). Use when UI must reflect latest state even if no field changed (avoids race where first callback ran before status widgets existed)."""
-        self._notify_callbacks()
+        """State changed; UI will reflect on next main-thread poll (no cross-thread after)."""
+        pass
 
     def _notify_callbacks(self):
-        """Notify all registered callbacks"""
-        try:
-            callbacks = []
-            with self._lock:
-                callbacks = self._callbacks.copy()
-                state = {
-                    "battlenet_window_found": self.battlenet_window_found,
-                    "battlenet_region": self.battlenet_region,
-                    "rosbot_window_found": self.rosbot_window_found,
-                    "rosbot_extended_status": self.rosbot_extended_status,
-                    "rosbot_running": self.rosbot_running,
-                    "d3_running": self.d3_running,
-                    "map_type": self.map_type,
-                    "game_stage": self.game_stage,
-                    "d3_on_login_screen": self.d3_on_login_screen,
-                    "d3_disconnected": self.d3_disconnected,
-                    "d3_in_game": self.d3_in_game,
-                    "battlenet_on_login_screen": self.battlenet_on_login_screen,
-                    "battlenet_disconnected": self.battlenet_disconnected,
-                    "battlenet_normal_available": self.battlenet_normal_available,
-                    "rosbot_found_exe_name": self.rosbot_found_exe_name,
-                    "rosbot_found_window_title": self.rosbot_found_window_title,
-                }
-            for callback in callbacks:
-                try:
-                    callback(state)
-                except Exception as e:
-                    ColorPrint.red(f"[D3State] Callback error: {e}")
-        except Exception as e:
-            ColorPrint.red(f"[D3State] Notify error: {e}")
+        """Deprecated: do not invoke callbacks from background thread. Poll on main thread only."""
+        pass
 
 
 # ============================================================================

@@ -95,7 +95,7 @@ class D4TeamHealthDetector:
         Returns:
             Dictionary with team health detection results
         """
-        ColorPrint.print_min_interval("[D4TeamHealthDetector] Starting team health detection...")
+        ColorPrint.blue("[D4TeamHealthDetector] Starting team health detection...")
         image_bgr = self._normalize_input_to_bgr(image_input)
             
         current_height, current_width = image_bgr.shape[:2]

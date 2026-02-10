@@ -217,6 +217,8 @@
       "refresh_bag_preview": "Refresh",
       "bag_adjust_info_title": "Bag Recognition Info",
       "bag_adjust_image_title": "Annotated Image",
+      "bag_adjust_small_image_title": "Layout detection (bag_layout)",
+      "bag_adjust_small_image_failed": "Small image failed",
       "width": "Width",
       "height": "Height",
       "automation": "Automation",

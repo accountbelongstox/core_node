@@ -25,7 +25,7 @@ from ..theme import UITheme
 from d3utils.i18n_manager import i18n_manager
 
 # Import CONFIG and ConfigBinding
-from providor.providor_index import CONFIG, CONFIG_USER_PATH, save_config
+from providor.providor_index import CONFIG, CONFIG_USER_PATH, queue_config_save
 from ..utils.tk_variables import var_str, var_int
 from ui.utils.config_binding import ConfigBinding
 
@@ -337,7 +337,7 @@ class MainFunctionsPanel:
                 value = 0
 
         CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key][param_name] = value
-        save_config()
+        queue_config_save()
         ColorPrint.blue(f"[MainFunctionsPanel] {skill_key}.{param_name} updated to: {value}")
 
     def _create_additional_skill_settings(self, parent):
@@ -620,7 +620,7 @@ class MainFunctionsPanel:
                     config_obj[part] = {}
                 config_obj = config_obj[part]
             config_obj[config_parts[-1]] = hotkey
-            save_config()
+            queue_config_save()
             ColorPrint.blue(f"[ConfigBinding-Hotkey] {config_key} = {hotkey}")
 
         # HotkeyInput widget with high contrast styling passed as parameters
@@ -749,7 +749,7 @@ class MainFunctionsPanel:
                 CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key] = {}
             CONFIG["macro_configs"]["skill_configs"][self.current_config]["skills"][skill_key]["key"] = value
 
-        save_config()
+        queue_config_save()
         ColorPrint.green(f"[MainFunctionsPanel] {skill_key} updated to: {value}")
 
     def _on_config_changed(self, event=None):

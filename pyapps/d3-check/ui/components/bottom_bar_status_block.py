@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Bottom Bar Status Block: two rows, no frame title. All value labels registered for fg updates.
+Bottom Bar Status Block: two rows (STATUS_ROW_1/2), no frame title. All value labels registered for fg updates.
 """
 
 import tkinter as tk

@@ -5,13 +5,13 @@
 flowchart TB
     subgraph A["A 入口与定时器"]
         A1_Start["[A1] 启动 ROSBOT，设总状态、更新 UI<br/>启动顺序：战网→暗黑3→ROSBOT"]
-        A2_Timer["[A2] 全局定时器 1 秒 tick，% 实现 2 秒驱动"]
+        A2_Timer["[A2] 全局定时器 1 秒 tick，取模实现 2 秒驱动"]
         A3_Tick{"[A3] 总状态开启且本 tick 有导向？"}
         A_Skip["[A4] 跳过所有分支"]
         A1_Start --> A2_Timer
         A2_Timer --> A3_Tick
-        A3_Tick -->|否，跳过| A_Skip
-        A3_Tick -->|是，→F0 预判入口| F_Entry
+        A3_Tick -->|"否，跳过"| A_Skip
+        A3_Tick -->|"是，→F0 预判入口"| F_Entry
     end
 
     subgraph B["B 战网就绪检查"]
@@ -46,16 +46,16 @@ flowchart TB
         B3_StartBN --> B3w_Wait
         B3w_Wait --> B7_WaitUI
         B7_WaitUI --> B8_Found
-        B8_Found -->|超时未找到| B5_Exit
-        B8_Found -->|找到| B9_UIState
-        B9_UIState -->|登录界面| B10_Agree
-        B9_UIState -->|主界面/已登录| B12_Ok
+        B8_Found -->|"超时未找到"| B5_Exit
+        B8_Found -->|"找到"| B9_UIState
+        B9_UIState -->|"登录界面"| B10_Agree
+        B9_UIState -->|"主界面/已登录"| B12_Ok
         B10_Agree --> B11_OAuth
-        B10_Agree -.->|打开浏览器| T1_WaitBtn
-        B11_OAuth -->|超时→B5 退出战网| B5_Exit
+        B10_Agree -.->|"打开浏览器"| T1_WaitBtn
+        B11_OAuth -->|"超时→B5 退出战网"| B5_Exit
         B5_Exit --> B5w_ExitWait
         B5w_ExitWait --> B1_Entry
-        T1_Close -.->|oauth-done，B11 返回| B12_Ok
+        T1_Close -.->|"oauth-done，B11 返回"| B12_Ok
         B11_OAuth -->|返回| B12_Ok
         B6_Activate --> B13_Poll
         B13_Poll -->|已登录| B14_Ok
@@ -77,14 +77,14 @@ flowchart TB
         T1_Notify["[T1.5] POST/GET oauth-done<br/>后端记录 step1，B11 视为返回"]
         T1_Close["[T1.6] 关标签"]
         T1_WaitBtn --> T1_WaitSrv
-        T1_WaitSrv -->|连上或超时| T1_Click
+        T1_WaitSrv -->|"连上或超时"| T1_Click
         T1_Click --> T1_Wait5
         T1_Wait5 --> T1_Notify
         T1_Notify --> T1_Close
         T2_Enter["[T2.1] URL2 进入该页(点后跳转)"]
         T2_Query["[T2.2] GET oauth-step1-received"]
         T2_Log["[T2.3] 若收到则本页记录成功日志"]
-        T1_Close -.->|可能跳转| T2_Enter
+        T1_Close -.->|"可能跳转"| T2_Enter
         T2_Enter --> T2_Query
         T2_Query --> T2_Log
     end
@@ -97,17 +97,17 @@ flowchart TB
         F1c_EndD3["[F1c] 结束 D3 进程"]
         F1d_Offline["[F1d] 识别到掉线"]
         F2_RosbotOnline{"[F2] ROSBOT 是否在线？"}
-        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>按 UI 设置时间"}
+        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>起算：启动时 D3+ROSBOT 已存在→日志最后修改时间；本次刚启动→刚启动时间（按 UI 设置时长）"}
         F4a_EndD3["[F4a] 关闭 D3"]
         F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT"]
         F_Entry --> F1_HasD3
-        F1_HasD3 -->|否<br/>→B2 当前是否有战网窗口？| B2_HasWin
-        F1_HasD3 -->|是，启动时已存在<br/>→C1 入口| C1_Entry
+        F1_HasD3 -->|"否<br/>→B2 当前是否有战网窗口？"| B2_HasWin
+        F1_HasD3 -->|"是，启动时已存在<br/>→C1 入口"| C1_Entry
         F1c_EndD3 --> F_Entry
         F1d_Offline --> F1c_EndD3
-        F2_RosbotOnline -->|否<br/>→E1 结束已有 ROSBOT| E1_Kill
+        F2_RosbotOnline -->|"否<br/>→E1 结束已有 ROSBOT"| E1_Kill
         F2_RosbotOnline -->|是| F3_LogTimeout
-        F3_LogTimeout -->|未超时<br/>回到 F3| F3_LogTimeout
+        F3_LogTimeout -->|"未超时<br/>回到 F3"| F3_LogTimeout
         F3_LogTimeout -->|超时| F4a_EndD3
         F4a_EndD3 --> F4b_SendF7
         F4b_SendF7 --> B2_HasWin
@@ -120,34 +120,36 @@ flowchart TB
         C3_Result{"[C3] 识图结果"}
         C3_GameToolOrigin{"[C3] 游戏来源？<br/>刚进入游戏 or 启动时已存在"}
         C3w_Wait["[C3w] wait"]
+        C5a_EndRosbot["[C5a] 启动 D3 前一步：尝试结束 ROSBOT<br/>（仅在此处，避免 ROSBOT 已运行而其他未运行导致后续日志检测退出）"]
         C5_StartGame["[C5] 点击开始游戏按钮"]
         C5w_Wait["[C5w] wait 直到出现 d3_game_tool 或超时"]
         C12_EndD3["[C12] 结束 D3 进程，进入 D 流程"]
         C6_GameTool["[C6] 继续 d3_game_tool 流程（含 C10 判掉线）"]
-        C7a_PressM["[C7a] 再按 M 复位地图"]
+        C7a_PressM["[C7a] 传送前确保地图打开：按 M→等 2s→检测悬赏进度；未找到则再按 M 再检测（最多两轮）<br/>找到后当即在同一拍内点击，确保在打开状态下点"]
         C7w_Wait["[C7w] 等待 2 秒"]
-        C7b_Teleport["[C7b] 传送：打开地图按 M（前步已做）<br/>缩小地图 (751,413) 点击传送 (610,126)"]
+        C7b_Teleport["[C7b] 传送：确认地图已打开状态下点击缩小 (751,413)+传送 (610,126)"]
         C8_Result["[C8] 传送结果（流程步骤，无否分支）"]
-        C10_Check["[C10a] 截图（发送前）→ 向游戏发送 M → 截图（发送后）→ 对比相似度"]
-        C10_Result{"[C10b] 发送前后截图高度相似？<br/>（相似则 M 无反应，即掉线）"}
+        C10_Check["[C10a] 仅判掉线：截图(前)→发 M→截图(后)→对比相似度<br/>（与 C7 打开地图传送为两套逻辑）"]
+        C10_Result{"[C10b] 发送前后截图高度相似？<br/>相似=M 无反应=掉线；不相似=在线"}
         C1_Entry --> C2_Resize
         C2_Resize --> C3_Step
         C3_Step --> C3_Result
-        C3_Result -->|未识别或 d3_connecting / d3_connecting_alt<br/>未超时，继续| C3w_Wait
+        C3_Result -->|"未识别或 d3_connecting / d3_connecting_alt<br/>未超时，继续"| C3w_Wait
         C3w_Wait --> C3_Step
-        C3_Result -->|出现 d3_start_game_button<br/>在开始游戏界面| C5_StartGame
-        C3_Result -->|出现 d3_game_tool<br/>在游戏中| C3_GameToolOrigin
-        C3_GameToolOrigin -->|刚进入游戏（D13 找到窗口）<br/>跳过 C6/C10，直接 C7a| C7a_PressM
-        C3_GameToolOrigin -->|启动时已存在（F1 进入）<br/>走 C6→C10 判掉线| C6_GameTool
-        C3_Result -->|游戏掉线（连续两次识图确认后分支）| F1d_Offline
-        C3_Result -->|未识别/超时 1 分钟，进入 D| C12_EndD3
+        C3_Result -->|"出现 d3_start_game_button<br/>在开始游戏界面"| C5a_EndRosbot
+        C5a_EndRosbot --> C5_StartGame
+        C3_Result -->|"出现 d3_game_tool<br/>在游戏中"| C3_GameToolOrigin
+        C3_GameToolOrigin -->|"刚进入游戏（D13 找到窗口）<br/>跳过 C6/C10，直接 C7a"| C7a_PressM
+        C3_GameToolOrigin -->|"启动时已存在（F1 进入）<br/>走 C6→C10 判掉线"| C6_GameTool
+        C3_Result -->|"游戏掉线（连续两次识图确认后分支）"| F1d_Offline
+        C3_Result -->|"未识别/超时 1 分钟，进入 D"| C12_EndD3
         C5_StartGame --> C5w_Wait
-        C5w_Wait -->|超时，→C12| C12_EndD3
-        C5w_Wait -->|出现 d3_game_tool<br/>走 C6 流程| C6_GameTool
+        C5w_Wait -->|"超时，→C12"| C12_EndD3
+        C5w_Wait -->|"出现 d3_game_tool<br/>走 C6 流程"| C6_GameTool
         C6_GameTool --> C10_Check
         C10_Check --> C10_Result
-        C10_Result -->|是，高度相似，M 无反应<br/>视为游戏掉线| C12_EndD3
-        C10_Result -->|否，未掉线，再按一次 M 复位地图<br/>然后传送（缩小地图+点击传送）| C7a_PressM
+        C10_Result -->|"是，高度相似，M 无反应<br/>视为游戏掉线"| C12_EndD3
+        C10_Result -->|"否，未掉线，进入 C7 确保地图打开后传送"| C7a_PressM
         C7a_PressM --> C7w_Wait
         C7w_Wait --> C7b_Teleport
         C7b_Teleport --> C8_Result
@@ -166,6 +168,7 @@ flowchart TB
         D9_ClickTab["[D9] 点击战网 D3 tab 对应 UI"]
         D10_UIState["[D10] UI 状态判断，登录或重启战网"]
         D11w_WaitPlay["[D11w] 等 Play 出现"]
+        D11a_EndRosbot["[D11a] 启动 D3 前一步：尝试结束 ROSBOT<br/>（仅在此处，避免 ROSBOT 已运行而其他未运行导致后续日志检测退出）"]
         D11_Click["[D11] 点击 Play"]
         D12_Sleep["[D12] sleep(5)"]
         D12b_Poll["[D12b] 轮询 D3 窗口最多 10 秒"]
@@ -184,7 +187,8 @@ flowchart TB
         D8_TabOk -->|否| D10_UIState
         D10_UIState --> D1_Entry
         D9_ClickTab --> D11w_WaitPlay
-        D11w_WaitPlay --> D11_Click
+        D11w_WaitPlay --> D11a_EndRosbot
+        D11a_EndRosbot --> D11_Click
         D11_Click --> D12_Sleep
         D12_Sleep --> D12b_Poll
         D12b_Poll --> D13_HasD3Win
@@ -192,7 +196,7 @@ flowchart TB
         D13b_RestartD3 --> D14_Restart
         D14_Restart --> D14w_Wait
         D14w_Wait --> B2_HasWin
-        D13_HasD3Win -->|是，标记「刚进入游戏」<br/>→C1 入口| C1_Entry
+        D13_HasD3Win -->|"是，标记「刚进入游戏」<br/>→C1 入口"| C1_Entry
     end
 
     C12_EndD3 --> D1_Entry
@@ -201,12 +205,12 @@ flowchart TB
     subgraph E["E ROSBOT 运行流程"]
         E1_Kill["[E1] 结束已有 ROSBOT"]
         E2_Sleep["[E2] 等待 1 秒"]
-        E3_StartRosbot{"[E3] 启动 ROSBOT<br/>UI 是否开始更新 ROSBOT？"}
-        E3a_FindZip["[E3a] 到下载目录找最新 zip 包"]
-        E3b_Newer{"[E3b] 找到且比当前目录新？"}
-        E3c_Extract["[E3c] 解压到 ROBOT 目录"]
-        E3d_CopyConfig["[E3d] 复制旧 ROSBOT 配置文件到新目录并替换"]
-        E3e_UpdatePath["[E3e] 更新配置为新的 ROSBOT 路径"]
+        E3_StartRosbot{"[E3] 启动 ROSBOT<br/>UI 自动使用最新 ROS？"}
+        E3a_FindZip["[E3a] 仅当战网区服已探测(亚服/国服)时：Downloads 找 zip >20M、匹配区服；英文区服_版本号(Asia/CN_36.0129)"]
+        E3b_Newer{"[E3b] 找到且比当前新？(版本或创建时间)；是否更新弹窗确认"}
+        E3c_Extract["[E3c] GameTools 下创建 区服_版本号，解压 zip 到该目录，递归查找 RoS-BoT.exe"]
+        E3d_CopyConfig["[E3d] 将 exe 所在目录重命名并移动到 区服_版本号/RosBot/；复制旧 RoS-BoT.ini"]
+        E3e_UpdatePath["[E3e] 更新 CONFIG ros_directory 为 区服_版本号/RosBot"]
         E3f_Launch["[E3f] 启动"]
         E4_Start["[E4] 启动 ROSBOT 进程"]
         E5_Init["[E5] 任务初始化"]
@@ -218,7 +222,7 @@ flowchart TB
         E6_Done["[E6] 主线程收尾，记录日志"]
         E1_Kill --> E2_Sleep
         E2_Sleep --> E3_StartRosbot
-        E3_StartRosbot -->|否<br/>跳过更新，直接启动| E4_Start
+        E3_StartRosbot -->|"否<br/>跳过更新，直接启动"| E4_Start
         E3_StartRosbot -->|开启更新| E3a_FindZip
         E3a_FindZip --> E3b_Newer
         E3b_Newer -->|是| E3c_Extract

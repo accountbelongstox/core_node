@@ -216,6 +216,18 @@ class ScreenshotProvider:
         Returns:
             ScreenshotData object or None if capture failed
         """
+        # When capture requires a specific window, skip early if it does not exist (avoid log noise and useless work)
+        if window_titles and len(window_titles) > 0 and (use_optimized_capture or use_native_region_capture):
+            if set(window_titles) == set(get_d3_manager().get_capture_titles()):
+                windows = get_d3_manager().find_windows()
+            else:
+                windows = WindowFinder.find_windows_by_titles(
+                    titles=window_titles, match_mode="in", use_cache=True
+                )
+            if not windows:
+                ColorPrint.gray("[Provider] No window found, skip capture")
+                return None
+
         ColorPrint.blue("\n[Provider] Generating new screenshot...")
 
         try:
@@ -254,7 +266,7 @@ class ScreenshotProvider:
                         ch = cached_info.get("hwnd")
                         if ch and win32gui.IsWindow(ch) and win32gui.IsWindowVisible(ch):
                             hwnd = ch
-                            ColorPrint.print_min_interval("[Provider] Native region: using cached D3 position", "1min", "blue")
+                            ColorPrint.blue("[Provider] Native region: using cached D3 position")
                 if hwnd is None:
                     if set(titles_for_rect) == set(get_d3_manager().get_capture_titles()):
                         windows = get_d3_manager().find_windows()
@@ -351,7 +363,7 @@ class ScreenshotProvider:
                         time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
                         ColorPrint.green("[Provider] D3 window activated before capture (was not foreground)")
                     elif d3_hwnd:
-                        ColorPrint.print_min_interval("[Provider] D3 already foreground, skip activate", "1min", "gray")
+                        ColorPrint.gray("[Provider] D3 already foreground, skip activate")
 
                 ColorPrint.blue(f"[Provider] Using optimized capture for: {window_titles}")
                 result = self.screenshot_manager.screenshot_first_window_by_titles(

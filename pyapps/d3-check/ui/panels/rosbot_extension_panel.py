@@ -23,7 +23,7 @@ from ..utils.tk_variables import var_str
 
 # Import CONFIG from providor
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-from providor.providor_index import CONFIG
+from providor.providor_index import CONFIG, get_config_value_safe
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
@@ -33,7 +33,6 @@ from ui.utils.config_binding import ConfigBinding
 from share.game_interface_data import get_game_interface_data
 from timers.one_shot_tasks import (
     do_path_scan,
-    do_login_check,
     do_window_monitor_initial_check,
     do_battlenet_ui_analyze,
     do_rosbot_debug,
@@ -50,14 +49,52 @@ from controller.login_try_screenshot_controller import get_login_try_screenshot_
 from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
 from d3utils.rosbot_flow_battlenet import reset_flow_master_bn_block
 from d3utils.rosbot_flow_state import (
-    get_flow_master_enabled,
-    get_bn_only_enabled,
     set_flow_master_enabled,
     set_bn_only_enabled,
-    is_flow_active,
 )
+from d3utils.rosbot_operation import get_rosbot_operation
 from d3utils.battlenet_manager import get_battlenet_manager
 from share.asia_credentials import schedule_battlenet_credentials_dialog
+
+
+def _fetch_rosbot_config_then_create(panel: "RosbotExtensionPanel") -> None:
+    """Run in timer thread: fetch all config values, then schedule UI creation on main thread (THREAD_BUS_AND_REGISTRY §5)."""
+    if getattr(panel, '_content_created', False):
+        return
+    snapshot = {}
+    for key_path, default in ROSBOT_PANEL_CONFIG_KEYS:
+        try:
+            snapshot[key_path] = get_config_value_safe(key_path, default)
+        except Exception:
+            snapshot[key_path] = default
+
+    def on_main():
+        if getattr(panel, '_content_created', False):
+            return
+        panel._create_content_with_snapshot(snapshot)
+
+    try:
+        panel.container.after(0, on_main)
+    except tk.TclError:
+        pass
+
+
+# Config keys and defaults for this panel; read in timer thread to avoid main-thread block (THREAD_BUS: no blocking on config worker).
+ROSBOT_PANEL_CONFIG_KEYS = [
+    ("ros_settings.ros_directory", "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18"),
+    ("battlenet.battlenet_path", "D:\\applications\\Games\\Battle.net\\Battle.net.exe"),
+    ("d3.d3_path", ""),
+    ("ros_settings.auto_enable_latest_ros", True),
+    ("rosbot.pickup_blood_shards", False),
+    ("rosbot.prevent_stuck", False),
+    ("rosbot.blue_portal_priority", False),
+    ("rosbot.smart_echo", False),
+    ("rosbot.startup", False),
+    ("rosbot.monitor_start_rosbot", False),
+    ("rosbot.test_mode", False),
+    ("battlenet.timeout_restart", True),
+    ("rosbot.timeout_minutes", 8),
+]
 
 
 class RosbotExtensionPanel:
@@ -96,8 +133,8 @@ class RosbotExtensionPanel:
         self.container.grid_rowconfigure(0, weight=0)
         self.container.grid_rowconfigure(1, weight=1, minsize=160)
 
-        # Create content
-        self.create_content()
+        # Lazy content: create on first tab select to avoid blocking startup with many get_config_value_safe
+        self._content_created = False
 
         # Register as ColorPrint callback for rosbot-specific logs
         ColorPrint.register_callback(self.add_log_message)
@@ -122,26 +159,40 @@ class RosbotExtensionPanel:
         self._create_log_display_row()
 
         # One-time sync so status UI shows current state (avoids race: first callback may run before status widgets existed)
-        self.container.after(0, self._sync_status_ui_once)
+        self.container.after(100, self._sync_status_ui_once)
 
-    def _create_config_panel(self):
-        """Create ROSBOT configuration panel (no top label to save space)."""
+    def ensure_content(self):
+        """Create panel content on first call (lazy). Config is read in timer thread to avoid main-thread block (THREAD_BUS_AND_REGISTRY §5); UI is then created on main thread with snapshot."""
+        if getattr(self, '_content_created', False):
+            return
+        timer_manager.submit_one_shot(lambda: _fetch_rosbot_config_then_create(self))
+
+    def _create_content_with_snapshot(self, snapshot: dict) -> None:
+        """Build panel widgets on main thread using pre-fetched config snapshot. Must run on main thread only."""
+        self._content_created = True
+        self._create_config_panel(snapshot)
+        self._create_control_panel()
+        self._create_log_display_row()
+        self.container.after(100, self._sync_status_ui_once)
+
+    def _create_config_panel(self, snapshot: dict):
+        """Create ROSBOT configuration panel (no top label to save space). Uses snapshot to avoid main-thread config read."""
         config_frame = ttk.Frame(self.container)
         config_frame.grid(row=0, column=0, sticky="new",
                          padx=(0, UnifiedStyles.SPACING['sm']),
                          pady=UnifiedStyles.SPACING['xs'])
-        
+
         # Configure grid
         config_frame.grid_columnconfigure(1, weight=1)
-        
-        # ROSBOT path configuration
-        self._create_path_section(config_frame)
-        
-        # Bot settings
-        self._create_bot_settings(config_frame)
 
-    def _create_path_section(self, parent):
-        """Create path section (no title to save space)."""
+        # ROSBOT path configuration
+        self._create_path_section(config_frame, snapshot)
+
+        # Bot settings
+        self._create_bot_settings(config_frame, snapshot)
+
+    def _create_path_section(self, parent, snapshot: dict):
+        """Create path section (no title to save space). Uses snapshot to avoid main-thread config read."""
         path_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         path_frame.grid(row=0, column=0, columnspan=2, sticky="ew",
                        padx=UnifiedStyles.SPACING['sm'],
@@ -159,10 +210,11 @@ class RosbotExtensionPanel:
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
 
-        # ROSBOT path using ConfigBinding
-        exe_entry = ConfigBinding.create_input_binding(
+        ros_default = "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18"
+        exe_entry = ConfigBinding.create_input_binding_with_initial(
             path_frame, "ros_settings.ros_directory",
-            default_value="D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18", width=50,
+            snapshot.get("ros_settings.ros_directory", ros_default),
+            default_value=ros_default, width=50,
             bg=UnifiedStyles.COLORS['input_bg'],
             fg=UnifiedStyles.COLORS['input_text'],
             font=UnifiedStyles.FONTS['input'])
@@ -187,10 +239,11 @@ class RosbotExtensionPanel:
                             padx=UnifiedStyles.SPACING['sm'],
                             pady=UnifiedStyles.SPACING['xs'])
 
-        # Battle.net path using ConfigBinding
-        battlenet_entry = ConfigBinding.create_input_binding(
+        bn_default = "D:\\applications\\Games\\Battle.net\\Battle.net.exe"
+        battlenet_entry = ConfigBinding.create_input_binding_with_initial(
             path_frame, "battlenet.battlenet_path",
-            default_value="D:\\applications\\Games\\Battle.net\\Battle.net.exe", width=50,
+            snapshot.get("battlenet.battlenet_path", bn_default),
+            default_value=bn_default, width=50,
             bg=UnifiedStyles.COLORS['input_bg'],
             fg=UnifiedStyles.COLORS['input_text'],
             font=UnifiedStyles.FONTS['input'])
@@ -215,8 +268,9 @@ class RosbotExtensionPanel:
                       padx=UnifiedStyles.SPACING['sm'],
                       pady=UnifiedStyles.SPACING['xs'])
 
-        d3_entry = ConfigBinding.create_input_binding(
+        d3_entry = ConfigBinding.create_input_binding_with_initial(
             path_frame, "d3.d3_path",
+            snapshot.get("d3.d3_path", "") or "",
             default_value="", width=50,
             bg=UnifiedStyles.COLORS['input_bg'],
             fg=UnifiedStyles.COLORS['input_text'],
@@ -365,17 +419,13 @@ class RosbotExtensionPanel:
         # Bot settings checkboxes using ConfigBinding (3 columns to reduce height)
         bot_settings = [
             ("rosbot.auto_enable_latest_ros", "ros_settings.auto_enable_latest_ros", True),
-            ("rosbot.auto_start_rosbot", "ros_settings.auto_start_rosbot", True),
-            ("rosbot.auto_start_other_exe", "ros_settings.auto_start_other_exe", True),
-            ("rosbot.force_cleanup_restart", "ros_settings.force_cleanup_restart", True),
-            ("rosbot.auto_configure_ui", "ros_settings.auto_configure_ui", True),
-            ("rosbot.detailed_logging", "ros_settings.detailed_logging", True),
             ("rosbot.pickup_blood_shards", "rosbot.pickup_blood_shards", False),
             ("rosbot.prevent_stuck", "rosbot.prevent_stuck", False),
             ("rosbot.blue_portal_priority", "rosbot.blue_portal_priority", False),
             ("rosbot.smart_echo", "rosbot.smart_echo", False),
             ("rosbot.startup", "rosbot.startup", False),
-            ("rosbot.monitor_start_rosbot", "rosbot.monitor_start_rosbot", False)
+            ("rosbot.monitor_start_rosbot", "rosbot.monitor_start_rosbot", False),
+            ("rosbot.test_mode", "rosbot.test_mode", False),
         ]
 
         row = 0
@@ -396,6 +446,35 @@ class RosbotExtensionPanel:
             if col > 2:
                 col = 0
                 row += 1
+
+        # Timeout restart: one column with checkbox + minutes input (update immediately)
+        row += 1
+        timeout_frame = tk.Frame(settings_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        timeout_frame.grid(row=row, column=0, columnspan=1, sticky="w",
+                          padx=UnifiedStyles.SPACING['sm'],
+                          pady=UnifiedStyles.SPACING['xs'])
+        timeout_check = ConfigBinding.create_checkbox_binding(
+            timeout_frame, "battlenet.timeout_restart",
+            text=i18n_manager.get_ui_text("rosbot.timeout_restart"),
+            default_value=True,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
+            activebackground=UnifiedStyles.COLORS['bg_secondary'],
+            activeforeground=UnifiedStyles.COLORS['text_primary']
+        )
+        timeout_check.pack(side=tk.LEFT)
+        timeout_spin = ConfigBinding.create_spinbox_binding(
+            timeout_frame, "rosbot.timeout_minutes",
+            from_=1, to=120, increment=1, default_value=8, width=4,
+            bg=UnifiedStyles.COLORS['bg_tertiary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            buttonbackground=UnifiedStyles.COLORS['bg_tertiary']
+        )
+        timeout_spin.pack(side=tk.LEFT, padx=(UnifiedStyles.SPACING['xs'], 0))
+        tk.Label(timeout_frame, text=i18n_manager.get_ui_text("rosbot.minutes"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'],
+                 fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
 
     def _create_control_panel(self):
         """Create ROSBOT control and status panel"""
@@ -493,7 +572,7 @@ class RosbotExtensionPanel:
                                           pady=(UnifiedStyles.SPACING['xs'], 0))
         
         # Sync toggle from flow state (flow library owns state)
-        self.rosbot_running = get_flow_master_enabled()
+        self.rosbot_running = self.game_state.rosbot_flow_master_enabled
         self._update_control_button()
         self._update_ensure_battlenet_button()
 
@@ -631,6 +710,8 @@ class RosbotExtensionPanel:
         """ColorPrint callback when ROSBOT tab is active. Accept [ROSBOT], [PathScan], LogAnalyzer; display strips prefix via _strip_ui_log_prefix."""
         if is_shutdown_requested():
             return
+        if not getattr(self, '_content_created', True):
+            return
         if not any(m in message for m in ("[ROSBOT]", "[PathScan]", "LogAnalyzer")):
             return
         self._last_log_time = time.time()
@@ -709,29 +790,27 @@ class RosbotExtensionPanel:
 
     def _ensure_battlenet_only(self):
         """Toggle ensure Battle.net only: flow state so tick runs BN segment only (no D3/ROSBOT); after confirm, poll each tick and re-login if disconnected (ROSBOT_FLOW_MERMAID B)."""
-        next_enabled = not get_bn_only_enabled()
+        next_enabled = not self.game_state.ensure_battlenet_only_master_enabled
         set_bn_only_enabled(next_enabled)
         if next_enabled:
             self._request_status_refresh()
             get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
         else:
             reset_flow_master_bn_block()
-            if not get_flow_master_enabled():
-                get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
         self._update_ensure_battlenet_button()
 
     def _update_ensure_battlenet_button(self):
         """Update ensure-Battle.net button text to show on/off."""
         try:
             if hasattr(self, 'ensure_battlenet_btn') and self.ensure_battlenet_btn.winfo_exists():
-                on = get_bn_only_enabled()
+                on = self.game_state.ensure_battlenet_only_master_enabled
                 key = "rosbot.ensure_battlenet_only_on" if on else "rosbot.ensure_battlenet_only"
                 self.ensure_battlenet_btn.config(text=i18n_manager.get_ui_text(key))
         except tk.TclError:
             pass
 
     def _start_rosbot(self):
-        """Start ROSBOT: set flow master on, enable 1s flow driver, update UI to running; BN ready is tick-driven, then D3 part runs (ROSBOT_FLOW_MERMAID.md)."""
+        """Start ROSBOT: only set flow master + enable task; tick drives flow library, flow library calls extension thread (which calls third-party). Do not submit one-shot here (FLOW_STATE_ARCHITECTURE)."""
         if self.rosbot_running:
             return
         set_flow_master_enabled(True)
@@ -739,13 +818,6 @@ class RosbotExtensionPanel:
         self.rosbot_running = True
         self._update_control_button()
         self._request_status_refresh()
-        self._control_btn_set_busy(False)
-        if get_d3_extension_thread():
-            return
-        self._control_btn_set_busy(True)
-        self._login_check_generation = getattr(self, "_login_check_generation", 0) + 1
-        gen = self._login_check_generation
-        timer_manager.submit_one_shot(lambda: do_login_check(self, self.get_login_check_callable(), gen))
 
     def _control_btn_set_busy(self, busy):
         """Set control button to busy (disabled) or normal."""
@@ -771,8 +843,7 @@ class RosbotExtensionPanel:
         schedule_battlenet_credentials_dialog()
 
     def _refresh_status_now(self):
-        """Manual refresh: same as initial check (BN + D3 + ROSBOT), runs in timer thread via one-shot."""
-        ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
+        """Manual refresh: same as initial check (BN + D3 + ROSBOT), runs in timer thread via one-shot. One log when done."""
         self._request_status_refresh()
 
     def _request_status_refresh(self):
@@ -801,7 +872,7 @@ class RosbotExtensionPanel:
             )
 
     def get_login_check_callable(self):
-        """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Used by ThreadRegistry. Caller (e.g. do_login_check) catches and passes error to callback."""
+        """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Only used by flow via extension thread (battlenet_login_check_provider)."""
         def _run():
             result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
             return (result, None)
@@ -822,12 +893,6 @@ class RosbotExtensionPanel:
             self._request_status_refresh()
             return
         if not success:
-            return
-        if not get_flow_master_enabled():
-            reset_flow_master_bn_block()
-            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
-            self.rosbot_running = False
-            self._update_control_button()
             return
         self.rosbot_running = True
         self._update_control_button()
@@ -862,48 +927,43 @@ class RosbotExtensionPanel:
             self._control_btn_set_busy(True)
             trigger_extension_rosbot_stop()
         else:
-            get_task_manager().set_task_status("rosbot_task", TaskStatus.DISABLED)
             rosbot_processor.stop_rosbot_task()
             ColorPrint.yellow("[ROSBOT] Stopped monitoring")
 
     def _update_control_button(self):
-        """Update control button from flow state (single source of truth). Keeps self.rosbot_running in sync for _toggle_rosbot."""
-        self.rosbot_running = get_flow_master_enabled()
-        ColorPrint.debug(f"[RosbotPanel] Updating control button, rosbot_running: {self.rosbot_running}")
+        """Update control button from game_interface_data (flow writes, UI read-only). Keeps self.rosbot_running in sync for _toggle_rosbot. Shows need-key hint when get_ui_state().need_key_input."""
+        self.rosbot_running = self.game_state.rosbot_flow_master_enabled
+        state_str = "STOP (red)" if self.rosbot_running else "START (green)"
+        if getattr(self, "_last_control_button_state", None) != state_str:
+            self._last_control_button_state = state_str
+            ColorPrint.debug(f"[RosbotPanel] Control button: {state_str}")
         if self.rosbot_running:
             self.control_btn.config(
                 text=i18n_manager.get_ui_text("rosbot.stop_rosbot"),
                 bg=UnifiedStyles.COLORS['btn_danger']
             )
-            ColorPrint.debug("[RosbotPanel] Button updated to STOP (red)")
         else:
             self.control_btn.config(
                 text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
                 bg=UnifiedStyles.COLORS['btn_success']
             )
-            ColorPrint.debug("[RosbotPanel] Button updated to START (green)")
+        # need_key 显示在底部状态栏第三行（扩展状态），不在此处显示
 
     def _sync_status_ui_once(self):
         """Pull current game state and update status UI (main thread). Used once after status widgets exist so UI reflects state even if first callback ran too early."""
-        if not self.container.winfo_exists():
+        if not self.container.winfo_exists() or not getattr(self, '_content_created', True):
             return
         state = self.game_state.get_summary()
         self._update_ui_from_state(state)
 
     def _on_game_state_changed(self, state):
-        """Handle game state changes. On main thread (e.g. initial check): update UI immediately. On timer/other thread: schedule update via after(0)."""
-        try:
-            if not self.container.winfo_exists():
-                return
-        except tk.TclError:
+        """Invoked only on main thread by game_interface_data poll; update UI directly."""
+        if not self.container.winfo_exists() or not getattr(self, '_content_created', True):
             return
-        if threading.current_thread() is threading.main_thread():
-            self._update_ui_from_state(state)
-        else:
-            self.container.after(0, lambda s=state: self._update_ui_from_state(s))
+        self._update_ui_from_state(state)
 
     def _update_ui_from_state(self, state):
-        """Push state to bottom bar, ensure-BN button, and Start/Stop button from flow state (toggle reflects get_flow_master_enabled())."""
+        """Push state to bottom bar, ensure-BN button, and Start/Stop button from game_interface_data (flow writes, UI read-only)."""
         if getattr(self, "_bottom_bar", None):
             self._bottom_bar.update_status_from_state(state)
         self._update_ensure_battlenet_button()

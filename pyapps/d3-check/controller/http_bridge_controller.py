@@ -16,7 +16,7 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config, load_config
+from providor.providor_index import CONFIG, queue_config_save, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
@@ -176,7 +176,7 @@ class HTTPBridgeController:
     def _handle_config_save(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle POST /api/config/save"""
         try:
-            save_config()
+            queue_config_save()
             return {
                 'success': True,
                 'message': 'Configuration saved successfully'

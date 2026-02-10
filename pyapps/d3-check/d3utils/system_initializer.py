@@ -175,17 +175,9 @@ class SystemInitializer:
             # Initialize task thread manager
             self._init_task_thread_manager()
 
-            # State detection (window_monitor) is NOT registered with timer; UI Start uses tick-driven flow for status updates (rosbot_task 2s tick).
+            # State detection (window_monitor): driven by tick_driver tick % 10 -> refresh_window_status_if_inactive.
 
-            # Log monitor: file-change driven when watchdog available; otherwise timer 1s tick
-            if not log_monitor_module.is_file_watcher_available():
-                timer_manager.register_task(
-                    name='log_monitor',
-                    interval=1.0,
-                    callback=log_monitor_module.check_logs,
-                    enabled=True,
-                )
-                timer_manager.set_task_interceptor('log_monitor', log_monitor_module.get_default_interceptor())
+            # Log monitor: driven by tick_driver tick % 1; when watchdog available still file-change driven, fallback tick
             log_monitor_module.set_log_file(LOGS_FILE_PATH)
 
             # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
@@ -205,15 +197,14 @@ class SystemInitializer:
         try:
             ColorPrint.blue("[INIT] Initializing task thread manager...")
             
-            # ROSBOT flow driver: 1s tick (task_thread_manager); process_rosbot_task uses % for 2s flow tick when flow master on (ROSBOT_FLOW.md)
+            # Unified tick: 1s from rosbot_task; tick_driver uses % for log/sigint/smart_echo/inactive_refresh; flow step tick % 2
             get_task_manager().register_task(
                 name='rosbot_task',
                 task_func=rosbot_processor.process_rosbot_task,
                 interval=1.0
             )
-            
-            # Start all task threads
             get_task_manager().start_all()
+            get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
             
             ColorPrint.green("[INIT] Task thread manager initialized successfully")
             
@@ -254,7 +245,7 @@ class SystemInitializer:
             if not self.initialize_timer_system():
                 ColorPrint.yellow("[INIT] Timer system initialization failed, but continuing...")
 
-            # GUI mode: ignore SIGINT/SIGBREAK after all init; re-apply every tick so Fortran/numpy (loaded later) cannot cause forrtl control-C abort
+            # GUI mode: ignore SIGINT/SIGBREAK; tick_driver tick % 1 resets every 1s (avoid Fortran/numpy override)
             if gui_mode:
                 set_gui_mode_sigint_ignored(True)
                 try:
@@ -262,12 +253,6 @@ class SystemInitializer:
                     if hasattr(signal, "SIGBREAK"):
                         signal.signal(signal.SIGBREAK, signal.SIG_IGN)
                     ColorPrint.blue("[INIT] GUI mode: Ctrl+C ignored (close via UI only)")
-                    timer_manager.register_task(
-                        name="sigint_guard",
-                        interval=1.0,
-                        callback=_reapply_sigint_sigbreak_ignore,
-                        enabled=True,
-                    )
                 except Exception:
                     pass
 

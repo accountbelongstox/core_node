@@ -16,8 +16,16 @@ from pathlib import Path
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
-from providor.constants.common import UI_SETTINGS_WINDOW_GEOMETRY, DEFAULT_WINDOW_GEOMETRY
+from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH
+from providor.constants.common import (
+    ROOT_DIR,
+    UI_SETTINGS_WINDOW_GEOMETRY,
+    UI_SETTINGS_APP_ICON,
+    DEFAULT_WINDOW_GEOMETRY,
+    DEFAULT_APP_ICON_PATH,
+    DEFAULT_APP_LOGO_PATH,
+    DEFAULT_APP_ICON_PNG_PATH,
+)
 
 # Import UI components
 from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray
@@ -38,6 +46,9 @@ from d3utils.i18n_manager import i18n_manager
 
 # Lifecycle/event via runtime (THREAD_BUS -> main thread)
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
+from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+from pycore.pyutils.icon_utils import get_icon_path_for_windows
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
@@ -49,7 +60,9 @@ class Diablo3MacroUI:
         Args:
             initial_config: Initial configuration name
         """
+        set_windows_app_user_model_id("pycore.d3check.1.0")
         self.root = tk.Tk()
+        self._app_icon_photo = None
 
         # Load language settings
         i18n_manager.load_language_from_config()
@@ -61,6 +74,7 @@ class Diablo3MacroUI:
 
         # Set window title and initial geometry (saved position/size or default) so window never flashes at 0,0
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
+        self._set_window_icon()
         initial_geos = CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY) or DEFAULT_WINDOW_GEOMETRY
         self.root.geometry(initial_geos)
         self.root.minsize(670, 400)
@@ -92,6 +106,14 @@ class Diablo3MacroUI:
 
         # Create UI
         self._create_ui()
+        # Taskbar: apply after map and on every Map (Tk may re-apply tool-window style when showing)
+        self.root.after(350, self._apply_taskbar_fix)
+        self.root.after(800, self._apply_taskbar_fix)
+        def _on_map(_e):
+            ensure_tk_root_in_taskbar(self.root)
+            if sys.platform == "win32":
+                self._set_window_icon()
+        self.root.bind("<Map>", _on_map)
 
         # First run only: bring window to top (geometry already set at init)
         self._apply_first_run_topmost()
@@ -298,6 +320,66 @@ class Diablo3MacroUI:
         ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
         trigger_app_exit()
 
+    def _set_window_icon(self):
+        """Set window/taskbar icon: config app_icon path, else default .ico / logo.png / app_icon.png (Windows may auto-generate .ico from logo), else generated (same as tray)."""
+        path_cfg = (CONFIG.get("ui_settings") or {}).get(UI_SETTINGS_APP_ICON) or ""
+        if path_cfg:
+            p = Path(path_cfg)
+            path = (Path(ROOT_DIR) / path_cfg).resolve() if not p.is_absolute() else p.resolve()
+        else:
+            path = None
+        if not path or not path.exists():
+            path = DEFAULT_APP_ICON_PATH if DEFAULT_APP_ICON_PATH.exists() else None
+        if not path and DEFAULT_APP_LOGO_PATH.exists():
+            path = DEFAULT_APP_LOGO_PATH
+        if not path and DEFAULT_APP_ICON_PNG_PATH.exists():
+            path = DEFAULT_APP_ICON_PNG_PATH
+        if path and path.exists():
+            try:
+                if sys.platform == "win32":
+                    use_path = get_icon_path_for_windows(path)
+                    if str(use_path).lower().endswith(".ico"):
+                        self.root.iconbitmap(str(use_path))
+                        return
+                    path = use_path
+                _PIL = get_third_package_PIL_Image()
+                _ImageTk = get_third_package_PIL_ImageTk()
+                if _PIL and _ImageTk:
+                    img = _PIL.open(path).convert("RGBA")
+                    self._app_icon_photo = _ImageTk.PhotoImage(img)
+                    self.root.iconphoto(True, self._app_icon_photo)
+                    return
+            except Exception:
+                pass
+        _PIL = get_third_package_PIL_Image()
+        _Draw = get_third_package_PIL_ImageDraw()
+        _ImageTk = get_third_package_PIL_ImageTk()
+        if _PIL and _Draw and _ImageTk:
+            try:
+                w, h = 64, 64
+                image = _PIL.new("RGBA", (w, h), (0, 0, 0, 0))
+                draw = _Draw.Draw(image)
+                draw.ellipse([8, 8, w - 8, h - 8], fill=(200, 0, 0, 255), outline=(255, 255, 255, 255), width=2)
+                draw.rectangle([20, 20, 24, 44], fill=(255, 255, 255, 255))
+                draw.rectangle([20, 20, 32, 24], fill=(255, 255, 255, 255))
+                draw.rectangle([20, 40, 32, 44], fill=(255, 255, 255, 255))
+                draw.rectangle([30, 24, 32, 40], fill=(255, 255, 255, 255))
+                draw.rectangle([36, 20, 40, 44], fill=(255, 255, 255, 255))
+                draw.rectangle([36, 20, 44, 24], fill=(255, 255, 255, 255))
+                draw.rectangle([36, 32, 44, 36], fill=(255, 255, 255, 255))
+                draw.rectangle([36, 40, 44, 44], fill=(255, 255, 255, 255))
+                self._app_icon_photo = _ImageTk.PhotoImage(image)
+                self.root.iconphoto(True, self._app_icon_photo)
+            except Exception:
+                pass
+
+    def _apply_taskbar_fix(self):
+        """Apply Windows taskbar visibility after window is shown (overrideredirect strips taskbar by default). Re-apply icon so taskbar uses app icon instead of Python."""
+        if ensure_tk_root_in_taskbar(self.root):
+            ColorPrint.blue("[UI] Main window set to show in taskbar")
+        if sys.platform == "win32":
+            self._set_window_icon()
+
     def _apply_first_run_topmost(self):
         """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash)."""
         self.root.lift()
@@ -322,10 +404,7 @@ class Diablo3MacroUI:
             y = self.root.winfo_rooty()
             if w > 1 and h > 1:
                 geos = f"{w}x{h}+{x}+{y}"
-                if "ui_settings" not in CONFIG:
-                    CONFIG["ui_settings"] = {}
-                CONFIG["ui_settings"][UI_SETTINGS_WINDOW_GEOMETRY] = geos
-                save_config()
+                set_config_value_async("ui_settings.window_geometry", geos)
         except tk.TclError:
             pass
 
@@ -362,6 +441,9 @@ class Diablo3MacroUI:
         self._create_d4_tab()  # D4 functions
         self._create_coordinate_calibration_tab()  # Coordinate calibration
         self._create_table3_tab()  # Test and logs
+        ColorPrint.green("[UI] Notebook style updated")
+        from ui.utils.config_binding import ConfigBinding
+        ConfigBinding.log_registration_summary()
         
         # Bind tab change event
         self.main_notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
@@ -497,7 +579,6 @@ class Diablo3MacroUI:
                  padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
                  expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
-        ColorPrint.green("[UI] Forced notebook style update")
 
     def _apply_all_tab_styles(self):
         """Apply styles to all tabs (same line height and underline)"""
@@ -534,7 +615,6 @@ class Diablo3MacroUI:
                  expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
-        ColorPrint.green("[UI] Applied styles to all tabs")
 
     def _apply_tab_style(self, tab_id):
         """Apply style to a specific tab (same line height and underline)"""
@@ -571,8 +651,7 @@ class Diablo3MacroUI:
                      expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
-        ColorPrint.green(f"[UI] Applied style to tab: {tab_id}")
-    
+
     def _create_table1_tab(self):
         """Create TABLE1 - Main functions tab"""
         self.table1_frame = ttk.Frame(self.main_notebook)
@@ -805,13 +884,12 @@ class Diablo3MacroUI:
         """Handle tab change event"""
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
-
-        if 'ui_settings' not in CONFIG:
-            CONFIG['ui_settings'] = {}
-        CONFIG['ui_settings']['last_selected_tab'] = selected_tab
-        save_config()
+        set_config_value_async("ui_settings.last_selected_tab", selected_tab)
 
         self.bottom_bar.show_tab_content(selected_tab)
+        # Lazy-create ROSBOT panel content on first select to avoid blocking startup
+        if selected_tab == 2 and hasattr(self, 'rosbot_extension_panel'):
+            self.root.after(50, lambda: getattr(self.rosbot_extension_panel, 'ensure_content', lambda: None)())
         self._reregister_log_callback()
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     

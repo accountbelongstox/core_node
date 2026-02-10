@@ -15,6 +15,7 @@ class CBlockStep(str, Enum):
     C2_Resize = "C2_Resize"
     C3_Step = "C3_Step"
     C3_Result = "C3_Result"
+    C3_GameToolOrigin = "C3_GameToolOrigin"  # 刚进入游戏(D13) | 启动时已存在(F1) -> skip C6/C10 or C6->C10
     C3w_Wait = "C3w_Wait"
     C5_StartGame = "C5_StartGame"
     C5w_Wait = "C5w_Wait"

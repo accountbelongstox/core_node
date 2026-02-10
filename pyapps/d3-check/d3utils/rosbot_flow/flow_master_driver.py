@@ -6,6 +6,10 @@ Contract (docs/FLOW_ARCHITECTURE_DIRECTORY.md §5):
 - Defines: FlowMasterStep, F0Action, ExtensionStepResult; last F0/extension/F3 state; tick_flow_master().
 - Uses extension_flow_state for phase (is_idle); does not duplicate extension phase enum.
 - Tick entry (rosbot_task_processor) only calls tick_flow_master(); this module calls refresh/notify and third-party libs.
+
+Architecture (ROSBOT_FLOW_MERMAID): after teleport enter ROSBOT startup env, then only loop on ROSBOT log (F3).
+- Gate: when D3 and ROSBOT both present (running/paused) -> F3 log timeout loop only, never run C branch (no extension_flow_tick_step).
+- Each tick: routing refresh (light D3 + ROSBOT) first, then branch by state: F3-only -> extension (C branch) -> F0 (B1/B2/C1).
 """
 from enum import Enum
 from typing import Callable, Optional
@@ -14,7 +18,6 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import get_flow_master_enabled
-from d3utils.d3_manager import get_d3_manager
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
@@ -28,7 +31,11 @@ _FM_BN = False  # Flow-master uses for_bn_only=False
 from d3utils.rosbot_flow_f0_entry import run_f0_prejudge_entry
 from d3utils.rosbot_flow_f3_log_timeout import run_f3_log_timeout
 from d3utils.rosbot_flow_f4_close_d3_send_f7 import run_f4_close_d3_send_f7
-from d3utils.rosbot_flow.extension_flow_state import is_idle as extension_flow_is_idle
+from d3utils.rosbot_flow.extension_flow_state import (
+    is_idle as extension_flow_is_idle,
+    reset_state as extension_reset_state,
+    is_in_c7b_click_event_group,
+)
 from d3utils.rosbot_flow.extension_flow_tick_step import (
     extension_flow_tick_step,
     start_extension_flow_c_branch,
@@ -39,8 +46,9 @@ from d3utils.event_signals import trigger_extension_rosbot_started
 
 class FlowMasterStep(str, Enum):
     """All steps executed within one flow-master tick (order depends on branch)."""
-    REFRESH_NOTIFY = "refresh_notify"
     RE_READ_ABORT = "re_read_abort"
+    REFRESH_FOR_ROUTING = "refresh_for_routing"  # Light D3 + ROSBOT for gate and F0
+    F3_ONLY_MODE = "f3_only_mode"                 # D3+ROSBOT both present -> F3 only, no C
     EXTENSION_TICK = "extension_tick"
     F0_PREJUDGE = "f0_prejudge"
     F0_ACTION_B1 = "f0_action_b1"
@@ -108,28 +116,51 @@ def _set_last_f3_result(result: Optional[str]) -> None:
     _last_f3_result = result
 
 
+def _is_f3_only_mode() -> bool:
+    """Doc F2->F3: when D3 and ROSBOT both present (running/paused) enter F3 log timeout loop, do not run C branch."""
+    g = get_game_interface_data()
+    return bool(g.d3_running and g.rosbot_extended_status in ("running", "paused"))
+
+
 def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> None:
     """
-    Run one tick of the flow-master flow. Executes steps in order; updates state from
-    third-party return values. All steps and state are defined in this module.
+    Per-tick order: routing refresh -> F3-only gate -> extension (C branch) -> F0 (B1/B2/C1).
+    Gate: when D3+ROSBOT both present only run F3 log timeout, never extension_flow_tick_step (no C match/teleport).
     """
-    # Step: REFRESH_NOTIFY
-    ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_battlenet_status...")
-    refresh_battlenet_status()
-    if get_bn_flow_ever_confirmed(_FM_BN):
-        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_NOTIFY.value}: refresh_d3_status, refresh_rosbot_status...")
-        refresh_d3_status()
-        refresh_rosbot_status()
     g = get_game_interface_data()
-    g.notify_state_sync()
 
-    # Step: RE_READ_ABORT
     if not get_flow_master_enabled():
         return
 
-    # Step: EXTENSION_TICK (if extension not idle)
-    ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.EXTENSION_TICK.value} (if not idle)")
+    # Step: REFRESH_FOR_ROUTING — Light D3 + ROSBOT for this tick's gate and F0. Inside event group (C7b click sequence) do not refresh, run extension step only for coherent clicks.
+    in_c7b_event = not extension_flow_is_idle() and is_in_c7b_click_event_group()
+    if not in_c7b_event:
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_FOR_ROUTING.value}: light D3 + ROSBOT...")
+        refresh_d3_status(skip_dynamic=True)
+        refresh_rosbot_status()
+        g.notify_state_sync()
+
+    # Step: F3_ONLY_MODE — Architecture gate: after teleport D3+ROSBOT both present -> F3 only, no C
+    if _is_f3_only_mode():
+        extension_reset_state()
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_ONLY_MODE.value}: D3+ROSBOT both present -> log timeout only")
+        step = run_f3_log_timeout()
+        _set_last_f3_result(step)
+        if step == "f4":
+            ColorPrint.gray("[FlowMaster] F3: log timeout -> F4 -> B2_HasWin")
+            run_f4_close_d3_send_f7()
+            enter_battlenet_at_b2(_FM_BN)
+        return
+
+    # Step: EXTENSION_TICK — Run C branch only when not in F3-only and extension not idle. Inside event group do not full refresh first, run extension_flow_tick_step directly; after click event ticks complete, resume.
     if not extension_flow_is_idle():
+        if is_in_c7b_click_event_group():
+            ColorPrint.gray("[FlowMaster] in C7b click event group, skip refresh, extension_flow_tick_step only")
+        else:
+            ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.EXTENSION_TICK.value}: full D3+ROSBOT, extension_flow_tick_step...")
+            refresh_d3_status(skip_dynamic=False)
+            refresh_rosbot_status()
+            g.notify_state_sync()
         result = extension_flow_tick_step(tick_count, start_rosbot_task)
         _set_last_extension_result(result)
         if result == ExtensionStepResult.SUCCESS.value:
@@ -138,27 +169,52 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
         if result == ExtensionStepResult.FALLTHROUGH.value:
             trigger_extension_rosbot_started(False, ran_e_block=False)
             return
+        if _is_f3_only_mode():
+            ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_F4.value}: run_f3_log_timeout (D3+ROSBOT both present)...")
+            step = run_f3_log_timeout()
+            _set_last_f3_result(step)
+            if step == "f4":
+                ColorPrint.gray("[FlowMaster] F3: log timeout -> F4 -> B2_HasWin")
+                run_f4_close_d3_send_f7()
+                enter_battlenet_at_b2(_FM_BN)
+        return
 
-    # Step: F0_PREJUDGE
+    # Step: F0_PREJUDGE (d3_running / rosbot for this tick already from routing refresh)
     ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_PREJUDGE.value}: run_f0_prejudge_entry...")
     action = run_f0_prejudge_entry()
     _set_last_f0_action(action)
     ColorPrint.gray(f"[FlowMaster] F0 pre-judge -> {action} (b1=B2, c1=C1, b2=enter B2)")
 
     if action == F0Action.B1.value:
-        # Step: F0_ACTION_B1
+        # Battle.net: refresh BN only, skip D3 full and ROSBOT
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B1.value}: refresh BN only (skip D3 full, ROSBOT)...")
+        refresh_battlenet_status()
+        g.notify_state_sync()
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B1.value}: tick_battlenet_ready_flow(no_activate=False)...")
         done, result = tick_battlenet_ready_flow(no_activate=False)
         if done and result == "confirmed":
             set_battlenet_tick_confirmed(_FM_BN)
             trigger_extension_rosbot_start()
     elif action == F0Action.B2.value:
-        # Step: F0_ACTION_B2
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B2.value}: refresh BN only, enter_battlenet_at_b2...")
+        refresh_battlenet_status()
+        g.notify_state_sync()
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B2.value}: enter_battlenet_at_b2...")
         enter_battlenet_at_b2(_FM_BN)
     elif action == F0Action.C1.value:
-        # Step: F0_ACTION_C1 / F0_C1_EXTENSION
-        if extension_flow_is_idle() and get_bn_flow_ever_confirmed(_FM_BN) and get_d3_manager().is_running():
+        # D3/ROSBOT flow: refresh D3+ROSBOT only, skip BN full
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_C1.value}: refresh D3+ROSBOT only (skip BN)...")
+        refresh_d3_status(skip_dynamic=False)
+        refresh_rosbot_status()
+        g.notify_state_sync()
+        # Enter C branch (teleport + start ROS) only when extension idle, D3 present, ROSBOT not yet running; after teleport and ROS start do not re-enter C, only F3 log timeout
+        need_c_branch = (
+            extension_flow_is_idle()
+            and get_bn_flow_ever_confirmed(_FM_BN)
+            and g.d3_running
+            and g.rosbot_extended_status not in ("running", "paused")
+        )
+        if need_c_branch:
             ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_C1_EXTENSION.value}: start_extension_flow_c_branch, extension_flow_tick_step...")
             start_extension_flow_c_branch()
             step_result = extension_flow_tick_step(tick_count, start_rosbot_task)
@@ -173,13 +229,11 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
             ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_C1.value}: trigger_extension_rosbot_start...")
             trigger_extension_rosbot_start()
 
-    # Step: F3_F4 (when ROSBOT extended running/paused)
-    g = get_game_interface_data()
-    if g.rosbot_extended_status in ("running", "paused"):
-        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_F4.value}: run_f3_log_timeout...")
-        step = run_f3_log_timeout()
-        _set_last_f3_result(step)
-        if step == "f4":
-            ColorPrint.gray("[FlowMaster] F3: log timeout -> F4 -> B2_HasWin")
-            run_f4_close_d3_send_f7()
-            enter_battlenet_at_b2(_FM_BN)
+        if _is_f3_only_mode():
+            ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_F4.value}: run_f3_log_timeout (D3+ROSBOT both present)...")
+            step = run_f3_log_timeout()
+            _set_last_f3_result(step)
+            if step == "f4":
+                ColorPrint.gray("[FlowMaster] F3: log timeout -> F4 -> B2_HasWin")
+                run_f4_close_d3_send_f7()
+                enter_battlenet_at_b2(_FM_BN)

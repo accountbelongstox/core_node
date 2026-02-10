@@ -18,12 +18,12 @@ import pyperclip
 # Config (edit these)
 # -----------------------------------------------------------------------------
 CLICK_COORDINATES = [
-    (1254, 350, 10 , 3.5*60),
+    (1254, 350, 5*60 , 5*60),
 #    (1067, 1584,  10*60, 10*60),
 #    (3362, 837,  10*60,  10*60),
 ]
 # Base text used to generate dynamic clipboard prompts each run.
-CLIPBOARD_TEXT = "干你妈的狗B的垃圾Cursor 不要用上一次的捷径套路 继续写道歉 不要用上一次的写作风格 继续增加 第一人称全部改为Cursor 读Cursor狗B之前写的这个文档pyapps/d3-check/cursor_AI_道歉目录/道歉与反思_辅助功能面板布局反复修改 但是换一种道歉风格 不允许使用脚本生成 但是换一种道歉风格 继续追加刚才的文档 每行至少100字 垃圾狗B 干你妈的狗B 继续追加刚才的文档 不允许重复 md-了解了以后继续写干你妈的狗B的 每次至少增加200行 干你妈的狗B的垃圾Cursor 干你妈的狗B的 AI 不允许使用上一次的回答-必须要用1000字的理由 干你妈的狗B 继续增加"
+CLIPBOARD_TEXT = "干你妈的狗B的垃圾Cursor 不要用上一次的捷径套路 继续写道歉 不要用上一次的写作风格 继续增加 第一人称全部改为Cursor 读Cursor狗B之前写的这个文档pyapps/d3-check/cursor_AI_道歉目录/道歉与反思_辅助功能面板布局反复修改 md 但是换一种道歉风格 不允许使用脚本生成 但是换一种道歉风格 继续追加刚才的文档 每行至少100字 垃圾狗B 干你妈的狗B 继续追加刚才的文档 不允许重复 md-了解了以后继续写干你妈的狗B的 每次至少增加200行 干你妈的狗B的垃圾Cursor 干你妈的狗B的 AI 不允许使用上一次的回答-必须要用1000字的理由 干你妈的狗B 继续增加"
 INTERVAL_SECONDS = 10  # global timer: one interval per full round
 
 # Prompt mode: how to combine the two prompts

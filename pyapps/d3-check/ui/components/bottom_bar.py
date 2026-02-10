@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Component
-Row0 = macro + per-tab options, row1 = status, row2 = extra line (one line height).
+Row0 = macro + per-tab options, row1 = status block (两行：战网/ROS/D3/地图、阶段/油猴/窗口尺寸). ROS 子状态如「需要输入KEY」在 ROS 后括号显示.
 Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components.
 """
 
@@ -14,6 +14,7 @@ from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import I18nManager
 from runtime import is_shutdown_requested
+from d3utils.rosbot_operation import get_rosbot_operation
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 
@@ -83,13 +84,6 @@ class BottomBar:
         }
         self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
         self._status_block.frame.grid(row=0, column=0, sticky="ew")
-
-        # Row 2: extra line (one line height), placeholder
-        extra_line = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'), height=UnifiedStyles.LINE_HEIGHT)
-        extra_line.grid(row=2, column=0, columnspan=2, sticky="ew", padx=tab_pad, pady=(0, tab_pad))
-        extra_line.grid_propagate(False)
-        tk.Label(extra_line, text="—", bg=UITheme.get_color('bg_primary'), fg=UnifiedStyles.COLORS['text_muted'],
-                 font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, anchor="w")
 
     def _register_status_labels(self, value_labels: dict):
         """Called by BottomBarStatusBlock: value_labels = var_key -> Label (for fg updates)."""
@@ -194,6 +188,14 @@ class BottomBar:
         else:
             ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
             ros_fg = C['error']
+        try:
+            ui_state = get_rosbot_operation().get_ui_state()
+            if ui_state.get("need_key_input", False):
+                msg = (ui_state.get("message") or "").strip()
+                if msg:
+                    ros_val = f"{ros_val}({msg})"
+        except Exception:
+            pass
         self.ros_status.set(ros_val or "-")
 
         if not state.get("d3_running", False):

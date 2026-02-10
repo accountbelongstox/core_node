@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Battle.net UI inspector: classify controls for automation (main window vs in-UI popup).
-Used by try_close_popup to close only in-UI ad/overlay popups, not the main window (login/client) close button.
+
+- 悬浮弹窗 (in-UI floating popup / ad overlay): 战网主界面或登录界面上叠的一小块弹窗（如活动广告），
+  有关闭按钮（Close/关闭 或 automation_id 含 winCloseButton 但非主窗口标题栏）。try_close_popup 只点这类按钮。
+- 普通登录窗口 (main window / login client): 战网主窗口本身；标题栏的 X 是 main window close，
+  automation_id 含 topLayerContainer.TopLayer.buttonContainer 且 winCloseButton，点击会关掉整个客户端，故绝不点击。
 """
 from typing import List, Dict, Any, Tuple
 

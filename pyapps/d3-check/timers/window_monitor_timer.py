@@ -16,7 +16,6 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 from share.game_interface_data import get_game_interface_data
-from d3utils.rosbot_flow_state import is_flow_active
 from d3utils.rosbot_task_processor import run_full_status_refresh
 from timers.timer_manager import register_task
 from d3utils.d3_status_provider import get_current_d3_window
@@ -94,12 +93,9 @@ def mark_inactive_refresh_done() -> None:
 
 def refresh_window_status_if_inactive() -> None:
     """
-    When flow active: no-op (process_task is single driver).
-    When flow inactive: run full refresh at most once (startup does it; then only flow-driven refresh when user enables flow).
+    Run full refresh at most once (idempotent). When to call is driven by tick/flow; this module does not check flow state.
     """
     global _last_window_found, _inactive_refresh_done
-    if is_flow_active():
-        return
     if _inactive_refresh_done:
         return
     d3_info = run_full_status_refresh()

@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROSBOT Task Processor – tick entry only (FLOW_STATE_ARCHITECTURE Approach 3).
+ROSBOT Task Processor – single tick entry (FLOW_STATE_ARCHITECTURE Approach 3).
 
-Tick does not call third-party libs; it only invokes the flow library. Flow libraries
-call refresh/notify and all other providers.
-
-Chain:
-  - TaskThreadManager 1s: process_rosbot_task() -> process_task() when rosbot_task ENABLED.
-  - process_task(): read flow_state; 2s gate; re-read flow_state; if bn_only run tick_bn_only_flow();
-    if flow_master run tick_flow_master(). When both enabled, both run in same tick (BN-only first).
-  - flow_bn_only / flow_master_driver each do refresh, notify, re-read, then their steps.
-  - When flow inactive, window_monitor runs BN+D3 refresh (not by tick).
+Task thread calls process_rosbot_task() every 1s:
+  - First tick_driver.on_tick(): global tick+1, dispatch by % to log_monitor / sigint_guard / smart_echo / inactive_refresh.
+  - When tick % 2 == 0 run process_task(): flow_state gate, tick_bn_only_flow / tick_flow_master.
+All periods simulated by tick + %; no separate timers.
 """
 import os
 import sys
@@ -34,6 +29,7 @@ from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
 from share.asia_credentials import is_asia_credentials_dialog_pending
+from d3utils.tick_driver import on_tick as tick_driver_on_tick, get_global_tick
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations"""
@@ -68,13 +64,15 @@ class RosbotTaskProcessor:
         ColorPrint.yellow("[RosbotTaskProcessor] ROSBOT monitoring stopped")
     
     def process_task(self):
-        """Tick entry only: read flow state, 2s gate, re-read; then call flow library. No third-party calls here (Approach 3)."""
+        """Single tick: run on_tick (log/sigint/smart_echo/inactive_refresh), then when tick % 2 == 0 run flow."""
+        tick_driver_on_tick()
+        t = get_global_tick()
+        if t % 2 != 0:
+            return
         global _flow_last_run_time
         if not is_flow_active():
             return
-        _flow_tick_count[0] += 1
-        if _flow_tick_count[0] % 2 != 0:
-            return
+        _flow_tick_count[0] = t // 2
         if is_asia_credentials_dialog_pending():
             return
         now = time.time()
@@ -90,8 +88,6 @@ class RosbotTaskProcessor:
         flow_master2 = get_flow_master_enabled()
         if not flow_master2 and not bn_only2:
             return
-        # Both flows can run in the same tick when both switches are on (simultaneous).
-        # Order: BN-only first (ensure Battle.net), then flow-master (F0/extension/F3/F4).
         if bn_only2:
             tick_bn_only_flow()
         if flow_master2:
@@ -100,7 +96,7 @@ class RosbotTaskProcessor:
 
 # Global instance
 _rosbot_processor = None
-# 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0, ROSBOT_FLOW.md)
+# 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0; see ROSBOT_FLOW.md)
 _flow_tick_count = [0]
 # Time of last flow step run (for "time since previous" log)
 _flow_last_run_time = 0.0

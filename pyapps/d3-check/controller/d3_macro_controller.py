@@ -16,7 +16,7 @@ from typing import Optional, Callable
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.providor_index import CONFIG, load_config, save_config, CONFIG_USER_PATH
+from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH
 from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController
@@ -25,6 +25,10 @@ from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
 from d3utils.d3_extension_thread import get_d3_extension_thread
 from d3utils.d4_extension_thread import get_d4_extension_thread
+from d3utils.log_analyzer import register_login_try_callback
+from d3utils.d3u_common.hotkey_registry import set_assistant_callback
+from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
+from controller.d4_controller import get_d4_controller
 from runtime import (
     get_thread_registry,
     register_extension_handlers,
@@ -32,6 +36,7 @@ from runtime import (
     trigger_extension_main_stop_macro,
     execute_shutdown,
 )
+from share.game_interface_data import get_game_interface_data
 import timers.window_monitor_timer as window_monitor
 
 
@@ -73,7 +78,18 @@ class D3MacroController:
         
         # Game interface controller
         self.game_interface_controller = GameInterfaceController()
-        
+
+        # Wire d3utils/timers callbacks (d3utils and timers must not import controller)
+        _login_ctrl = get_login_try_screenshot_controller()
+        register_login_try_callback(lambda: _login_ctrl.handle_login_try())
+        set_assistant_callback(lambda: self.game_interface_controller.run_assistant_auto_use())
+        from timers.one_shot_tasks import register_login_controller_actions
+        register_login_controller_actions(
+            _login_ctrl.ensure_battlenet_started_and_login_check,
+            _login_ctrl.ensure_d3_running_from_battlenet_no_rosbot,
+            _login_ctrl.ensure_battlenet_only,
+        )
+
         # UI instance
         self.ui: Optional[Diablo3MacroUI] = None
         
@@ -174,13 +190,13 @@ class D3MacroController:
     def update_skill_config(self, config_name: str, config_data: dict):
         """Update skill configuration"""
         CONFIG['macro_configs']['skill_configs'][config_name] = config_data
-        save_config()
+        queue_config_save()
         self.logger.info(f"Updated skill configuration: {config_name}")
 
     def update_auxiliary_config(self, config_data: dict):
         """Update auxiliary configuration"""
         CONFIG['macro_configs']['auxiliary_config'].update(config_data)
-        save_config()
+        queue_config_save()
         self.logger.info("Updated auxiliary configuration")
     
     def on_ui_macro_start(self):
@@ -267,9 +283,16 @@ class D3MacroController:
             panel = self.ui.rosbot_extension_panel
 
             window_monitor.register_status_ui(panel.get_status_ui_callback())
+            get_game_interface_data().start_main_thread_poll(self.ui.root.after, 100)
             panel.set_refresh_status_fn(window_monitor.refresh_window_status_if_inactive)
 
-            get_thread_registry().create_extension_threads(schedule, panel, self.current_skill_config)
+            get_thread_registry().create_extension_threads(
+                schedule,
+                panel,
+                self.current_skill_config,
+                battlenet_login_check_provider=lambda: get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check(),
+                d4_process_fn=get_d4_controller().process,
+            )
 
             register_extension_handlers(
                 self.ui,

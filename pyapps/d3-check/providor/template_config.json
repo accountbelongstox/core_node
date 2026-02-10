@@ -9,7 +9,8 @@
       "zh",
       "en"
     ],
-    "description": "UI language settings"
+    "app_icon": "",
+    "description": "UI language and app icon (empty = default images/app_icon.ico or .png, or generated)"
   },
   "log_settings": {
     "log_level": "INFO",
@@ -319,8 +320,10 @@
     "monitor_start_rosbot_description": "启动监控时启动ROSBOT",
     "path": "",
     "path_description": "ROSBOT可执行文件路径",
-    "timeout_minutes": 30,
-    "timeout_minutes_description": "超时X分钟自动重启ROSBOT/暗黑"
+    "timeout_minutes": 8,
+    "timeout_minutes_description": "超时重启",
+    "test_mode": false,
+    "test_mode_description": "测试模式，默认不勾选"
   },
   "macro_configs": {
     "description": "Diablo 3 Macro configuration with namespace support",

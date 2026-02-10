@@ -21,7 +21,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.providor_index import CONFIG, save_config
+from providor.providor_index import CONFIG, queue_config_save
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
@@ -321,7 +321,7 @@ class D4Panel:
         if "d4_settings" not in CONFIG:
             CONFIG["d4_settings"] = {}
         CONFIG["d4_settings"]["exp_farming_running"] = True
-        save_config()
+        queue_config_save()
 
         # Add log
         self._add_exp_farming_log(f"[{i18n_manager.get_ui_text('d4_panel.exp_farming.status.running')}] EXP Farming started")
@@ -345,7 +345,7 @@ class D4Panel:
         if "d4_settings" not in CONFIG:
             CONFIG["d4_settings"] = {}
         CONFIG["d4_settings"]["exp_farming_running"] = False
-        save_config()
+        queue_config_save()
 
         # Add log
         self._add_exp_farming_log(f"[{i18n_manager.get_ui_text('d4_panel.exp_farming.status.stopped')}] EXP Farming stopped")

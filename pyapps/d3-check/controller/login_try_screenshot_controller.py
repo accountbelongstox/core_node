@@ -40,6 +40,7 @@ from providor.constants.d3 import (
     D3_STANDARD_RESOLUTION_HEIGHT,
     C3_C3W_TIMEOUT_SEC,
     C3W_WAIT_SEC,
+    C10_SKIP_AFTER_TELEPORT_SEC,
     BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME,
     BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME,
 )
@@ -85,6 +86,8 @@ from d3utils.rosbot_flow.flow_c_d3_direct import (
     run_c4_disconnect_then_f1d_f1c,
     run_c12_end_d3,
 )
+from d3utils.rosbot_flow.extension_flow_state import get_last_teleport_success_time, set_last_teleport_success_time
+from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
 from d3utils.battlenet_template_matcher import match_battlenet_template
 from d3utils.battlenet_match_debug import debug_all_match_methods as run_battlenet_match_debug
 from d3utils.d3u_common.image_annotator_helper import save_match_debug_image, save_no_match_debug_image, save_click_debug_image
@@ -103,7 +106,7 @@ class LoginTryScreenshotController:
         ColorPrint.blue("[LoginTryScreenshotController] Initialized")
 
     def _ensure_d3_small_map_template(self) -> None:
-        """If d3_small_map.png template does not exist, copy from ScreenShot_2026-01-29_225845_569.png (screenshot dir or images/)."""
+        """If d3_small_map.png template does not exist, copy from logo.png (screenshot dir or images/)."""
         cfg = BATTLENET_TEMPLATE_CONFIGS.get(BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME)
         if not cfg:
             return
@@ -119,7 +122,7 @@ class LoginTryScreenshotController:
                 return
         ColorPrint.yellow(
             f"[LoginTryScreenshotController] Template {dest_path.name} not found; "
-            f"put {BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME} in {LOGIN_TRY_SCREENSHOT_DIR} or {TEMPLATE_DIR} or {dest_path}"
+            f"put {BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME} in {LOGIN_TRY_SCREENSHOT_DIR} or {TEMPLATE_DIR} or create {dest_path}"
         )
 
     def _capture_battlenet_window(self) -> Optional[Path]:
@@ -356,21 +359,14 @@ class LoginTryScreenshotController:
                 break
             else:
                 continue
-            ColorPrint.gray("[LoginTryScreenshotController] [D-only] [D12] sleep(5) then poll D3 window 10s...")
-            time.sleep(5)
-            _poll_sec = 10
-            already_restarted = False
-            for poll_i in range(_poll_sec):
-                time.sleep(1)
-                d3_windows = get_d3_manager().find_windows()
-                if d3_windows:
-                    get_game_interface_data().set_d3_status(True)
-                    ColorPrint.green("[LoginTryScreenshotController] [D-only] D3 window found, set_d3_status(True)")
-                    return True
-                if poll_i == 0 or poll_i % 2 == 0:
-                    ColorPrint.gray(f"[LoginTryScreenshotController] [D-only] poll #{poll_i + 1}/{_poll_sec} -> not found")
-            self._restart_battlenet_and_retry_from_step1(bn_path)
-            continue
+            ColorPrint.gray("[LoginTryScreenshotController] [D-only] [D12] sleep(3) then poll D3 window 8s...")
+            time.sleep(3)
+            if not get_d3_manager().poll_until_window_appears(timeout_sec=8.0, interval_sec=0.5, log_progress_every_n=4):
+                self._restart_battlenet_and_retry_from_step1(bn_path)
+                continue
+            get_game_interface_data().set_d3_status(True)
+            ColorPrint.green("[LoginTryScreenshotController] [D-only] D3 window found, set_d3_status(True)")
+            return True
         ColorPrint.yellow("[LoginTryScreenshotController] [D-only] Exhausted retries")
         return False
 
@@ -468,12 +464,16 @@ class LoginTryScreenshotController:
         Caller must have done C2 (resize) before. Returns "success" if start or game_tool path completed with ROSBOT;
         "disconnect" when F1d+F1c ran (caller must NOT restart Battle.net; next tick F_Entry->B2);
         "fallthrough" for other / timeout (caller may retry from D14).
-        d3_just_entered: True when D13 found D3 window within 10s (刚进入游戏); then game_tool skips C6/C10 and goes directly to C7a (ROSBOT_FLOW_MERMAID).
-        Doc: no-match/timeout 1min -> C12. Timeout=1min from C3 loop entry; if d3_start_game_button detected then click and reset 1min (Start Game may be stuck and retry).
+        d3_just_entered: True when D13 found D3 window within 10s (just entered game); then game_tool skips C6/C10 and goes directly to C7a (ROSBOT_FLOW_MERMAID).
+        Doc: no-match/timeout 3min -> C12. Timeout=3min from C3 loop entry; if d3_start_game_button detected then click and reset 3min (Start Game may be stuck and retry).
         """
         c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # Timer start: on C3 loop entry (after C2)
         state = None
         while time.time() < c3_deadline:
+            if not get_d3_manager().is_running():
+                ColorPrint.gray("[LoginTryScreenshotController] [C3] D3 no longer running (e.g. F4 killed), break to D block")
+                state = None
+                break
             state = run_c3_screenshot_state()
             if state == "disconnect":
                 time.sleep(C3W_WAIT_SEC)
@@ -484,20 +484,32 @@ class LoginTryScreenshotController:
                 time.sleep(C3W_WAIT_SEC)
                 continue
             if state == "game_tool":
+                # D13 just entered: need two consecutive game_tool to treat as in-game, avoid loading/char-select screen mis-click teleport
+                if d3_just_entered:
+                    time.sleep(C3W_WAIT_SEC)
+                    state2 = run_c3_screenshot_state()
+                    if state2 != "game_tool":
+                        state = state2
+                        time.sleep(C3W_WAIT_SEC)
+                        continue
                 break
             if state == "start":
                 if click_start_game_button_if_found():
-                    c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # On start: click and reset 1min
-                    ColorPrint.gray("[LoginTryScreenshotController] [C3] d3_start_game_button detected, clicked and reset 1min (Start Game may be stuck)")
+                    c3_deadline = time.time() + C3_C3W_TIMEOUT_SEC  # On start: click and reset 3min
+                    ColorPrint.gray("[LoginTryScreenshotController] [C3] d3_start_game_button detected, clicked and reset 3min (Start Game may be stuck)")
                 time.sleep(C3W_WAIT_SEC)
                 continue
             time.sleep(C3W_WAIT_SEC)
         if time.time() >= c3_deadline and state not in ("disconnect", "start", "game_tool"):
+            # Flow doc: when connecting keep wait, do not kill D3; only 'unrecognized/timeout' go to C12. If last round before timeout was wait(connecting) do not do final match, return as connecting
+            if state == "wait":
+                ColorPrint.gray("[LoginTryScreenshotController] [C3] timeout but last state was connecting (wait), do not kill D3, next tick retry")
+                return "connecting"
             state = run_c3_screenshot_state()
         ColorPrint.gray("[LoginTryScreenshotController] [C] progress: run_c4_branch_result -> %s (d3_just_entered=%s)" % (state, d3_just_entered))
         if state == "game_tool" and d3_just_entered:
             branch_result = "game_tool"
-            ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s (skip C10: D13 刚进入游戏, ROSBOT_FLOW_MERMAID)" % branch_result)
+            ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s (skip C10: D13 just entered game, ROSBOT_FLOW_MERMAID)" % branch_result)
         else:
             branch_result = run_c4_branch_result(state)
             ColorPrint.gray("[LoginTryScreenshotController] [C] progress: branch_result=%s" % branch_result)
@@ -511,10 +523,12 @@ class LoginTryScreenshotController:
         if branch_result == "start":
             r1 = try_fragment1_click_start_game_wait_game_tool()
             if r1 is True and send_m_then_teleport_three_clicks():
+                set_last_teleport_success_time(time.time())
                 get_game_interface_data().set_d3_status(True)
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
                 if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                    set_f3_rosbot_started_at()
                     fn = get_start_rosbot_task()
                     if fn:
                         fn()
@@ -524,11 +538,19 @@ class LoginTryScreenshotController:
                 run_c12_end_d3()
             return "fallthrough"
         if branch_result == "game_tool":
+            last_teleport = get_last_teleport_success_time()
+            in_teleport_cooldown = last_teleport is not None and (time.time() - last_teleport) < C10_SKIP_AFTER_TELEPORT_SEC
+            if in_teleport_cooldown:
+                # Already teleported this cycle (tick C7b); only wait for ROSBOT window and click (no M+teleport+kill+start).
+                run_after_rosbot_start(do_debug=True, do_tab=True, do_start_botting=True)
+                return "success"
             if try_fragment2_game_tool_press_m_then_clicks():
+                set_last_teleport_success_time(time.time())
                 get_game_interface_data().set_d3_status(True)
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
                 if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                    set_f3_rosbot_started_at()
                     fn = get_start_rosbot_task()
                     if fn:
                         fn()
@@ -556,44 +578,64 @@ class LoginTryScreenshotController:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path in config, skip step 1")
             return False
 
+        # Doc F1->C1: check if D3 is running first; when D3 already running go direct to C branch, use this tick refresh to avoid re-querying Battle.net
+        has_d3_process = get_d3_manager().is_running()
         clicker = ClickHandler()
         from_tick_fast_path = False
-        ColorPrint.gray("[LoginTryScreenshotController] progress: ensure_battlenet_started_and_login_check entry (battlenet_confirmed branch)...")
-        # D block from B7: only treat as battlenet_confirmed when NOT on login screen (tick flow may have moved to BN_LoginAsia/BN_Login1/BN_Login2 after B7 triggered).
-        if get_request_d_block_from_b7():
-            ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_request_d_block_from_b7")
-            if _is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False):
-                get_and_clear_request_d_block_from_b7()
+        battlenet_confirmed = False
+
+        if has_d3_process:
+            # D3 already running -> prefer direct, use cached BN state, no repeated find_windows/get_dynamic_state
+            g = get_game_interface_data()
+            if g.battlenet_window_found and g.battlenet_normal_available:
+                battlenet_confirmed = True
+                ColorPrint.gray("[LoginTryScreenshotController] D3 running -> use cached BN state, skip BN login check (direct C)")
+            else:
+                battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+                if battlenet_confirmed:
+                    ColorPrint.gray("[LoginTryScreenshotController] D3 running, BN confirmed after one check")
+        else:
+            # D3 not running -> per doc do Battle.net confirm then D block
+            ColorPrint.gray("[LoginTryScreenshotController] progress: D3 not running -> battlenet_confirmed branch...")
+            if get_request_d_block_from_b7():
+                ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_request_d_block_from_b7")
+                if _is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False):
+                    get_and_clear_request_d_block_from_b7()
+                    battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+                    if not battlenet_confirmed:
+                        ColorPrint.blue("[LoginTryScreenshotController] D block from B7 but flow on login screen -> run Battle.net flow only (no D3 small map check yet)")
+                else:
+                    get_and_clear_request_d_block_from_b7()
+                    battlenet_confirmed = True
+                    ColorPrint.blue("[LoginTryScreenshotController] D block from B7 (no operable UI): run D3 tab, Play, region (CN/Asia) then C or D")
+            elif _get_and_clear_battlenet_tick_confirmed(True) or _get_and_clear_battlenet_tick_confirmed(False):
+                ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_and_clear_battlenet_tick_confirmed (tick-confirmed)")
+                battlenet_confirmed = True
+                from_tick_fast_path = True
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed by tick flow, running D3 part only")
+            else:
+                ColorPrint.gray("[LoginTryScreenshotController] progress: branch _ensure_battlenet_logged_in_first...")
                 battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
                 if not battlenet_confirmed:
-                    ColorPrint.blue("[LoginTryScreenshotController] D block from B7 but flow on login screen -> run Battle.net flow only (no D3 small map check yet)")
-            else:
-                get_and_clear_request_d_block_from_b7()
-                battlenet_confirmed = True
-                ColorPrint.blue("[LoginTryScreenshotController] D block from B7 (no operable UI): run D3 tab, Play, region (CN/Asia) then C or D")
-        elif _get_and_clear_battlenet_tick_confirmed(True) or _get_and_clear_battlenet_tick_confirmed(False):
-            ColorPrint.gray("[LoginTryScreenshotController] progress: branch get_and_clear_battlenet_tick_confirmed (tick-confirmed)")
-            battlenet_confirmed = True
-            from_tick_fast_path = True
-            ColorPrint.blue("[LoginTryScreenshotController] Battle.net confirmed by tick flow, running D3 part only")
-        else:
-            ColorPrint.gray("[LoginTryScreenshotController] progress: branch _ensure_battlenet_logged_in_first...")
-            battlenet_confirmed = self._ensure_battlenet_logged_in_first(bn_path, clicker)
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
             if not battlenet_confirmed:
-                ColorPrint.blue("[LoginTryScreenshotController] Battle.net not confirmed; run Battle.net flow only, do not touch D3")
-        if not battlenet_confirmed:
-            from_tick_fast_path = False
+                from_tick_fast_path = False
 
         # Enter branch A (C) only when: Battle.net logged in + [A6] D3 process exists (ROSBOT_FLOW_MERMAID.md)
         has_bn_confirmed = battlenet_confirmed
-        has_d3_process = get_d3_manager().is_running()
         # When tick flow is on login screen (BN_LoginAsia/BN_Login1/BN_Login2), do not run D block (kill D3, capture, expect small map). Let tick flow finish login; controller will be triggered again after BN_Confirmed.
         if not has_bn_confirmed and (_is_bn_flow_in_login_phase(True) or _is_bn_flow_in_login_phase(False)):
             ColorPrint.blue("[LoginTryScreenshotController] Flow on login screen, skip D block (no kill/restart); tick flow will perform login")
             return False
+        # When D3 running but not in C block (has_bn_confirmed=False), entering D block would kill D3 first. Flow requires: do not kill when connecting. Before D do one C3 step; if connecting this tick do not kill, do not restart BN.
+        if has_d3_process and not has_bn_confirmed:
+            quick_c3 = run_c3_screenshot_state()
+            if quick_c3 == "wait":
+                ColorPrint.gray("[LoginTryScreenshotController] D3 running but BN not confirmed; C3 one-step=connecting, do not kill D3, next tick retry")
+                return False
         if has_bn_confirmed and has_d3_process:
             if run_c1_entry(has_bn_confirmed, has_d3_process):
-                ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3, 启动时已存在)")
+                ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3, already present at start)")
                 run_c2_resize()
                 ColorPrint.gray("[LoginTryScreenshotController] [C] progress: _run_c3_loop_and_handle_branch(d3_just_entered=False)...")
                 c3_result = self._run_c3_loop_and_handle_branch(d3_just_entered=False)
@@ -625,12 +667,13 @@ class LoginTryScreenshotController:
                     if not normal_available:
                         from_tick_fast_path = False
                         continue
-                    ColorPrint.green("[LoginTryScreenshotController] [D fast] Tick-confirmed: click D3 tab + Play (no kill/tray)")
+                    ColorPrint.green("[LoginTryScreenshotController] [D fast] Tick-confirmed: click D3 tab + one shot Play (flow drives wait)")
+                    ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: before starting D3 try to end ROSBOT...")
+                    get_rosbot_manager().kill_if_running()
                     ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: click_d3_tab...")
                     if op.click_d3_tab():
-                        time.sleep(0.8)
-                        ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: click_start_game...")
-                        if op.click_start_game():
+                        ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: click_play_button_if_visible (one shot, no timer)...")
+                        if op.click_play_button_if_visible(force_refresh=True):
                             from_tick_fast_path = False
                             break
                     from_tick_fast_path = False
@@ -679,51 +722,41 @@ class LoginTryScreenshotController:
                     time.sleep(5)
                     continue
 
-                # normal_available: click D3 tab and Play via UI only
-                ColorPrint.green("[LoginTryScreenshotController] Battle.net normal_available (UI), click D3 tab + Play (UI only)")
+                # normal_available: click D3 tab then one shot Play (no timer; flow BN_WaitPlay drives wait over ticks)
+                ColorPrint.green("[LoginTryScreenshotController] Battle.net normal_available (UI), click D3 tab + one shot Play (flow drives)")
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: before starting D3 try to end ROSBOT...")
+                get_rosbot_manager().kill_if_running()
                 ColorPrint.gray("[LoginTryScreenshotController] [D] progress: click_d3_tab...")
                 if not op.click_d3_tab():
                     ColorPrint.yellow("[LoginTryScreenshotController] D3 tab click failed (UI), restart and retry...")
                     get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
                     time.sleep(5)
                     continue
-                time.sleep(0.8)
-                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: click_start_game...")
-                if not op.click_start_game():
-                    ColorPrint.yellow("[LoginTryScreenshotController] Play button click failed (UI), restart and retry...")
-                    get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
-                    time.sleep(5)
-                    continue
+                ColorPrint.gray("[LoginTryScreenshotController] [D] progress: click_play_button_if_visible (one shot, no timer)...")
+                if not op.click_play_button_if_visible(force_refresh=True):
+                    ColorPrint.gray("[LoginTryScreenshotController] [D] Play not visible this tick; flow BN_WaitPlay will click next tick, return for tick drive")
+                    return False
                 break
             else:
                 continue
 
-            # [D12] After Play sleep(5), poll for D3 window up to 10s; [D13] D3 window found -> C1_Entry (doc: D13 Yes -> C1)
-            ColorPrint.gray("[LoginTryScreenshotController] [D12] progress: sleep(5) then poll D3 window up to 10s...")
-            time.sleep(5)
-            _poll_sec = 10
-            for poll_i in range(_poll_sec):
-                time.sleep(1)
-                windows = get_d3_manager().find_windows()
-                if poll_i == 0 or (windows and poll_i % 2 == 0):
-                    ColorPrint.gray(f"[LoginTryScreenshotController] [D12] progress: poll #{poll_i + 1}/{_poll_sec} find_windows -> {'found' if windows else 'not found'}")
-                if windows:
-                    get_game_interface_data().set_d3_status(True)
-                    # [D13] Yes, 标记「刚进入游戏」-> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
-                    if run_c1_entry(True, True):
-                        run_c2_resize()
-                        ColorPrint.gray("[LoginTryScreenshotController] [D13] 刚进入游戏 -> _run_c3_loop_and_handle_branch(d3_just_entered=True), skip C10 when game_tool")
-                        c3_result = self._run_c3_loop_and_handle_branch(d3_just_entered=True)
-                        if c3_result == "success":
-                            return True
-                        # C4 disconnect: F1d+F1c already ran, D3 killed; next tick F_Entry->B2, do NOT restart BN
-                        if c3_result == "disconnect":
-                            return False
-                        # connecting: 启动中不杀 D3、不重启 BN，下一 tick 重试
-                        if c3_result == "connecting":
-                            return False
-                    # 文档 D13 否 / C 未成功(非 disconnect) -> D13b -> D14_Restart -> D14w_Wait -> B2_HasWin
-                    self._restart_battlenet_and_retry_from_step1(bn_path)
+            # [D12] After Play sleep(3), poll for D3 window up to 8s (0.5s interval); [D13] D3 window found -> C1_Entry
+            ColorPrint.gray("[LoginTryScreenshotController] [D12] progress: sleep(3) then poll D3 window up to 8s...")
+            time.sleep(3)
+            if not get_d3_manager().poll_until_window_appears(timeout_sec=8.0, interval_sec=0.5, log_progress_every_n=4):
+                self._restart_battlenet_and_retry_from_step1(bn_path)
+                return False
+            get_game_interface_data().set_d3_status(True)
+            # [D13] Yes, mark 'just entered game' -> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
+            if run_c1_entry(True, True):
+                run_c2_resize()
+                ColorPrint.gray("[LoginTryScreenshotController] [D13] just entered game -> _run_c3_loop_and_handle_branch(d3_just_entered=True), skip C10 when game_tool")
+                c3_result = self._run_c3_loop_and_handle_branch(d3_just_entered=True)
+                if c3_result == "success":
+                    return True
+                if c3_result == "disconnect":
+                    return False
+                if c3_result == "connecting":
                     return False
             self._restart_battlenet_and_retry_from_step1(bn_path)
             return False

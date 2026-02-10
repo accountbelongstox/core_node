@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Share = 共用区，分为数据区（values/）与公区功能区（common/），见 PROJECT_STANDARDS.md §1.3。
-数据区目录名用 values，禁止用 data/store/cache 等易被 gitignore 的目录名。
+Share = shared area: data area (values/) and common utilities (common/). See PROJECT_STANDARDS.md §1.3.
+Data directory must be named values; do not use data/store/cache etc. that may be gitignored.
 
-- 数据区 share/values/：仅共享数据与数据访问 API，无 run_*/do_*。
-  例：game_interface_data, project_path, oauth_callback, asia_credentials, template_match_debug。
-- 公区功能区 share/common/：两游戏共用的工具函数、基类。
-  例：scaled_template_matcher_base, coordinate_helper, battlenet_ui_common, battlenet_window_finder。
+- Data area share/values/: shared data and data access API only, no run_*/do_*.
+  Examples: game_interface_data, project_path, oauth_callback, asia_credentials, template_match_debug.
+- Common utilities share/common/: shared helpers and base classes for both games.
+  Examples: scaled_template_matcher_base, coordinate_helper, battlenet_ui_common, battlenet_window_finder.
 
-禁止把 share 整体当“功能区”堆业务逻辑。直接导入：from share.game_interface_data import ... ；from share.project_path import ...
+Do not treat share as a feature dump. Import directly: from share.game_interface_data import ... ; from share.project_path import ...
 """
 
 from .project_path import get_project_root, ensure_d3_check_in_sys_path

@@ -80,7 +80,7 @@ class PathfindingController:
                 return False
         return True
 
-    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; EN client use "Enchanter"
+    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default CN "附魔", EN use "Enchanter"
         """
         Find enchanter NPC using grid-based OCR search with mouse movement
 

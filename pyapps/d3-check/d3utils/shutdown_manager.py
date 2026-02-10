@@ -23,8 +23,7 @@ from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 from d3utils.main_function_thread import get_main_function_thread
 from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
-from d3utils.d3_extension_thread import get_d3_extension_thread
-from d3utils.d4_extension_thread import get_d4_extension_thread
+# Lazy import d3/d4 extension thread getters to avoid circular import (rosbot_flow -> shutdown_manager -> d3_extension_thread)
 
 # Global hotkey listener reference
 _hotkey_listener: Optional[HotkeyListener] = None
@@ -146,6 +145,8 @@ def execute_shutdown():
 
         # Step 0: Signal extension shutdown via event center, then join all 4 threads
         trigger_extension_shutdown()
+        from d3utils.d3_extension_thread import get_d3_extension_thread
+        from d3utils.d4_extension_thread import get_d4_extension_thread
         for name, getter, label in [
             ("main", get_main_function_thread, "Main function"),
             ("auxiliary", get_auxiliary_function_thread, "Auxiliary"),

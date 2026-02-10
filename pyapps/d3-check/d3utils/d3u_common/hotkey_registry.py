@@ -16,7 +16,15 @@ ensure_d3_check_in_sys_path()
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG, get_assistant_state, set_assistant_should_stop, can_start_assistant
 from d3utils.global_hotkey_manager import register_hotkey
-from controller.game_assistant_controller import GameAssistantController
+
+# Injected by controller; d3utils does not import controller.
+_assistant_callback: Optional[Callable[[], None]] = None
+
+
+def set_assistant_callback(cb: Callable[[], None]) -> None:
+    """Set callback for assistant hotkey (run assistant action). Called from controller layer."""
+    global _assistant_callback
+    _assistant_callback = cb
 
 
 class HotkeyRegistry:
@@ -50,22 +58,20 @@ class HotkeyRegistry:
 
         ColorPrint.blue(f"[HotkeyRegistry] Registering assistant hotkey: {assistant_hotkey}")
 
-        # Create controller instance
-        game_assistant = GameAssistantController()
-
         def assistant_hotkey_callback():
-            """Toggle assistant function execution"""
+            """Toggle assistant; uses injected _assistant_callback (set by controller)."""
             state = get_assistant_state()
 
             if state["is_running"]:
-                # Already running, request stop
                 ColorPrint.yellow("[HOTKEY] Assistant: Requesting stop...")
                 set_assistant_should_stop(True)
             else:
-                # Not running, check if can start
                 if can_start_assistant():
-                    ColorPrint.blue("[HOTKEY] Assistant: Starting auto use interface function...")
-                    game_assistant.auto_use_interface_function()
+                    if _assistant_callback:
+                        ColorPrint.blue("[HOTKEY] Assistant: Starting auto use interface function...")
+                        _assistant_callback()
+                    else:
+                        ColorPrint.yellow("[HOTKEY] Assistant: Callback not set (controller not ready)")
                 else:
                     ColorPrint.yellow("[HOTKEY] Assistant: Cannot start - execution disabled")
 

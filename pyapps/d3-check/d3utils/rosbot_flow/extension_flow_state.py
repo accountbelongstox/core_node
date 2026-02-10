@@ -3,10 +3,19 @@
 Extension (C branch) phase/deadline/payload; used by flow_master_driver.
 
 All extension steps (phases) are defined here. flow_master_driver uses is_idle() only.
-Timing by flow_tick_count: deadline_tick = current_tick + N (e.g. 30 ticks = 60s when 1 tick = 2s).
+Timing by flow_tick_count: deadline_tick = current_tick + N (e.g. 90 ticks = 180s when 1 tick = 2s).
+
+State 'just entered game': set via payload d3_just_entered when C branch entered from D13 (D13 found D3 window).
+Then at C3_GameToolOrigin (game_tool): skip C6/C10, go directly to C7a (ROSBOT_FLOW_MERMAID).
 """
+import time
 from enum import Enum
 from typing import Any, Dict, Optional
+
+from providor.constants.d3 import C10_SKIP_AFTER_TELEPORT_SEC
+
+PAYLOAD_KEY_D3_JUST_ENTERED = "d3_just_entered"
+PAYLOAD_KEY_C7A_ROUND = "c7a_round"  # 1=first M round, 2=second M round (ensure map open before teleport)
 
 
 class ExtensionPhase(str, Enum):
@@ -21,8 +30,10 @@ class ExtensionPhase(str, Enum):
     C_C10_SEND_M = "C_C10_SEND_M"             # C10_Check send M
     C_C10_WAIT = "C_C10_WAIT"
     C_C10_COMPARE = "C_C10_COMPARE"           # C10_Result compare
-    C_C7a_SEND_M = "C_C7a_SEND_M"             # C7a press M
-    C_C7a_WAIT = "C_C7a_WAIT"                 # C7w_Wait
+    C_C7a_SEND_M = "C_C7a_SEND_M"             # C7a send M (open/close map)
+    C_C7a_WAIT = "C_C7a_WAIT"                 # C7w_Wait 2s
+    C_C7a_VERIFY_BOUNTY = "C_C7a_VERIFY_BOUNTY"  # Verify bounty progress to confirm map open; if not found can do second M round
+    C_C7b_AFTER_BOUNTY_WAIT = "C_C7b_AFTER_BOUNTY_WAIT"  # After bounty found wait N ticks then C7b minimize (tick-driven, no sleep)
     C_C7b_MINIMIZE = "C_C7b_MINIMIZE"        # C7b minimize map
     C_C7b_WAIT = "C_C7b_WAIT"
     C_C7b_TELEPORT = "C_C7b_TELEPORT"         # C7b teleport -> C8_Result -> A8_Success
@@ -35,6 +46,8 @@ _deadline_tick: int = 0
 _payload: Dict[str, Any] = {}
 # C3 last state for disconnect confirm
 _last_c3_state: Optional[str] = None
+# Time of last successful teleport (C7b or D13 path); skip C10 for a period after (fresh game not checked for M disconnect). Not cleared by reset_state.
+_last_teleport_success_time: Optional[float] = None
 
 
 def get_phase() -> str:
@@ -82,8 +95,19 @@ def set_last_c3_state(s: Optional[str]) -> None:
     _last_c3_state = s
 
 
+def set_last_teleport_success_time(t: float) -> None:
+    """Record time of last teleport success (C7b or D13 path). Used to skip C10 for a period (fresh game not checked for M disconnect)."""
+    global _last_teleport_success_time
+    _last_teleport_success_time = t
+
+
+def get_last_teleport_success_time() -> Optional[float]:
+    """Return time of last teleport success, or None."""
+    return _last_teleport_success_time
+
+
 def reset_state() -> None:
-    """Clear all extension flow state (idle)."""
+    """Clear all extension flow state (idle). Does not clear _last_teleport_success_time."""
     global _phase, _wait_ticks_remaining, _deadline_tick, _payload, _last_c3_state
     _phase = ExtensionPhase.IDLE.value
     _wait_ticks_remaining = 0
@@ -93,8 +117,29 @@ def reset_state() -> None:
 
 
 def is_idle() -> bool:
-    return _phase == ExtensionPhase.IDLE.value
+    """Idle = phase IDLE and not within cooldown after last teleport. During cooldown we do not re-enter C branch (avoid C7b loop)."""
+    if _phase != ExtensionPhase.IDLE.value:
+        return False
+    last = get_last_teleport_success_time()
+    if last is None:
+        return True
+    if (time.time() - last) < C10_SKIP_AFTER_TELEPORT_SEC:
+        return False
+    return True
 
 
 def is_running() -> bool:
     return _phase != ExtensionPhase.IDLE.value
+
+
+# C7b click sequence (minimize -> teleport1 -> teleport2): inside event group do not run refresh, only extension_flow_tick_step drives; avoid screenshot/refresh in between breaking click coherence
+C7B_CLICK_EVENT_PHASES = (
+    ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT.value,
+    ExtensionPhase.C_C7b_WAIT.value,
+    ExtensionPhase.C_C7b_TELEPORT.value,
+)
+
+
+def is_in_c7b_click_event_group() -> bool:
+    """Event group: when in C7b click sequence, flow_master runs only extension_flow_tick_step, no refresh_for_routing or full refresh before extension; resume after click event ticks complete."""
+    return _phase in C7B_CLICK_EVENT_PHASES

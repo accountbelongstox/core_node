@@ -651,11 +651,11 @@ class BagLayoutDetector:
         Determine item quality based on dominant color
 
         Quality mapping:
-        - green -> legendary_set (传奇套装)
-        - dark_gold -> legendary (普通传奇)
-        - yellow -> rare (黄装)
-        - blue -> magic (蓝装)
-        - black -> empty (空格子)
+        - green -> legendary_set (set legendary)
+        - dark_gold -> legendary (legendary)
+        - yellow -> rare (rare)
+        - blue -> magic (magic)
+        - black -> empty (empty slot)
 
         Args:
             color_data: Color analysis data
@@ -672,11 +672,11 @@ class BagLayoutDetector:
 
         # Map color to quality
         quality_map = {
-            'green': 'legendary_set',    # 传奇套装 (绿装)
-            'dark_gold': 'legendary',     # 普通传奇 (暗金)
-            'yellow': 'rare',             # 黄装
-            'blue': 'magic',              # 蓝装
-            'black': 'empty',             # 空格子
+            'green': 'legendary_set',    # set legendary (green)
+            'dark_gold': 'legendary',     # legendary (orange)
+            'yellow': 'rare',             # rare (yellow)
+            'blue': 'magic',              # magic (blue)
+            'black': 'empty',             # empty slot
         }
 
         return quality_map.get(dominant_color, 'unknown')
@@ -787,30 +787,43 @@ class BagLayoutDetector:
         # Draw and save visualization image
         self._save_layout_visualization(layout, empty_count, item_1slot_count, item_2slot_count, color_analysis)
 
-    def _save_layout_visualization(
+    def build_visualization_image(self, layout_result: Dict) -> Optional[np.ndarray]:
+        """
+        Build bag layout visualization image in memory (same content as bag_layout_*.png).
+        Must be called after detect_layout() so self.original_bag_image is set.
+
+        Args:
+            layout_result: Dict from detect_layout with 'layout', 'items', optional 'color_analysis'
+
+        Returns:
+            Combined BGR image (grid + bag screenshot + extraction + color table), or None on error.
+        """
+        if not layout_result or not getattr(self, "original_bag_image", None):
+            return None
+        layout = layout_result.get("layout")
+        if not layout or len(layout) != self.rows or (len(layout[0]) != self.cols):
+            return None
+        empty_count = sum(1 for r in range(self.rows) for c in range(self.cols) if layout[r][c] == "empty")
+        item_1slot_count = sum(1 for r in range(self.rows) for c in range(self.cols) if layout[r][c] == "item_1slot")
+        item_2slot_count = sum(1 for r in range(self.rows) for c in range(self.cols) if layout[r][c] == "item_2slot_top")
+        color_analysis = layout_result.get("color_analysis")
+        return self._build_layout_visualization_image(
+            layout, empty_count, item_1slot_count, item_2slot_count, color_analysis
+        )
+
+    def _build_layout_visualization_image(
         self,
         layout: List[List[str]],
         empty_count: int,
         item_1slot_count: int,
         item_2slot_count: int,
         color_analysis: Dict = None
-    ) -> None:
+    ) -> Optional[np.ndarray]:
         """
-        Create and save bag layout visualization image
-        Combines detection result grid (top), actual bag screenshot (middle), and extraction regions (bottom)
-
-        Args:
-            layout: 2D array of slot usage
-            empty_count: Number of empty slots
-            item_1slot_count: Number of 1-slot items
-            item_2slot_count: Number of 2-slot items
-            color_analysis: Color analysis results (optional)
+        Build combined visualization image (grid + bag + extraction + color table).
+        Returns BGR numpy array; does not save to file.
         """
         try:
-            from datetime import datetime
-
-            ColorPrint.blue("[Visualization] Creating bag layout visualization...")
-
             # --- Part 1: Detection Result Grid ---
             cell_size = 60  # Size of each slot
             margin = 20
@@ -1148,21 +1161,36 @@ class BagLayoutDetector:
                 combined_image[current_y:current_y + img.shape[0], :] = img
                 current_y += img.shape[0]
 
-            # Save combined image
-            output_dir = Path.home() / ".core_node" / "pytools" / "tmp"
-            output_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_filename = f"bag_layout_{timestamp}.png"
-            output_path = output_dir / output_filename
-
-            cv2.imwrite(str(output_path), combined_image)
-            ColorPrint.green(f"[Visualization] Saved bag layout visualization: {output_path}")
+            return combined_image
 
         except Exception as e:
             ColorPrint.red(f"[Visualization] Error creating visualization: {e}")
             import traceback
             traceback.print_exc()
+            return None
+
+    def _save_layout_visualization(
+        self,
+        layout: List[List[str]],
+        empty_count: int,
+        item_1slot_count: int,
+        item_2slot_count: int,
+        color_analysis: Dict = None
+    ) -> None:
+        """Create and save bag_layout_*.png; uses _build_layout_visualization_image."""
+        from datetime import datetime
+        ColorPrint.blue("[Visualization] Creating bag layout visualization...")
+        combined = self._build_layout_visualization_image(
+            layout, empty_count, item_1slot_count, item_2slot_count, color_analysis
+        )
+        if combined is None:
+            return
+        output_dir = Path.home() / ".core_node" / "pytools" / "tmp"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = output_dir / f"bag_layout_{timestamp}.png"
+        cv2.imwrite(str(output_path), combined)
+        ColorPrint.green(f"[Visualization] Saved bag layout visualization: {output_path}")
 
     def _draw_pie_chart_on_image(
         self,

@@ -90,35 +90,35 @@ def get_asia_credentials() -> Optional[Tuple[str, str]]:
 def _debug_log_password(
     ciphertext: str, plain: str, decrypt_called: bool
 ) -> None:
-    """Debug: 密文(preview)、解密后(masked)、实际要输入(masked)、是否调用 pycore 加解密."""
-    # 密文：前 24 字符 + ...
+    """Debug: ciphertext (preview), decrypted (masked), actual input (masked), whether pycore encrypt/decrypt was used."""
+    # Ciphertext: first 24 chars + ...
     if ciphertext and decrypt_called:
         c_preview = (ciphertext[:24] + "...") if len(ciphertext) > 24 else ciphertext
     else:
-        c_preview = "N/A (明文存储)"
-    # 解密后 / 实际要输入：*** len=N，不输出明文
+        c_preview = "N/A (plain stored)"
+    # Decrypted / actual input: *** len=N, do not log plaintext
     n = len(plain) if plain else 0
     p_masked = ("*** len=%d" % n) if n else "empty"
     ColorPrint.gray(
-        "[AsiaCredentials] 密文 ciphertext (preview)= %s"
+        "[AsiaCredentials] ciphertext (preview)= %s"
         % c_preview
     )
     ColorPrint.gray(
-        "[AsiaCredentials] 解密后 decrypted= %s | 实际要输入 actual_to_input= %s"
+        "[AsiaCredentials] decrypted= %s | actual_to_input= %s"
         % (p_masked, p_masked)
     )
     if decrypt_called:
         ColorPrint.gray(
-            "[AsiaCredentials] 加密/解密: 本次读取已调用 pycore.pyutils.security.decrypt_password"
+            "[AsiaCredentials] encrypt/decrypt: this read used pycore.pyutils.security.decrypt_password"
         )
     else:
         ColorPrint.gray(
-            "[AsiaCredentials] 加密/解密: 本次读取未调用解密 (明文存储)"
+            "[AsiaCredentials] encrypt/decrypt: this read did not decrypt (plain stored)"
         )
 
 
 def save_credentials(region: str, email: str, password: str) -> None:
-    """保存时：取输入框明文，加密后自动替换写入密文到配置。"""
+    """On save: take plaintext from input, encrypt and write ciphertext to config."""
     cipher = encrypt_password(password)
     stored_password = cipher if cipher is not None else password
     key = _config_key_for_region(region)
@@ -131,7 +131,7 @@ def save_asia_credentials(email: str, password: str) -> None:
 
 
 def _load_credentials_into_vars(region: str, var_email: tk.StringVar, var_password: tk.StringVar) -> None:
-    """已有值时：先解密再显示到输入框，供用户修改。密文 → decrypt → 明文填入 UI。"""
+    """When value exists: decrypt then show in input for editing. Ciphertext -> decrypt -> plaintext into UI."""
     key = _config_key_for_region(region)
     raw = get_config_value_safe(key, None)
     email = ""
@@ -153,7 +153,7 @@ def _load_credentials_into_vars(region: str, var_email: tk.StringVar, var_passwo
 
 
 def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
-    """Show modal dialog: region dropdown (亚服/国服), account, password. Save to selected region on OK."""
+    """Show modal dialog: region dropdown (Asia/CN), account, password. Save to selected region on OK."""
     try:
         root = get_app_root()
         if not root:
@@ -238,21 +238,21 @@ def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
 
 
 def _show_asia_credentials_dialog() -> None:
-    """Show credentials dialog with default region Asia (same dialog as 设置账号密码)."""
+    """Show credentials dialog with default region Asia (same dialog as credentials settings)."""
     _show_credentials_dialog(default_region=REGION_ASIA)
 
 
 def schedule_asia_credentials_dialog() -> None:
     """
-    Schedule the credentials dialog (default 亚服) on the main thread. Used when BN flow needs credentials.
+    Schedule the credentials dialog (default Asia) on the main thread. Used when BN flow needs credentials.
     """
     schedule_battlenet_credentials_dialog(default_region=REGION_ASIA)
 
 
 def schedule_battlenet_credentials_dialog(default_region: str = REGION_ASIA) -> None:
     """
-    Schedule the Battle.net 账号密码 dialog on the main (UI) thread. default_region: REGION_ASIA or REGION_CN.
-    Same dialog as flow-triggered; dropdown 亚服/国服, account/password saved per region.
+    Schedule the Battle.net credentials dialog on the main (UI) thread. default_region: REGION_ASIA or REGION_CN.
+    Same dialog as flow-triggered; dropdown Asia/CN, account/password saved per region.
     """
     if _asia_credentials_dialog_pending:
         return

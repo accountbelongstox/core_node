@@ -25,11 +25,18 @@ class ConfigBinding:
 
     @staticmethod
     def _register_binding(key_path: str, var: tk.Variable):
-        """Register a variable binding for a config key"""
+        """Register a variable binding for a config key. Use log_registration_summary() once after UI build to log all."""
         if key_path not in ConfigBinding._bindings:
             ConfigBinding._bindings[key_path] = []
         ConfigBinding._bindings[key_path].append(var)
-        ColorPrint.debug(f"[ConfigBinding] Registered binding for '{key_path}'")
+
+    @staticmethod
+    def log_registration_summary():
+        """Log one line with total bindings count. Call after all panels created."""
+        n = len(ConfigBinding._bindings)
+        if n == 0:
+            return
+        ColorPrint.debug(f"[ConfigBinding] Registered {n} bindings")
 
     @staticmethod
     def _update_bindings(key_path: str, new_value: Any):
@@ -44,7 +51,6 @@ class ConfigBinding:
                     current_value = var.get()
                     if str(current_value) != str(new_value):
                         var.set(str(new_value))
-                        ColorPrint.debug(f"[ConfigBinding] Updated UI binding for '{key_path}' to '{new_value}'")
         finally:
             ConfigBinding._updating = False
 
@@ -102,7 +108,19 @@ class ConfigBinding:
         var.trace_add('write', on_change)
 
         return entry
-    
+
+    @staticmethod
+    def create_input_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: str,
+                                         default_value: str = "", width: int = 20, **kwargs) -> tk.Entry:
+        """Create Entry bound to CONFIG using pre-fetched initial_value (no main-thread config read). Use when building UI from a config snapshot fetched in a worker thread."""
+        var = var_str(parent, str(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        entry = tk.Entry(parent, textvariable=var, width=width, **kwargs)
+        def on_change(*args):
+            ConfigBinding.set_config_value(key_path, var.get())
+        var.trace_add('write', on_change)
+        return entry
+
     @staticmethod
     def create_checkbox_binding(parent: tk.Widget, key_path: str, text: str = "", 
                               default_value: bool = False, **kwargs) -> tk.Checkbutton:
@@ -129,7 +147,19 @@ class ConfigBinding:
         var.trace_add('write', on_change)
 
         return checkbox
-    
+
+    @staticmethod
+    def create_checkbox_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: bool,
+                                            text: str = "", default_value: bool = False, **kwargs) -> tk.Checkbutton:
+        """Create Checkbutton bound to CONFIG using pre-fetched initial_value (no main-thread config read)."""
+        var = var_bool(parent, bool(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        checkbox = tk.Checkbutton(parent, text=text, variable=var, **kwargs)
+        def on_change(*args):
+            ConfigBinding.set_config_value(key_path, var.get())
+        var.trace_add('write', on_change)
+        return checkbox
+
     @staticmethod
     def create_combobox_binding(parent: tk.Widget, key_path: str, values: List[str], 
                               default_value: str = "", width: int = 15, **kwargs) -> ttk.Combobox:
@@ -198,7 +228,29 @@ class ConfigBinding:
         var.trace_add('write', on_change)
 
         return spinbox
-    
+
+    @staticmethod
+    def create_spinbox_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: Union[int, float, str],
+                                           from_: Union[int, float] = 0, to: Union[int, float] = 100,
+                                           increment: Union[int, float] = 1, default_value: Union[int, float] = 0,
+                                           width: int = 10, **kwargs) -> tk.Spinbox:
+        """Create Spinbox bound to CONFIG using pre-fetched initial_value (no main-thread config read)."""
+        var = var_str(parent, str(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to,
+                             increment=increment, width=width, **kwargs)
+        def on_change(*args):
+            value_str = var.get()
+            if isinstance(increment, int):
+                ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
+            else:
+                try:
+                    ConfigBinding.set_config_value(key_path, float(value_str))
+                except ValueError:
+                    ConfigBinding.set_config_value(key_path, default_value)
+        var.trace_add('write', on_change)
+        return spinbox
+
     @staticmethod
     def bind_existing_widget(widget: tk.Widget, key_path: str, 
                            value_getter: Callable = None, 

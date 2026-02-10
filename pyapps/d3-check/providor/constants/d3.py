@@ -36,7 +36,7 @@ START_GAME_NAME_KEYWORDS_ASIA = ("Play", "開始遊戲", "Playing Now")
 # ---------------------------------------------------------------------------
 # D3 Battle.net (D3-specific)
 # ---------------------------------------------------------------------------
-BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME = "ScreenShot_2026-01-29_225845_569.png"
+BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME = "logo.png"
 BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME = "battlenet_d3_small_map"
 
 # ---------------------------------------------------------------------------
@@ -51,25 +51,32 @@ D3_START_GAME_BUTTON_TEMPLATE_NAME = "d3_start_game_button"
 D3_GAME_TOOL_TEMPLATE_NAME = "d3_game_tool"
 D3_BOUNTY_PROGRESS_TEMPLATE_NAME = "d3_bounty_progress"
 D3_DISCONNECTED_TEMPLATE_NAME = "d3_disconnected"
-# d3_disconnected 匹配需达到的最小 good matches 数，避免连接中画面误判为掉线（净高 val）
+# Min good matches for d3_disconnected to avoid connecting screen mis-judged as disconnected
 D3_DISCONNECTED_MIN_GOOD_MATCHES = 20
 D3_CONNECTING_TEMPLATE_NAME = "d3_connecting"
 D3_CONNECTING_ALT_TEMPLATE_NAME = "d3_connecting_alt"
-D3_MAP_MINIMIZE_CLICK = (751, 413)
-D3_TELEPORT_CLICK = (610, 126)
+D3_MAP_MINIMIZE_CLICK = (610, 126)
+D3_TELEPORT_CLICK = (751, 413)       # Large/small map
+D3_TELEPORT_CLICK_2 = (713, 611)    # Secret camp minimap
+C7B_TELEPORT_CLICK_INTERVAL_SEC = 0.5  # Interval between two teleport clicks
 C7B_WAIT_AFTER_CLICK_SEC = 2.0
+# After bounty confirmed (map open), wait before minimize/teleport click so map UI is stable and teleport works
+C7B_AFTER_BOUNTY_STABLE_SEC = 0.5
 D3_GAME_TOOL_AFTER_M_DELAY_SEC = 2.0
 D3_START_GAME_WAIT_INTERVAL_SEC = 2.0
 D3_START_GAME_MAX_ATTEMPTS = 10
 D3_GAME_TOOL_MAX_ATTEMPTS = 10
 D3_FRAGMENT1_WAIT_GAME_TOOL_ATTEMPTS = 5
 D3_FRAGMENT2_DISAPPEAR_ATTEMPTS = 5
-C3_C3W_TIMEOUT_SEC = 60.0
-C3_DEADLINE_TICKS = 30
+C3_C3W_TIMEOUT_SEC = 180.0  # C3/C3w overall timeout (3 minutes)
+# Extension flow deadline in flow ticks (2s per flow tick): 90 * 2s = 180s = 3 minutes
+C3_DEADLINE_TICKS = 90
 C3W_WAIT_SEC = 2.0
-# C10b 判掉线阈值：按 M 前后截图相似度 >= 此值视为「M 无反应」→ 掉线。仅 C10b（step_c10_compare）使用。
-# 原因：阈值过低会误判——在线时若地图开/关状态未变或画面变化小，相似度也可达 0.98~0.99，曾出现 0.989 误判掉线。
-# 故设为 0.995：仅当两张图几乎完全一致时才判掉线。
+# Within this many seconds after teleport (C7b or D13 success) skip C10 (M-key disconnect check); doc: fresh game does not check M disconnect.
+C10_SKIP_AFTER_TELEPORT_SEC = 90
+# C10b disconnect threshold: if similarity of before/after M screenshot >= this value treat as 'M no response' -> disconnect. Only C10b (step_c10_compare).
+# Reason: lower threshold causes false positive; when online with map state unchanged or small change similarity can be 0.98~0.99, 0.989 once false-disconnected.
+# So 0.995: only when two images are almost identical judge as disconnect.
 D3_ONLINE_SIMILARITY_THRESHOLD = 0.995
 D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 
@@ -78,6 +85,14 @@ D3_ONLINE_SIMILARITY_RESIZE = (64, 64)
 # ---------------------------------------------------------------------------
 DIABLO_III_EXE_NAME = "Diablo III.exe"
 ROSBOT_EXE_PATTERNS = ("ros-bot*.exe", "RoS-BoT*.exe")
+
+# ROSBOT update check: GameTools base dir (ros-bot*.exe from here or config); Downloads dir for zip
+ROSBOT_GAMETOOLS_BASE = r"D:\applications\GameTools"
+ROSBOT_ZIP_MIN_SIZE_MB = 20
+# Downloads zip match: Asia first, then global/CN/English
+ROSBOT_ZIP_KEYWORDS_ASIA = ("亚服", "asia", "Asia")
+ROSBOT_ZIP_KEYWORDS_GLOBAL = ("国际服", "global", "Global")
+ROSBOT_ZIP_KEYWORDS_CN = ("国服", "cn", "CN")
 
 # ---------------------------------------------------------------------------
 # ROSBOT UI automation

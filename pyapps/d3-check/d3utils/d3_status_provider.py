@@ -60,14 +60,14 @@ def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]
     skip_dynamic=True: only find window + geometry (no screenshot/SIFT). Use for status refresh (startup, manual). Flow uses skip_dynamic=False.
     Returns D3 window info or None.
     """
-    if not skip_dynamic:
-        ColorPrint.gray("[D3StatusProvider] progress: prime_window_cache_for_capture...")
-        get_d3_manager().prime_window_cache_for_capture()
     game_data = get_game_interface_data()
     ColorPrint.gray("[D3StatusProvider] progress: find_windows...")
     windows = _find_d3_windows()
     window_info: Optional[Dict[str, Any]] = windows[0] if windows else None
     ColorPrint.gray(f"[D3StatusProvider] D3 window: {'found' if window_info else 'not found'}")
+    if window_info and not skip_dynamic:
+        ColorPrint.gray("[D3StatusProvider] progress: prime_window_cache_for_capture...")
+        get_d3_manager().prime_window_cache_for_capture()
     ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state...")
 
     def set_running(g: Any, found: bool) -> None:

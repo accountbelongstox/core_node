@@ -295,7 +295,7 @@ class BagInfoCollector:
             border_right = int(bag_match["polygon"][2][0])  # Bottom-right X
             border_bottom = int(bag_match["polygon"][2][1]) # Bottom-right Y
 
-            # 仅当 UI 勾选「偏移值参与计算」时应用裁取偏移；否则跳过（相当于 0,0,0,0）
+            # Apply crop offset only when UI "use offset in calculation" is checked; otherwise skip (same as 0,0,0,0)
             use_offset = bool(CONFIG.get("ui_analysis", {}).get("bag_offset", {}).get("use_in_calculation", False))
             bag_offset = CONFIG.get("ui_analysis", {}).get("bag_offset", {}) or CONFIG.get("system_settings", {}).get("bag_offset", {})
             if use_offset:

@@ -26,6 +26,7 @@ class BNStep(str, Enum):
     BN_First = "BN_First"
     BN_B4p_BrowserWait = "BN_B4p_BrowserWait"
     BN_Act = "BN_Act"
+    BN_WaitPlay = "BN_WaitPlay"
     BN_Poll = "BN_Poll"
     BN_Exit = "BN_Exit"
     BN_ExitWait = "BN_ExitWait"

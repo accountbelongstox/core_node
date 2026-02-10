@@ -2,6 +2,7 @@
 """
 ROSBOT UI automation: after ROSBOT starts, get window via get_rosbot_window() (same-dir exe flow), DEBUG print operable elements, then click main-profile tab and Start botting! button. Uses uiautomation (pycore third_party). Prefers UI Automation patterns (InvokePattern, SelectionItemPattern) via ui_control_operations; falls back to ClickHandler mouse at rect.
 """
+import os
 import time
 from pathlib import Path
 from typing import List, Dict, Optional, Any
@@ -18,6 +19,12 @@ from d3utils.ui_control_operations import operate_button, operate_tab_item, clic
 from d3utils.ui_analysis_operations import run_sequence, find_control_in_window
 from d3utils.rosbot_ui_structure import get_resume_sequence, CMB_SEQUENCE, BTN_START, LIST_ITEM_RIFT_MODE
 from providor.constants.common import ROSBOT_UI_DEBUG_DIR
+from providor.constants.common import (
+    UI_AUTOMATION_ID_OK_BUTTON,
+    UI_AUTOMATION_ID_TEXT_BOX,
+    UI_NAME_KEYWORDS_OK,
+    UI_NAME_KEYWORDS_NO_ITEMS,
+)
 from providor.constants.d3 import (
     TAB_MAIN_PROFILE_NAMES,
     START_BUTTON_NAMES,
@@ -305,19 +312,34 @@ def click_start_botting(window_control, clicker: Optional[ClickHandler] = None, 
         return False
 
 
-# OK button names for "No items" popup (localized; 确定 = OK in Chinese)
-_NO_ITEMS_POPUP_OK_NAMES = ("OK", "确定", "ok")
+# UI traits for "D3 must be launched" style message box: small dialog, single OK (AutomationId), no TextBox
+_D3_MUST_LAUNCH_DIALOG_MAX_WIDTH = 600
+_D3_MUST_LAUNCH_DIALOG_MAX_HEIGHT = 280
+
+
+def _name_matches_ok_keywords(name: str) -> bool:
+    """True if name matches UI_NAME_KEYWORDS_OK (minimal, CN/EN); case-insensitive for single token."""
+    if not (name or "").strip():
+        return False
+    n = (name or "").strip()
+    n_lower = n.lower()
+    for kw in UI_NAME_KEYWORDS_OK:
+        if not kw:
+            continue
+        if n == kw or n_lower == kw.lower() or (kw in n) or (kw.lower() in n_lower):
+            return True
+    return False
 
 
 def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> Optional[Any]:
-    """Walk control tree, return first ButtonControl whose Name is OK or 确定."""
+    """Walk control tree, return first ButtonControl whose Name matches UI_NAME_KEYWORDS_OK (no AutomationId fallback)."""
     if depth > max_depth:
         return None
     try:
         ctype = getattr(control, "ControlTypeName", None) or ""
         if "Button" in ctype:
             name = (getattr(control, "Name", None) or "").strip()
-            if name in _NO_ITEMS_POPUP_OK_NAMES or name.lower() == "ok" or name == "确定":
+            if _name_matches_ok_keywords(name):
                 return control
     except Exception:
         pass
@@ -331,20 +353,113 @@ def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> O
     return None
 
 
-# Per docs/rosbot_ui_elements.json: "No items" is in a child TextControl.Name, not window title (title can be "The Vault").
-_NO_ITEMS_MESSAGE_SUBSTR = "No items"
+def _window_has_control_with_automation_id(root: Any, automation_id: str, depth: int = 0, max_d: int = 8) -> bool:
+    """Walk control tree; return True if any control has AutomationId equal to automation_id."""
+    if depth > max_d:
+        return False
+    try:
+        aid = (getattr(root, "AutomationId", None) or "").strip()
+        if aid == automation_id:
+            return True
+        for child in root.GetChildren():
+            if _window_has_control_with_automation_id(child, automation_id, depth + 1, max_d):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _find_button_by_automation_id(root: Any, automation_id: str, depth: int = 0, max_d: int = 8) -> Optional[Any]:
+    """Walk control tree; return first ButtonControl whose AutomationId equals automation_id."""
+    if depth > max_d:
+        return None
+    try:
+        ctype = getattr(root, "ControlTypeName", None) or ""
+        if "Button" in ctype:
+            aid = (getattr(root, "AutomationId", None) or "").strip()
+            if aid == automation_id:
+                return root
+        for child in root.GetChildren():
+            found = _find_button_by_automation_id(child, automation_id, depth + 1, max_d)
+            if found is not None:
+                return found
+    except Exception:
+        pass
+    return None
+
+
+def try_close_d3_must_be_launched_dialog() -> bool:
+    """
+    Close ROSBOT 'D3 must be launched' style message box by UI traits only (no text match on content text).
+    Criteria: ROSBOT process window, small rect (max 600x280), no TextBox (so KEY input dialog is not closed),
+    and an OK-style button either by AutomationId (UI_AUTOMATION_ID_OK_BUTTON) or by name keywords (UI_NAME_KEYWORDS_OK).
+    Returns True if such a dialog was found and OK clicked.
+    """
+    auto = _auto()
+    win32gui = _win32gui()
+    if not auto or not win32gui:
+        return False
+    _COM_INIT.ensure_thread()
+    mgr = get_rosbot_manager()
+    pids: List[int] = []
+    for exe_path in mgr.find_other_exe_files():
+        proc = mgr.find_process_by_exe_name(os.path.basename(exe_path))
+        if proc and proc.get("pid"):
+            pids.append(proc["pid"])
+    proc = mgr.find_process_by_exe_name(mgr.rosbot_exe_name)
+    if proc and proc.get("pid"):
+        pids.append(proc["pid"])
+    for pid in pids:
+        for w in mgr.find_windows_by_pid(pid, visible_only=False):
+            hwnd = w.get("hwnd")
+            if not hwnd:
+                continue
+            try:
+                rect = win32gui.GetWindowRect(hwnd)
+            except Exception:
+                continue
+            if len(rect) < 4:
+                continue
+            ww = rect[2] - rect[0]
+            wh = rect[3] - rect[1]
+            if ww > _D3_MUST_LAUNCH_DIALOG_MAX_WIDTH or wh > _D3_MUST_LAUNCH_DIALOG_MAX_HEIGHT:
+                continue
+            try:
+                root = auto.ControlFromHandle(int(hwnd))
+            except Exception:
+                continue
+            if not root:
+                continue
+            if hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
+                continue
+            # Skip dialogs that contain TextBox (e.g. KEY/license input), we must NOT auto-close those
+            if _window_has_control_with_automation_id(root, UI_AUTOMATION_ID_TEXT_BOX):
+                continue
+            # Prefer AutomationId (stable across language/skin)
+            ok_btn = _find_button_by_automation_id(root, UI_AUTOMATION_ID_OK_BUTTON)
+            # Fallback: match OK button by name keywords (OK/确定)，用于 Win32 MessageBox 等 AutomationId 为数字的情况
+            if not ok_btn:
+                ok_btn = _find_ok_button_in_control(root)
+            if not ok_btn:
+                continue
+            clicker = ClickHandler()
+            if operate_button(ok_btn, clicker=clicker, **_ROSBOT_CLICK_PARAMS):
+                ColorPrint.green("[ROSBOT_UI] D3 must be launched dialog closed (OK by AutomationId)")
+                return True
+    return False
 
 
 def _window_has_no_items_message(root, depth: int = 0, max_d: int = 6) -> bool:
-    """Walk control tree; return True if any TextControl has Name containing NO_ITEMS_MESSAGE_SUBSTR."""
+    """Walk control tree; return True if any TextControl has Name containing any of UI_NAME_KEYWORDS_NO_ITEMS (minimal keywords, CN/EN)."""
     if depth > max_d:
         return False
     try:
         ctype = getattr(root, "ControlTypeName", None) or ""
         if "Text" in ctype:
             name = (getattr(root, "Name", None) or "") or ""
-            if _NO_ITEMS_MESSAGE_SUBSTR in name:
-                return True
+            for kw in UI_NAME_KEYWORDS_NO_ITEMS:
+                if kw and kw in name:
+                    return True
         for child in root.GetChildren():
             if _window_has_no_items_message(child, depth + 1, max_d):
                 return True
@@ -431,7 +546,7 @@ def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
 
 def switch_to_rift_mode_and_start(window_control: Any) -> bool:
     """
-    Set mode to rift (大小秘境) and click Start. Uses rosbot_ui_structure: find cmbSequence, expand,
+    Set mode to rift (greater rift) and click Start. Uses rosbot_ui_structure: find cmbSequence, expand,
     find ListItem with name containing rift keywords, select it, then invoke btnStart.
     Returns True if at least Start was invoked.
     """
@@ -506,6 +621,8 @@ def run_after_rosbot_start(
     if not auto or not win32gui or not win32con:
         ColorPrint.red("[ROSBOT_UI] uiautomation/win32 not available")
         return False
+
+    try_close_d3_must_be_launched_dialog()
 
     hwnd = None
     winfo = None

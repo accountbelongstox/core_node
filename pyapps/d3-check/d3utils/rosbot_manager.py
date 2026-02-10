@@ -421,6 +421,35 @@ class ROSBOTManager:
         winfo, _ = self._get_rosbot_window_and_process()
         return winfo
 
+    def get_any_visible_rosbot_window(self) -> Optional[Dict[str, Any]]:
+        """Return any visible window of the same-dir ROSBOT process (by PID). No content validator, no cache. For UI debug/export only."""
+        return self._get_any_rosbot_window_impl(visible_only=True)
+
+    def get_any_rosbot_window_for_debug(self) -> Optional[Dict[str, Any]]:
+        """Return any window of the same-dir ROSBOT process (by PID), including minimized. No cache. For debug/export only; does not affect get_rosbot_window/get_rosbot_detection."""
+        return self._get_any_rosbot_window_impl(visible_only=False)
+
+    def _get_any_rosbot_window_impl(self, visible_only: bool) -> Optional[Dict[str, Any]]:
+        """Same-dir exe order; exclude popup title; optional visible_only."""
+        for exe_path in self.find_other_exe_files():
+            exe_name = os.path.basename(exe_path)
+            proc_info = self.find_process_by_exe_name(exe_name)
+            if not proc_info or not proc_info.get("pid"):
+                continue
+            candidates = self.find_windows_by_pid(proc_info["pid"], visible_only=visible_only)
+            for w in candidates:
+                if (w.get("title") or "").strip() == _POPUP_NO_ITEMS_TITLE:
+                    continue
+                return w
+        proc_info = self.find_process_by_exe_name(self.rosbot_exe_name)
+        if proc_info and proc_info.get("pid"):
+            candidates = self.find_windows_by_pid(proc_info["pid"], visible_only=visible_only)
+            for w in candidates:
+                if (w.get("title") or "").strip() == _POPUP_NO_ITEMS_TITLE:
+                    continue
+                return w
+        return None
+
     def get_rosbot_detection(self) -> Dict[str, Any]:
         """
         Extended status: not_found (no process), running (process, no visible window), paused (has visible window).

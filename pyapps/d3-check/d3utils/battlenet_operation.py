@@ -50,8 +50,10 @@ from providor.constants.common import (
     BATTLE_NET_CONNECTING_AUTOMATION_IDS,
     BATTLE_NET_CONNECTING_KEYWORDS,
     LOGIN_SCREEN_UI_KEYWORDS_STRICT,
+    LOGIN_SCREEN_UI_KEYWORDS_STRICT_ASIA,
     LOGIN_SCREEN_UI_KEYWORDS,
     LOGIN_WINDOW_AUTOMATION_ID_MARKERS,
+    LOGIN_WINDOW_AUTOMATION_ID_MARKERS_ASIA,
 )
 from providor.constants.d3 import (
     D3_TAB_AUTOMATION_IDS,
@@ -296,16 +298,17 @@ class BattlenetOperation:
         walk(root)
         return collected
 
-    def _enumerate_controls_light(self) -> List[Dict[str, Any]]:
+    def _enumerate_controls_light(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Enumerate name, automation_id, is_enabled, is_offscreen (for get_dynamic_state). Skips BoundingRectangle/ControlTypeName.
-        Uses module-level cache for BN_CONTROLS_LIGHT_CACHE_TTL_SEC so same-tick BN flow reuses one read."""
+        Uses module-level cache for BN_CONTROLS_LIGHT_CACHE_TTL_SEC so same-tick BN flow reuses one read.
+        When force_refresh=True, skip cache and enumerate fresh (e.g. after tab click to see Play)."""
         global _BN_CONTROLS_LIGHT_CACHE
         windows = get_battlenet_manager().find_windows()
         if not windows:
             return []
         hwnd = int(windows[0]["hwnd"])
         now = time.monotonic()
-        if (
+        if not force_refresh and (
             _BN_CONTROLS_LIGHT_CACHE["hwnd"] == hwnd
             and _BN_CONTROLS_LIGHT_CACHE["controls"] is not None
             and (now - _BN_CONTROLS_LIGHT_CACHE["time"]) < BN_CONTROLS_LIGHT_CACHE_TTL_SEC
@@ -457,6 +460,10 @@ class BattlenetOperation:
         if not rect:
             return False
         cx, cy = _rect_center(rect)
+        # Avoid (0,0) or invalid rect: moveTo(0,0) triggers PyAutoGUI fail-safe
+        if (cx <= 0 and cy <= 0) or (rect.get("width") or 0) <= 0 or (rect.get("height") or 0) <= 0:
+            ColorPrint.gray("[BattlenetOperation] click_control: rect invalid or zero (center=%s,%s), skip click" % (cx, cy))
+            return False
         return self._clicker.click(cx, cy, direct_click=True, return_to_original=True,
                                    duration=BN_CLICK_MOVE_DURATION_SEC, pause_after_move=BN_CLICK_PAUSE_AFTER_MOVE_SEC)
 
@@ -650,6 +657,37 @@ class BattlenetOperation:
         ColorPrint.blue("[BattlenetOperation] CN Click start game: name=%s" % ctrl.get("name"))
         return self.click_control(ctrl)
 
+    def _find_play_control_in_list(self, controls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Find Play button control in a controls list (Asia then CN by region). Returns control dict or None."""
+        if not controls:
+            return None
+        if self._region != "cn":
+            for aid in get_asia_play_automation_ids():
+                ctrl = self.find_control_by_automation_id(aid, controls)
+                if ctrl:
+                    return ctrl
+            ctrl = self.find_control_by_name(get_asia_play_name_keywords(), controls)
+            if ctrl:
+                return ctrl
+            if self._region == "asia":
+                return None
+        for aid in START_GAME_AUTOMATION_IDS:
+            ctrl = self.find_control_by_automation_id(aid, controls)
+            if ctrl:
+                return ctrl
+        ctrl = self.find_control_by_name(START_GAME_NAME_KEYWORDS, controls)
+        return ctrl
+
+    def click_play_button_if_visible(self, force_refresh: bool = True) -> bool:
+        """Only check for Play button and click if found. Uses one light enum (no full get_dynamic_state).
+        Use after D3 tab was just clicked: wait for Play to appear then click. Returns True if clicked."""
+        controls = self._enumerate_controls_light(force_refresh=force_refresh)
+        ctrl = self._find_play_control_in_list(controls)
+        if ctrl:
+            ColorPrint.gray("[BattlenetOperation] Play button visible, click (skip full UI traverse)")
+            return self.click_control(ctrl)
+        return False
+
     def is_game_starting(self) -> bool:
         """True if game is starting or already running. When region bound check only that region's Play control."""
         controls = self._enumerate_controls_light()
@@ -804,12 +842,115 @@ class BattlenetOperation:
         has_netease_id = self.find_control_by_automation_id("ntes", controls) is not None
         return has_agree_id or has_netease_id
 
+    def _get_dynamic_state_one_walk(
+        self, preferred_region: Optional[str]
+    ) -> Tuple[bool, bool, bool, Optional[str], bool, Optional[str]]:
+        """One tree walk, only read AutomationId and Name per control; resolve state from flags. No full control list.
+        Precondition: preferred_region in ('asia', 'cn') or None (tries both). UI preconditions: Play needs D3 tab,
+        D3 tab needs login; Asia vs CN use different automation_id/name sets."""
+        root = self._get_root_control()
+        if not root:
+            return (False, False, False, None, False, None)
+        region = preferred_region if preferred_region in ("asia", "cn") else self._region
+        flags = {
+            "login_asia": False,
+            "login_cn": False,
+            "disconnect": False,
+            "connecting": False,
+            "d3_asia": False,
+            "play_asia": False,
+            "play_name_asia": None,
+            "d3_cn": False,
+            "play_cn": False,
+            "play_name_cn": None,
+        }
+        asia_d3_aids = get_asia_d3_automation_ids()
+        asia_d3_names = get_asia_d3_name_keywords()
+        asia_play_aids = get_asia_play_automation_ids()
+        asia_play_names = get_asia_play_name_keywords()
+
+        def _aid_contains_any(aid: str, markers: Tuple[str, ...]) -> bool:
+            return any(m and m in aid for m in markers)
+
+        def _name_contains_any(name: str, keywords: Tuple[str, ...]) -> bool:
+            return any(kw and kw in name for kw in keywords)
+
+        def walk(control, depth: int = 0):
+            if depth > 25:
+                return
+            try:
+                aid = (control.AutomationId or "").strip()
+                name = (control.Name or "").strip()
+                if _aid_contains_any(aid, LOGIN_WINDOW_AUTOMATION_ID_MARKERS_ASIA) or _name_contains_any(name, LOGIN_SCREEN_UI_KEYWORDS_STRICT_ASIA):
+                    flags["login_asia"] = True
+                if _aid_contains_any(aid, LOGIN_WINDOW_AUTOMATION_ID_MARKERS) or _name_contains_any(name, LOGIN_SCREEN_UI_KEYWORDS_STRICT):
+                    flags["login_cn"] = True
+                if BATTLE_NET_DISCONNECT_KEYWORDS and _name_contains_any(name, BATTLE_NET_DISCONNECT_KEYWORDS):
+                    flags["disconnect"] = True
+                if BATTLE_NET_CONNECTING_KEYWORDS and _name_contains_any(name, BATTLE_NET_CONNECTING_KEYWORDS):
+                    flags["connecting"] = True
+                if any(a and a in aid for a in asia_d3_aids) or _name_contains_any(name, asia_d3_names):
+                    flags["d3_asia"] = True
+                if any(a and a in aid for a in asia_play_aids) or _name_contains_any(name, asia_play_names):
+                    flags["play_asia"] = True
+                    if name and not flags["play_name_asia"]:
+                        flags["play_name_asia"] = name
+                if any(a and a in aid for a in D3_TAB_AUTOMATION_IDS) or _name_contains_any(name, D3_TAB_NAME_KEYWORDS):
+                    flags["d3_cn"] = True
+                if any(a and a in aid for a in START_GAME_AUTOMATION_IDS) or _name_contains_any(name, START_GAME_NAME_KEYWORDS):
+                    flags["play_cn"] = True
+                    if name and not flags["play_name_cn"]:
+                        flags["play_name_cn"] = name
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+
+        def resolve_asia():
+            if flags["d3_asia"] and flags["play_asia"] and not flags["login_asia"]:
+                if flags["connecting"]:
+                    return (False, False, False, None, True, "asia")
+                return (False, False, True, flags["play_name_asia"] or "Play", False, "asia")
+            if flags["disconnect"]:
+                return (False, True, False, None, False, "asia")
+            if flags["login_asia"]:
+                return (True, False, False, None, False, "asia")
+            return None
+
+        def resolve_cn():
+            if flags["d3_cn"] and flags["play_cn"] and not flags["login_cn"]:
+                if flags["connecting"]:
+                    return (False, False, False, None, True, "cn")
+                return (False, False, True, flags["play_name_cn"] or "Play", False, "cn")
+            if flags["disconnect"]:
+                return (False, True, False, None, False, "cn")
+            if flags["login_cn"]:
+                return (True, False, False, None, False, "cn")
+            return None
+
+        if region == "asia":
+            res = resolve_asia()
+            return res if res else (False, False, False, None, False, None)
+        if region == "cn":
+            res = resolve_cn()
+            return res if res else (False, False, False, None, False, None)
+        res = resolve_asia()
+        if res:
+            return res
+        res = resolve_cn()
+        if res:
+            return res
+        return (False, False, False, None, False, None)
+
     def get_dynamic_state(self, preferred_region: Optional[str] = None) -> Tuple[bool, bool, bool, Optional[str], bool, Optional[str]]:
         """Return (on_login_screen, disconnected, normal_available, play_button_name, connecting, region_detected).
-        Uses bound region when preferred_region not given; when region known only that region is tried.
-        Uses lightweight enum (name, automation_id, is_enabled, is_offscreen); skips BoundingRectangle/ControlTypeName."""
-        controls = self._enumerate_controls_light()
+        When region is known (asia/cn), uses one-walk fast path (no full control list). Otherwise full enum for region detection."""
         region = preferred_region if preferred_region in ("asia", "cn") else self._region
+        if region in ("asia", "cn"):
+            return self._get_dynamic_state_one_walk(preferred_region)
+        controls = self._enumerate_controls_light()
         judge = build_judge_from_controls(controls, region)
         return judge.get_dynamic_state_result()
 

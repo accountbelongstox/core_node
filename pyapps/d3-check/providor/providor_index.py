@@ -740,7 +740,7 @@ def sync_config():
 def fix_config_with_template():
     """Fix current CONFIG with template before saving"""
     try:
-        ColorPrint.print_min_interval("[DEBUG] Fixing CONFIG with template...", "1min", "gray")
+        ColorPrint.gray("[DEBUG] Fixing CONFIG with template...")
         
         # Load template config
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -751,9 +751,9 @@ def fix_config_with_template():
         modified = merge_template_to_config(template_config, CONFIG)
         
         if modified:
-            ColorPrint.print_min_interval("[DEBUG] CONFIG fixed with missing keys from template", "1min", "gray")
+            ColorPrint.gray("[DEBUG] CONFIG fixed with missing keys from template")
         else:
-            ColorPrint.print_min_interval("[DEBUG] CONFIG is already complete", "1min", "gray")
+            ColorPrint.gray("[DEBUG] CONFIG is already complete")
             
         return modified
         
@@ -821,6 +821,14 @@ def set_config_value_async(key_path: str, value: Any) -> None:
     CONFIG_QUEUE.put(("set", key_path, value, None))
 
 
+def queue_config_save() -> None:
+    """Request one save in background. Use from UI after direct CONFIG update so main thread never blocks on file I/O."""
+    try:
+        SAVE_QUEUE.put_nowait(None)
+    except queue.Full:
+        pass
+
+
 def get_config_value_safe(key_path: str, default: Any = None) -> Any:
     """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
     result_q: queue.Queue = queue.Queue()
@@ -838,16 +846,16 @@ def set_config_value_safe(key_path: str, value: Any) -> bool:
 def save_config():
     """Save current CONFIG to user config file after fixing with template"""
     try:
-        ColorPrint.print_min_interval("[DEBUG] Saving current CONFIG to file...", "1min", "gray")
+        ColorPrint.gray("[DEBUG] Saving current CONFIG to file...")
 
         # Create user data directory if it doesn't exist
         if not os.path.exists(CURRENT_USER_DATA_PATH):
             os.makedirs(CURRENT_USER_DATA_PATH)
-            ColorPrint.print_min_interval(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}", "1min", "gray")
+            ColorPrint.gray(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
 
         # Clean up incorrect skill_configs at root level (legacy bug fix)
         if "skill_configs" in CONFIG and "macro_configs" in CONFIG:
-            ColorPrint.print_min_interval("[DEBUG] Removing incorrect root-level skill_configs", "1min", "gray")
+            ColorPrint.gray("[DEBUG] Removing incorrect root-level skill_configs")
             del CONFIG["skill_configs"]
 
         # Fix CONFIG with template before saving
@@ -857,7 +865,7 @@ def save_config():
         with open(CONFIG_USER_PATH, 'w', encoding='utf-8') as f:
             json.dump(CONFIG, f, indent=2, ensure_ascii=False)
 
-        ColorPrint.print_min_interval(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}", "1min", "gray")
+        ColorPrint.gray(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
 
     except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
@@ -946,7 +954,7 @@ PLAY_BUTTON_AUTO_ID = START_GAME_AUTOMATION_IDS[1]        # "play-btn"
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
-# D3 small map: rename ScreenShot_2026-01-29_225845_569.png to d3_small_map.png under images/battlenet/
+# D3 small map: copy from images/logo.png (or login_try dir) to images/battlenet/d3_small_map.png when missing
 BATTLENET_TEMPLATE_CONFIGS = {
     "battlenet_d3_small_map": {
         "path": os.path.join(TEMPLATE_DIR, "battlenet", "d3_small_map.png"),

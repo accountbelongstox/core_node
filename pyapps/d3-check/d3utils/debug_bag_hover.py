@@ -14,6 +14,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.third_party import get_third_package_win32api, get_third_package_numpy, get_third_package_PIL_Image
 from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.common.window_finder import WindowFinder
 from providor.constants.common import (
     DEBUG_BAG_HOVER_FOCUS_CLICK_DURATION_SEC,
     DEBUG_BAG_HOVER_FOCUS_CLICK_PAUSE_AFTER_MOVE_SEC,
@@ -402,8 +403,8 @@ def _save_region_temp_image(region: "np.ndarray", out_path: Path) -> None:
 
 def run_debug_bag_hover() -> bool:
     """
-    复用背包识别结果，从左到右、从上到下依次在有装备的格子上悬停并打印 (row,col) 类型 品质，最后还原鼠标。
-    仅处理 item_1slot / item_2slot，跳过 empty 与 item_2slot_bottom（两格一装备只悬停一次）。
+    Reuse bag detection result; hover each equipped slot left-to-right top-to-bottom and print (row,col) type quality; restore mouse at end.
+    Only item_1slot / item_2slot; skip empty and item_2slot_bottom (two-slot item hovered once).
     """
     if not win32api:
         ColorPrint.red("[DebugBagHover] win32api not available")
@@ -426,7 +427,26 @@ def run_debug_bag_hover() -> bool:
         ColorPrint.red("[DebugBagHover] Still no bag coordinates/layout")
         return False
 
-    window_offset: Tuple[int, int] = getattr(shared, "window_offset", (0, 0))
+    # Debug: do not use cached window position; get in real time
+    titles = list(get_d3_manager().get_capture_titles()) or list(DIABLO_III_WINDOW_TITLES)
+    WindowFinder.invalidate_window_cache(titles)
+    provider = get_screenshot_provider()
+    sd = provider.gen(use_optimized_capture=True, window_titles=titles)
+    if sd and sd.game_window_image:
+        window_offset = sd.window_offset or (0, 0)
+        game_window_size = (sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height))
+        shared = get_game_interface_data()
+        shared.window_offset = window_offset
+        shared.game_window_size = game_window_size
+        window_w = game_window_size[0]
+        window_h = game_window_size[1]
+        ColorPrint.blue("[DebugBagHover] Window position from real-time capture (no cache)")
+    else:
+        window_offset = getattr(shared, "window_offset", (0, 0))
+        window_w = 0
+        window_h = 0
+        ColorPrint.yellow("[DebugBagHover] Real-time capture failed, using shared window_offset")
+
     top_left = coords.top_left
     w, h = coords.width, coords.height
     rows, cols = coords.rows, coords.cols
@@ -441,7 +461,7 @@ def run_debug_bag_hover() -> bool:
 
     ColorPrint.blue(f"[DebugBagHover] Grid {rows}x{cols} TopLeft={top_left} Size={w}x{h} window_offset={window_offset}")
 
-    # 先点击游戏置顶点激活并置顶窗口（配置：瞬间移动），再移动鼠标到装备格，最后归位在 finally
+    # Click game focus point to activate and bring window to top (config: instant move), then move to slot, restore in finally
     focus_cx, focus_cy = get_scaled_game_focus_click_point()
     focus_screen_x = window_offset[0] + focus_cx
     focus_screen_y = window_offset[1] + focus_cy
@@ -455,7 +475,7 @@ def run_debug_bag_hover() -> bool:
         pause_after_move=DEBUG_BAG_HOVER_FOCUS_CLICK_PAUSE_AFTER_MOVE_SEC,
     )
     time.sleep(0.2)
-    # 从左到右、从上到下：先按行再按列，只悬停有装备的格子（item_1slot / item_2slot）
+    # Left to right, top to bottom: by row then column; only hover equipped slots (item_1slot / item_2slot)
     slots_to_hover = []
     for r in range(rows):
         for c in range(cols):
@@ -466,15 +486,14 @@ def run_debug_bag_hover() -> bool:
             if slot_type not in ("item_1slot", "item_2slot"):
                 continue
             slots_to_hover.append((r, c, info))
-    provider = get_screenshot_provider()
-    titles = list(get_d3_manager().get_capture_titles()) or list(DIABLO_III_WINDOW_TITLES)
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     debug_out_dir = DEBUG_BAG_LINE_DIR / f"run_{run_ts}"
     ColorPrint.blue(f"[DebugBagHover] Region temp images -> {debug_out_dir}")
 
-    game_window_size = getattr(shared, "game_window_size", None) or (getattr(shared, "game_window_image", None) and (shared.game_window_image.width, shared.game_window_image.height)) or (0, 0)
-    window_w = game_window_size[0] if game_window_size else 0
-    window_h = game_window_size[1] if game_window_size else 0
+    if window_w <= 0 or window_h <= 0:
+        game_window_size = getattr(shared, "game_window_size", None) or (getattr(shared, "game_window_image", None) and (shared.game_window_image.width, shared.game_window_image.height)) or (0, 0)
+        window_w = game_window_size[0] if game_window_size else 0
+        window_h = game_window_size[1] if game_window_size else 0
     if window_w <= 0 or window_h <= 0:
         cached = None
         for t in titles:
@@ -487,15 +506,12 @@ def run_debug_bag_hover() -> bool:
         if not cached and get_d3_manager().prime_window_cache_for_capture():
             canonical = (titles[0].lower() if titles else "d3")
             cached = ENCYCLOPEDIA.get("window_cache_%s" % canonical)
-        if cached and isinstance(cached, dict):
+        if cached and isinstance(cached, dict) and (window_w <= 0 or window_h <= 0):
             window_w = cached.get("width") or 0
             window_h = cached.get("height") or 0
             if window_w > 0 and window_h > 0:
                 shared = get_game_interface_data()
                 shared.game_window_size = (window_w, window_h)
-                shared.window_offset = (cached.get("left", 0), cached.get("top", 0))
-                window_offset = (cached.get("left", 0), cached.get("top", 0))
-                ColorPrint.blue("[DebugBagHover] Window size/offset from cache (no full capture)")
         if window_w <= 0 or window_h <= 0:
             ColorPrint.yellow("[DebugBagHover] Game window size unknown; one full capture to get size")
             one = provider.gen(use_optimized_capture=True, window_titles=titles)
@@ -503,7 +519,7 @@ def run_debug_bag_hover() -> bool:
                 window_w, window_h = one.game_window_image.width, one.game_window_image.height
                 shared = get_game_interface_data()
                 setattr(shared, "game_window_size", (window_w, window_h))
-    ColorPrint.blue(f"[DebugBagHover] Hovering {len(slots_to_hover)} slots; native region capture per slot (cache, no fullscreen crop).")
+    ColorPrint.blue(f"[DebugBagHover] Hovering {len(slots_to_hover)} slots; native region capture per slot (realtime window, no fullscreen crop).")
 
     search_length = 0.5 * slot_width
 

@@ -221,7 +221,7 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ctx.set_b5_entry_reason("B9_disconnected")
             ctx.set_current_step(BNNode.BN_Exit)
             return False, ""
-        # [B9 其他/未知] 与文档 B13 其他→B15c→B6 一致：未知状态不杀战网，先 B6 再激活轮询
+        # [B9 other/unknown] Consistent with doc B13 other->B15c->B6: unknown state do not kill Battle.net, B6 first then activate poll
         ColorPrint.blue("[BNFlow] flow B9→B6 | reason: unknown state (flowchart B15c→B6), re-activate and poll")
         ctx.set_current_step(BNNode.BN_Act)
         return False, ""
@@ -313,17 +313,33 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
 
     # ----- [B6] BN_Act -----
     if ctx.get_current_step() == BNNode.BN_Act:
-        _save_ui_snapshot("B6", "B6_to_B13")
+        _save_ui_snapshot("B6", "B6_to_WaitPlay_or_B13")
         if not no_activate:
             get_battlenet_manager().activate_window()
             if op.click_d3_tab():
-                ColorPrint.blue("[BNFlow] flow B6→B13 | reason: window activated, clicked D3 tab, then B13 poll")
-            else:
-                ColorPrint.blue("[BNFlow] flow B6→B13 | reason: window activated, D3 tab not found or already selected, enter B13 poll")
+                ColorPrint.blue("[BNFlow] flow B6→BN_WaitPlay | reason: clicked D3 tab, wait Play only (skip full UI traverse)")
+                ctx.set_b13_poll_deadline(now + 8.0)
+                ctx.set_current_step(BNNode.BN_WaitPlay)
+                return False, ""
+            ColorPrint.blue("[BNFlow] flow B6→B13 | reason: D3 tab not found or already selected, enter B13 poll")
         else:
             ColorPrint.blue("[BNFlow] flow B6→B13 | reason: UI poll only (no activate), enter B13 poll state")
         ctx.set_current_step(BNNode.BN_Poll)
         return False, ""
+
+    # ----- [BN_WaitPlay] after tab click: only poll Play then click, no full get_dynamic_state -----
+    if ctx.get_current_step() == BNNode.BN_WaitPlay:
+        if op.click_play_button_if_visible(force_refresh=True):
+            ColorPrint.green("[BNFlow] flow BN_WaitPlay→BN_Confirmed | reason: Play visible, clicked (skip full traverse)")
+            ctx.set_current_step(BNNode.BN_Confirmed)
+            ctx.set_bn_flow_ever_confirmed(True)
+            return True, "confirmed"
+        if now >= ctx.get_b13_poll_deadline():
+            ColorPrint.blue("[BNFlow] flow BN_WaitPlay→B13 | reason: wait Play timeout, full poll")
+            ctx.set_b13_poll_deadline(now + BN_FLOW_POLL_TIMEOUT_SEC)
+            ctx.set_current_step(BNNode.BN_Poll)
+            return False, ""
+        return False, "wait"
 
     # ----- [B13] BN_Poll -----
     if ctx.get_current_step() == BNNode.BN_Poll:
@@ -377,6 +393,29 @@ def tick_battlenet_ready_flow(no_activate: bool = False) -> Tuple[bool, str]:
             ColorPrint.blue("[BNFlow] flow B13→B6 | reason: [B15c] unknown state, re-activate and poll (flowchart B15c→B6)")
         ctx.set_b13_poll_deadline(0.0)
         ctx.set_current_step(BNNode.BN_Act)
+        return False, ""
+
+    # ----- [BN_Confirmed] Main UI: close in-UI floating popup (ad) if present; stay confirmed or re-detect -----
+    if ctx.get_current_step() == BNNode.BN_Confirmed:
+        if not get_game_interface_data().battlenet_window_found:
+            ctx.set_current_step(BNNode.BN_Win)
+            return False, ""
+        if op.try_close_popup():
+            ColorPrint.gray("[BNFlow] flow BN_Confirmed: closed in-UI popup (floating ad), wait next tick")
+            return False, "wait"
+        on_login, disconnected, normal_available, play_button_name, connecting, *_ = op.get_dynamic_state()
+        if connecting:
+            return False, "wait"
+        if normal_available:
+            return True, "confirmed"
+        if on_login:
+            ctx.set_current_step(BNNode.BN_UI)
+            return False, ""
+        if disconnected:
+            ctx.set_b5_entry_reason("BN_Confirmed_disconnected")
+            ctx.set_current_step(BNNode.BN_Exit)
+            return False, ""
+        ctx.set_current_step(BNNode.BN_UI)
         return False, ""
 
     # ----- [B5] BN_Exit -----

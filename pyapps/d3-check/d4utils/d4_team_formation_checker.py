@@ -15,7 +15,7 @@ ensure_d3_check_in_sys_path()
 from d4utils.d4_operation_base import D4OperationBase
 from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
-from controller.d4func.ocr_config import get_ocr_config_for_task
+from share.d4_ocr_config import get_ocr_config_for_task, OCRConfig
 
 # Add pycore path for OCR
 pycore_path = get_project_root().parent / "pycore"
@@ -56,7 +56,6 @@ class D4TeamFormationChecker(D4OperationBase):
         ocr_config = get_ocr_config_for_task('quest_text')
         if ocr_config is None:
             ColorPrint.yellow("[D4TeamFormationChecker] No OCR config found, using default")
-            from controller.d4func.ocr_config import OCRConfig
             ocr_config = OCRConfig.get_default_config()
         ColorPrint.blue("[D4TeamFormationChecker] Initializing OCR engine...")
         ColorPrint.blue(f"[D4TeamFormationChecker] Using model: {ocr_config.rec_model_name}")

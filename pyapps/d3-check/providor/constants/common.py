@@ -66,6 +66,24 @@ DEFAULT_CLEANUP_MAX_AGE_SECONDS = 60
 DEBUG = True
 
 # ---------------------------------------------------------------------------
+# UI Automation – common AutomationIds (WinForms / WPF / generic dialogs)
+# Used by ROSBOT, Battle.net, and other UI automation; single source for compatibility.
+# ---------------------------------------------------------------------------
+UI_AUTOMATION_ID_OK_BUTTON = "OKButton"
+UI_AUTOMATION_ID_TEXT_BOX = "TextBox"
+UI_AUTOMATION_ID_CANCEL_BUTTON = "MyCancelButton"
+# Optional: tuple for “any OK-style button” when multiple IDs exist across apps
+UI_AUTOMATION_IDS_OK_BUTTON = (UI_AUTOMATION_ID_OK_BUTTON,)
+
+# ---------------------------------------------------------------------------
+# UI name keywords (minimal, when no AutomationId); each tuple CN/EN.
+# Minimal keyword rule: keep only necessary keywords; match when control name contains any one.
+# ---------------------------------------------------------------------------
+UI_NAME_KEYWORDS_OK = ("OK", "确定")
+UI_NAME_KEYWORDS_CLOSE = ("Close", "关闭")
+UI_NAME_KEYWORDS_NO_ITEMS = ("No items", "无物品")
+
+# ---------------------------------------------------------------------------
 # Window / UI (generic)
 # ---------------------------------------------------------------------------
 GLOBAL_SCALE_X = 1.0
@@ -102,7 +120,7 @@ BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel"
 BATTLE_NET_CONNECTING_AUTOMATION_IDS = ()
 BATTLE_NET_CONNECTING_KEYWORDS = ("Connecting", "连接中")
 BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS = ("winCloseButton",)
-BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS = ("Close", "关闭")
+BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS = UI_NAME_KEYWORDS_CLOSE
 BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS = ("topLayerContainer.TopLayer.buttonContainer",)
 BATTLE_NET_DISCONNECT_AUTOMATION_IDS = ()
 BATTLE_NET_DISCONNECT_KEYWORDS = ("Retry", "重试")
@@ -221,7 +239,12 @@ COMMON_STRATEGY_OPTIONS = ["continuous", "single", "hold"]
 MAIN_FUNCTIONS_SUB_TABS_KEY = "main_functions_sub_tabs"
 
 UI_SETTINGS_WINDOW_GEOMETRY = "window_geometry"
+UI_SETTINGS_APP_ICON = "app_icon"
 DEFAULT_WINDOW_GEOMETRY = "670x550"
+# App icon: .ico (Windows taskbar) or .png (cross-platform iconphoto). Logo is the default image; .ico can be auto-generated on Windows.
+DEFAULT_APP_ICON_PATH = _ROOT_PATH / "images" / "app_icon.ico"
+DEFAULT_APP_LOGO_PATH = _ROOT_PATH / "images" / "logo.png"
+DEFAULT_APP_ICON_PNG_PATH = _ROOT_PATH / "images" / "app_icon.png"
 SMART_ECHO_OCR_TICK_MAX_SEC = 60.0
 
 # ---------------------------------------------------------------------------

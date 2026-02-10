@@ -13,7 +13,7 @@ from typing import Optional, Callable
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, save_config, DIABLO_III_WINDOW_TITLES
+from providor.providor_index import CONFIG, queue_config_save, DIABLO_III_WINDOW_TITLES
 from providor.constants.common import BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME
 import timers.timer_manager as timer_manager
@@ -34,6 +34,7 @@ from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_th
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.interface_manager import D3InterfaceManager
 from d3utils.collectors.bag_info_collector import BagInfoCollector
+from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
 from d3utils.debug_bag_hover import run_debug_bag_hover
 from share.template_match_debug import (
     set_debug_ui_active,
@@ -81,7 +82,7 @@ class AuxiliaryFunctionsPanel:
         self._create_row1_bag_and_auxiliary()
 
     def _create_row0(self):
-        """First row: full width, no inner margin."""
+        """First row: path section (same layout as Rosbot extension, no ros-bot line) + right buttons."""
         row0 = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_secondary'])
         tab_pad = UnifiedStyles.TAB_PAD
         row0.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, tab_pad // 2))
@@ -90,47 +91,11 @@ class AuxiliaryFunctionsPanel:
         inner.pack(fill=tk.X, expand=True, padx=tab_pad, pady=tab_pad)
         inner.grid_columnconfigure(0, weight=1)
 
-        left_f = tk.Frame(inner, bg=UnifiedStyles.COLORS['bg_secondary'])
-        left_f.grid(row=0, column=0, sticky="w")
-        left_f.grid_columnconfigure(1, weight=1)
-
-        bn_lbl = tk.Label(left_f, text=BATTLE_NET_EXE_NAME + ":",
-                          bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                          font=UnifiedStyles.FONTS['label'])
-        bn_lbl.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']), pady=UnifiedStyles.SPACING['sm'])
-        ConfigBinding.create_input_binding(
-            left_f, "battlenet.battlenet_path", default_value="", width=44,
-            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
-            font=UnifiedStyles.FONTS['input']
-        ).grid(row=0, column=1, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['sm'])
-        tk.Button(left_f, text=i18n_manager.get_ui_text("rosbot.browse"),
-                 bg=UnifiedStyles.COLORS['btn_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                 font=UnifiedStyles.FONTS['button'], padx=UnifiedStyles.PADDING['sm'], pady=UnifiedStyles.PADDING['xs'],
-                 command=self._browse_battlenet_path
-                 ).grid(row=0, column=2, padx=(UnifiedStyles.SPACING['sm'], 0), pady=UnifiedStyles.SPACING['sm'])
-
-        d3_lbl = tk.Label(left_f, text=DIABLO_III_EXE_NAME + ":",
-                         bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                         font=UnifiedStyles.FONTS['label'])
-        d3_lbl.grid(row=1, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']), pady=UnifiedStyles.SPACING['sm'])
-        ConfigBinding.create_input_binding(
-            left_f, "d3.d3_path", default_value="", width=44,
-            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
-            font=UnifiedStyles.FONTS['input']
-        ).grid(row=1, column=1, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['sm'])
-        tk.Button(left_f, text=i18n_manager.get_ui_text("rosbot.browse"),
-                 bg=UnifiedStyles.COLORS['btn_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                 font=UnifiedStyles.FONTS['button'], padx=UnifiedStyles.PADDING['sm'], pady=UnifiedStyles.PADDING['xs'],
-                 command=self._browse_d3_path
-                 ).grid(row=1, column=2, padx=(UnifiedStyles.SPACING['sm'], 0), pady=UnifiedStyles.SPACING['sm'])
-
-        self._scan_status = [None]
-        self._scan_in_progress = False
-        self._aux_scan_btn = tk.Button(left_f, text=i18n_manager.get_ui_text("rosbot.scan_one_click"),
-                                       bg=UnifiedStyles.COLORS['btn_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                                       font=UnifiedStyles.FONTS['button'], padx=UnifiedStyles.PADDING['sm'], pady=UnifiedStyles.PADDING['xs'],
-                                       command=self._run_aux_scan)
-        self._aux_scan_btn.grid(row=2, column=0, columnspan=3, sticky="w", padx=0, pady=(UnifiedStyles.SPACING['md'], 0))
+        path_frame = tk.Frame(inner, bg=UnifiedStyles.COLORS['bg_secondary'])
+        path_frame.grid(row=0, column=0, sticky="ew")
+        path_frame.grid_columnconfigure(1, weight=1)
+        path_frame.grid_columnconfigure(3, weight=0)
+        path_frame.grid_columnconfigure(4, weight=0)
 
         _btn_style = dict(
             bg=UnifiedStyles.COLORS['btn_secondary'],
@@ -139,19 +104,81 @@ class AuxiliaryFunctionsPanel:
             padx=UnifiedStyles.PADDING['sm'],
             pady=UnifiedStyles.PADDING['xs'],
         )
-        _btn_width = 14
+        _btn_width_scan_start = 8   # One-click scan and Start D3 use smaller width to leave more space for path
+        _btn_width_side = 10
+
+        # Battle.net path (same UI as Rosbot: label, entry, browse) — left path area gets priority width
+        bn_lbl = tk.Label(path_frame, text=BATTLE_NET_EXE_NAME + ":",
+                          bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
+                          font=UnifiedStyles.FONTS['label'])
+        bn_lbl.grid(row=0, column=0, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        ConfigBinding.create_input_binding(
+            path_frame, "battlenet.battlenet_path", default_value="", width=58,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
+            font=UnifiedStyles.FONTS['input']
+        ).grid(row=0, column=1, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.browse"),
+                 bg=UnifiedStyles.COLORS['btn_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
+                 font=UnifiedStyles.FONTS['button'],
+                 command=self._browse_battlenet_path
+                 ).grid(row=0, column=2, padx=(0, UnifiedStyles.SPACING['sm']), pady=UnifiedStyles.SPACING['xs'])
+
+        # D3 path (same UI as Rosbot: label, entry, browse)
+        d3_lbl = tk.Label(path_frame, text=DIABLO_III_EXE_NAME + ":",
+                         bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
+                         font=UnifiedStyles.FONTS['label'])
+        d3_lbl.grid(row=1, column=0, sticky="w", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        ConfigBinding.create_input_binding(
+            path_frame, "d3.d3_path", default_value="", width=58,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
+            font=UnifiedStyles.FONTS['input']
+        ).grid(row=1, column=1, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['xs'])
+        tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.browse"),
+                 bg=UnifiedStyles.COLORS['btn_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
+                 font=UnifiedStyles.FONTS['button'],
+                 command=self._browse_d3_path
+                 ).grid(row=1, column=2, padx=(0, UnifiedStyles.SPACING['sm']), pady=UnifiedStyles.SPACING['xs'])
+
+        # Start D3 button: smaller width to leave more space for path
+        self._start_d3_btn = tk.Button(
+            path_frame,
+            text=i18n_manager.get_ui_text("button_area.start_d3"),
+            width=_btn_width_scan_start,
+            cursor='hand2',
+            command=lambda: timer_manager.submit_one_shot(do_ensure_d3_running_from_battlenet_no_rosbot),
+            **_btn_style,
+        )
+        self._start_d3_btn.grid(
+            row=1,
+            column=3,
+            sticky="ew",
+            padx=(UnifiedStyles.SPACING['sm'], 0),
+            pady=UnifiedStyles.SPACING['xs'],
+        )
+
+        # One-click scan + 启动D3：一列两行（同列纵向堆叠）
+        self._scan_status = [None]
+        self._scan_in_progress = False
+        self._scan_progress_after_id = None
+        self._aux_scan_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.scan_one_click"),
+                                       width=_btn_width_scan_start,
+                                       **_btn_style,
+                                       command=self._run_aux_scan)
+        self._aux_scan_btn.grid(
+            row=0,
+            column=3,
+            sticky="ew",
+            padx=(UnifiedStyles.SPACING['sm'], 0),
+            pady=UnifiedStyles.SPACING['xs'],
+        )
+
         right_btns = tk.Frame(inner, bg=UnifiedStyles.COLORS['bg_secondary'])
         right_btns.grid(row=0, column=1, sticky="nw", padx=(UnifiedStyles.SPACING['lg'], 0), pady=0)
-        self._start_d3_btn = tk.Button(right_btns, text=i18n_manager.get_ui_text("button_area.start_d3"),
-                                      width=_btn_width, cursor='hand2',
-                                      command=lambda: timer_manager.submit_one_shot(do_ensure_d3_running_from_battlenet_no_rosbot),
-                                      **_btn_style)
-        self._start_d3_btn.pack(anchor="w", pady=(0, UnifiedStyles.SPACING['xs']))
         open_bag_btn = tk.Button(right_btns, text=i18n_manager.get_ui_text("ui.auxiliary_panel.open_bag_adjust"),
-                                 width=_btn_width, command=self._open_bag_adjust_window, **_btn_style)
+                                 width=_btn_width_side, command=self._open_bag_adjust_window, **_btn_style)
         open_bag_btn.pack(anchor="w", pady=(0, UnifiedStyles.SPACING['xs']))
         debug_btn = tk.Button(right_btns, text=i18n_manager.get_ui_text("ui.auxiliary_panel.other_image_lookup_debug"),
-                              width=_btn_width, command=self._open_template_match_debug_window, **_btn_style)
+                              width=_btn_width_side, command=self._open_template_match_debug_window, **_btn_style)
         debug_btn.pack(anchor="w")
 
     def _create_row1_bag_and_auxiliary(self):
@@ -164,7 +191,7 @@ class AuxiliaryFunctionsPanel:
         tab_pad = UnifiedStyles.TAB_PAD
         block = tk.Frame(row1, bg=UnifiedStyles.COLORS['bg_secondary'])
         block.grid(row=0, column=0, sticky="nsew", padx=tab_pad, pady=tab_pad)
-        block.grid_columnconfigure(0, weight=0)
+        block.grid_columnconfigure(0, weight=1)
         block.grid_columnconfigure(1, weight=1)
         block.grid_columnconfigure(2, weight=1)
         block.grid_rowconfigure(0, weight=0)
@@ -187,11 +214,6 @@ class AuxiliaryFunctionsPanel:
         auto_right.grid_columnconfigure(1, weight=1)
         auto_right.grid_columnconfigure(2, weight=0)
         self._create_automation_section(auto_right, start_row=5, end_row=10)
-
-        hotkey_row = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
-        hotkey_row.grid(row=1, column=1, columnspan=2, sticky="nw", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['md'])
-        hotkey_row.grid_columnconfigure(1, weight=0)
-        self._create_hotkey_row(hotkey_row)
 
     def _browse_battlenet_path(self):
         current = (ConfigBinding.get_config_value("battlenet.battlenet_path") or "").strip()
@@ -216,15 +238,28 @@ class AuxiliaryFunctionsPanel:
             ConfigBinding.set_config_value("d3.d3_path", filename)
 
     def _run_aux_scan(self):
-        """One-click scan for Battle.net and D3 only (no ROSBOT)."""
+        """One-click scan for Battle.net and D3 only (no ROSBOT). Same progress behavior as Rosbot panel."""
         self._scan_in_progress = True
         self._scan_status[0] = None
         self._aux_scan_btn.config(state=tk.DISABLED, text=i18n_manager.get_ui_text("rosbot.scan_searching"))
+        self._scan_progress_tick()
         timer_manager.submit_one_shot(lambda: do_path_scan(self, include_rosbot=False))
+
+    def _scan_progress_tick(self):
+        """Update scan progress (main thread every 200ms). Same as Rosbot panel; no progress label in auxiliary."""
+        if not self._scan_in_progress:
+            return
+        self._scan_progress_after_id = self.container.after(200, self._scan_progress_tick)
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, d3_path=None, error_msg=None):
         """Apply scan results: only set Battle.net and D3 paths (auxiliary panel, no ROSBOT)."""
         self._scan_in_progress = False
+        if self._scan_progress_after_id is not None:
+            try:
+                self.container.after_cancel(self._scan_progress_after_id)
+            except (tk.TclError, RuntimeError):
+                pass
+            self._scan_progress_after_id = None
         self._aux_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
         if error_msg:
             messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
@@ -241,11 +276,33 @@ class AuxiliaryFunctionsPanel:
             )
 
     def _create_bag_offset_in_parent(self, parent):
-        """Create bag offset block (no title)."""
+        """Bag offset column: top/left, use-in-calculation, auxiliary macro hotkey, bottom/right. Short items on one row: top+bottom, left+right."""
         bag_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         bag_frame.pack(anchor="nw", pady=(0, UnifiedStyles.SPACING['sm']))
-        bag_frame.grid_columnconfigure(1, weight=0)
+        for c in range(4):
+            bag_frame.grid_columnconfigure(c, weight=0)
+        bag_offset_config = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
+        pad = UnifiedStyles.SPACING['xs']
+        pad_md = UnifiedStyles.SPACING['md']
 
+        # Row 0: top + left (two short items on one row)
+        self._create_spinbox_row(
+            bag_frame,
+            i18n_manager.get_ui_text("ui.auxiliary_panel.top_offset"),
+            "top",
+            bag_offset_config.get("top", 0),
+            -500, 500,
+            row=0, col_offset=0, spinbox_width=5, compact=True,
+        )
+        self._create_spinbox_row(
+            bag_frame,
+            i18n_manager.get_ui_text("ui.auxiliary_panel.left_offset"),
+            "left",
+            bag_offset_config.get("left", 0),
+            -500, 500,
+            row=0, col_offset=2, spinbox_width=5, compact=True,
+        )
+        # Row 1: 用于计算范围截取
         use_offset_cb = ConfigBinding.create_checkbox_binding(
             bag_frame, "ui_analysis.bag_offset.use_in_calculation",
             i18n_manager.get_ui_text("ui.auxiliary_panel.bag_offset_use_in_calculation"),
@@ -256,47 +313,56 @@ class AuxiliaryFunctionsPanel:
             activebackground=UnifiedStyles.COLORS['bg_secondary'],
             activeforeground=UnifiedStyles.COLORS['text_primary'],
         )
-        use_offset_cb.grid(row=0, column=0, columnspan=2, sticky="w", padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['sm'])
+        use_offset_cb.grid(row=1, column=0, columnspan=4, sticky="w", padx=pad_md, pady=pad)
+        # Row 2: auxiliary macro start/stop hotkey
+        hotkey_row = tk.Frame(bag_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        hotkey_row.grid(row=2, column=0, columnspan=4, sticky="w", padx=pad_md, pady=pad)
+        hotkey_row.grid_columnconfigure(1, weight=0)
+        self._create_hotkey_row(hotkey_row)
+        # Row 3: 下右（两小项合成一行）
+        self._create_spinbox_row(
+            bag_frame,
+            i18n_manager.get_ui_text("ui.auxiliary_panel.bottom_offset"),
+            "bottom",
+            bag_offset_config.get("bottom", 0),
+            -500, 500,
+            row=3, col_offset=0, spinbox_width=5, compact=True,
+        )
+        self._create_spinbox_row(
+            bag_frame,
+            i18n_manager.get_ui_text("ui.auxiliary_panel.right_offset"),
+            "right",
+            bag_offset_config.get("right", 0),
+            -500, 500,
+            row=3, col_offset=2, spinbox_width=5, compact=True,
+        )
 
-        # Bag offset settings: left/right/top/bottom, default 0
-        bag_offset_config = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
-        settings = [
-            (i18n_manager.get_ui_text("ui.auxiliary_panel.left_offset"), "left",
-             bag_offset_config.get("left", 0), -500, 500),
-            (i18n_manager.get_ui_text("ui.auxiliary_panel.right_offset"), "right",
-             bag_offset_config.get("right", 0), -500, 500),
-            (i18n_manager.get_ui_text("ui.auxiliary_panel.top_offset"), "top",
-             bag_offset_config.get("top", 0), -500, 500),
-            (i18n_manager.get_ui_text("ui.auxiliary_panel.bottom_offset"), "bottom",
-             bag_offset_config.get("bottom", 0), -500, 500)
-        ]
-        
-        for i, (label_text, var_name, default, min_val, max_val) in enumerate(settings):
-            self._create_spinbox_row(bag_frame, label_text, var_name, default, min_val, max_val, i + 1)
         return bag_frame
 
-    def _create_spinbox_row(self, parent, label_text, var_name, default, min_val, max_val, row):
-        """Create a spinbox configuration row using ConfigBinding"""
+    def _create_spinbox_row(self, parent, label_text, var_name, default, min_val, max_val, row, col_offset=0, spinbox_width=10, compact=False):
+        """Create a spinbox configuration row using ConfigBinding. compact=True: smaller padx, spinbox width and font for bag offset."""
+        pad = UnifiedStyles.SPACING['xs'] if compact else UnifiedStyles.SPACING['md']
+        label_font = UnifiedStyles.FONTS['small'] if compact else UnifiedStyles.FONTS['label']
         # Label
         label = tk.Label(parent, text=label_text,
                         bg=UnifiedStyles.COLORS['bg_secondary'],
                         fg=UnifiedStyles.COLORS['text_primary'],
-                        font=UnifiedStyles.FONTS['label'])
-        label.grid(row=row, column=0, sticky="w",
-                  padx=UnifiedStyles.SPACING['md'],
+                        font=label_font)
+        label.grid(row=row, column=col_offset, sticky="w",
+                  padx=pad,
                   pady=UnifiedStyles.SPACING['sm'])
 
         # Spinbox with ConfigBinding
         config_key = f"ui_analysis.bag_offset.{var_name}"
         spinbox = ConfigBinding.create_spinbox_binding(
             parent, config_key, from_=min_val, to=max_val,
-            increment=1, default_value=default, width=10,
+            increment=1, default_value=default, width=spinbox_width,
             bg=UnifiedStyles.COLORS['input_bg'],
             fg=UnifiedStyles.COLORS['input_text'],
             font=UnifiedStyles.FONTS['input']
         )
-        spinbox.grid(row=row, column=1, sticky="w",
-                    padx=UnifiedStyles.SPACING['md'],
+        spinbox.grid(row=row, column=col_offset + 1, sticky="w",
+                    padx=pad,
                     pady=UnifiedStyles.SPACING['sm'])
 
 
@@ -399,13 +465,11 @@ class AuxiliaryFunctionsPanel:
                 if isinstance(current_value, str) and current_value in reverse_mapping:
                     i18n_key_for_display = reverse_mapping[current_value]
                     current_display = i18n_manager.get_ui_text(i18n_key_for_display)
-                    ColorPrint.blue(f"[ConfigBinding-KV] Loaded from cache: {menu_config['menu_config_key']} = {current_value} -> '{current_display}'")
                 else:
                     if default_value and default_value in reverse_mapping:
                         current_display = i18n_manager.get_ui_text(reverse_mapping[default_value])
                     else:
                         current_display = display_texts[0] if display_texts else ""
-                    ColorPrint.yellow(f"[ConfigBinding-KV] No cache or invalid for {menu_config['menu_config_key']}, using default: '{current_display}'")
 
                 # Optional: count spinbox (e.g. blood_shard.count) in column 1
                 count_config_key = menu_config.get("count_config_key")
@@ -421,9 +485,7 @@ class AuxiliaryFunctionsPanel:
                         cur = cur.get(p, 15) if isinstance(cur, dict) else 15
                     count_val = int(cur) if isinstance(cur, (int, float)) else 15
                     count_var = tk.IntVar(value=max(1, min(999, count_val)))
-                    tk.Label(col1_widget, text=i18n_manager.get_ui_text("ui.auxiliary_panel.blood_shard_count_label"),
-                             bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
-                             font=UnifiedStyles.FONTS['label']).pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['xs']))
+                    # Blood shard count: show input only, no label, to save width
                     spinbox = tk.Spinbox(col1_widget, from_=1, to=999, width=5, textvariable=count_var,
                                         bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
                                         font=UnifiedStyles.FONTS['input'])
@@ -442,7 +504,7 @@ class AuxiliaryFunctionsPanel:
                                 obj[part] = {}
                             obj = obj[part]
                         obj[config_parts[-1]] = v
-                        save_config()
+                        queue_config_save()
                     count_var.trace_add('write', lambda *a: on_count_change())
                     spinbox.bind('<FocusOut>', lambda e: on_count_change())
 
@@ -460,25 +522,13 @@ class AuxiliaryFunctionsPanel:
                 # Bind selection event to save the internal value (not display text)
                 def on_menu_select(event, key=menu_config["menu_config_key"], items=menu_items):
                     display_text = menu_var.get()
-
-                    # Debug: Show all available options for this menu
-                    ColorPrint.blue(f"[ConfigBinding-KV] Selected: '{display_text}' from menu: {key}")
-
-                    # Find internal value by comparing current translated text with stored i18n keys
                     internal_value = None
                     for i18n_key, value in items:
-                        translated = i18n_manager.get_ui_text(i18n_key)
-                        if translated == display_text:
+                        if i18n_manager.get_ui_text(i18n_key) == display_text:
                             internal_value = value
-                            ColorPrint.green(f"[ConfigBinding-KV] Matched: {i18n_key} -> {value}")
                             break
-
-                    # Fallback: if not found, use first item's value
                     if internal_value is None:
-                        ColorPrint.yellow(f"[ConfigBinding-KV] Warning: '{display_text}' not found in mapping")
-                        ColorPrint.yellow(f"[ConfigBinding-KV] Available options: {[i18n_manager.get_ui_text(item[0]) for item in items]}")
                         internal_value = items[0][1]
-                        ColorPrint.yellow(f"[ConfigBinding-KV] Using default: {internal_value}")
 
                     # Save internal value to CONFIG (traverse only dicts; ensure path exists)
                     config_parts = key.split('.')
@@ -491,16 +541,14 @@ class AuxiliaryFunctionsPanel:
                                     obj[p] = {}
                                 obj = obj[p]
                             obj[config_parts[-1]] = internal_value
-                            save_config()
-                            ColorPrint.blue(f"[ConfigBinding-KV] Saved: {key} = {internal_value} (displayed as: {display_text})")
+                            queue_config_save()
                             return
                         if part not in config_obj:
                             config_obj[part] = {}
                         config_obj = config_obj[part]
                     if isinstance(config_obj, dict):
                         config_obj[config_parts[-1]] = internal_value
-                    save_config()
-                    ColorPrint.blue(f"[ConfigBinding-KV] Saved: {key} = {internal_value} (displayed as: {display_text})")
+                    queue_config_save()
 
                 menu.bind('<<ComboboxSelected>>', on_menu_select)
 
@@ -541,7 +589,7 @@ class AuxiliaryFunctionsPanel:
             if "auxiliary_config" not in CONFIG["macro_configs"]:
                 CONFIG["macro_configs"]["auxiliary_config"] = {}
             CONFIG["macro_configs"]["auxiliary_config"]["assistant_hotkey"] = hotkey
-            save_config()
+            queue_config_save()
             ColorPrint.blue(f"[ConfigBinding-Hotkey] assistant_hotkey = {hotkey}")
 
         hotkey_input = HotkeyInput(
@@ -563,11 +611,11 @@ class AuxiliaryFunctionsPanel:
         hotkey_input.grid(row=0, column=1, sticky='w', padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['md'])
 
     def _open_bag_adjust_window(self):
-        """Popup: menu bar, bag recognition info area, and comprehensive annotated image."""
+        """Popup: menu, bag info (layout/offset/quality), big image (annotated), small image (bag_layout)."""
         win = tk.Toplevel(self.parent)
         win.title(i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_window_title"))
         win.configure(bg=UnifiedStyles.COLORS['bg_primary'])
-        win.geometry("920x620")
+        win.geometry("1000x720")
 
         content = tk.Frame(win, bg=UnifiedStyles.COLORS['bg_primary'])
         content.pack(fill=tk.BOTH, expand=True, padx=UnifiedStyles.SPACING['md'], pady=UnifiedStyles.SPACING['md'])
@@ -581,7 +629,7 @@ class AuxiliaryFunctionsPanel:
         refresh_btn = ttk.Button(
             menu_frame,
             text=i18n_manager.get_ui_text("ui.auxiliary_panel.refresh_bag_preview"),
-            command=lambda: _refresh(info_text, img_label, win)
+            command=lambda: _refresh(info_text, img_label, small_img_label, win)
         )
         refresh_btn.pack(side=tk.LEFT)
         zoom_out_btn = ttk.Button(
@@ -626,8 +674,8 @@ class AuxiliaryFunctionsPanel:
         info_text = tk.Text(
             info_inner,
             wrap=tk.WORD,
-            width=36,
-            height=22,
+            width=38,
+            height=24,
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['small'],
@@ -638,17 +686,20 @@ class AuxiliaryFunctionsPanel:
         info_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll.config(command=info_text.yview)
 
-        # Image area
-        img_frame = tk.LabelFrame(
-            main_frame,
+        # Right: big image (top) + small image (bottom, bag_layout visualization)
+        right_col = tk.Frame(main_frame, bg=UnifiedStyles.COLORS['bg_primary'])
+        right_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        big_img_frame = tk.LabelFrame(
+            right_col,
             text=i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_image_title"),
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
             font=UnifiedStyles.FONTS['subheading'],
         )
-        img_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        big_img_frame.pack(fill=tk.BOTH, expand=True)
         img_label = tk.Label(
-            img_frame,
+            big_img_frame,
             text="",
             bg=UnifiedStyles.COLORS['bg_secondary'],
             fg=UnifiedStyles.COLORS['text_primary'],
@@ -656,9 +707,27 @@ class AuxiliaryFunctionsPanel:
         )
         img_label.pack(fill=tk.BOTH, expand=True)
 
+        small_img_frame = tk.LabelFrame(
+            right_col,
+            text=i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_small_image_title"),
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['subheading'],
+        )
+        small_img_frame.pack(fill=tk.X, pady=(UnifiedStyles.SPACING['sm'], 0))
+        small_img_label = tk.Label(
+            small_img_frame,
+            text="",
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_muted'],
+            font=UnifiedStyles.FONTS['small'],
+        )
+        small_img_label.pack(fill=tk.X, pady=2)
+
         win._bag_pil_original = None
         win._bag_zoom_scale = _saved_scale
         win._bag_base_width = 520
+        win._bag_small_photo = None
 
         def _update_zoom_label(w):
             lbl = getattr(w, "_bag_zoom_label", None)
@@ -692,7 +761,7 @@ class AuxiliaryFunctionsPanel:
             ConfigBinding.set_config_value("ui_analysis.bag_adjust_zoom_scale", w._bag_zoom_scale)
             _apply_zoom(w, img_widget)
 
-        def _refresh(info_widget, img_widget, w):
+        def _refresh(info_widget, img_widget, small_img_widget, w):
             no_img_msg = i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image")
             no_data_msg = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data")
             manager = D3InterfaceManager()
@@ -702,32 +771,61 @@ class AuxiliaryFunctionsPanel:
             coords = getattr(game_data, "bag_coordinates", None)
             layout = getattr(game_data, "bag_layout", None)
 
-            # Update info area
+            layout_result = None
+            layout_result_detector = None
+            if img is not None and coords is not None:
+                try:
+                    left, top = coords.top_left[0], coords.top_left[1]
+                    right, bottom = coords.bottom_right[0], coords.bottom_right[1]
+                    cropped = np.array(img)
+                    if cropped.ndim == 3 and cropped.shape[2] == 3:
+                        bag_region_bgr = cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR)[top:bottom, left:right]
+                    else:
+                        bag_region_bgr = cropped[top:bottom, left:right]
+                    bag_coords_dict = {"top_left": coords.top_left, "bottom_right": coords.bottom_right, "rows": coords.rows, "cols": coords.cols}
+                    detector = BagLayoutDetector(rows=coords.rows, cols=coords.cols)
+                    layout_result = detector.detect_layout(bag_region_bgr, bag_coords_dict)
+                    layout_result_detector = detector
+                except Exception as e:
+                    ColorPrint.yellow(f"[BagAdjust] layout_result: {e}")
+
             info_widget.delete("1.0", tk.END)
-            if coords is None and layout is None:
+            if coords is None and layout is None and layout_result is None:
                 info_widget.insert(tk.END, no_data_msg)
             else:
                 lines = []
+                scale_x, scale_y = get_global_scale()
+                bag_offset = CONFIG.get("ui_analysis", {}).get("bag_offset", {}) or CONFIG.get("system_settings", {}).get("bag_offset", {})
+                oL, oR = bag_offset.get("left", 0), bag_offset.get("right", 0)
+                oT, oB = bag_offset.get("top", 0), bag_offset.get("bottom", 0)
+                lines.append(f"Offset: L={int(oL*scale_x)} R={int(oR*scale_x)} T={int(oT*scale_y)} B={int(oB*scale_y)} px")
+                lines.append(f"Scale: {scale_x:.2f} x {scale_y:.2f}")
+                lines.append("")
                 if coords is not None:
                     lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
-                    lines.append(f"TopLeft: {coords.top_left}")
-                    lines.append(f"BottomRight: {coords.bottom_right}")
+                    lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
                     lines.append(f"Size: {coords.width}x{coords.height}")
-                if layout and getattr(layout, "items", None):
-                    items = layout.items
-                    occupied = sum(1 for v in items.values() if isinstance(v, dict) and v.get("type") != "empty")
-                    lines.append(f"Occupied: {occupied} / {coords.total_slots}" if coords else f"Occupied: {occupied}")
-                    quality_count = {'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0}
-                    for v in items.values():
+                layout_grid = (layout_result or {}).get("layout") or (getattr(layout, "layout", None) if layout else None)
+                if layout_grid and len(layout_grid) > 0 and len(layout_grid[0]) > 0:
+                    rows, cols = len(layout_grid), len(layout_grid[0])
+                    empty_c = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "empty")
+                    c1 = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "item_1slot")
+                    c2 = sum(1 for r in range(rows) for c in range(cols) if layout_grid[r][c] == "item_2slot_top")
+                    lines.append(f"Empty: {empty_c}  |  1-slot: {c1}  |  2-slot: {c2}")
+                items_src = (layout and getattr(layout, "items", None)) or (layout_result and layout_result.get("items"))
+                if items_src:
+                    occupied = sum(1 for v in items_src.values() if isinstance(v, dict) and v.get("type") != "empty")
+                    lines.append(f"Occupied: {occupied}" + (f" / {coords.total_slots}" if coords else ""))
+                    quality_count = {'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0, 'see_top': 0}
+                    for v in items_src.values():
                         if isinstance(v, dict):
                             q = v.get('quality', 'unknown')
                             quality_count[q] = quality_count.get(q, 0) + 1
                     lines.append("")
-                    lines.append("Quality stats:")
-                    lines.append(f"  Legendary set(green): {quality_count.get('legendary_set', 0)}  Legendary(orange): {quality_count.get('legendary', 0)}")
-                    lines.append(f"  Rare(yellow): {quality_count.get('rare', 0)}  Magic(blue): {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
+                    lines.append("Quality: L_set L R M Unknown Empty see_top")
+                    lines.append(f"  {quality_count.get('legendary_set', 0)}  {quality_count.get('legendary', 0)}  {quality_count.get('rare', 0)}  {quality_count.get('magic', 0)}  {quality_count.get('unknown', 0)}  {quality_count.get('empty', 0)}  {quality_count.get('see_top', 0)}")
                     lines.append("")
-                    for (r, c), info in sorted(items.items()):
+                    for (r, c), info in sorted(items_src.items()):
                         if isinstance(info, dict) and info.get("type") != "empty":
                             lines.append(f"  ({r},{c}) {info.get('type', '?')}  {info.get('quality', '?')}")
                 else:
@@ -735,27 +833,44 @@ class AuxiliaryFunctionsPanel:
                 info_widget.insert(tk.END, "\n".join(lines))
             info_widget.see("1.0")
 
-            # Update image area
             if img is None:
                 img_widget.configure(image="", text=no_img_msg)
                 w._bag_photo = None
                 w._bag_pil_original = None
-                return
-            screenshot_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-            detection_success = coords is not None
-            collector = BagInfoCollector()
-            pil_annotated = collector.get_annotated_detection_image(screenshot_bgr, detection_success)
-            if pil_annotated is None:
-                img_widget.configure(image="", text=no_img_msg)
-                w._bag_photo = None
-                w._bag_pil_original = None
-                return
-            w._bag_pil_original = pil_annotated
-            w._bag_base_width = min(520, pil_annotated.width)
-            w._bag_zoom_scale = max(0.25, min(3.0, float(ConfigBinding.get_config_value("ui_analysis.bag_adjust_zoom_scale", 1.0))))
-            _apply_zoom(w, img_widget)
+            else:
+                screenshot_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+                detection_success = coords is not None
+                collector = BagInfoCollector()
+                pil_annotated = collector.get_annotated_detection_image(screenshot_bgr, detection_success)
+                if pil_annotated is None:
+                    img_widget.configure(image="", text=no_img_msg)
+                    w._bag_photo = None
+                    w._bag_pil_original = None
+                else:
+                    w._bag_pil_original = pil_annotated
+                    w._bag_base_width = min(520, pil_annotated.width)
+                    w._bag_zoom_scale = max(0.25, min(3.0, float(ConfigBinding.get_config_value("ui_analysis.bag_adjust_zoom_scale", 1.0))))
+                    _apply_zoom(w, img_widget)
 
-        _refresh(info_text, img_label, win)
+            small_img_widget.configure(image="", text="")
+            w._bag_small_photo = None
+            if layout_result is not None and layout_result_detector is not None:
+                try:
+                    vis_bgr = layout_result_detector.build_visualization_image(layout_result)
+                    if vis_bgr is not None:
+                        vis_rgb = cv2.cvtColor(vis_bgr, cv2.COLOR_BGR2RGB)
+                        pil_small = Image.fromarray(vis_rgb)
+                        max_w = 480
+                        if pil_small.width > max_w:
+                            ratio = max_w / pil_small.width
+                            pil_small = pil_small.resize((max_w, int(pil_small.height * ratio)), Image.Resampling.LANCZOS)
+                        w._bag_small_photo = ImageTk.PhotoImage(pil_small)
+                        small_img_widget.configure(image=w._bag_small_photo, text="")
+                except Exception as e:
+                    small_img_widget.configure(text=i18n_manager.get_ui_text("ui.auxiliary_panel.bag_adjust_small_image_failed") + f": {e}")
+                    ColorPrint.yellow(f"[BagAdjust] small image: {e}")
+
+        _refresh(info_text, img_label, small_img_label, win)
 
     def _open_template_match_debug_window(self):
         """Open template-match debug UI: left=log+list, right=match image, in-memory, queue-driven."""
