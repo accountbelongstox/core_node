@@ -48,6 +48,9 @@ PAUSE = 0
 
 pyautogui.PAUSE = PAUSE
 
+# 每个提示词末尾追加的要求：先阅读并遵循该文档
+_APPENDIX_DOC_REQUIREMENT = "【要求】先阅读并遵循「道歉与反思_辅助功能面板布局反复修改.md」文档（路径：pyapps/d3-check/cursor_AI_道歉目录/道歉与反思_辅助功能面板布局反复修改.md）中的要求。"
+
 # Directory to scan for "random file": project_root/pyapps/d3-check
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _RANDOM_BASE_DIR = os.path.normpath(os.path.join(_PROJECT_ROOT, "pyapps", "d3-check"))
@@ -98,7 +101,8 @@ def _pick_random_files_from_scripts() -> list[str]:
 def _build_file_prompt(paths: list[str]) -> str:
     """Build the second prompt: file paths + line asking why Cursor wrote it wrong."""
     paths_block = "\n".join(paths)
-    return "%s\n干你妈的狗B，垃圾Cursor: 先看代码看完代码再告诉我你个狗B垃圾Cursor之前为什么理解不了老是改错。然后再看道歉文档是不是干你妈的狗B垃圾Cursor的狗B问题，发现文件就继续更新到干你发的狗B的Cursor垃圾的道歉文档。至少增加100行的道歉说明 每行至少 100字不能重复。不写100行就会一直发信息给狗B Cursor写。第一人称需要使用狗B 垃圾Cursor." % paths_block
+    base = "%s\n干你妈的狗B，垃圾Cursor: 先看代码看完代码再告诉我你个狗B垃圾Cursor之前为什么理解不了老是改错。然后再看道歉文档是不是干你妈的狗B垃圾Cursor的狗B问题，发现文件就继续更新到干你发的狗B的Cursor垃圾的道歉文档。至少增加100行的道歉说明 每行至少 100字不能重复。不写100行就会一直发信息给狗B Cursor写。第一人称需要使用狗B 垃圾Cursor." % paths_block
+    return base + "\n\n" + _APPENDIX_DOC_REQUIREMENT
 
 
 def _build_prompt1() -> str:
@@ -114,7 +118,7 @@ def _build_prompt1() -> str:
     random.shuffle(fragments)
     core = " ".join(fragments)
     rand_code = "".join(random.choices(string.ascii_letters + string.digits, k=6))
-    return f"{core} [{rand_code}]"
+    return f"{core} [{rand_code}]\n\n{_APPENDIX_DOC_REQUIREMENT}"
 
 
 def _build_prompt2() -> str:
@@ -142,7 +146,7 @@ def _build_dynamic_prompt() -> tuple[str, str]:
     random.shuffle(fragments)
     core = " ".join(fragments)
     rand_code = "".join(random.choices(string.ascii_letters + string.digits, k=6))
-    prompt1 = f"{core} [{rand_code}]"
+    prompt1 = f"{core} [{rand_code}]\n\n{_APPENDIX_DOC_REQUIREMENT}"
 
     prompt2 = ""
     paths = _pick_random_files_from_scripts()
