@@ -7,36 +7,19 @@ UI 总常量库 / UI Registry
 
 from typing import Any, Optional, Dict
 
-# 主 UI 实例与面板表（由 register_ui 写入，启动后常驻直至退出）
+# 主 UI 实例（由 register_ui 写入）；面板表由主 UI 自身维护，通过 get_panel(key) 委托（DESIGN_ISSUES_MAJOR §3）
 _ui: Optional[Any] = None
-_panels: Dict[str, Any] = {}
 # 弹出式 UI（按需创建，用 register_popup / get_popup / unregister_popup）
 _popups: Dict[str, Any] = {}
 
 
 def register_ui(ui_instance: Any) -> None:
     """
-    将主 UI 及其所有面板注册到总常量库。
+    将主 UI 注册到总常量库。面板由主 UI 的 get_panel(key) 提供，此处仅持有一份主 UI 引用。
     在 UI 创建完成时调用一次，语言切换重建面板后再次调用以更新引用。
     """
-    global _ui, _panels
+    global _ui
     _ui = ui_instance
-    from providor.constants.ui import (
-        PANEL_KEY_MAIN,
-        PANEL_KEY_AUXILIARY,
-        PANEL_KEY_ROSBOT,
-        PANEL_KEY_D4,
-        PANEL_KEY_CALIBRATION,
-        PANEL_KEY_LOG,
-    )
-    _panels = {
-        PANEL_KEY_MAIN: ui_instance.main_functions_panel,
-        PANEL_KEY_AUXILIARY: ui_instance.auxiliary_functions_panel,
-        PANEL_KEY_ROSBOT: ui_instance.rosbot_extension_panel,
-        PANEL_KEY_D4: ui_instance.d4_panel,
-        PANEL_KEY_CALIBRATION: ui_instance.coordinate_calibration_panel,
-        PANEL_KEY_LOG: ui_instance.log_panel,
-    }
 
 
 def get_ui() -> Optional[Any]:
@@ -52,8 +35,14 @@ def get_root() -> Optional[Any]:
 
 
 def get_panel(key: str) -> Optional[Any]:
-    """按 key 返回面板。key 使用 providor.constants.ui 中的 PANEL_KEY_*。"""
-    return _panels.get(key)
+    """
+    按 key 返回面板，委托主 UI 的 get_panel(key)。key 使用 providor.constants.ui 中的 PANEL_KEY_*。
+    
+    注意：对于 PANEL_KEY_ROSBOT，返回的 panel 对象在首次切换到该 tab 或 ensure_content 完成前，
+    可能尚未完成内部控件创建（_content_created=False）。依赖 panel 内部控件的调用方应检查
+    panel._content_created 或确保 ensure_content 已完成。
+    """
+    return _ui.get_panel(key) if _ui else None
 
 
 def register_popup(key: str, instance: Any) -> None:

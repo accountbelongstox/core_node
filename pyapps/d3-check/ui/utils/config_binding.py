@@ -11,7 +11,6 @@ from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_async
 from pycore.pyfoundations.color_print import ColorPrint
 from share.values.config_change_hub import get_config_change_hub
-from d3utils.i18n_manager import i18n_manager
 from .tk_variables import var_str, var_bool
 
 
@@ -95,9 +94,6 @@ class ConfigBinding:
         set_config_value_async(key_path, value)
         ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
         ConfigBinding._update_bindings(key_path, value)
-        if key_path == "ui_settings.current_language":
-            i18n_manager.set_language(value)
-            ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
         get_config_change_hub().notify_config_changed(key_path)
         return True
     

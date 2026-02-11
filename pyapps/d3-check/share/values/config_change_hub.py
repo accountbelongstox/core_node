@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Config Change Hub - single-instance config change notification (CONFIG_UI_LINKAGE_DESIGN).
-Subscribe once; any CONFIG write calls notify_config_changed; callbacks run on main thread.
+Subscribe once; any CONFIG write calls notify_config_changed. Callbacks run on main thread only:
+when root is not yet registered, notifications are queued and dispatched after root is set (DESIGN_ISSUES_MAJOR §6).
 Coalesces rapid notifies into one dispatch to avoid main-thread flood and UI freeze.
 """
 
@@ -12,12 +13,12 @@ _hub: Optional["ConfigChangeHub"] = None
 
 
 def get_config_change_hub(root=None) -> "ConfigChangeHub":
-    """Return singleton hub. Pass root (tk.Tk) when UI is ready so notify runs on main thread."""
+    """Return singleton hub. Pass root (tk.Tk) when UI is ready; queued notifies will then run on main thread."""
     global _hub
     if _hub is None:
         _hub = ConfigChangeHub()
     if root is not None:
-        _hub._root = root
+        _hub._set_root(root)
     return _hub
 
 
@@ -29,6 +30,13 @@ class ConfigChangeHub:
         self._subs: List[Tuple[str, Callable[[Optional[str]], None], Optional[str]]] = []
         self._pending_after_id: Optional[str] = None
         self._pending_key_path: Optional[str] = None
+        self._pending_queue: List[Optional[str]] = []
+
+    def _set_root(self, root) -> None:
+        """Set root and flush any notifications queued while root was unavailable (on main thread)."""
+        self._root = root
+        if self._pending_queue and root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+            root.after(0, self._flush_pending_queue)
 
     def subscribe(
         self,
@@ -45,7 +53,7 @@ class ConfigChangeHub:
         self._subs[:] = [(i, cb, kp) for i, cb, kp in self._subs if i != subscription_id]
 
     def notify_config_changed(self, key_path: Optional[str] = None) -> None:
-        """Schedule one dispatch on main thread (coalesced); if no root, dispatch synchronously."""
+        """Schedule one dispatch on main thread (coalesced). If no root, queue; do not run callbacks in current thread."""
         root = self._root
         if root is None:
             try:
@@ -63,7 +71,15 @@ class ConfigChangeHub:
             self._pending_key_path = key_path
             self._pending_after_id = root.after(0, self._dispatch_pending)
         else:
-            self._dispatch(key_path)
+            self._pending_queue.append(key_path)
+
+    def _flush_pending_queue(self) -> None:
+        """Dispatch coalesced key from queue on main thread (called after root is set)."""
+        if not self._pending_queue:
+            return
+        kp = self._pending_queue[-1] if self._pending_queue else None
+        self._pending_queue.clear()
+        self._dispatch(kp)
 
     def _dispatch_pending(self) -> None:
         self._pending_after_id = None

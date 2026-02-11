@@ -171,9 +171,10 @@ class TitleBar:
         self.close_btn.pack(side=tk.LEFT, padx=2)
     
     def _on_language_combo_changed(self, event=None):
-        """Handle language combobox selection change - ConfigBinding will handle everything"""
+        """Handle language combobox selection: CONFIG already updated by ConfigBinding trace; explicitly trigger language switch here."""
         new_language = self.language_combo.get()
         ColorPrint.blue(f"[TitleBar] Language combo changed to: {new_language}")
+        i18n_manager.set_language(new_language)
 
     def _on_language_changed(self, new_language: str):
         """Handle language change - update only title bar UI. Parent (Diablo3MacroUI) is a separate listener and will run its own _on_language_changed once; do not call parent here to avoid double _recreate_ui_for_language_change."""

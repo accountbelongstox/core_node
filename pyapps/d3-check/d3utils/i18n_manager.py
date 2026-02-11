@@ -196,7 +196,7 @@ class I18nManager:
         old_language = self.current_language
         self.current_language = language
 
-        # Save to template_config.json
+        # Save to CONFIG (single source of truth; persisted to d3check_config.json by config worker)
         self._save_language_to_config()
 
         # Notify change
@@ -239,50 +239,37 @@ class I18nManager:
         return self.translate(ui_key, fallback)
     
     def _save_language_to_config(self):
-        """Save language setting to template_config.json"""
+        """Save language setting to CONFIG (single source of truth)"""
         try:
-            template_config_path = os.path.join(self.providor_dir, "template_config.json")
+            # Import CONFIG lazily to avoid circular dependency
+            from providor.providor_index import set_config_value_async
             
-            # Read existing configuration
-            data = {}
-            if os.path.exists(template_config_path):
-                with open(template_config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            # Save to CONFIG (which will be persisted to d3check_config.json by config worker)
+            set_config_value_async("ui_settings.current_language", self.current_language)
+            set_config_value_async("ui_settings.supported_languages", self.supported_languages)
             
-            # Update language settings
-            if 'ui_settings' not in data:
-                data['ui_settings'] = {}
+            ColorPrint.green(f"[I18nManager] Language setting saved to CONFIG: {self.current_language}")
             
-            data['ui_settings']['current_language'] = self.current_language
-            data['ui_settings']['supported_languages'] = self.supported_languages
-            
-            # Save to file
-            with open(template_config_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            
-            ColorPrint.green(f"[I18nManager] Language setting saved to template_config.json")
-            
-        except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.red(f"[I18nManager] Failed to save language setting: {e}")
+        except Exception as e:
+            ColorPrint.red(f"[I18nManager] Failed to save language setting to CONFIG: {e}")
     
     def load_language_from_config(self):
-        """Load language setting from template_config.json"""
+        """Load language setting from CONFIG (single source of truth)"""
         try:
-            template_config_path = os.path.join(self.providor_dir, "template_config.json")
+            # Import CONFIG lazily to avoid circular dependency
+            from providor.providor_index import CONFIG, get_config_value_safe
             
-            if os.path.exists(template_config_path):
-                with open(template_config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            # Load from CONFIG
+            saved_language = get_config_value_safe("ui_settings.current_language", None)
+            
+            if saved_language and saved_language in self.supported_languages:
+                self.current_language = saved_language
+                ColorPrint.green(f"[I18nManager] Loaded language from CONFIG: {self.current_language}")
+            elif saved_language:
+                ColorPrint.yellow(f"[I18nManager] Language '{saved_language}' from CONFIG not in supported languages, using default")
                 
-                ui_settings = data.get('ui_settings', {})
-                saved_language = ui_settings.get('current_language')
-                
-                if saved_language and saved_language in self.supported_languages:
-                    self.current_language = saved_language
-                    ColorPrint.green(f"[I18nManager] Loaded language from config: {self.current_language}")
-                
-        except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.red(f"[I18nManager] Failed to load language from config: {e}")
+        except Exception as e:
+            ColorPrint.red(f"[I18nManager] Failed to load language from CONFIG: {e}")
     
     def get_translation_keys(self, language: str = None) -> List[str]:
         """Get translation keys list"""

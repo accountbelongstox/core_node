@@ -524,6 +524,8 @@ CACHE_DIR = os.path.join(CURRENT_USER_DATA_PATH, ".cache")
 
 # Global configuration object
 CONFIG = {}
+# Single control for first load: avoid dual "if not CONFIG" in load_config vs initialize_config
+_config_initialized = False
 
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
@@ -871,48 +873,46 @@ def save_config():
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
         ColorPrint.red(f"Error saving config: {e}")
 
+def _do_initial_load():
+    """Single implementation for first-time config load: sync template then load file. Called by load_config and initialize_config."""
+    global CONFIG, _config_initialized
+    if _config_initialized:
+        return
+    ColorPrint.debug("[DEBUG] Initializing configuration (single entry)...")
+    sync_config()
+    try:
+        ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
+        with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+            CONFIG.update(json.load(f))
+        ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
+        ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
+        _config_initialized = True
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
+        ColorPrint.red(f"Error loading config: {e}")
+        CONFIG = {}
+
+
 def initialize_config():
-    """Initialize configuration with one-time fix on startup"""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Initializing configuration...")
-        
-        # Force sync on first load to ensure template fixes are applied
-        sync_config()
-        
-        try:
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
-            with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
-                CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
+    """Initialize configuration with one-time fix on startup. Single entry: delegates to _do_initial_load."""
+    _do_initial_load()
+
 
 def load_config(force_sync: bool = False):
-    """Load configuration from JSON file if CONFIG is empty."""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Starting config load...")
-        
-        # Only sync if explicitly requested or if user config doesn't exist
-        if force_sync or not os.path.exists(CONFIG_USER_PATH):
-            sync_config()
-        
+    """Load configuration: first load via _do_initial_load(); later force_sync only runs sync_config and reload from file."""
+    global CONFIG, _config_initialized
+    if not _config_initialized:
+        _do_initial_load()
+        return
+    if force_sync:
+        sync_config()
         try:
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+                CONFIG.clear()
                 CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
+            ColorPrint.debug(f"[DEBUG] Config reloaded after sync: {CONFIG_USER_PATH}")
         except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
-    else:
-        ColorPrint.debug("[DEBUG] Config file already loaded, skipping reload")
+            ColorPrint.debug(f"[DEBUG] Failed to reload config: {e}")
 
 def get_dynamic_paths():
     """Get paths that depend on DOCUMENTS_PATH"""

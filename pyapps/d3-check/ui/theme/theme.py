@@ -271,28 +271,113 @@ class UITheme:
                        lightcolor=cls.get_color('btn_primary'),
                        darkcolor=cls.get_color('btn_primary'))
 
+        # Dark.TNotebook / Dark.TFrame / Dark.TNotebook.Tab (single place for main window notebook)
+        cls._apply_dark_notebook_layout(style)
+        style.configure('Dark.TNotebook',
+                       background=cls.get_color('bg_primary'),
+                       borderwidth=0,
+                       tabmargins=[1, 3, 1, 0])
+        style.configure('Dark.TFrame',
+                       background=cls.get_color('bg_primary'),
+                       borderwidth=0)
+        style.configure('Dark.TNotebook.Tab',
+                       background=cls.get_color('tab_unselected_bg'),
+                       foreground=cls.get_color('tab_unselected_fg'),
+                       padding=[12, 8, 12, 8],
+                       borderwidth=0,
+                       lightcolor=cls.get_color('tab_unselected_bg'),
+                       darkcolor=cls.get_color('tab_unselected_bg'),
+                       bordercolor=cls.get_color('tab_unselected_bg'),
+                       focusthickness=0,
+                       focuscolor=cls.get_color('tab_unselected_bg'),
+                       shiftrelief=0,
+                       relief='flat')
+        style.map('Dark.TNotebook.Tab',
+                 background=[('selected', cls.get_color('tab_selected_bg')),
+                             ('active', cls.get_color('state_hover')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', cls.get_color('tab_selected_fg')),
+                             ('active', cls.get_color('text_primary')),
+                             ('!selected', cls.get_color('tab_unselected_fg'))],
+                 lightcolor=[('selected', cls.get_color('tab_selected_bg')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', cls.get_color('tab_selected_bg')),
+                           ('!selected', cls.get_color('tab_unselected_bg'))],
+                 bordercolor=[('selected', cls.get_color('tab_selected_bg')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+
+    @classmethod
+    def _apply_dark_notebook_layout(cls, style: ttk.Style):
+        """Apply Dark.TNotebook.Tab layout (no Notebook.focus wrapper). Single place for main window."""
+        style.layout(
+            'Dark.TNotebook.Tab',
+            [
+                (
+                    'Notebook.tab',
+                    {
+                        'sticky': 'nswe',
+                        'children': [
+                            (
+                                'Notebook.padding',
+                                {
+                                    'side': 'top',
+                                    'sticky': 'nswe',
+                                    'children': [
+                                        ('Notebook.label', {'side': 'top', 'sticky': ''}),
+                                    ],
+                                },
+                            ),
+                        ],
+                    },
+                ),
+            ],
+        )
+
+    @classmethod
+    def refresh_dark_notebook(cls, style: ttk.Style):
+        """Re-apply Dark.TNotebook styles (for force update after map). Call from UI when needed."""
+        cls._apply_dark_notebook_layout(style)
+        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
+        style.configure('Dark.TNotebook.Tab',
+                       background=cls.get_color('tab_unselected_bg'),
+                       foreground=cls.get_color('tab_unselected_fg'),
+                       padding=[12, 8, 12, 8],
+                       borderwidth=0,
+                       lightcolor=cls.get_color('tab_unselected_bg'),
+                       darkcolor=cls.get_color('tab_unselected_bg'),
+                       bordercolor=cls.get_color('tab_unselected_bg'),
+                       focusthickness=0,
+                       focuscolor=cls.get_color('tab_unselected_bg'),
+                       shiftrelief=0,
+                       relief='flat')
+        style.map('Dark.TNotebook.Tab',
+                 background=[('selected', cls.get_color('tab_selected_bg')),
+                             ('active', cls.get_color('state_hover')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 foreground=[('selected', cls.get_color('tab_selected_fg')),
+                             ('active', cls.get_color('text_primary')),
+                             ('!selected', cls.get_color('tab_unselected_fg'))],
+                 lightcolor=[('selected', cls.get_color('tab_selected_bg')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 darkcolor=[('selected', cls.get_color('tab_selected_bg')),
+                           ('!selected', cls.get_color('tab_unselected_bg'))],
+                 bordercolor=[('selected', cls.get_color('tab_selected_bg')),
+                             ('!selected', cls.get_color('tab_unselected_bg'))],
+                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
+                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+
     @classmethod
     def apply_to_root(cls, root: tk.Tk):
         """
-        Apply theme to root window
-
-        Args:
-            root: Root Tk window
+        Apply theme to root window. Single entry: sets bg, theme_use('clam'), and all ttk styles (including Dark.TNotebook).
         """
         root.configure(bg=cls.get_color('bg_dark'))
-
-        # CRITICAL: Apply ttk style after main loop is running (avoid RuntimeError)
-        def _do_ttk_style():
-            if not root.winfo_exists():
-                return
-            style = ttk.Style(root)
-            current_theme = style.theme_use()
-            print(f"[Theme] Initial theme: {current_theme}")
-            if current_theme in ('vista', 'xpnative', 'winnative'):
-                print(f"[Theme] Forcing switch from native theme '{current_theme}' to 'clam'")
-                style.theme_use('clam')
-            elif current_theme != 'clam':
-                print(f"[Theme] Switching theme from '{current_theme}' to 'clam'")
-                style.theme_use('clam')
-            cls.apply_ttk_style(style)
-        root.after(1, _do_ttk_style)
+        if not root.winfo_exists():
+            return
+        style = ttk.Style(root)
+        current_theme = style.theme_use()
+        if current_theme in ('vista', 'xpnative', 'winnative') or current_theme != 'clam':
+            style.theme_use('clam')
+        cls.apply_ttk_style(style)

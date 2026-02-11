@@ -162,14 +162,12 @@
 
 ## 10. i18n 与 CONFIG 的双源与同步
 
-**位置**：`i18n_manager` 的 `current_language`、`load_language_from_config()`、`_save_language_to_config()` 与 `template_config.json`；CONFIG 的 `ui_settings.current_language`  
-**结构路径**：`d3utils/i18n_manager.py`、`providor/providor_index.py`、`providor/template_config.json`、`ui/utils/config_binding.py`
+**位置**：`i18n_manager` 的 `current_language`、`load_language_from_config()`、`_save_language_to_config()` 与 CONFIG 的 `ui_settings.current_language`  
+**结构路径**：`d3utils/i18n_manager.py`、`providor/providor_index.py`、`ui/utils/config_binding.py`
 
-**问题**：
-- 语言状态存在两处：i18n 的 `current_language`（及 template_config.json）与 CONFIG 的 `ui_settings.current_language`；通过 ConfigBinding 的 combobox 写 CONFIG 会触发 set_language，set_language 再写 template_config，而 CONFIG 的持久化由 providor 的 config worker 写 d3check_config.json。
-- 若某处只读 CONFIG、某处只读 i18n，或两处持久化不同步，会出现“界面显示语言与 CONFIG 不一致”或“重启后语言与上次选择不一致”。
-
-**建议**：约定单一事实来源（例如以 CONFIG 为准，i18n 在启动和 set_language 时从 CONFIG 同步）；或明确“语言以 i18n 为准，CONFIG 仅作 UI 绑定与持久化镜像”，并保证任一路径修改后两处一致，避免双源。
+**问题**（已修正）：
+- 原语言状态存在两处：i18n 的 `current_language`（及 template_config.json）与 CONFIG 的 `ui_settings.current_language`，两处持久化不同步。
+- **修正后**：单一事实来源为 CONFIG。i18n 在启动时通过 `load_language_from_config()` 从 CONFIG 读取；`set_language()` 通过 `_save_language_to_config()` 仅写入 CONFIG（由 config worker 持久化到 d3check_config.json）。`template_config.json` 仍保留 `ui_settings.current_language` 默认值，仅用于 sync 时合并进用户配置，不再由 i18n 直接读写。
 
 ---
 
@@ -220,14 +218,14 @@ d3-check/
 | 文档路径约定（相对项目根 d3-check） | ☑ 已统一 |
 | 结构概览表中共享层路径（share/、share/values/） | ☑ 已修正 |
 | §1 语言变更双路径 | ☑ 已修正 |
-| §2 ConfigBinding 与 i18n 耦合 | ☐ 待修正 |
-| §3 ui_registry 与结构强耦合 | ☐ 待修正 |
-| §4 主题应用分散 | ☐ 待修正 |
-| §5 CONFIG 初始化双入口 | ☐ 待修正 |
-| §6 ConfigChangeHub root 未就绪 | ☐ 待修正 |
-| §7 Event center 对 get_ui() 依赖 | ☐ 待修正 |
-| §8 主线程 handler 闭包引用 | ☐ 待修正 |
-| §9 面板延迟创建与 register_ui 时机 | ☐ 待修正 |
-| §10 i18n 与 CONFIG 双源 | ☐ 待修正 |
+| §2 ConfigBinding 与 i18n 耦合 | ☑ 已修正 |
+| §3 ui_registry 与结构强耦合 | ☑ 已修正 |
+| §4 主题应用分散 | ☑ 已修正 |
+| §5 CONFIG 初始化双入口 | ☑ 已修正 |
+| §6 ConfigChangeHub root 未就绪 | ☑ 已修正 |
+| §7 Event center 对 get_ui() 依赖 | ☑ 已修正 |
+| §8 主线程 handler 闭包引用 | ☑ 已修正 |
+| §9 面板延迟创建与 register_ui 时机 | ☑ 已修正 |
+| §10 i18n 与 CONFIG 双源 | ☑ 已修正 |
 
 以上为当前扫描到的**设计层面**重大问题；单行 bug 或局部逻辑错误未列入。修复时建议按“职责单一、入口明确、减少全局可变状态与隐式耦合”的方向逐步收敛。

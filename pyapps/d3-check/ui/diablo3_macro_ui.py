@@ -53,6 +53,12 @@ from providor.constants.ui import (
     TAB_INDEX_CALIBRATION,
     TAB_INDEX_LOG,
     TAB_COUNT,
+    PANEL_KEY_MAIN,
+    PANEL_KEY_AUXILIARY,
+    PANEL_KEY_ROSBOT,
+    PANEL_KEY_D4,
+    PANEL_KEY_CALIBRATION,
+    PANEL_KEY_LOG,
 )
 from share.ui_registry import register_ui
 
@@ -67,9 +73,25 @@ _PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 _PIL_ImageTk = get_third_package_PIL_ImageTk()
 
 
+# Panel key -> instance attribute name (single place for panel table; see DESIGN_ISSUES_MAJOR §3)
+_PANEL_KEY_TO_ATTR = {
+    PANEL_KEY_MAIN: "main_functions_panel",
+    PANEL_KEY_AUXILIARY: "auxiliary_functions_panel",
+    PANEL_KEY_ROSBOT: "rosbot_extension_panel",
+    PANEL_KEY_D4: "d4_panel",
+    PANEL_KEY_CALIBRATION: "coordinate_calibration_panel",
+    PANEL_KEY_LOG: "log_panel",
+}
+
+
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
     
+    def get_panel(self, key: str):
+        """Return panel by key. Keys: providor.constants.ui.PANEL_KEY_*. Panel table maintained here only."""
+        attr = _PANEL_KEY_TO_ATTR.get(key)
+        return getattr(self, attr, None) if attr else None
+
     def __init__(self, initial_config='config1'):
         """
         Initialize the main UI
@@ -83,7 +105,6 @@ class Diablo3MacroUI:
         self.resize_direction = None
         self._is_maximized = False
         self.system_tray = None
-        self._initialization_complete = False  # Flag to avoid extra update() calls during tab selection init
 
         # Load language settings
         i18n_manager.load_language_from_config()
@@ -127,8 +148,15 @@ class Diablo3MacroUI:
         # Taskbar: apply once at 350ms; do NOT run again at 800ms (second SetWindowLong/SetWindowPos makes window unresponsive)
         self._taskbar_fix_logged = False
         self._taskbar_style_applied = False  # ensure_tk_root_in_taskbar only once
+        self._initialization_complete = False  # skip full redraw in _deferred_after_tab_changed until after first select() in _create_main_tabs
+        self._map_event_processed = False  # prevent duplicate Map event focus handling when SetWindowPos triggers Map again
         self.root.after(350, self._apply_taskbar_fix)
         def _on_map(_e):
+            # Only process Map event once during init. SetWindowPos at 350ms will trigger another Map event,
+            # but we should not re-run the full focus sequence to avoid focus instability from overlapping calls.
+            if self._map_event_processed:
+                return
+            self._map_event_processed = True
             self.root.after(1, lambda: self.root.focus_force())
             self.root.after(0, _deferred_after_map)
         def _deferred_after_map():
@@ -498,206 +526,32 @@ class Diablo3MacroUI:
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
         self._reregister_log_callback()
-
-        # Mark initialization complete so _deferred_after_tab_changed can apply updates() normally after this
-        self._initialization_complete = True
     
     def _apply_notebook_theme(self):
-        """Apply dark theme to notebook with multiple methods"""
-        style = ttk.Style()
-
-        # CRITICAL: Must avoid Windows native themes (vista/xpnative) which ignore custom colors
-        # Use 'clam' theme - it's fully customizable and cross-platform
-        current_theme = style.theme_use()
-        ColorPrint.blue(f"[UI] Current theme: {current_theme}, available: {style.theme_names()}")
-
-        # Force use clam theme to enable custom colors
-        if current_theme in ('vista', 'xpnative', 'winnative'):
-            ColorPrint.yellow(f"[UI] Switching from native theme '{current_theme}' to 'clam' for custom styling")
-        style.theme_use('clam')
-
-        # Tab layout: no Notebook.focus wrapper. Clam default adds focus for selected only -> shrinks selected height.
-        self._apply_tab_layout(style)
-
-        # tabmargins [L,T,R,B]: bottom=0 so no gap under tab bar (avoids white line).
-        style.configure('Dark.TNotebook',
-                       background=UITheme.get_color('bg_primary'),
-                       borderwidth=0,
-                       tabmargins=[1, 3, 1, 0])
-
-        # Configure frame style for tab content
-        style.configure('Dark.TFrame',
-                       background=UITheme.get_color('bg_primary'),
-                       borderwidth=0)
-
-        # Tab style: padding [L,T,R,B] equal top/bottom; focusthickness=0 / shiftrelief=0 / relief=flat
-        style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),
-                       foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 8, 12, 8],
-                       borderwidth=0,
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       bordercolor=UITheme.get_color('tab_unselected_bg'),
-                       focusthickness=0,
-                       focuscolor=UITheme.get_color('tab_unselected_bg'),
-                       shiftrelief=0,
-                       relief='flat')
-
-        # map(): same padding for selected/!selected (no extra wrap); selected expand [0,0,0,2] so height matches unselected.
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
-        
-        # Apply style to notebook
+        """Apply Dark.TNotebook style to notebook. Theme (theme_use + all styles) is applied once in UITheme.apply_to_root."""
         self.main_notebook.configure(style='Dark.TNotebook')
-
-        # Force style update after a short delay to ensure it takes effect
         self.root.after(100, self._force_style_update)
 
-    def _apply_tab_layout(self, style):
-        """Apply Tab layout without Notebook.focus so selected and unselected have same structure (no extra wrapper)."""
-        style.layout(
-            'Dark.TNotebook.Tab',
-            [
-                (
-                    'Notebook.tab',
-                    {
-                        'sticky': 'nswe',
-                        'children': [
-                            (
-                                'Notebook.padding',
-                                {
-                                    'side': 'top',
-                                    'sticky': 'nswe',
-                                    'children': [
-                                        ('Notebook.label', {'side': 'top', 'sticky': ''}),
-                                    ],
-                                },
-                            ),
-                        ],
-                    },
-                ),
-            ],
-        )
-
     def _force_style_update(self):
-        """Force style update: re-apply Tab layout (no focus wrapper) and same padding/expand for selected and !selected."""
+        """Re-apply Dark.TNotebook styles via theme module (single source)."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),
-                       foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 8, 12, 8],
-                       borderwidth=0,
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       bordercolor=UITheme.get_color('tab_unselected_bg'),
-                       focusthickness=0,
-                       focuscolor=UITheme.get_color('tab_unselected_bg'),
-                       shiftrelief=0,
-                       relief='flat')
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
 
     def _apply_all_tab_styles(self):
-        """Apply styles to all tabs (same line height and underline)"""
+        """Apply Dark.TNotebook styles via theme module."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-            style.configure(style_name,
-                           background=UITheme.get_color('tab_unselected_bg'),
-                           foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 8, 12, 8],
-                           borderwidth=0,
-                           lightcolor=UITheme.get_color('tab_unselected_bg'),
-                           darkcolor=UITheme.get_color('tab_unselected_bg'),
-                           bordercolor=UITheme.get_color('tab_unselected_bg'),
-                           focusthickness=0,
-                           focuscolor=UITheme.get_color('tab_unselected_bg'),
-                           shiftrelief=0,
-                           relief='flat')
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
 
     def _apply_tab_style(self, tab_id):
-        """Apply style to a specific tab (same line height and underline)"""
+        """Re-apply Dark.TNotebook styles for tab (theme single source). During init skip full update() to avoid 6 redraws; single root.update at end of _create_main_tabs suffices."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-            style.configure(style_name,
-                           background=UITheme.get_color('tab_unselected_bg'),
-                           foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 8, 12, 8],
-                           borderwidth=0,
-                           lightcolor=UITheme.get_color('tab_unselected_bg'),
-                           darkcolor=UITheme.get_color('tab_unselected_bg'),
-                           bordercolor=UITheme.get_color('tab_unselected_bg'),
-                           focusthickness=0,
-                           focuscolor=UITheme.get_color('tab_unselected_bg'),
-                           shiftrelief=0,
-                           relief='flat')
-            style.map(style_name,
-                     background=[('selected', UITheme.get_color('tab_selected_bg')),
-                               ('active', UITheme.get_color('state_hover')),
-                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                               ('active', UITheme.get_color('text_primary')),
-                               ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                     lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                              ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                                 ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                     expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
-        self.main_notebook.update()
+        if getattr(self, '_initialization_complete', True):
+            self.main_notebook.update()
 
     def _create_table1_tab(self):
         """Create TABLE1 - Main functions tab"""
@@ -926,8 +780,12 @@ class Diablo3MacroUI:
         self.root.after(0, self._deferred_after_tab_changed)
 
     def _deferred_after_tab_changed(self):
-        """Run after tab change: update state, bottom bar, config, log callback, then force redraw so tab content is drawn (same as switch_to_tab from tray). Skip update() if during initialization."""
+        """Run after tab change: update state, bottom bar, config, log callback, then force redraw so tab content is drawn (same as switch_to_tab from tray)."""
         if not self.main_notebook.winfo_exists():
+            return
+        # Skip full update_idletasks/update during init (select() in _create_main_tabs already triggered this; root.update at end of _create_main_tabs is sufficient)
+        if not getattr(self, '_initialization_complete', True):
+            self._initialization_complete = True
             return
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
@@ -936,10 +794,8 @@ class Diablo3MacroUI:
         self._reregister_log_callback()
         if selected_tab == TAB_INDEX_ROSBOT:
             self.rosbot_extension_panel.ensure_content()
-        # Only call update() after initialization is complete (skip during init to avoid double redraw)
-        if self._initialization_complete:
-            self.root.update_idletasks()
-            self.root.update()
+        self.root.update_idletasks()
+        self.root.update()
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):

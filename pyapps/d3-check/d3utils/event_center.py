@@ -7,14 +7,19 @@ to the event center, and the event center dispatches to registered handlers (whi
 may forward to specific threads or schedule main-thread UI updates).
 """
 
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, List
+from collections import deque
 
 # Payload for EXTENSION_ROSBOT_STARTED: always (success, error, ran_e_block) from event_signals
 RosbotStartedPayload = Tuple[bool, Optional[Exception], bool]
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.color_print import ColorPrint
-from share.ui_registry import get_ui
+from share.ui_registry import get_ui, get_panel
+from providor.constants.ui import PANEL_KEY_ROSBOT
+
+# Event queue for events triggered before UI is ready
+_pending_events: deque = deque()
 from d3utils.event_signals import (
     EXTENSION_ROSBOT_STARTED,
     EXTENSION_ROSBOT_STOPPED,
@@ -50,15 +55,21 @@ def register_shutdown_provider(
     _shutdown_provider = (is_shutdown_requested_fn, request_shutdown_fn, request_restart_fn)
 
 
-def _do_show(ui) -> None:
-    """Run on main thread: show window."""
+def _do_show() -> None:
+    """Run on main thread: show window. Gets current UI via get_ui()."""
+    ui = get_ui()
+    if ui is None or not ui.root.winfo_exists():
+        return
     ui.root.deiconify()
     ui.root.lift()
     ui.root.focus_force()
 
 
-def _do_toggle_maximize(ui) -> None:
-    """Run on main thread: toggle maximize/restore (saved geometry for overrideredirect) and sync title bar button text."""
+def _do_toggle_maximize() -> None:
+    """Run on main thread: toggle maximize/restore (saved geometry for overrideredirect) and sync title bar button text. Gets current UI via get_ui()."""
+    ui = get_ui()
+    if ui is None or not ui.root.winfo_exists():
+        return
     root = ui.root
     is_max = ui._is_maximized
     if is_max and ui._saved_geometry_restore:
@@ -77,6 +88,8 @@ def register_main_thread_handlers(ui) -> None:
     """
     Register main-thread handlers: all events run on main thread via root.after(0, ...).
     Must be called after UI is created and before main loop starts.
+    Also dispatches any pending events that were queued before UI was ready.
+    Handlers use get_ui() to get current UI instance instead of capturing ui in closure.
     """
 
     def on_exit(_data: Any = None) -> None:
@@ -96,13 +109,16 @@ def register_main_thread_handlers(ui) -> None:
         req_restart()
 
     def on_show(_data: Any = None) -> None:
-        _do_show(ui)
+        _do_show()
 
     def on_minimize(_data: Any = None) -> None:
+        ui = get_ui()
+        if ui is None or not ui.root.winfo_exists():
+            return
         ui.root.withdraw()
 
     def on_maximize(_data: Any = None) -> None:
-        _do_toggle_maximize(ui)
+        _do_toggle_maximize()
 
     THREAD_BUS.register_event_handler(APP_EXIT, on_exit, priority=100)
     THREAD_BUS.register_event_handler(APP_RESTART, on_restart, priority=100)
@@ -110,15 +126,40 @@ def register_main_thread_handlers(ui) -> None:
     THREAD_BUS.register_event_handler(WINDOW_MINIMIZE, on_minimize, priority=100)
     THREAD_BUS.register_event_handler(WINDOW_MAXIMIZE, on_maximize, priority=100)
     ColorPrint.blue("[EventCenter] Main-thread handlers registered: exit/restart/show/minimize/maximize")
+    
+    # Dispatch any pending events that were queued before UI was ready
+    _dispatch_pending_events()
+
+
+def _dispatch_pending_events() -> None:
+    """Dispatch all pending events that were queued before UI was ready. Gets current UI via get_ui()."""
+    global _pending_events
+    ui = get_ui()
+    if ui is None or not ui.root.winfo_exists():
+        return
+    count = len(_pending_events)
+    while _pending_events:
+        event_name, event_data = _pending_events.popleft()
+        try:
+            ui.root.after(0, lambda name=event_name, data=event_data: THREAD_BUS.trigger_event(name, data))
+        except Exception:
+            # UI may have been destroyed, ignore
+            pass
+    if count > 0:
+        ColorPrint.yellow(f"[EventCenter] Dispatched {count} pending events")
 
 
 def _schedule_on_main_thread(event_name: str, event_data: Any = None) -> None:
-    """Schedule THREAD_BUS.trigger_event on main thread so handlers run on main thread."""
+    """
+    Schedule THREAD_BUS.trigger_event on main thread so handlers run on main thread.
+    If UI is not ready, queues the event for later dispatch when UI becomes available.
+    """
     ui = get_ui()
-    if ui:
+    if ui and ui.root and ui.root.winfo_exists():
         ui.root.after(0, lambda: THREAD_BUS.trigger_event(event_name, event_data))
     else:
-        THREAD_BUS.trigger_event(event_name, event_data)
+        # UI not ready or destroyed: queue event for later dispatch
+        _pending_events.append((event_name, event_data))
 
 
 def trigger_app_exit() -> None:
@@ -196,10 +237,28 @@ def register_extension_handlers(
             success, err, ran_e_block = False, None, False
         else:
             success, err, ran_e_block = data[0], data[1], data[2]
-        ui.root.after(0, lambda: panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
+        current_ui = get_ui()
+        if current_ui is None or not current_ui.root.winfo_exists():
+            return
+        current_panel = get_panel(PANEL_KEY_ROSBOT)
+        if current_panel is None:
+            return
+        # Check if panel content is created before accessing internal controls (DESIGN_ISSUES_MAJOR §9)
+        if not getattr(current_panel, '_content_created', False):
+            return
+        current_ui.root.after(0, lambda: current_panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
 
     def on_rosbot_stopped(_data: Any = None) -> None:
-        ui.root.after(0, lambda: panel._on_rosbot_stop_done())
+        current_ui = get_ui()
+        if current_ui is None or not current_ui.root.winfo_exists():
+            return
+        current_panel = get_panel(PANEL_KEY_ROSBOT)
+        if current_panel is None:
+            return
+        # Check if panel content is created before accessing internal controls (DESIGN_ISSUES_MAJOR §9)
+        if not getattr(current_panel, '_content_created', False):
+            return
+        current_ui.root.after(0, lambda: current_panel._on_rosbot_stop_done())
 
     THREAD_BUS.register_event_handler(EXTENSION_MAIN_START_MACRO, on_main_start_macro, priority=50)
     THREAD_BUS.register_event_handler(EXTENSION_MAIN_STOP_MACRO, on_main_stop_macro, priority=50)
