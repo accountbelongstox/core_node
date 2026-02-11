@@ -188,32 +188,45 @@ def _build_dynamic_prompt() -> tuple[str, str]:
 
 def run_at_coord(x, y, clipboard_override: str | None = None):
     """Same action at one coordinate; restore cursor to original position after.
-    If clipboard_override is set, use it as clipboard content; else build via _build_dynamic_prompt()."""
+    If clipboard_override is set, use it as clipboard content; else build via _build_dynamic_prompt().
+    Backs up clipboard before use and restores it afterward."""
     saved = pyautogui.position()
+    clipboard_backup = None
+    try:
+        clipboard_backup = pyperclip.paste()
+    except Exception:
+        pass
 
-    pyautogui.moveTo(x, y)
-    pyautogui.click()
+    try:
+        pyautogui.moveTo(x, y)
+        pyautogui.click()
 
-    if CLIPBOARD_TEXT:
-        if clipboard_override is not None:
-            pyperclip.copy(clipboard_override)
+        if CLIPBOARD_TEXT:
+            if clipboard_override is not None:
+                pyperclip.copy(clipboard_override)
+            else:
+                text, _ = _build_dynamic_prompt()
+                pyperclip.copy(text)
+
+        if USE_UP_ARROW:
+            pyautogui.press("up")
         else:
-            text, _ = _build_dynamic_prompt()
-            pyperclip.copy(text)
+            pyautogui.rightClick()
 
-    if USE_UP_ARROW:
-        pyautogui.press("up")
-    else:
-        pyautogui.rightClick()
+        pyautogui.press("enter")
 
-    pyautogui.press("enter")
+        time.sleep(0.5)
+        pyautogui.moveTo(x, y)
+        pyautogui.click()
+        pyautogui.press("enter")
 
-    time.sleep(0.5)
-    pyautogui.moveTo(x, y)
-    pyautogui.click()
-    pyautogui.press("enter")
-
-    pyautogui.moveTo(saved.x, saved.y)
+        pyautogui.moveTo(saved.x, saved.y)
+    finally:
+        if clipboard_backup is not None:
+            try:
+                pyperclip.copy(clipboard_backup)
+            except Exception:
+                pass
 
 
 def main():

@@ -33,10 +33,10 @@ class ConfigChangeHub:
         self._pending_queue: List[Optional[str]] = []
 
     def _set_root(self, root) -> None:
-        """Set root and flush any notifications queued while root was unavailable (on main thread)."""
+        """Set root and flush any notifications queued (report §6: use after(50) to avoid crowding Map/350ms focus)."""
         self._root = root
         if self._pending_queue and root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
-            root.after(0, self._flush_pending_queue)
+            root.after(50, self._flush_pending_queue)
 
     def subscribe(
         self,
@@ -69,7 +69,7 @@ class ConfigChangeHub:
                     pass
                 self._pending_after_id = None
             self._pending_key_path = key_path
-            self._pending_after_id = root.after(0, self._dispatch_pending)
+            self._pending_after_id = root.after(50, self._dispatch_pending)
         else:
             self._pending_queue.append(key_path)
 

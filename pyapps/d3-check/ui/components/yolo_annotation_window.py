@@ -24,6 +24,7 @@ ensure_d3_check_in_sys_path()
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
+from ..widgets import ThemedCombobox
 from ..utils.app_root import get_app_root
 from d3utils.yolo_dataset_from_annotations import generate_dataset_from_screenshot_history
 from providor.constants.common import YOLO_DATASET_BASE_DIR, get_yolo_collect_class_color
@@ -515,7 +516,7 @@ class YoloAnnotationWindow:
         session_row = tk.Frame(left, bg=UnifiedStyles.COLORS["bg_secondary"])
         session_row.pack(padx=10, pady=2, fill=tk.X)
         self.session_dir_var = tk.StringVar(value=str(self.session_dir))
-        self.session_dir_combo = ttk.Combobox(
+        self.session_dir_combo = ThemedCombobox.create(
             session_row, textvariable=self.session_dir_var,
             values=getattr(self, "_session_dir_list", []) or [str(self.session_dir)],
             state="readonly", font=UnifiedStyles.FONTS["small"], width=28

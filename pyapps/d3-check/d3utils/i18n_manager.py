@@ -178,9 +178,12 @@ class I18nManager:
             self.language_change_listeners.remove(listener)
     
     def _notify_language_change(self):
-        """Notify language change to all listeners"""
-        for listener in self.language_change_listeners:
-            listener(self.current_language)
+        """Notify language change to all listeners. Iterate over a copy so listeners may remove themselves during callback."""
+        for listener in list(self.language_change_listeners):
+            try:
+                listener(self.current_language)
+            except Exception:
+                pass
     
     def set_language(self, language: str, force: bool = False):
         """Set current language with debouncing"""

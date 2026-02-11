@@ -18,7 +18,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from ..unified_styles import UnifiedStyles
 
 # Import widgets and theme
-from ..widgets import HotkeyInput, ThemedCheckbutton, ThemedEntry, ThemedLabel
+from ..widgets import HotkeyInput, ThemedCheckbutton, ThemedCombobox, ThemedEntry, ThemedLabel
 from ..theme import UITheme
 
 # Import i18n (global singleton instance)
@@ -85,8 +85,7 @@ class MainFunctionsPanel:
         }
         self.strategy_zh_to_en = {v: k for k, v in self.strategy_en_to_zh.items()}
         
-        # Configure TTK styles
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure_ttk_styles here; see docs/ui2)
         
         # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -278,9 +277,9 @@ class MainFunctionsPanel:
         # Get i18n strategy values for display
         strategy_values_zh = list(self.strategy_en_to_zh.values())
 
-        strategy_combo = ttk.Combobox(parent, textvariable=strategy_var,
-                                     values=strategy_values_zh,
-                                     state='readonly', width=10)
+        strategy_combo = ThemedCombobox.create(parent, textvariable=strategy_var,
+                                              values=strategy_values_zh,
+                                              state='readonly', width=10)
         strategy_combo.grid(row=row, column=2, sticky="ew", padx=1, pady=1)
         strategy_combo.bind('<<ComboboxSelected>>',
                           lambda e: self._on_strategy_changed(skill_key, strategy_var.get()))
@@ -553,10 +552,10 @@ class MainFunctionsPanel:
                   padx=UnifiedStyles.SPACING['sm'], 
                   pady=UnifiedStyles.SPACING['xs'])
         
-        # Combobox
+        # Combobox (reuse ThemedCombobox component)
         var = var_str(parent, default_value)
-        combo = ttk.Combobox(parent, textvariable=var, values=values, 
-                            state='readonly', width=10)
+        combo = ThemedCombobox.create(parent, textvariable=var, values=values,
+                                     state='readonly', width=10)
         combo.grid(row=row, column=1, sticky="w", 
                   padx=UnifiedStyles.SPACING['sm'], 
                   pady=UnifiedStyles.SPACING['xs'])

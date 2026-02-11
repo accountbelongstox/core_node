@@ -74,7 +74,7 @@ class CoordinateCalibrationPanel:
         self.popup_window = None
         self.selected_item = None
 
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
 
         # Tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -417,7 +417,7 @@ class CoordinateCalibrationPanel:
         label = tk.Label(dialog, text=i18n_manager.get_ui_text("ui.coord_calibration.new_name"))
         label.pack(padx=10, pady=5)
 
-        entry = tk.Entry(dialog)
+        entry = tk.Entry(dialog, bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'])
         entry.insert(0, old_name)
         entry.pack(padx=10, pady=5, fill=tk.X)
         entry.focus()

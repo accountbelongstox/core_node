@@ -39,8 +39,9 @@ from .panels.rosbot_extension_panel import RosbotExtensionPanel
 from .panels.d4_panel import D4Panel
 from .panels.coordinate_calibration_panel import CoordinateCalibrationPanel
 
-# Import theme
+# Import theme and unified styles (single style application before any ttk; see docs/ui2)
 from .theme import UITheme
+from .unified_styles import UnifiedStyles
 from ui.utils.config_binding import ConfigBinding
 
 # Import i18n manager (global singleton instance)
@@ -122,8 +123,12 @@ class Diablo3MacroUI:
         self.root.minsize(670, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
+        # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build §四.1; tkdocs wm_withdraw/deiconify)
+        self.root.withdraw()
+        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2 方案一: 一开始构建的就是应了主题的 UI; UI_ARCH §五.1)
+        self.root.overrideredirect(True)
 
-        # Apply theme
+        # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 §四.3 single style entry)
         UITheme.apply_to_root(self.root)
 
         # Window geometry: debounced save on move/resize (id cleared after save)
@@ -142,13 +147,13 @@ class Diablo3MacroUI:
         self.on_config_change: Optional[Callable] = None
         self.on_skill_config_switch: Optional[Callable] = None
 
-        # Create UI (register_ui(self) called in _create_main_tabs / _recreate_ui_for_language_change → share.ui_registry)
-        # Create UI
-        self._create_ui()
+        # Init flag before _create_ui so _apply_tab_style (if ever called during init) skips main_notebook.update(); see docs/ui2 §6.3
+        self._initialization_complete = False
         # Taskbar: apply once at 350ms; do NOT run again at 800ms (second SetWindowLong/SetWindowPos makes window unresponsive)
         self._taskbar_fix_logged = False
         self._taskbar_style_applied = False  # ensure_tk_root_in_taskbar only once
-        self._initialization_complete = False  # skip full redraw in _deferred_after_tab_changed until after first select() in _create_main_tabs
+        # Create UI (register_ui(self) called in _create_main_tabs / _recreate_ui_for_language_change → share.ui_registry)
+        self._create_ui()
         self._map_event_processed = False  # prevent duplicate Map event focus handling when SetWindowPos triggers Map again
         self.root.after(350, self._apply_taskbar_fix)
         def _on_map(_e):
@@ -160,11 +165,8 @@ class Diablo3MacroUI:
             self.root.after(1, lambda: self.root.focus_force())
             self.root.after(0, _deferred_after_map)
         def _deferred_after_map():
-            # Only claim focus on first map. Do NOT run ensure_tk_root_in_taskbar/SetForegroundWindow here:
-            # Win32 SetWindowLong/SetWindowPos in Map path can leave window unresponsive (no input). Run once in _apply_taskbar_fix (350ms).
+            # Single focus on first map; avoid many focus_force calls (report §2: reduce init-stage focus fights with system)
             self.root.focus_force()
-            for ms in (50, 150, 300):
-                self.root.after(ms, lambda m=ms: self.root.focus_force())
         self.root.bind("<Map>", _on_map)
 
         # First run only: bring window to top (geometry already set at init)
@@ -179,6 +181,9 @@ class Diablo3MacroUI:
 
         # Create system tray
         self._create_system_tray()
+
+        # Show window only after full build + theme + overrideredirect (docs/ui2: avoid "build twice" visible to user)
+        self.root.deiconify()
 
         # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
         register_main_thread_handlers(self)
@@ -316,9 +321,7 @@ class Diablo3MacroUI:
         )
         self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
-        # Remove OS title bar after window is fully configured (Tk/overrideredirect: call update_idletasks before setting flag or window can be disabled before it appears)
-        self.root.update_idletasks()
-        self.root.overrideredirect(True)
+        # overrideredirect already set after withdraw() before theme/build (docs/ui2 方案一); single update only at end of _create_main_tabs to avoid intermediate layout/paint
 
     def get_window_status_callback(self):
         """
@@ -414,21 +417,22 @@ class Diablo3MacroUI:
             self.root.iconphoto(True, self._app_icon_photo)
 
     def _apply_taskbar_fix(self):
-        """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls."""
-        if not self._taskbar_style_applied:
-            # Sync Tk state before Win32 API calls to avoid timing issues
+        """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls.
+        When ui_settings.skip_taskbar_win32_fix is True, skip Win32 calls to verify if they cause unresponsive UI (report §1)."""
+        skip_win32 = get_config_value_safe("ui_settings.skip_taskbar_win32_fix", True)
+        if not self._taskbar_style_applied and not skip_win32:
             self.root.update_idletasks()
             if ensure_tk_root_in_taskbar(self.root):
                 self._taskbar_style_applied = True
                 if not self._taskbar_fix_logged:
                     self._taskbar_fix_logged = True
-                    ColorPrint.blue("[UI] Main window set to show in taskbar")
-            # Sync Tk state after Win32 API calls, then immediately restore focus
+                    ColorPrint.blue("[UI] Main window set to taskbar (Win32)")
             self.root.update_idletasks()
         if sys.platform == "win32":
             self._set_window_icon()
-        # Restore focus immediately after all operations (Win32 SetWindowPos may have affected focus)
         self.root.focus_force()
+        # Deferred focus one frame later (report §5: avoid same-frame competition with SetWindowPos message handling)
+        self.root.after(10, lambda: self.root.focus_force() if self.root.winfo_exists() else None)
 
     def _win32_set_foreground(self):
         """Set this window as foreground on Windows (user32) so it receives input. Overrideredirect windows may not get focus from WM."""
@@ -480,22 +484,19 @@ class Diablo3MacroUI:
         self._save_window_geometry()
 
     def _create_main_tabs(self):
-        """Create main tabbed interface"""
-        # Create notebook for main tabs (takeFocus=0 to avoid dotted focus ring on selected tab)
-        self.main_notebook = ttk.Notebook(self.root, height=370)
+        """Create main tabbed interface. Notebook and tab frames use Dark.* style at creation so first build is already themed (docs/ui2)."""
+        # Create notebook with theme from start (style= at construction avoids second layout/redraw)
+        self.main_notebook = ttk.Notebook(self.root, style='Dark.TNotebook', height=370)
         self.main_notebook.configure(takefocus=0)
         self.main_notebook.pack(fill=tk.X, padx=0, pady=0)
         self.main_notebook.enable_traversal()
-        
-        # Apply dark theme to notebook
-        self._apply_notebook_theme()
 
         # Load last selected tab
         self._load_last_tab()
 
         # Config change hub: controller subscribes in run() and defers sync to timer thread to avoid main-thread block
 
-        # Create tab frames (all UI built at startup)
+        # Create tab frames (all UI built at startup). Theme already in DB from apply_to_root; no refresh_dark_notebook during init so first build is themed (docs/ui2).
         self._create_table1_tab()
         self._create_table2_tab()
         self._create_rosbot_tab()
@@ -528,9 +529,8 @@ class Diablo3MacroUI:
         self._reregister_log_callback()
     
     def _apply_notebook_theme(self):
-        """Apply Dark.TNotebook style to notebook. Theme (theme_use + all styles) is applied once in UITheme.apply_to_root."""
+        """Set notebook style to Dark.TNotebook. Style DB already populated by apply_to_root before any ttk widget; first build is themed (docs/ui2)."""
         self.main_notebook.configure(style='Dark.TNotebook')
-        self.root.after(100, self._force_style_update)
 
     def _force_style_update(self):
         """Re-apply Dark.TNotebook styles via theme module (single source)."""
@@ -554,17 +554,12 @@ class Diablo3MacroUI:
             self.main_notebook.update()
 
     def _create_table1_tab(self):
-        """Create TABLE1 - Main functions tab"""
-        self.table1_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table1_frame.configure(style='Dark.TFrame')
+        """Create TABLE1 - Main functions tab (frame uses Dark.TFrame at creation)."""
+        self.table1_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.table1_frame,
             text=i18n_manager.get_ui_text("tabs.main_functions")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
         # Create main functions panel
         self.main_functions_panel = MainFunctionsPanel(
             self.table1_frame,
@@ -575,77 +570,52 @@ class Diablo3MacroUI:
         self.main_functions_panel.set_skill_config_switch_callback(self._on_skill_config_switch)
 
     def _create_table2_tab(self):
-        """Create TABLE2 - Auxiliary functions tab"""
-        self.table2_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table2_frame.configure(style='Dark.TFrame')
+        """Create TABLE2 - Auxiliary functions tab (frame uses Dark.TFrame at creation)."""
+        self.table2_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.table2_frame,
             text=i18n_manager.get_ui_text("tabs.auxiliary_functions")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
         # Create auxiliary functions panel
         self.auxiliary_functions_panel = AuxiliaryFunctionsPanel(self.table2_frame)
 
     def _create_rosbot_tab(self):
-        """Create ROSBOT Extension tab"""
-        self.rosbot_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.rosbot_frame.configure(style='Dark.TFrame')
+        """Create ROSBOT Extension tab (frame uses Dark.TFrame at creation)."""
+        self.rosbot_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.rosbot_frame,
             text=i18n_manager.get_ui_text("tabs.rosbot_extension")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create ROSBOT extension panel (status merged into bottom bar Game Status row)
         self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame, bottom_bar=self.bottom_bar)
 
     def _create_d4_tab(self):
-        """Create D4 Functions tab"""
-        self.d4_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.d4_frame.configure(style='Dark.TFrame')
+        """Create D4 Functions tab (frame uses Dark.TFrame at creation)."""
+        self.d4_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.d4_frame,
             text=i18n_manager.get_ui_text("tabs.d4_functions")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create D4 panel
         self.d4_panel = D4Panel(self.d4_frame)
 
     def _create_coordinate_calibration_tab(self):
-        """Create Coordinate Calibration tab"""
-        self.calibration_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.calibration_frame.configure(style='Dark.TFrame')
+        """Create Coordinate Calibration tab (frame uses Dark.TFrame at creation)."""
+        self.calibration_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.calibration_frame,
             text=i18n_manager.get_ui_text("tabs.coordinate_calibration")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create coordinate calibration panel
         self.coordinate_calibration_panel = CoordinateCalibrationPanel(self.calibration_frame)
 
     def _create_table3_tab(self):
-        """Create TABLE3 - Test and logs tab"""
-        self.table3_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table3_frame.configure(style='Dark.TFrame')
+        """Create TABLE3 - Test and logs tab (frame uses Dark.TFrame at creation)."""
+        self.table3_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.table3_frame,
             text=i18n_manager.get_ui_text("tabs.log")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
         # Create log panel
         self.log_panel = LogPanel(self.table3_frame)
 
@@ -709,6 +679,18 @@ class Diablo3MacroUI:
         if self.main_notebook.winfo_exists():
             tab_ids = self.main_notebook.tabs()
             n = len(tab_ids)
+            # Explicitly update tab labels for current language (tkdocs: notebook.tab(tab_id, text=...) sets tab option)
+            _TAB_I18N_KEYS = [
+                "tabs.main_functions",
+                "tabs.auxiliary_functions",
+                "tabs.rosbot_extension",
+                "tabs.d4_functions",
+                "tabs.coordinate_calibration",
+                "tabs.log",
+            ]
+            for i, tid in enumerate(tab_ids):
+                if i < len(_TAB_I18N_KEYS):
+                    self.main_notebook.tab(tid, text=i18n_manager.get_ui_text(_TAB_I18N_KEYS[i]))
             if n > 0:
                 idx = max(0, min(self.last_selected_tab, n - 1))
                 self.main_notebook.select(tab_ids[idx])
@@ -779,16 +761,33 @@ class Diablo3MacroUI:
         """Handle tab change event. Defer work to next idle so binding returns immediately and UI stays responsive."""
         self.root.after(0, self._deferred_after_tab_changed)
 
+    def ensure_current_tab_content_if_needed(self):
+        """Called after timer is started (e.g. from controller via root.after(0, ...)). If current tab is ROSBOT, ensure_content so the panel is created (docs/ui_5 §7.1)."""
+        if not self.main_notebook.winfo_exists():
+            return
+        try:
+            idx = self.main_notebook.index(self.main_notebook.select())
+        except Exception:
+            return
+        if idx == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+
     def _deferred_after_tab_changed(self):
         """Run after tab change: update state, bottom bar, config, log callback, then force redraw so tab content is drawn (same as switch_to_tab from tray)."""
         if not self.main_notebook.winfo_exists():
             return
-        # Skip full update_idletasks/update during init (select() in _create_main_tabs already triggered this; root.update at end of _create_main_tabs is sufficient)
-        if not getattr(self, '_initialization_complete', True):
-            self._initialization_complete = True
-            return
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
+        # During init, still run essential updates (bottom bar, log callback, ROSBOT ensure_content) so restored tab 2 is not blank; skip only update_idletasks/update (docs/ui_5 §6.2).
+        if not getattr(self, '_initialization_complete', True):
+            set_config_value_async("ui_settings.last_selected_tab", selected_tab)
+            self.bottom_bar.show_tab_content(selected_tab)
+            self._reregister_log_callback()
+            if selected_tab == TAB_INDEX_ROSBOT:
+                self.rosbot_extension_panel.ensure_content()
+            self._initialization_complete = True
+            ColorPrint.blue(f"[UI] Tab changed to: {selected_tab} (init)")
+            return
         set_config_value_async("ui_settings.last_selected_tab", selected_tab)
         self.bottom_bar.show_tab_content(selected_tab)
         self._reregister_log_callback()
@@ -894,26 +893,31 @@ class Diablo3MacroUI:
         return dict(aux) if isinstance(aux, dict) else {}
 
     def run(self):
-        """Run the UI. Release any stray grab; do not focus_force before mainloop (focus is applied in Map handler after(1) to avoid overrideredirect window losing input)."""
-        self._release_any_grab()
+        """Run the UI. Release any stray grab (report §4: log if grab was present); do not focus_force before mainloop."""
+        if self._release_any_grab():
+            ColorPrint.yellow("[UI] Grab was held before mainloop; released.")
         self.root.update_idletasks()
         self.root.mainloop()
 
-    def _release_any_grab(self):
-        """Release grab on any widget that holds it so main window and all controls receive events (Tk: grab subtree owns pointer until released)."""
+    def _release_any_grab(self) -> bool:
+        """Release grab on any widget that holds it (report §4). Returns True if a grab was released."""
         try:
             current = self.root.grab_current()
             if not current:
-                return
+                return False
             paths = current if isinstance(current, (list, tuple)) else [current]
+            released = False
             for path in paths:
                 if not isinstance(path, str):
                     continue
                 w = self.root.nametowidget(path)
                 if w.winfo_exists():
                     w.grab_release()
+                    released = True
+                    ColorPrint.yellow(f"[UI] Released grab on widget: {path}")
+            return released
         except (tk.TclError, KeyError):
-            pass
+            return False
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""

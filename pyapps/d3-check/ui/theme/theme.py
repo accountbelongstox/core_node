@@ -45,6 +45,8 @@ class UITheme:
         'btn_primary_hover': '#45a049',
         'btn_secondary': '#f44336',     # Secondary red button
         'btn_secondary_hover': '#da190b',
+        'btn_success': '#00ff88',       # Success button (docs/ui2 §四.3 merge)
+        'btn_danger': '#ff4444',        # Danger button (docs/ui2 §四.3 merge)
         'btn_accent': '#ff9800',        # Accent orange button
         'btn_accent_hover': '#f57c00',
         'btn_info': '#2196F3',          # Info blue button
@@ -61,6 +63,7 @@ class UITheme:
         'border_secondary': '#ff6b6b',  # Secondary border
         'border_subtle': '#2a2a3e',     # Subtle border
         'separator': '#2a2a3e',         # Separator line
+        'panel_border': '#4C566A',      # Panel border (docs/ui2 §四.3 merge)
 
         # ============ Tab (Notebook) - high contrast unselected ============
         'tab_unselected_bg': '#4C566A',     # Unselected tab bg (distinct from content)
@@ -69,6 +72,7 @@ class UITheme:
         'tab_selected_fg': '#e0e0e0',      # Selected tab text
 
         # ============ Accent Colors ============
+        'accent': '#00d4ff',            # Default accent (docs/ui2 §四.3 merge; alias cyan)
         'accent_blue': '#2196F3',       # Blue accent
         'accent_cyan': '#00d4ff',       # Cyan accent
         'accent_red': '#ff6b6b',        # Red accent
@@ -236,12 +240,17 @@ class UITheme:
                        insertcolor=cls.get_color('text_primary'),
                        font=cls.get_font('body'))
 
-        # Configure Combobox style
+        # Configure Combobox style (configure + map so readonly/focus/active use theme colors on all platforms)
+        _input_bg = cls.get_color('input_bg')
+        _input_fg = cls.get_color('text_primary')
         style.configure('TCombobox',
-                       fieldbackground=cls.get_color('input_bg'),
-                       foreground=cls.get_color('text_primary'),
-                       insertcolor=cls.get_color('text_primary'),
+                       fieldbackground=_input_bg,
+                       foreground=_input_fg,
+                       insertcolor=_input_fg,
                        font=cls.get_font('body'))
+        style.map('TCombobox',
+                 fieldbackground=[('readonly', _input_bg), ('focus', _input_bg), ('active', _input_bg)],
+                 foreground=[('readonly', _input_fg), ('focus', _input_fg), ('active', _input_fg)])
 
         # Configure Checkbutton style
         style.configure('TCheckbutton',
@@ -372,6 +381,7 @@ class UITheme:
     def apply_to_root(cls, root: tk.Tk):
         """
         Apply theme to root window. Single entry: sets bg, theme_use('clam'), and all ttk styles (including Dark.TNotebook).
+        No update_idletasks here (docs/ui2): layout/paint deferred until window fully built and deiconify.
         """
         root.configure(bg=cls.get_color('bg_dark'))
         if not root.winfo_exists():
@@ -381,3 +391,4 @@ class UITheme:
         if current_theme in ('vista', 'xpnative', 'winnative') or current_theme != 'clam':
             style.theme_use('clam')
         cls.apply_ttk_style(style)
+        # No update_idletasks here (docs/ui2): defer layout/paint until window fully built and deiconify

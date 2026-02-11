@@ -23,7 +23,7 @@ from timers.one_shot_tasks import do_path_scan, do_ensure_d3_running_from_battle
 from ..unified_styles import UnifiedStyles
 
 # Import widgets
-from ..widgets import HotkeyInput
+from ..widgets import HotkeyInput, ThemedCombobox
 
 # Import i18n manager (global singleton instance)
 from d3utils.i18n_manager import i18n_manager
@@ -59,8 +59,7 @@ class AuxiliaryFunctionsPanel:
         self.parent = parent
         self.vars = {}
         
-        # Configure TTK styles
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
         
         # Create main container - tab main style (UnifiedStyles.TAB_PAD, reused by all tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])
@@ -505,8 +504,8 @@ class AuxiliaryFunctionsPanel:
 
                 # Create StringVar for the combobox (master for correct root binding)
                 menu_var = var_str(parent, current_display)
-                menu = ttk.Combobox(col1_widget, textvariable=menu_var,
-                                   values=display_texts, state='readonly', width=18)
+                menu = ThemedCombobox.create(col1_widget, textvariable=menu_var,
+                                            values=display_texts, state='readonly', width=18)
                 if count_config_key:
                     menu.pack(side=tk.LEFT)
                 else:

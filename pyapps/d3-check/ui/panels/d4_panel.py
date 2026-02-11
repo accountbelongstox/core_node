@@ -52,8 +52,7 @@ class D4Panel:
         """
         self.parent = parent
 
-        # Configure TTK styles
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
 
         # Get D4 controller and data
         self.d4_controller = get_d4_controller()

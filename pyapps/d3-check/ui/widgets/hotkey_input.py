@@ -102,6 +102,7 @@ class HotkeyInput(tk.Entry):
         self.bind('<FocusOut>', self._on_focus_out)
         self.bind('<KeyPress>', self._on_key_press)
         self.bind('<KeyRelease>', self._on_key_release)
+        self.bind('<Destroy>', self._on_destroy)
 
     def _apply_high_contrast_styling(self):
         """Apply high contrast styling to the widget"""
@@ -338,10 +339,33 @@ class HotkeyInput(tk.Entry):
 
         return 'break'
 
+    def _on_destroy(self, event=None):
+        """Unregister from i18n when widget is destroyed so language change does not call back into destroyed widget."""
+        if event and event.widget == self:
+            try:
+                i18n_manager.remove_language_change_listener(self._on_language_changed)
+            except Exception:
+                pass
+
     def _on_language_changed(self, new_language):
-        """Handle language change event"""
-        current_value = self.get()
-        if not self.current_hotkey or current_value in ["Press hotkey..."]:
+        """Handle language change event. Main UI recreates notebook content, so this widget may be destroyed
+        when the listener runs. Guard and unregister to avoid TclError and stale callbacks."""
+        try:
+            if not self.winfo_exists():
+                try:
+                    i18n_manager.remove_language_change_listener(self._on_language_changed)
+                except Exception:
+                    pass
+                return
+            current_value = self.get()
+        except tk.TclError:
+            try:
+                i18n_manager.remove_language_change_listener(self._on_language_changed)
+            except Exception:
+                pass
+            return
+        placeholder_text = i18n_manager.get_ui_text("hotkey_input.placeholder")
+        if not self.current_hotkey or current_value in ("Press hotkey...", placeholder_text):
             self._set_placeholder()
 
     def get_hotkey(self):

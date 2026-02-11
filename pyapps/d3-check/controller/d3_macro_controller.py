@@ -39,7 +39,7 @@ from runtime import (
 )
 from share.game_interface_data import get_game_interface_data
 from ui.utils.app_root import get_ui_panel
-from providor.constants.ui import PANEL_KEY_ROSBOT
+from providor.constants.ui import PANEL_KEY_ROSBOT, TAB_INDEX_ROSBOT
 import timers.window_monitor_timer as window_monitor
 import timers.timer_manager as timer_manager
 from share.values.config_change_hub import get_config_change_hub
@@ -254,7 +254,25 @@ class D3MacroController:
         ColorPrint.green(f"[Controller] Language changed to: {new_language}")
 
         self.ui._on_language_changed(new_language)
-    
+
+    def _ensure_rosbot_content_if_selected(self):
+        """If current tab is ROSBOT and content was not created at startup (submit_one_shot ignored), ensure content now. See docs/ui_5."""
+        if self.ui is None or not self.ui.root.winfo_exists():
+            return
+        try:
+            nb = self.ui.main_notebook
+            if not nb.winfo_exists():
+                return
+            idx = nb.index(nb.select())
+            if idx != TAB_INDEX_ROSBOT:
+                return
+            panel = get_ui_panel(PANEL_KEY_ROSBOT)
+            if panel is None or getattr(panel, "_content_created", True):
+                return
+            panel.ensure_content()
+        except Exception:
+            pass
+
     def run(self):
         """Run the application and return UI instance"""
         if not self.game_interface_controller.initialize_game_interface():
@@ -297,6 +315,7 @@ class D3MacroController:
             )
             ColorPrint.green("[Controller] Extension threads and event center registered")
             get_thread_registry().start_timer_loop_after_ui_ready()
+            self.ui.root.after(0, self.ui.ensure_current_tab_content_if_needed)
             self.ui.start_system_tray_if_needed()
             self.ui.run()
             execute_shutdown()

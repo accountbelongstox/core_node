@@ -67,24 +67,24 @@ class ThemedCombobox:
         
         # Configure theme for combobox
         style.configure('Themed.TCombobox',
-                       fieldbackground=UITheme.get_color('combobox_bg'),
-                       background=UITheme.get_color('combobox_bg'),
-                       foreground=UITheme.get_color('combobox_fg'),
+                       fieldbackground=UITheme.get_color('input_bg'),
+                       background=UITheme.get_color('input_bg'),
+                       foreground=UITheme.get_color('text_primary'),
                        borderwidth=1,
                        relief='solid',
-                       arrowcolor=UITheme.get_color('combobox_arrow'))
+                       arrowcolor=UITheme.get_color('text_primary'))
         
         # Map states for consistent theming
         style.map('Themed.TCombobox',
-                 fieldbackground=[('readonly', UITheme.get_color('combobox_bg')),
-                                ('active', UITheme.get_color('combobox_bg')),
-                                ('focus', UITheme.get_color('combobox_bg'))],
-                 background=[('readonly', UITheme.get_color('combobox_bg')),
-                           ('active', UITheme.get_color('combobox_bg')),
-                           ('focus', UITheme.get_color('combobox_bg'))],
-                 foreground=[('readonly', UITheme.get_color('combobox_fg')),
-                           ('active', UITheme.get_color('combobox_fg')),
-                           ('focus', UITheme.get_color('combobox_fg'))])
+                 fieldbackground=[('readonly', UITheme.get_color('input_bg')),
+                                ('active', UITheme.get_color('input_bg')),
+                                ('focus', UITheme.get_color('input_bg'))],
+                 background=[('readonly', UITheme.get_color('input_bg')),
+                           ('active', UITheme.get_color('input_bg')),
+                           ('focus', UITheme.get_color('input_bg'))],
+                 foreground=[('readonly', UITheme.get_color('text_primary')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('focus', UITheme.get_color('text_primary'))])
         
         # Apply the style
         self.combobox.configure(style='Themed.TCombobox')

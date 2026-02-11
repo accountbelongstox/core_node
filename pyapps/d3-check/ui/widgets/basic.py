@@ -172,15 +172,20 @@ class ThemedEntry:
             Configured tk.Entry widget
         """
         width = width or UITheme.get_size('input_width')
+        # Let kwargs override theme; pop to avoid duplicate keyword for tk.Entry (callers may pass bg/fg/font)
+        bg = kwargs.pop('bg', None) or UITheme.get_color('input_bg')
+        fg = kwargs.pop('fg', None) or UITheme.get_color('text_primary')
+        font = kwargs.pop('font', None) or UITheme.get_font(font_type)
+        insertbackground = kwargs.pop('insertbackground', None) or UITheme.get_color('text_primary')
 
         return tk.Entry(
             parent,
             textvariable=textvariable,
             width=width,
-            font=UITheme.get_font(font_type),
-            bg=UITheme.get_color('bg_input'),
-            fg=UITheme.get_color('text_primary'),
-            insertbackground=UITheme.get_color('text_primary'),
+            font=font,
+            bg=bg,
+            fg=fg,
+            insertbackground=insertbackground,
             relief=tk.SUNKEN,
             bd=1,
             **kwargs
@@ -193,7 +198,7 @@ class ThemedSpinbox:
     @staticmethod
     def create(parent, from_=0, to=100, increment=1, textvariable=None,
               width: Optional[int] = None, font_type: str = 'body',
-              bg_color: str = 'bg_input_dark', **kwargs) -> tk.Spinbox:
+              bg_color: str = 'input_bg', **kwargs) -> tk.Spinbox:
         """
         Create a themed spinbox widget
 
@@ -212,6 +217,9 @@ class ThemedSpinbox:
             Configured tk.Spinbox widget
         """
         width = width or UITheme.get_size('input_width')
+        # Omit theme keys from kwargs so themed values are not duplicated (avoids "multiple values for keyword argument 'bg'")
+        theme_keys = ('bg', 'fg', 'font', 'insertbackground')
+        extra = {k: v for k, v in kwargs.items() if k not in theme_keys}
 
         return tk.Spinbox(
             parent,
@@ -226,7 +234,7 @@ class ThemedSpinbox:
             insertbackground=UITheme.get_color('text_primary'),
             relief=tk.SUNKEN,
             bd=1,
-            **kwargs
+            **extra
         )
 
 
@@ -256,7 +264,7 @@ class ThemedText:
             width=width,
             wrap=wrap,
             font=UITheme.get_font(font_type),
-            bg=UITheme.get_color('bg_input'),
+            bg=UITheme.get_color('input_bg'),
             fg=UITheme.get_color('text_primary'),
             insertbackground=UITheme.get_color('text_primary'),
             relief=tk.SUNKEN,
@@ -336,22 +344,22 @@ class ThemedCombobox:
         # Apply themed style to ttk.Combobox
         style = ttk.Style()
         style.configure('Themed.TCombobox',
-                       fieldbackground=UITheme.get_color('combobox_bg'),
-                       background=UITheme.get_color('combobox_bg'),
-                       foreground=UITheme.get_color('combobox_fg'),
-                       arrowcolor=UITheme.get_color('combobox_arrow'),
+                       fieldbackground=UITheme.get_color('input_bg'),
+                       background=UITheme.get_color('input_bg'),
+                       foreground=UITheme.get_color('text_primary'),
+                       arrowcolor=UITheme.get_color('text_primary'),
                        borderwidth=1,
                        relief='solid')
         style.map('Themed.TCombobox',
-                 fieldbackground=[('readonly', UITheme.get_color('combobox_bg')),
-                                ('active', UITheme.get_color('combobox_bg')),
-                                ('focus', UITheme.get_color('combobox_bg'))],
-                 background=[('readonly', UITheme.get_color('combobox_bg')),
-                           ('active', UITheme.get_color('combobox_bg')),
-                           ('focus', UITheme.get_color('combobox_bg'))],
-                 foreground=[('readonly', UITheme.get_color('combobox_fg')),
-                           ('active', UITheme.get_color('combobox_fg')),
-                           ('focus', UITheme.get_color('combobox_fg'))])
+                 fieldbackground=[('readonly', UITheme.get_color('input_bg')),
+                                ('active', UITheme.get_color('input_bg')),
+                                ('focus', UITheme.get_color('input_bg'))],
+                 background=[('readonly', UITheme.get_color('input_bg')),
+                           ('active', UITheme.get_color('input_bg')),
+                           ('focus', UITheme.get_color('input_bg'))],
+                 foreground=[('readonly', UITheme.get_color('text_primary')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('focus', UITheme.get_color('text_primary'))])
         
         combobox.configure(style='Themed.TCombobox')
         return combobox

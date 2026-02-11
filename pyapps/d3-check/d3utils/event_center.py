@@ -56,10 +56,13 @@ def register_shutdown_provider(
 
 
 def _do_show() -> None:
-    """Run on main thread: show window. Gets current UI via get_ui()."""
+    """Run on main thread: show window (report §4: release any grab when showing from tray)."""
     ui = get_ui()
     if ui is None or not ui.root.winfo_exists():
         return
+    if getattr(ui, "_release_any_grab", None) and callable(ui._release_any_grab):
+        if ui._release_any_grab():
+            ColorPrint.yellow("[UI] Released grab when showing window from tray")
     ui.root.deiconify()
     ui.root.lift()
     ui.root.focus_force()

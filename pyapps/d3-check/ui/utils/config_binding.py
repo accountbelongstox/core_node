@@ -12,6 +12,7 @@ from providor.providor_index import CONFIG, get_config_value_safe, set_config_va
 from pycore.pyfoundations.color_print import ColorPrint
 from share.values.config_change_hub import get_config_change_hub
 from .tk_variables import var_str, var_bool
+from ..widgets import ThemedEntry, ThemedCombobox, ThemedSpinbox
 
 
 def _parse_float_safe(value_str: str, default: float) -> float:
@@ -116,7 +117,7 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
         var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-        entry = tk.Entry(parent, textvariable=var, width=width, **kwargs)
+        entry = ThemedEntry.create(parent, textvariable=var, width=width, **kwargs)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
 
@@ -130,7 +131,7 @@ class ConfigBinding:
         """Create Entry bound to CONFIG using pre-fetched initial_value (no main-thread config read). Use when building UI from a config snapshot fetched in a worker thread."""
         var = var_str(parent, str(initial_value))
         ConfigBinding._register_binding(key_path, var)
-        entry = tk.Entry(parent, textvariable=var, width=width, **kwargs)
+        entry = ThemedEntry.create(parent, textvariable=var, width=width, **kwargs)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
         var.trace_add('write', on_change)
@@ -195,8 +196,8 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
         var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-        combobox = ttk.Combobox(parent, textvariable=var, values=values,
-                               width=width, state='readonly', **kwargs)
+        combobox = ThemedCombobox.create(parent, textvariable=var, values=values,
+                                        width=width, state='readonly', **kwargs)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
 
@@ -228,8 +229,8 @@ class ConfigBinding:
         current_value = ConfigBinding.get_config_value(key_path, default_value)
         var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to,
-                           increment=increment, width=width, **kwargs)
+        spinbox = ThemedSpinbox.create(parent, from_=from_, to=to, increment=increment,
+                                      textvariable=var, width=width, **kwargs)
         def on_change(*args):
             value_str = var.get()
             if isinstance(increment, int):
@@ -249,8 +250,8 @@ class ConfigBinding:
         """Create Spinbox bound to CONFIG using pre-fetched initial_value (no main-thread config read)."""
         var = var_str(parent, str(initial_value))
         ConfigBinding._register_binding(key_path, var)
-        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to,
-                             increment=increment, width=width, **kwargs)
+        spinbox = ThemedSpinbox.create(parent, from_=from_, to=to, increment=increment,
+                                       textvariable=var, width=width, **kwargs)
         def on_change(*args):
             value_str = var.get()
             if isinstance(increment, int):

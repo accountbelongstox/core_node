@@ -53,8 +53,7 @@ class LogPanel:
         self.log_buffer = []
         self.max_log_lines = 1000
         
-        # Configure TTK styles
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
         
         # Create main container - tab main style (UnifiedStyles.TAB_PAD, same as other tab panels)
         self.container = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_primary'])

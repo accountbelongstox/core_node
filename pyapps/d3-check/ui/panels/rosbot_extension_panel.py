@@ -80,6 +80,22 @@ def _fetch_rosbot_config_then_create(panel: "RosbotExtensionPanel") -> None:
     ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create EXIT after(0) scheduled t={time.time()-t0:.3f}")
 
 
+def _fetch_rosbot_config_on_main_then_create(panel: "RosbotExtensionPanel") -> None:
+    """Run on main thread when timer is not started yet (docs/ui_5 方案 B). Build snapshot via get_config_value_safe then create UI; may block briefly."""
+    if panel._content_created:
+        return
+    t0 = time.time()
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create ENTER (main thread fallback) t={t0:.3f}")
+    snapshot = {}
+    for key_path, default in ROSBOT_PANEL_CONFIG_KEYS:
+        snapshot[key_path] = get_config_value_safe(key_path, default)
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create snapshot done n={len(snapshot)} t={time.time()-t0:.3f}")
+    if panel._content_created:
+        return
+    panel._create_content_with_snapshot(snapshot)
+    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create EXIT t={time.time()-t0:.3f}")
+
+
 # Config keys and defaults for this panel; read in timer thread to avoid main-thread block (THREAD_BUS: no blocking on config worker).
 ROSBOT_PANEL_CONFIG_KEYS = [
     ("ros_settings.ros_directory", "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18"),
@@ -106,8 +122,7 @@ class RosbotExtensionPanel:
         self.parent = parent
         self._bottom_bar = bottom_bar
 
-        # Configure TTK styles
-        self.style = UnifiedStyles.configure_ttk_styles()
+        # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
 
         # ROSBOT running state
         self.rosbot_running = False
@@ -151,14 +166,19 @@ class RosbotExtensionPanel:
         ColorPrint.debug_messagebox(title, message, icon)
 
     def ensure_content(self):
-        """Create panel content on first call (lazy). Config is read in timer thread to avoid main-thread block (THREAD_BUS_AND_REGISTRY §5); UI is then created on main thread with snapshot."""
+        """Create panel content on first call (lazy). Prefer timer thread for config read (THREAD_BUS §5); if timer not started, use main-thread fallback (docs/ui_5 方案 B)."""
         t0 = time.time()
         ColorPrint.gray(f"[UI-DBG] ensure_content ENTER t={t0:.3f}")
         if self._content_created:
             ColorPrint.gray(f"[UI-DBG] ensure_content SKIP already created")
             return
-        timer_manager.submit_one_shot(lambda: _fetch_rosbot_config_then_create(self))
-        ColorPrint.gray(f"[UI-DBG] ensure_content EXIT submit_one_shot done t={time.time()-t0:.3f}")
+        if timer_manager.is_running():
+            timer_manager.submit_one_shot(lambda: _fetch_rosbot_config_then_create(self))
+            ColorPrint.gray(f"[UI-DBG] ensure_content EXIT submit_one_shot done t={time.time()-t0:.3f}")
+        else:
+            # Timer not started yet (e.g. restore last tab = ROSBOT during _create_main_tabs). Defer to main thread (after(0)) to avoid blocking bind/callback (tkdocs: after for defer).
+            self.container.after(0, lambda: _fetch_rosbot_config_on_main_then_create(self))
+            ColorPrint.gray(f"[UI-DBG] ensure_content EXIT after(0) main-thread fallback t={time.time()-t0:.3f}")
 
     def _create_content_with_snapshot(self, snapshot: dict) -> None:
         """Build panel widgets on main thread using pre-fetched config snapshot. Split into two chunks so UI does not freeze (yield after config panel)."""
