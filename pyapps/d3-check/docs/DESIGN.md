@@ -103,7 +103,7 @@
 
 ### 3.3 ② 日志触发（Login try）
 
-- **触发条件**：ROSBOT 日志文件（默认 `Documents\RoS-BoT\Logs\logs.txt`）某行中出现配置的触发串。
+- **触发条件**：ROSBOT 日志文件（默认 `Documents\RoS-BoT\Logs\history.txt`）某行中出现配置的触发串。
 - **配置项**：`log_detection.login_try`，默认 `"Login try"`。
 - **常量**：未配置时使用 `config.constants.LOGIN_TRY_TRIGGER_DEFAULT`（`"Login try"`）。
 - **流程**（无 Python 线程）：当日志行包含触发串时，由 `d3utils.log_analyzer` 调用 `LoginTryScreenshotController.handle_login_try()`，顺序执行：

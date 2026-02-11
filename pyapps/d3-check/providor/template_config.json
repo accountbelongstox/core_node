@@ -284,13 +284,10 @@
     "rosbot_logs_relative": "RoS-BoT/Logs",
     "d3check_temp_relative": ".d3check",
     "annotated_screenshots_relative": ".d3check/annotated_screenshots",
-    "logs_file_relative": "RoS-BoT/Logs/logs.txt",
-    "history_file_relative": "RoS-BoT/Logs/history.txt",
     "bot_program_absolute": "D:\\applications\\GamesBot",
     "keys_ini_absolute": "D:\\applications\\GamesBot\\Keys.ini"
   },
   "filenames": {
-    "logs_filename": "logs.txt",
     "bot_program_name": "RoS-BoT.exe"
   },
   "process_names": {

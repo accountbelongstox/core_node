@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Log line leading indent spec: TAB and space (including special Unicode spaces).
-Used to chunk log lines: 0 indent = new entry, positive = continuation (e.g. stack trace).
+History file line leading indent spec: TAB and space (including special Unicode spaces).
+Used to chunk history file lines: 0 indent = new entry, positive = continuation (e.g. stack trace).
 Full state = indent (tab component) + message type (log content category).
+
+Note: Normal log file (logs.txt) has no indent; this spec applies only to history.txt.
 """
 import os
 import re

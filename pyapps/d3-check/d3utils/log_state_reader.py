@@ -19,7 +19,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from d3utils.log_indent_spec import (
+from d3utils.history_indent_spec import (
     analyze_log_blocks,
     get_blocks_after as _get_blocks_after_spec,
     get_full_state,
@@ -204,7 +204,7 @@ class LogStateReader:
         """
         Indent state for a single line (does not require load).
 
-        Same as log_indent_spec.get_line_indent_state; returns (n_tabs, space_component, indent_state_key).
+        Same as history_indent_spec.get_line_indent_state; returns (n_tabs, space_component, indent_state_key).
         """
         return get_line_indent_state(line)
 
@@ -219,7 +219,7 @@ class LogStateReader:
         """
         Full state for a single line (does not require load).
 
-        Same as log_indent_spec.get_full_state; returns (indent_key, message_type, full_state_key).
+        Same as history_indent_spec.get_full_state; returns (indent_key, message_type, full_state_key).
         """
         return get_full_state(line)
 
@@ -248,7 +248,7 @@ class LogStateReader:
         return parse_line_timestamp(line)
 
 
-# get_space_type_name is imported from log_indent_spec above; matches LOG_INDENT_SPEC special-space table.
+# get_space_type_name is imported from history_indent_spec above; matches LOG_INDENT_SPEC special-space table.
 
 # 导出前实例化：按 log_path 单例，禁止各处自行 new LogStateReader
 _readers_cache: Dict[str, LogStateReader] = {}

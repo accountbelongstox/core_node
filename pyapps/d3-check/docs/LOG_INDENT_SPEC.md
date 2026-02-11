@@ -1,6 +1,6 @@
 # 日志行首缩进规范（LOG_INDENT_SPEC）
 
-日志文件路径由 `providor.providor_index.LOGS_FILE_PATH` 提供，默认 `Documents/RoS-BoT/Logs/logs.txt`。行首的 TAB 与空格用于分块：**0 缩进 = 新日志条；正缩进 = 上一条的续行**（如异常堆栈）。
+日志文件路径由 `providor.providor_index.LOGS_FILE_PATH` 提供，默认 `Documents/RoS-BoT/Logs/history.txt`。行首的 TAB 与空格用于分块：**0 缩进 = 新日志条；正缩进 = 上一条的续行**（如异常堆栈）。
 
 实现与检测见 `d3utils.log_indent_spec`。
 
@@ -69,7 +69,7 @@
 
 ## 三、1000 行日志中出现的所有状态
 
-样本：前 1000 条非空行；路径：`Documents/RoS-BoT/Logs/logs.txt`。
+样本：前 1000 条非空行；路径：`Documents/RoS-BoT/Logs/history.txt`。
 
 ### 3.1 统计汇总
 
