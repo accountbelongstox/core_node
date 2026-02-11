@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 History Info Organizer library.
-History file (history.txt) is distinct from log file (logs.txt). Single instance per path
+History file (history.txt) is distinct from the other file logs.txt. Single instance per path
 via get_history_info_organizer(history_path); do not construct directly.
 
 Delegates to log_info_organizer (LogInfoOrganizer / get_log_info_organizer); exposes

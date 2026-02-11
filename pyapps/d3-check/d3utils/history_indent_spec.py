@@ -5,7 +5,7 @@ History file line leading indent spec: TAB and space (including special Unicode 
 Used to chunk history file lines: 0 indent = new entry, positive = continuation (e.g. stack trace).
 Full state = indent (tab component) + message type (log content category).
 
-Note: Normal log file (logs.txt) has no indent; this spec applies only to history.txt.
+Note: This spec applies to history / history.txt. The other file (logs.txt) may have different format.
 """
 import os
 import re
