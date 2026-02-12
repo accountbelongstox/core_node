@@ -663,6 +663,7 @@ def run_after_rosbot_start(
     time.sleep(SERVER_WAIT_SECONDS)
 
     poll_count = MAIN_UI_POLL_TIMEOUT_SECONDS // MAIN_UI_POLL_INTERVAL_SECONDS
+    main_tab_seen = False
     for _ in range(poll_count):
         try:
             w = auto.ControlFromHandle(hwnd)
@@ -670,12 +671,13 @@ def run_after_rosbot_start(
                 tabs = _find_controls_by_type(w, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
                 if tabs:
                     ColorPrint.green("[ROSBOT_UI] Main UI ready (main profile tab visible)")
+                    main_tab_seen = True
                     break
         except Exception:
             pass
         time.sleep(MAIN_UI_POLL_INTERVAL_SECONDS)
     else:
-        ColorPrint.yellow("[ROSBOT_UI] Main profile tab not seen within timeout, attempting tab/start anyway")
+        ColorPrint.yellow("[ROSBOT_UI] Main profile tab not seen within timeout, attempting tab/start anyway (E5a->E6->F3 on skip)")
 
     winfo_fresh = get_rosbot_manager().get_rosbot_window()
     if winfo_fresh and winfo_fresh.get("hwnd"):
@@ -704,7 +706,10 @@ def run_after_rosbot_start(
             ok = ok or any(results)
         return ok
 
-    return _do_ui()
+    did_click = _do_ui()
+    if not main_tab_seen and not did_click:
+        ColorPrint.gray("[ROSBOT_UI] E5a: timeout path, UI controls not available; completing E5a without click -> E6 -> F3 only")
+    return did_click
 
 
 def resume_rosbot_ui(

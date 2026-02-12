@@ -33,6 +33,8 @@ from providor.providor_index import D4_TEMPLATE_CONFIGS
 from share.game_interface_data import get_global_scale
 from share.game_interface_data import get_d4_interface_data
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
+from d3utils.image_matcher_registry import get_image_matcher_for_method
+from d3utils.match_debug_notify import notify_match
 
 
 # D4 built-in constants (this module owns D4 standard resolution for scaling)
@@ -56,7 +58,12 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             standard_height=D4_STANDARD_HEIGHT,
             get_scale_factors=get_global_scale,
             get_template_config=_d4_get_template_config,
+            get_matcher=lambda method: get_image_matcher_for_method(
+                method, D4_STANDARD_WIDTH, D4_STANDARD_HEIGHT,
+                ratio_thresh=0.80, min_inliers=4, nfeatures=10000,
+            ),
             log_prefix="[D4ScaledTemplateMatcher]",
+            on_after_match=notify_match,
         )
         self.d4_data = get_d4_interface_data()
         ColorPrint.green("[D4ScaledTemplateMatcher] Initialized")

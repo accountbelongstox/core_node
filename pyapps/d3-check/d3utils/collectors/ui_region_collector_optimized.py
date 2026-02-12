@@ -28,7 +28,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_game_interface_data, UIRegion
-from providor.constants.common import DEBUG, TMP_DIR
+from providor.constants.common import DEBUG, TMP_DIR, FLOW_IMAGES_IN_MEMORY_ONLY
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 
@@ -162,8 +162,8 @@ class UIRegionCollectorOptimized:
         ColorPrint.yellow("[UIRegion] Note: Using full game window (includes borders)")
         ColorPrint.yellow("[UIRegion] For accurate UI region, use UIRegionCollectorAnchor instead")
 
-        # Save debug copy if DEBUG mode is enabled
-        if DEBUG and screenshot_data.game_window_image:
+        # Save debug copy only when DEBUG and not in-memory-only flow
+        if not FLOW_IMAGES_IN_MEMORY_ONLY and DEBUG and screenshot_data.game_window_image:
             debug_ui_path = TMP_DIR / f"debug_ui_optimized_{timestamp}.png"
             screenshot_data.game_window_image.save(debug_ui_path)
             ColorPrint.gray(f"[DEBUG] Saved UI region (optimized): {debug_ui_path}")

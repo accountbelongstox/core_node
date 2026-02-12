@@ -7,6 +7,7 @@ Shared across all controllers and UI components
 """
 
 import ctypes
+import json
 import os
 import sys
 import tkinter as tk
@@ -29,10 +30,15 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
-from providor.constants.common import TMP_DIR
+from providor.constants.common import (
+    TMP_DIR,
+    BATTLE_NET_CONFIG_SERVICES_KEY,
+    BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY,
+    BATTLE_NET_CONFIG_REGION_CN,
+)
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
-from providor.providor_index import get_template_path
+from providor.providor_index import get_template_path, BATTLE_NET_CONFIG_PATH
 from pycore.pyfoundations.color_print import ColorPrint
 
 # Global scale variables (moved from providor_index)
@@ -527,6 +533,27 @@ def get_scaled_blacksmith_salvage_oneclick_blue() -> Tuple[int, int]:
 def get_scaled_blacksmith_salvage_oneclick_yellow() -> Tuple[int, int]:
     return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_oneclick_yellow)
 
+
+def get_scaled_blacksmith_ui_coords() -> Dict[str, Tuple[int, int]]:
+    """
+    Return all blacksmith UI relative coordinates scaled for current game window.
+    Keys: tab_forge_weapon, tab_armor, tab_salvage_materials, tab_repair, tab_train,
+    salvage_button, salvage_dialog_salvage_button, salvage_dialog_confirm, salvage_dialog_cancel.
+    Values are (x, y) relative to game window (add window_offset for screen coords).
+    """
+    return {
+        "tab_forge_weapon": get_scaled_blacksmith_tab_forge_weapon(),
+        "tab_armor": get_scaled_blacksmith_tab_armor(),
+        "tab_salvage_materials": get_scaled_blacksmith_tab_salvage_materials(),
+        "tab_repair": get_scaled_blacksmith_tab_repair(),
+        "tab_train": get_scaled_blacksmith_tab_train(),
+        "salvage_button": get_scaled_blacksmith_salvage_button(),
+        "salvage_dialog_salvage_button": get_scaled_blacksmith_salvage_dialog_salvage_button(),
+        "salvage_dialog_confirm": get_scaled_blacksmith_salvage_dialog_confirm(),
+        "salvage_dialog_cancel": get_scaled_blacksmith_salvage_dialog_cancel(),
+    }
+
+
 def get_scaled_game_focus_click_point() -> Tuple[int, int]:
     """Scaled coordinate for clicking to bring game window to foreground (instead of other topmost methods)."""
     return d3_scale_single_coord(STANDARD_COORDS.game_focus_click_point)
@@ -631,7 +658,12 @@ class BagCoordinates:
 
 @dataclass
 class BagLayout:
-    """Bag layout data with item information"""
+    """
+    Bag layout data with item information.
+
+    物品质量（颜色可识别）：空、魔法(蓝)、稀有(黄)、传奇(绿)。
+    传奇阶位：普通 / 远古 / 太古。远古与太古无法仅凭颜色识别，需 hover 在装备上识别远古线/太古线。
+    """
     layout: List[List[int]]  # 2D array of slot usage
     items: Dict[Tuple[int, int], Dict]  # Mapping (row, col) to item info with quality
 
@@ -801,8 +833,8 @@ class D3InterfaceData(InterfaceDataBase):
     # ==================== Game State Methods (with callback notification) ====================
     # These methods are kept because they trigger callbacks
 
-    def set_battlenet_status(self, window_found: bool):
-        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks."""
+    def set_battlenet_status(self, window_found: bool) -> bool:
+        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.battlenet_window_found != window_found:
@@ -811,6 +843,7 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def get_battlenet_region(self) -> Optional[str]:
         """Return cached Battle.net server region: \"asia\" | \"cn\" | None."""
@@ -841,10 +874,10 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
-    def set_rosbot_extended_status(self, status: str):
-        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks."""
+    def set_rosbot_extended_status(self, status: str) -> bool:
+        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks. Returns True if value changed."""
         if status not in ("not_found", "running", "paused"):
-            return
+            return False
         should_notify = False
         with self._lock:
             if self.rosbot_extended_status != status:
@@ -854,9 +887,10 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] ROSBOT extended status: {status}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
-    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = ""):
-        """Set found ROSBOT process name and window title for status bar (process:xxx.exe title:xxx). Notify callbacks."""
+    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = "") -> bool:
+        """Set found ROSBOT process name and window title for status bar (process:xxx.exe title:xxx). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.rosbot_found_exe_name != exe_name or self.rosbot_found_window_title != window_title:
@@ -865,6 +899,7 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_rosbot_ui_need_key(self, need_key_input: bool, message: str = ""):
         """Set ROSBOT need-key state (from timer thread via refresh_rosbot_status). Main thread only reads from snapshot."""
@@ -905,8 +940,8 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
-    def set_d3_status(self, running: bool):
-        """Set D3 running status and notify callbacks."""
+    def set_d3_status(self, running: bool) -> bool:
+        """Set D3 running status and notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.d3_running != running:
@@ -915,14 +950,15 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_d3_dynamic_status(
         self,
         on_login_screen: bool = False,
         disconnected: bool = False,
         in_game: bool = False,
-    ):
-        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks."""
+    ) -> bool:
+        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if (
@@ -936,14 +972,15 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_battlenet_dynamic_status(
         self,
         on_login_screen: bool = False,
         disconnected: bool = False,
         normal_available: bool = False,
-    ):
-        """Set Battle.net dynamic state (same priority as D3). Notify callbacks."""
+    ) -> bool:
+        """Set Battle.net dynamic state (same priority as D3). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if (
@@ -957,6 +994,7 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_map_type(self, map_type: str):
         """Set map type and notify callbacks"""
@@ -1531,6 +1569,7 @@ def get_global_scale() -> tuple:
 def get_game_interface_data() -> D3InterfaceData:
     """
     Get global shared game interface data instance (singleton)
+    On first initialization, reads Battle.net region from config file and sets it.
 
     Returns:
         Global D3InterfaceData instance
@@ -1539,8 +1578,39 @@ def get_game_interface_data() -> D3InterfaceData:
 
     if _game_interface_data is None:
         _game_interface_data = D3InterfaceData()
+        # Initialize Battle.net region from config file on first creation
+        _initialize_battlenet_region_from_config(_game_interface_data)
 
     return _game_interface_data
+
+
+def _initialize_battlenet_region_from_config(game_data: D3InterfaceData) -> None:
+    """
+    Initialize Battle.net region from config file during game data initialization.
+    Reads from Battle.net.config file: Services.LastLoginRegion.
+    If not CN, sets to "asia"; if CN, sets to "cn".
+    """
+    config_path = Path(BATTLE_NET_CONFIG_PATH)
+    if not config_path.exists():
+        return
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config: {e}")
+        return
+    if not isinstance(data, dict):
+        return
+    services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    if not isinstance(services, dict):
+        return
+    last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    if not last_login_region or not isinstance(last_login_region, str):
+        return
+    if last_login_region == BATTLE_NET_CONFIG_REGION_CN:
+        game_data.set_battlenet_region("cn")
+    else:
+        game_data.set_battlenet_region("asia")
 
 
 def clear_game_interface_data():

@@ -7,26 +7,167 @@ define their own constants and implement match_template_auto_scale using _match_
 Subclass provides: standard_width, standard_height, get_scale_factors(), get_template_config(template_name).
 """
 
-from typing import Optional, Union, Dict, List, Tuple, Callable
+from typing import Optional, Union, Dict, List, Tuple, Callable, Any
 from pathlib import Path
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-from share.template_match_debug import notify_match
-from d3utils.image_matcher_registry import get_image_matcher_for_method
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
 np = numpy
 Image = get_third_package_PIL_Image()
 
-__all__ = ["ScaledTemplateMatcherBase", "cv2", "np", "Image", "numpy", "load_template_and_scale_by_resolution"]
+# bag_opened_indicator: 靠左此比例宽内 = 铁匠，靠右 = 仅背包（不视为铁匠）
+LEFT_REGION_RATIO = 0.3
+
+__all__ = [
+    "ScaledTemplateMatcherBase",
+    "cv2", "np", "Image", "numpy",
+    "load_template_and_scale_by_resolution",
+    "format_match_schematic",
+    "is_match_center_in_left_region",
+    "LEFT_REGION_RATIO",
+]
 
 
 def _ensure_provider_imports():
     """Return ColorPrint (imports at module top to avoid late-binding issues)."""
     return ColorPrint
+
+
+def _center_to_xy(c) -> Optional[Tuple[float, float]]:
+    """Normalize center to (x, y) floats; supports tuple, list, numpy array. Type-checked at code level."""
+    if c is None:
+        return None
+    if isinstance(c, np.ndarray):
+        if c.size < 2:
+            return None
+        return (float(c.flat[0]), float(c.flat[1]))
+    if isinstance(c, (tuple, list)) and len(c) >= 2:
+        return (float(c[0]), float(c[1]))
+    return None
+
+
+def format_match_schematic(
+    target_w: int,
+    target_h: int,
+    center_or_centers: Union[Tuple[float, float], List[Tuple[float, float]], "np.ndarray"],
+    template_name: str = "",
+    grid_cols: int = 40,
+    grid_rows: int = 14,
+    region_in_parent: Optional[Tuple[int, int, int, int, int, int]] = None,
+) -> str:
+    """
+    Produce a text schematic: box(es) and '*' at match position(s).
+    center_or_centers: single (x,y) or list of (x,y); may be numpy array(s).
+
+    - Single image: one box = target (target_w x target_h), '*' = match in target.
+    - Region (image-in-image): when region_in_parent is set, outer box = full game, inner box = crop used for match.
+      region_in_parent = (parent_w, parent_h, region_left, region_top, region_width, region_height).
+      target_w/target_h = crop size; center is in crop coords. Match in full image = (region_left+cx, region_top+cy).
+    """
+    if target_w <= 0 or target_h <= 0:
+        return f"[MatchSchematic] {template_name} target {target_w}x{target_h} (invalid)"
+
+    centers = center_or_centers if isinstance(center_or_centers, list) else [center_or_centers]
+    points_in_target: List[Tuple[float, float]] = []
+    for c in centers:
+        xy = _center_to_xy(c)
+        if xy is None:
+            continue
+        points_in_target.append(xy)
+
+    if region_in_parent is not None:
+        # Image-in-image: outer = parent (full game), inner = region (crop), '*' at match in parent coords
+        parent_w, parent_h, rleft, rtop, rw, rh = region_in_parent
+        if parent_w <= 0 or parent_h <= 0:
+            return f"[MatchSchematic] {template_name} region_in_parent invalid (parent {parent_w}x{parent_h})"
+        # Map to grid (outer = parent)
+        def to_gx(x: float, w: int) -> int:
+            return max(0, min(grid_cols - 1, int(round(x / parent_w * grid_cols))))
+        def to_gy(y: float, h: int) -> int:
+            return max(0, min(grid_rows - 1, int(round(y / parent_h * grid_rows))))
+        inner_left = to_gx(float(rleft), parent_w)
+        inner_top = to_gy(float(rtop), parent_h)
+        inner_right = to_gx(float(rleft + rw), parent_w)
+        inner_bottom = to_gy(float(rtop + rh), parent_h)
+        inner_right = min(inner_right, grid_cols - 2)
+        inner_bottom = min(inner_bottom, grid_rows - 2)
+        inner_left = max(inner_left, 1)
+        inner_top = max(inner_top, 1)
+        point_cells = [(to_gx(rleft + cx, parent_w), to_gy(rtop + cy, parent_h)) for (cx, cy) in points_in_target]
+        lines = [
+            f"[MatchSchematic] {template_name}  parent {parent_w}x{parent_h}  region=({rleft},{rtop},{rw}x{rh})  center(s) in crop {points_in_target}",
+            "+" + "-" * grid_cols + "+",
+        ]
+        for ry in range(grid_rows):
+            row = []
+            for col in range(grid_cols):
+                is_outer = ry == 0 or ry == grid_rows - 1 or col == 0 or col == grid_cols - 1
+                if is_outer:
+                    row.append("+" if (ry in (0, grid_rows - 1) and col in (0, grid_cols - 1)) else ("-" if ry in (0, grid_rows - 1) else "|"))
+                else:
+                    in_inner = inner_left <= col <= inner_right and inner_top <= ry <= inner_bottom
+                    if in_inner:
+                        if (col == inner_left and ry == inner_top) or (col == inner_right and ry == inner_top) or (col == inner_left and ry == inner_bottom) or (col == inner_right and ry == inner_bottom):
+                            row.append("+")
+                        elif ry == inner_top or ry == inner_bottom:
+                            row.append("-")
+                        elif col == inner_left or col == inner_right:
+                            row.append("|")
+                        elif (col, ry) in point_cells:
+                            row.append("*")
+                        else:
+                            row.append(".")
+                    else:
+                        row.append(" ")
+            lines.append("".join(row))
+        lines.append("+" + "-" * grid_cols + "+")
+        return "\n".join(lines)
+
+    # Single image
+    points: List[Tuple[int, int]] = []
+    for (cx, cy) in points_in_target:
+        gx = max(0, min(grid_cols - 1, int(round(cx / target_w * grid_cols))))
+        gy = max(0, min(grid_rows - 1, int(round(cy / target_h * grid_rows))))
+        points.append((gx, gy))
+    lines = [
+        f"[MatchSchematic] {template_name}  target {target_w}x{target_h}" + (f"  center(s) {points}" if points else ""),
+        "+" + "-" * grid_cols + "+",
+    ]
+    for ry in range(grid_rows):
+        row = [" "] * grid_cols
+        for (px, py) in points:
+            if py == ry:
+                row[px] = "*"
+        lines.append("|" + "".join(row) + "|")
+    lines.append("+" + "-" * grid_cols + "+")
+    return "\n".join(lines)
+
+
+def is_match_center_in_left_region(
+    match: Dict,
+    image_width: int,
+    ratio: float = LEFT_REGION_RATIO,
+) -> bool:
+    """
+    Return True iff the match center's x is in the left `ratio` of the image (e.g. left 30%).
+    bag_opened_indicator: left 30% = blacksmith, right = bag only (not blacksmith).
+    """
+    if image_width <= 0:
+        return False
+    center = match.get("center")
+    if center is None:
+        return False
+    if isinstance(center, np.ndarray) and center.size >= 2:
+        cx = float(center.flat[0])
+    elif isinstance(center, (tuple, list)) and len(center) >= 2:
+        cx = float(center[0])
+    else:
+        return False
+    return cx < image_width * ratio
 
 
 def load_template_and_scale_by_resolution(
@@ -68,27 +209,22 @@ class ScaledTemplateMatcherBase:
         standard_height: int,
         get_scale_factors: Callable[[], Tuple[float, float]],
         get_template_config: Callable[[str], Optional[Dict]],
+        get_matcher: Callable[[str], Any],
         log_prefix: str = "[ScaledMatcher]",
+        on_after_match: Optional[Callable[..., None]] = None,
     ):
         self.standard_width = standard_width
         self.standard_height = standard_height
         self.get_scale_factors = get_scale_factors
         self.get_template_config = get_template_config
+        self.get_matcher = get_matcher
         self.log_prefix = log_prefix
-        self._matchers: Dict = {}
+        self.on_after_match = on_after_match
         self._original_template_cache: Dict = {}
         self._template_cache: Dict = {}
 
-    def _get_matcher(self, match_method: str):
-        method_type = match_method.upper()
-        return get_image_matcher_for_method(
-            method_type,
-            self.standard_width,
-            self.standard_height,
-            ratio_thresh=0.80,
-            min_inliers=4,
-            nfeatures=10000,
-        )
+    def _get_matcher(self, match_method: str) -> Any:
+        return self.get_matcher(match_method.upper())
 
     def _load_target_image(self, target_image: Union[str, Path, Image.Image, np.ndarray]) -> Optional[np.ndarray]:
         ColorPrint = _ensure_provider_imports()
@@ -205,18 +341,29 @@ class ScaledTemplateMatcherBase:
             detection_method=match_method
         )
         result = {"total_matches": 1, "matches": [match_result]} if (match_result and match_result.get("success")) else {"total_matches": 0, "matches": []}
-        try:
-            notify_match(
-                template_name=template_name,
-                result=result,
-                target_img_array=target_img_array,
-                template_img_array=scaled_template_img,
-                match_method=cfg.get("match_method", "ORB"),
-                expected_threshold=threshold,
-                first_match=result.get("matches", [None])[0] if result.get("matches") else None,
-            )
-        except Exception:
-            pass
+        if self.on_after_match is not None:
+            try:
+                self.on_after_match(
+                    template_name=template_name,
+                    result=result,
+                    target_img_array=target_img_array,
+                    template_img_array=scaled_template_img,
+                    match_method=cfg.get("match_method", "ORB"),
+                    expected_threshold=threshold,
+                    first_match=result.get("matches", [None])[0] if result.get("matches") else None,
+                )
+            except Exception:
+                pass
+        # Text schematic: box = target image, '*' = match position (for debug log)
+        if result.get("total_matches", 0) > 0 and result.get("matches"):
+            first = result["matches"][0]
+            center = first.get("center")
+            if center is not None:
+                h, w = target_img_array.shape[:2]
+                xy = _center_to_xy(center)
+                if xy is not None:
+                    schematic = format_match_schematic(w, h, xy, template_name)
+                    ColorPrint.gray(schematic)
         return result
 
     def _match_single_with_scale(
@@ -255,6 +402,14 @@ class ScaledTemplateMatcherBase:
             silent=silent,
         )
         if match_result and match_result.get("success"):
+            if not silent:
+                center = match_result.get("center")
+                if center is not None:
+                    h, w = target_img_array.shape[:2]
+                    xy = _center_to_xy(center)
+                    if xy is not None:
+                        schematic = format_match_schematic(w, h, xy, template_name)
+                        ColorPrint.gray(schematic)
             return {"total_matches": 1, "matches": [match_result]}
         return {"total_matches": 0, "matches": []}
 

@@ -113,23 +113,27 @@ class RosbotOperation:
             click_params=click_params,
         )
 
-    def get_ui_state(self) -> Dict[str, Any]:
+    def get_ui_state(self, pids: Optional[List[int]] = None) -> Dict[str, Any]:
         """
         Return current ROSBOT UI state. Reads KEY dialog signature from docs/rosbot_ui_elements_1.json;
         when any ROSBOT process window has that title (e.g. "Error" with "Please, enter a key"), need_key_input is True.
+        When pids is provided (e.g. from same-tick get_rosbot_detection), only scans those PIDs to avoid re-enumeration.
         Returns: {"need_key_input": bool, "message": str}. message is ROSBOT_NEED_KEY_MESSAGE when need_key_input.
         """
         out: Dict[str, Any] = {"need_key_input": False, "message": ""}
         key_title, _ = _load_rosbot_key_dialog_signature()
         mgr = get_rosbot_manager()
-        seen_pids: Set[int] = set()
-        for exe_path in mgr.find_other_exe_files():
-            proc = mgr.find_process_by_exe_name(os.path.basename(exe_path))
-            if proc and proc.get("pid") and proc["pid"] not in seen_pids:
+        if pids:
+            seen_pids: Set[int] = set(pids)
+        else:
+            seen_pids = set()
+            for exe_path in mgr.find_other_exe_files():
+                proc = mgr.find_process_by_exe_name(os.path.basename(exe_path))
+                if proc and proc.get("pid") and proc["pid"] not in seen_pids:
+                    seen_pids.add(proc["pid"])
+            proc = mgr.find_process_by_exe_name(mgr.rosbot_exe_name)
+            if proc and proc.get("pid"):
                 seen_pids.add(proc["pid"])
-        proc = mgr.find_process_by_exe_name(mgr.rosbot_exe_name)
-        if proc and proc.get("pid"):
-            seen_pids.add(proc["pid"])
         for pid in seen_pids:
             for w in mgr.find_windows_by_pid(pid, visible_only=False):
                 if (w.get("title") or "").strip() == key_title:

@@ -22,14 +22,16 @@ from pycore.pyfoundations.third_party import get_third_package_numpy
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from share.game_interface_data import (
     get_game_interface_data,
-    get_scaled_blacksmith_salvage_button,
     get_scaled_blacksmith_tab_salvage_materials,
     get_scaled_blacksmith_salvage_dialog_salvage_button,
     get_scaled_blacksmith_salvage_dialog_confirm,
+    get_scaled_blacksmith_ui_coords,
 )
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from d3utils.debug_bag_hover import classify_slot_quality_from_window
-from providor.constants.common import TMP_DIR, SCALED_TEMPLATES_CACHE_DIR
+from d3utils.slot_quality import _find_line_in_crop
+from d3utils.debug_bag_hover import _search_region_bounds
+from d3utils.screenshot_provider import get_screenshot_provider
+from providor.constants.common import SCALED_TEMPLATES_CACHE_DIR, CLICK_MOVE_DURATION_SEC, CLICK_PAUSE_AFTER_MOVE_SEC
 from providor.providor_index import CONFIG
 
 np = get_third_package_numpy()
@@ -102,55 +104,39 @@ class BlacksmithHandler:
         Returns:
             True if clicked successfully, False otherwise
         """
-        # Use game_window_image from shared data
+        # Use game_window_image from shared data (in-memory, no temp file)
         if not shared_data.game_window_image:
             ColorPrint.red("[BlacksmithHandler] No game window image in shared data")
             return False
 
-        # Save to temporary file for template matching
-        temp_screenshot_path = SCALED_TEMPLATES_CACHE_DIR / f"temp_blacksmith_{shared_data.timestamp}.png"
-        SCALED_TEMPLATES_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        shared_data.game_window_image.save(temp_screenshot_path)
+        # Match on in-memory image (matcher accepts PIL Image)
+        sidebar_tabs = ["blacksmith_sidebar_tab_1", "blacksmith_sidebar_tab_2"]
+        for tab_name in sidebar_tabs:
+            ColorPrint.blue(f"[BlacksmithHandler] Trying {tab_name}...")
+            result = self.scaled_matcher.match_template(
+                target_image=shared_data.game_window_image,
+                template_name=tab_name,
+                output_dir=None
+            )
 
-        try:
-            # Try both sidebar tab templates
-            sidebar_tabs = ["blacksmith_sidebar_tab_1", "blacksmith_sidebar_tab_2"]
+            if result["total_matches"] > 0:
+                match = result["matches"][0]
+                center = match["center"]
 
-            for tab_name in sidebar_tabs:
-                ColorPrint.blue(f"[BlacksmithHandler] Trying {tab_name}...")
-                result = self.scaled_matcher.match_template(
-                    target_image=temp_screenshot_path,
-                    template_name=tab_name,
-                    output_dir=None
-                )
+                # Convert to screen coordinates
+                click_x = int(center[0] + window_offset_x)
+                click_y = int(center[1] + window_offset_y)
 
-                if result["total_matches"] > 0:
-                    match = result["matches"][0]
-                    center = match['center']
+                ColorPrint.green(f"[BlacksmithHandler] Found {tab_name} at {center}")
+                ColorPrint.blue(f"[BlacksmithHandler] Clicking at screen: ({click_x}, {click_y})")
 
-                    # Convert to screen coordinates
-                    click_x = int(center[0] + window_offset_x)
-                    click_y = int(center[1] + window_offset_y)
+                # Click the tab
+                self.click_handler.click(click_x, click_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
 
-                    ColorPrint.green(f"[BlacksmithHandler] Found {tab_name} at {center}")
-                    ColorPrint.blue(f"[BlacksmithHandler] Clicking at screen: ({click_x}, {click_y})")
+                return True
 
-                    # Click the tab
-                    self.click_handler.click(click_x, click_y)
-
-                    return True
-
-            # Neither tab found
-            ColorPrint.yellow("[BlacksmithHandler] No sidebar tab found")
-            return False
-
-        finally:
-            # Clean up temp file
-            try:
-                if temp_screenshot_path.exists():
-                    temp_screenshot_path.unlink()
-            except Exception as e:
-                ColorPrint.gray(f"[BlacksmithHandler] Could not clean up temp file: {e}")
+        ColorPrint.red("[BlacksmithHandler] No sidebar tab matched")
+        return False
 
     def _click_salvage_button(self, shared_data, window_offset_x: int, window_offset_y: int) -> bool:
         """
@@ -185,7 +171,7 @@ class BlacksmithHandler:
             ColorPrint.blue(f"[BlacksmithHandler] Clicking at screen: ({click_x}, {click_y})")
 
             # Click the button
-            self.click_handler.click(click_x, click_y)
+            self.click_handler.click(click_x, click_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
 
             return True
 
@@ -193,11 +179,10 @@ class BlacksmithHandler:
             ColorPrint.red(f"[BlacksmithHandler] Error calculating button position: {e}")
             return False
 
-    def handle_auto_salvage_by_slots(self, keep: str) -> bool:
+    def handle_auto_salvage_by_slots(self, keep: str, debug_only: bool = False) -> bool:
         """
-        Auto salvage: for each bag slot that should be salvaged (by keep policy),
-        click slot -> click dialog salvage button -> click confirm.
-        keep: "keep_ancient_plus" = salvage normal/rare/magic; "keep_primal" = salvage normal/ancient/rare/magic.
+        先对每个装备格 hover 一次得到品质（普通/远古/太古），再根据下拉框保留规则决定是否走拆解流程。一个装备 hover 一次。
+        keep: "keep_ancient_plus" = 保留远古+，其余拆解; "keep_primal" = 仅保留太古，其余拆解.
         """
         shared_data = get_game_interface_data()
         coords = shared_data.bag_coordinates
@@ -213,19 +198,6 @@ class BlacksmithHandler:
         slot_width = w / cols
         slot_height = h / rows
 
-        if not shared_data.game_window_image:
-            ColorPrint.red("[BlacksmithHandler] No game window image for slot classification")
-            return False
-        img_array = np.array(shared_data.game_window_image)
-
-        # Switch to salvage materials tab
-        tab_x, tab_y = get_scaled_blacksmith_tab_salvage_materials()
-        self.click_handler.click(ox + tab_x, oy + tab_y)
-        time.sleep(0.4)
-
-        btn_salvage_x, btn_salvage_y = get_scaled_blacksmith_salvage_dialog_salvage_button()
-        btn_confirm_x, btn_confirm_y = get_scaled_blacksmith_salvage_dialog_confirm()
-
         slots_to_process: List[Tuple[int, int, dict]] = []
         for r in range(rows):
             for c in range(cols):
@@ -236,40 +208,84 @@ class BlacksmithHandler:
                     continue
                 slots_to_process.append((r, c, info))
 
-        to_salvage: List[Tuple[int, int]] = []
-        for (r, c, info) in slots_to_process:
-            quality = info.get("quality", "unknown")
-            if quality in ("rare", "magic"):
-                to_salvage.append((r, c))
-                continue
-            if quality not in ("legendary_set", "legendary"):
-                to_salvage.append((r, c))
-                continue
-            tier = classify_slot_quality_from_window(
-                img_array, top_left, slot_width, slot_height, r, c
-            )
-            if keep == "keep_ancient_plus":
-                if tier == "normal":
-                    to_salvage.append((r, c))
-            else:
-                if tier in ("normal", "ancient"):
-                    to_salvage.append((r, c))
-
-        if not to_salvage:
-            ColorPrint.blue("[BlacksmithHandler] Auto salvage: no slots to salvage")
+        if debug_only:
+            ColorPrint.gray("[BlacksmithHandler] Salvage preview (debug_only): %d slots to scan (hover each then decide)" % len(slots_to_process))
             return True
 
-        ColorPrint.blue(f"[BlacksmithHandler] Auto salvage: {len(to_salvage)} slots (keep={keep})")
-        for (r, c) in to_salvage:
+        coords_ui = get_scaled_blacksmith_ui_coords()
+        tab_x, tab_y = coords_ui["tab_salvage_materials"]
+        btn_salvage_x, btn_salvage_y = coords_ui["salvage_dialog_salvage_button"]
+        btn_confirm_x, btn_confirm_y = coords_ui["salvage_dialog_confirm"]
+
+        # 拆解材料 TAB 只在开始时打开一次
+        self.click_handler.click(ox + tab_x, oy + tab_y, direct_click=True, return_to_original=True, duration=0.0, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
+        time.sleep(0.4)
+
+        # 窗口尺寸：用于小区域截图的偏移计算（复用调试升级逻辑，只截装备左侧小区域识别太古/远古线）
+        gs = shared_data.game_window_size
+        if gs and gs[0] > 0 and gs[1] > 0:
+            window_w, window_h = int(gs[0]), int(gs[1])
+        elif getattr(shared_data, "game_window_image", None):
+            wi = shared_data.game_window_image
+            window_w, window_h = (wi.width, wi.height) if hasattr(wi, "width") else (wi.shape[1], wi.shape[0])
+        else:
+            window_w, window_h = 1300, 800
+
+        provider = get_screenshot_provider()
+        search_length = 0.5 * slot_width
+        salvage_count = 0
+        for (r, c, info) in slots_to_process:
+            quality = info.get("quality", "unknown")
             slot_screen_x = int(ox + top_left[0] + (c + 0.5) * slot_width)
             slot_screen_y = int(oy + top_left[1] + (r + 0.5) * slot_height)
-            self.click_handler.click(slot_screen_x, slot_screen_y)
+
+            # 一个装备 hover 一次；只截小区域识别太古线/远古线/普通传奇（复用 debug_bag_hover 原生区域截图）
+            self.click_handler.move_mouse(slot_screen_x, slot_screen_y, duration=0.0)
+            time.sleep(0.35)
+            x_min, y_min, x_max, y_max, left_edge_x, center_y = _search_region_bounds(
+                top_left, slot_width, slot_height, r, c, window_w, window_h
+            )
+            region_w = x_max - x_min
+            region_h = y_max - y_min
+            screen_left = ox + x_min
+            screen_top = oy + y_min
+            region_pil = provider.capture_region(screen_left, screen_top, region_w, region_h)
+            if region_pil is None or region_w <= 0 or region_h <= 0:
+                continue
+            crop_array = np.array(region_pil)
+            left_edge_x_in_crop = left_edge_x - x_min
+            center_y_in_crop = center_y - y_min
+            kind, height, _primal_xy, _ancient_xy = _find_line_in_crop(
+                crop_array, left_edge_x_in_crop, center_y_in_crop, search_length
+            )
+            if kind == "orange" and height is not None:
+                tier = "primal"
+            elif kind == "ancient" and height is not None:
+                tier = "ancient"
+            else:
+                tier = "normal"
+
+            if quality in ("rare", "magic"):
+                should_salvage = True
+            elif quality not in ("legendary_set", "legendary"):
+                should_salvage = True
+            elif keep == "keep_ancient_plus":
+                should_salvage = tier == "normal"
+            else:
+                should_salvage = tier in ("normal", "ancient")
+
+            if not should_salvage:
+                continue
+
+            self.click_handler.click(slot_screen_x, slot_screen_y, direct_click=True, return_to_original=True, duration=0.0, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
             time.sleep(0.2)
-            self.click_handler.click(ox + btn_salvage_x, oy + btn_salvage_y)
+            self.click_handler.click(ox + btn_salvage_x, oy + btn_salvage_y, direct_click=True, return_to_original=True, duration=0.0, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
             time.sleep(0.15)
-            self.click_handler.click(ox + btn_confirm_x, oy + btn_confirm_y)
+            self.click_handler.click(ox + btn_confirm_x, oy + btn_confirm_y, direct_click=True, return_to_original=True, duration=0.0, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
             time.sleep(0.25)
-        ColorPrint.green("[BlacksmithHandler] Auto salvage by slots completed")
+            salvage_count += 1
+
+        ColorPrint.green("[BlacksmithHandler] Auto salvage by slots completed (salvaged %d)" % salvage_count)
         return True
 
 

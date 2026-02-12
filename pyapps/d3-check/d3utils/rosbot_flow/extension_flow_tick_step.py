@@ -2,22 +2,17 @@
 """
 Extension flow state machine: one step per tick (no thread, no time.sleep).
 Driven by rosbot_task + flow_master; all timing by tick count (deadline_tick = current_tick + N).
+When phase is C_ACTION_GROUP, only one action-group step runs per tick; see docs/ACTION_GROUPS_DESIGN.md.
 """
-import math
 import time
 from typing import Callable, Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.constants.d3 import C7B_AFTER_BOUNTY_STABLE_SEC, C10_SKIP_AFTER_TELEPORT_SEC
-
-# 2s per flow tick (rosbot_task_processor); map stable wait by tick count, no sleep
-EXTENSION_TICK_INTERVAL_SEC = 2.0
-C7B_AFTER_BOUNTY_STABLE_TICKS = max(1, int(math.ceil(C7B_AFTER_BOUNTY_STABLE_SEC / EXTENSION_TICK_INTERVAL_SEC)))
+from providor.constants.d3 import C10_SKIP_AFTER_TELEPORT_SEC
 from providor.providor_index import CONFIG, DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data
 from d3utils.d3_manager import get_d3_manager
 from d3utils.rosbot_manager import get_rosbot_manager
-from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.d3_start_game_and_teleport_waiter import (
     click_start_game_button_if_found,
     detect_d3_already_running_state,
@@ -25,9 +20,9 @@ from d3utils.d3_start_game_and_teleport_waiter import (
     step_c10_compare,
     step_c7a_send_m,
     step_c7a_verify_bounty_progress,
-    step_c7b_minimize_only,
-    step_c7b_teleport_only,
 )
+from d3utils.rosbot_flow.action_groups import get as get_action_group, ACTION_DONE, ACTION_FAIL
+from d3utils.rosbot_flow.action_groups.map_teleport import CONTEXT_KEY_TITLES
 from d3utils.rosbot_flow.extension_flow_state import (
     ExtensionPhase,
     PAYLOAD_KEY_C7A_ROUND,
@@ -58,6 +53,14 @@ from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
 from providor.constants.d3 import C3_DEADLINE_TICKS
 
 
+def _start_map_teleport_action_group(titles: tuple) -> None:
+    """Start map_teleport action group (minimize -> wait one tick -> teleport). One step per tick."""
+    set_phase(ExtensionPhase.C_ACTION_GROUP.value)
+    set_payload("action_group_id", "map_teleport")
+    set_payload("action_group_step_index", 0)
+    set_payload("action_group_context", {CONTEXT_KEY_TITLES: list(titles)})
+
+
 def extension_flow_tick_step(
     current_tick: int,
     start_rosbot_task_fn: Callable[[], None],
@@ -70,9 +73,38 @@ def extension_flow_tick_step(
     if phase == ExtensionPhase.IDLE.value:
         return "idle"
 
+    # Action group: one step per tick; other tick-driven logic skipped (see docs/ACTION_GROUPS_DESIGN.md).
+    if phase == ExtensionPhase.C_ACTION_GROUP.value:
+        pl = get_payload()
+        group_id = pl.get("action_group_id")
+        step_index = pl.get("action_group_step_index", 0)
+        context = dict(pl.get("action_group_context") or {})
+        group = get_action_group(group_id) if group_id else None
+        if not group:
+            run_c12_end_d3()
+            reset_state()
+            return "fallthrough"
+        result = group.run_step(step_index, context)
+        if result == ACTION_FAIL:
+            run_c12_end_d3()
+            reset_state()
+            return "fallthrough"
+        if result == ACTION_DONE:
+            if group_id == "map_teleport":
+                get_game_interface_data().set_d3_status(True)
+                get_rosbot_manager().kill_if_running()
+                if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                    set_f3_rosbot_started_at()
+                    start_rosbot_task_fn()
+                set_last_teleport_success_time(time.time())
+            reset_state()
+            return "success"
+        set_payload("action_group_step_index", step_index + 1)
+        return "running"
+
     # Wait phases: decrement then transition (all tick-driven, no time.sleep)
     wait_phases = (ExtensionPhase.C_C3_WAIT, ExtensionPhase.C_C3_DISCONFIRM, ExtensionPhase.C_C10_WAIT,
-                   ExtensionPhase.C_C7a_WAIT, ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT, ExtensionPhase.C_C7b_WAIT)
+                   ExtensionPhase.C_C7a_WAIT)
     if phase in (p.value for p in wait_phases):
         w = get_wait_ticks_remaining() - 1
         set_wait_ticks_remaining(max(0, w))
@@ -95,27 +127,6 @@ def extension_flow_tick_step(
             return "running"
         if phase == ExtensionPhase.C_C7a_WAIT.value:
             set_phase(ExtensionPhase.C_C7a_VERIFY_BOUNTY.value)
-            return "running"
-        if phase == ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT.value:
-            titles = tuple(get_payload().get("titles", list(DIABLO_III_WINDOW_TITLES))) or DIABLO_III_WINDOW_TITLES
-            provider = get_screenshot_provider()
-            sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
-            if not sd or not sd.game_window_image:
-                run_c12_end_d3()
-                reset_state()
-                return "fallthrough"
-            window_offset = sd.window_offset or (0, 0)
-            game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
-            is_windowed = get_game_interface_data().is_windowed_mode()
-            if not step_c7b_minimize_only(provider, titles, window_offset, game_window_size, is_windowed):
-                run_c12_end_d3()
-                reset_state()
-                return "fallthrough"
-            set_phase(ExtensionPhase.C_C7b_WAIT.value)
-            set_wait_ticks_remaining(1)
-            return "running"
-        if phase == ExtensionPhase.C_C7b_WAIT.value:
-            set_phase(ExtensionPhase.C_C7b_TELEPORT.value)
             return "running"
 
     if phase == ExtensionPhase.C_ENTRY.value:
@@ -239,10 +250,9 @@ def extension_flow_tick_step(
         titles = tuple(get_payload().get("titles", list(DIABLO_III_WINDOW_TITLES))) or DIABLO_III_WINDOW_TITLES
         if step_c7a_verify_bounty_progress(window_titles=titles):
             ColorPrint.green(
-                f"[ExtensionFlow][C7a] Bounty progress found, map open -> wait {C7B_AFTER_BOUNTY_STABLE_TICKS} ticks then C7b minimize (tick-driven, no sleep)"
+                "[ExtensionFlow][C7a] Bounty progress found, map open -> immediately map_teleport action group (per doc: click in same tick)"
             )
-            set_phase(ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT.value)
-            set_wait_ticks_remaining(C7B_AFTER_BOUNTY_STABLE_TICKS)
+            _start_map_teleport_action_group(titles)
             return "running"
         c7a_round = get_payload().get(PAYLOAD_KEY_C7A_ROUND, 1)
         if c7a_round == 1:
@@ -255,33 +265,17 @@ def extension_flow_tick_step(
             set_phase(ExtensionPhase.C_C7a_WAIT.value)
             set_wait_ticks_remaining(1)
             return "running"
-        ColorPrint.yellow("[ExtensionFlow][C7a] No bounty progress after two M rounds; per doc do not kill D3, still run C7b and try teleport")
-        provider = get_screenshot_provider()
-        sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
-        if not sd or not sd.game_window_image:
-            run_c12_end_d3()
-            reset_state()
-            return "fallthrough"
-        window_offset = sd.window_offset or (0, 0)
-        game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
-        is_windowed = get_game_interface_data().is_windowed_mode()
-        if not step_c7b_minimize_only(provider, titles, window_offset, game_window_size, is_windowed):
-            run_c12_end_d3()
-            reset_state()
-            return "fallthrough"
-        set_phase(ExtensionPhase.C_C7b_WAIT.value)
-        set_wait_ticks_remaining(1)
+        ColorPrint.yellow("[ExtensionFlow][C7a] No bounty progress after two M rounds; per doc do not kill D3, still run map_teleport action group")
+        _start_map_teleport_action_group(titles)
         return "running"
 
     if phase == ExtensionPhase.C_C7a_SEND_M.value:
         titles = tuple(get_payload().get("titles", list(DIABLO_III_WINDOW_TITLES))) or DIABLO_III_WINDOW_TITLES
-        # Pre-check: if map already open (bounty progress visible), do not press M, enter stable wait ticks then C7b (no sleep).
         if step_c7a_verify_bounty_progress(window_titles=titles):
             ColorPrint.green(
-                f"[ExtensionFlow][C7a] Pre-check found bounty progress, map open -> wait {C7B_AFTER_BOUNTY_STABLE_TICKS} ticks then C7b minimize (tick-driven)"
+                "[ExtensionFlow][C7a] Pre-check found bounty progress, map open -> immediately map_teleport action group (per doc: click in same tick)"
             )
-            set_phase(ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT.value)
-            set_wait_ticks_remaining(C7B_AFTER_BOUNTY_STABLE_TICKS)
+            _start_map_teleport_action_group(titles)
             return "running"
         if not step_c7a_send_m(window_titles=titles):
             run_c12_end_d3()
@@ -292,34 +286,10 @@ def extension_flow_tick_step(
         return "running"
 
     if phase == ExtensionPhase.C_C7b_MINIMIZE.value:
-        # Doc requires C7b click only after 'map open confirmed'. If this phase is set it would skip C7a, so force C7a first (M -> wait 2s -> bounty check) then C7b.
         ColorPrint.gray("[ExtensionFlow][C7b] Received C_C7b_MINIMIZE, ensure map open first: redirect to C7a")
         set_payload(PAYLOAD_KEY_C7A_ROUND, 1)
         set_phase(ExtensionPhase.C_C7a_SEND_M.value)
         return "running"
-
-    if phase == ExtensionPhase.C_C7b_TELEPORT.value:
-        titles = tuple(get_payload().get("titles", list(DIABLO_III_WINDOW_TITLES))) or DIABLO_III_WINDOW_TITLES
-        provider = get_screenshot_provider()
-        sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
-        if not sd or not sd.game_window_image:
-            reset_state()
-            return "fallthrough"
-        window_offset = sd.window_offset or (0, 0)
-        game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
-        is_windowed = get_game_interface_data().is_windowed_mode()
-        if not step_c7b_teleport_only(provider, titles, window_offset, game_window_size, is_windowed):
-            reset_state()
-            return "fallthrough"
-        get_game_interface_data().set_d3_status(True)
-        get_rosbot_manager().kill_if_running()
-        if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
-            set_f3_rosbot_started_at()
-            start_rosbot_task_fn()
-            # Do not block tick with run_after_rosbot_start; extension thread will run it when in cooldown (game_tool + skip try_fragment2).
-        set_last_teleport_success_time(time.time())
-        reset_state()
-        return "success"
 
     return "running"
 

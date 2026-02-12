@@ -7,15 +7,50 @@ returns an operation bound to that region so get_dynamic_state() uses only the k
 d3utils.battlenet_region_judge.BattlenetRegionJudge; Asia login UI details in d3utils.battlenet_asia_ops.
 """
 
+import json
+from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
-from providor.providor_index import get_config_value_safe, set_config_value_async
+from providor.providor_index import get_config_value_safe, set_config_value_async, BATTLE_NET_CONFIG_PATH
+from providor.constants.common import (
+    BATTLE_NET_CONFIG_SERVICES_KEY,
+    BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY,
+    BATTLE_NET_CONFIG_REGION_CN,
+)
 
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.battlenet_operation import get_battlenet_operation
 from d3utils.status_provider_common import refresh_window_state
+
+
+def _read_region_from_battlenet_config() -> Optional[str]:
+    """
+    Read Battle.net region from config file: ~/AppData/Roaming/Battle.net/Battle.net.config
+    Returns "asia" if Services.LastLoginRegion is not "CN", "cn" if it is "CN", or None if not found/invalid.
+    Path uses os.path.expanduser("~") to get current user's home directory automatically.
+    """
+    config_path = Path(BATTLE_NET_CONFIG_PATH)
+    if not config_path.exists():
+        return None
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.yellow(f"[BattlenetStatusProvider] Failed to read config file: {e}")
+        return None
+    if not isinstance(data, dict):
+        return None
+    services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    if not isinstance(services, dict):
+        return None
+    last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    if not last_login_region or not isinstance(last_login_region, str):
+        return None
+    if last_login_region == BATTLE_NET_CONFIG_REGION_CN:
+        return "cn"
+    return "asia"
 
 
 def _find_battlenet_windows() -> List[Dict[str, Any]]:
@@ -26,24 +61,31 @@ def _find_battlenet_windows() -> List[Dict[str, Any]]:
 def _detect_battlenet_dynamic(found: bool, window_info_or_none: Optional[Dict[str, Any]]) -> Tuple[bool, bool, bool]:
     """
     Detect Battle.net dynamic state: (on_login_screen, disconnected, normal_available).
-    Uses preferred_region from cache when set so we try only that region; on match updates region and persists cache.
+    Region is initialized from Battle.net.config file during game data initialization.
+    If region is not set, try reading from config file or cache as fallback.
+    UI detection is no longer used for region detection (only for dynamic state).
     """
     if not found:
         return (False, False, False)
     game_data = get_game_interface_data()
     if game_data.get_battlenet_region() is None:
-        cached = get_config_value_safe("ros_settings.battlenet_region_cache")
-        if cached in ("asia", "cn"):
-            game_data.set_battlenet_region(cached)
+        # Fallback: try reading from Battle.net.config file (should already be set during init)
+        config_region = _read_region_from_battlenet_config()
+        if config_region in ("asia", "cn"):
+            game_data.set_battlenet_region(config_region)
+            set_config_value_async("ros_settings.battlenet_region_cache", config_region)
+        else:
+            # Fallback to config cache
+            cached = get_config_value_safe("ros_settings.battlenet_region_cache")
+            if cached in ("asia", "cn"):
+                game_data.set_battlenet_region(cached)
     preferred_region = game_data.get_battlenet_region()
     try:
         op = get_battlenet_operation()
         ColorPrint.gray("[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...")
-        on_login, disconnected, normal_available, _play_name, _connecting, region_detected = op.get_dynamic_state()
+        on_login, disconnected, normal_available, _play_name, _connecting, _region_detected = op.get_dynamic_state()
         ColorPrint.gray("[BattlenetStatusProvider] progress: get_dynamic_state done")
-        if region_detected in ("asia", "cn"):
-            game_data.set_battlenet_region(region_detected)
-            set_config_value_async("ros_settings.battlenet_region_cache", region_detected)
+        # Region is no longer updated from UI detection; it's set from config file during initialization
         if disconnected:
             return (False, True, False)
         if on_login:
@@ -56,10 +98,10 @@ def _detect_battlenet_dynamic(found: bool, window_info_or_none: Optional[Dict[st
         return (False, False, False)
 
 
-def refresh_battlenet_status() -> Optional[Dict[str, Any]]:
+def _refresh_battlenet_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
     """
-    Detect Battle.net window and dynamic state; update game_interface_data via shared refresh flow.
-    No geometry to apply (unlike D3). Returns Battle.net window info or None.
+    Internal: Detect Battle.net window and dynamic state; update game_interface_data via shared refresh flow.
+    Returns (Battle.net window info or None, state_changed: bool).
     """
     game_data = get_game_interface_data()
     ColorPrint.gray("[BattlenetStatusProvider] progress: find_windows...")
@@ -68,15 +110,15 @@ def refresh_battlenet_status() -> Optional[Dict[str, Any]]:
     ColorPrint.gray(f"[BattlenetStatusProvider] Battle.net window: {'found' if window_info else 'not found'}")
     ColorPrint.gray("[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...")
 
-    def set_running(g: Any, found: bool) -> None:
-        g.set_battlenet_status(found)
+    def set_running(g: Any, found: bool) -> bool:
+        return g.set_battlenet_status(found)
 
-    def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> None:
-        g.set_battlenet_dynamic_status(
+    def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> bool:
+        return g.set_battlenet_dynamic_status(
             on_login_screen=on_login, disconnected=disconnected, normal_available=third
         )
 
-    refresh_window_state(
+    state_changed = refresh_window_state(
         game_data,
         window_info,
         set_running_fn=set_running,
@@ -86,6 +128,15 @@ def refresh_battlenet_status() -> Optional[Dict[str, Any]]:
         log_prefix="[BattlenetStatusProvider]",
     )
     ColorPrint.gray("[BattlenetStatusProvider] progress: refresh_window_state done")
+    return (window_info, state_changed)
+
+
+def refresh_battlenet_status() -> Optional[Dict[str, Any]]:
+    """
+    Detect Battle.net window and dynamic state; update game_interface_data via shared refresh flow.
+    No geometry to apply (unlike D3). Returns Battle.net window info or None (backward compatible).
+    """
+    window_info, _ = _refresh_battlenet_status_internal()
     return window_info
 
 

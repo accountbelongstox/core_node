@@ -97,9 +97,9 @@ flowchart TB
         F1c_EndD3["[F1c] 结束 D3 进程"]
         F1d_Offline["[F1d] 识别到掉线"]
         F2_RosbotOnline{"[F2] ROSBOT 是否在线？"}
-        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>起算：启动时 D3+ROSBOT 已存在→日志最后修改时间；本次刚启动→刚启动时间（按 UI 设置时长）"}
+        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）<br/>Process gone：mark 原因 F7 sent=normal_pause else=test_debug_exit（F4b/面板/Debug 发 F7 时 set_f7_sent；status_provider 或 F3 超时处 mark）<br/>Test：record 时长 count++；count=1 且 elapsed>=50%% recorded→F4a；count>=2 且 elapsed>=recorded→发 F7，等 50%%→[E2] 1s 继续（不关 D3）"}
         F4a_EndD3["[F4a] 关闭 D3"]
-        F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT"]
+        F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT<br/>set_f7_sent（之后 process gone 记为 normal_pause）"]
         F_Entry --> F1_HasD3
         F1_HasD3 -->|"否<br/>→B2 当前是否有战网窗口？"| B2_HasWin
         F1_HasD3 -->|"是，启动时已存在<br/>→C1 入口"| C1_Entry
@@ -116,7 +116,7 @@ flowchart TB
     subgraph C["C D3 已运行直连"]
         C1_Entry["[C1] 入口"]
         C2_Resize["[C2] 将 D3 窗口缩放到标准分辨率"]
-        C3_Step["[C3] 截屏识图与识图结果<br/>一步内：截屏→识图→若识别到 d3_start_game_button 则点击并重置 1 分钟（开始游戏可能卡住并重新开始）；若识别到 game_tool/disconnected 则分支；若识别到 d3_connecting 或 d3_connecting_alt 则继续 wait；超时则未识别"]
+        C3_Step["[C3] 截屏识图与识图结果<br/>计时起点 [C2] 完成，超时 60s<br/>一步内：截屏→识图→d3_start_game_button 则点击并重置 1min（可重复点击防卡）；game_tool/disconnected 分支；d3_connecting/alt 继续 wait；超时未识别<br/>d3_disconnected 连续两次匹配才→F1d；单次弱匹配不分支"]
         C3_Result{"[C3] 识图结果"}
         C3_GameToolOrigin{"[C3] 游戏来源？<br/>刚进入游戏 or 启动时已存在"}
         C3w_Wait["[C3w] wait"]
@@ -241,10 +241,3 @@ flowchart TB
         E6_Done --> F3_LogTimeout
     end
 ```
-
-## C3 超时与 start 重置说明
-
-- **超时时长**：1 分钟（60 秒）；**计时起点**：进入 C3 循环（C2 完成后）。
-- **检测到 d3_start_game_button 则点击并重置**：循环过程中只要识别到「开始游戏」按钮，则执行点击并将 1 分钟计时重置；若多次检测到则每次点击并重置。
-- **开始游戏可能卡住并重新开始**：上述行为用于处理开始游戏界面卡住的情况，通过反复点击并重置计时避免误判超时。
-- **游戏掉线**：C3 识图结果为 d3_disconnected 时，需**连续两次**截图识图均为 disconnect 才分支至 F1d_Offline，避免单次弱匹配（如 4 inliers）误判杀 D3。

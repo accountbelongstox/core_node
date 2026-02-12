@@ -237,6 +237,15 @@ def get_full_state(line: str) -> Tuple[str, str, str]:
 # Level: no leading whitespace = 0, continuation (leading space/indent) = 1; extend to 2,3,... if multi-level later
 _INDENT_TOP = "tabs=0, U+0020=0"
 
+# Extract tab count from indent_key (e.g. "tabs=2, U+0020=0" -> 2). Used for history multi-level.
+_TABS_PREFIX_RE = re.compile(r"^tabs=(\d+)")
+
+
+def _indent_key_to_n_tabs(indent_key: str) -> int:
+    """Parse leading tab count from indent_key. Returns 0 if not matched."""
+    m = _TABS_PREFIX_RE.match(indent_key.strip())
+    return int(m.group(1), 10) if m else 0
+
 
 def indent_key_to_level(indent_key: str) -> int:
     """
@@ -245,6 +254,18 @@ def indent_key_to_level(indent_key: str) -> int:
     if indent_key == _INDENT_TOP:
         return 0
     return 1
+
+
+def indent_key_to_level_history(indent_key: str) -> int:
+    """
+    History-mode level: use tab count as level. 0 = new entry, 1/2/3 = hierarchy; 4+ treated as
+    repeat (same semantic level as 3) so they do not create a deeper level. Aligned with
+    docs/test_docdir_2/HistoryReader.md: 4-tab lines are fixed repeat, not a new semantic level.
+    """
+    n_tabs = _indent_key_to_n_tabs(indent_key)
+    if n_tabs <= 0:
+        return 0
+    return min(n_tabs, 3)
 
 
 def analyze_log_all_states(
@@ -352,6 +373,74 @@ def analyze_log_blocks(
         indent_k = k.split(" | ", 1)[0]
         state_level[k] = indent_key_to_level(indent_k)
         state_parent_level[k] = (state_level[k] - 1) if state_level[k] > 0 else None
+    for head, children in head_to_children.items():
+        state_child_keys[head] = sorted(set(children))
+    for k in all_keys:
+        if k not in state_child_keys:
+            state_child_keys[k] = []
+
+    return {
+        "path": log_path,
+        "total_non_empty": total,
+        "indent_states_seen": sorted(indent_states_seen),
+        "message_types_seen": sorted(message_types_seen),
+        "state_to_count": dict(state_to_count),
+        "state_to_sample": state_to_sample,
+        "num_full_states": len(state_to_count),
+        "state_level": state_level,
+        "state_parent_level": state_parent_level,
+        "state_child_keys": state_child_keys,
+    }
+
+
+def analyze_history_blocks(
+    log_path: str, max_lines: int = 0
+) -> Dict[str, Any]:
+    """
+    Like analyze_log_blocks but uses indent_key_to_level_history for multi-level (0/1/2/3;
+    4+ treated as 3). Builds parent-child by level: level 1 under level 0, level 2 under
+    level 1, level 3 under level 2. Returns same shape plus state_level (0..3), state_parent_level,
+    state_child_keys (direct children per key).
+    """
+    if not os.path.isfile(log_path):
+        return {"error": "file not found", "path": log_path}
+    state_to_count: Dict[str, int] = defaultdict(int)
+    state_to_sample: Dict[str, str] = {}
+    indent_states_seen: set = set()
+    message_types_seen: set = set()
+    total = 0
+    head_to_children: Dict[str, List[str]] = defaultdict(list)
+    stack: List[Tuple[int, str]] = []  # (level, full_key)
+
+    with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if max_lines and total >= max_lines:
+                break
+            s = line.rstrip("\n\r")
+            if not s.strip():
+                continue
+            indent_k, msg_type, full_key = get_full_state(s)
+            level = indent_key_to_level_history(indent_k)
+            indent_states_seen.add(indent_k)
+            message_types_seen.add(msg_type)
+            state_to_count[full_key] += 1
+            if full_key not in state_to_sample:
+                sample = s.strip()[:100] + ("..." if len(s.strip()) > 100 else "")
+                state_to_sample[full_key] = sample
+            total += 1
+
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            if stack:
+                head_to_children[stack[-1][1]].append(full_key)
+            stack.append((level, full_key))
+
+    all_keys = set(state_to_count.keys())
+    state_level = {k: indent_key_to_level_history(k.split(" | ", 1)[0]) for k in all_keys}
+    state_parent_level: Dict[str, Optional[int]] = {}
+    for k in all_keys:
+        state_parent_level[k] = (state_level[k] - 1) if state_level[k] > 0 else None
+    state_child_keys: Dict[str, List[str]] = {}
     for head, children in head_to_children.items():
         state_child_keys[head] = sorted(set(children))
     for k in all_keys:

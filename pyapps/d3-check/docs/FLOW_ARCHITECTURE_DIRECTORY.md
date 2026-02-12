@@ -35,6 +35,9 @@ pyapps/d3-check/
 │   │   ├── flow_master_driver.py   # Flow-master: tick driver + step enums + last-result state (F0 action, extension result, F3 result)
 │   │   ├── extension_flow_state.py # Extension (C branch) phase/deadline/payload; used by flow_master_driver
 │   │   ├── extension_flow_tick_step.py
+│   │   ├── action_groups/         # Action groups: one step per tick; see docs/ACTION_GROUPS_DESIGN.md
+│   │   │   ├── __init__.py        # Registry, ActionGroupDef, register/get
+│   │   │   └── map_teleport.py    # Map teleport group (minimize -> wait 1 tick -> teleport)
 │   │   │
 │   │   # ---- Shared by flow-master (sub-steps, not flows) ----
 │   │   ├── flow_a_entry_timer.py

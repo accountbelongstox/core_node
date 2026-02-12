@@ -36,6 +36,7 @@ from d3utils.interface_manager import get_d3_interface_manager
 from d3utils.collectors.bag_info_collector import get_bag_info_collector
 from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_detector
 from d3utils.debug_bag_hover import run_debug_bag_hover
+from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
 from share.template_match_debug import (
     set_debug_ui_active,
     clear as debug_clear,
@@ -549,8 +550,12 @@ class AuxiliaryFunctionsPanel:
             # Column 2: debug button; same row height as left (sticky ns), style consistent with section
             def _make_debug_cmd(slug):
                 def _run():
-                    if slug == "kanai_upgrade":
-                        timer_manager.submit_one_shot(run_debug_bag_hover)
+                    if slug in ("kanai_upgrade", "blacksmith"):
+                        def on_blacksmith_debug():
+                            aux = (CONFIG.get("macro_configs", {}) or {}).get("auxiliary_config", {}) or {}
+                            keep = (aux.get("auto_salvage") or {}).get("keep", "keep_ancient_plus")
+                            get_blacksmith_handler().handle_auto_salvage_by_slots(keep, debug_only=False)
+                        timer_manager.submit_one_shot(lambda: run_debug_bag_hover(on_blacksmith_debug=on_blacksmith_debug))
                     else:
                         ColorPrint.blue(f"[AuxPanel] Debug: {slug} (placeholder)")
                 return _run
@@ -757,8 +762,7 @@ class AuxiliaryFunctionsPanel:
         def _refresh(info_widget, img_widget, small_img_widget, w):
             no_img_msg = i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image")
             no_data_msg = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data")
-            manager = get_d3_interface_manager()
-            manager.collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
+            get_d3_interface_manager().collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
             game_data = get_game_interface_data()
             img = game_data.game_window_image
             coords = game_data.bag_coordinates

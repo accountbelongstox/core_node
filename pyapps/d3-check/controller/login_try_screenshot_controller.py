@@ -568,16 +568,27 @@ class LoginTryScreenshotController:
     def ensure_battlenet_started_and_login_check(self) -> bool:
         """
         Step 1 for starting ROSBOT: ensure Battle.net window, capture screenshot. Three states, reuse code only, do not mix flows:
-        D3-already-running (C branch): if D3 window exists, [C2] resize then [C3] loop (screenshot+match all) -> branch:
+        - F3-only (early return): D3 and ROSBOT both present -> return True immediately; flow master tick does log timeout only.
+        - D3-already-running (C branch): if D3 window exists, [C2] resize then [C3] loop (screenshot+match all) -> branch:
           start -> try_fragment1; game_tool -> try_fragment2; disconnect -> F1d+F1c; other/timeout -> kill D3, fall to D.
-        Battle.net flow (D block): ensure BN window, kill D3, activate BN, click D3 tab + Play. [D12] sleep(5), [D13] poll D3 window 10s.
+        - Battle.net flow (D block): ensure BN window, kill D3, activate BN, click D3 tab + Play. [D12] sleep(5), [D13] poll D3 window 10s.
         D13 Yes -> [C1] C2 resize, [C3] loop + branch (same as C); success -> start ROSBOT; fallthrough -> restart BN, retry from step 1.
-        Returns True if step completed (C branch or D13->C path success), False if config missing or window unavailable.
+        Returns True if step completed (F3-only skip, C branch success, or D13->C path success), False if config missing or window unavailable.
+
+        Caller compatibility when returning True in F3-only:
+        - rosbot_extension_panel / D3ExtensionThread: result=True -> _on_login_check_done(success=True); run_f2_rosbot_online() then returns "f3" (ROSBOT already online), so E1-E6 are not run. UI shows rosbot_running=True, task enabled. Correct.
+        - one_shot_tasks.do_start_d3: ignores return value. Correct.
         """
         bn_path = get_battlenet_manager().get_path()
         if not bn_path:
             ColorPrint.yellow("[LoginTryScreenshotController] No battlenet.battlenet_path in config, skip step 1")
             return False
+
+        # F3-only mode: D3 and ROSBOT both present. Flow master tick handles log timeout only; do not run C/D branch here (no C1/C2/C3, no screenshots, no C10).
+        g = get_game_interface_data()
+        if g.d3_running and g.rosbot_extended_status in ("running", "paused"):
+            ColorPrint.gray("[LoginTryScreenshotController] F3-only mode (D3+ROSBOT both present), skip C/D branch; flow master handles log timeout only")
+            return True
 
         # Doc F1->C1: check if D3 is running first; when D3 already running go direct to C branch, use this tick refresh to avoid re-querying Battle.net
         has_d3_process = get_d3_manager().is_running()

@@ -18,9 +18,9 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import get_flow_master_enabled
-from d3utils.d3_status_provider import refresh_d3_status
-from d3utils.battlenet_status_provider import refresh_battlenet_status
-from d3utils.rosbot_status_provider import refresh_rosbot_status
+from d3utils.d3_status_provider import _refresh_d3_status_internal
+from d3utils.battlenet_status_provider import _refresh_battlenet_status_internal
+from d3utils.rosbot_status_provider import _refresh_rosbot_status_internal
 from d3utils.rosbot_flow_battlenet import tick_battlenet_ready_flow
 from d3utils.rosbot_flow.flow_bn_block_state import (
     get_bn_flow_ever_confirmed,
@@ -34,7 +34,7 @@ from d3utils.rosbot_flow_f4_close_d3_send_f7 import run_f4_close_d3_send_f7
 from d3utils.rosbot_flow.extension_flow_state import (
     is_idle as extension_flow_is_idle,
     reset_state as extension_reset_state,
-    is_in_c7b_click_event_group,
+    is_in_action_group,
 )
 from d3utils.rosbot_flow.extension_flow_tick_step import (
     extension_flow_tick_step,
@@ -87,6 +87,12 @@ class ExtensionStepResult(str, Enum):
 _last_f0_action: Optional[str] = None
 _last_extension_result: Optional[str] = None
 _last_f3_result: Optional[str] = None
+# F3-only mode refresh throttling: refresh every N ticks (default 5 = 10s at 2s/tick)
+_f3_only_refresh_counter: int = 0
+_F3_ONLY_REFRESH_INTERVAL_TICKS: int = 5
+# In F3-only, when D3+ROSBOT already present, refresh ROSBOT only every M refresh cycles to reduce lookup (D3 still every 5 ticks)
+_f3_only_rosbot_refresh_cycle: int = 0
+_F3_ONLY_ROSBOT_REFRESH_EVERY_N_CYCLES: int = 2
 
 
 def get_last_f0_action() -> Optional[str]:
@@ -132,17 +138,25 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
     if not get_flow_master_enabled():
         return
 
-    # Step: REFRESH_FOR_ROUTING — Light D3 + ROSBOT for this tick's gate and F0. Inside event group (C7b click sequence) do not refresh, run extension step only for coherent clicks.
-    in_c7b_event = not extension_flow_is_idle() and is_in_c7b_click_event_group()
-    if not in_c7b_event:
-        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_FOR_ROUTING.value}: light D3 + ROSBOT...")
-        refresh_d3_status(skip_dynamic=True)
-        refresh_rosbot_status()
-        g.notify_state_sync()
-
     # Step: F3_ONLY_MODE — Architecture gate: after teleport D3+ROSBOT both present -> F3 only, no C
+    # Optimize: refresh D3 every N ticks; ROSBOT only every M refresh cycles (state stable, manager cache also reduces lookup)
     if _is_f3_only_mode():
         extension_reset_state()
+        global _f3_only_refresh_counter, _f3_only_rosbot_refresh_cycle
+        _f3_only_refresh_counter += 1
+        should_refresh = (_f3_only_refresh_counter % _F3_ONLY_REFRESH_INTERVAL_TICKS == 0)
+        if should_refresh:
+            _f3_only_rosbot_refresh_cycle += 1
+            do_rosbot_refresh = (_f3_only_rosbot_refresh_cycle % _F3_ONLY_ROSBOT_REFRESH_EVERY_N_CYCLES == 1)
+            ColorPrint.gray(
+                f"[FlowMaster] step={FlowMasterStep.REFRESH_FOR_ROUTING.value}: F3-only refresh (every {_F3_ONLY_REFRESH_INTERVAL_TICKS} ticks, ROSBOT every {_F3_ONLY_ROSBOT_REFRESH_EVERY_N_CYCLES} cycles)..."
+            )
+            _, d3_changed = _refresh_d3_status_internal(skip_dynamic=True)
+            rosbot_changed = False
+            if do_rosbot_refresh:
+                _, rosbot_changed = _refresh_rosbot_status_internal()
+            if d3_changed or rosbot_changed:
+                g.notify_state_sync()
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_ONLY_MODE.value}: D3+ROSBOT both present -> log timeout only")
         step = run_f3_log_timeout()
         _set_last_f3_result(step)
@@ -152,15 +166,25 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
             enter_battlenet_at_b2(_FM_BN)
         return
 
-    # Step: EXTENSION_TICK — Run C branch only when not in F3-only and extension not idle. Inside event group do not full refresh first, run extension_flow_tick_step directly; after click event ticks complete, resume.
+    # Step: REFRESH_FOR_ROUTING — Light D3 + ROSBOT for this tick's gate and F0. Inside action group do not refresh (one step per tick only); see ACTION_GROUPS_DESIGN.md.
+    in_action = not extension_flow_is_idle() and is_in_action_group()
+    if not in_action:
+        ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.REFRESH_FOR_ROUTING.value}: light D3 + ROSBOT...")
+        _, d3_changed = _refresh_d3_status_internal(skip_dynamic=True)
+        _, rosbot_changed = _refresh_rosbot_status_internal()
+        if d3_changed or rosbot_changed:
+            g.notify_state_sync()
+
+    # Step: EXTENSION_TICK — Run C branch when not in F3-only and extension not idle. Inside action group skip full refresh, run one action step per tick.
     if not extension_flow_is_idle():
-        if is_in_c7b_click_event_group():
-            ColorPrint.gray("[FlowMaster] in C7b click event group, skip refresh, extension_flow_tick_step only")
+        if is_in_action_group():
+            ColorPrint.gray("[FlowMaster] in action group, skip refresh, extension_flow_tick_step (one step) only")
         else:
             ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.EXTENSION_TICK.value}: full D3+ROSBOT, extension_flow_tick_step...")
-            refresh_d3_status(skip_dynamic=False)
-            refresh_rosbot_status()
-            g.notify_state_sync()
+            _, d3_changed = _refresh_d3_status_internal(skip_dynamic=False)
+            _, rosbot_changed = _refresh_rosbot_status_internal()
+            if d3_changed or rosbot_changed:
+                g.notify_state_sync()
         result = extension_flow_tick_step(tick_count, start_rosbot_task)
         _set_last_extension_result(result)
         if result == ExtensionStepResult.SUCCESS.value:
@@ -188,8 +212,9 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
     if action == F0Action.B1.value:
         # Battle.net: refresh BN only, skip D3 full and ROSBOT
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B1.value}: refresh BN only (skip D3 full, ROSBOT)...")
-        refresh_battlenet_status()
-        g.notify_state_sync()
+        _, bn_changed = _refresh_battlenet_status_internal()
+        if bn_changed:
+            g.notify_state_sync()
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B1.value}: tick_battlenet_ready_flow(no_activate=False)...")
         done, result = tick_battlenet_ready_flow(no_activate=False)
         if done and result == "confirmed":
@@ -197,16 +222,18 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None]) -> 
             trigger_extension_rosbot_start()
     elif action == F0Action.B2.value:
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B2.value}: refresh BN only, enter_battlenet_at_b2...")
-        refresh_battlenet_status()
-        g.notify_state_sync()
+        _, bn_changed = _refresh_battlenet_status_internal()
+        if bn_changed:
+            g.notify_state_sync()
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_B2.value}: enter_battlenet_at_b2...")
         enter_battlenet_at_b2(_FM_BN)
     elif action == F0Action.C1.value:
         # D3/ROSBOT flow: refresh D3+ROSBOT only, skip BN full
         ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F0_ACTION_C1.value}: refresh D3+ROSBOT only (skip BN)...")
-        refresh_d3_status(skip_dynamic=False)
-        refresh_rosbot_status()
-        g.notify_state_sync()
+        _, d3_changed = _refresh_d3_status_internal(skip_dynamic=False)
+        _, rosbot_changed = _refresh_rosbot_status_internal()
+        if d3_changed or rosbot_changed:
+            g.notify_state_sync()
         # Enter C branch (teleport + start ROS) only when extension idle, D3 present, ROSBOT not yet running; after teleport and ROS start do not re-enter C, only F3 log timeout
         need_c_branch = (
             extension_flow_is_idle()

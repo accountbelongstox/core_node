@@ -54,11 +54,10 @@ def _apply_d3_geometry(game_data: Any, window_info_or_none: Optional[Dict[str, A
             game_data._window_title = None
 
 
-def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]:
+def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional[Dict[str, Any]], bool]:
     """
-    Detect D3 window and optionally dynamic state; update game_interface_data.
-    skip_dynamic=True: only find window + geometry (no screenshot/SIFT). Use for status refresh (startup, manual). Flow uses skip_dynamic=False.
-    Returns D3 window info or None.
+    Internal: Detect D3 window and optionally dynamic state; update game_interface_data.
+    Returns (D3 window info or None, state_changed: bool).
     """
     game_data = get_game_interface_data()
     ColorPrint.gray("[D3StatusProvider] progress: find_windows...")
@@ -70,14 +69,14 @@ def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]
         get_d3_manager().prime_window_cache_for_capture()
     ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state...")
 
-    def set_running(g: Any, found: bool) -> None:
-        g.set_d3_status(found)
+    def set_running(g: Any, found: bool) -> bool:
+        return g.set_d3_status(found)
 
-    def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> None:
-        g.set_d3_dynamic_status(on_login_screen=on_login, disconnected=disconnected, in_game=third)
+    def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> bool:
+        return g.set_d3_dynamic_status(on_login_screen=on_login, disconnected=disconnected, in_game=third)
 
     detect_fn = (_noop_detect_dynamic if skip_dynamic else _detect_d3_dynamic)
-    refresh_window_state(
+    state_changed = refresh_window_state(
         game_data,
         window_info,
         set_running_fn=set_running,
@@ -87,6 +86,16 @@ def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]
         log_prefix="[D3StatusProvider]",
     )
     ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state done")
+    return (window_info, state_changed)
+
+
+def refresh_d3_status(*, skip_dynamic: bool = False) -> Optional[Dict[str, Any]]:
+    """
+    Detect D3 window and optionally dynamic state; update game_interface_data.
+    skip_dynamic=True: only find window + geometry (no screenshot/SIFT). Use for status refresh (startup, manual). Flow uses skip_dynamic=False.
+    Returns D3 window info or None (backward compatible).
+    """
+    window_info, _ = _refresh_d3_status_internal(skip_dynamic=skip_dynamic)
     return window_info
 
 
