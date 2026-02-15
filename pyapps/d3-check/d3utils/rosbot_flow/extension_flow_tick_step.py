@@ -49,7 +49,7 @@ from d3utils.rosbot_flow.flow_c_d3_direct import (
     run_c4_disconnect_then_f1d_f1c,
     run_c12_end_d3,
 )
-from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
+from d3utils.rosbot_flow_f3_baseline import set_f3_rosbot_started_at
 from providor.constants.d3 import C3_DEADLINE_TICKS
 
 

@@ -88,7 +88,7 @@ from d3utils.rosbot_flow.flow_c_d3_direct import (
     run_c12_end_d3,
 )
 from d3utils.rosbot_flow.extension_flow_state import get_last_teleport_success_time, set_last_teleport_success_time
-from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
+from d3utils.rosbot_flow_f3_baseline import set_f3_rosbot_started_at
 from d3utils.battlenet_template_matcher import match_battlenet_template
 from d3utils.battlenet_match_debug import debug_all_match_methods as run_battlenet_match_debug
 from d3utils.d3u_common.image_annotator_helper import save_match_debug_image, save_no_match_debug_image, save_click_debug_image
@@ -565,15 +565,16 @@ class LoginTryScreenshotController:
         run_c12_end_d3()
         return "fallthrough"
 
-    def ensure_battlenet_started_and_login_check(self) -> bool:
+    def ensure_battlenet_started_and_login_check(self, for_f2_only: bool = False) -> bool:
         """
         Step 1 for starting ROSBOT: ensure Battle.net window, capture screenshot. Three states, reuse code only, do not mix flows:
         - F3-only (early return): D3 and ROSBOT both present -> return True immediately; flow master tick does log timeout only.
+        - for_f2_only: when True (caller is extension thread before F2), only confirm A8 (BN+D3); do NOT run C branch (no screenshot/M/teleport). F2 then decides ROSBOT online -> f3 or c1 -> E1-E6.
         - D3-already-running (C branch): if D3 window exists, [C2] resize then [C3] loop (screenshot+match all) -> branch:
           start -> try_fragment1; game_tool -> try_fragment2; disconnect -> F1d+F1c; other/timeout -> kill D3, fall to D.
         - Battle.net flow (D block): ensure BN window, kill D3, activate BN, click D3 tab + Play. [D12] sleep(5), [D13] poll D3 window 10s.
         D13 Yes -> [C1] C2 resize, [C3] loop + branch (same as C); success -> start ROSBOT; fallthrough -> restart BN, retry from step 1.
-        Returns True if step completed (F3-only skip, C branch success, or D13->C path success), False if config missing or window unavailable.
+        Returns True if step completed (F3-only skip, A8-only for F2, C branch success, or D13->C path success), False if config missing or window unavailable.
 
         Caller compatibility when returning True in F3-only:
         - rosbot_extension_panel / D3ExtensionThread: result=True -> _on_login_check_done(success=True); run_f2_rosbot_online() then returns "f3" (ROSBOT already online), so E1-E6 are not run. UI shows rosbot_running=True, task enabled. Correct.
@@ -646,6 +647,9 @@ class LoginTryScreenshotController:
                 ColorPrint.gray("[LoginTryScreenshotController] D3 running but BN not confirmed; C3 one-step=connecting, do not kill D3, next tick retry")
                 return False
         if has_bn_confirmed and has_d3_process:
+            if for_f2_only:
+                ColorPrint.gray("[LoginTryScreenshotController] A8 confirmed (BN+D3), for_f2_only=True -> skip C branch, return for F2 (ROSBOT 是否在线?)")
+                return True
             if run_c1_entry(has_bn_confirmed, has_d3_process):
                 ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3, already present at start)")
                 run_c2_resize()
@@ -759,7 +763,11 @@ class LoginTryScreenshotController:
                 self._restart_battlenet_and_retry_from_step1(bn_path)
                 return False
             get_game_interface_data().set_d3_status(True)
-            # [D13] Yes, mark 'just entered game' -> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
+            # [D13] Yes, mark 'just entered game'. for_f2_only: A8 achieved (D3 just started), skip C branch and return for F2.
+            if for_f2_only:
+                ColorPrint.gray("[LoginTryScreenshotController] [D13] D3 window found, for_f2_only=True -> skip C branch, return for F2 (ROSBOT 是否在线?)")
+                return True
+            # [D13] -> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
             if run_c1_entry(True, True):
                 run_c2_resize()
                 ColorPrint.gray("[LoginTryScreenshotController] [D13] just entered game -> _run_c3_loop_and_handle_branch(d3_just_entered=True), skip C10 when game_tool")

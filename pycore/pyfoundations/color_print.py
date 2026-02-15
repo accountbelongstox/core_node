@@ -125,6 +125,7 @@ class ColorPrint:
 
     _printed_hashes = set()
     _last_print_times = {}
+    _last_print_time = 0.0  # 上次任意打印的时间，用于计算并显示距上次打印耗时
     
     @staticmethod
     def register_callback(callback):
@@ -207,6 +208,19 @@ class ColorPrint:
         _color_print_callback.notify(message, color_type, log_level)
 
     @staticmethod
+    def _message_with_elapsed(message: str) -> str:
+        """在 message 的 [title] 中注入距上次打印的耗时；若无 [title] 则前缀耗时。"""
+        now = time.time()
+        delta = 0.0 if ColorPrint._last_print_time == 0 else (now - ColorPrint._last_print_time)
+        ColorPrint._last_print_time = now
+        delta_str = f"+{delta:.2f}s"
+        # 若有 [xxx] 形式，在 ] 前插入耗时，即 [xxx +1.23s]
+        bracket_end = message.find("]")
+        if message.startswith("[") and bracket_end > 0:
+            return message[:bracket_end] + " " + delta_str + message[bracket_end:]
+        return "[" + delta_str + "] " + message
+
+    @staticmethod
     def _write(message, color, end='\n'):
         """Write colored message to configured stream"""
         # In MCP mode, suppress all output to avoid interfering with STDIO protocol
@@ -214,6 +228,7 @@ class ColorPrint:
         if ColorPrint._mcp_mode:
             return  # Completely suppress output in MCP mode
 
+        message = ColorPrint._message_with_elapsed(message)
         if ColorPrint._disable_colors:
             # Output plain text without ANSI codes
             print(message, end=end, file=ColorPrint._output_stream)

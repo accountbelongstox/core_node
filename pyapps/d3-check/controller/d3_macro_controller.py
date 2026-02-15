@@ -302,7 +302,7 @@ class D3MacroController:
                 schedule,
                 panel,
                 self.current_skill_config,
-                battlenet_login_check_provider=lambda: get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check(),
+                battlenet_login_check_provider=lambda: get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check(for_f2_only=True),
                 d4_process_fn=get_d4_controller().process,
             )
             register_extension_handlers(

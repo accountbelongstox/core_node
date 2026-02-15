@@ -8,6 +8,7 @@ default_fg: None or color key; BottomBar sets value label fg from state.
 # Row 1: (label_i18n_key, var_key, default_fg). ROS: one column, label "ROS:", value = short (window title or status).
 STATUS_ROW_1 = [
     ("rosbot.battlenet_status", "battlenet", None),
+    ("rosbot.battlenet_region_label", "battlenet_region", None),
     ("rosbot.ros_label", "ros", None),
     ("rosbot.d3_status", "d3", None),
     ("rosbot.map_status", "map", None),
