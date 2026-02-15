@@ -59,13 +59,16 @@ class FlowMasterStep(str, Enum):
 
 
 class FBlockStep(str, Enum):
-    """F block steps (ROSBOT_FLOW_MERMAID.md F pre-judge)."""
+    """F block steps (ROSBOT_FLOW_MERMAID.md F pre-judge). Node logic: F2 是→F3_Baseline→F3_LogTimeout; F3_LogTimeout 未超时→自环, 超时→F3_ProcessGone→F4a; Test count=1 50%%→F4a, count>=2 recorded→F3_Test→E2 1s."""
     F_Entry = "F_Entry"             # F0 pre-judge entry
     F1_HasD3 = "F1_HasD3"           # F1 is D3 online?
     F1c_EndD3 = "F1c_EndD3"        # F1c end D3 process
     F1d_Offline = "F1d_Offline"    # F1d detected disconnect
     F2_RosbotOnline = "F2_RosbotOnline"  # F2 is ROSBOT online?
-    F3_LogTimeout = "F3_LogTimeout"      # F3 log timeout?
+    F3_Baseline = "F3_Baseline"    # 起算：已存在→log mtime；刚启动→started_at（UI 时长）. Done inside run_f3_log_timeout().
+    F3_LogTimeout = "F3_LogTimeout"      # [F3] ROSBOT 日志超时？ Returns f3_stay | f4.
+    F3_ProcessGone = "F3_ProcessGone"    # Process gone: F7 sent=normal_pause else=test_debug_exit. mark_* in f3 when timeout+!is_running().
+    F3_Test = "F3_Test"            # Test: count=1 且 50%%→F4a; count>=2 且 elapsed>=recorded→F7, 等 50%%→[E2] 1s. Branches inside run_f3_log_timeout().
     F4a_EndD3 = "F4a_EndD3"        # F4a close D3
     F4b_SendF7 = "F4b_SendF7"      # F4b send F7 to system to close ROSBOT
 

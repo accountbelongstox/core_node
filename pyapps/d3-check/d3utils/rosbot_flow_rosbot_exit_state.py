@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Global state for ROSBOT exit reason: normal pause (F7 sent to system) vs test/debug exit (process disappeared without F7).
-Single source: set_f7_sent_for_rosbot() when sending F7 to close ROSBOT; mark_rosbot_exit_reason_when_process_gone() when detecting process gone.
-Test mode: when DEBUG exit, record DEBUG duration (from F3 baseline); tick uses it for 50%->F4a (first record) or approach->F7->50%->E2 (has record).
+F3_ProcessGone 节点逻辑：Process gone 时 mark 原因 (ROSBOT_FLOW_MERMAID).
+- set_f7_sent: F4b/面板/Debug 发 F7 时调用；之后 process gone 记为 normal_pause。
+- mark_rosbot_exit_reason_when_process_gone: status_provider 或 F3 超时处调用；F7 sent=normal_pause，否则=test_debug_exit。
+- Test：record 时长在 mark 时 count++；F3_Test 分支在 rosbot_flow_f3_log_timeout 内。
 """
 from typing import Optional
 

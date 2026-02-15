@@ -109,6 +109,7 @@ ROSBOT_PANEL_CONFIG_KEYS = [
     ("rosbot.startup", False),
     ("rosbot.monitor_start_rosbot", False),
     ("rosbot.test_mode", False),
+    ("rosbot.test_timeout_minutes", 30),
     ("battlenet.timeout_restart", True),
     ("rosbot.timeout_minutes", 8),
 ]
@@ -507,6 +508,28 @@ class RosbotExtensionPanel:
         tk.Label(timeout_frame, text=i18n_manager.get_ui_text("rosbot.minutes"),
                  bg=UnifiedStyles.COLORS['bg_secondary'],
                  fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
+
+        # Test mode: test time (minutes), same style as timeout restart
+        row += 1
+        test_time_frame = tk.Frame(settings_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
+        test_time_frame.grid(row=row, column=0, columnspan=1, sticky="w",
+                             padx=UnifiedStyles.SPACING['sm'],
+                             pady=UnifiedStyles.SPACING['xs'])
+        tk.Label(test_time_frame, text=i18n_manager.get_ui_text("rosbot.test_timeout"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'],
+                 fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
+        test_minutes_val = snapshot.get("rosbot.test_timeout_minutes", 30)
+        test_time_spin = ConfigBinding.create_spinbox_binding_with_initial(
+            test_time_frame, "rosbot.test_timeout_minutes", test_minutes_val,
+            from_=1, to=120, increment=1, default_value=30, width=4,
+            bg=UnifiedStyles.COLORS['bg_tertiary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            buttonbackground=UnifiedStyles.COLORS['bg_tertiary']
+        )
+        test_time_spin.pack(side=tk.LEFT, padx=(UnifiedStyles.SPACING['xs'], 0))
+        tk.Label(test_time_frame, text=i18n_manager.get_ui_text("rosbot.minutes"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'],
+                 fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
         ColorPrint.gray(f"[UI-DBG] _create_bot_settings EXIT t={time.time()-t0:.3f}")
 
     def _create_control_panel(self):
@@ -886,7 +909,7 @@ class RosbotExtensionPanel:
     def get_login_check_callable(self):
         """Return a callable that runs login check and returns (result: bool, error: Optional[Exception]). Only used by flow via extension thread (battlenet_login_check_provider)."""
         def _run():
-            result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+            result = get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check(for_f2_only=True)
             return (result, None)
         return _run
 

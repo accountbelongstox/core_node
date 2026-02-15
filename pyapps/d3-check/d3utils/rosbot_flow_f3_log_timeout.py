@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 [F3] ROSBOT log timeout? (ROSBOT_FLOW_MERMAID.md F block).
-Tied to UI 'timeout restart': if unchecked do not judge timeout (f3_stay); if checked use rosbot.timeout_minutes (dynamic from UI).
-Timeout baseline: if D3+ROSBOT already present at start -> use log last modified time; if ROSBOT just started this run -> use start time (else fresh start with no log update would timeout immediately).
-All ROSBOT log timeout logic must use get_rosbot_log_timeout_config() so UI settings are the single source.
-When UI test mode is on and timeout is detected, also check if ROSBOT process still exists; if not, print session duration from F3 baseline (minutes).
+Node logic 对应：
+- F3_Baseline：起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）。本文件 run_f3_log_timeout 内 baseline 选择。
+- F3_LogTimeout：本函数整体；未超时→f3_stay（回到 F3），超时→F3_ProcessGone 或 F4a。
+- F3_ProcessGone：Process gone 时 mark（F7 sent=normal_pause else=test_debug_exit）。超时且 !is_running() 时调 mark_rosbot_exit_reason_when_process_gone（rosbot_flow_rosbot_exit_state）。
+- F3_Test：count=1 且 50%%→F4a；count>=2 且 elapsed>=recorded→F7，等 50%%→[E2] 1s。本文件内 test_mode 分支。
+Tied to UI 'timeout restart': if unchecked do not judge timeout (f3_stay); if checked use rosbot.timeout_minutes (get_rosbot_log_timeout_config).
 """
 import time
 from typing import Literal, Tuple
@@ -24,10 +26,9 @@ from d3utils.rosbot_flow_rosbot_exit_state import (
     set_f7_sent_for_rosbot,
     set_test_wait_50_percent_until,
 )
+from d3utils.rosbot_flow_f3_baseline import get_f3_rosbot_started_at, set_f3_rosbot_started_at
 from d3utils.rosbot_flow.flow_e_rosbot_run import run_e2_sleep
 from pycore.pyfoundations.color_print import ColorPrint
-
-_f3_rosbot_started_at: float = 0.0
 
 
 def get_rosbot_log_timeout_config() -> Tuple[bool, int]:
@@ -41,13 +42,6 @@ def get_rosbot_log_timeout_config() -> Tuple[bool, int]:
     return (enabled, timeout_sec)
 
 
-def set_f3_rosbot_started_at() -> None:
-    """Call when ROSBOT was just started this run; F3 uses this as timeout baseline (avoid timeout on fresh start before log update)."""
-    global _f3_rosbot_started_at
-    _f3_rosbot_started_at = time.time()
-    ColorPrint.gray(f"[F3] set_f3_rosbot_started_at: started_at={_f3_rosbot_started_at:.3f}")
-
-
 def _fmt_ts(ts: float) -> str:
     if ts <= 0:
         return "-"
@@ -58,15 +52,15 @@ def _fmt_ts(ts: float) -> str:
 
 
 def run_f3_log_timeout() -> Literal["f3_stay", "f4"]:
-    """[F3] ROSBOT log timeout? Uses get_rosbot_log_timeout_config(); when test mode and timeout, check if ROSBOT process still exists and print session duration (min) from F3 baseline. Test mode: first record -> tick simulates 50%% then F4a; has record -> tick at recorded duration sends F7, simulates 50%% then E2, continue."""
+    """[F3] ROSBOT log timeout? 起算：已存在→log mtime；刚启动→started_at。Timeout+process gone 时 mark（test 传 duration）；Test：count=1 且 50%%→F4a，count>=2 且 elapsed>=recorded→F7+等 50%%→[E2] 1s（不关 D3）。ROSBOT_FLOW_MERMAID: F3_Baseline→F3_LogTimeout; 超时→F3_ProcessGone→F4a; F3_Test 分支本函数内完成。"""
     enabled, timeout_sec = get_rosbot_log_timeout_config()
     timeout_minutes = timeout_sec // 60
     now = time.time()
     last_log_ts = get_last_log_modified_time()
-    started_at = _f3_rosbot_started_at
+    started_at = get_f3_rosbot_started_at()
     test_mode = bool(get_config_value_safe("rosbot.test_mode", False))
 
-    # Test mode: in wait-50%-then-E2 state and time reached -> E2 1s, reset baseline, continue
+    # [F3_Test] Test mode: wait-50%-then-E2 到达 -> run [E2] 1s, 重置 baseline, 回到 F3
     wait_until = get_test_wait_50_percent_until()
     if test_mode and wait_until > 0 and now >= wait_until:
         clear_test_wait_50_percent()
@@ -81,7 +75,7 @@ def run_f3_log_timeout() -> Literal["f3_stay", "f4"]:
         )
         return "f3_stay"
 
-    # Fresh start: use start time as baseline, allow timeout_sec before judging timeout
+    # [F3_Baseline] 起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）
     fresh_start_window = started_at > 0 and (now - started_at) < timeout_sec + 60
     if fresh_start_window:
         baseline = started_at
@@ -105,7 +99,7 @@ def run_f3_log_timeout() -> Literal["f3_stay", "f4"]:
         f"baseline_src={baseline_src} elapsed={elapsed:.1f}s timed_out={timed_out}"
     )
 
-    # Test mode tick logic: first record -> at 50% of recorded duration go F4a; has record -> at recorded duration send F7, then wait 50% then E2
+    # [F3_Test] Test：count=1 且 50%%→F4a；count>=2 且 elapsed>=recorded→F7，等 50%%→[E2] 1s
     if test_mode and not timed_out:
         recorded = get_recorded_debug_duration_sec()
         record_count = get_debug_exit_record_count()
@@ -121,8 +115,8 @@ def run_f3_log_timeout() -> Literal["f3_stay", "f4"]:
                 )
             return "f3_stay"
 
+    # [F3_LogTimeout] 超时 → F3_ProcessGone（process gone 时 mark：F7 sent=normal_pause else=test_debug_exit）→ F4a
     if timed_out:
-        # Test mode: when timeout, check if ROSBOT process still exists; if not, mark exit reason and record DEBUG duration, print session duration (minutes)
         if not get_rosbot_manager().is_running():
             mark_rosbot_exit_reason_when_process_gone(debug_duration_sec=elapsed if test_mode else None)
             if test_mode:

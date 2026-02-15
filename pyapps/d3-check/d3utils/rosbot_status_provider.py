@@ -23,7 +23,7 @@ def _get_rosbot_detection() -> Dict[str, Any]:
 def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
     """
     Internal: Detect ROSBOT extended status and update game_interface_data.
-    When status goes from running/paused to not_found, mark global exit reason (F7 = normal pause, else = test debug exit).
+    When status goes from running/paused to not_found, mark exit reason here (no duration; F3 timeout path marks with duration for test record).
     Returns (window info if status is paused else None, state_changed: bool).
     """
     game_data = get_game_interface_data()

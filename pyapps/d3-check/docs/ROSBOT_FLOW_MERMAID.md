@@ -97,7 +97,10 @@ flowchart TB
         F1c_EndD3["[F1c] 结束 D3 进程"]
         F1d_Offline["[F1d] 识别到掉线"]
         F2_RosbotOnline{"[F2] ROSBOT 是否在线？"}
-        F3_LogTimeout{"[F3] ROSBOT 日志超时？<br/>起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）<br/>Process gone：mark 原因 F7 sent=normal_pause else=test_debug_exit（F4b/面板/Debug 发 F7 时 set_f7_sent；status_provider 或 F3 超时处 mark）<br/>Test：record 时长 count++；count=1 且 elapsed>=50%% recorded→F4a；count>=2 且 elapsed>=recorded→发 F7，等 50%%→[E2] 1s 继续（不关 D3）"}
+        F3_LogTimeout{"[F3] ROSBOT 日志超时？"}
+        F3_Baseline["起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）"]
+        F3_ProcessGone["Process gone：F7 sent=normal_pause else=test_debug_exit"]
+        F3_Test["Test：count=1 且 50%%→F4a；count>=2 且 elapsed>=recorded→F7，等 50%%→[E2] 1s"]
         F4a_EndD3["[F4a] 关闭 D3"]
         F4b_SendF7["[F4b] 向系统发送 F7 关闭 ROSBOT<br/>set_f7_sent（之后 process gone 记为 normal_pause）"]
         F_Entry --> F1_HasD3
@@ -106,9 +109,14 @@ flowchart TB
         F1c_EndD3 --> F_Entry
         F1d_Offline --> F1c_EndD3
         F2_RosbotOnline -->|"否<br/>→E1 结束已有 ROSBOT"| E1_Kill
-        F2_RosbotOnline -->|是| F3_LogTimeout
+        F2_RosbotOnline -->|是| F3_Baseline
+        F3_Baseline --> F3_LogTimeout
         F3_LogTimeout -->|"未超时<br/>回到 F3"| F3_LogTimeout
-        F3_LogTimeout -->|超时| F4a_EndD3
+        F3_LogTimeout -->|超时| F3_ProcessGone
+        F3_ProcessGone --> F4a_EndD3
+        F3_LogTimeout -->|Test count=1 50%%| F4a_EndD3
+        F3_LogTimeout -->|Test count>=2 recorded| F3_Test
+        F3_Test --> E2_Sleep
         F4a_EndD3 --> F4b_SendF7
         F4b_SendF7 --> B2_HasWin
     end
