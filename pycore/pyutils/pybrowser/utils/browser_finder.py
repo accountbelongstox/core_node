@@ -4,15 +4,48 @@ Browser Finder Utilities
 
 Automatically find Chrome, Edge, Firefox browser executables and their WebDrivers.
 Ported from puppeteer_spider_v2 EdgeFinder.js and ChromeFinder.js
+When driver not found, can auto-download via webdriver_manager and cache result.
 """
 
+import json
 import os
 import platform
 import shutil
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+import zipfile
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
+
 from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+
+_CACHE_FILE = Path.home() / ".core_node" / "pybrowser_finder_cache.json"
+_CACHE: Dict[str, Dict[str, str]] = {"browser": {}, "driver": {}}
+
+
+def _load_cache() -> None:
+    """Load cache from disk if file exists."""
+    global _CACHE
+    if _CACHE_FILE.exists():
+        try:
+            with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            _CACHE["browser"] = data.get("browser", {})
+            _CACHE["driver"] = data.get("driver", {})
+        except Exception:
+            pass
+
+
+def _save_cache() -> None:
+    """Persist cache to disk."""
+    _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_CACHE, f, indent=2)
+    except Exception:
+        pass
+
+
+_load_cache()
 
 
 class BrowserFinder:
@@ -57,6 +90,13 @@ class BrowserFinder:
         wide_search_path = self.wide_range_search()
         if wide_search_path:
             return wide_search_path
+
+        # Step 5: Subclass hook (e.g. auto-download Chrome to D:\.dev_win10)
+        after = getattr(self, "find_after_not_found", None)
+        if callable(after):
+            path = after()
+            if path:
+                return path
 
         ColorPrint.yellow(f"{self.__class__.__name__} executable not found")
         return None
@@ -332,8 +372,10 @@ class ChromeFinder(BrowserFinder):
                 r'C:\Program Files\Google\Chrome\Application\chrome.exe',
                 r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
                 f'C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe',
-                r'D:\applications\Google\Chrome\Application\chrome.exe',
+                r'D:\applications\Chrome\Chrome\Application\chrome.exe',
                 r'D:\applications\Chrome\Application\chrome.exe',
+                r'D:\applications\Chrome\chrome.exe',
+                r'D:\applications\Google\Chrome\Application\chrome.exe',
                 r'D:\applications\chrome.exe',
                 f'C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome Beta\\Application\\chrome.exe',
                 f'C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome Dev\\Application\\chrome.exe',
@@ -389,10 +431,11 @@ class ChromeFinder(BrowserFinder):
         if self.platform == 'Windows':
             username = os.environ.get('USERNAME', '')
             common_dirs.extend([
-                r'C:\Program Files\Google',
-                r'C:\Program Files (x86)\Google',
+                r'D:\applications\Chrome',
                 r'D:\applications',
                 r'D:\applications\Google',
+                r'C:\Program Files\Google',
+                r'C:\Program Files (x86)\Google',
                 f'C:\\Users\\{username}\\AppData\\Local\\Google'
             ])
         elif self.platform == 'Linux':
@@ -419,7 +462,7 @@ class ChromeFinder(BrowserFinder):
 
         return None
 
-    def scan_directory_for_chrome(self, dir_path: str, depth: int = 0, max_depth: int = 3) -> Optional[str]:
+    def scan_directory_for_chrome(self, dir_path: str, depth: int = 0, max_depth: int = 4) -> Optional[str]:
         """Recursively scan directory for Chrome"""
         if depth > max_depth:
             return None
@@ -441,8 +484,8 @@ class ChromeFinder(BrowserFinder):
         return None
 
     def should_search_subdirectory(self, dir_name: str) -> bool:
-        """Check if should search subdirectory"""
-        chrome_keywords = ['chrome', 'google', 'chromium']
+        """Check if should search subdirectory (e.g. Chrome, Application)."""
+        chrome_keywords = ['chrome', 'google', 'chromium', 'application']
         return any(keyword in dir_name.lower() for keyword in chrome_keywords)
 
     def is_chrome_executable(self, file_name: str) -> bool:
@@ -477,7 +520,71 @@ class ChromeFinder(BrowserFinder):
                 path = path.strip()
                 if path and self.is_valid_path(path):
                     return path
+        for scan_dir in [r'D:\applications\Chrome', r'D:\applications', r'D:\applications\Google']:
+            if os.path.exists(scan_dir):
+                found = self.scan_directory_for_chrome(scan_dir)
+                if found:
+                    return found
+        return None
 
+    def find_after_not_found(self) -> Optional[str]:
+        """When Chrome not found on Windows: download Chrome for Testing to D:\\.dev_win10 and return path."""
+        if self.platform != 'Windows':
+            return None
+        base_dir = Path(r"D:\.dev_win10")
+        try:
+            from pycore.pyfoundations.third_party import get_third_package_requests
+            req = get_third_package_requests()
+            if req is None:
+                return None
+        except Exception:
+            return None
+        ColorPrint.blue("Chrome not found in paths; attempting download to D:\\.dev_win10 ...")
+        try:
+            r = req.get(
+                "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json",
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+            stable = data.get("channels", {}).get("Stable", {})
+            version = stable.get("version")
+            downloads = stable.get("downloads", {}).get("chrome", [])
+            url = None
+            for d in downloads:
+                if d.get("platform") == "win64":
+                    url = d.get("url")
+                    break
+            if not url or not version:
+                return None
+            download_dir = base_dir / "chrome" / version
+            download_dir.mkdir(parents=True, exist_ok=True)
+            zip_path = download_dir / "chrome-win64.zip"
+            if not zip_path.exists():
+                ColorPrint.blue(f"Downloading Chrome {version} ...")
+                r2 = req.get(url, timeout=60, stream=True)
+                r2.raise_for_status()
+                with open(zip_path, "wb") as f:
+                    for chunk in r2.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            if not zip_path.exists():
+                return None
+            extract_dir = download_dir / "chrome-win64"
+            if not (extract_dir / "chrome.exe").exists():
+                ColorPrint.blue("Extracting ...")
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    zf.extractall(download_dir)
+            exe_path = extract_dir / "chrome.exe"
+            if not exe_path.exists():
+                for p in download_dir.rglob("chrome.exe"):
+                    if p.is_file():
+                        exe_path = p
+                        break
+            if exe_path.exists():
+                ColorPrint.green(f"Chrome for Testing at: {exe_path}")
+                return str(exe_path)
+        except Exception as e:
+            ColorPrint.yellow(f"Chrome for Testing download failed: {e}")
         return None
 
     def wide_range_search_linux(self) -> Optional[str]:
@@ -548,7 +655,7 @@ BROWSER_DRIVER_MAP = {
 
 def find_browser(browser_type: str = 'edge') -> Optional[str]:
     """
-    Find browser executable
+    Find browser executable. Uses cache if valid path already stored.
 
     Args:
         browser_type: Browser type (chrome, edge, firefox)
@@ -556,19 +663,59 @@ def find_browser(browser_type: str = 'edge') -> Optional[str]:
     Returns:
         Path to browser executable or None
     """
-    browser_info = BROWSER_DRIVER_MAP.get(browser_type.lower())
+    bt = browser_type.lower()
+    cached = _CACHE["browser"].get(bt)
+    if cached and os.path.isfile(cached):
+        ColorPrint.green(f"Found browser from cache: {cached}")
+        return cached
+
+    browser_info = BROWSER_DRIVER_MAP.get(bt)
     if not browser_info:
         ColorPrint.red(f"Unsupported browser type: {browser_type}")
         return None
 
     finder_class = browser_info['finder']
     finder = finder_class()
-    return finder.find()
+    path = finder.find()
+    if path:
+        _CACHE["browser"][bt] = path
+        _save_cache()
+    return path
+
+
+def _download_driver_via_webdriver_manager(browser_type: str) -> Optional[str]:
+    """Auto-download driver using webdriver_manager (pycore third_party). Cache and return path."""
+    try:
+        from pycore.pyfoundations.third_party import get_third_package_webdriver_manager
+        wdm = get_third_package_webdriver_manager()
+        if wdm is None:
+            return None
+        bt = browser_type.lower()
+        if bt == 'chrome':
+            try:
+                cm = wdm.chrome.ChromeDriverManager
+            except AttributeError:
+                from webdriver_manager.chrome import ChromeDriverManager as cm
+            path = cm().install()
+        elif bt == 'edge':
+            try:
+                em = wdm.microsoft.EdgeChromiumDriverManager
+            except AttributeError:
+                from webdriver_manager.microsoft import EdgeChromiumDriverManager as em
+            path = em().install()
+        else:
+            return None
+        if path and os.path.isfile(path):
+            ColorPrint.green(f"Driver auto-downloaded: {path}")
+            return path
+    except Exception as e:
+        ColorPrint.yellow(f"webdriver_manager download failed: {e}")
+    return None
 
 
 def find_driver(browser_type: str = 'edge') -> Optional[str]:
     """
-    Find WebDriver executable
+    Find WebDriver executable. Uses cache if valid; when not found can auto-download via webdriver_manager.
 
     Args:
         browser_type: Browser type (chrome, edge, firefox)
@@ -576,7 +723,13 @@ def find_driver(browser_type: str = 'edge') -> Optional[str]:
     Returns:
         Path to driver executable or None
     """
-    browser_info = BROWSER_DRIVER_MAP.get(browser_type.lower())
+    bt = browser_type.lower()
+    cached = _CACHE["driver"].get(bt)
+    if cached and os.path.isfile(cached):
+        ColorPrint.green(f"Found driver from cache: {cached}")
+        return cached
+
+    browser_info = BROWSER_DRIVER_MAP.get(bt)
     if not browser_info:
         ColorPrint.red(f"Unsupported browser type: {browser_type}")
         return None
@@ -587,11 +740,15 @@ def find_driver(browser_type: str = 'edge') -> Optional[str]:
     driver_path = shutil.which(driver_executable.replace('.exe', ''))
     if driver_path:
         ColorPrint.green(f"Found driver in PATH: {driver_path}")
+        _CACHE["driver"][bt] = driver_path
+        _save_cache()
         return driver_path
 
-    # Check common locations
+    # Check common locations (include D:\applications recursive search via list_dir if needed)
     if platform.system() == 'Windows':
         common_paths = [
+            f'D:\\applications\\Chrome\\{driver_executable}',
+            f'D:\\applications\\{driver_executable}',
             f'D:\\drivers\\{driver_executable}',
             f'C:\\drivers\\{driver_executable}',
         ]
@@ -604,7 +761,16 @@ def find_driver(browser_type: str = 'edge') -> Optional[str]:
     for path in common_paths:
         if os.path.exists(path):
             ColorPrint.green(f"Found driver at: {path}")
+            _CACHE["driver"][bt] = path
+            _save_cache()
             return path
+
+    # Auto-download via webdriver_manager when not found
+    downloaded = _download_driver_via_webdriver_manager(bt)
+    if downloaded:
+        _CACHE["driver"][bt] = downloaded
+        _save_cache()
+        return downloaded
 
     ColorPrint.yellow(f"Driver not found: {driver_executable}")
     return None
