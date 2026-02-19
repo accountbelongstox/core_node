@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Fetch Fandom Diablo III wiki images to pyapps/d3-check/images with category subdirs.
-- Gallery pages (e.g. gem_icons): scroll .mw-gallery-traditional, collect images.
-- List/recipe pages (e.g. Weapon_Recipe_List, Dagger_List): open list page, collect
-  all item links from tables, then open each item page, wait for image, download
-  the main item image (infobox/first content image from diablo_gamepedia).
+- Recursive category mode: start from Category:Diablo_III_weapon_icons and
+  Category:Diablo_III_armor_icons, follow subcategory links until a page with
+  .mw-gallery-traditional (Media in category) is found, then scroll and download.
+- Single category/gallery: same as above for one URL.
 Uses Selenium + pycore third_party and browser_finder.
 """
 import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, quote
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -29,48 +29,11 @@ WIKI_BASE = "https://diablo-archive.fandom.com/wiki/"
 WIKI_DOMAIN = "diablo-archive.fandom.com"
 SCROLL_PAUSE = 0.4
 PAGE_LOAD_WAIT = 15
-ITEM_PAGE_WAIT = 2.0  # wait after opening item page for image to load
 
-# Subdirs that are list/recipe pages: we open each item link and scrape image from item page.
-LIST_PAGE_SUBDIRS = {
-    "armor_recipe_list", "weapon_recipe_list", "helm_list", "sword_list", "bow_list",
-    "ring_list", "amulet_list", "belt_list", "bracers_list", "chest_armor_list",
-    "gloves_list", "pants_list", "shoulder_list", "shield_list", "mace_list",
-    "axe_list", "dagger_list", "staff_list", "quiver_list", "mojo_list", "orb_list",
-}
-
-# (url_path_or_full, subdir_name). Subdir used as images/<subdir>/
-D3_IMAGE_SOURCES = [
-    ("Category:Diablo_III_gem_icons", "gem_icons"),
-    ("Category:Diablo_III_skill_icons", "skill_icons_all"),
-    ("Category:Diablo_III_Barbarian_skill_icons", "skill_icons_barbarian"),
-    ("Category:Diablo_III_Wizard_skill_icons", "skill_icons_wizard"),
-    ("Category:Diablo_III_Monk_skill_icons", "skill_icons_monk"),
-    ("Category:Diablo_III_Demon_Hunter_skill_icons", "skill_icons_demon_hunter"),
-    ("Category:Diablo_III_Witch_Doctor_skill_icons", "skill_icons_witch_doctor"),
-    ("Category:Diablo_III_Necromancer_skill_icons", "skill_icons_necromancer"),
-    ("Category:Diablo_III_Crusader_skill_icons", "skill_icons_crusader"),
-    ("Armor_Recipe_List", "armor_recipe_list"),
-    ("Weapon_Recipe_List", "weapon_recipe_list"),
-    ("Helm_List", "helm_list"),
-    ("Sword_List", "sword_list"),
-    ("Bow_List", "bow_list"),
-    ("Ring_List", "ring_list"),
-    ("Amulet_List", "amulet_list"),
-    ("Belt_List", "belt_list"),
-    ("Bracers_List", "bracers_list"),
-    ("Chest_Armor_List", "chest_armor_list"),
-    ("Gloves_List", "gloves_list"),
-    ("Pants_List", "pants_list"),
-    ("Shoulder_List", "shoulder_list"),
-    ("Shield_List", "shield_list"),
-    ("Mace_List", "mace_list"),
-    ("Axe_List", "axe_list"),
-    ("Dagger_List", "dagger_list"),
-    ("Staff_List", "staff_list"),
-    ("Quiver_List", "quiver_list"),
-    ("Mojo_List", "mojo_list"),
-    ("Orb_List", "orb_list"),
+# Root category pages: recurse into subcategories until we find gallery pages.
+CATEGORY_ROOT_URLS = [
+    "https://diablo-archive.fandom.com/wiki/Category:Diablo_III_weapon_icons",
+    "https://diablo-archive.fandom.com/wiki/Category:Diablo_III_armor_icons",
 ]
 
 
@@ -78,6 +41,14 @@ def slug_from_url(url: str) -> str:
     path = urlparse(url).path
     part = path.rstrip("/").split("/")[-1] if path else ""
     return re.sub(r"[^\w\-]", "_", part).strip("_") or "unnamed"
+
+
+def category_slug_from_url(url: str) -> str:
+    """Category:Diablo_III_weapon_icons -> Diablo_III_weapon_icons (safe dir name)."""
+    s = slug_from_url(url)
+    if s.lower().startswith("category_"):
+        s = s[9:]
+    return s or "unnamed"
 
 
 def safe_filename(name: str) -> str:
@@ -283,13 +254,4 @@ def main():
     subset = set(args.sources) if args.sources else None
     total = 0
     for url_path, subdir in D3_IMAGE_SOURCES:
-        if subset is not None and subdir not in subset:
-            continue
-        total += run_one(driver, session, By, wait, url_path, subdir, base_dir)
-    driver.quit()
-    print(f"Base output: {base_dir}")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        if subset is not None
