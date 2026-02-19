@@ -73,6 +73,39 @@ def is_fandom_image_url(url: str) -> bool:
     return "static.wikia" in url or "wikia.nocookie" in url
 
 
+def has_gallery(driver, By) -> bool:
+    """True if page has .mw-gallery-traditional (Media in category)."""
+    try:
+        els = driver.find_elements(By.CSS_SELECTOR, ".gallery.mw-gallery-traditional")
+        return len(els) > 0
+    except Exception:
+        return False
+
+
+def get_subcategory_links(driver, By) -> list:
+    """From a category page, return [(full_url, category_slug)] for each subcategory link."""
+    out = []
+    seen = set()
+    try:
+        content = driver.find_element(By.ID, "mw-content-text")
+    except Exception:
+        return []
+    for a in content.find_elements(By.CSS_SELECTOR, "a[href*='Category:']"):
+        try:
+            href = a.get_attribute("href")
+            if not href or WIKI_DOMAIN not in href or "Category:" not in href:
+                continue
+            raw = href.split("?")[0].rstrip("/")
+            if raw in seen:
+                continue
+            seen.add(raw)
+            slug = category_slug_from_url(raw)
+            out.append((href, slug))
+        except Exception:
+            pass
+    return out
+
+
 def collect_from_gallery(driver, By, wait) -> list:
     """Collect (url, filename) from .mw-gallery-traditional with scroll."""
     try:
@@ -182,6 +215,45 @@ def run_one(driver, session, By, wait, url: str, subdir: str, base_dir: Path) ->
     n_files = len(list(out_dir.glob("*.*")))
     print(f"  {subdir}: {len(urls_with_names)} collected, {ok} ok, {fail} fail -> {out_dir} ({n_files} files)")
     return n_files
+
+
+def crawl_category_recursive(
+    driver, session, By, wait,
+    url: str,
+    base_subdir: str,
+    base_dir: Path,
+    visited: set,
+) -> int:
+    """
+    Open category url; if it has .mw-gallery-traditional, download to base_dir/base_subdir.
+    Else get subcategory links and recurse into each (base_subdir/sub_slug).
+    """
+    key = url.split("?")[0].rstrip("/")
+    if key in visited:
+        return 0
+    visited.add(key)
+    try:
+        driver.get(url)
+        time.sleep(1.2)
+    except Exception as e:
+        print(f"  get failed {base_subdir}: {e}")
+        return 0
+    if has_gallery(driver, By):
+        out_dir = base_dir / base_subdir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        urls_with_names = collect_from_gallery(driver, By, wait)
+        if not urls_with_names:
+            return 0
+        ok, fail = download_urls(session, urls_with_names, out_dir)
+        n = len(list(out_dir.glob("*.*")))
+        print(f"  [gallery] {base_subdir}: {len(urls_with_names)} images -> {out_dir} ({n} files)")
+        return n
+    subcats = get_subcategory_links(driver, By)
+    total = 0
+    for sub_url, sub_slug in subcats:
+        subdir = f"{base_subdir}/{sub_slug}" if base_subdir else sub_slug
+        total += crawl_category_recursive(driver, session, By, wait, sub_url, subdir, base_dir, visited)
+    return total
 
 
 def main():
