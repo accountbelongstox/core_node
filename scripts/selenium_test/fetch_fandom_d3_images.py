@@ -254,4 +254,13 @@ def main():
     subset = set(args.sources) if args.sources else None
     total = 0
     for url_path, subdir in D3_IMAGE_SOURCES:
-        if subset is not None
+        if subset is not None and subdir not in subset:
+            continue
+        total += run_one(driver, session, By, wait, url_path, subdir, base_dir)
+    driver.quit()
+    print(f"Base output: {base_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
