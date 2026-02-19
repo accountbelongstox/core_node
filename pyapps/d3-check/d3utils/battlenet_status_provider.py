@@ -82,9 +82,7 @@ def _detect_battlenet_dynamic(found: bool, window_info_or_none: Optional[Dict[st
     preferred_region = game_data.get_battlenet_region()
     try:
         op = get_battlenet_operation()
-        ColorPrint.gray("[BattlenetStatusProvider] progress: get_dynamic_state (UI enum)...")
         on_login, disconnected, normal_available, _play_name, _connecting, _region_detected = op.get_dynamic_state()
-        ColorPrint.gray("[BattlenetStatusProvider] progress: get_dynamic_state done")
         # Region is no longer updated from UI detection; it's set from config file during initialization
         if disconnected:
             return (False, True, False)
@@ -104,11 +102,9 @@ def _refresh_battlenet_status_internal() -> tuple[Optional[Dict[str, Any]], bool
     Returns (Battle.net window info or None, state_changed: bool).
     """
     game_data = get_game_interface_data()
-    ColorPrint.gray("[BattlenetStatusProvider] progress: find_windows...")
     windows = _find_battlenet_windows()
     window_info: Optional[Dict[str, Any]] = windows[0] if windows else None
-    ColorPrint.gray(f"[BattlenetStatusProvider] Battle.net window: {'found' if window_info else 'not found'}")
-    ColorPrint.gray("[BattlenetStatusProvider] progress: refresh_window_state (set_running + detect_dynamic + set_dynamic)...")
+    win_label = "ok" if window_info else "no"
 
     def set_running(g: Any, found: bool) -> bool:
         return g.set_battlenet_status(found)
@@ -118,6 +114,9 @@ def _refresh_battlenet_status_internal() -> tuple[Optional[Dict[str, Any]], bool
             on_login_screen=on_login, disconnected=disconnected, normal_available=third
         )
 
+    def progress_refresh(step: str) -> None:
+        ColorPrint.gray_refresh(f"[BN] {win_label} {step}")
+
     state_changed = refresh_window_state(
         game_data,
         window_info,
@@ -126,8 +125,8 @@ def _refresh_battlenet_status_internal() -> tuple[Optional[Dict[str, Any]], bool
         detect_dynamic_fn=_detect_battlenet_dynamic,
         apply_geometry_fn=None,
         log_prefix="[BattlenetStatusProvider]",
+        progress_refresh=progress_refresh,
     )
-    ColorPrint.gray("[BattlenetStatusProvider] progress: refresh_window_state done")
     return (window_info, state_changed)
 
 

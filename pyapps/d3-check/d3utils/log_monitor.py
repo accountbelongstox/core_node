@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Log Monitor
-File-change driven: when watchdog is available, the log file is watched and any modification
-triggers an immediate read of new content (no tick delay). New lines are processed via
-ColorPrint + log_analyzer. Initial baseline = when set_log_file is first called.
-Runs in observer thread: must not block (no get_config_value in ColorPrint callbacks).
-Fallback: if watchdog is not installed, use tick-driven check_logs via timer (system_initializer).
-Debug: when log_settings.debug_log_latency is True, parse timestamp from log line and print
-latency (now - log_time) to verify real-time monitoring.
+Log Monitor – the only log-driven path (logs.txt change → print + analyze).
+Runs in its own thread (watchdog Observer). Reads log file and calls analyze_log_line directly.
+
+Log-driven chain (LOGS_FILE_PATH = RoS-BoT/Logs/logs.txt):
+  - File change → watchdog _LogFileEventHandler.on_modified() → _read_and_process_new_lines()
+  - _read_and_process_new_lines(): for each new line → ColorPrint.info("[ROSBOT] " + line) [PRINT];
+    then analyze_log_line(line) [ANALYZE: game_state, login_try, smart_echo, vendor_loop, etc.].
+  - Does not trigger or schedule flow. Flow is 2s tick in rosbot_task_processor (for timeout detection only).
+Runs in observer thread (watchdog): analyze_log_line must be thread-safe (no blocking on config/UI).
+Initial baseline = when set_log_file is first called. Started automatically at app init (set_log_file).
+Prefix is fixed "[ROSBOT]" (no config dependency).
 """
 import os
 import re
@@ -20,7 +23,6 @@ from typing import Any, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_watchdog
-from providor.providor_index import get_config_value_safe
 from d3utils.log_analyzer import analyze_log_line
 import d3utils.log_monitor_api as _log_monitor_api
 
@@ -90,7 +92,7 @@ class LogMonitor:
         if _WATCHDOG_AVAILABLE:
             ColorPrint.blue("[LogMonitor] 预加载成功 (file-change driven)")
         else:
-            ColorPrint.yellow("[LogMonitor] watchdog 不可用，使用 tick 轮询")
+            ColorPrint.yellow("[LogMonitor] watchdog 不可用，日志仅由文件变更驱动，当前无法读行")
 
     def set_log_file(self, file_path: str) -> None:
         """Set the log file to monitor. Initial read = now: record position, do not print content before this moment.
@@ -142,59 +144,65 @@ class LogMonitor:
         self._watch_dir = None
 
     def _read_and_process_new_lines(self) -> None:
-        """Read new content from last_position, process each line (ColorPrint + analyze). Called by watchdog or tick."""
+        """Read new content from last_position; per line: ColorPrint then analyze_log_line. Called by watchdog."""
         if not self.initialized or not self.log_file_path:
             return
+        if not os.path.exists(self.log_file_path):
+            ColorPrint.yellow(f"[LogMonitor] Log file disappeared: {self.log_file_path}")
+            self.initialized = False
+            return
+        if not os.path.isfile(self.log_file_path):
+            return
         try:
-            if not os.path.exists(self.log_file_path):
-                ColorPrint.yellow(f"[LogMonitor] Log file disappeared: {self.log_file_path}")
-                self.initialized = False
-                return
-            debug_latency = bool(get_config_value_safe("log_settings.debug_log_latency", False))
             current_modified = os.path.getmtime(self.log_file_path)
+        except (OSError, ValueError):
+            return
+        try:
             with open(self.log_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                f.seek(self.last_position)
+                if self.last_position < 0:
+                    self.last_position = 0
+                try:
+                    f.seek(self.last_position)
+                except (OSError, ValueError):
+                    return
                 new_content = f.read()
-                if new_content:
-                    self.last_position = f.tell()
-                    self.last_modified = current_modified
-                    lines = new_content.strip().split("\n")
-                    now = time.time()
-                    for line in lines:
-                        if not line.strip():
-                            continue
-                        prefix = "[ROSBOT]"
-                        if debug_latency:
-                            log_ts = _parse_log_timestamp(line)
-                            if log_ts is not None:
-                                delay = now - log_ts
-                                prefix = f"[ROSBOT~{delay:.1f}s]"
-                        ColorPrint.info(f"{prefix} {line}")
+                if not new_content:
+                    return
+                self.last_position = f.tell()
+                self.last_modified = current_modified
+                lines = new_content.strip().split("\n")
+                for line in lines:
+                    if not line or not line.strip():
+                        continue
+                    ColorPrint.info(f"[ROSBOT] {line}")
+                    try:
                         analyze_log_line(line)
-        except Exception as e:
+                    except Exception as e:
+                        # One bad line must not block rest of batch or crash watchdog thread
+                        ColorPrint.red(f"[LogMonitor] analyze_log_line failed for line (len={len(line)}): {e}")
+        except (OSError, IOError, ValueError) as e:
             ColorPrint.red(f"[LogMonitor] Error reading log file: {e}")
             self.initialized = False
 
     def check_logs(self) -> bool:
         """
-        Check for new log content and process it (tick-driven fallback when watchdog not used).
+        Check for new log content and process it. Not called from tick; for manual/testing or future use.
         Returns True if file was modified and content was processed.
         """
         if not self.initialized or not self.log_file_path:
             return False
-        try:
-            if not os.path.exists(self.log_file_path):
-                ColorPrint.yellow(f"[LogMonitor] Log file disappeared: {self.log_file_path}")
-                self.initialized = False
-                return False
-            if os.path.getmtime(self.log_file_path) <= self.last_modified:
-                return False
-            self._read_and_process_new_lines()
-            return True
-        except Exception as e:
-            ColorPrint.red(f"[LogMonitor] Error reading log file: {e}")
+        if not os.path.exists(self.log_file_path):
+            ColorPrint.yellow(f"[LogMonitor] Log file disappeared: {self.log_file_path}")
             self.initialized = False
-        return False
+            return False
+        try:
+            current_mtime = os.path.getmtime(self.log_file_path)
+        except (OSError, ValueError):
+            return False
+        if current_mtime <= self.last_modified:
+            return False
+        self._read_and_process_new_lines()
+        return True
 
     def set_rosbot_running(self, running: bool) -> None:
         """Reserved for future use."""

@@ -153,14 +153,9 @@ class RosbotUpdateManager:
 
     def zip_matches_region(self, filename: str, region: str) -> bool:
         """
-        Check if zip filename matches given region
-        
-        Args:
-            filename: Zip filename
-            region: Region identifier (asia or cn)
-            
-        Returns:
-            bool: Whether it matches
+        Check if zip filename matches given region.
+        Each file is assigned to at most one region: Asia if any ASIA keyword present;
+        CN only when CN keyword present and no ASIA keyword (avoids one zip counting for both).
         """
         if region not in ("asia", "cn"):
             return False
@@ -169,7 +164,7 @@ class RosbotUpdateManager:
         matches_cn = any(k in filename or k.lower() in lower for k in ROSBOT_ZIP_KEYWORDS_CN)
         if region == "asia":
             return matches_asia
-        # cn: only when matches CN and not Asia (Asia priority, Asia package name may contain CN keywords)
+        # cn: only when matches CN and not Asia (Asia priority; names with both 亚服 and 国服 count as Asia only)
         return matches_cn and not matches_asia
 
     def find_rosbot_zips_in_downloads(self, region: str) -> List[Tuple[str, int, Optional[Tuple[int, int]]]]:

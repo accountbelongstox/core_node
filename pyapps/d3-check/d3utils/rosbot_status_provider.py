@@ -33,6 +33,8 @@ def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
     if prev_status in ("running", "paused") and status == "not_found":
         mark_rosbot_exit_reason_when_process_gone()
     status_changed = game_data.set_rosbot_extended_status(status)
+    has_main_ui = status == "paused" and detection.get("is_main_ui", True)
+    main_ui_changed = game_data.set_rosbot_has_main_ui(has_main_ui)
 
     exe_name = detection.get("exe_name") or ""
     winfo = detection.get("window_info")
@@ -47,7 +49,7 @@ def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
         (ui_state.get("message") or "").strip(),
     )
 
-    state_changed = status_changed or display_changed
+    state_changed = status_changed or display_changed or main_ui_changed
     return (detection.get("window_info"), state_changed)
 
 

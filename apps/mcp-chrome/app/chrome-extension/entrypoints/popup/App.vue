@@ -709,7 +709,7 @@ const cleanupCache = async () => {
   } catch (error) {
     console.error('Failed to cleanup cache:', error);
   } finally {
-    isManagingCache.value = false;-
+    isManagingCache.value = false;
   }
 };
 

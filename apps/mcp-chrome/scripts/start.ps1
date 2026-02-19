@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 # Get script directory and project root
 $ScriptDir = Split-Path -Parent $PSScriptRoot
 $ProjectRoot = $ScriptDir
+$InitialDir = Get-Location
 Set-Location $ProjectRoot
 
 # Import variable management library and key definitions
@@ -105,74 +106,103 @@ if ($shouldInstall -eq "true") {
     Write-Host "  OK Dependencies already installed" -ForegroundColor Green
 }
 
-# Step 3: Build Shared package
-Write-Host ""
-$step3 = Get-Var -Key ([VarKeys]::UI_STEP_3) -Default "Building shared package..."
-Write-Host "[3/6] $step3"
-
-$cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
-Write-Host "  Building chrome-mcp-shared..." -ForegroundColor Cyan
-Invoke-Expression $cmdBuildShared
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ERROR: Failed to build shared package" -ForegroundColor Red
-    exit 1
+# Check if extension already built, prompt to continue or skip
+$extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
+$manifestJson = Join-Path $extensionPath "manifest.json"
+$skipBuild = $false
+if (Test-Path $manifestJson) {
+    $response = Read-Host "  Already built. Rebuild? [Y/n]"
+    if ($response -eq 'n' -or $response -eq 'N') {
+        $skipBuild = $true
+    }
 }
 
-$sharedPath = Get-Var -Key ([VarKeys]::SHARED_PATH)
-if (Test-Path $sharedPath) {
-    Write-Host "  OK Shared package built successfully" -ForegroundColor Green
-}
+if (-not $skipBuild) {
+    # Step 3: Build Shared package
+    Write-Host ""
+    $step3 = Get-Var -Key ([VarKeys]::UI_STEP_3) -Default "Building shared package..."
+    Write-Host "[3/6] $step3"
 
-# Step 4: Build Native Server
-Write-Host ""
-$step4 = Get-Var -Key ([VarKeys]::UI_STEP_4) -Default "Building Native Server..."
-Write-Host "[4/6] $step4"
+    $cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
+    Write-Host "  Building chrome-mcp-shared..." -ForegroundColor Cyan
+    Invoke-Expression $cmdBuildShared
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ERROR: Failed to build shared package" -ForegroundColor Red
+        exit 1
+    }
 
-$cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
-Write-Host "  Building mcp-chrome-bridge..." -ForegroundColor Cyan
-Invoke-Expression $cmdBuildNative
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ERROR: Failed to build Native Server" -ForegroundColor Red
-    exit 1
+    $sharedPath = Get-Var -Key ([VarKeys]::SHARED_PATH)
+    if (Test-Path $sharedPath) {
+        Write-Host "  OK Shared package built successfully" -ForegroundColor Green
+    }
+
+    # Step 4: Build Native Server
+    Write-Host ""
+    $step4 = Get-Var -Key ([VarKeys]::UI_STEP_4) -Default "Building Native Server..."
+    Write-Host "[4/6] $step4"
+
+    $cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
+    Write-Host "  Building mcp-chrome-bridge..." -ForegroundColor Cyan
+    Invoke-Expression $cmdBuildNative
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ERROR: Failed to build Native Server" -ForegroundColor Red
+        exit 1
+    }
+
+    # Step 5: Build Chrome Extension
+    Write-Host ""
+    $step5 = Get-Var -Key ([VarKeys]::UI_STEP_5) -Default "Building Chrome Extension..."
+    Write-Host "[5/6] $step5"
+
+    $cmdBuildExtension = Get-Var -Key ([VarKeys]::CMD_BUILD_EXTENSION)
+    $retryMax = [int](Get-Var -Key ([VarKeys]::BUILD_RETRY_MAX) -Default "3")
+
+    $attempt = 1
+    while ($attempt -le $retryMax) {
+        if ($attempt -gt 1) {
+            Write-Host "  Retrying build (attempt $attempt/$retryMax)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        }
+
+        Invoke-Expression $cmdBuildExtension
+
+        $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
+        $manifestJson = Join-Path $extensionPath "manifest.json"
+
+        if (Test-Path $manifestJson) {
+            Write-Host "  OK Chrome Extension built successfully" -ForegroundColor Green
+            
+            # Verify manifest.json has key field for extension ID calculation
+            try {
+                $manifestContent = Get-Content $manifestJson -Raw | ConvertFrom-Json
+                if (-not $manifestContent.key) {
+                    Write-Host "  WARNING: manifest.json does not contain 'key' field" -ForegroundColor Yellow
+                    Write-Host "  Extension ID cannot be automatically calculated" -ForegroundColor Yellow
+                    Write-Host "  Native host registration may require manual extension ID update" -ForegroundColor Yellow
+                } else {
+                    Write-Host "  OK manifest.json contains 'key' field for extension ID" -ForegroundColor Green
+                }
+            } catch {
+                Write-Host "  WARNING: Could not verify manifest.json structure" -ForegroundColor Yellow
+            }
+            break
+        }
+
+        $attempt = $attempt + 1
+    }
+
+    if ($attempt -gt $retryMax) {
+        Write-Host "  ERROR: Failed to build Chrome Extension after $retryMax attempts" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host ""
+    Write-Host "  Skipped build, using existing output." -ForegroundColor Yellow
 }
 
 $nativePath = Get-Var -Key ([VarKeys]::NATIVE_PATH)
-$runHostBat = Join-Path $nativePath "run_host.bat"
-if (Test-Path $runHostBat) {
-    Write-Host "  OK Native Server built successfully" -ForegroundColor Green
-}
-
-# Step 5: Build Chrome Extension
-Write-Host ""
-$step5 = Get-Var -Key ([VarKeys]::UI_STEP_5) -Default "Building Chrome Extension..."
-Write-Host "[5/6] $step5"
-
-$cmdBuildExtension = Get-Var -Key ([VarKeys]::CMD_BUILD_EXTENSION)
-$retryMax = [int](Get-Var -Key ([VarKeys]::BUILD_RETRY_MAX) -Default "3")
-
-$attempt = 1
-while ($attempt -le $retryMax) {
-    if ($attempt -gt 1) {
-        Write-Host "  Retrying build (attempt $attempt/$retryMax)..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 2
-    }
-
-    Invoke-Expression $cmdBuildExtension
-
+if (-not $extensionPath) {
     $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
-    $manifestJson = Join-Path $extensionPath "manifest.json"
-
-    if (Test-Path $manifestJson) {
-        Write-Host "  OK Chrome Extension built successfully" -ForegroundColor Green
-        break
-    }
-
-    $attempt = $attempt + 1
-}
-
-if ($attempt -gt $retryMax) {
-    Write-Host "  ERROR: Failed to build Chrome Extension after $retryMax attempts" -ForegroundColor Red
-    exit 1
 }
 
 # Step 6: Register Native Messaging Host
@@ -180,9 +210,36 @@ Write-Host ""
 $step6 = Get-Var -Key ([VarKeys]::UI_STEP_6) -Default "Registering Native Messaging Host..."
 Write-Host "[6/6] $step6"
 
+# Verify extension manifest exists before registration
+$extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
+$manifestJson = Join-Path $extensionPath "manifest.json"
+
+if (-not (Test-Path $manifestJson)) {
+    Write-Host "  ERROR: manifest.json not found at $manifestJson" -ForegroundColor Red
+    Write-Host "  Cannot register native host without extension ID" -ForegroundColor Red
+    exit 1
+}
+
+# Verify manifest has key field
+try {
+    $manifestContent = Get-Content $manifestJson -Raw | ConvertFrom-Json
+    if (-not $manifestContent.key) {
+        Write-Host "  WARNING: manifest.json does not contain 'key' field" -ForegroundColor Yellow
+        Write-Host "  Extension ID cannot be automatically calculated" -ForegroundColor Yellow
+        Write-Host "  Native host registration will proceed but may require manual ID update" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  WARNING: Could not verify manifest.json structure" -ForegroundColor Yellow
+}
+
 $cmdRegister = Get-Var -Key ([VarKeys]::CMD_REGISTER)
-Write-Host "  Using local development registration..." -ForegroundColor Cyan
+Write-Host "  Registering native messaging host..." -ForegroundColor Cyan
 Invoke-Expression $cmdRegister
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: Native host registration failed" -ForegroundColor Red
+    exit 1
+}
 
 $manifestPath = Get-Var -Key ([VarKeys]::MANIFEST_PATH)
 Write-Host ""
@@ -211,6 +268,12 @@ Write-Host ""
 Write-Host "  2) Native Server (Backend):"
 Write-Host "     $nativePath" -ForegroundColor Cyan
 
+# Open .output folder in Windows Explorer (parent of chrome-mv3)
+$outputDir = Split-Path -Parent $extensionPath
+if (Test-Path $outputDir) {
+    Start-Process explorer -ArgumentList ("`"$outputDir`"")
+}
+
 Write-Host ""
 Write-Host "========================================"
 Write-Host "  NEXT STEPS"
@@ -234,3 +297,4 @@ Write-Host "========================================"
 Write-Host "  Setup completed successfully!" -ForegroundColor Green
 Write-Host "========================================"
 Write-Host ""
+Set-Location $InitialDir

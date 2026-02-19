@@ -231,6 +231,8 @@ EXTENSION_ROSBOT_STOP = "extension.rosbot.stop"
 EXTENSION_SHUTDOWN = "extension.shutdown"
 EXTENSION_ROSBOT_STARTED = "extension.rosbot.started"
 EXTENSION_ROSBOT_STOPPED = "extension.rosbot.stopped"
+# Log monitor → event bus: one event per new log line (payload = line: str). Handlers run in observer thread; bridge queues for task thread.
+LOG_LINE = "log.line"
 
 # ---------------------------------------------------------------------------
 # Timers / intervals (generic)

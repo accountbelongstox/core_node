@@ -66,51 +66,33 @@ class UIRegionCollectorOptimized:
         Returns:
             UIRegion or None if failed
         """
-        ColorPrint.blue("\n" + "=" * 60)
-        ColorPrint.blue("[UIRegionCollectorOptimized] Collecting UI region")
-        ColorPrint.blue("=" * 60)
-
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
 
         # Step 1: Capture screenshot with optimized mode (creates/uses window cache)
         if force_new_capture:
-            ColorPrint.blue("[Step 1/3] Generating screenshot with optimized capture...")
             screenshot_data = self._screenshot_provider.gen(
                 use_optimized_capture=True,  # Use optimized capture (faster, uses cache)
                 window_titles=DIABLO_III_WINDOW_TITLES
             )
         else:
-            ColorPrint.blue("[Step 1/3] Using shared screenshot...")
             screenshot_data = self._screenshot_provider.share()
 
         if screenshot_data is None:
-            ColorPrint.red("[ERROR] Failed to get screenshot")
+            ColorPrint.red("[UIRegion] Failed to get screenshot")
             self._update_shared_data_error("Failed to get screenshot", timestamp)
             return None
 
-        ColorPrint.green(f"[Step 1/3] Screenshot ready: {screenshot_data.fullscreen_size[0]}x{screenshot_data.fullscreen_size[1]}")
-
         # Step 2: Get window position from encyclopedia cache
-        ColorPrint.blue("[Step 2/3] Getting window position from cache...")
-
-        # Same canonical cache key as WindowFinder (first title only)
         canonical_label = DIABLO_III_WINDOW_TITLES[0] if DIABLO_III_WINDOW_TITLES else ""
         cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
         window_info = ENCYCLOPEDIA.get(cache_key) if cache_key else None
-        if window_info:
-            ColorPrint.green(f"[Cache] Found window info for '{canonical_label}'")
 
         if not window_info:
-            ColorPrint.red("[ERROR] Window not found in cache")
-            ColorPrint.yellow("[Hint] Please ensure the game window was captured with optimized mode")
+            ColorPrint.red("[UIRegion] Window not found in cache")
             self._update_shared_data_error("Window not found in cache", timestamp)
             return None
 
-        ColorPrint.green(f"[Step 2/3] Window position: ({window_info['left']}, {window_info['top']})")
-        ColorPrint.green(f"  Size: {window_info['width']}x{window_info['height']}")
-
         # Step 3: Create UI region
-        ColorPrint.blue("[Step 3/3] Creating UI region data...")
 
         ui_region = UIRegion(
             x=window_info["left"],
@@ -129,39 +111,15 @@ class UIRegionCollectorOptimized:
         shared_data.timestamp = timestamp
         shared_data.error = None
 
-        # In optimized mode, fullscreen_image is not captured (set to NULL for compatibility)
-        # Only game_window_image is available (captured directly by screenshot_provider)
-        # This prevents potential errors if other code checks fullscreen_image
-        if shared_data.fullscreen_image is None:
-            ColorPrint.gray("[UIRegion] Fullscreen image is NULL (optimized mode - only game window captured)")
-
         # Ensure game_window_image is available for downstream components
         if not shared_data.game_window_image:
-            ColorPrint.red("[ERROR] Game window image is NULL - screenshot provider may have failed")
+            ColorPrint.red("[UIRegion] Game window image is NULL")
             self._update_shared_data_error("Game window image is NULL", timestamp)
             return None
 
-        ColorPrint.green(f"[SUCCESS] UI region detected:")
-        ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
-        ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
-        ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
-        ColorPrint.green(f"  Source: {ui_region.source}")
-
-        # Log resolution info
-        actual_width = screenshot_data.fullscreen_size[0]
-        actual_height = screenshot_data.fullscreen_size[1]
-        ColorPrint.blue(f"[Resolution] Actual: {actual_width}x{actual_height}, Standard: {D3_STANDARD_RESOLUTION_WIDTH}x{D3_STANDARD_RESOLUTION_HEIGHT}")
-        if actual_width != D3_STANDARD_RESOLUTION_WIDTH or actual_height != D3_STANDARD_RESOLUTION_HEIGHT:
-            scale_x = actual_width / D3_STANDARD_RESOLUTION_WIDTH
-            scale_y = actual_height / D3_STANDARD_RESOLUTION_HEIGHT
-            ColorPrint.blue(f"[Resolution] Auto-scaling enabled: {scale_x:.4f}x, {scale_y:.4f}y")
+        ColorPrint.green(f"[UIRegion] ({ui_region.x},{ui_region.y}) {ui_region.width}x{ui_region.height} offset ({ui_region.ui_offset_x},{ui_region.ui_offset_y}) source={ui_region.source}")
 
         # In optimized mode, fullscreen_image IS the game window (already captured)
-        # No cropping needed - game_window_image is already set in screenshot_provider
-        ColorPrint.green(f"[UIRegion] Using game window directly (optimized mode): {window_info['width']}x{window_info['height']}")
-        ColorPrint.yellow("[UIRegion] Note: Using full game window (includes borders)")
-        ColorPrint.yellow("[UIRegion] For accurate UI region, use UIRegionCollectorAnchor instead")
-
         # Save debug copy only when DEBUG and not in-memory-only flow
         if not FLOW_IMAGES_IN_MEMORY_ONLY and DEBUG and screenshot_data.game_window_image:
             debug_ui_path = TMP_DIR / f"debug_ui_optimized_{timestamp}.png"

@@ -16,13 +16,21 @@ This document defines the flow architecture for d3-check: **exactly two flow lib
 
 ---
 
+## 1.1 Log vs Flow: No Cross-Drive
+
+- **Log-driven** (logs.txt change → print + events): File `LOGS_FILE_PATH` (RoS-BoT/Logs/logs.txt). **Driver**: watchdog `_LogFileEventHandler.on_modified()` → `_read_and_process_new_lines()`, or (no watchdog) `tick_driver` each 1s calls `check_logs()` → `_read_and_process_new_lines()`. **Print**: `ColorPrint.info(prefix + line)` per line. **Events**: `analyze_log_line(line)` → game_state (set_map_type, set_game_stage, set_rosbot_disconnected_from_log), login_try callback, smart_echo, vendor_loop. All in `log_monitor` + `log_analyzer`. **Does not trigger flow.**
+- **rosbot_task_processor**: 1s **periodic task** only (runs tick_driver + flow). Does **not** implement log-driven; it only runs the 1s clock. Log read is delegated to log_monitor (watchdog or tick_driver calling check_logs).
+- **Flow layer** (`rosbot_flow*`, `process_task`): Driven **only** by 2s tick in task thread. When flow runs it may **read** `get_last_log_modified_time()` (e.g. F3 timeout). No other coupling.
+
+---
+
 ## 2. Target Directory Structure
 
 ```
 pyapps/d3-check/
 ├── d3utils/
 │   ├── rosbot_flow_state.py          # Global flow switches only: flow_master_enabled, bn_only_enabled (get/set/is_flow_active)
-│   ├── rosbot_task_processor.py     # Tick entry: read flow_state, 2s gate; if bn_only tick_bn_only_flow(); if flow_master tick_flow_master(); both can run same tick
+│   ├── rosbot_task_processor.py     # Tick entry: read flow_state, 2s gate, re-read; tick_bn_only_flow when bn_only, tick_flow_master when flow_master; both can run same tick
 │   │
 │   ├── rosbot_flow/                  # Flow libraries and their state
 │   │   ├── __init__.py

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Log Analyzer
-Analyzes ROSBOT log lines and updates game state.
-On "Login try" in log, triggers full-screen screenshot via LoginTryScreenshotController.
+Log layer only: analyzes ROSBOT log lines and updates game state (map_type, stage, disconnect, etc.).
+On "Login try" in log, invokes registered callback (e.g. LoginTryScreenshotController). Does not trigger flow.
 Echo detection rules (smart echo): grouped in _run_echo_detection_rules; only active when UI smart_echo is on.
 """
 import os
@@ -17,6 +17,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG, LOGS_FILE_PATH
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.d3_manager import get_d3_manager
 from d3utils.rosbot_ui_automation import (
     try_close_d3_must_be_launched_dialog,
     try_close_no_items_popup,
@@ -51,6 +52,9 @@ def _smart_echo_enabled() -> bool:
 # 2. Look back once: PICKING_END_LOOKBACK lines before this "Picking end". If memory has >= 22 lines use memory; else read from log file. Skip only when file has insufficient lines.
 # 3. If "Running: Echoing Fury Exploration" in those lines → call do_smart_echo_pause_after_complete() once.
 PICKING_END_LOOKBACK = 22
+# System error: ignore when "Plugins" in previous 10 lines (plugin load failure). After one kill, require this many lines before next trigger.
+SYSTEM_ERROR_LOOKBACK_LINES = 10
+SYSTEM_ERROR_COOLDOWN_LINES = 30  # lines processed after a trigger before we allow another trigger
 
 
 def _read_lookback_before_sentinel_from_file(log_path: str, sentinel: str, lookback: int) -> List[str]:
@@ -109,12 +113,19 @@ class LogAnalyzer:
         # Echo (Echoing Nightmare) state. "Running: Echoing Fury Exploration" means map is echo.
         self._line_buffer: deque = deque(maxlen=6)
         self._recent_lines: deque = deque(maxlen=PICKING_END_LOOKBACK)  # last N lines before current, for Picking end lookback only
+        # Firstborn temple: count "Objective RunLogic: Temple of the Firstbor"; when reuse option on, only odd count updates map.
+        self._firstborn_objective_count: int = 0
+        # System error: buffer last 2 lines for consecutive "at System"; ignore if "Plugins" in previous 10 lines; cooldown N lines after one trigger.
+        self._at_error_buffer: deque = deque(maxlen=2)
+        self._lines_since_system_kill: int = 999
 
         ColorPrint.blue("[LogAnalyzer] Initialized")
     
     def analyze_line(self, line: str) -> bool:
         """
-        Analyze a log line and update game state
+        Analyze a log line and update game state.
+        Called from watchdog observer thread (log_monitor) for real-time processing.
+        Must be thread-safe: no blocking on config worker or UI. Direct CONFIG.get() is OK (dict read).
         
         Args:
             line: Log line to analyze
@@ -136,10 +147,30 @@ class LogAnalyzer:
             self.game_state.set_rosbot_status(False)
             updated = True
         
+        # Check ROSBOT disconnection messages (ROSBOT_FLOW_MERMAID: detect disconnect from logs)
+        # "WARN - Disconnected" or "Session Time out 5 min.." indicates ROSBOT disconnected
+        if ("WARN" in line and "Disconnected" in line) or ("Session Time out" in line and ("min" in line.lower() or "timeout" in line.lower())):
+            self.game_state.set_rosbot_disconnected_from_log(True)
+            ColorPrint.yellow(f"[LogAnalyzer] ROSBOT disconnection detected from log: {line[:80]}...")
+            updated = True
+        
         # D3 running: only from WindowMonitor and controller (window detection), not from log.
         
+        # Temple of the Firstborn: count this line; when reuse on, only odd count updates firstborn+back_town; else every occurrence.
+        if "Objective RunLogic: Temple of the Firstbor" in line:
+            self._firstborn_objective_count += 1
+            firstborn_reuse = bool(CONFIG.get("rosbot", {}).get("firstborn_blue_gate_reuse", False))
+            if not firstborn_reuse or (self._firstborn_objective_count % 2 == 1):
+                self.game_state.set_map_type("firstborn_temple")
+                self.game_state.set_game_stage("back_town")
+                updated = True
+        # Town portal done: anytime this log appears, reset to town.
+        elif "Town portal done" in line:
+            self.game_state.set_map_type("town")
+            self.game_state.set_game_stage("back_town")
+            updated = True
         # Map type: only "Map: town", "Map: echo", or return-to-town pattern.
-        if "Map: town" in line:
+        elif "Map: town" in line:
             self.game_state.set_map_type("town")
             updated = True
         elif "Map: echo" in line:
@@ -167,6 +198,10 @@ class LogAnalyzer:
         self._run_echo_detection_rules(line)
         # Vendor loop done child: only when ROSBOT has window (paused), detect "No items" popup and close with OK
         self._on_vendor_loop_done(line)
+        # System error detection: consecutive "at System"; ignore if Plugins in previous 10 lines; cooldown N lines after kill
+        recent_10 = list(self._recent_lines)[-SYSTEM_ERROR_LOOKBACK_LINES:] if self._recent_lines else []
+        self._check_system_error(line, recent_10)
+        self._lines_since_system_kill += 1
         self._recent_lines.append(line)
         self._line_buffer.append(line)
 
@@ -243,16 +278,36 @@ class LogAnalyzer:
         """
         if "Vendor loop done" not in line:
             return
-        try:
-            detection = get_rosbot_manager().get_rosbot_detection()
-        except Exception as e:
-            ColorPrint.red(f"[LogAnalyzer] Vendor loop done: {e}")
-            return
+        detection = get_rosbot_manager().get_rosbot_detection()
         if detection.get("status") == "not_found":
             return
         try_close_d3_must_be_launched_dialog()
         if try_close_no_items_popup():
             do_after_no_items_close_switch_rift_and_start()
+
+    def _check_system_error(self, line: str, recent_10_lines: List[str]) -> None:
+        """
+        Detect system error: consecutive 2 lines containing "at System". When detected, kill D3 and ROSBOT.
+        - Plugin: if "Plugins" in the 10 lines before this line, ignore (plugin load failure, e.g. WinDivert.dll).
+        - Cooldown: after one trigger we set _lines_since_system_kill=0; we only allow trigger again after
+          at least SYSTEM_ERROR_COOLDOWN_LINES lines have been processed (avoids double trigger on same stack).
+        """
+        if self._lines_since_system_kill < SYSTEM_ERROR_COOLDOWN_LINES:
+            self._at_error_buffer.clear()
+            return
+        if "at System" in line:
+            if any("Plugins" in ln for ln in recent_10_lines):
+                self._at_error_buffer.clear()
+                return
+            self._at_error_buffer.append(line)
+            if len(self._at_error_buffer) >= 2:
+                ColorPrint.red("[LogAnalyzer] System error detected: consecutive 'at System' lines, killing D3 and ROSBOT")
+                get_d3_manager().kill_if_running()
+                get_rosbot_manager().kill_if_running()
+                self._at_error_buffer.clear()
+                self._lines_since_system_kill = 0
+        else:
+            self._at_error_buffer.clear()
 
 
 # Global instance

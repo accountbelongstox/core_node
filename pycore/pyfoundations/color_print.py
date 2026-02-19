@@ -235,6 +235,24 @@ class ColorPrint:
         else:
             # Output with ANSI color codes
             print(f"{color}{message}{ColorPrint.RESET}", end=end, file=ColorPrint._output_stream)
+
+    @staticmethod
+    def _write_refresh(message: str, color: str) -> None:
+        """Write to the same line (overwrite): \\r + message (truncated to terminal width) + padding. No elapsed prefix. Flush."""
+        if ColorPrint._mcp_mode:
+            return
+        try:
+            width = max(1, shutil.get_terminal_size().columns)
+        except Exception:
+            width = 80
+        plain = message if len(message) <= width else message[: width - 1]
+        pad = " " * max(0, width - len(plain))
+        out = f"\r{color}{plain}{pad}{ColorPrint.RESET}"
+        if ColorPrint._disable_colors:
+            print(out, end="", flush=True, file=ColorPrint._output_stream)
+        else:
+            print(out, end="", flush=True, file=ColorPrint._output_stream)
+        ColorPrint._log_to_callback(message, "gray" if color == ColorPrint.GRAY else "white", "DEBUG")
     
     @staticmethod
     def green(message, end='\n'):
@@ -283,6 +301,19 @@ class ColorPrint:
         """Print debug text (gray)"""
         ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
+
+    @staticmethod
+    def gray_refresh(message: str) -> None:
+        """Print gray text on the same line (overwrite previous content). No newline, no elapsed prefix."""
+        ColorPrint._write_refresh(message, ColorPrint.GRAY)
+
+    @staticmethod
+    def refresh_line(message: str, color: str = "gray") -> None:
+        """Print on the same line (overwrite). color: 'gray'|'blue'|'yellow'|'red'|'green'|'white'|'cyan'."""
+        c = getattr(ColorPrint, color.upper(), None) if isinstance(color, str) else color
+        if c is None or not isinstance(c, str):
+            c = ColorPrint.GRAY
+        ColorPrint._write_refresh(message, c)
 
     # ========================================
     # Semantic aliases for consistent API

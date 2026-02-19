@@ -267,7 +267,7 @@ class D3MacroController:
             if idx != TAB_INDEX_ROSBOT:
                 return
             panel = get_ui_panel(PANEL_KEY_ROSBOT)
-            if panel is None or getattr(panel, "_content_created", True):
+            if panel is None or (hasattr(panel, "_content_created") and panel._content_created):
                 return
             panel.ensure_content()
         except Exception:
@@ -296,6 +296,8 @@ class D3MacroController:
             panel = get_ui_panel(PANEL_KEY_ROSBOT)
             panel.set_register_status_ui_fn(lambda: window_monitor.register_status_ui(panel.get_status_ui_callback()))
             panel.set_refresh_status_fn(window_monitor.refresh_window_status_if_inactive)
+            # Register bottom bar for state updates from first poll so test mode row (F3/ROSBOT_FLOW_MERMAID) updates every tick even when ROSBOT tab content not yet created
+            window_monitor.register_status_ui(self.ui.bottom_bar.update_status_from_state)
             get_game_interface_data().start_main_thread_poll(self.ui.root.after, 100)
 
             get_thread_registry().create_extension_threads(

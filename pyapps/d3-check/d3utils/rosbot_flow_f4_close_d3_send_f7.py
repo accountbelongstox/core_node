@@ -20,5 +20,5 @@ def run_f4_close_d3_send_f7() -> None:
     else:
         ColorPrint.yellow("[F4] F7 send failed")
     mgr = get_rosbot_manager()
-    mgr.kill_if_running()
+    mgr.kill_if_running()  # synchronous (taskkill blocks); caller should refresh D3/ROSBOT so next tick gate sees gone
     mgr.invalidate_lookup_cache()

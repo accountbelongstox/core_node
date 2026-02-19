@@ -178,6 +178,7 @@ _MESSAGE_PATTERNS: List[Tuple[str, str]] = [
     ("Objective RunLogic: Do Rift", "msg_Objective_Do_Rift"),
     ("Objective RunLogic: Kill Boss", "msg_Objective_Kill_Boss"),
     ("Objective RunLogic: RiftItem", "msg_Objective_RiftItem"),
+    ("Objective RunLogic: Temple of the Firstbor", "msg_Objective_Firstborn"),
     ("Loading...", "msg_Loading"),
     ("Resume Game try nbr", "msg_Resume_Game_try"),
     ("[2] Start a loop", "msg_N_Start_a_loop"),

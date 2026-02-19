@@ -14,6 +14,7 @@ from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import i18n_manager
 from providor.providor_index import get_config_value_safe
+from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
 from runtime import is_shutdown_requested
 from share.game_interface_data import get_game_interface_data
 from .bottom_bar_options_block import BottomBarOptionsBlock
@@ -40,6 +41,7 @@ class BottomBar:
         self.map_status = var_str(parent, "-")
         self.stage_status = var_str(parent, "-")
         self.oauth_status = var_str(parent, "-")
+        self.test_mode_status = var_str(parent, "")
 
         self._value_labels = {}
 
@@ -82,6 +84,7 @@ class BottomBar:
             "stage": self.stage_status,
             "oauth": self.oauth_status,
             "window_size": self.window_size,
+            "test_mode": self.test_mode_status,
         }
         self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
         self._status_block.frame.grid(row=0, column=0, sticky="ew")
@@ -188,6 +191,7 @@ class BottomBar:
         self.battlenet_region.set(self._region_display_text(region_key))
 
         ros_ext = state.get("rosbot_extended_status") or "not_found"
+        ros_has_main_ui = state.get("rosbot_has_main_ui", True)
         exe_name = (state.get("rosbot_found_exe_name") or "").strip()
         window_title = (state.get("rosbot_found_window_title") or "").strip()
         ros_val = "-"
@@ -195,12 +199,16 @@ class BottomBar:
             ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
             ros_fg = C['success']
         elif ros_ext == "paused":
-            if exe_name or window_title:
+            if not ros_has_main_ui:
+                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
+                ros_fg = C['error']
+            elif exe_name or window_title:
                 fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
                 ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
+                ros_fg = C['warning']
             else:
                 ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
-            ros_fg = C['warning']
+                ros_fg = C['warning']
         else:
             ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
             ros_fg = C['error']
@@ -208,6 +216,10 @@ class BottomBar:
         need_key_msg = (state.get("rosbot_need_key_message") or "").strip()
         if need_key and need_key_msg:
             ros_val = f"{ros_val}({need_key_msg})"
+        # Add restart count display
+        restart_count = state.get("rosbot_total_restart_count", 0)
+        if restart_count > 0:
+            ros_val = f"{ros_val} [重启{restart_count}次]"
         self.ros_status.set(ros_val or "-")
 
         if not state.get("d3_running", False):
@@ -249,3 +261,12 @@ class BottomBar:
         for key, lb in (self._value_labels or {}).items():
             if key in fg_map:
                 lb.config(fg=fg_map[key])
+
+        # Test mode row: show when rosbot.test_mode is on; use state from tick (rosbot_test_mode_display) so it updates every poll/tick, else compute once so row appears without ROSBOT
+        test_mode_on = bool(get_config_value_safe("rosbot.test_mode", False))
+        tm_text = (state.get("rosbot_test_mode_display") or get_test_mode_display_string() or "").strip() if test_mode_on else ""
+        self.test_mode_status.set(tm_text)
+        if tm_text:
+            self._status_block._test_mode_row.pack(side=tk.TOP, fill=tk.X, padx=4, pady=2)
+        else:
+            self._status_block._test_mode_row.pack_forget()

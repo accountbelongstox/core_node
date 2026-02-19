@@ -193,7 +193,7 @@ def parse_blocks(lines: List[str]) -> List[Block]:
             if ts is not None:
                 b.entry_ts = ts.timestamp()
             elif stack:
-                b.entry_ts = getattr(stack[-1][0], "entry_ts", None)
+                b.entry_ts = stack[-1][0].entry_ts if hasattr(stack[-1][0], "entry_ts") else None
             if not stack:
                 roots.append(b)
             else:
@@ -338,7 +338,7 @@ def last_rift_block_with_earned(
                 if min_entry_ts is None:
                     rifts_in_window.append(b)
                 else:
-                    et = getattr(b, "entry_ts", None)
+                    et = b.entry_ts if hasattr(b, "entry_ts") else None
                     if et is not None and et >= min_entry_ts:
                         rifts_in_window.append(b)
             collect(b.children)

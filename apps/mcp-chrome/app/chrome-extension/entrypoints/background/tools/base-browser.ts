@@ -71,9 +71,9 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
   /**
    * Send message to tab
    */
-  protected async sendMessageToTab(tabId: number, message: any): Promise<any> {
+  protected async sendMessageToTab(tabId: number, message: any, frameId?: number): Promise<any> {
     try {
-      const response = await chrome.tabs.sendMessage(tabId, message);
+      const response = await chrome.tabs.sendMessage(tabId, message, frameId !== undefined ? { frameId } : undefined);
 
       if (response && response.error) {
         throw new Error(String(response.error));
@@ -90,6 +90,65 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
         throw error;
       }
       throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Try to get a tab by ID
+   */
+  protected async tryGetTab(tabId?: number): Promise<chrome.tabs.Tab | null> {
+    if (typeof tabId !== 'number') return null;
+    try {
+      return await chrome.tabs.get(tabId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get active tab or throw error
+   */
+  protected async getActiveTabOrThrow(): Promise<chrome.tabs.Tab> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      throw new Error(ERROR_MESSAGES.TAB_NOT_FOUND);
+    }
+    return tab;
+  }
+
+  /**
+   * Get active tab in window or throw error
+   */
+  protected async getActiveTabOrThrowInWindow(windowId?: number): Promise<chrome.tabs.Tab> {
+    const query: chrome.tabs.QueryInfo = { active: true };
+    if (typeof windowId === 'number') {
+      query.windowId = windowId;
+    } else {
+      query.currentWindow = true;
+    }
+    const [tab] = await chrome.tabs.query(query);
+    if (!tab) {
+      throw new Error(ERROR_MESSAGES.TAB_NOT_FOUND);
+    }
+    return tab;
+  }
+
+  /**
+   * Ensure tab/window is focused
+   */
+  protected async ensureFocus(
+    tab: chrome.tabs.Tab,
+    options?: { activate?: boolean; focusWindow?: boolean },
+  ): Promise<void> {
+    const { activate = true, focusWindow = true } = options || {};
+    if (tab.id === undefined) return;
+
+    if (activate) {
+      await chrome.tabs.update(tab.id, { active: true });
+    }
+
+    if (focusWindow && tab.windowId !== undefined) {
+      await chrome.windows.update(tab.windowId, { focused: true });
     }
   }
 }

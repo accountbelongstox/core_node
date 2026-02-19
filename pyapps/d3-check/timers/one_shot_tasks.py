@@ -447,10 +447,17 @@ def do_rosbot_update(panel: Any) -> None:
         ColorPrint.gray("[RosbotPanel] No region detected, checking both Asia and CN (Asia first)")
         regions_to_check = ["asia", "cn"]
     
+    # Current ROS dir/version and downloads dir (for no-update detection display)
+    cur_dir, _ct, cur_ver = update_manager.get_current_ros_dir_info()
+    cur_ver_str = update_manager.version_to_str(cur_ver) if cur_ver else "unknown"
+    downloads_dir = update_manager.get_downloads_dir()
+
     # Check for updates in each region
     best_update = None
     best_region = None
+    detection_per_region: List[Dict[str, Any]] = []
     for region in regions_to_check:
+        region_display = ROSBOT_REGION_DISPLAY_ASIA if region == "asia" else ROSBOT_REGION_DISPLAY_CN
         zip_path, is_newer, version_str = update_manager.get_best_newer_zip(region)
         if is_newer and zip_path:
             if best_update is None or (version_str and best_update[2] and version_str > best_update[2]):
@@ -458,21 +465,38 @@ def do_rosbot_update(panel: Any) -> None:
                 best_region = region
                 ColorPrint.blue(f"[RosbotPanel] Found update for {region}: {version_str} at {zip_path}")
         else:
-            # Log why no update for this region (for debugging)
             candidates = update_manager.find_rosbot_zips_in_downloads(region)
-            cur_dir, _ct, cur_ver = update_manager.get_current_ros_dir_info()
-            cur_ver_str = update_manager.version_to_str(cur_ver) if cur_ver else "unknown"
             if not candidates:
                 ColorPrint.gray(f"[RosbotPanel] No zip in Downloads for region={region} (need 20-50MB, filename contains 亚服/asia or 国服/cn)")
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [],
+                })
             else:
                 ColorPrint.gray(f"[RosbotPanel] region={region}: found {len(candidates)} zip(s), none newer than current {cur_ver_str} (current path: {cur_dir or 'none'})")
-    
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [
+                        {"path": p, "version_str": update_manager.version_to_str(v) if v else "?", "size_mb": round(s / (1024 * 1024), 1)}
+                        for p, s, v in candidates
+                    ],
+                })
+
     if not best_update:
         ColorPrint.gray("[RosbotPanel] No update found in Downloads")
+        detection_data = {
+            "current_ros_dir": cur_dir or "",
+            "current_version": cur_ver_str,
+            "downloads_dir": downloads_dir,
+            "regions": detection_per_region,
+        }
+
         def show_info_panel():
             try:
                 info_panel = RosbotUpdateInfoPanel(panel.container)
-                info_panel.show_no_update_info()
+                info_panel.show_no_update_info(detection_data)
             except Exception as e:
                 ColorPrint.red(f"[RosbotPanel] Info panel error: {e}")
         if panel.container.winfo_exists():

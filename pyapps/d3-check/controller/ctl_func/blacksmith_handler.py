@@ -225,7 +225,7 @@ class BlacksmithHandler:
         gs = shared_data.game_window_size
         if gs and gs[0] > 0 and gs[1] > 0:
             window_w, window_h = int(gs[0]), int(gs[1])
-        elif getattr(shared_data, "game_window_image", None):
+        elif hasattr(shared_data, "game_window_image") and shared_data.game_window_image is not None:
             wi = shared_data.game_window_image
             window_w, window_h = (wi.width, wi.height) if hasattr(wi, "width") else (wi.shape[1], wi.shape[0])
         else:

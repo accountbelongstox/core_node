@@ -8,15 +8,11 @@ const configPath = resolve(__dirname, 'config.cjs');
 const config = require(configPath);
 const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
 
-// Configure output directory using relative path (cross-platform compatible)
-// From: /www/programing/core_node/apps/mcp-chrome/app/chrome-extension
-// To: /www/programing/_build_dir
-const OUTPUT_DIR = resolve(__dirname, '../../../../../_build_dir');
+// Build in current directory: .output/chrome-mv3 (WXT default, no custom outDir)
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
-  outDir: OUTPUT_DIR,
   // Disable automatic .env loading since we use config.js
   env: {},
   runner: {
@@ -94,6 +90,14 @@ export default defineConfig({
         ],
       }) as any,
     ],
+    resolve: {
+      // Ensure chrome-mcp-shared is resolved correctly
+      preserveSymlinks: false,
+    },
+    optimizeDeps: {
+      // Include chrome-mcp-shared in optimization to ensure all exports are available
+      include: ['chrome-mcp-shared'],
+    },
     build: {
       // 我们的构建产物需要兼容到es6
       target: 'es2015',
@@ -104,6 +108,16 @@ export default defineConfig({
       // chunk大小超过1500kb是触发警告
       chunkSizeWarningLimit: 1500,
       minify: false,
+      // Ensure all exports from chrome-mcp-shared are included
+      commonjsOptions: {
+        include: [/chrome-mcp-shared/, /node_modules/],
+      },
+      rollupOptions: {
+        output: {
+          // Preserve all exports from shared package
+          preserveModules: false,
+        },
+      },
     },
   }),
 });

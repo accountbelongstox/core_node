@@ -721,11 +721,14 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_window_found: bool = False  # True when extended_status is paused (has window)
+    rosbot_has_main_ui: bool = False  # True only when paused and content-validated main window; else False (UI shows "未找到" when paused and not has_main_ui)
     rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
     rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
     ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
+    # D13 found D3 window with for_f2_only: set True so next C1 tick uses d3_just_entered -> C7a map teleport (ROSBOT_FLOW_MERMAID)
+    d3_just_entered_from_d13: bool = False
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
 
@@ -747,6 +750,12 @@ class D3InterfaceData(InterfaceDataBase):
     # ROSBOT UI need-key state (set by refresh_rosbot_status from timer thread; main thread only reads from snapshot)
     rosbot_need_key_input: bool = False
     rosbot_need_key_message: str = ""
+    # Test mode (rosbot.test_mode): display line for bottom bar, set each tick when test_mode; None when off
+    rosbot_test_mode_display: Optional[str] = None
+    # ROSBOT disconnection detected from logs ("WARN - Disconnected" or "Session Time out")
+    rosbot_disconnected_from_log: bool = False
+    # ROSBOT total restart count (all types: normal_pause, test_debug_exit, process gone, log disconnect)
+    rosbot_total_restart_count: int = 0
 
     # State change callbacks (merged from GameState). Invoked only on main thread via _drain_and_notify (no after() from background).
     _callbacks: List[Callable] = field(default_factory=list)
@@ -775,11 +784,14 @@ class D3InterfaceData(InterfaceDataBase):
         self.button_detections = None
         self.battlenet_window_found = False
         self.rosbot_window_found = False
+        self.rosbot_has_main_ui = False
         self.rosbot_extended_status = "not_found"
         self.rosbot_running = False
         self.rosbot_flow_master_enabled = False
         self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
+        self.d3_just_entered_from_d13 = False
+        self.rosbot_disconnected_from_log = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
         self.d3_on_login_screen = False
@@ -793,6 +805,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.rosbot_found_window_title = ""
         self.rosbot_need_key_input = False
         self.rosbot_need_key_message = ""
+        self.rosbot_test_mode_display = None
+        self.rosbot_total_restart_count = 0
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -813,6 +827,7 @@ class D3InterfaceData(InterfaceDataBase):
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
             "rosbot_window_found": self.rosbot_window_found,
+            "rosbot_has_main_ui": self.rosbot_has_main_ui,
             "rosbot_extended_status": self.rosbot_extended_status,
             "rosbot_running": self.rosbot_running,
             "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
@@ -828,6 +843,10 @@ class D3InterfaceData(InterfaceDataBase):
             "battlenet_region": self.battlenet_region,
             "rosbot_found_exe_name": self.rosbot_found_exe_name,
             "rosbot_found_window_title": self.rosbot_found_window_title,
+            "rosbot_need_key_input": self.rosbot_need_key_input,
+            "rosbot_need_key_message": self.rosbot_need_key_message,
+            "rosbot_test_mode_display": self.rosbot_test_mode_display,
+            "rosbot_total_restart_count": self.rosbot_total_restart_count,
         }
 
     # ==================== Game State Methods (with callback notification) ====================
@@ -885,6 +904,17 @@ class D3InterfaceData(InterfaceDataBase):
                 self.rosbot_window_found = status == "paused"
                 should_notify = True
                 ColorPrint.blue(f"[D3State] ROSBOT extended status: {status}")
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_rosbot_has_main_ui(self, has_main_ui: bool) -> bool:
+        """Set whether current ROSBOT window is content-validated main UI (paused + main). When False, UI shows \"未找到\". Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_has_main_ui != has_main_ui:
+                self.rosbot_has_main_ui = has_main_ui
+                should_notify = True
         if should_notify:
             self._notify_callbacks()
         return should_notify
@@ -948,6 +978,41 @@ class D3InterfaceData(InterfaceDataBase):
                 self.d3_running = running
                 should_notify = True
                 ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_d3_just_entered_from_d13(self, value: bool) -> None:
+        """Set when D13 found D3 window with for_f2_only; next C1 tick uses d3_just_entered -> C7a (ROSBOT_FLOW_MERMAID)."""
+        with self._lock:
+            self.d3_just_entered_from_d13 = value
+
+    def get_and_clear_d3_just_entered_from_d13(self) -> bool:
+        """Return current value and clear. Flow master calls before start_extension_flow_c_branch to pass d3_just_entered."""
+        with self._lock:
+            v = self.d3_just_entered_from_d13
+            self.d3_just_entered_from_d13 = False
+            return v
+
+    def set_rosbot_disconnected_from_log(self, disconnected: bool) -> None:
+        """Set ROSBOT disconnection detected from logs (log_analyzer detects "WARN - Disconnected" or "Session Time out")."""
+        with self._lock:
+            self.rosbot_disconnected_from_log = disconnected
+
+    def get_and_clear_rosbot_disconnected_from_log(self) -> bool:
+        """Return current value and clear. Flow master checks this to trigger F4 when ROSBOT disconnection detected."""
+        with self._lock:
+            v = self.rosbot_disconnected_from_log
+            self.rosbot_disconnected_from_log = False
+            return v
+
+    def set_rosbot_total_restart_count(self, count: int) -> bool:
+        """Set ROSBOT total restart count. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_total_restart_count != count:
+                self.rosbot_total_restart_count = count
+                should_notify = True
         if should_notify:
             self._notify_callbacks()
         return should_notify
@@ -1031,6 +1096,7 @@ class D3InterfaceData(InterfaceDataBase):
                 "battlenet_window_found": self.battlenet_window_found,
                 "battlenet_region": self.battlenet_region,
                 "rosbot_window_found": self.rosbot_window_found,
+                "rosbot_has_main_ui": self.rosbot_has_main_ui,
                 "rosbot_extended_status": self.rosbot_extended_status,
                 "rosbot_running": self.rosbot_running,
                 "d3_running": self.d3_running,
@@ -1046,6 +1112,8 @@ class D3InterfaceData(InterfaceDataBase):
                 "rosbot_found_window_title": self.rosbot_found_window_title,
                 "rosbot_need_key_input": self.rosbot_need_key_input,
                 "rosbot_need_key_message": self.rosbot_need_key_message,
+                "rosbot_test_mode_display": self.rosbot_test_mode_display,
+                "rosbot_total_restart_count": self.rosbot_total_restart_count,
             }
 
     def start_main_thread_poll(self, after_fn: Callable, interval_ms: int = 100):

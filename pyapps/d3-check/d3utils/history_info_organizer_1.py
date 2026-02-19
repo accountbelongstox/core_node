@@ -159,7 +159,7 @@ def _aggregate_roots_in_time_window(
         b = roots[i]
         if b.kind != "Rift":
             continue
-        et = getattr(b, "entry_ts", None)
+        et = b.entry_ts if hasattr(b, "entry_ts") else None
         if et is None or et < start_epoch:
             continue
         game_count += 1
