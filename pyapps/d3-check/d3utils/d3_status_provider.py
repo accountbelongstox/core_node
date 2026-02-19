@@ -32,7 +32,6 @@ def _detect_d3_dynamic(found: bool, window_info_or_none: Optional[Dict[str, Any]
         window_titles=tuple(get_d3_manager().get_capture_titles())
     )
     disconnected = state_dict.get("disconnected", False)
-    ColorPrint.gray("[D3StatusProvider] detect_dynamic: %s" % ("disconnected" if disconnected else "ok"))
     return (False, disconnected, False)
 
 
@@ -60,20 +59,20 @@ def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional
     Returns (D3 window info or None, state_changed: bool).
     """
     game_data = get_game_interface_data()
-    ColorPrint.gray("[D3StatusProvider] progress: find_windows...")
     windows = _find_d3_windows()
     window_info: Optional[Dict[str, Any]] = windows[0] if windows else None
-    ColorPrint.gray(f"[D3StatusProvider] D3 window: {'found' if window_info else 'not found'}")
+    win_label = "ok" if window_info else "no"
     if window_info and not skip_dynamic:
-        ColorPrint.gray("[D3StatusProvider] progress: prime_window_cache_for_capture...")
         get_d3_manager().prime_window_cache_for_capture()
-    ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state...")
 
     def set_running(g: Any, found: bool) -> bool:
         return g.set_d3_status(found)
 
     def set_dynamic(g: Any, on_login: bool, disconnected: bool, third: bool) -> bool:
         return g.set_d3_dynamic_status(on_login_screen=on_login, disconnected=disconnected, in_game=third)
+
+    def progress_refresh(step: str) -> None:
+        ColorPrint.gray_refresh(f"[D3] {win_label} {step}")
 
     detect_fn = (_noop_detect_dynamic if skip_dynamic else _detect_d3_dynamic)
     state_changed = refresh_window_state(
@@ -84,8 +83,8 @@ def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional
         detect_dynamic_fn=detect_fn,
         apply_geometry_fn=_apply_d3_geometry,
         log_prefix="[D3StatusProvider]",
+        progress_refresh=progress_refresh,
     )
-    ColorPrint.gray("[D3StatusProvider] progress: refresh_window_state done")
     return (window_info, state_changed)
 
 

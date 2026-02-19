@@ -98,7 +98,7 @@ flowchart TB
         F1d_Offline["[F1d] 识别到掉线"]
         F2_RosbotOnline{"[F2] ROSBOT 是否在线？"}
         F3_LogTimeout{"[F3] ROSBOT 日志超时？"}
-        F3_Baseline["起算：已存在→日志最后修改时间；刚启动→刚启动时间（UI 时长）"]
+        F3_Baseline["起算：有日志→日志最后修改时间（有新日志则重置超时）；无日志且刚启动→started_at（60s 窗）"]
         F3_ProcessGone["Process gone：F7 sent=normal_pause else=test_debug_exit"]
         F3_Test["Test：count=1 且 50%%→F4a；count>=2 且 elapsed>=recorded→F7，等 50%%→[E2] 1s"]
         F4a_EndD3["[F4a] 关闭 D3"]

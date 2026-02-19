@@ -27,7 +27,7 @@ class HistoryParserV1(HistoryParser):
         
         for root in roots:
             block_dict: Dict[str, Any] = {
-                "head_time": getattr(root, "entry_ts", None),
+                "head_time": root.entry_ts if hasattr(root, "entry_ts") else None,
                 "head_kind": root.kind,
                 "earned": dict(root.earned),
             }

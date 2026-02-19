@@ -5,7 +5,6 @@ All A-block steps/states defined here for alignment with doc.
 
 Flow tick counters (unified by tick_driver global tick + %, see d3utils.tick_driver):
 - Global tick: +1 every 1s, task thread single clock.
-- log_monitor: tick % 1 == 0 (every 1s)
 - flow_master / bn_only: tick % 2 == 0 (every 2s), flow_tick_count = global_tick // 2
 - smart_echo OCR: tick % 3 == 0 (every 3s)
 - sigint_guard: tick % 1 == 0 (GUI)

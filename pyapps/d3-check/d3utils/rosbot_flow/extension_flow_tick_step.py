@@ -156,7 +156,7 @@ def extension_flow_tick_step(
             set_payload("branch_result", "game_tool")
             return "running"
         if state == "start":
-            ColorPrint.gray("[ExtensionFlow][C5] Before starting D3 try to end ROSBOT to avoid ROSBOT running while others not causing later log check to exit")
+            ColorPrint.gray("[ExtensionFlow][C5] Before starting D3 try to end ROSBOT to avoid ROSBOT running while others not causing later check to exit")
             get_rosbot_manager().kill_if_running()
             if click_start_game_button_if_found():
                 set_deadline_tick(current_tick + C3_DEADLINE_TICKS)

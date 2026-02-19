@@ -765,7 +765,8 @@ class LoginTryScreenshotController:
             get_game_interface_data().set_d3_status(True)
             # [D13] Yes, mark 'just entered game'. for_f2_only: A8 achieved (D3 just started), skip C branch and return for F2.
             if for_f2_only:
-                ColorPrint.gray("[LoginTryScreenshotController] [D13] D3 window found, for_f2_only=True -> skip C branch, return for F2 (ROSBOT 是否在线?)")
+                get_game_interface_data().set_d3_just_entered_from_d13(True)
+                ColorPrint.gray("[LoginTryScreenshotController] [D13] D3 window found, for_f2_only=True -> skip C branch, set d3_just_entered_from_d13 for next C1 tick C7a (ROSBOT_FLOW_MERMAID)")
                 return True
             # [D13] -> [C1] entry -> [C2] Resize -> [C3] loop (doc ROSBOT_FLOW_MERMAID)
             if run_c1_entry(True, True):

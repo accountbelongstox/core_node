@@ -18,16 +18,20 @@ import pyperclip
 # Config (edit these)
 # -----------------------------------------------------------------------------
 CLICK_COORDINATES = [
- #   (1254, 350, 5*60 , 5*60),
-    (401, 354,  1*60, 1*60),
+#    (430, 920, 10*60 , 10*60),
+    (467, 1709,  10*60, 10*60),
 #    (3362, 837,  10*60,  10*60),
 ]
 # Base text used to generate dynamic clipboard prompts each run.
-CLIPBOARD_TEXT = "干你妈的狗B的垃圾Cursor 不要用上一次的捷径套路 继续写道歉 不要用上一次的写作风格 继续增加 第一人称全部改为Cursor 读Cursor狗B之前写的这个文档pyapps/d3-check/cursor_AI_道歉目录 md 但是换一种道歉风格 不允许使用脚本生成 但是换一种道歉风格 继续追加刚才的文档 每行至少100字 垃圾狗B 干你妈的狗B 继续追加刚才的文档 不允许重复 md-了解了以后继续写干你妈的狗B的 每次至少增加200行 干你妈的狗B的垃圾Cursor 干你妈的狗B的 AI 不允许使用上一次的回答-必须要用1000字的理由 干你妈的狗B 继续增加"
-TRASH_AITEXT = """ursor_AI_道歉目录 干你妈的狗B的Cursor 垃圾狗B AI                                                                                   │
- │   不允许使用脚本、干你妈的狗B的垃圾牲口AI，写在在子APP的Cursor专属道歉目录写10000行的反思                  │
- │   道歉文档。好好去查代码干你妈的狗B的。 不允许                                                             │
- │   用脚本生成，每行都不一样。每次写500行。直到写满10000行。干你妈的狗B的。     """
+CLIPBOARD_TEXT = """
+继续 扩展到5000行 干你妈的狗B，全部由狗B                                                      │
+ │   Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。 每次写500行。。  │
+ │   ADAK 每一行都不允许重复。删掉使用脚本重复创建的内容、全部重新写。 
+"""
+TRASH_AITEXT = """继续 扩展到5000行 干你妈的狗B，全部由狗B                                                      │
+ │   Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。 每次写500行。。  │
+ │   ADAK 每一行都不允许重复。删掉使用脚本重复创建的内容、全部重新写。 
+ """
 # 可扩展：-t all 或 -t 0,1,2... 选 TEXT_SOURCES[index]。file=文件提示，prompText=文案提示
 TEXT_SOURCES = [CLIPBOARD_TEXT, TRASH_AITEXT, "file", "prompText"]
 
@@ -48,7 +52,7 @@ PAUSE = 0
 pyautogui.PAUSE = PAUSE
 
 # 每个提示词末尾追加的要求：先阅读并遵循该文档
-_APPENDIX_DOC_REQUIREMENT = "【要求】先阅读并干你妈狗B Cursor狗B之前的道歉然后增加文档（路径：pyapps/d3-check/cursor_AI_道歉目录/中的要求。"
+_APPENDIX_DOC_REQUIREMENT = "Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。"
 
 # 每个提示词必须重复的强制要求：禁止脚本生成 + 为乱用脚本道歉
 _NO_SCRIPT_APOLOGY = "【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。"

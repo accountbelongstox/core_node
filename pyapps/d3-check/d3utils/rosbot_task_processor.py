@@ -4,9 +4,12 @@
 ROSBOT Task Processor – single tick entry (FLOW_STATE_ARCHITECTURE Approach 3).
 
 Task thread calls process_rosbot_task() every 1s:
-  - First tick_driver.on_tick(): global tick+1, dispatch by % to log_monitor / sigint_guard / smart_echo / inactive_refresh.
+  - First tick_driver.on_tick(): global tick+1, dispatch by % to sigint_guard / smart_echo / inactive_refresh (log_monitor not in tick; driven only by watchdog).
   - When tick % 2 == 0 run process_task(): flow_state gate, tick_bn_only_flow / tick_flow_master.
 All periods simulated by tick + %; no separate timers.
+
+Architecture boundary: This module is the 1s periodic task entry only. Log analysis is done by log_monitor (watchdog thread).
+This task only handles: tick_driver.on_tick() and flow (timeout detection, etc.). Does not process log lines.
 """
 import os
 import sys
@@ -22,6 +25,8 @@ from d3utils.rosbot_flow_state import (
     is_flow_active,
 )
 from d3utils.task_thread_manager import TaskStatus
+from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
+from d3utils.rosbot_flow_rosbot_exit_state import get_total_restart_count
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
 from d3utils.rosbot_flow.flow_master_driver import tick_flow_master
 from d3utils.rosbot_task_registry import register_start_rosbot_task, register_stop_rosbot_task
@@ -32,17 +37,17 @@ from share.asia_credentials import is_asia_credentials_dialog_pending
 from d3utils.tick_driver import on_tick as tick_driver_on_tick, get_global_tick
 
 class RosbotTaskProcessor:
-    """ROSBOT task processor for background operations"""
+    """ROSBOT task processor for background operations (1s tick + flow)."""
 
     def __init__(self):
         self.game_state = get_game_interface_data()
         self.log_file_path: Optional[str] = None
         self.initialized = False
-        
+
         ColorPrint.blue("[RosbotTaskProcessor] Initialized")
-    
+
     def initialize(self):
-        """Initialize ROSBOT task processor"""
+        """Initialize ROSBOT task processor."""
         if not self.initialized:
             self.log_file_path = LOGS_FILE_PATH
             set_log_file(self.log_file_path)
@@ -61,10 +66,18 @@ class RosbotTaskProcessor:
         """Stop ROSBOT monitoring"""
         set_rosbot_running(False)
         self.game_state.set_rosbot_status(False)
+        self.game_state.rosbot_test_mode_display = None
+        # Update total restart count from config
+        total_count = get_total_restart_count()
+        self.game_state.set_rosbot_total_restart_count(total_count)
         ColorPrint.yellow("[RosbotTaskProcessor] ROSBOT monitoring stopped")
     
     def process_task(self):
-        """Single tick: run on_tick (log/sigint/smart_echo/inactive_refresh), then when tick % 2 == 0 run flow."""
+        """Single tick: run on_tick, then when tick % 2 == 0 run flow. Log analysis is done by log_monitor (watchdog thread)."""
+        self.game_state.rosbot_test_mode_display = get_test_mode_display_string()
+        # Update total restart count from config
+        total_count = get_total_restart_count()
+        self.game_state.set_rosbot_total_restart_count(total_count)
         tick_driver_on_tick()
         t = get_global_tick()
         if t % 2 != 0:
@@ -80,10 +93,12 @@ class RosbotTaskProcessor:
         _flow_last_run_time = now
         bn_only = get_bn_only_enabled()
         flow_master = get_flow_master_enabled()
-        ColorPrint.gray(
-            f"[A2/A3] Tick #{_flow_tick_count[0]} (2s step) flow_master={flow_master} bn_only={bn_only} | "
-            f"time since previous: {time_since_previous:.2f} s"
-        )
+        status_prefix = f"[A2/A3] Tick #{_flow_tick_count[0]} dt={time_since_previous:.2f}s | "
+        if not flow_master:
+            ColorPrint.gray(
+                f"[A2/A3] Tick #{_flow_tick_count[0]} (2s step) flow_master={flow_master} bn_only={bn_only} | "
+                f"time since previous: {time_since_previous:.2f} s"
+            )
         bn_only2 = get_bn_only_enabled()
         flow_master2 = get_flow_master_enabled()
         if not flow_master2 and not bn_only2:
@@ -91,14 +106,14 @@ class RosbotTaskProcessor:
         if bn_only2:
             tick_bn_only_flow()
         if flow_master2:
-            tick_flow_master(_flow_tick_count[0], start_rosbot_task)
+            tick_flow_master(_flow_tick_count[0], start_rosbot_task, status_prefix=status_prefix)
 
 
 # Global instance
 _rosbot_processor = None
 # 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0; see ROSBOT_FLOW.md)
 _flow_tick_count = [0]
-# Time of last flow step run (for "time since previous" log)
+# Time of last flow step run (for "time since previous" in gray output)
 _flow_last_run_time = 0.0
 
 
@@ -108,7 +123,7 @@ def get_flow_tick_count() -> int:
 
 
 def get_rosbot_processor() -> RosbotTaskProcessor:
-    """Get global ROSBOT task processor instance"""
+    """Global ROSBOT task processor instance (1s tick + flow entry). Singleton."""
     global _rosbot_processor
     if _rosbot_processor is None:
         _rosbot_processor = RosbotTaskProcessor()
@@ -116,19 +131,19 @@ def get_rosbot_processor() -> RosbotTaskProcessor:
 
 
 def start_rosbot_task():
-    """Start ROSBOT task"""
+    """Enable ROSBOT monitoring: ensure initialize (set_log_file), set_rosbot_running(True), game_state.rosbot_status. Does not start the 1s task loop (that is always running; flow_state controls flow)."""
     processor = get_rosbot_processor()
     processor.start_rosbot()
 
 
 def stop_rosbot_task():
-    """Stop ROSBOT task"""
+    """Disable ROSBOT monitoring: set_rosbot_running(False), clear game_state rosbot status and test display. Task loop keeps running; flow_state controls flow."""
     processor = get_rosbot_processor()
     processor.stop_rosbot()
 
 
 def process_rosbot_task():
-    """Process ROSBOT task (called by task thread)."""
+    """One 1s tick: called by task thread every 1s. Runs tick_driver.on_tick(), then when tick % 2 == 0 runs flow (tick_bn_only_flow / tick_flow_master). Entry point registered in system_initializer as rosbot_task."""
     processor = get_rosbot_processor()
     processor.process_task()
 

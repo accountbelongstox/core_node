@@ -199,7 +199,7 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         if not attribute_name:
             ColorPrint.yellow(f"[D4ScaledTemplateMatcher] Unknown region name: {region_name}")
             return None
-        region_image = getattr(self.d4_data, attribute_name, None)
+        region_image = vars(self.d4_data).get(attribute_name) if hasattr(self.d4_data, attribute_name) else None
         if region_image is None:
             ColorPrint.yellow(f"[D4ScaledTemplateMatcher] No {region_name} region image in shared data")
             return None

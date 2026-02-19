@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-F3_Baseline 起算状态 (ROSBOT_FLOW_MERMAID F3_Baseline 节点).
-起算：已存在 -> log 最后修改时间（F3 内 run_f3_log_timeout 取）；刚启动 -> 本 started_at（UI 时长）。Set when ROSBOT just started (E/D/extension/panel); read by F3 log timeout.
+F3_Baseline start time (ROSBOT_FLOW_MERMAID F3_Baseline node).
+Baseline: when log exists -> log last modified time (read in run_f3_log_timeout); when just started -> this started_at (UI duration). Set when ROSBOT just started (E/D/extension/panel); read by F3 log timeout.
 """
 import time
 

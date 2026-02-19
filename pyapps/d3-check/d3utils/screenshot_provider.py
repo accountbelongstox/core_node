@@ -231,7 +231,7 @@ class ScreenshotProvider:
                 ColorPrint.gray("[Provider] No window found, skip capture")
                 return None
 
-        ColorPrint.blue("\n[Provider] Generating new screenshot...")
+        ColorPrint.blue("[Provider] Capturing...")
 
         try:
             # When capturing D3: prime cache with exe-first lookup (config d3.d3_path); skip title search when exe valid
@@ -366,9 +366,7 @@ class ScreenshotProvider:
                         time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
                         ColorPrint.green("[Provider] D3 window activated before capture (was not foreground)")
                     elif d3_hwnd:
-                        ColorPrint.gray("[Provider] D3 already foreground, skip activate")
-
-                ColorPrint.blue(f"[Provider] Using optimized capture for: {window_titles}")
+                        pass  # D3 already foreground
                 result = self.screenshot_manager.screenshot_first_window_by_titles(
                     titles=window_titles,
                     filename_prefix="temp_game_window",
@@ -399,9 +397,6 @@ class ScreenshotProvider:
             screen_width, screen_height = get_screen_resolution()
             screen_resolution = (screen_width, screen_height)
 
-            ColorPrint.green(f"[Provider] Screenshot captured: {captured_size[0]}x{captured_size[1]}")
-            ColorPrint.green(f"[Provider] Screen resolution: {screen_resolution[0]}x{screen_resolution[1]}")
-
             if in_memory_image is not None:
                 fullscreen_image = in_memory_image
             elif fullscreen_path is not None:
@@ -419,8 +414,6 @@ class ScreenshotProvider:
             # Step 2: Handle different capture modes
 
             if use_optimized_capture:
-                ColorPrint.green(f"[Provider] Optimized mode: using captured game window directly")
-
                 game_window_image = fullscreen_image
                 game_window_size = captured_size
                 game_window_rect = (0, 0, captured_size[0], captured_size[1])
@@ -432,12 +425,10 @@ class ScreenshotProvider:
                     cached_info = ENCYCLOPEDIA.get(cache_key)
                     if cached_info:
                         window_offset = (cached_info.get('left', 0), cached_info.get('top', 0))
-                        ColorPrint.blue(f"[Provider] Got window offset from cache: {window_offset}")
 
                 if fullscreen_path is not None:
                     try:
                         fullscreen_path.unlink()
-                        ColorPrint.gray(f"[Provider] Cleaned up temp file: {fullscreen_path}")
                     except Exception:
                         pass
 
@@ -545,23 +536,13 @@ class ScreenshotProvider:
             shared_data.game_window_size = screenshot_data.game_window_size or screenshot_data.fullscreen_size
             shared_data.timestamp = timestamp
 
-            # Log NULL fullscreen warning if in optimized mode
-            if screenshot_data.fullscreen_image is None:
-                ColorPrint.gray("[Provider] Fullscreen image is NULL (optimized mode - compatibility ensured)")
-
             # Add to screenshot history if DEBUG mode
             if DEBUG and fullscreen_path:
                 shared_data.add_screenshot_history(str(fullscreen_path))
 
-            ColorPrint.green("[Provider] Screenshot data created and stored in memory")
-            ColorPrint.blue(f"[Provider] Window offset: {screenshot_data.window_offset}")
-            ColorPrint.blue(f"[Provider] Full screen size: {screenshot_data.fullscreen_size[0]}x{screenshot_data.fullscreen_size[1]}")
-            ColorPrint.blue(f"[Provider] Game window size: {screenshot_data.game_window_size[0] if screenshot_data.game_window_size else 0}x{screenshot_data.game_window_size[1] if screenshot_data.game_window_size else 0}")
-            if screenshot_data.game_window_image is not None:
-                rw, rh = screenshot_data.game_window_image.size
-                ColorPrint.blue(f"[Provider] Screenshot region size: {rw}x{rh}")
-            ColorPrint.green("[Provider] Updated shared game interface data")
-
+            gw = screenshot_data.game_window_size
+            gw_s = f"{gw[0]}x{gw[1]}" if gw else "0x0"
+            ColorPrint.green(f"[Provider] {gw_s} offset {screenshot_data.window_offset}")
             return screenshot_data
 
         except Exception as e:

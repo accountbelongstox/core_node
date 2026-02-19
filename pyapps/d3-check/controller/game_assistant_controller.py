@@ -3,9 +3,9 @@
 """
 Game Assistant Function Controller
 
-铁匠与魔盒为不同流程，不可混为一谈：
-- 铁匠 (blacksmith)：bag_opened_indicator 左 30% → 拆解装备等，走 blacksmith_handler。
-- 魔盒 (Kanai Cube)：kanai_cube_left_panel_indicator 左 30% → 升级/重铸等，走 run_kanai_upgrade_flow。
+Blacksmith and Kanai Cube are separate flows, do not mix:
+- Blacksmith: bag_opened_indicator in left 30% -> salvage operations, uses blacksmith_handler.
+- Kanai Cube: kanai_cube_left_panel_indicator in left 30% -> upgrade/reforge/convert, uses kanai flows.
 """
 
 import os
@@ -29,7 +29,7 @@ from providor.providor_index import (
     reset_assistant_state
 )
 from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
-from d3utils.kanai import run_kanai_upgrade_flow
+from d3utils.kanai import run_kanai_upgrade_flow, run_kanai_reforge_flow
 from providor.providor_index import CONFIG
 
 from d3utils.interface_detection import detect_interface_type_from_full_window
@@ -77,10 +77,7 @@ class GameAssistantController:
             return False
 
         set_assistant_running(True)
-        ColorPrint.blue("\n" + "="*80)
-        ColorPrint.blue("[AutoUseInterface] Starting auto use interface function...")
-        ColorPrint.blue("[AutoUseInterface] Press hotkey again to stop")
-        ColorPrint.blue("="*80)
+        ColorPrint.blue("[AutoUseInterface] Started (press hotkey again to stop)")
 
         if should_stop_assistant():
             ColorPrint.yellow("[AutoUseInterface] Execution stopped by user")
@@ -88,10 +85,9 @@ class GameAssistantController:
             return False
 
         # Step 1: One capture and UI region (no full bag collect yet)
-        ColorPrint.blue("[AutoUseInterface] Step 1: Capturing game window...")
         ui_region = self.interface_manager.collect_ui_info(force_new_capture=True, save_screenshot=False)
         if not ui_region:
-            ColorPrint.red("[AutoUseInterface] Failed to collect UI info")
+            ColorPrint.red("[AutoUseInterface] Step 1 failed: no UI region")
             reset_assistant_state()
             return False
 
@@ -100,20 +96,20 @@ class GameAssistantController:
             reset_assistant_state()
             return False
 
-        # Step 2: Detect interface (match on full window; icons may be left or right)
-        # Only try bag_opened_indicator when blacksmith upgrade or auto salvage is enabled (see AUTO_USE_INTERFACE_BLACKSMITH_FLOW.md)
-        ColorPrint.blue("[AutoUseInterface] Step 2: Detecting interface (full window match)...")
+        # Step 2: Detect interface from image (match on full window; icons may be left or right)
         shared_data = get_game_interface_data()
         full_window = shared_data.game_window_image
         aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {})
         want_blacksmith = aux.get("blacksmith", {}).get("enabled", False) or aux.get("auto_salvage", {}).get("enabled", False)
+        
+        # Image detection: check if interface is actually opened in game
         interface_type = self._detect_interface_from_full_window(full_window, want_blacksmith=want_blacksmith)
 
         if interface_type is None:
             if want_blacksmith:
-                msg = "[AutoUseInterface] Blacksmith UI not found (bag_opened_indicator not matched in left 30%)"
+                msg = "[AutoUseInterface] Blacksmith UI not found in image (bag_opened_indicator not matched in left 30%)"
             else:
-                msg = "[AutoUseInterface] No bag_opened_indicator or kanai_cube_left_panel_indicator matched in left 30% on game window"
+                msg = "[AutoUseInterface] No interface detected in image (bag_opened_indicator or kanai_cube_left_panel_indicator not matched in left 30%)"
             ColorPrint.yellow(msg)
             try:
                 if is_debug_ui_active():
@@ -135,26 +131,58 @@ class GameAssistantController:
             reset_assistant_state()
             return False
 
-        # 铁匠与魔盒分支互斥：魔盒走 Kanai 流程；铁匠走拆解/自动分解（根据配置 debug_only 决定是否真实点击拆解）
+        # Blacksmith and Kanai Cube branches are mutually exclusive
+        # Kanai Cube -> Kanai flows; Blacksmith -> salvage/auto salvage (debug_only determines if real clicks)
         shared_data = get_game_interface_data()
         resolved_type = shared_data.interface_type or interface_type
         result = False
+        aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {}) or {}
+        
         if resolved_type == "kanai_cube":
-            # 魔盒：Kanai Cube 升级/重铸等，与铁匠无关
-            result = run_kanai_upgrade_flow()
+            # Kanai Cube: Check config AND verify interface is actually opened via image detection
+            # Image detection already confirmed kanai_cube interface in Step 2 (interface_type == "kanai_cube")
+            # Priority: reforge > upgrade > convert (check in order)
+            kanai_reforge = aux.get("kanai_reforge") or {}
+            kanai_upgrade = aux.get("kanai_upgrade") or {}
+            kanai_convert = aux.get("kanai_convert") or {}
+            
+            # Check config enabled flags AND verify function is available
+            if kanai_reforge.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Reforge enabled in config AND interface detected in image, running reforge flow...")
+                result = run_kanai_reforge_flow()
+            elif kanai_upgrade.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Upgrade enabled in config AND interface detected in image, running upgrade flow...")
+                result = run_kanai_upgrade_flow()
+            elif kanai_convert.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Convert enabled in config AND interface detected in image, running convert flow...")
+                # TODO: Implement run_kanai_convert_flow() or call convert function
+                ColorPrint.yellow("[AutoUseInterface] Kanai Convert flow not yet implemented")
+                result = False
+            else:
+                ColorPrint.yellow("[AutoUseInterface] Kanai Cube interface detected in image, but no function enabled in config (reforge/upgrade/convert), skipping")
+                result = False
         else:
-            # 铁匠：blacksmith，拆解装备。配置 debug_only=False 时执行真实拆解（点 TAB、装备、拆解、确认）
-            aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {}) or {}
+            # Blacksmith: Check config AND verify blacksmith interface is actually opened
+            # Image detection already confirmed blacksmith interface in Step 2 (interface_type == "blacksmith")
+            
             auto_salvage = aux.get("auto_salvage") or {}
             if auto_salvage.get("enabled") is True:
                 keep = auto_salvage.get("keep", "keep_ancient_plus")
                 debug_only = auto_salvage.get("debug_only", False)
+                ColorPrint.blue("[AutoUseInterface] Auto salvage enabled in config, running auto salvage flow...")
                 result = get_blacksmith_handler().handle_auto_salvage_by_slots(keep, debug_only=debug_only)
             else:
-                result = self._handle_blacksmith_upgrade()
+                # Check if blacksmith upgrade is enabled (blacksmith doesn't have upgrade, but config exists)
+                blacksmith = aux.get("blacksmith") or {}
+                if blacksmith.get("enabled") is True:
+                    ColorPrint.blue("[AutoUseInterface] Blacksmith enabled in config, running salvage operation...")
+                    result = self._handle_blacksmith_upgrade()
+                else:
+                    ColorPrint.yellow("[AutoUseInterface] No blacksmith function enabled in config, skipping")
+                    result = False
 
         reset_assistant_state()
-        ColorPrint.blue("[AutoUseInterface] Execution finished, state reset")
+        ColorPrint.blue("[AutoUseInterface] Done")
         return result
 
     def _handle_blacksmith_upgrade(self) -> bool:
