@@ -38,9 +38,9 @@ def set_log_file(file_path: str) -> None:
 
 def get_last_log_modified_time() -> float:
     m = get_log_monitor()
-    if not getattr(m, "initialized", False) or not getattr(m, "log_file_path", None):
+    if not m.initialized or not m.log_file_path:
         return 0.0
-    return getattr(m, "last_modified", 0.0)
+    return m.last_modified
 
 
 def stop_log_watching() -> None:

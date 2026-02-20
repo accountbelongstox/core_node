@@ -336,10 +336,11 @@ class RosbotExtensionPanel:
                            pady=UnifiedStyles.SPACING['xs'])
 
         # One-click scan button: right of the three Browse buttons, spans 3 rows 1 column (only this one)
+        # _scan_progress_label is created in _create_log_display_row (log header)
         self._scan_status = [None]
         self._scan_in_progress = False
         self._scan_progress_after_id = None
-        self._scan_progress_label = None  # no progress label in log header
+        self._scan_progress_label = None
         self._path_scan_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.scan_one_click"),
                                         bg=UnifiedStyles.COLORS['btn_secondary'],
                                         fg=UnifiedStyles.COLORS['text_primary'],
@@ -375,7 +376,8 @@ class RosbotExtensionPanel:
                 display = display[:69] + "..."
         else:
             display = i18n_manager.get_ui_text("rosbot.scan_searching")
-        self._scan_progress_label.config(text=display)
+        if self._scan_progress_label:
+            self._scan_progress_label.config(text=display)
         self._scan_progress_after_id = self.container.after(200, self._scan_progress_tick)
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, d3_path=None, error_msg=None):
@@ -384,7 +386,8 @@ class RosbotExtensionPanel:
         if self._scan_progress_after_id is not None:
             self.container.after_cancel(self._scan_progress_after_id)
         self._scan_progress_after_id = None
-        self._scan_progress_label.config(text="")
+        if self._scan_progress_label:
+            self._scan_progress_label.config(text="")
         self._path_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
         if error_msg:
             messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
@@ -661,11 +664,12 @@ class RosbotExtensionPanel:
         log_frame.grid_rowconfigure(0, weight=0)
         log_frame.grid_rowconfigure(1, weight=1)
 
-        # Header row: [log title] [status] [latency] [checkbox] (one-click scan button is only in path section above)
+        # Header row: [log title] [scan progress] [status] [latency] [checkbox]
         header = tk.Frame(log_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=(UnifiedStyles.SPACING['xs'], 0))
         header.grid_columnconfigure(0, weight=1)
-        for c in (1, 2, 3, 4):
+        header.grid_columnconfigure(1, weight=1)
+        for c in (2, 3, 4):
             header.grid_columnconfigure(c, weight=0)
 
         title_lbl = tk.Label(header, text=i18n_manager.get_ui_text("rosbot.rosbot_log"),
@@ -674,19 +678,25 @@ class RosbotExtensionPanel:
                             font=UnifiedStyles.FONTS['label'])
         title_lbl.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
 
+        self._scan_progress_label = tk.Label(header, text="",
+                                            bg=UnifiedStyles.COLORS['bg_secondary'],
+                                            fg=UnifiedStyles.COLORS['text_muted'],
+                                            font=UnifiedStyles.FONTS['small'])
+        self._scan_progress_label.grid(row=0, column=1, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
+
         self._rosbot_log_status_var = tk.StringVar(value="")
         self._rosbot_log_status_lbl = tk.Label(header, textvariable=self._rosbot_log_status_var,
                                               bg=UnifiedStyles.COLORS['bg_secondary'],
                                               fg=UnifiedStyles.COLORS['text_primary'],
                                               font=UnifiedStyles.FONTS['code'])
-        self._rosbot_log_status_lbl.grid(row=0, column=1, sticky="w")
+        self._rosbot_log_status_lbl.grid(row=0, column=2, sticky="w")
 
         self._rosbot_log_latency_var = tk.StringVar(value="")
         self._rosbot_log_latency_lbl = tk.Label(header, textvariable=self._rosbot_log_latency_var,
                                                bg=UnifiedStyles.COLORS['bg_secondary'],
                                                fg=UnifiedStyles.COLORS['text_primary'],
                                                font=UnifiedStyles.FONTS['code'])
-        self._rosbot_log_latency_lbl.grid(row=0, column=2, sticky="e", padx=UnifiedStyles.SPACING['sm'])
+        self._rosbot_log_latency_lbl.grid(row=0, column=3, sticky="e", padx=UnifiedStyles.SPACING['sm'])
 
         debug_latency_check = ConfigBinding.create_checkbox_binding(
             header, "log_settings.debug_log_latency",
@@ -697,7 +707,7 @@ class RosbotExtensionPanel:
             activebackground=UnifiedStyles.COLORS['bg_secondary'],
             activeforeground=UnifiedStyles.COLORS['text_primary']
         )
-        debug_latency_check.grid(row=0, column=3, sticky="e")
+        debug_latency_check.grid(row=0, column=4, sticky="e")
         debug_latency_check.bind("<ButtonRelease-1>", lambda e: self._update_rosbot_log_status_display())
 
         # Log text widget

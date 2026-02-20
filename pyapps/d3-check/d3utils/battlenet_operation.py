@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Battle.net operation: start, close, restart, click D3 tab, start game, detect game state.
-类库：导出前实例化，通过 get_battlenet_operation() / get_battlenet_asia_ops() 按 path+region 单例，禁止各处自行 new。
+Singleton per (path, region) via get_battlenet_operation() / get_battlenet_asia_ops(); do not instantiate elsewhere.
 Reuses BattleNetManager for process/window; UI Automation for control find/click (Chromium Battle.net).
 When region (asia/cn) is known at startup, all operations use that region only; when unknown, first detection may try both.
 """
@@ -142,9 +142,7 @@ def _safe_control_dict_light(control) -> Optional[Dict[str, Any]]:
         except Exception:
             is_enabled = None
         try:
-            is_offscreen = getattr(control, "IsOffscreen", None)
-            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
-                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+            is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
         except Exception:
             is_offscreen = None
         return {
@@ -173,9 +171,7 @@ def _safe_control_dict(control) -> Optional[Dict[str, Any]]:
         except Exception:
             is_enabled = None
         try:
-            is_offscreen = getattr(control, "IsOffscreen", None)
-            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
-                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+            is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
         except Exception:
             is_offscreen = None
         has_valid_rect = (w is not None and h is not None and w > 0 and h > 0)
@@ -230,7 +226,7 @@ class BattlenetOperation:
     def __init__(self, elements_json_path: Optional[Path] = None, region: Optional[str] = None):
         self._elements_json_path = elements_json_path or self._default_elements_json_path()
         self._clicker = get_click_handler()
-        self._asia_ops: Optional[BattlenetAsiaOps] = None  # 由 get_battlenet_operation() 在缓存后注入
+        self._asia_ops: Optional[BattlenetAsiaOps] = None  # Injected by get_battlenet_operation() after cache
         self._region = region if region in ("asia", "cn") else _resolve_battlenet_region() if region is None else None
 
     @staticmethod
@@ -710,15 +706,11 @@ class BattlenetOperation:
         try:
             toggle_pattern = raw_control.GetPattern(10014)
             if toggle_pattern is not None:
-                if hasattr(toggle_pattern, "ToggleState"):
-                    return int(toggle_pattern.ToggleState)
-                if hasattr(toggle_pattern, "GetToggleState"):
-                    return int(toggle_pattern.GetToggleState())
+                return int(toggle_pattern.ToggleState)
         except Exception:
             pass
         try:
-            if hasattr(raw_control, "GetCurrentPropertyValue"):
-                val = raw_control.GetCurrentPropertyValue(30096)
+            val = raw_control.GetCurrentPropertyValue(30096)
                 if val is not None:
                     return int(val)
         except Exception:
@@ -1096,7 +1088,7 @@ class BattlenetOperation:
             return None
 
 
-# 导出前实例化：按 (elements_json_path, region) 单例
+# Singleton per (elements_json_path, region); use getters only
 _battlenet_operation_cache: Dict[Tuple[Optional[Path], Optional[str]], BattlenetOperation] = {}
 _battlenet_asia_ops_cache: Dict[Tuple[Optional[Path], Optional[str]], BattlenetAsiaOps] = {}
 
@@ -1105,7 +1097,7 @@ def get_battlenet_asia_ops(
     elements_json_path: Optional[Path] = None,
     region: Optional[str] = None,
 ) -> BattlenetAsiaOps:
-    """Return BattlenetAsiaOps for the same key as get_battlenet_operation (singleton per path+region). 导出前实例化。"""
+    """Return BattlenetAsiaOps for the same key as get_battlenet_operation (singleton per path+region)."""
     key = (elements_json_path, region)
     if key not in _battlenet_asia_ops_cache:
         _battlenet_asia_ops_cache[key] = BattlenetAsiaOps(get_battlenet_operation(elements_json_path, region))
@@ -1116,7 +1108,7 @@ def get_battlenet_operation(
     elements_json_path: Optional[Path] = None,
     region: Optional[str] = None,
 ) -> BattlenetOperation:
-    """Return Battle.net operation bound to current region (singleton per path+region). 导出前实例化。"""
+    """Return Battle.net operation bound to current region (singleton per path+region)."""
     key = (elements_json_path, region)
     if key not in _battlenet_operation_cache:
         op = BattlenetOperation(elements_json_path=elements_json_path, region=region)

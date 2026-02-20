@@ -126,7 +126,7 @@ _exp_farming_manager_instance = None
 
 
 def get_exp_farming_manager() -> ExpFarmingManager:
-    """Return the global ExpFarmingManager instance (singleton). 导出前实例化."""
+    """Return the global ExpFarmingManager instance (singleton). Instantiate before use."""
     global _exp_farming_manager_instance
     if _exp_farming_manager_instance is None:
         _exp_farming_manager_instance = ExpFarmingManager()

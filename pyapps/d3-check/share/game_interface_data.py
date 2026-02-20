@@ -726,6 +726,8 @@ class D3InterfaceData(InterfaceDataBase):
     rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
     ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
+    _window_hwnd: Optional[int] = None  # D3 window handle; set by d3_status_provider
+    _window_title: Optional[str] = None  # D3 window title; set by d3_status_provider
     # D13 found D3 window with for_f2_only: set True so next C1 tick uses d3_just_entered -> C7a map teleport (ROSBOT_FLOW_MERMAID)
     d3_just_entered_from_d13: bool = False
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
@@ -789,6 +791,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.rosbot_flow_master_enabled = False
         self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
+        self._window_hwnd = None
+        self._window_title = None
         self.d3_just_entered_from_d13 = False
         self.rosbot_disconnected_from_log = False
         self.map_type = "unknown"

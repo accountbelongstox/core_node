@@ -3,7 +3,7 @@
 """
 UI Region Collector - Ultralytics Version
 Uses YOLO object detection for AI-based window detection.
-类库：YOLO 模型通过 get_yolo_model(path) 按路径单例，禁止各处自行 new YOLO。
+Singleton per model path via get_yolo_model(path); do not instantiate YOLO elsewhere.
 """
 
 import os
@@ -33,12 +33,12 @@ YOLO = getattr(_ultralytics, "YOLO", None) if _ultralytics else None
 if not ULTRALYTICS_AVAILABLE:
     ColorPrint.yellow("[UIRegionCollectorUltralytics] Ultralytics not installed")
 
-# 导出前实例化：按 model_path 单例，禁止各处自行 new YOLO
+# Singleton per model_path; use get_yolo_model only
 _yolo_model_cache: Dict[str, Any] = {}
 
 
 def get_yolo_model(model_path: str):
-    """Return cached YOLO model for path. 导出前实例化。"""
+    """Return cached YOLO model for path (singleton per path)."""
     if not ULTRALYTICS_AVAILABLE or YOLO is None:
         return None
     if model_path not in _yolo_model_cache:
@@ -93,7 +93,7 @@ class UIRegionCollectorUltralytics:
             config_dir = get_project_root() / "config" / "models"
             self._model_path = config_dir / "d3_ui_detector.pt"
 
-        # Load model if exists（使用中心 getter，按路径单例）
+        # Load model if exists (use central getter, singleton per path)
         if Path(self._model_path).exists():
             self._model = get_yolo_model(str(self._model_path))
             if self._model is not None:
@@ -476,7 +476,7 @@ class UIRegionCollectorUltralytics:
             ColorPrint.green("[Train] Training complete!")
             ColorPrint.green(f"[Train] Model saved to: config/models/d3_ui_detector/weights/best.pt")
 
-            # Load trained model（使用中心 getter）
+            # Load trained model (use central getter)
             best_model_path = Path("config/models/d3_ui_detector/weights/best.pt")
             if best_model_path.exists():
                 self._model = get_yolo_model(str(best_model_path))

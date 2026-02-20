@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Browser window finder for CN Battle.net login fallback.
-Finds browser windows by title (e.g. 战网登录). Prefers the frontmost browser
+Finds browser windows by title (e.g. Battle.net login). Prefers the frontmost browser
 (relative to other browsers) that matches the title.
 """
 

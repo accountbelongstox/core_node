@@ -3,7 +3,7 @@
 """
 Template Matcher Helper Component
 Handles template image matching and visualization on screenshots.
-类库：导出前实例化，通过 get_template_matcher_helper() / get_image_matcher() 获取单例，禁止各处自行 new。
+Singleton via get_template_matcher_helper() / get_image_matcher(); do not instantiate elsewhere.
 """
 
 import tkinter as tk
@@ -34,12 +34,12 @@ from providor.providor_index import (
 )
 
 
-# 导出前实例化：ImageMatcher 由 d3utils.image_matcher_registry 统一提供；此处仅再导出便于 UI 引用
+# ImageMatcher from d3utils.image_matcher_registry; re-exported here for UI
 _template_matcher_helper_instance: Optional["TemplateMatcherHelper"] = None
 
 
 def get_template_matcher_helper() -> "TemplateMatcherHelper":
-    """Return the global TemplateMatcherHelper instance (singleton). 导出前实例化。"""
+    """Return the global TemplateMatcherHelper instance (singleton)."""
     global _template_matcher_helper_instance
     if _template_matcher_helper_instance is None:
         _template_matcher_helper_instance = TemplateMatcherHelper()

@@ -211,7 +211,16 @@
       "refresh_no_fn": "未设置刷新函数(控制器可能未连接窗口监控)",
       "refresh_refreshing": "正在刷新状态(手动) -> 后台执行 check_window...",
       "rosbot_started_monitoring": "ROSBOT 已开始监控",
-      "rosbot_stopped_monitoring": "ROSBOT 已停止监控"
+      "rosbot_stopped_monitoring": "ROSBOT 已停止监控",
+      "need_key_message": "需要输入KEY"
+    },
+    "credentials": {
+      "title": "Battle.net 账号密码",
+      "region_type": "类型 (命名空间):",
+      "account": "账号 (邮箱/手机):",
+      "password": "密码:",
+      "region_asia": "亚服",
+      "region_cn": "国服"
     }
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Region Detector for D4 Controller. 通过 get_region_detector() 获取单例，禁止各处自行 new。
+Region Detector for D4 Controller. Singleton via get_region_detector(); do not instantiate elsewhere.
 """
 
 import sys
@@ -315,7 +315,7 @@ _region_detector_instance = None
 
 
 def get_region_detector() -> RegionDetector:
-    """Return the global RegionDetector instance (singleton). 导出前实例化."""
+    """Return the global RegionDetector instance (singleton). Instantiate before use."""
     global _region_detector_instance
     if _region_detector_instance is None:
         _region_detector_instance = RegionDetector()

@@ -18,6 +18,7 @@ import importlib.util
 import platform
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.cuda_detector import CUDADetector
 from pycore.pyfoundations.safe_subprocess import subprocess
 
@@ -203,11 +204,19 @@ WINDOWS_ONLY_PACKAGES = {
 # PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
 PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu118"
 
+# ---------------------------------------------------------------------------
+# Pip / command execution: SINGLE COMMON PATH (no ColorPrint, real-time, pip decides result)
+# All pip execution in this module MUST go through run_pip_install_with_realtime_output() only.
+# It delegates to _run_command_realtime_stream_only() which uses plain print and does not
+# interpret success/failure (pip output and exit code are the only result). Other code uses ColorPrint.
+# ---------------------------------------------------------------------------
+
 
 def _run_command_realtime_stream_only(cmd: list) -> None:
     """
-    Run command with real-time stream only. No return value used; success/failure is entirely
-    determined by the subprocess (e.g. pip) output and exit code. Plain print only, no ColorPrint.
+    Single internal helper for running a command with real-time stream only.
+    Used only by run_pip_install_with_realtime_output (and run_command_with_realtime_output).
+    No return value; success/failure entirely by subprocess. Plain print only, no ColorPrint.
     """
     cmd_str = " ".join(str(x) for x in cmd)
     print(f"Executing command: {cmd_str}")
@@ -228,35 +237,59 @@ def _run_command_realtime_stream_only(cmd: list) -> None:
     proc.wait()
 
 
+def _print_cuda_support_prompt():
+    """
+    Print whether current system supports CUDA (using CUDADetector).
+    Official docs: https://pytorch.org/get-started/locally
+    """
+    info = CUDADetector.get_cuda_info()
+    available = info.get("available", False)
+    nvidia_smi_found = info.get("nvidia_smi_found", False)
+    gpu_count = info.get("gpu_count", 0)
+    driver_version = info.get("driver_version")
+    gpus = info.get("gpus", [])
+    cuda_env_vars = info.get("cuda_env_vars", {})
+
+    ColorPrint.blue("[CUDA] Current system CUDA support check (see https://pytorch.org/get-started/locally):")
+    if available:
+        ColorPrint.blue("[CUDA] System supports CUDA.")
+        if nvidia_smi_found:
+            ColorPrint.blue(f"[CUDA] nvidia-smi: found. GPU count: {gpu_count}. Driver: {driver_version or 'N/A'}")
+            for i, gpu in enumerate(gpus[:5], 1):
+                name = gpu.get("name", "N/A")
+                mem = gpu.get("memory_total", "")
+                ColorPrint.blue(f"[CUDA]   GPU {i}: {name}" + (f" ({mem})" if mem else ""))
+        if cuda_env_vars:
+            ColorPrint.blue("[CUDA] CUDA env: " + " ".join(f"{k}={v}" for k, v in list(cuda_env_vars.items())[:3]))
+    else:
+        ColorPrint.yellow("[CUDA] System does NOT support CUDA (no nvidia-smi and no CUDA env).")
+        if not nvidia_smi_found:
+            ColorPrint.yellow("[CUDA] nvidia-smi not available. Install NVIDIA driver or see https://pytorch.org/get-started/locally")
+        ColorPrint.yellow("[CUDA] Skipping PyTorch CUDA build; using CPU.")
+    ColorPrint.blue("[CUDA] ---")
+
+
 def _ensure_torch_cuda_build_first():
     """
     Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
     System support: NVIDIA GPU + driver (nvidia-smi or CUDA env). Per PyTorch docs: is_available() for runtime.
     """
-    # Check system CUDA support first (no torch required; uses nvidia-smi / CUDA env)
+    _print_cuda_support_prompt()
+
+    # Only skip CUDA install when system does not support CUDA
     if not CUDADetector.is_cuda_available():
-        cuda_info = CUDADetector.get_cuda_info()
-        if not cuda_info.get("nvidia_smi_found"):
-            ColorPrint.blue(
-                "[INFO] System does not support CUDA (no NVIDIA GPU or nvidia-smi not available). "
-                "Skipping PyTorch CUDA build; using CPU. See https://pytorch.org/get-started/locally"
-            )
-        else:
-            ColorPrint.blue("[INFO] CUDA not detected on this system. Skipping PyTorch CUDA build; using CPU.")
         return
 
     if torch is not None and getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
         return
-    cuda_available = False
     if torch is not None:
         if getattr(torch.version, "cuda", None) is None:
             ColorPrint.blue(
                 "[INFO] Ensuring PyTorch CUDA build (current is CPU-only; system has NVIDIA GPU). "
-                "See pytorch.org/get-started/locally"
+                "See https://pytorch.org/get-started/locally"
             )
         else:
-            cuda_available = torch.cuda.is_available()
-            if cuda_available:
+            if torch.cuda.is_available():
                 return
             ColorPrint.blue("[INFO] Reinstalling PyTorch CUDA build (driver/runtime may need match)...")
     else:
@@ -274,25 +307,12 @@ def _ensure_torch_cuda_build_first():
     importlib.invalidate_caches()
     if "torch" in sys.modules:
         del sys.modules["torch"]
-    try:
-        import torch as t
-        if getattr(t, "cuda", None) and t.cuda.is_available():
-            ColorPrint.green("[SUCCESS] PyTorch CUDA build ready.")
-        else:
-            ColorPrint.yellow("[WARNING] PyTorch reinstalled but CUDA still not available (driver/toolkit mismatch?).")
-    except Exception as e:
-        ColorPrint.yellow(f"[WARNING] PyTorch CUDA check after install: {e}")
 
 
 def build_pip_install_command(package_name: str) -> list:
     """
-    Build pip install command with platform-specific flags.
-
-    Args:
-        package_name: The package name to install
-
-    Returns:
-        List of command arguments for exec_silent()
+    Build pip install command (list of args) with platform-specific flags.
+    Callers must run it only via run_pip_install_with_realtime_output(pip_cmd, package_name).
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
@@ -310,55 +330,21 @@ def build_pip_install_command(package_name: str) -> list:
     return pip_cmd
 
 
-def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> bool:
+def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> None:
     """
-    Run pip install command with real-time output.
-    
-    Args:
-        pip_cmd: List of command arguments
-        package_name: Name of package being installed (for display)
-    
-    Returns:
-        True if installation succeeded, False otherwise
-    
-    Note: Uses Commander.exec_realtime() which collects output.
-    Recommended to check output string instead of return code.
+    THE SINGLE PUBLIC METHOD FOR ALL PIP EXECUTION IN THIS MODULE.
+    Real-time output only, no ColorPrint; success/failure is entirely determined by pip.
+    Every pip install (torch, deps, pip upgrade, optional packages) must call this only.
     """
-    result = Commander.exec_realtime(pip_cmd, info=True, show_output=True)
-    
-    # Check output for success indicators (recommended approach)
-    output = result.get_output().lower()
-    if "successfully installed" in output or "already satisfied" in output or result.success:
-        return True
-    else:
-        ColorPrint.red(f"[ERROR] Installation failed. Output: {result.get_output()}")
-        return False
+    _run_command_realtime_stream_only(pip_cmd)
 
 
-def run_command_with_realtime_output(cmd: list, description: str = "") -> bool:
+def run_command_with_realtime_output(cmd: list, description: str = "") -> None:
     """
-    Run command with real-time output.
-    
-    Args:
-        cmd: List of command arguments
-        description: Description of what is being executed (for display)
-    
-    Returns:
-        True if command succeeded, False otherwise
-    
-    Note: Uses Commander.exec_realtime() which collects output.
-    Recommended to check output string instead of return code.
+    Run arbitrary command with same real-time stream-only behavior (no ColorPrint).
+    For pip, use run_pip_install_with_realtime_output instead.
     """
-    result = Commander.exec_realtime(cmd, info=bool(description), show_output=True)
-    
-    # Check output for success (recommended approach)
-    if result.success and result.has_output():
-        return True
-    elif not result.success:
-        ColorPrint.red(f"[ERROR] Command failed. Output: {result.get_output()}")
-        return False
-    else:
-        return result.success
+    _run_command_realtime_stream_only(cmd)
 
 
 def install_and_reimport_azure():
@@ -380,11 +366,7 @@ def install_and_reimport_azure():
     # If import failed, install package directly
     ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
     pip_cmd = build_pip_install_command("azure-cognitiveservices-speech")
-    
-    # Run installation with real-time output
     run_pip_install_with_realtime_output(pip_cmd, "azure-cognitiveservices-speech")
-    
-    # Verify installation by trying to import (not by return code)
     importlib.invalidate_caches()
     try:
         import azure.cognitiveservices.speech
@@ -503,7 +485,7 @@ def check_and_install_dependencies():
         ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
 
     # Optional packages are not checked/installed automatically
-    ColorPrint.blue(f"[INFO] Optional packages are not auto-installed")
+    ColorPrint.blue("[INFO] Optional packages are not auto-installed")
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
@@ -523,18 +505,12 @@ def check_and_install_dependencies():
     # Upgrade pip first if any packages need installation
     if needs_installation:
         ColorPrint.blue("[INFO] Upgrading pip to latest version...")
-        # Note: Don't use --target for pip itself, it's a special case
         pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
         if current_platform != 'Windows':
             pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
         else:
-            # On Windows, use --no-user to avoid user directory issues
             pip_upgrade_cmd.append("--no-user")
-        if run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip"):
-            ColorPrint.green("[SUCCESS] pip upgraded successfully")
-        else:
-            ColorPrint.yellow("[WARNING] Failed to upgrade pip")
-            ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
+        run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip")
 
     failed_packages = []
     
@@ -574,7 +550,7 @@ def check_and_install_dependencies():
                 module_spec = importlib.util.find_spec(import_name_to_check)
                 if module_spec is None:
                     ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
-                    ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
+                    ColorPrint.yellow("[WARNING] This may require a Python restart or the package may need different import name")
                     failed_packages.append((package_name, import_name_to_check))
                 else:
                     ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
@@ -666,19 +642,13 @@ def _lazy_import(package_name: str, import_statement: str):
             if pip_package:
                 ColorPrint.yellow(f"[INSTALL] Package '{package_name}' not found. Installing '{pip_package}'...")
                 pip_cmd = build_pip_install_command(pip_package)
-                if run_pip_install_with_realtime_output(pip_cmd, pip_package):
-                    # Clear import caches and retry
-                    importlib.invalidate_caches()
-                    try:
-                        exec(import_statement, globals(), local_vars)
-                        _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
-                        ColorPrint.green(f"[SUCCESS] Successfully installed and imported '{package_name}'")
-                    except (ImportError, ModuleNotFoundError) as retry_e:
-                        ColorPrint.red(f"[ERROR] Package installed but import still failed: {retry_e}")
-                        raise retry_e
-                else:
-                    ColorPrint.red(f"[ERROR] Failed to install package '{pip_package}'")
-                    raise e
+                run_pip_install_with_realtime_output(pip_cmd, pip_package)
+                importlib.invalidate_caches()
+                try:
+                    exec(import_statement, globals(), local_vars)
+                    _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
+                except (ImportError, ModuleNotFoundError) as retry_e:
+                    raise retry_e
             else:
                 # Package not in any dependency map, re-raise original error
                 raise e
@@ -914,8 +884,8 @@ def get_third_package_pystray():
             error_msg = str(e)
             if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
                 ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
-                ColorPrint.yellow("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
-                ColorPrint.yellow("[INFO] System tray features will be disabled")
+                ColorPrint.blue("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
+                ColorPrint.blue("[INFO] System tray features will be disabled")
                 _PACKAGE_CACHE['pystray'] = None
                 return None
             else:
@@ -1208,16 +1178,13 @@ def get_third_package_watchdog():
             if pip_package:
                 ColorPrint.yellow(f"[INSTALL] watchdog not found. Installing '{pip_package}' for file-change driven log monitor...")
                 pip_cmd = build_pip_install_command(pip_package)
-                if run_pip_install_with_realtime_output(pip_cmd, pip_package):
-                    importlib.invalidate_caches()
-                    try:
-                        import watchdog
-                        _PACKAGE_CACHE['watchdog'] = watchdog
-                        _ensure_watchdog_submodules()
-                        ColorPrint.green("[SUCCESS] watchdog installed (file-change driven log monitor enabled)")
-                    except ImportError:
-                        _PACKAGE_CACHE['watchdog'] = None
-                else:
+                run_pip_install_with_realtime_output(pip_cmd, pip_package)
+                importlib.invalidate_caches()
+                try:
+                    import watchdog
+                    _PACKAGE_CACHE['watchdog'] = watchdog
+                    _ensure_watchdog_submodules()
+                except ImportError:
                     _PACKAGE_CACHE['watchdog'] = None
             else:
                 _PACKAGE_CACHE['watchdog'] = None

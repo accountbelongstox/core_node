@@ -12,6 +12,7 @@ Selector format (target): optional keys
 """
 from pathlib import Path
 import json
+import time
 from typing import Optional, Any, List, Dict, Union
 
 from pycore.pyfoundations.color_print import ColorPrint
@@ -24,6 +25,7 @@ from d3utils.ui_control_operations import (
 )
 from pycore.pyutils.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
+from d3utils.rosbot_ui_structure import get_resume_sequence
 
 
 # ---------------------------------------------------------------------------
@@ -79,12 +81,9 @@ def _control_matches(control, info: Dict[str, Any], selector: Dict[str, Any]) ->
     If selector has non-empty automation_id: match ONLY by automation_id (and type). Do not use name.
     Else: match by type + name; support name (exact), name_candidates (any of, localized), name_contains.
     """
-    try:
-        ctype = getattr(control, "ControlTypeName", None) or ""
-        name = (getattr(control, "Name", None) or "") or ""
-        aid = (getattr(control, "AutomationId", None) or "") or ""
-    except Exception:
-        return False
+    ctype = (control.ControlTypeName or "").strip()
+    name = (control.Name or "") or ""
+    aid = (control.AutomationId or "") or ""
 
     sel_id = selector.get("automation_id")
     if sel_id is not None and str(sel_id).strip():
@@ -133,25 +132,17 @@ def find_control_in_window(
     collected: List[Any] = []
 
     def walk(control, depth: int):
-        if depth > max_depth:
+        if depth > max_depth or control is None:
             return
-        try:
-            info = {}
-            try:
-                info["type"] = getattr(control, "ControlTypeName", None) or ""
-                info["name"] = (getattr(control, "Name", None) or "") or ""
-                info["automation_id"] = (getattr(control, "AutomationId", None) or "") or ""
-            except Exception:
-                pass
-            if _control_matches(control, info, selector):
-                collected.append(control)
-            try:
-                for child in control.GetChildren():
-                    walk(child, depth + 1)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        info = {
+            "type": control.ControlTypeName or "",
+            "name": (control.Name or "") or "",
+            "automation_id": (control.AutomationId or "") or "",
+        }
+        if _control_matches(control, info, selector):
+            collected.append(control)
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(window_control, 0)
     if not collected:
@@ -211,7 +202,6 @@ def run_sequence(
     Run a list of operation specs in order. Returns list of success flags.
     Each item: { "action": "invoke"|"select"|"click", "target": selector }
     """
-    import time
     results = []
     for i, spec in enumerate(sequence):
         ok = operate_by_spec(window_control, spec, clicker=clicker, click_params=click_params)
@@ -236,7 +226,6 @@ def run_rosbot_resume_sequence(
     Returns True if at least one step succeeded.
     """
     if sequence is None:
-        from d3utils.rosbot_ui_structure import get_resume_sequence
         sequence = get_resume_sequence()
     results = run_sequence(window_control, sequence, clicker=clicker, click_params=click_params, delay_after_step=0.3)
     return any(results)

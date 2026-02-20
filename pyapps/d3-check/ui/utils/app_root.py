@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Application Root Helper
-委托 share.ui_registry 总常量库；主 UI 启动后全部注册，此处仅做兼容导出。
+Delegates to share.ui_registry; main UI registers on startup; this module provides compatibility exports.
 """
 
 import tkinter as tk
