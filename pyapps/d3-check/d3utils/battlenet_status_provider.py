@@ -32,24 +32,40 @@ def _read_region_from_battlenet_config() -> Optional[str]:
     """
     config_path = Path(BATTLE_NET_CONFIG_PATH)
     if not config_path.exists():
-        ColorPrint.gray("[BattlenetStatusProvider] _read_region_from_battlenet_config: config missing")
+        ColorPrint.gray(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: config missing path={config_path}")
         return None
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        ColorPrint.yellow(f"[BattlenetStatusProvider] Failed to read config file: {e}")
+            raw_text = f.read()
+    except OSError as e:
+        ColorPrint.yellow(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: read file error {e}")
+        return None
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        ColorPrint.yellow(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: JSON error {e}")
+        ColorPrint.gray(f"[BattlenetStatusProvider] config file raw text (first 2000 chars):\n{raw_text[:2000]}")
         return None
     if not isinstance(data, dict):
+        ColorPrint.gray(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: root not dict, keys={list(data.keys()) if hasattr(data, 'keys') else type(data).__name__}")
+        ColorPrint.gray(f"[BattlenetStatusProvider] config file raw text (first 2000 chars):\n{raw_text[:2000]}")
         return None
     services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    ColorPrint.gray(
+        f"[BattlenetStatusProvider] _read_region_from_battlenet_config: path={config_path} Services keys={list(services.keys()) if isinstance(services, dict) else type(services).__name__}"
+    )
     if not isinstance(services, dict):
+        ColorPrint.gray(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: Services not dict, full config as text:\n{raw_text[:3000]}")
         return None
     last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    ColorPrint.gray(
+        f"[BattlenetStatusProvider] _read_region_from_battlenet_config: read LastLoginRegion={repr(last_login_region)}"
+    )
     if not last_login_region or not isinstance(last_login_region, str):
         ColorPrint.gray(
-            f"[BattlenetStatusProvider] _read_region_from_battlenet_config: LastLoginRegion empty/invalid raw={repr(last_login_region)}"
+            f"[BattlenetStatusProvider] _read_region_from_battlenet_config: LastLoginRegion empty/invalid raw={repr(last_login_region)}, printing full config as debug:"
         )
+        ColorPrint.gray(f"[BattlenetStatusProvider] --- Battle.net.config full text ---\n{raw_text}\n--- end ---")
         return None
     is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
     result = "cn" if is_cn else "asia"
