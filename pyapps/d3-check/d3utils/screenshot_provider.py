@@ -3,7 +3,7 @@
 """
 Screenshot Provider
 Unified screenshot provider for the entire application.
-类库：导出前实例化，通过 get_screenshot_provider() / get_window_screenshot() / get_game_window_detector() 获取单例，禁止各处自行 new。
+Singleton: instantiate before export; get via get_screenshot_provider() / get_window_screenshot() / get_game_window_detector(). Do not instantiate elsewhere.
 
 Features:
 - Single source of truth for screenshots
@@ -16,7 +16,6 @@ Features:
 import os
 import sys
 import time
-import traceback
 import tkinter as tk
 from typing import Optional, Tuple, Dict
 from pathlib import Path
@@ -547,7 +546,6 @@ class ScreenshotProvider:
 
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing screenshot: {e}")
-            traceback.print_exc()
             return None
 
     def clear_screenshot(self):
@@ -637,7 +635,6 @@ class ScreenshotProvider:
             )
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing grid region: {e}")
-            traceback.print_exc()
             return None
 
     def gen_grid_cell(
@@ -677,10 +674,9 @@ class ScreenshotProvider:
                 return None
         except Exception as e:
             ColorPrint.red(f"[Provider] Error capturing grid cell ({cell_row},{cell_col}): {e}")
-            traceback.print_exc()
             return None
 
-# 导出前实例化：全项目唯一 WindowScreenshot 实例
+# Single WindowScreenshot instance for the project (instantiated before export)
 _window_screenshot_instance = None
 
 

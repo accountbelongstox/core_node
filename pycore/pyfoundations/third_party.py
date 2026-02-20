@@ -18,32 +18,13 @@ import importlib.util
 import platform
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.cuda_detector import CUDADetector
+from pycore.pyfoundations.safe_subprocess import subprocess
 
-# Check if running in MCP mode - suppress output if true
-_IS_MCP_MODE = ColorPrint.is_mcp_mode()
-
-# Save original ColorPrint reference before wrapping
-_OriginalColorPrint = ColorPrint
-
-# Conditional ColorPrint wrapper - only outputs if not in MCP mode
-class _ColorPrintWrapper:
-    @staticmethod
-    def blue(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.blue(msg)
-    @staticmethod
-    def red(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.red(msg)
-    @staticmethod
-    def green(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.green(msg)
-    @staticmethod
-    def yellow(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.yellow(msg)
-
-# Replace ColorPrint with wrapper for this module
-ColorPrint = _ColorPrintWrapper
+try:
+    import torch
+except ImportError:
+    torch = None
 
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
@@ -218,6 +199,89 @@ WINDOWS_ONLY_PACKAGES = {
 # NOTE: System packages (python3-tk, python3-gi, etc.) are now installed by
 # scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 # This file only handles Python packages installable via pip
+
+# PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
+PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu118"
+
+
+def _run_command_realtime_stream_only(cmd: list) -> None:
+    """
+    Run command with real-time stream only. No return value used; success/failure is entirely
+    determined by the subprocess (e.g. pip) output and exit code. Plain print only, no ColorPrint.
+    """
+    cmd_str = " ".join(str(x) for x in cmd)
+    print(f"Executing command: {cmd_str}")
+    sys.stdout.flush()
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        universal_newlines=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    for line in iter(proc.stdout.readline, ""):
+        if line:
+            print(line, end="")
+            sys.stdout.flush()
+    proc.wait()
+
+
+def _ensure_torch_cuda_build_first():
+    """
+    Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
+    System support: NVIDIA GPU + driver (nvidia-smi or CUDA env). Per PyTorch docs: is_available() for runtime.
+    """
+    # Check system CUDA support first (no torch required; uses nvidia-smi / CUDA env)
+    if not CUDADetector.is_cuda_available():
+        cuda_info = CUDADetector.get_cuda_info()
+        if not cuda_info.get("nvidia_smi_found"):
+            ColorPrint.blue(
+                "[INFO] System does not support CUDA (no NVIDIA GPU or nvidia-smi not available). "
+                "Skipping PyTorch CUDA build; using CPU. See https://pytorch.org/get-started/locally"
+            )
+        else:
+            ColorPrint.blue("[INFO] CUDA not detected on this system. Skipping PyTorch CUDA build; using CPU.")
+        return
+
+    if torch is not None and getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
+        return
+    cuda_available = False
+    if torch is not None:
+        if getattr(torch.version, "cuda", None) is None:
+            ColorPrint.blue(
+                "[INFO] Ensuring PyTorch CUDA build (current is CPU-only; system has NVIDIA GPU). "
+                "See pytorch.org/get-started/locally"
+            )
+        else:
+            cuda_available = torch.cuda.is_available()
+            if cuda_available:
+                return
+            ColorPrint.blue("[INFO] Reinstalling PyTorch CUDA build (driver/runtime may need match)...")
+    else:
+        ColorPrint.blue("[INFO] Installing PyTorch with CUDA first (system has NVIDIA GPU)...")
+    current_platform = platform.system()
+    pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
+               "--index-url", PYTORCH_CUDA_INDEX_URL]
+    if current_platform != "Windows":
+        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    else:
+        pip_cmd.append("--no-user")
+    if torch is not None and getattr(torch.version, "cuda", None) is None:
+        pip_cmd.append("--force-reinstall")
+    run_pip_install_with_realtime_output(pip_cmd, "torch (CUDA)")
+    importlib.invalidate_caches()
+    if "torch" in sys.modules:
+        del sys.modules["torch"]
+    try:
+        import torch as t
+        if getattr(t, "cuda", None) and t.cuda.is_available():
+            ColorPrint.green("[SUCCESS] PyTorch CUDA build ready.")
+        else:
+            ColorPrint.yellow("[WARNING] PyTorch reinstalled but CUDA still not available (driver/toolkit mismatch?).")
+    except Exception as e:
+        ColorPrint.yellow(f"[WARNING] PyTorch CUDA check after install: {e}")
 
 
 def build_pip_install_command(package_name: str) -> list:
@@ -406,23 +470,18 @@ def install_and_reimport_edge_tts():
 def check_and_install_dependencies():
     """
     Checks if all required packages are installed and installs them if not.
-    Also performs GPU detection and setup.
-
-    This function iterates through the DEPENDENCY_MAP. It uses importlib to check
-    if a module can be found. If not, it calls pip to install the corresponding package.
-
-    Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
+    Also performs GPU detection and setup. torch is a required package; ensure CUDA build first.
     """
+    # Required package: ensure torch is CUDA build before any package list (not lazy)
+    _ensure_torch_cuda_build_first()
+
     ColorPrint.blue("[INFO] Checking for required Python packages...")
-    # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
-    
-    # Prevent recursive invocation - if we're already checking, return immediately
+
     if ENCYCLOPEDIA.get("pycore_dependencies_checking", False):
         return
-    
-    # Mark as checking to prevent recursion
+
     ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
     # NOTE: System packages are now installed by shell scripts
@@ -448,7 +507,7 @@ def check_and_install_dependencies():
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
-    
+
     # Check if any packages need installation/upgrade, and upgrade pip first if needed
     needs_installation = False
     for package_name in packages_to_check:
@@ -937,9 +996,19 @@ def get_third_package_cnocr():
     return _PACKAGE_CACHE['cnocr']
 
 
+def init_third_party_cnocr() -> bool:
+    """
+    Initialize CnOCR engine in thirdparty at app startup (not lazy).
+    Call once when each app starts; then get_third_package_CnOCREngine() returns the same instance.
+    Returns True if engine is available (after init or already inited).
+    """
+    eng = get_third_package_CnOCREngine()
+    return eng is not None
+
+
 def get_third_package_CnOCREngine():
     """
-    Get CnOCR engine singleton (lazy load, init once).
+    Get CnOCR engine singleton. Prefer init at startup via init_third_party_cnocr().
     Uses naive_det + doc-densenet_lite_136-gru with fallbacks; GPU/CPU auto-selected in engine.
     """
     if 'CnOCREngine_instance' not in _PACKAGE_CACHE:
@@ -949,9 +1018,11 @@ def get_third_package_CnOCREngine():
             rec_model_name='doc-densenet_lite_136-gru',
             rec_model_fallbacks=['densenet_lite_136-gru'],
         )
-        eng.init()
-        _PACKAGE_CACHE['CnOCREngine_instance'] = eng
-    return _PACKAGE_CACHE['CnOCREngine_instance']
+        if eng.init():
+            _PACKAGE_CACHE['CnOCREngine_instance'] = eng
+        else:
+            _PACKAGE_CACHE['CnOCREngine_instance'] = None
+    return _PACKAGE_CACHE.get('CnOCREngine_instance')
 
 
 def get_third_package_pynput():

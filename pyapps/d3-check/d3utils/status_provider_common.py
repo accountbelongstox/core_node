@@ -22,6 +22,7 @@ def refresh_window_state(
     apply_geometry_fn: Optional[Callable[[Any, Optional[Dict[str, Any]]], None]] = None,
     log_prefix: str = "",
     progress_refresh: Optional[Callable[[str], None]] = None,
+    skip_final_newline: bool = False,
 ) -> bool:
     """
     Shared flow: set running from window found, apply geometry if provided, detect dynamic triple, set dynamic.
@@ -74,8 +75,9 @@ def refresh_window_state(
 
     if progress_refresh:
         progress_refresh("done")
-        stream = getattr(ColorPrint, "_output_stream", sys.stderr)
-        stream.write("\n")
-        stream.flush()
+        if not skip_final_newline:
+            stream = getattr(ColorPrint, "_output_stream", sys.stderr)
+            stream.write("\n")
+            stream.flush()
 
     return running_changed or geometry_changed or dynamic_changed

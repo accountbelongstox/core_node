@@ -1004,7 +1004,7 @@ class BagInfoCollector:
         Detection logic (simplified):
         1. Blacksmith: same template bag_opened_indicator — left 30% width = blacksmith, right = bag only (not blacksmith). Accept only when match center is in the left 30% of game window (is_match_center_in_left_region). If found in left 30% → interface_type = "blacksmith".
 
-        2. 魔盒（卡奈）唯一图标 kanai_cube_left_panel_indicator，匹配中心须在左 30% 内：
+        2. Kanai cube unique icon kanai_cube_left_panel_indicator, match center must be in left 30%:
            - If found in left 30% → interface_type = "kanai_cube"
 
         3. If neither found → No functional interface opened

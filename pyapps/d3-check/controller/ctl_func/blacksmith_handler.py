@@ -181,8 +181,8 @@ class BlacksmithHandler:
 
     def handle_auto_salvage_by_slots(self, keep: str, debug_only: bool = False) -> bool:
         """
-        先对每个装备格 hover 一次得到品质（普通/远古/太古），再根据下拉框保留规则决定是否走拆解流程。一个装备 hover 一次。
-        keep: "keep_ancient_plus" = 保留远古+，其余拆解; "keep_primal" = 仅保留太古，其余拆解.
+        Hover each gear slot once to get quality (normal/ancient/primal), then decide salvage by dropdown rule. One hover per slot.
+        keep: "keep_ancient_plus" = keep ancient+, salvage rest; "keep_primal" = keep primal only, salvage rest.
         """
         shared_data = get_game_interface_data()
         coords = shared_data.bag_coordinates
@@ -217,11 +217,11 @@ class BlacksmithHandler:
         btn_salvage_x, btn_salvage_y = coords_ui["salvage_dialog_salvage_button"]
         btn_confirm_x, btn_confirm_y = coords_ui["salvage_dialog_confirm"]
 
-        # 拆解材料 TAB 只在开始时打开一次
+        # Salvage materials TAB opened once at start
         self.click_handler.click(ox + tab_x, oy + tab_y, direct_click=True, return_to_original=True, duration=0.0, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
         time.sleep(0.4)
 
-        # 窗口尺寸：用于小区域截图的偏移计算（复用调试升级逻辑，只截装备左侧小区域识别太古/远古线）
+        # Window size for crop offset (reuse debug upgrade logic; crop left area only to detect primal/ancient line)
         gs = shared_data.game_window_size
         if gs and gs[0] > 0 and gs[1] > 0:
             window_w, window_h = int(gs[0]), int(gs[1])
@@ -239,7 +239,7 @@ class BlacksmithHandler:
             slot_screen_x = int(ox + top_left[0] + (c + 0.5) * slot_width)
             slot_screen_y = int(oy + top_left[1] + (r + 0.5) * slot_height)
 
-            # 一个装备 hover 一次；只截小区域识别太古线/远古线/普通传奇（复用 debug_bag_hover 原生区域截图）
+            # One hover per slot; crop small area only to detect primal/ancient/normal legendary (reuse debug_bag_hover crop)
             self.click_handler.move_mouse(slot_screen_x, slot_screen_y, duration=0.0)
             time.sleep(0.35)
             x_min, y_min, x_max, y_max, left_edge_x, center_y = _search_region_bounds(

@@ -8,10 +8,9 @@ Usage:
     python main.py   # Start TK GUI + HTTP bridge (no CLI args, no Ctrl+C handler, exit via UI only)
 """
 
-import sys
 import os
 import signal
-import traceback
+import sys
 
 # Ignore Ctrl+C: set SIGINT/SIGBREAK before importing Fortran/numpy to avoid forrtl control-C abort
 try:
@@ -26,6 +25,9 @@ _project_dir = os.path.dirname(os.path.abspath(__file__))
 _repo_root = os.path.dirname(os.path.dirname(_project_dir))
 sys.path.insert(0, _project_dir)
 sys.path.insert(0, _repo_root)
+
+# Lifecycle: registers thread-shutdown runner with shutdown_manager. Only main (and event bus) may import lifecycle.
+import lifecycle  # noqa: E402
 
 from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
@@ -63,7 +65,6 @@ def main():
         return 0
     except Exception as e:
         ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
-        traceback.print_exc()
         if 'bridge_controller' in locals():
             bridge_controller.stop()
         return 1

@@ -11,7 +11,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -258,11 +258,18 @@ def crawl_category_recursive(
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Fetch Fandom D3 images to pyapps/d3-check/images by category.")
+    parser = argparse.ArgumentParser(
+        description="Fetch Fandom D3 images: --recursive from weapon/armor category roots, or single URL."
+    )
     parser.add_argument("-o", "--out-dir", type=Path, default=BASE_IMAGES_DIR, help="Base images directory")
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--sources", nargs="*", help="Subdir names to run (default: all)")
-    parser.set_defaults(headless=False)
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Recurse from Category:Diablo_III_weapon_icons and armor_icons until gallery pages.",
+    )
+    parser.add_argument("url", nargs="?", help="Single category/page URL (optional if --recursive)")
+    parser.add_argument("--subdir", default=None, help="Subdir name when using single URL")
     args = parser.parse_args()
 
     selenium = get_third_package_selenium()
@@ -323,14 +330,29 @@ def main():
 
     driver.implicitly_wait(5)
     wait = WebDriverWait(driver, PAGE_LOAD_WAIT)
-    subset = set(args.sources) if args.sources else None
-    total = 0
-    for url_path, subdir in D3_IMAGE_SOURCES:
-        if subset is not None and subdir not in subset:
-            continue
-        total += run_one(driver, session, By, wait, url_path, subdir, base_dir)
+
+    if args.recursive:
+        visited = set()
+        for root_url in CATEGORY_ROOT_URLS:
+            base_subdir = category_slug_from_url(root_url)
+            if base_subdir.lower().startswith("diablo_iii_"):
+                base_subdir = base_subdir[11:]
+            crawl_category_recursive(
+                driver, session, By, wait, root_url, base_subdir, base_dir, visited
+            )
+        driver.quit()
+        print(f"Recursive crawl done. Base output: {base_dir}")
+        return 0
+
+    if args.url:
+        subdir = args.subdir or category_slug_from_url(args.url)
+        run_one(driver, session, By, wait, args.url, subdir, base_dir)
+        driver.quit()
+        print(f"Base output: {base_dir}")
+        return 0
+
+    print("Use --recursive or provide a single URL.")
     driver.quit()
-    print(f"Base output: {base_dir}")
     return 0
 
 

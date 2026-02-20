@@ -340,7 +340,7 @@ def do_rosbot_debug(panel: Any) -> None:
     refresh_rosbot_status()
     mgr = get_rosbot_manager()
 
-    # When debugging ROSBOT UI, 优先尝试关掉「Diablo III must be launched!」弹窗
+    # When debugging ROSBOT UI, try to close "Diablo III must be launched!" popup first
     closed = try_close_d3_must_be_launched_dialog()
     if closed:
         ColorPrint.gray("[RosbotPanel] Auto-closed 'D3 must be launched' dialog before debug")
@@ -431,10 +431,10 @@ def do_rosbot_update(panel: Any) -> None:
     current_region = update_manager.get_battlenet_region()
     check_both = CONFIG.get("ros_settings", {}).get("check_both_regions_for_update", True)
     
-    # 优先检测亚服（亚服包名可能同时含亚服和国服字样）；国际服=亚服
+    # Prefer Asia region (Asia package may contain both region keywords); international = Asia
     regions_to_check = []
     if current_region in ("asia", "cn"):
-        # 顺序固定：先 asia 再 cn
+        # Fixed order: asia then cn
         regions_to_check.append("asia" if current_region == "asia" else "cn")
         ColorPrint.blue(f"[RosbotPanel] Current region detected: {current_region}")
         if check_both:
@@ -442,7 +442,7 @@ def do_rosbot_update(panel: Any) -> None:
             regions_to_check.append(other)
             ColorPrint.blue(f"[RosbotPanel] Also checking: {other}")
         if len(regions_to_check) == 2 and regions_to_check[0] != "asia":
-            regions_to_check = ["asia", "cn"]  # 始终亚服优先
+            regions_to_check = ["asia", "cn"]  # Asia first
     else:
         ColorPrint.gray("[RosbotPanel] No region detected, checking both Asia and CN (Asia first)")
         regions_to_check = ["asia", "cn"]
@@ -467,7 +467,7 @@ def do_rosbot_update(panel: Any) -> None:
         else:
             candidates = update_manager.find_rosbot_zips_in_downloads(region)
             if not candidates:
-                ColorPrint.gray(f"[RosbotPanel] No zip in Downloads for region={region} (need 20-50MB, filename contains 亚服/asia or 国服/cn)")
+                ColorPrint.gray(f"[RosbotPanel] No zip in Downloads for region={region} (need 20-50MB, filename contains region keyword)")
                 detection_per_region.append({
                     "region": region,
                     "region_display": region_display,

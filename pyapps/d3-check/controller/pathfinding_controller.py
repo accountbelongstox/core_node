@@ -9,7 +9,6 @@ Handles NPC finding and pathfinding logic using OCR and grid-based search
 import sys
 import os
 import time
-import traceback
 from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
@@ -78,7 +77,7 @@ class PathfindingController:
             return True
         return False
 
-    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default CN "附魔", EN use "Enchanter"
+    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default constant for CN client
         """
         Find enchanter NPC using grid-based OCR search with mouse movement
 
@@ -91,7 +90,7 @@ class PathfindingController:
         3. Compile results into annotated image
 
         Args:
-            target_text: Text to search for (default "附魔" for CN; EN client use "Enchanter")
+            target_text: Text to search for (constant per client locale)
 
         Returns:
             Dict containing search results:
@@ -257,7 +256,6 @@ class PathfindingController:
 
         except Exception as e:
             ColorPrint.red(f"[PathfindingController] Search error: {e}")
-            traceback.print_exc()
             return {
                 'found': False,
                 'error': f'Search error: {e}'
@@ -349,8 +347,6 @@ class PathfindingController:
 
         except Exception as e:
             ColorPrint.red(f"[PathfindingController] Error saving result: {e}")
-            traceback.print_exc()
-            # Return a fallback path
             fallback_path = TMP_DIR / f"pathfinding_error_{timestamp}.txt"
             fallback_path.write_text(f"Error generating result: {e}", encoding='utf-8')
             return fallback_path

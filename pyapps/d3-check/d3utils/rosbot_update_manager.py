@@ -7,7 +7,7 @@ Design doc: docs/ROSBOT_UPDATE_FLOW.md
 1. How to find download package (zip)
   - Location: Downloads directory (CONFIG paths.downloads_dir or ~/Downloads)
   - Conditions: Extension .zip, size 20-50MB (ROSBOT_ZIP_MIN/MAX_SIZE_MB), filename matches region
-  - Region matching: Asia -> ROSBOT_ZIP_KEYWORDS_ASIA (亚服/asia/Asia); CN -> ROSBOT_ZIP_KEYWORDS_CN (国服/cn/CN)
+  - Region matching: Asia -> ROSBOT_ZIP_KEYWORDS_ASIA; CN -> ROSBOT_ZIP_KEYWORDS_CN (constants)
   - Version: Parse two-segment numbers from filename (e.g., 36.0129), sort by version descending, take newer than current
   - Prerequisite: Only execute when game_interface_data.get_battlenet_region() is asia or cn
 
@@ -164,7 +164,7 @@ class RosbotUpdateManager:
         matches_cn = any(k in filename or k.lower() in lower for k in ROSBOT_ZIP_KEYWORDS_CN)
         if region == "asia":
             return matches_asia
-        # cn: only when matches CN and not Asia (Asia priority; names with both 亚服 and 国服 count as Asia only)
+        # cn: only when matches CN and not Asia (Asia priority; names matching both regions count as Asia only)
         return matches_cn and not matches_asia
 
     def find_rosbot_zips_in_downloads(self, region: str) -> List[Tuple[str, int, Optional[Tuple[int, int]]]]:

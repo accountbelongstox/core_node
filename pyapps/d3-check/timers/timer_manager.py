@@ -3,7 +3,7 @@
 """
 Timer Manager
 Centralized timer management system for periodic task execution.
-本模块为 TimerManagerThread 的单一创建者（start() 时创建）。
+Single creator for TimerManagerThread (created on start()).
 """
 
 import os
@@ -55,7 +55,7 @@ class TimerManagerThread(threading.Thread):
     """Native thread for timer loop. Override run() to execute _timer_loop."""
 
     def __init__(self):
-        super().__init__(daemon=True, name="TimerManagerThread")
+        threading.Thread.__init__(self, daemon=True, name="TimerManagerThread")
 
     def run(self):
         _timer_loop()

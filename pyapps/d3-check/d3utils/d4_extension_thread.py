@@ -22,7 +22,7 @@ class D4ExtensionThread(threading.Thread):
     """
 
     def __init__(self, process_fn: Callable[[], None]):
-        super().__init__(daemon=True)
+        threading.Thread.__init__(self, daemon=True)
         self._shutdown = threading.Event()
         self._process_fn = process_fn
         self._d4_data = get_d4_interface_data()

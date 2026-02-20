@@ -53,6 +53,27 @@ def _read_region_from_battlenet_config() -> Optional[str]:
     return "asia"
 
 
+def ensure_battlenet_region_from_config() -> None:
+    """
+    Resolve Battle.net region from config only (no UI). When game_data.battlenet_region is None:
+    1) Read Battle.net.config file (Services.LastLoginRegion): CN -> "cn", else -> "asia";
+    2) If not found, read ros_settings.battlenet_region_cache.
+    Sets game_data.battlenet_region and optionally ros_settings.battlenet_region_cache when read from file.
+    Call before using get_battlenet_region() when region must be config-based.
+    """
+    game_data = get_game_interface_data()
+    if game_data.get_battlenet_region() is not None:
+        return
+    config_region = _read_region_from_battlenet_config()
+    if config_region in ("asia", "cn"):
+        game_data.set_battlenet_region(config_region)
+        set_config_value_async("ros_settings.battlenet_region_cache", config_region)
+        return
+    cached = get_config_value_safe("ros_settings.battlenet_region_cache")
+    if cached in ("asia", "cn"):
+        game_data.set_battlenet_region(cached)
+
+
 def _find_battlenet_windows() -> List[Dict[str, Any]]:
     """Find Battle.net windows via BattleNetManager. Returns list; empty if none found."""
     return get_battlenet_manager().find_windows(match_mode="in", use_cache=True)
@@ -67,18 +88,8 @@ def _detect_battlenet_dynamic(found: bool, window_info_or_none: Optional[Dict[st
     """
     if not found:
         return (False, False, False)
+    ensure_battlenet_region_from_config()
     game_data = get_game_interface_data()
-    if game_data.get_battlenet_region() is None:
-        # Fallback: try reading from Battle.net.config file (should already be set during init)
-        config_region = _read_region_from_battlenet_config()
-        if config_region in ("asia", "cn"):
-            game_data.set_battlenet_region(config_region)
-            set_config_value_async("ros_settings.battlenet_region_cache", config_region)
-        else:
-            # Fallback to config cache
-            cached = get_config_value_safe("ros_settings.battlenet_region_cache")
-            if cached in ("asia", "cn"):
-                game_data.set_battlenet_region(cached)
     preferred_region = game_data.get_battlenet_region()
     try:
         op = get_battlenet_operation()

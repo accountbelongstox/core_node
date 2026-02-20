@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-F3_Baseline start time (ROSBOT_FLOW_MERMAID F3_Baseline node).
-Baseline: when log exists -> log last modified time (read in run_f3_log_timeout); when just started -> this started_at (UI duration). Set when ROSBOT just started (E/D/extension/panel); read by F3 log timeout.
+F3_Baseline start time (ROSBOT_FLOW_MERMAID F3_Baseline node). For flow/history timeout only, not for log.txt monitoring.
+started_at is in memory only (time.time()), not read from or written to any file.
+Used by F3 timeout (history/flow); log_monitor_thread reads logs.txt only and does not use this module.
 """
 import time
 
