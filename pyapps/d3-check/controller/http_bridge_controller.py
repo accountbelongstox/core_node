@@ -6,14 +6,10 @@ Provides HTTP API endpoints for web-based GUI communication.
 Singleton per (host, port) via get_http_bridge_server(host, port); do not instantiate elsewhere.
 """
 
-import sys
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
-
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
