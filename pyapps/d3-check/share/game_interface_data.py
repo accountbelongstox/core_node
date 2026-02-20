@@ -9,8 +9,9 @@ Shared across all controllers and UI components
 import ctypes
 import json
 import os
-import tkinter as tk
+import sys
 import threading
+import tkinter as tk
 from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
