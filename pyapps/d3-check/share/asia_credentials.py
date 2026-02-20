@@ -23,8 +23,8 @@ CONFIG_KEY_CN_CREDENTIALS = "battlenet_cn_credentials"
 REGION_ASIA = "asia"
 REGION_CN = "cn"
 
-# Fallback when i18n not used; dialog uses i18n via _get_region_labels()
-REGION_LABELS = (("亚服", REGION_ASIA), ("国服", REGION_CN))
+# Legacy fallback labels (English); dialog uses i18n via _get_region_labels()
+REGION_LABELS = (("Asia", REGION_ASIA), ("CN", REGION_CN))
 
 
 def _get_region_labels() -> Tuple[Tuple[str, str], ...]:

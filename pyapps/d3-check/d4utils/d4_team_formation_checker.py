@@ -34,7 +34,7 @@ class D4TeamFormationChecker(D4OperationBase):
     """
 
     def __init__(self):
-        """Initialize team formation checker (OCR 引擎由类库统一初始化)"""
+        """Initialize team formation checker (OCR engine from registry)."""
         super().__init__()
         self.ocr_engine = get_cnocr_engine_for_task('quest_text')
         ColorPrint.green("[D4TeamFormationChecker] Initialized")

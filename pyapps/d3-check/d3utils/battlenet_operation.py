@@ -711,8 +711,8 @@ class BattlenetOperation:
             pass
         try:
             val = raw_control.GetCurrentPropertyValue(30096)
-                if val is not None:
-                    return int(val)
+            if val is not None:
+                return int(val)
         except Exception:
             pass
         return None
