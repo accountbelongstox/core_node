@@ -5,13 +5,12 @@ ROSBOT Extension Panel - Unified Style Version
 Contains ROSBOT configuration and management features with unified styling
 """
 
+import os
+import re
+import threading
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import sys
-import os
-import threading
-import re
-import time
 from typing import Optional, Callable
 
 # Import unified styles
@@ -21,8 +20,7 @@ from ..unified_styles import UnifiedStyles
 from pycore.pyfoundations.color_print import ColorPrint
 from ..utils.tk_variables import var_str, var_bool
 
-# Import CONFIG from providor
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+# Import CONFIG from providor (path set by main.py / app entry)
 from providor.providor_index import CONFIG, get_config_value_safe
 
 # Import i18n manager (global singleton instance)
