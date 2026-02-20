@@ -50,6 +50,17 @@ def _normpath(path: str) -> str:
     return os.path.normpath(os.path.abspath(path)).lower()
 
 
+def _is_garbled_filename(name: str) -> bool:
+    """True if basename looks like mojibake (wrong encoding). Such exes are excluded from same-dir list."""
+    if not name:
+        return False
+    for ch in name:
+        cp = ord(ch)
+        if 0x2500 <= cp <= 0x259F:  # Box drawing, block elements (common mojibake)
+            return True
+    return False
+
+
 class ROSBOTManager:
     """
     ROSBOT process management. Config from ros_settings; find main exe (config name or pattern);
@@ -123,6 +134,8 @@ class ROSBOTManager:
                     if not os.path.isfile(file_path):
                         continue
                     file_name = os.path.basename(file_path)
+                    if _is_garbled_filename(file_name):
+                        continue
                     should_exclude = False
                     for exclude_pattern in self.exclude_patterns:
                         stub = exclude_pattern.replace("*", "")
