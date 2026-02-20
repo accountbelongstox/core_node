@@ -23,8 +23,17 @@ CONFIG_KEY_CN_CREDENTIALS = "battlenet_cn_credentials"
 REGION_ASIA = "asia"
 REGION_CN = "cn"
 
-# Display label -> region key
+# Fallback when i18n not used; dialog uses i18n via _get_region_labels()
 REGION_LABELS = (("亚服", REGION_ASIA), ("国服", REGION_CN))
+
+
+def _get_region_labels() -> Tuple[Tuple[str, str], ...]:
+    """Return ((display_label, region_key), ...) using i18n."""
+    from d3utils.i18n_manager import i18n_manager
+    return (
+        (i18n_manager.get_ui_text("credentials.region_asia", "Asia"), REGION_ASIA),
+        (i18n_manager.get_ui_text("credentials.region_cn", "CN"), REGION_CN),
+    )
 
 
 def _config_key_for_region(region: str) -> str:
@@ -34,10 +43,11 @@ def _config_key_for_region(region: str) -> str:
 
 
 def _label_for_region(region: str) -> str:
-    for label, r in REGION_LABELS:
+    for label, r in _get_region_labels():
         if r == region:
             return label
-    return "亚服"
+    from d3utils.i18n_manager import i18n_manager
+    return i18n_manager.get_ui_text("credentials.region_asia", "Asia")
 
 # When True: dialog was scheduled or is open; tick driver skips until dialog closes (OK/Cancel).
 _asia_credentials_dialog_pending = False
@@ -161,8 +171,12 @@ def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
     except Exception:
         return
 
+    from d3utils.i18n_manager import i18n_manager
+    region_options = _get_region_labels()
+    labels = [lb for lb, _ in region_options]
+
     top = tk.Toplevel(root)
-    top.title("Battle.net 账号密码")
+    top.title(i18n_manager.get_ui_text("credentials.title", "Battle.net Account & Password"))
     top.resizable(True, False)
     top.transient(root)
     top.grab_set()
@@ -173,11 +187,10 @@ def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
     top.rowconfigure(0, weight=1)
     f.columnconfigure(0, weight=1)
 
-    labels = [lb for lb, _ in REGION_LABELS]
     default_label = _label_for_region(default_region)
     var_region = tk.StringVar(value=default_label)
 
-    ttk.Label(f, text="类型 (命名空间):").grid(row=0, column=0, sticky="w", pady=(0, 4))
+    ttk.Label(f, text=i18n_manager.get_ui_text("credentials.region_type", "Type (namespace):")).grid(row=0, column=0, sticky="w", pady=(0, 4))
     combo_region = ttk.Combobox(f, textvariable=var_region, values=labels, state="readonly", width=12)
     combo_region.grid(row=1, column=0, sticky="w", pady=(0, 10))
     combo_region.current(0 if default_region == REGION_ASIA else 1)
@@ -186,23 +199,28 @@ def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
     var_password = tk.StringVar()
     _load_credentials_into_vars(default_region, var_email, var_password)
 
+    def _region_from_label(sel: str) -> str:
+        for lb, r in region_options:
+            if lb == sel:
+                return r
+        return REGION_ASIA
+
     def on_region_change(*_args) -> None:
-        sel = var_region.get()
-        r = REGION_CN if sel == "国服" else REGION_ASIA
+        r = _region_from_label(var_region.get())
         _load_credentials_into_vars(r, var_email, var_password)
 
     var_region.trace_add("write", on_region_change)
 
-    ttk.Label(f, text="账号 (邮箱/手机):").grid(row=2, column=0, sticky="w", pady=(0, 4))
+    ttk.Label(f, text=i18n_manager.get_ui_text("credentials.account", "Account (email/phone):")).grid(row=2, column=0, sticky="w", pady=(0, 4))
     entry_email = ttk.Entry(f, textvariable=var_email, width=36)
     entry_email.grid(row=3, column=0, sticky="ew", pady=(0, 10))
 
-    ttk.Label(f, text="密码:").grid(row=4, column=0, sticky="w", pady=(0, 4))
+    ttk.Label(f, text=i18n_manager.get_ui_text("credentials.password", "Password:")).grid(row=4, column=0, sticky="w", pady=(0, 4))
     entry_password = ttk.Entry(f, textvariable=var_password, width=36)
     entry_password.grid(row=5, column=0, sticky="ew", pady=(0, 12))
 
     def _current_region() -> str:
-        return REGION_CN if var_region.get() == "国服" else REGION_ASIA
+        return _region_from_label(var_region.get())
 
     def on_ok() -> None:
         email_val = (var_email.get() or "").strip()

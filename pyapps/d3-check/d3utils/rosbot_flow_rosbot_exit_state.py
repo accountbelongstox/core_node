@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-F3_ProcessGone 节点逻辑：Process gone 时 mark 原因 (ROSBOT_FLOW_MERMAID).
-- set_f7_sent: F4b/面板/Debug 发 F7 时调用；之后 process gone 记为 normal_pause。
-- mark_rosbot_exit_reason_when_process_gone: status_provider 或 F3 超时处调用；F7 sent=normal_pause，否则=test_debug_exit。
-- Test：record 时长在 mark 时 count++；F3_Test 分支在 rosbot_flow_f3_log_timeout 内。
-- Test recorded/count 持久化：写入 CONFIG (rosbot.test_recorded_duration_sec, rosbot.test_record_count)；启动时从 CONFIG 加载。
+F3_ProcessGone: mark exit reason when process gone (ROSBOT_FLOW_MERMAID).
+- set_f7_sent: called when F4b/panel/Debug sends F7; then process gone is recorded as normal_pause.
+- mark_rosbot_exit_reason_when_process_gone: called from status_provider or F3 timeout; F7 sent -> normal_pause, else test_debug_exit.
+- Test: record duration count++ on mark; F3_Test branches in rosbot_flow_f3_log_timeout.
+- Test recorded/count persisted in CONFIG (rosbot.test_recorded_duration_sec, rosbot.test_record_count); loaded at startup.
 """
 from typing import Optional
 

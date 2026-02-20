@@ -19,7 +19,7 @@ numpy = get_third_package_numpy()
 np = numpy
 Image = get_third_package_PIL_Image()
 
-# bag_opened_indicator: 靠左此比例宽内 = 铁匠，靠右 = 仅背包（不视为铁匠）
+# bag_opened_indicator: within this width ratio from left = blacksmith, right = bag only (not blacksmith)
 LEFT_REGION_RATIO = 0.3
 
 __all__ = [

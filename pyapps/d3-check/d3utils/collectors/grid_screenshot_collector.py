@@ -3,7 +3,7 @@
 """
 Grid Screenshot Collector
 Captures grid-based screenshots from game window. Supports nine-grid and eighteen by eighteen grid modes.
-类库：导出前实例化，通过 get_grid_screenshot_collector() 获取单例，禁止各处自行 new。
+Singleton via get_grid_screenshot_collector(); do not instantiate elsewhere.
 """
 
 # Standard library imports
@@ -182,7 +182,7 @@ _grid_screenshot_collector_instance: Optional[GridScreenshotCollector] = None
 
 
 def get_grid_screenshot_collector() -> GridScreenshotCollector:
-    """Return the global GridScreenshotCollector instance (singleton). 导出前实例化."""
+    """Return the global GridScreenshotCollector instance (singleton)."""
     global _grid_screenshot_collector_instance
     if _grid_screenshot_collector_instance is None:
         _grid_screenshot_collector_instance = GridScreenshotCollector()

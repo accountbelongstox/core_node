@@ -19,4 +19,4 @@ STATUS_ROW_2 = [
     ("rosbot.oauth_script_status", "oauth", None),
     ("ui.status_bar.window_size", "window_size", None),
 ]
-# Row 3: test mode — one label only (no "label: value"); built in BottomBarStatusBlock._build_test_mode_row, not in STATUS_ROW_* (cursor_AI_反思_测试模式底栏只用一个label_1000字)
+# Row 3: test mode — one label only (no "label: value"); built in BottomBarStatusBlock._build_test_mode_row, not in STATUS_ROW_*

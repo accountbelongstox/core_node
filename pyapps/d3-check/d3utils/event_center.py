@@ -60,8 +60,7 @@ def _do_show() -> None:
     ui = get_ui()
     if ui is None or not ui.root.winfo_exists():
         return
-    if hasattr(ui, "_release_any_grab") and ui._release_any_grab is not None and callable(ui._release_any_grab):
-        if ui._release_any_grab():
+    if ui._release_any_grab and ui._release_any_grab():
             ColorPrint.yellow("[UI] Released grab when showing window from tray")
     ui.root.deiconify()
     ui.root.lift()
@@ -246,8 +245,7 @@ def register_extension_handlers(
         current_panel = get_panel(PANEL_KEY_ROSBOT)
         if current_panel is None:
             return
-        # Check if panel content is created before accessing internal controls (DESIGN_ISSUES_MAJOR §9)
-        if not (hasattr(current_panel, '_content_created') and current_panel._content_created):
+        if not current_panel._content_created:
             return
         current_ui.root.after(0, lambda: current_panel._on_login_check_done(success, err, ran_e_block=ran_e_block))
 
@@ -258,8 +256,7 @@ def register_extension_handlers(
         current_panel = get_panel(PANEL_KEY_ROSBOT)
         if current_panel is None:
             return
-        # Check if panel content is created before accessing internal controls (DESIGN_ISSUES_MAJOR §9)
-        if not (hasattr(current_panel, '_content_created') and current_panel._content_created):
+        if not current_panel._content_created:
             return
         current_ui.root.after(0, lambda: current_panel._on_rosbot_stop_done())
 

@@ -3,7 +3,7 @@
 """
 UI Region Collector - Anchor Version
 Uses template matching on anchor points to detect game window.
-类库：导出前实例化，通过 get_ui_region_collector_anchor() 获取单例，禁止各处自行 new。
+Singleton via get_ui_region_collector_anchor(); do not instantiate elsewhere.
 """
 
 import os
@@ -471,7 +471,7 @@ _ui_region_collector_anchor_instance: Optional[UIRegionCollectorAnchor] = None
 
 
 def get_ui_region_collector_anchor() -> UIRegionCollectorAnchor:
-    """Return the global UIRegionCollectorAnchor instance (singleton). 导出前实例化."""
+    """Return the global UIRegionCollectorAnchor instance (singleton)."""
     global _ui_region_collector_anchor_instance
     if _ui_region_collector_anchor_instance is None:
         _ui_region_collector_anchor_instance = UIRegionCollectorAnchor()

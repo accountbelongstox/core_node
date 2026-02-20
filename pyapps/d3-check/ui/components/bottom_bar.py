@@ -3,7 +3,7 @@
 """
 Bottom Bar Component
 Row0 = macro + per-tab options, row1 = status block. Uses BottomBarOptionsBlock and BottomBarStatusBlock.
-本类为 BottomBarOptionsBlock / BottomBarStatusBlock 的单一创建者，仅在此处实例化一次。
+Single creator for BottomBarOptionsBlock / BottomBarStatusBlock, instantiated only here.
 """
 
 import tkinter as tk
@@ -19,7 +19,6 @@ from runtime import is_shutdown_requested
 from share.game_interface_data import get_game_interface_data
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
-
 
 class BottomBar:
     """Bottom bar: row0 = macro + options (per-tab), row1 = status (single row, no overlap)."""
@@ -92,13 +91,13 @@ class BottomBar:
         self._set_region_display_from_config()
 
     def _region_display_text(self, region_key) -> str:
-        """Single source: region key -> display (亚服/国服/未知)."""
+        """Single source: region key -> display text (i18n)."""
         i18n = i18n_manager
         if region_key == "cn":
-            return i18n.get_ui_text("rosbot.server_cn") or "国服"
+            return i18n.get_ui_text("rosbot.server_cn") or "CN"
         if region_key == "asia":
-            return i18n.get_ui_text("rosbot.server_asia") or "亚服"
-        return i18n.get_ui_text("rosbot.server_unknown") or "未知"
+            return i18n.get_ui_text("rosbot.server_asia") or "Asia"
+        return i18n.get_ui_text("rosbot.server_unknown") or "Unknown"
 
     def _set_region_display_from_config(self) -> None:
         """Set battlenet_region var from config/game_data so it shows at UI startup."""
@@ -190,37 +189,21 @@ class BottomBar:
 
         self.battlenet_region.set(self._region_display_text(region_key))
 
+        # ROS column: display only (ResetNum) per requirement; label "ROS:" from i18n.
         ros_ext = state.get("rosbot_extended_status") or "not_found"
-        ros_has_main_ui = state.get("rosbot_has_main_ui", True)
-        exe_name = (state.get("rosbot_found_exe_name") or "").strip()
-        window_title = (state.get("rosbot_found_window_title") or "").strip()
-        ros_val = "-"
-        if ros_ext == "running":
-            ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
-            ros_fg = C['success']
-        elif ros_ext == "paused":
-            if not ros_has_main_ui:
-                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
-                ros_fg = C['error']
-            elif exe_name or window_title:
-                fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
-                ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
-                ros_fg = C['warning']
-            else:
-                ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
-                ros_fg = C['warning']
-        else:
-            ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
-            ros_fg = C['error']
-        need_key = state.get("rosbot_need_key_input", False)
-        need_key_msg = (state.get("rosbot_need_key_message") or "").strip()
-        if need_key and need_key_msg:
-            ros_val = f"{ros_val}({need_key_msg})"
-        # Add restart count display
         restart_count = state.get("rosbot_total_restart_count", 0)
         if restart_count > 0:
-            ros_val = f"{ros_val} [重启{restart_count}次]"
-        self.ros_status.set(ros_val or "-")
+            fmt = i18n.get_ui_text("rosbot.restart_count_format") or "[R{count}]"
+            ros_val = fmt.format(count=restart_count)
+        else:
+            ros_val = "-"
+        if ros_ext == "running":
+            ros_fg = C['success']
+        elif ros_ext == "paused":
+            ros_fg = C['warning']
+        else:
+            ros_fg = C['error']
+        self.ros_status.set(ros_val)
 
         if not state.get("d3_running", False):
             self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))

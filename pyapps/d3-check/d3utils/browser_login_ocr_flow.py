@@ -125,7 +125,7 @@ def run_one_poll(
     agree_boxes = _boxes_from_raw(raw, [AGREE_BTN_SUBSTR])
     cancel_boxes = _boxes_from_raw(raw, [CANCEL_BTN_SUBSTR])
     login_boxes = _boxes_from_raw(raw, [LOGIN_BTN_SUBSTR])
-    # Prefer agree button that is not cancel (text contains 同意 but not 取消)
+    # Prefer agree button that is not cancel (AGREE_BTN_SUBSTR but not CANCEL_BTN_SUBSTR)
     agree_btn = None
     for ab in agree_boxes:
         if ab.get("text", "").find(CANCEL_BTN_SUBSTR) == -1:

@@ -45,8 +45,8 @@ class UITheme:
         'btn_primary_hover': '#45a049',
         'btn_secondary': '#f44336',     # Secondary red button
         'btn_secondary_hover': '#da190b',
-        'btn_success': '#00ff88',       # Success button (docs/ui2 §四.3 merge)
-        'btn_danger': '#ff4444',        # Danger button (docs/ui2 §四.3 merge)
+        'btn_success': '#00ff88',       # Success button (docs/ui2 §4.3 merge)
+        'btn_danger': '#ff4444',        # Danger button (docs/ui2 §4.3 merge)
         'btn_accent': '#ff9800',        # Accent orange button
         'btn_accent_hover': '#f57c00',
         'btn_info': '#2196F3',          # Info blue button
@@ -63,7 +63,7 @@ class UITheme:
         'border_secondary': '#ff6b6b',  # Secondary border
         'border_subtle': '#2a2a3e',     # Subtle border
         'separator': '#2a2a3e',         # Separator line
-        'panel_border': '#4C566A',      # Panel border (docs/ui2 §四.3 merge)
+        'panel_border': '#4C566A',      # Panel border (docs/ui2 §4.3 merge)
 
         # ============ Tab (Notebook) - high contrast unselected ============
         'tab_unselected_bg': '#4C566A',     # Unselected tab bg (distinct from content)
@@ -72,7 +72,7 @@ class UITheme:
         'tab_selected_fg': '#e0e0e0',      # Selected tab text
 
         # ============ Accent Colors ============
-        'accent': '#00d4ff',            # Default accent (docs/ui2 §四.3 merge; alias cyan)
+        'accent': '#00d4ff',            # Default accent (docs/ui2 §4.3 merge; alias cyan)
         'accent_blue': '#2196F3',       # Blue accent
         'accent_cyan': '#00d4ff',       # Cyan accent
         'accent_red': '#ff6b6b',        # Red accent

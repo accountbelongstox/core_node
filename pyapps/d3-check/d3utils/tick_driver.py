@@ -11,6 +11,11 @@ Unified tick driver: single clock source, use % to simulate flow periods. No thi
 """
 from typing import Optional
 
+import timers.window_monitor_timer as _wm
+import d3utils.smart_echo as _smart
+from d3utils.signal_utils import _reapply_sigint_sigbreak_ignore
+from pycore.pyfoundations.color_print import ColorPrint
+
 _global_tick_count: int = 0
 
 # Flow periods (tick count, 1 tick = 1s)
@@ -43,21 +48,18 @@ def on_tick() -> None:
 
     if t % TICK_SIGINT_GUARD == 0:
         try:
-            from d3utils.signal_utils import _reapply_sigint_sigbreak_ignore
             _reapply_sigint_sigbreak_ignore()
-        except Exception:
-            pass
+        except Exception as e:
+            ColorPrint.red(f"[TickDriver] sigint_guard: {e}")
 
     if t % TICK_SMART_ECHO == 0:
         try:
-            import d3utils.smart_echo as _smart
             _smart.on_tick_from_driver()
-        except Exception:
-            pass
+        except Exception as e:
+            ColorPrint.red(f"[TickDriver] smart_echo: {e}")
 
     if t % TICK_INACTIVE_REFRESH == 0:
         try:
-            import timers.window_monitor_timer as _wm
             _wm.refresh_window_status_if_inactive()
-        except Exception:
-            pass
+        except Exception as e:
+            ColorPrint.red(f"[TickDriver] inactive_refresh: {e}")

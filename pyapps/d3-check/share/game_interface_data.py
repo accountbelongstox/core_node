@@ -660,9 +660,8 @@ class BagCoordinates:
 class BagLayout:
     """
     Bag layout data with item information.
-
-    物品质量（颜色可识别）：空、魔法(蓝)、稀有(黄)、传奇(绿)。
-    传奇阶位：普通 / 远古 / 太古。远古与太古无法仅凭颜色识别，需 hover 在装备上识别远古线/太古线。
+    Item quality (color-detectable): empty, magic (blue), rare (yellow), legendary (green).
+    Legendary tier: normal / ancient / primal. Ancient and primal cannot be distinguished by color alone; hover to detect tier line.
     """
     layout: List[List[int]]  # 2D array of slot usage
     items: Dict[Tuple[int, int], Dict]  # Mapping (row, col) to item info with quality
@@ -721,12 +720,14 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_window_found: bool = False  # True when extended_status is paused (has window)
-    rosbot_has_main_ui: bool = False  # True only when paused and content-validated main window; else False (UI shows "未找到" when paused and not has_main_ui)
+    rosbot_has_main_ui: bool = False  # True when paused (any visible UI); False when running or not_found
     rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
     rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
     ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
+    _window_hwnd: Optional[int] = None  # D3 window handle; set by d3_status_provider
+    _window_title: Optional[str] = None  # D3 window title; set by d3_status_provider
     # D13 found D3 window with for_f2_only: set True so next C1 tick uses d3_just_entered -> C7a map teleport (ROSBOT_FLOW_MERMAID)
     d3_just_entered_from_d13: bool = False
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
@@ -790,6 +791,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.rosbot_flow_master_enabled = False
         self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
+        self._window_hwnd = None
+        self._window_title = None
         self.d3_just_entered_from_d13 = False
         self.rosbot_disconnected_from_log = False
         self.map_type = "unknown"
@@ -909,7 +912,7 @@ class D3InterfaceData(InterfaceDataBase):
         return should_notify
 
     def set_rosbot_has_main_ui(self, has_main_ui: bool) -> bool:
-        """Set whether current ROSBOT window is content-validated main UI (paused + main). When False, UI shows \"未找到\". Notify callbacks. Returns True if value changed."""
+        """Set whether any UI is visible (True when status is paused). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.rosbot_has_main_ui != has_main_ui:

@@ -3,7 +3,7 @@
 """
 Diablo 3 Skill Macro UI Library
 Main UI coordinator using modular components.
-本模块为主窗口子组件（TitleBar、BottomBar、各 Panel 等）的单一创建者，每类仅在此处实例化一次。
+Single creator for main window subcomponents (TitleBar, BottomBar, panels); each type instantiated only here.
 """
 
 import tkinter as tk
@@ -122,12 +122,12 @@ class Diablo3MacroUI:
         self.root.minsize(670, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
-        # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build §四.1; tkdocs wm_withdraw/deiconify)
+        # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build; tkdocs wm_withdraw/deiconify)
         self.root.withdraw()
-        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2 方案一: 一开始构建的就是应了主题的 UI; UI_ARCH §五.1)
+        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2)
         self.root.overrideredirect(True)
 
-        # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 §四.3 single style entry)
+        # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 single style entry)
         UITheme.apply_to_root(self.root)
 
         # Window geometry: debounced save on move/resize (id cleared after save)
@@ -182,11 +182,11 @@ class Diablo3MacroUI:
         # Create system tray
         self._create_system_tray()
 
-        # If restored tab is ROSBOT, build its content synchronously before first map so first paint is not blank (docs/ui2 REPEATED_PAINT §五.1 §五.4)
+        # If restored tab is ROSBOT, build its content synchronously before first map so first paint is not blank (docs/ui2 REPEATED_PAINT)
         if self.last_selected_tab == TAB_INDEX_ROSBOT:
             self.rosbot_extension_panel.ensure_content_sync()
-        # Single flush after deiconify only (in after(1) _flush_after_first_build); no update_idletasks here to avoid painting intermediate state (docs/ui2 REPEATED_PAINT §四.2)
-        # Show window only after full build + theme + overrideredirect (docs/ui2: 一开始构建的就是应了主题的 UI)
+        # Single flush after deiconify only (in after(1) _flush_after_first_build); no update_idletasks here to avoid painting intermediate state (docs/ui2 REPEATED_PAINT)
+        # Show window only after full build + theme + overrideredirect (docs/ui2)
         self.root.deiconify()
 
         # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
@@ -325,7 +325,7 @@ class Diablo3MacroUI:
         )
         self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
-        # overrideredirect already set after withdraw() before theme/build (docs/ui2 方案一); single update only at end of _create_main_tabs to avoid intermediate layout/paint
+        # overrideredirect already set after withdraw() before theme/build (docs/ui2); single update only at end of _create_main_tabs to avoid intermediate layout/paint
 
     def get_window_status_callback(self):
         """
@@ -534,7 +534,7 @@ class Diablo3MacroUI:
             self.main_notebook.select(tab_ids[idx])
             self.main_notebook.update_idletasks()
         self.bottom_bar.show_tab_content(idx)
-        # Defer full update to after(1) so any after(0) (e.g. ensure_content) runs first; single paint with complete tree (docs/ui2 UI_REPEATED_PAINT §五.3)
+        # Defer full update to after(1) so any after(0) (e.g. ensure_content) runs first; single paint with complete tree (docs/ui2 UI_REPEATED_PAINT)
         self.root.after(1, self._flush_after_first_build)
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)

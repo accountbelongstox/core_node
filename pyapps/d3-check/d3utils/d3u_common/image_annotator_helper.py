@@ -3,7 +3,7 @@
 """
 Image Annotator Helper
 Common methods for drawing template match results.
-pycore ImageAnnotator 通过 get_pycore_image_annotator() 获取单例，禁止各处自行 new。
+pycore ImageAnnotator: singleton via get_pycore_image_annotator(); do not instantiate elsewhere.
 """
 
 import os
@@ -103,7 +103,7 @@ _pycore_annotator_instance: Optional[ImageAnnotator] = None
 
 
 def get_pycore_image_annotator() -> ImageAnnotator:
-    """全项目唯一 pycore ImageAnnotator 实例。"""
+    """Single pycore ImageAnnotator instance for the project."""
     global _pycore_annotator_instance
     if _pycore_annotator_instance is None:
         _pycore_annotator_instance = ImageAnnotator()

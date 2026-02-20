@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Log State Reader library.
-类库：导出前实例化，通过 get_log_state_reader(log_path) 按路径单例，禁止各处自行 new。
+Singleton per log_path via get_log_state_reader(log_path); do not instantiate elsewhere.
 
 Concepts aligned with docs (see docs/LOG_INDENT_SPEC.md, docs/LOG_ALL_STATES.md):
 - Indent component (tab component): canonical representation of leading TAB/spaces, e.g. "tabs=0, U+0020=0".
@@ -250,12 +250,12 @@ class LogStateReader:
 
 # get_space_type_name is imported from history_indent_spec above; matches LOG_INDENT_SPEC special-space table.
 
-# 导出前实例化：按 log_path 单例，禁止各处自行 new LogStateReader
+# Singleton per log_path; use get_log_state_reader only
 _readers_cache: Dict[str, LogStateReader] = {}
 
 
 def get_log_state_reader(log_path: str) -> LogStateReader:
-    """Return cached LogStateReader for log_path (singleton per path). 导出前实例化。"""
+    """Return cached LogStateReader for log_path (singleton per path)."""
     if log_path not in _readers_cache:
         _readers_cache[log_path] = LogStateReader(log_path)
     return _readers_cache[log_path]

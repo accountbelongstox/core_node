@@ -97,10 +97,9 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         template_names: Optional[List[str]] = None,
     ) -> Dict[str, bool]:
         """
-        C3 识图：按文档优先级分支。ROSBOT_FLOW_MERMAID.md / ROSBOT_FLOW_C_BLOCK_DOC_VS_CODE.md：
-        若识别到 disconnected/start/game_tool 之一则分支；若识别到 connecting 则 wait；否则 未识别。
-        优先级：disconnected -> game_tool -> start_game_button -> connecting -> 未匹配。
-        各模板满足阈值即视为识别（disconnected 需 >= D3_DISCONNECTED_MIN_GOOD_MATCHES，其余 >= 4）。
+        C3 template match: branch by doc priority. If disconnected/start/game_tool -> branch; if connecting -> wait; else no match.
+        Priority: disconnected -> game_tool -> start_game_button -> connecting -> no match.
+        Each template above threshold counts as match (disconnected >= D3_DISCONNECTED_MIN_GOOD_MATCHES, others >= 4).
         """
         names = template_names or [
             D3_DISCONNECTED_TEMPLATE_NAME,
@@ -112,7 +111,7 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         target_img_array = self._load_target_image(target_image)
         if target_img_array is None:
             ColorPrint.gray(
-                f"{self.log_prefix} C3 识图: 无图 | disconnected=- start=- game_tool=- connecting=- | export: 未匹配"
+                f"{self.log_prefix} C3 match: no image | disconnected=- start=- game_tool=- connecting=- | export: no_match"
             )
             return {"disconnected": False, "start_game_button": False, "game_tool": False, "connecting": False}
         scale_x = target_img_array.shape[1] / D3_STANDARD_WIDTH
@@ -133,14 +132,14 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         d_val = values.get(D3_DISCONNECTED_TEMPLATE_NAME, 0)
         s_val = values.get(D3_START_GAME_BUTTON_TEMPLATE_NAME, 0)
         g_val = values.get(D3_GAME_TOOL_TEMPLATE_NAME, 0)
-        # 优先级：disconnected -> game_tool -> start -> connecting -> 未匹配
-        # 加载中若 connecting 匹配数高于 game_tool，判为 connecting 等待，避免未进游戏就点传送
+        # Priority: disconnected -> game_tool -> start -> connecting -> no match
+        # If connecting count > game_tool during load, treat as connecting wait to avoid teleport before in game
         d_ok = d_val >= D3_DISCONNECTED_MIN_GOOD_MATCHES
         s_ok = s_val >= 4
         g_ok = g_val >= 4
         c_ok = connecting_val >= 4
         if g_ok and c_ok and connecting_val > g_val:
-            g_ok = False  # 仍为加载中，不判 game_tool
+            g_ok = False  # Still loading, do not treat as game_tool
         if d_ok:
             export_name = "disconnected"
         elif g_ok:
@@ -150,7 +149,7 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         elif c_ok:
             export_name = "connecting"
         else:
-            export_name = "未匹配"
+            export_name = "no_match"
         parts = [
             "disconnected=%d%s" % (d_val, "✓" if d_ok else ""),
             "start=%d%s" % (s_val, "✓" if s_ok else ""),
@@ -158,7 +157,7 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             "connecting=%d%s" % (connecting_val, "✓" if c_ok else ""),
         ]
         ColorPrint.gray(
-            f"{self.log_prefix} C3 识图: %s | export: %s"
+            f"{self.log_prefix} C3 match: %s | export: %s"
             % (" ".join(parts), export_name)
         )
         return {

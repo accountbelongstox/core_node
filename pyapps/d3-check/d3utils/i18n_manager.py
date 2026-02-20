@@ -313,5 +313,5 @@ class I18nManager:
         self._load_i18n_config()
         ColorPrint.green("[I18nManager] Configuration reloaded successfully")
 
-# 导出前实例化：全项目唯一 I18n 实例
+# Single I18n instance for the project; instantiate before use
 i18n_manager = I18nManager()

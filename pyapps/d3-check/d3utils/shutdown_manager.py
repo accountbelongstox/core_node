@@ -9,21 +9,15 @@ import os
 import sys
 import time
 import threading
-import traceback
 from typing import Callable, List, Optional
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from share.ui_registry import get_ui
 
-# Import static global modules
 import timers.timer_manager as timer_manager
-from d3utils.task_thread_manager import get_task_manager
 from pycore.pyutils.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
-from d3utils.main_function_thread import get_main_function_thread
-from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
-# Lazy import d3/d4 extension thread getters to avoid circular import (rosbot_flow -> shutdown_manager -> d3_extension_thread)
 
 # Global hotkey listener reference
 _hotkey_listener: Optional[HotkeyListener] = None
@@ -33,6 +27,15 @@ _shutdown_hooks: List[Callable[[], None]] = []
 
 # Stop log watcher: registered by system_initializer (avoids importing log_monitor here and circular import).
 _stop_log_watching_fn: Optional[Callable[[], None]] = None
+
+# Thread-shutdown runner: registered by lifecycle (only main/event bus import lifecycle; utils must not reference threads).
+_shutdown_runner: Optional[Callable[[], None]] = None
+
+
+def register_shutdown_runner(fn: Callable[[], None]) -> None:
+    """Register the thread-shutdown sequence (join threads + stop task manager). Called by lifecycle on import."""
+    global _shutdown_runner
+    _shutdown_runner = fn
 
 
 def register_stop_log_watching(fn: Callable[[], None]) -> None:
@@ -143,25 +146,10 @@ def execute_shutdown():
         # Unregister ColorPrint callbacks so worker threads' logs do not touch Tk during join
         ColorPrint.clear_all_callbacks()
 
-        # Step 0: Signal extension shutdown via event center, then join all 4 threads
+        # Step 0: Signal extension shutdown, then run lifecycle runner (join threads + stop task manager)
         trigger_extension_shutdown()
-        from d3utils.d3_extension_thread import get_d3_extension_thread
-        from d3utils.d4_extension_thread import get_d4_extension_thread
-        for name, getter, label in [
-            ("main", get_main_function_thread, "Main function"),
-            ("auxiliary", get_auxiliary_function_thread, "Auxiliary"),
-            ("d3", get_d3_extension_thread, "D3/ROSBOT"),
-            ("d4", get_d4_extension_thread, "D4"),
-        ]:
-            try:
-                th = getter()
-                if th and th.is_alive():
-                    ColorPrint.blue(f"[ShutdownManager] [0/5] Joining {label} thread...")
-                    th.request_shutdown()
-                    th.join(timeout=3.0)
-                    ColorPrint.green(f"[ShutdownManager] [OK] {label} thread stopped")
-            except Exception as e:
-                ColorPrint.red(f"[ShutdownManager] [ERROR] {label} thread error: {e}")
+        if _shutdown_runner is not None:
+            _shutdown_runner()
 
         # Step 1: Stop hotkey listener (prevent new input)
         if _hotkey_listener:
@@ -172,18 +160,15 @@ def execute_shutdown():
             except Exception as e:
                 ColorPrint.red(f"[ShutdownManager] [ERROR] Hotkey listener error: {e}")
 
-        # Step 2: Run registered shutdown hooks (e.g. reset BN flow state), then stop task thread manager
+        # Step 2: Run registered shutdown hooks (e.g. reset BN flow state)
         try:
             for hook in _shutdown_hooks:
                 try:
                     hook()
                 except Exception as e:
                     ColorPrint.red(f"[ShutdownManager] Shutdown hook error: {e}")
-            ColorPrint.blue("[ShutdownManager] [2/5] Stopping task thread manager...")
-            get_task_manager().stop_all()
-            ColorPrint.green("[ShutdownManager] [OK] Task thread manager stopped")
         except Exception as e:
-            ColorPrint.red(f"[ShutdownManager] [ERROR] Task thread manager error: {e}")
+            ColorPrint.red(f"[ShutdownManager] [ERROR] Shutdown hooks error: {e}")
 
         # Step 2.5: Stop log file watcher (watchdog observer)
         if _stop_log_watching_fn is not None:
@@ -245,7 +230,6 @@ def execute_shutdown():
 
     except Exception as e:
         ColorPrint.red(f"[ShutdownManager] [ERROR] Critical error: {e}")
-        traceback.print_exc()
         os._exit(1)
 
 

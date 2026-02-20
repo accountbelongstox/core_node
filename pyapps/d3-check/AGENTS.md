@@ -26,6 +26,12 @@ Canonical: **`docs/PROJECT_STANDARDS.md`**. Details: `.cursor/rules/d3-check.mdc
 
 - No cross-thread blocking; event center only; init at startup; one-shot via timer_manager; native Thread. See THREAD_BUS_AND_REGISTRY.md.
 
+## Code language and i18n (PROJECT_STANDARDS §11)
+
+- Code (comments, docstrings, logs, names): **English**.
+- User-facing strings: **i18n** only; no hardcoded locale text in feature code.
+- **Constants excepted**: Matching/config literals in providor.constants unchanged.
+
 ## Summary
 
 | Need | Where |
@@ -36,3 +42,4 @@ Canonical: **`docs/PROJECT_STANDARDS.md`**. Details: `.cursor/rules/d3-check.mdc
 | One-shot | timers.one_shot_tasks.do_* |
 | Lifecycle/threads | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
+| Code / i18n | §11: code English; UI i18n; constants excepted |

@@ -3,7 +3,7 @@
 """
 D3Check Macro Controller
 Main controller for Diablo 3 Macro application.
-本类为 Diablo3MacroUI 的单一创建者，仅在此处实例化一次。
+Single creator for Diablo3MacroUI, instantiated only here.
 """
 
 import os
@@ -22,10 +22,12 @@ from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController, get_game_interface_controller
 from d3utils.i18n_manager import i18n_manager
-from d3utils.main_function_thread import get_main_function_thread
-from d3utils.auxiliary_function_thread import get_auxiliary_function_thread
-from d3utils.d3_extension_thread import get_d3_extension_thread
-from d3utils.d4_extension_thread import get_d4_extension_thread
+from runtime import (
+    get_main_function_thread,
+    get_auxiliary_function_thread,
+    get_d3_extension_thread,
+    get_d4_extension_thread,
+)
 from d3utils.log_analyzer import register_login_try_callback
 from d3utils.d3u_common.hotkey_registry import set_assistant_callback
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
@@ -43,13 +45,14 @@ from providor.constants.ui import PANEL_KEY_ROSBOT, TAB_INDEX_ROSBOT
 import timers.window_monitor_timer as window_monitor
 import timers.timer_manager as timer_manager
 from share.values.config_change_hub import get_config_change_hub
+from timers.one_shot_tasks import register_login_controller_actions
 
 
 class MacroLoopThread(threading.Thread):
     """Fallback macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_fallback_thread()."""
 
     def __init__(self, controller: "D3MacroController"):
-        super().__init__(daemon=True, name="MacroLoopFallback")
+        threading.Thread.__init__(self, daemon=True, name="MacroLoopFallback")
         self._controller = controller
 
     def run(self) -> None:
@@ -63,7 +66,7 @@ class MacroLoopThread(threading.Thread):
             for skill_name, sk_cfg in skills.items():
                 if not c.macro_running:
                     break
-                if sk_cfg.get('strategy') == '禁用':  # Disabled (legacy CN config value)
+                if sk_cfg.get('strategy') == '禁用':  # Disabled (legacy config value, constant)
                     continue
                 c._execute_skill(skill_name, sk_cfg)
                 time.sleep(0.01)
@@ -84,7 +87,6 @@ class D3MacroController:
         _login_ctrl = get_login_try_screenshot_controller()
         register_login_try_callback(lambda: _login_ctrl.handle_login_try())
         set_assistant_callback(lambda: self.game_interface_controller.run_assistant_auto_use())
-        from timers.one_shot_tasks import register_login_controller_actions
         register_login_controller_actions(
             _login_ctrl.ensure_battlenet_started_and_login_check,
             _login_ctrl.ensure_d3_running_from_battlenet_no_rosbot,
@@ -229,7 +231,7 @@ class D3MacroController:
         aux = get_config_value_safe("macro_configs.auxiliary_config", {})
         aux_dict = dict(aux) if isinstance(aux, dict) else {}
         root = self.ui.root
-        if root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+        if root is not None and root.winfo_exists():
             root.after(0, lambda: self.apply_config_sync(skill_dict, aux_dict))
 
     def on_ui_skill_config_switch(self, config_name: str):
@@ -267,7 +269,7 @@ class D3MacroController:
             if idx != TAB_INDEX_ROSBOT:
                 return
             panel = get_ui_panel(PANEL_KEY_ROSBOT)
-            if panel is None or (hasattr(panel, "_content_created") and panel._content_created):
+            if panel is None or panel._content_created:
                 return
             panel.ensure_content()
         except Exception:

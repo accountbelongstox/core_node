@@ -17,32 +17,25 @@ from typing import Optional
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-# Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.hotkey_listener import HotkeyListener, get_global_hotkey_listener
 from providor.providor_index import initialize_config, LOGS_FILE_PATH
 
-# Import static global modules
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
+from d3utils import event_center, log_line_bridge
+from d3utils.cnocr_engine_registry import ensure_cnocr_loaded_and_engines_initialized
 from d3utils.shutdown_manager import (
     is_shutdown_requested,
     register_hotkey_listener,
-    register_stop_log_watching,
 )
-from d3utils import event_center
-import d3utils.log_monitor as log_monitor_module
-
-register_stop_log_watching(lambda: log_monitor_module.get_log_monitor().stop_watching())
-
-from d3utils.task_thread_manager import get_task_manager, TaskStatus
-import d3utils.rosbot_task_processor as rosbot_processor
 from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
 from d3utils.signal_utils import (
     set_gui_mode_sigint_ignored,
     _reapply_sigint_sigbreak_ignore,
 )
-from runtime.thread_registry import get_thread_registry
+from runtime import get_thread_registry, get_task_manager, TaskStatus
+import d3utils.rosbot_task_processor as rosbot_processor
 
 def _is_console_foreground() -> bool:
     """True if the current process console (CMD) is the foreground window, or no console. Only then allow Ctrl+C to exit."""
@@ -79,51 +72,42 @@ class SystemInitializer:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
-        try:
-            # Handle Ctrl+C (SIGINT) and SIGTERM
-            signal.signal(signal.SIGINT, self._signal_handler)
-            signal.signal(signal.SIGTERM, self._signal_handler)
+        # Handle Ctrl+C (SIGINT) and SIGTERM
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
 
-            # On Windows, also handle SIGBREAK
-            if hasattr(signal, 'SIGBREAK'):
-                signal.signal(signal.SIGBREAK, self._signal_handler)
+        # On Windows, also handle SIGBREAK
+        if hasattr(signal, 'SIGBREAK'):
+            signal.signal(signal.SIGBREAK, self._signal_handler)
 
-            ColorPrint.blue("[SYSTEM] Signal handlers registered for graceful shutdown")
-
-        except Exception as e:
-            ColorPrint.red(f"[SYSTEM] Failed to setup signal handlers: {e}")
+        ColorPrint.blue("[SYSTEM] Signal handlers registered for graceful shutdown")
 
     def _setup_ctrl_c_hotkey(self):
         """Setup Ctrl+C hotkey using hotkey_listener"""
-        try:
-            self.hotkey_listener = get_global_hotkey_listener()
+        self.hotkey_listener = get_global_hotkey_listener()
 
-            # Register to shutdown manager
-            register_hotkey_listener(self.hotkey_listener)
+        # Register to shutdown manager
+        register_hotkey_listener(self.hotkey_listener)
 
-            # Register Ctrl+C hotkey
-            success = self.hotkey_listener.register_hotkey(
-                hotkey="ctrl+c",
-                callback=self._on_ctrl_c_pressed,
-                description="System shutdown hotkey",
-                priority=100,  # High priority
-                enabled=True
-            )
+        # Register Ctrl+C hotkey
+        success = self.hotkey_listener.register_hotkey(
+            hotkey="ctrl+c",
+            callback=self._on_ctrl_c_pressed,
+            description="System shutdown hotkey",
+            priority=100,  # High priority
+            enabled=True
+        )
 
-            if success:
-                # Start listening for hotkeys
-                if self.hotkey_listener.start_listening():
-                    ColorPrint.blue("[SYSTEM] Ctrl+C hotkey registered and listening started")
-                    return True
-                else:
-                    ColorPrint.red("[SYSTEM] Failed to start hotkey listening")
-                    return False
+        if success:
+            # Start listening for hotkeys
+            if self.hotkey_listener.start_listening():
+                ColorPrint.blue("[SYSTEM] Ctrl+C hotkey registered and listening started")
+                return True
             else:
-                ColorPrint.red("[SYSTEM] Failed to register Ctrl+C hotkey")
+                ColorPrint.red("[SYSTEM] Failed to start hotkey listening")
                 return False
-
-        except Exception as e:
-            ColorPrint.red(f"[SYSTEM] Failed to setup Ctrl+C hotkey: {e}")
+        else:
+            ColorPrint.red("[SYSTEM] Failed to register Ctrl+C hotkey")
             return False
 
     def _on_ctrl_c_pressed(self):
@@ -137,15 +121,10 @@ class SystemInitializer:
 
     def initialize_configuration(self):
         """Initialize system configuration"""
-        try:
-            ColorPrint.blue("[INIT] Initializing system configuration...")
-            initialize_config()
-            ColorPrint.green("[INIT] Configuration initialized successfully")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[INIT] Failed to initialize configuration: {e}")
-            return False
+        ColorPrint.blue("[INIT] Initializing system configuration...")
+        initialize_config()
+        ColorPrint.green("[INIT] Configuration initialized successfully")
+        return True
 
     def initialize_timer_system(self):
         """
@@ -168,48 +147,38 @@ class SystemInitializer:
             ColorPrint.yellow("[INIT] Timer system already initialized")
             return True
 
-        try:
-            ColorPrint.blue("[INIT] Initializing timer system...")
+        ColorPrint.blue("[INIT] Initializing timer system...")
 
-            # Initialize task thread manager
-            self._init_task_thread_manager()
+        # Initialize task thread manager
+        self._init_task_thread_manager()
 
-            # State detection (window_monitor): driven by tick_driver tick % 10 -> refresh_window_status_if_inactive.
+        # State detection (window_monitor): driven by tick_driver tick % 10 -> refresh_window_status_if_inactive.
 
-            # Log monitor: watchdog drives; directly calls analyze_log_line (real-time, no queue)
-            log_monitor_module.set_log_file(LOGS_FILE_PATH)
+        # Log monitor: native thread via ThreadRegistry; BUS only; watchdog via pycore third_party
+        log_line_bridge.register()
+        get_thread_registry().start_log_monitor(LOGS_FILE_PATH)
 
-            # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
+        # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager
 
-            # Do NOT start timer loop here: start after UI is ready so status UI receives updates only when widgets exist (see start_timer_loop_after_ui_ready).
+        # Do NOT start timer loop here: start after UI is ready so status UI receives updates only when widgets exist (see start_timer_loop_after_ui_ready).
 
-            self.timer_initialized = True
-            ColorPrint.green("[INIT] Timer system initialized (loop will start after UI ready)")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[INIT] Failed to initialize timer system: {e}")
-            return False
+        self.timer_initialized = True
+        ColorPrint.green("[INIT] Timer system initialized (loop will start after UI ready)")
+        return True
 
     def _init_task_thread_manager(self):
-        """Initialize task thread manager"""
-        try:
-            ColorPrint.blue("[INIT] Initializing task thread manager...")
-            
-            # Unified tick: 1s from rosbot_task; tick_driver uses % for log/sigint/smart_echo/inactive_refresh; flow step tick % 2
-            get_task_manager().register_task(
-                name='rosbot_task',
-                task_func=rosbot_processor.process_rosbot_task,
-                interval=1.0
-            )
-            get_task_manager().start_all()
-            get_task_manager().set_task_status("rosbot_task", TaskStatus.ENABLED)
-            
-            ColorPrint.green("[INIT] Task thread manager initialized successfully")
-            
-        except Exception as e:
-            ColorPrint.red(f"[INIT] Failed to initialize task thread manager: {e}")
-            raise
+        """Initialize task thread manager. Register+start+status in one synchronous sequence to avoid thread.__init__() race."""
+        ColorPrint.blue("[INIT] Initializing task thread manager...")
+        # Unified tick: 1s from rosbot_task; synchronous so task is fully constructed before start()
+        ok = get_task_manager().register_and_start_task(
+            name='rosbot_task',
+            task_func=rosbot_processor.process_rosbot_task,
+            interval=1.0,
+            initial_status=TaskStatus.ENABLED,
+        )
+        if not ok:
+            raise RuntimeError("rosbot_task already registered or register_and_start_task failed")
+        ColorPrint.green("[INIT] Task thread manager initialized successfully")
 
     def initialize_system(self, gui_mode: bool = False):
         """
@@ -236,8 +205,7 @@ class SystemInitializer:
             if not self.initialize_configuration():
                 return False
 
-            # CnOCR: third_party 一次性加载/安装，并预初始化所有引擎（general/number/document）
-            from d3utils.cnocr_engine_registry import ensure_cnocr_loaded_and_engines_initialized
+            # CnOCR: load/install once and pre-init all engines (general/number/document)
             if not ensure_cnocr_loaded_and_engines_initialized():
                 ColorPrint.yellow("[INIT] CnOCR load/init skipped or failed, OCR features may be limited")
 
@@ -252,13 +220,10 @@ class SystemInitializer:
             # GUI mode: ignore SIGINT/SIGBREAK; tick_driver tick % 1 resets every 1s (avoid Fortran/numpy override)
             if gui_mode:
                 set_gui_mode_sigint_ignored(True)
-                try:
-                    signal.signal(signal.SIGINT, signal.SIG_IGN)
-                    if hasattr(signal, "SIGBREAK"):
-                        signal.signal(signal.SIGBREAK, signal.SIG_IGN)
-                    ColorPrint.blue("[INIT] GUI mode: Ctrl+C ignored (close via UI only)")
-                except Exception:
-                    pass
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
+                if hasattr(signal, "SIGBREAK"):
+                    signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+                ColorPrint.blue("[INIT] GUI mode: Ctrl+C ignored (close via UI only)")
 
             self.initialized = True
             ColorPrint.green("[INIT] System initialization completed successfully")
