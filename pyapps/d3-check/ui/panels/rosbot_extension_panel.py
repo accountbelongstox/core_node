@@ -24,7 +24,7 @@ from ..utils.tk_variables import var_str, var_bool
 from providor.providor_index import CONFIG, get_config_value_safe
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
 # Import game state and task thread manager (timer/UI are sibling modules; controller wires status UI and refresh fn)

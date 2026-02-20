@@ -5,21 +5,16 @@ Map Name Recognizer for D4
 Recognizes map names using OCR when is_post_switch_idle is True
 """
 
-import sys
+import io
 import os
 from pathlib import Path
 from typing import Optional, Dict, Any
-import io
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.color_print import ColorPrint
 
 Image = get_third_package_PIL_Image()
 
-# Add project paths
-current_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(current_dir))
-
-from pycore.pyfoundations.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from d3utils.i18n_manager import i18n_manager
 from .map_name_utils import set_current_map_name

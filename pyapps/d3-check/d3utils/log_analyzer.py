@@ -25,7 +25,7 @@ from d3utils.rosbot_ui_automation import (
 )
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
 from providor.constants.common import LOGIN_TRY_TRIGGER_DEFAULT
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 
 # Injected by controller at startup; d3utils does not import controller.

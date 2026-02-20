@@ -26,7 +26,9 @@ from providor.constants.common import (
     ASIA_LOGIN_CONTINUE_NAME_KEYWORDS,
     ASIA_LOGIN_SWITCH_ACCOUNT_KEYWORDS,
 )
+from providor.constants.common import ROOT_DIR
 from providor.constants.d3 import (
+    BATTLE_NET_POST_LOGIN_ELEMENTS_JSON,
     D3_TAB_AUTOMATION_IDS,
     D3_TAB_NAME_KEYWORDS,
     START_GAME_AUTOMATION_IDS,
@@ -51,8 +53,7 @@ def _load_asia_features_from_docs_json() -> None:
     if _asia_features_loaded:
         return
     _asia_features_loaded = True
-    base = Path(__file__).resolve().parent.parent
-    path = base / "docs" / "登陆后的战网元素.json"
+    path = Path(ROOT_DIR) / "docs" / BATTLE_NET_POST_LOGIN_ELEMENTS_JSON
     d3_aids: set = set()
     d3_names: set = set()
     play_aids: set = set()

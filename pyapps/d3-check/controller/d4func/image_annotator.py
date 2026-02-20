@@ -4,13 +4,6 @@
 Image Annotator for D4 Controller. Singleton via get_image_annotator(); do not instantiate elsewhere.
 """
 
-import sys
-from pathlib import Path
-
-# Add project paths
-current_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(current_dir))
-
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (
