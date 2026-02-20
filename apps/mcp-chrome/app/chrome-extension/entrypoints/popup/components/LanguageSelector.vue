@@ -1,16 +1,18 @@
 <template>
-  <div class="flex items-center gap-2">
-    <label class="flex items-center gap-2">
-      <span class="text-sm font-medium text-white">{{ getMessage('languageSelectorLabel') }}</span>
-      <select v-model="currentLanguage" @change="changeLanguage" class="px-3 py-1.5 bg-white bg-opacity-20 text-white border border-white border-opacity-30 rounded-lg text-sm font-medium cursor-pointer hover:bg-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all">
-        <option value="en">English</option>
-        <option value="zh_CN">简体中文</option>
-        <option value="zh_TW">繁體中文</option>
-        <option value="de">Deutsch</option>
-        <option value="ja">日本語</option>
-        <option value="ko">한국어</option>
-      </select>
-    </label>
+  <div class="flex flex-col items-end">
+    <select
+      v-model="currentLanguage"
+      @change="changeLanguage"
+      class="bg-transparent text-[10px] font-bold text-slate-400 border-none focus:ring-0 p-0 hover:text-indigo-400 transition-colors cursor-pointer text-right"
+    >
+      <option value="en" class="bg-slate-900 text-slate-200">ENGLISH / EN</option>
+      <option value="zh_CN" class="bg-slate-900 text-slate-200">CHINESE / ZH</option>
+      <option value="zh_TW" class="bg-slate-900 text-slate-200">繁體中文</option>
+      <option value="de" class="bg-slate-900 text-slate-200">Deutsch</option>
+      <option value="ja" class="bg-slate-900 text-slate-200">日本語</option>
+      <option value="ko" class="bg-slate-900 text-slate-200">한국어</option>
+    </select>
+    <span class="text-[8px] text-slate-600 font-mono tracking-tighter">{{ getMessage('languageSelectorLabel') }}</span>
   </div>
 </template>
 

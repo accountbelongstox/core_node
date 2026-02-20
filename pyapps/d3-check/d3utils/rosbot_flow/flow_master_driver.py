@@ -30,6 +30,10 @@ from d3utils.rosbot_flow.flow_bn_block_state import (
 _FM_BN = False  # Flow-master uses for_bn_only=False
 from d3utils.rosbot_flow_f0_entry import run_f0_prejudge_entry
 from d3utils.rosbot_flow_f3_log_timeout import run_f3_log_timeout, get_last_f3_short_status
+from d3utils.f3_refresh_line import (
+    set_f3_refresh_silent,
+    build_f3_only_refresh_line,
+)
 from d3utils.rosbot_flow_f4_close_d3_send_f7 import run_f4_close_d3_send_f7
 from d3utils.rosbot_flow_rosbot_exit_state import increment_total_restart_count
 from d3utils.rosbot_flow.extension_flow_state import (
@@ -153,15 +157,23 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None], sta
         if should_refresh:
             _f3_only_rosbot_refresh_cycle += 1
             do_rosbot_refresh = (_f3_only_rosbot_refresh_cycle % _F3_ONLY_ROSBOT_REFRESH_EVERY_N_CYCLES == 1)
-            ColorPrint.gray(
-                f"[FlowMaster] step={FlowMasterStep.REFRESH_FOR_ROUTING.value}: F3-only refresh (every {_F3_ONLY_REFRESH_INTERVAL_TICKS} ticks, ROSBOT every {_F3_ONLY_ROSBOT_REFRESH_EVERY_N_CYCLES} cycles)..."
-            )
-            _, d3_changed = _refresh_d3_status_internal(skip_dynamic=True)
-            rosbot_changed = False
-            if do_rosbot_refresh:
-                _, rosbot_changed = _refresh_rosbot_status_internal()
-            if d3_changed or rosbot_changed:
-                g.notify_state_sync()
+            set_f3_refresh_silent(True)
+            try:
+                _, d3_changed = _refresh_d3_status_internal(skip_dynamic=True)
+                rosbot_changed = False
+                if do_rosbot_refresh:
+                    _, rosbot_changed = _refresh_rosbot_status_internal()
+                if d3_changed or rosbot_changed:
+                    g.notify_state_sync()
+            finally:
+                set_f3_refresh_silent(False)
+        step = run_f3_log_timeout(verbose=False)
+        _set_last_f3_result(step)
+        prefix = status_prefix if status_prefix else f"[FlowMaster] step={FlowMasterStep.F3_ONLY_MODE.value} | "
+        d3_ok = g.d3_running
+        rosbot_status = g.rosbot_extended_status or "not_found"
+        line = build_f3_only_refresh_line(prefix, d3_ok, rosbot_status, get_last_f3_short_status())
+        ColorPrint.gray_refresh(line)
         # ROSBOT_FLOW_MERMAID: Check for ROSBOT disconnect (game_state set by analyzer)
         if g.get_and_clear_rosbot_disconnected_from_log():
             ColorPrint.yellow("[FlowMaster] ROSBOT disconnect detected -> F4 -> B2_HasWin")
@@ -173,14 +185,6 @@ def tick_flow_master(tick_count: int, start_rosbot_task: Callable[[], None], sta
                 g.notify_state_sync()
             enter_battlenet_at_b2(_FM_BN)
             return
-        if status_prefix:
-            step = run_f3_log_timeout(verbose=False)
-            _set_last_f3_result(step)
-            ColorPrint.gray_refresh(status_prefix + "FM f3_only | " + get_last_f3_short_status())
-        else:
-            ColorPrint.gray(f"[FlowMaster] step={FlowMasterStep.F3_ONLY_MODE.value}: D3+ROSBOT both present -> F3 timeout only")
-            step = run_f3_log_timeout()
-            _set_last_f3_result(step)
         if step == "f4":
             ColorPrint.gray("[FlowMaster] F3: timeout -> F4 -> B2_HasWin")
             run_f4_close_d3_send_f7()

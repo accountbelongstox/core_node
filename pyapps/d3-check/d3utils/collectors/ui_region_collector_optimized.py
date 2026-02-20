@@ -3,7 +3,7 @@
 """
 UI Region Collector - Optimized Version
 Uses window cache from encyclopedia for fast detection.
-类库：导出前实例化，通过 get_ui_region_collector_optimized() 获取单例，禁止各处自行 new。
+Singleton: instantiate before export; get via get_ui_region_collector_optimized(). Do not instantiate elsewhere.
 """
 
 # Standard library imports
@@ -221,7 +221,7 @@ _ui_region_collector_optimized_instance: Optional[UIRegionCollectorOptimized] = 
 
 
 def get_ui_region_collector_optimized() -> UIRegionCollectorOptimized:
-    """Return the global UIRegionCollectorOptimized instance (singleton). 导出前实例化."""
+    """Return the global UIRegionCollectorOptimized instance (singleton). Instantiated before export."""
     global _ui_region_collector_optimized_instance
     if _ui_region_collector_optimized_instance is None:
         _ui_region_collector_optimized_instance = UIRegionCollectorOptimized()

@@ -13,6 +13,7 @@ from share.game_interface_data import get_game_interface_data, get_screen_resolu
 
 from d3utils.d3_manager import get_d3_manager
 from d3utils.d3_start_game_and_teleport_waiter import capture_and_detect_all_d3_states
+from d3utils.f3_refresh_line import is_f3_refresh_silent
 from d3utils.status_provider_common import refresh_window_state
 
 
@@ -74,6 +75,7 @@ def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional
     def progress_refresh(step: str) -> None:
         ColorPrint.gray_refresh(f"[D3] {win_label} {step}")
 
+    silent = is_f3_refresh_silent()
     detect_fn = (_noop_detect_dynamic if skip_dynamic else _detect_d3_dynamic)
     state_changed = refresh_window_state(
         game_data,
@@ -83,7 +85,8 @@ def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional
         detect_dynamic_fn=detect_fn,
         apply_geometry_fn=_apply_d3_geometry,
         log_prefix="[D3StatusProvider]",
-        progress_refresh=progress_refresh,
+        progress_refresh=(lambda s: None) if silent else progress_refresh,
+        skip_final_newline=silent,
     )
     return (window_info, state_changed)
 

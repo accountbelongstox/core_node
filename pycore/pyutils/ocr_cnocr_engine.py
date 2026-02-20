@@ -4,8 +4,8 @@ Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, g
 Supports context (GPU/CPU) with CPU fallback, rec_model fallbacks (e.g. free doc model first), cand_alphabet for number-only.
 """
 import sys
-from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
@@ -17,11 +17,38 @@ from pycore.pyfoundations.third_party import (
     get_third_package_numpy,
 )
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
 
-# Order for context: try GPU first, then CPU (code-level fallback when GPU unavailable)
-_CONTEXT_ORDER = ("gpu", "cpu")
+
+def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
+    """
+    Diagnose why CUDA is or is not loading. Returns (context_order, reason).
+    Ref: PyTorch torch.cuda.is_available(); CPU-only build has torch.version.cuda None/empty.
+    """
+    if torch is None:
+        return ("cpu",), "Could not import torch (install e.g. pip install torch)."
+    try:
+        cuda_compiled = getattr(torch.version, "cuda", None)
+        if cuda_compiled is None or (isinstance(cuda_compiled, str) and cuda_compiled.strip() == ""):
+            return ("cpu",), (
+                "PyTorch is CPU-only (not compiled with CUDA). "
+                "To use GPU: install CUDA build from https://pytorch.org/get-started/locally "
+                "(e.g. pip install torch --index-url https://download.pytorch.org/whl/cu118)."
+            )
+        if not torch.cuda.is_available():
+            return ("cpu",), (
+                "PyTorch is CUDA-built but torch.cuda.is_available() is False "
+                "(NVIDIA driver/CUDA runtime issue or no GPU). Check driver and nvidia-smi."
+            )
+        return ("gpu", "cpu"), "CUDA available; will try GPU first."
+    except Exception as e:
+        return ("cpu",), f"Could not check torch CUDA: {e}."
 
 
 class CnOCREngine:
@@ -72,8 +99,10 @@ class CnOCREngine:
         CnOcr = cnocr_module.CnOcr
         rec_models = [self.rec_model_name] + self.rec_model_fallbacks
         last_error = None
+        context_order, cuda_reason = _cuda_diagnostic()
+        ColorPrint.blue(f"[CnOCREngine] CUDA diagnostic: {cuda_reason}")
 
-        for context in _CONTEXT_ORDER:
+        for context in context_order:
             for rec in rec_models:
                 kwargs = {
                     "det_model_name": self.det_model_name,
@@ -92,6 +121,10 @@ class CnOCREngine:
                     ColorPrint.green(f"  Detection model: {self.det_model_name}")
                     ColorPrint.green(f"  Recognition model: {self._effective_rec_model}")
                     ColorPrint.green(f"  Context: {self._effective_context}")
+                    if self._effective_context == "gpu":
+                        ColorPrint.green("  CUDA loaded: yes")
+                    else:
+                        ColorPrint.green(f"  CUDA loaded: no. Reason: {cuda_reason}")
                     ColorPrint.green(f"{'=' * 60}\n")
                     return True
                 except Exception as e:

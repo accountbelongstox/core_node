@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ROSBOT status provider: extended status (not_found | running | paused) and game_interface_data update.
-running = process exists but no visible window (background). paused = process has at least one visible window. All lookup via same-dir exe flow (docs/ROSBOT_LOOKUP_FLOW.md).
+running = process exists, zero visible windows. paused = any visible window (main UI or popup dialog). All lookup via same-dir exe flow (docs/ROSBOT_LOOKUP_FLOW.md).
 """
 
 from typing import Optional, Dict, Any
@@ -33,7 +33,7 @@ def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
     if prev_status in ("running", "paused") and status == "not_found":
         mark_rosbot_exit_reason_when_process_gone()
     status_changed = game_data.set_rosbot_extended_status(status)
-    has_main_ui = status == "paused" and detection.get("is_main_ui", True)
+    has_main_ui = status == "paused"
     main_ui_changed = game_data.set_rosbot_has_main_ui(has_main_ui)
 
     exe_name = detection.get("exe_name") or ""

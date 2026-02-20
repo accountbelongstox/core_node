@@ -10,7 +10,7 @@ from typing import Optional, Sequence, Union, List, Dict, Any, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 
-# 使用 d3-check 类库统一初始化的 CnOCR 引擎（APP 启动时已加载）
+# CnOCR engine initialized by d3-check at app startup (single shared instance)
 def _get_default_engine():
     from d3utils.cnocr_engine_registry import get_cnocr_engine_default
     return get_cnocr_engine_default()
@@ -31,6 +31,14 @@ def ocr_get_result(
         if hasattr(image_input, "mode"):
             return eng.ocr(image=image_input)
         return eng.ocr(img_path=str(image_input))
+    except RuntimeError as e:
+        msg = str(e)
+        if "CUDA" in msg or "cuda" in msg:
+            ColorPrint.red(f"[OCR] ocr_get_result error: {e}")
+            ColorPrint.yellow("[OCR] Engine should use CPU when CUDA unavailable (see CnOCREngine init). Restart app or re-init engine.")
+        else:
+            ColorPrint.red(f"[OCR] ocr_get_result error: {e}")
+        return None
     except Exception as e:
         ColorPrint.red(f"[OCR] ocr_get_result error: {e}")
         if not hasattr(image_input, "mode"):

@@ -27,7 +27,7 @@ class GameInterfaceMacroThread(threading.Thread):
     """Game interface macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_thread()."""
 
     def __init__(self, controller: "GameInterfaceController", skill_config: Dict):
-        super().__init__(daemon=True, name="GameInterfaceMacro")
+        threading.Thread.__init__(self, daemon=True, name="GameInterfaceMacro")
         self._controller = controller
         self._skill_config = skill_config
 
@@ -332,7 +332,7 @@ _game_interface_controller_instance: Optional[GameInterfaceController] = None
 
 
 def get_game_interface_controller() -> GameInterfaceController:
-    """Return the global GameInterfaceController instance (singleton). 导出前实例化."""
+    """Return the global GameInterfaceController instance (singleton). Instantiated before export."""
     global _game_interface_controller_instance
     if _game_interface_controller_instance is None:
         _game_interface_controller_instance = GameInterfaceController()

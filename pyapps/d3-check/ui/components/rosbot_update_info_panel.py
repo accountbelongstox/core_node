@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-ROSBOT Update Info Panel - 多语言弹出面板
+ROSBOT Update Info Panel - i18n popup.
 
-用于显示 ROSBOT 更新信息和使用说明的弹出窗口。
-支持多语言，在没有可用更新时显示探测数据和使用说明。
+Shows ROSBOT update info and usage. When no update is available, shows detection data and usage (i18n).
 """
 import os
 import tkinter as tk
@@ -16,20 +15,16 @@ from ..unified_styles import UnifiedStyles
 
 class RosbotUpdateInfoPanel:
     """
-    ROSBOT 更新信息面板
-    
-    功能：
-    - 显示更新可用时的确认对话框
-    - 显示无更新时的使用说明
-    - 支持多语言
+    ROSBOT update info popup.
+    - Confirm dialog when update available
+    - Usage when no update
+    - i18n
     """
 
     def __init__(self, parent: tk.Tk):
         """
-        初始化面板
-        
         Args:
-            parent: 父窗口
+            parent: parent window
         """
         self.parent = parent
         self.result = None
@@ -44,17 +39,15 @@ class RosbotUpdateInfoPanel:
         on_cancel: Optional[Callable[[], None]] = None,
     ) -> bool:
         """
-        显示更新可用对话框
-        
         Args:
-            region_display: 区服显示名称（如"亚服"或"国服"）
-            version_str: 版本号字符串
-            zip_path: zip 文件路径
-            on_confirm: 确认回调
-            on_cancel: 取消回调
-            
+            region_display: region display name (i18n)
+            version_str: version string
+            zip_path: zip path
+            on_confirm: confirm callback
+            on_cancel: cancel callback
+
         Returns:
-            bool: True=确认更新, False=取消
+            bool: True=confirm update, False=cancel
         """
         self.dialog = tk.Toplevel(self.parent)
         self.dialog.title(i18n_manager.get_ui_text("rosbot.update_dialog_title"))
@@ -62,7 +55,7 @@ class RosbotUpdateInfoPanel:
         self.dialog.grab_set()
         self.dialog.resizable(False, False)
         
-        # 居中显示
+        # Center
         self.dialog.update_idletasks()
         width = 500
         height = 250
@@ -70,10 +63,10 @@ class RosbotUpdateInfoPanel:
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
         
-        # 设置样式
+        # Style
         self.dialog.configure(bg=UnifiedStyles.COLORS['bg_primary'])
         
-        # 主容器
+        # Main container
         main_frame = tk.Frame(
             self.dialog,
             bg=UnifiedStyles.COLORS['bg_primary'],
@@ -82,7 +75,7 @@ class RosbotUpdateInfoPanel:
         )
         main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # 标题
+        # Title
         title_label = tk.Label(
             main_frame,
             text=i18n_manager.get_ui_text("rosbot.update_available_title"),
@@ -92,7 +85,7 @@ class RosbotUpdateInfoPanel:
         )
         title_label.pack(pady=(0, 10))
         
-        # 信息文本
+        # Info text
         info_text = i18n_manager.get_ui_text("rosbot.update_available_message").format(
             region=region_display,
             version=version_str or "?",
@@ -109,7 +102,7 @@ class RosbotUpdateInfoPanel:
         )
         info_label.pack(pady=(0, 20))
         
-        # 按钮框架
+        # Button frame
         button_frame = tk.Frame(
             main_frame,
             bg=UnifiedStyles.COLORS['bg_primary']
@@ -128,7 +121,7 @@ class RosbotUpdateInfoPanel:
             if on_cancel:
                 on_cancel()
         
-        # 确认按钮
+        # Confirm button
         yes_btn = tk.Button(
             button_frame,
             text=i18n_manager.get_ui_text("rosbot.update_confirm"),
@@ -140,7 +133,7 @@ class RosbotUpdateInfoPanel:
         )
         yes_btn.pack(side=tk.LEFT, padx=5)
         
-        # 取消按钮
+        # Cancel button
         no_btn = tk.Button(
             button_frame,
             text=i18n_manager.get_ui_text("rosbot.update_cancel"),
@@ -152,16 +145,16 @@ class RosbotUpdateInfoPanel:
         )
         no_btn.pack(side=tk.LEFT, padx=5)
         
-        # 等待窗口关闭
+        # Wait for window close
         self.dialog.wait_window()
         return self.result is True
 
     def show_no_update_info(self, detection_data: Optional[Dict[str, Any]] = None):
         """
-        显示无更新时的探测数据和使用说明。
+        Show detection data and usage when no update available.
 
         Args:
-            detection_data: 可选。包含 current_ros_dir, current_version, downloads_dir, regions 的探测结果，用于说明为何无需更新。
+            detection_data: optional; current_ros_dir, current_version, downloads_dir, regions to explain why no update.
         """
         self.dialog = tk.Toplevel(self.parent)
         self.dialog.title(i18n_manager.get_ui_text("rosbot.update_info_title"))
@@ -169,7 +162,7 @@ class RosbotUpdateInfoPanel:
         self.dialog.grab_set()
         self.dialog.resizable(True, True)
         
-        # 居中显示
+        # Center
         self.dialog.update_idletasks()
         width = 640
         height = 520
@@ -177,10 +170,10 @@ class RosbotUpdateInfoPanel:
         y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
         self.dialog.geometry(f"{width}x{height}+{x}+{y}")
         
-        # 设置样式
+        # Style
         self.dialog.configure(bg=UnifiedStyles.COLORS['bg_primary'])
         
-        # 主容器（可滚动）
+        # Main container (scrollable)
         main_canvas = tk.Canvas(
             self.dialog,
             bg=UnifiedStyles.COLORS['bg_primary'],
@@ -199,7 +192,7 @@ class RosbotUpdateInfoPanel:
         main_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 标题
+        # Title
         title_label = tk.Label(
             main_frame,
             text=i18n_manager.get_ui_text("rosbot.no_update_title"),
@@ -209,7 +202,7 @@ class RosbotUpdateInfoPanel:
         )
         title_label.pack(pady=(0, 10))
         
-        # 探测数据区域（用于说明为何当前无需更新）
+        # Detection data (why no update)
         if detection_data:
             det_frame = tk.LabelFrame(
                 main_frame,
@@ -285,7 +278,7 @@ class RosbotUpdateInfoPanel:
                             anchor=tk.W,
                         ).pack(anchor=tk.W, padx=(12, 0))
         
-        # 说明文本框架（可滚动）
+        # Usage text frame (scrollable)
         text_frame = tk.Frame(
             main_frame,
             bg=UnifiedStyles.COLORS['bg_primary']
@@ -313,7 +306,7 @@ class RosbotUpdateInfoPanel:
         text_widget.insert(tk.END, usage_text)
         text_widget.config(state=tk.DISABLED)
         
-        # 关闭按钮
+        # Close button
         def _close():
             try:
                 main_canvas.unbind_all("<MouseWheel>")
@@ -336,5 +329,5 @@ class RosbotUpdateInfoPanel:
             main_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-        # 等待窗口关闭
+        # Wait for window close
         self.dialog.wait_window()

@@ -3,7 +3,7 @@
 """
 D3 Interface Manager
 Manages game interface information collection. Coordinates collectors and provides unified API.
-类库：导出前实例化，通过 get_d3_interface_manager() 获取单例，禁止各处自行 new。
+Singleton: instantiate before export; get via get_d3_interface_manager(). Do not instantiate elsewhere.
 """
 
 import os
@@ -390,7 +390,7 @@ _d3_interface_manager_instance: Optional[D3InterfaceManager] = None
 
 
 def get_d3_interface_manager() -> D3InterfaceManager:
-    """Return the global D3InterfaceManager instance (singleton). 导出前实例化."""
+    """Return the global D3InterfaceManager instance (singleton). Instantiated before export."""
     global _d3_interface_manager_instance
     if _d3_interface_manager_instance is None:
         _d3_interface_manager_instance = D3InterfaceManager()

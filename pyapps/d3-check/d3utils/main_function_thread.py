@@ -29,7 +29,7 @@ class MainFunctionThread(threading.Thread):
         on_macro_started: Optional[Callable[[], None]] = None,
         on_macro_stopped: Optional[Callable[[], None]] = None,
     ):
-        super().__init__(daemon=True)
+        threading.Thread.__init__(self, daemon=True)
         self._schedule = schedule_on_main_thread
         self._on_macro_started = on_macro_started
         self._on_macro_stopped = on_macro_stopped
@@ -90,7 +90,7 @@ class MainFunctionThread(threading.Thread):
             for skill_name, sc in skills.items():
                 if not self._macro_running or self._shutdown.is_set():
                     break
-                if sc.get("strategy") == "禁用":  # Disabled (CN config value)
+                if sc.get("strategy") == "禁用":  # Disabled (constant)
                     continue
                 self._execute_skill(skill_name, sc)
                 time.sleep(0.01)

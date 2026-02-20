@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-[F3] ROSBOT timeout? (ROSBOT_FLOW_MERMAID.md F block). Flow layer: called by flow_master on 2s tick; reads last_modified (get_last_log_modified_time).
+[F3] ROSBOT timeout? (ROSBOT_FLOW_MERMAID.md F block). For flow/history timeout only; not for log.txt file monitoring (log_monitor_thread does that).
+Flow layer: called by flow_master on 2s tick; reads last_modified (get_last_log_modified_time) for history baseline.
 Node logic:
 - F3_Baseline: baseline = last_log_ts when log from current run; else started_at when just started (no current-run log yet); else f4 only when no started_at. Chosen inside run_f3_log_timeout().
 - F3_LogTimeout: this function; not timed out -> f3_stay (stay in F3), timed out -> F3_ProcessGone or F4a.
@@ -27,7 +28,7 @@ from typing import Literal, Optional, Tuple
 from providor.providor_index import get_config_value_safe
 from providor.constants.d3 import ROSBOT_LOG_TIMEOUT_MINUTES_DEFAULT
 from d3utils.key_send import send_f7_to_system
-from d3utils.log_monitor import get_last_log_modified_time
+from d3utils.log_monitor_api import get_last_log_modified_time
 from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.rosbot_flow_rosbot_exit_state import (
     clear_test_wait_50_percent,
@@ -98,12 +99,12 @@ def get_test_mode_display_string() -> Optional[str]:
     recorded = get_recorded_debug_duration_sec()
     record_count = get_debug_exit_record_count()
     wait_until = get_test_wait_50_percent_until()
-    parts = [f"已运行 {elapsed:.0f}s", f"超时 {timeout_min}min"]
+    parts = [f"elapsed {elapsed:.0f}s", f"timeout {timeout_min}min"]
     if recorded and recorded > 0 and record_count >= 1:
-        parts.append(f"记录 {record_count} 次 {recorded:.0f}s")
+        parts.append(f"record {record_count}x {recorded:.0f}s")
     if wait_until > 0:
         remain = max(0, wait_until - now)
-        parts.append(f"50%%后E2 剩余 {remain:.0f}s")
+        parts.append(f"50%% then E2 remain {remain:.0f}s")
     return " | ".join(parts)
 
 

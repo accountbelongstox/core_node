@@ -64,7 +64,7 @@ def _read_lookback_before_sentinel_from_file(log_path: str, sentinel: str, lookb
     try:
         with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = [ln.strip() for ln in f.readlines()]
-    except Exception:
+    except OSError:
         return []
     last_idx = None
     for i in range(len(lines) - 1, -1, -1):
@@ -156,14 +156,18 @@ class LogAnalyzer:
         
         # D3 running: only from WindowMonitor and controller (window detection), not from log.
         
-        # Temple of the Firstborn: count this line; when reuse on, only odd count updates firstborn+back_town; else every occurrence.
+        # Temple of the Firstborn: in-memory counter _firstborn_objective_count; when UI "firstborn blue gate reuse" on, only odd count updates map.
         if "Objective RunLogic: Temple of the Firstbor" in line:
             self._firstborn_objective_count += 1
             firstborn_reuse = bool(CONFIG.get("rosbot", {}).get("firstborn_blue_gate_reuse", False))
-            if not firstborn_reuse or (self._firstborn_objective_count % 2 == 1):
+            is_odd = (self._firstborn_objective_count % 2 == 1)
+            if not firstborn_reuse or is_odd:
                 self.game_state.set_map_type("firstborn_temple")
                 self.game_state.set_game_stage("back_town")
                 updated = True
+            if firstborn_reuse and is_odd:
+                msg = i18n_manager.get_ui_text("rosbot.firstborn_reuse_needed") % (self._firstborn_objective_count,)
+                ColorPrint.blue(f"[LogAnalyzer] {msg}")
         # Town portal done: anytime this log appears, reset to town.
         elif "Town portal done" in line:
             self.game_state.set_map_type("town")
@@ -190,14 +194,18 @@ class LogAnalyzer:
         if "Running: Echoing Fury Exploration" in line:
             self.game_state.set_map_type("echo")
             updated = True
+        # Temple of the Firstborn (e.g. "Running: Temple of the Firstborn Level 1 Illusions Exploration") -> map firstborn_temple
+        if "Running: Temple of the Firstborn" in line:
+            self.game_state.set_map_type("firstborn_temple")
+            updated = True
         if "Game ended" in line and self.game_state.map_type == "echo":
             self.game_state.set_map_type("echo_completed")
             updated = True
 
         # Smart echo: only on "Picking end" — look back 22 lines once, no "Game ended" condition.
         self._run_echo_detection_rules(line)
-        # Vendor loop done child: only when ROSBOT has window (paused), detect "No items" popup and close with OK
-        self._on_vendor_loop_done(line)
+        # No items popup: when log line contains "No items" or "Vendor loop done", close popup and switch to rift
+        self._on_no_items_popup(line)
         # System error detection: consecutive "at System"; ignore if Plugins in previous 10 lines; cooldown N lines after kill
         recent_10 = list(self._recent_lines)[-SYSTEM_ERROR_LOOKBACK_LINES:] if self._recent_lines else []
         self._check_system_error(line, recent_10)
@@ -226,10 +234,7 @@ class LogAnalyzer:
         login_try_trigger = _get_login_try_trigger()
         if login_try_trigger and login_try_trigger in line:
             if _login_try_callback:
-                try:
-                    _login_try_callback()
-                except Exception as e:
-                    ColorPrint.red(f"[LogAnalyzer] Login try handler failed: {e}")
+                _login_try_callback()
             updated = True
         
         if updated:
@@ -240,10 +245,7 @@ class LogAnalyzer:
     def _do_smart_echo_if_enabled(self) -> None:
         """Run F7 pause immediately in the same thread (log reader) to avoid timer-queue delay."""
         if _smart_echo_enabled():
-            try:
-                do_smart_echo_pause_after_complete()
-            except Exception as e:
-                ColorPrint.red(f"[LogAnalyzer] Smart echo pause failed: {e}")
+            do_smart_echo_pause_after_complete()
 
     def _run_echo_detection_rules(self, line: str) -> None:
         """Smart echo: only on "Picking end" — one lookback of 22 lines before this line; if "Running: Echoing Fury Exploration" in them, trigger once. No Game ended."""
@@ -262,22 +264,21 @@ class LogAnalyzer:
             return
         if not any("Running: Echoing Fury Exploration" in ln for ln in lookback_lines):
             return
-        try:
-            msg = i18n_manager.get_ui_text("rosbot.smart_echo_echo_returning_log")
-            ColorPrint.green(f"[SmartEcho] {msg}")
-        except Exception:
-            ColorPrint.green("[SmartEcho] Echo map returning to town.")
+        ColorPrint.green("[SmartEcho] Echo map returning to town.")
         self._line_buffer.clear()
         self._do_smart_echo_if_enabled()
 
-    def _on_vendor_loop_done(self, line: str) -> None:
+    def _on_no_items_popup(self, line: str) -> None:
         """
-        Vendor loop done child: run only when line contains "Vendor loop done".
-        Switch: if ROSBOT process is running (any same-dir exe) then try to close "No items" popup; do not require main window (popup may be the only visible window).
-        If popup was closed, then set mode to rift and click Start.
+        When log line contains "No items" or "Vendor loop done", try to close the No items popup
+        and switch to rift + start. ROSBOT process must be running; popup may be the only visible window.
         """
-        if "Vendor loop done" not in line:
+        if "No items" not in line and "Vendor loop done" not in line:
             return
+        self._close_no_items_popup_and_switch_rift()
+
+    def _close_no_items_popup_and_switch_rift(self) -> None:
+        """Try close D3 must-be-launched dialog, then No items popup; if popup closed, switch to rift and start."""
         detection = get_rosbot_manager().get_rosbot_detection()
         if detection.get("status") == "not_found":
             return

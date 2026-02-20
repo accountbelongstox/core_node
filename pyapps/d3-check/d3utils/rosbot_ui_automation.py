@@ -78,28 +78,28 @@ def window_has_rosbot_main_content(hwnd: int) -> bool:
     Used to select the main window by content when the process has multiple windows (title may be e.g. "The Vault").
     """
     auto = _auto()
-    if not auto:
+    win32gui = _win32gui()
+    if not auto or not win32gui or not hwnd or not win32gui.IsWindow(hwnd):
         return False
+    _COM_INIT.ensure_thread()
     try:
-        _COM_INIT.ensure_thread()
         root = auto.ControlFromHandle(int(hwnd))
     except Exception:
         return False
-    if not root:
+    if not root or (hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
         return False
 
     def walk(control, depth: int, max_d: int = 8) -> bool:
-        if depth > max_d:
+        if depth > max_d or control is None:
             return False
-        try:
-            aid = ((control.AutomationId if hasattr(control, "AutomationId") else None) or "").strip()
-            if aid in _ROSBOT_MAIN_CONTENT_IDS:
-                return True
-            for child in control.GetChildren():
+        aid = (getattr(control, "AutomationId", None) or "").strip()
+        if aid in _ROSBOT_MAIN_CONTENT_IDS:
+            return True
+        children = getattr(control, "GetChildren", None)
+        if callable(children):
+            for child in children():
                 if walk(child, depth + 1, max_d):
                     return True
-        except Exception:
-            pass
         return False
 
     return walk(root, 0)
@@ -122,45 +122,26 @@ _ROSBOT_CLICK_PARAMS = {
 
 
 def _safe_control_info(control) -> Optional[Dict[str, Any]]:
-    try:
-        info = {
-            "name": "",
-            "type": "",
-            "automation_id": "",
-            "class_name": "",
-            "rect": {"left": 0, "top": 0, "right": 0, "bottom": 0, "width": 0, "height": 0},
-        }
-        try:
-            info["name"] = control.Name or ""
-        except Exception:
-            pass
-        try:
-            info["type"] = control.ControlTypeName or ""
-        except Exception:
-            pass
-        try:
-            info["automation_id"] = control.AutomationId or ""
-        except Exception:
-            pass
-        try:
-            info["class_name"] = control.ClassName or ""
-        except Exception:
-            pass
-        try:
-            r = control.BoundingRectangle
-            info["rect"] = {
-                "left": r.left,
-                "top": r.top,
-                "right": r.right,
-                "bottom": r.bottom,
-                "width": r.width(),
-                "height": r.height(),
-            }
-        except Exception:
-            pass
-        return info
-    except Exception:
+    if control is None:
         return None
+    info = {
+        "name": getattr(control, "Name", None) or "",
+        "type": getattr(control, "ControlTypeName", None) or "",
+        "automation_id": getattr(control, "AutomationId", None) or "",
+        "class_name": getattr(control, "ClassName", None) or "",
+        "rect": {"left": 0, "top": 0, "right": 0, "bottom": 0, "width": 0, "height": 0},
+    }
+    r = getattr(control, "BoundingRectangle", None)
+    if r is not None and hasattr(r, "left") and hasattr(r, "width") and callable(r.width):
+        info["rect"] = {
+            "left": r.left,
+            "top": r.top,
+            "right": r.right,
+            "bottom": r.bottom,
+            "width": r.width(),
+            "height": r.height(),
+        }
+    return info
 
 
 def debug_print_operable_elements(window_control, max_depth: int = 12) -> None:
@@ -173,20 +154,16 @@ def debug_print_operable_elements(window_control, max_depth: int = 12) -> None:
     collected: List[Dict] = []
 
     def walk(control, depth: int):
-        if depth > max_depth:
+        if depth > max_depth or control is None:
             return
-        try:
-            info = _safe_control_info(control)
-            if not info:
-                return
-            collected.append({"depth": depth, **info})
-            try:
-                for child in control.GetChildren():
-                    walk(child, depth + 1)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        info = _safe_control_info(control)
+        if not info:
+            return
+        collected.append({"depth": depth, **info})
+        children = getattr(control, "GetChildren", None)
+        if callable(children):
+            for child in children():
+                walk(child, depth + 1)
 
     walk(window_control, 0)
 
@@ -211,14 +188,11 @@ def debug_print_operable_elements(window_control, max_depth: int = 12) -> None:
             ColorPrint.gray(line)
     ColorPrint.blue(f"[ROSBOT_UI_DEBUG] === Total {len(collected)} nodes ===")
 
-    try:
-        ROSBOT_UI_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        out_path = ROSBOT_UI_DEBUG_DIR / f"rosbot_ui_structure_{ts}.txt"
-        out_path.write_text(text, encoding="utf-8")
-        ColorPrint.gray(f"[ROSBOT_UI_DEBUG] UI structure written: {out_path}")
-    except Exception as e:
-        ColorPrint.yellow(f"[ROSBOT_UI_DEBUG] Failed to write UI structure: {e}")
+    ROSBOT_UI_DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    out_path = ROSBOT_UI_DEBUG_DIR / f"rosbot_ui_structure_{ts}.txt"
+    out_path.write_text(text, encoding="utf-8")
+    ColorPrint.gray(f"[ROSBOT_UI_DEBUG] UI structure written: {out_path}")
 
 
 def _find_controls_by_type(
@@ -227,31 +201,27 @@ def _find_controls_by_type(
     found = []
 
     def walk(control, level: int = 0):
-        if level > 10:
+        if level > 10 or control is None:
             return
-        try:
-            info = _safe_control_info(control)
-            if not info:
-                return
-            if info.get("type") == control_type:
-                if name_contains:
-                    for t in name_contains:
-                        if t in (info.get("name") or ""):
-                            info["control"] = control
-                            info["level"] = level
-                            found.append(info)
-                            break
-                else:
-                    info["control"] = control
-                    info["level"] = level
-                    found.append(info)
-            try:
-                for child in control.GetChildren():
-                    walk(child, level + 1)
-            except Exception:
-                pass
-        except Exception:
-            pass
+        info = _safe_control_info(control)
+        if not info:
+            return
+        if info.get("type") == control_type:
+            if name_contains:
+                for t in name_contains:
+                    if t in (info.get("name") or ""):
+                        info["control"] = control
+                        info["level"] = level
+                        found.append(info)
+                        break
+            else:
+                info["control"] = control
+                info["level"] = level
+                found.append(info)
+        children = getattr(control, "GetChildren", None)
+        if callable(children):
+            for child in children():
+                walk(child, level + 1)
 
     walk(window_control)
     return found
@@ -264,18 +234,14 @@ def click_tab_main_profile(window_control, clicker: Optional[ClickHandler] = Non
         ColorPrint.yellow("[ROSBOT_UI] No tab matching main profile found")
         return False
     tab = tabs[0]
-    try:
-        ColorPrint.blue(f"[ROSBOT_UI] Clicking tab: '{tab.get('name', '')}'")
-        params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
-        c = clicker if clicker is not None else get_click_handler()
-        ok = operate_tab_item(tab["control"], clicker=c, **params)
-        if ok:
-            time.sleep(UI_OPERATION_DELAY)
-            ColorPrint.green("[ROSBOT_UI] Main profile tab clicked")
-        return ok
-    except Exception as e:
-        ColorPrint.red(f"[ROSBOT_UI] Tab click error: {e}")
-        return False
+    ColorPrint.blue(f"[ROSBOT_UI] Clicking tab: '{tab.get('name', '')}'")
+    params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
+    c = clicker if clicker is not None else get_click_handler()
+    ok = operate_tab_item(tab["control"], clicker=c, **params)
+    if ok:
+        time.sleep(UI_OPERATION_DELAY)
+        ColorPrint.green("[ROSBOT_UI] Main profile tab clicked")
+    return ok
 
 
 def click_start_botting(window_control, clicker: Optional[ClickHandler] = None, **click_kwargs) -> bool:
@@ -295,18 +261,14 @@ def click_start_botting(window_control, clicker: Optional[ClickHandler] = None, 
     if not start_btn:
         ColorPrint.yellow("[ROSBOT_UI] Start botting button not found")
         return False
-    try:
-        ColorPrint.blue(f"[ROSBOT_UI] Clicking button: '{start_btn.get('name', '')}'")
-        params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
-        c = clicker if clicker is not None else get_click_handler()
-        ok = operate_button(start_btn["control"], clicker=c, **params)
-        if ok:
-            time.sleep(UI_OPERATION_DELAY)
-            ColorPrint.green("[ROSBOT_UI] Start botting clicked")
-        return ok
-    except Exception as e:
-        ColorPrint.red(f"[ROSBOT_UI] Start button click error: {e}")
-        return False
+    ColorPrint.blue(f"[ROSBOT_UI] Clicking button: '{start_btn.get('name', '')}'")
+    params = {**_ROSBOT_CLICK_PARAMS, **click_kwargs}
+    c = clicker if clicker is not None else get_click_handler()
+    ok = operate_button(start_btn["control"], clicker=c, **params)
+    if ok:
+        time.sleep(UI_OPERATION_DELAY)
+        ColorPrint.green("[ROSBOT_UI] Start botting clicked")
+    return ok
 
 
 # UI traits for "D3 must be launched" style message box: small dialog, single OK (AutomationId), no TextBox
@@ -330,61 +292,52 @@ def _name_matches_ok_keywords(name: str) -> bool:
 
 def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> Optional[Any]:
     """Walk control tree, return first ButtonControl whose Name matches UI_NAME_KEYWORDS_OK (no AutomationId fallback)."""
-    if depth > max_depth:
+    if depth > max_depth or control is None:
         return None
-    try:
-        ctype = (control.ControlTypeName if hasattr(control, "ControlTypeName") else None) or ""
-        if "Button" in ctype:
-            name = (control.Name if hasattr(control, "Name") else None) or ""
-            name = (name or "").strip()
-            if _name_matches_ok_keywords(name):
-                return control
-    except Exception:
-        pass
-    try:
-        for child in control.GetChildren():
+    ctype = (getattr(control, "ControlTypeName", None) or "").strip()
+    if "Button" in ctype:
+        name = (getattr(control, "Name", None) or "").strip()
+        if _name_matches_ok_keywords(name):
+            return control
+    children = getattr(control, "GetChildren", None)
+    if callable(children):
+        for child in children():
             found = _find_ok_button_in_control(child, depth + 1, max_depth)
             if found is not None:
                 return found
-    except Exception:
-        pass
     return None
 
 
 def _window_has_control_with_automation_id(root: Any, automation_id: str, depth: int = 0, max_d: int = 8) -> bool:
     """Walk control tree; return True if any control has AutomationId equal to automation_id."""
-    if depth > max_d:
+    if depth > max_d or root is None:
         return False
-    try:
-        aid = (root.AutomationId if hasattr(root, "AutomationId") else None) or ""
-        aid = (aid or "").strip()
-        if aid == automation_id:
-            return True
-        for child in root.GetChildren():
+    aid = (getattr(root, "AutomationId", None) or "").strip()
+    if aid == automation_id:
+        return True
+    children = getattr(root, "GetChildren", None)
+    if callable(children):
+        for child in children():
             if _window_has_control_with_automation_id(child, automation_id, depth + 1, max_d):
                 return True
-    except Exception:
-        pass
     return False
 
 
 def _find_button_by_automation_id(root: Any, automation_id: str, depth: int = 0, max_d: int = 8) -> Optional[Any]:
     """Walk control tree; return first ButtonControl whose AutomationId equals automation_id."""
-    if depth > max_d:
+    if depth > max_d or root is None:
         return None
-    try:
-        ctype = (root.ControlTypeName if hasattr(root, "ControlTypeName") else None) or ""
-        if "Button" in ctype:
-            aid = (root.AutomationId if hasattr(root, "AutomationId") else None) or ""
-            aid = (aid or "").strip()
-            if aid == automation_id:
-                return root
-        for child in root.GetChildren():
+    ctype = (getattr(root, "ControlTypeName", None) or "").strip()
+    if "Button" in ctype:
+        aid = (getattr(root, "AutomationId", None) or "").strip()
+        if aid == automation_id:
+            return root
+    children = getattr(root, "GetChildren", None)
+    if callable(children):
+        for child in children():
             found = _find_button_by_automation_id(child, automation_id, depth + 1, max_d)
             if found is not None:
                 return found
-    except Exception:
-        pass
     return None
 
 
@@ -412,12 +365,9 @@ def try_close_d3_must_be_launched_dialog() -> bool:
     for pid in pids:
         for w in mgr.find_windows_by_pid(pid, visible_only=False):
             hwnd = w.get("hwnd")
-            if not hwnd:
+            if not hwnd or not win32gui.IsWindow(hwnd):
                 continue
-            try:
-                rect = win32gui.GetWindowRect(hwnd)
-            except Exception:
-                continue
+            rect = win32gui.GetWindowRect(hwnd)
             if len(rect) < 4:
                 continue
             ww = rect[2] - rect[0]
@@ -437,7 +387,7 @@ def try_close_d3_must_be_launched_dialog() -> bool:
                 continue
             # Prefer AutomationId (stable across language/skin)
             ok_btn = _find_button_by_automation_id(root, UI_AUTOMATION_ID_OK_BUTTON)
-            # Fallback: match OK button by name keywords (OK/确定)，用于 Win32 MessageBox 等 AutomationId 为数字的情况
+            # Fallback: match OK button by name keywords (see UI_NAME_KEYWORDS_OK constant) when AutomationId is numeric (e.g. Win32 MessageBox)
             if not ok_btn:
                 ok_btn = _find_ok_button_in_control(root)
             if not ok_btn:
@@ -451,21 +401,19 @@ def try_close_d3_must_be_launched_dialog() -> bool:
 
 def _window_has_no_items_message(root, depth: int = 0, max_d: int = 6) -> bool:
     """Walk control tree; return True if any TextControl has Name containing any of UI_NAME_KEYWORDS_NO_ITEMS (minimal keywords, CN/EN)."""
-    if depth > max_d:
+    if depth > max_d or root is None:
         return False
-    try:
-        ctype = (root.ControlTypeName if hasattr(root, "ControlTypeName") else None) or ""
-        if "Text" in ctype:
-            name = (root.Name if hasattr(root, "Name") else None) or ""
-            name = (name or "") or ""
-            for kw in UI_NAME_KEYWORDS_NO_ITEMS:
-                if kw and kw in name:
-                    return True
-        for child in root.GetChildren():
+    ctype = (getattr(root, "ControlTypeName", None) or "").strip()
+    if "Text" in ctype:
+        name = (getattr(root, "Name", None) or "") or ""
+        for kw in UI_NAME_KEYWORDS_NO_ITEMS:
+            if kw and kw in name:
+                return True
+    children = getattr(root, "GetChildren", None)
+    if callable(children):
+        for child in children():
             if _window_has_no_items_message(child, depth + 1, max_d):
                 return True
-    except Exception:
-        pass
     return False
 
 
@@ -483,36 +431,30 @@ def try_close_no_items_popup() -> bool:
     found_hwnd = []
 
     def enum_cb(hwnd, _):
-        try:
-            if not win32gui.IsWindowVisible(hwnd):
-                return True
-            try:
-                root = auto.ControlFromHandle(hwnd)
-            except Exception:
-                return True
-            if not root:
-                return True
-            if _window_has_no_items_message(root):
-                found_hwnd.append(hwnd)
-                return False
+        if not win32gui.IsWindow(hwnd) or not win32gui.IsWindowVisible(hwnd):
             return True
+        try:
+            root = auto.ControlFromHandle(hwnd)
         except Exception:
             return True
+        if not root or (hasattr(root, "Exists") and callable(root.Exists) and not root.Exists()):
+            return True
+        if _window_has_no_items_message(root):
+            found_hwnd.append(hwnd)
+            return False
+        return True
 
-    try:
-        win32gui.EnumWindows(enum_cb, None)
-    except Exception as e:
-        ColorPrint.yellow(f"[ROSBOT_UI] EnumWindows for No items popup: {e}")
-        return False
+    win32gui.EnumWindows(enum_cb, None)
 
     if not found_hwnd:
         return False
 
     hwnd = found_hwnd[0]
+    if not win32gui.IsWindow(hwnd):
+        return False
     try:
         root = auto.ControlFromHandle(hwnd)
-    except Exception as e:
-        ColorPrint.yellow(f"[ROSBOT_UI] ControlFromHandle(No items popup): {e}")
+    except Exception:
         return False
     if not root:
         return False
@@ -532,15 +474,12 @@ def try_close_no_items_popup() -> bool:
 
 def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
     """Expand ComboBox: try ExpandCollapsePattern.Expand(), else click at rect."""
-    try:
-        get_exp = control.GetExpandCollapsePattern if hasattr(control, "GetExpandCollapsePattern") else None
-        if get_exp is not None:
-            pattern = get_exp()
-            if pattern is not None and hasattr(pattern, "Expand") and pattern.Expand is not None:
-                pattern.Expand()
-                return True
-    except Exception:
-        pass
+    get_exp = getattr(control, "GetExpandCollapsePattern", None)
+    if callable(get_exp):
+        pattern = get_exp()
+        if pattern is not None and hasattr(pattern, "Expand") and callable(getattr(pattern, "Expand", None)):
+            pattern.Expand()
+            return True
     c = clicker or get_click_handler()
     return click_at_control_rect(control, clicker=c, **_ROSBOT_CLICK_PARAMS)
 
@@ -586,8 +525,7 @@ def do_after_no_items_close_switch_rift_and_start() -> bool:
     _COM_INIT.ensure_thread()
     try:
         window_control = auto.ControlFromHandle(int(winfo["hwnd"]))
-    except Exception as e:
-        ColorPrint.red(f"[ROSBOT_UI] ControlFromHandle: {e}")
+    except Exception:
         return False
     if not window_control:
         return False
@@ -624,6 +562,11 @@ def run_after_rosbot_start(
         return False
 
     try_close_d3_must_be_launched_dialog()
+    if try_close_no_items_popup():
+        ColorPrint.blue("[ROSBOT_UI] No items popup closed at start; switching to rift mode and start.")
+        if do_after_no_items_close_switch_rift_and_start():
+            return True
+    # else continue with normal flow (main profile tab + Start botting)
 
     hwnd = None
     winfo = None
@@ -642,24 +585,22 @@ def run_after_rosbot_start(
     pid = winfo.get("pid") or 0
     exe_name = ""
     exe_path = ""
-    if psutil is not None:
+    if psutil is not None and pid > 0 and psutil.pid_exists(pid):
         try:
             p = psutil.Process(pid)
             exe_name = p.name() or ""
             exe_path = p.exe() or ""
-        except Exception:
+        except (AttributeError, OSError):
             pass
     ColorPrint.blue(
         f"[ROSBOT_UI] Found window: title='{title}', pid={pid}, exe_name='{exe_name}', exe_path='{exe_path}'"
     )
     ColorPrint.gray("[ROSBOT_UI] title from get_rosbot_window() -> find_window_by_pid() -> GetWindowText(hwnd)")
 
-    try:
+    if win32gui.IsWindow(hwnd):
         win32gui.SetForegroundWindow(hwnd)
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         time.sleep(1)
-    except Exception as e:
-        ColorPrint.yellow(f"[ROSBOT_UI] Window activate: {e}")
 
     _COM_INIT.ensure_thread()
 
@@ -671,14 +612,15 @@ def run_after_rosbot_start(
     for _ in range(poll_count):
         try:
             w = auto.ControlFromHandle(hwnd)
-            if w and w.Exists():
-                tabs = _find_controls_by_type(w, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
-                if tabs:
-                    ColorPrint.green("[ROSBOT_UI] Main UI ready (main profile tab visible)")
-                    main_tab_seen = True
-                    break
         except Exception:
-            pass
+            time.sleep(MAIN_UI_POLL_INTERVAL_SECONDS)
+            continue
+        if w and (not hasattr(w, "Exists") or not callable(w.Exists) or w.Exists()):
+            tabs = _find_controls_by_type(w, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
+            if tabs:
+                ColorPrint.green("[ROSBOT_UI] Main UI ready (main profile tab visible)")
+                main_tab_seen = True
+                break
         time.sleep(MAIN_UI_POLL_INTERVAL_SECONDS)
     else:
         ColorPrint.yellow("[ROSBOT_UI] Main profile tab not seen within timeout, attempting tab/start anyway (E5a->E6->F3 on skip)")
@@ -694,10 +636,9 @@ def run_after_rosbot_start(
     def _do_ui():
         try:
             window_control = auto.ControlFromHandle(hwnd)
-        except Exception as e:
-            ColorPrint.red(f"[ROSBOT_UI] ControlFromHandle: {e}")
+        except Exception:
             return False
-        if not window_control or not window_control.Exists():
+        if not window_control or (hasattr(window_control, "Exists") and callable(window_control.Exists) and not window_control.Exists()):
             ColorPrint.red("[ROSBOT_UI] Window control not available")
             return False
         ok = False
@@ -738,21 +679,18 @@ def resume_rosbot_ui(
         return False
 
     hwnd = int(winfo["hwnd"])
-    try:
+    if win32gui.IsWindow(hwnd):
         win32gui.SetForegroundWindow(hwnd)
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         time.sleep(UI_OPERATION_DELAY)
-    except Exception as e:
-        ColorPrint.yellow(f"[ROSBOT_UI] Window activate: {e}")
 
     _COM_INIT.ensure_thread()
 
     try:
         window_control = auto.ControlFromHandle(hwnd)
-    except Exception as e:
-        ColorPrint.red(f"[ROSBOT_UI] ControlFromHandle: {e}")
+    except Exception:
         return False
-    if not window_control or not window_control.Exists():
+    if not window_control or (hasattr(window_control, "Exists") and callable(window_control.Exists) and not window_control.Exists()):
         ColorPrint.red("[ROSBOT_UI] Window control not available")
         return False
 

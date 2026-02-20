@@ -9,7 +9,6 @@ import tkinter as tk
 from tkinter import ttk
 import sys
 import os
-import traceback
 from typing import Optional
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk, get_third_package_PIL_ImageDraw
