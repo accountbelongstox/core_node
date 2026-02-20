@@ -2,18 +2,19 @@
 # -*- coding: utf-8 -*-
 """
 Log Info Organizer library.
-类库：导出前实例化，通过 get_log_info_organizer(log_path) 按路径单例，禁止各处自行 new。
+Single instance per path via get_log_info_organizer(log_path); do not construct directly.
 
-Uses LogStateReader / log_indent_spec: read log by position or time, detect and parse
-stats lines (Botting duration, Game #, Run, Failed runs, Deaths, Keys, Shards, Xp, Legendaries,
-Distance, Performance, etc.), output one entry per line for caller to print.
+Uses LogStateReader to read by position; detects and parses stats lines (Botting duration,
+Game #, Run, Failed runs, Deaths, Keys, Shards, Xp, Legendaries, Distance, Performance, etc.),
+output one "Label: value" per line for caller.
+
+Note: LogStateReader uses history_indent_spec (indent applies to history.txt; normal log has no indent).
 """
 from __future__ import annotations
 
 import os
 import re
-import time
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from d3utils.log_state_reader import LogStateReader, get_log_state_reader
 
@@ -136,20 +137,23 @@ class LogInfoOrganizer:
         return self.get_latest_stats_as_lines()
 
 
-# 导出前实例化：按 log_path 单例
 _organizer_cache: dict = {}
 
 
 def get_log_info_organizer(log_path: str) -> LogInfoOrganizer:
-    """Return cached LogInfoOrganizer for log_path (singleton per path). 导出前实例化。"""
+    """Return cached LogInfoOrganizer for log_path (singleton per path)."""
     if log_path not in _organizer_cache:
         _organizer_cache[log_path] = LogInfoOrganizer(log_path)
     return _organizer_cache[log_path]
 
 
 def get_default_log_path() -> str:
-    """Default log path (same as providor LOGS_FILE_PATH)."""
-    return os.path.join(
-        os.path.expanduser("~/Documents"),
-        "RoS-BoT/Logs/logs.txt",
-    )
+    """Default log file path (fixed constant: logs.txt)."""
+    from providor.providor_index import LOGS_FILE_PATH
+    return LOGS_FILE_PATH
+
+
+def get_default_history_path() -> str:
+    """Default history file path (fixed constant: history.txt). Log and history are two distinct files."""
+    from providor.providor_index import HISTORY_FILE_PATH
+    return HISTORY_FILE_PATH

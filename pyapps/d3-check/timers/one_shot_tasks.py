@@ -9,6 +9,7 @@ import json
 import re
 import shutil
 import time
+import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -24,9 +25,11 @@ from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.rosbot_operation import get_rosbot_operation
 from d3utils.rosbot_status_provider import refresh_rosbot_status
 from d3utils.key_send import send_f7_to_system
+from d3utils.rosbot_flow_rosbot_exit_state import set_f7_sent_for_rosbot
 from d3utils.rosbot_flow.flow_e_rosbot_run import (
     run_e1_kill,
     run_e2_sleep,
+    run_e3_config_check,
     run_e3_update_flow,
     run_e4_start,
     run_e5_init,
@@ -36,6 +39,12 @@ from d3utils.rosbot_flow.flow_e_rosbot_run import (
 from d3utils.rosbot_task_processor import run_full_status_refresh, start_rosbot_task
 from d3utils.rosbot_ui_automation import run_after_rosbot_start, try_close_d3_must_be_launched_dialog
 from d3utils.rosbot_update_check import ask_yes_no_on_main_thread
+from d3utils.rosbot_update_manager import get_rosbot_update_manager
+from providor.constants.d3 import (
+    ROSBOT_REGION_DISPLAY_ASIA,
+    ROSBOT_REGION_DISPLAY_CN,
+)
+from ui.components.rosbot_update_info_panel import RosbotUpdateInfoPanel
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
@@ -350,6 +359,7 @@ def do_rosbot_debug(panel: Any) -> None:
                 ColorPrint.blue("[RosbotPanel] ROSBOT UI JSON: process running, all windows invisible, send F7 then debug")
                 sent = send_f7_to_system()
                 if sent:
+                    set_f7_sent_for_rosbot()
                     ColorPrint.green("[RosbotPanel] F7 sent to system (pause)")
                 else:
                     ColorPrint.yellow("[RosbotPanel] F7 send failed")
@@ -395,7 +405,10 @@ def do_rosbot_debug(panel: Any) -> None:
 def _send_f7_for_status(mgr: Any, status: str) -> bool:
     """Send F7: pause = to system only; resume = to visible window. Returns True if sent."""
     if status == "running":
-        return send_f7_to_system()
+        ok = send_f7_to_system()
+        if ok:
+            set_f7_sent_for_rosbot()
+        return ok
     if status == "paused":
         winfo = mgr.get_rosbot_window()
         if winfo and winfo.get("hwnd"):
@@ -405,50 +418,160 @@ def _send_f7_for_status(mgr: Any, status: str) -> bool:
 
 
 def do_rosbot_update(panel: Any) -> None:
-    """Update ROSBOT: E1 kill -> E2 sleep -> [E3] E3a-E3f (find zip, confirm, extract/copy/update path) -> E4 start -> E5 E5a -> E6 (ROSBOT_FLOW_MERMAID E block)."""
+    """
+    Update ROSBOT only: E1 kill -> E2 sleep -> [E3] E3a-E3f (find zip, confirm, extract/copy/update path).
+    Does NOT start ROSBOT (no E4/E5/E5a). Only update and show success/fail prompt.
+    """
     ColorPrint.blue("[RosbotPanel] Update ROSBOT: E1 kill existing")
     run_e1_kill()
     ColorPrint.blue("[RosbotPanel] E2 wait 1s")
     run_e2_sleep(1.0)
 
-    def ask_confirm(zip_path: str, version_str: str, region: str) -> bool:
-        return ask_yes_no_on_main_thread(
-            panel,
-            "ROSBOT Update",
-            "New version %s found. Extract and update path?\n%s" % (version_str or "?", zip_path),
-        )
+    update_manager = get_rosbot_update_manager()
+    current_region = update_manager.get_battlenet_region()
+    check_both = CONFIG.get("ros_settings", {}).get("check_both_regions_for_update", True)
+    
+    # 优先检测亚服（亚服包名可能同时含亚服和国服字样）；国际服=亚服
+    regions_to_check = []
+    if current_region in ("asia", "cn"):
+        # 顺序固定：先 asia 再 cn
+        regions_to_check.append("asia" if current_region == "asia" else "cn")
+        ColorPrint.blue(f"[RosbotPanel] Current region detected: {current_region}")
+        if check_both:
+            other = "cn" if current_region == "asia" else "asia"
+            regions_to_check.append(other)
+            ColorPrint.blue(f"[RosbotPanel] Also checking: {other}")
+        if len(regions_to_check) == 2 and regions_to_check[0] != "asia":
+            regions_to_check = ["asia", "cn"]  # 始终亚服优先
+    else:
+        ColorPrint.gray("[RosbotPanel] No region detected, checking both Asia and CN (Asia first)")
+        regions_to_check = ["asia", "cn"]
+    
+    # Current ROS dir/version and downloads dir (for no-update detection display)
+    cur_dir, _ct, cur_ver = update_manager.get_current_ros_dir_info()
+    cur_ver_str = update_manager.version_to_str(cur_ver) if cur_ver else "unknown"
+    downloads_dir = update_manager.get_downloads_dir()
 
-    proceed, _updated = run_e3_update_flow(ask_confirm_callback=ask_confirm)
-    if not proceed:
-        ColorPrint.gray("[RosbotPanel] E3 auto_start_rosbot off, skip E4-E5a")
+    # Check for updates in each region
+    best_update = None
+    best_region = None
+    detection_per_region: List[Dict[str, Any]] = []
+    for region in regions_to_check:
+        region_display = ROSBOT_REGION_DISPLAY_ASIA if region == "asia" else ROSBOT_REGION_DISPLAY_CN
+        zip_path, is_newer, version_str = update_manager.get_best_newer_zip(region)
+        if is_newer and zip_path:
+            if best_update is None or (version_str and best_update[2] and version_str > best_update[2]):
+                best_update = (zip_path, is_newer, version_str)
+                best_region = region
+                ColorPrint.blue(f"[RosbotPanel] Found update for {region}: {version_str} at {zip_path}")
+        else:
+            candidates = update_manager.find_rosbot_zips_in_downloads(region)
+            if not candidates:
+                ColorPrint.gray(f"[RosbotPanel] No zip in Downloads for region={region} (need 20-50MB, filename contains 亚服/asia or 国服/cn)")
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [],
+                })
+            else:
+                ColorPrint.gray(f"[RosbotPanel] region={region}: found {len(candidates)} zip(s), none newer than current {cur_ver_str} (current path: {cur_dir or 'none'})")
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [
+                        {"path": p, "version_str": update_manager.version_to_str(v) if v else "?", "size_mb": round(s / (1024 * 1024), 1)}
+                        for p, s, v in candidates
+                    ],
+                })
+
+    if not best_update:
+        ColorPrint.gray("[RosbotPanel] No update found in Downloads")
+        detection_data = {
+            "current_ros_dir": cur_dir or "",
+            "current_version": cur_ver_str,
+            "downloads_dir": downloads_dir,
+            "regions": detection_per_region,
+        }
+
+        def show_info_panel():
+            try:
+                info_panel = RosbotUpdateInfoPanel(panel.container)
+                info_panel.show_no_update_info(detection_data)
+            except Exception as e:
+                ColorPrint.red(f"[RosbotPanel] Info panel error: {e}")
+        if panel.container.winfo_exists():
+            panel.container.after(0, show_info_panel)
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    ColorPrint.blue("[RosbotPanel] E4 start ROSBOT process")
-    if not run_e4_start():
-        ColorPrint.yellow("[RosbotPanel] E4 start failed")
+    
+    zip_path, is_newer, version_str = best_update
+    region_display_name = ROSBOT_REGION_DISPLAY_ASIA if best_region == "asia" else ROSBOT_REGION_DISPLAY_CN
+    
+    # Ask for confirmation using popup panel (main thread blocking)
+    confirmed = [None]
+    done_event = threading.Event()
+    
+    def show_update_dialog():
+        try:
+            info_panel = RosbotUpdateInfoPanel(panel.container)
+            confirmed[0] = info_panel.show_update_available(
+                region_display=region_display_name,
+                version_str=version_str or "?",
+                zip_path=zip_path
+            )
+        except Exception as e:
+            ColorPrint.red(f"[RosbotPanel] Update dialog error: {e}")
+            confirmed[0] = False
+        finally:
+            done_event.set()
+    
+    # Schedule dialog on main thread and wait
+    if panel.container.winfo_exists():
+        panel.container.after(0, show_update_dialog)
+        # Wait for dialog to complete (with timeout)
+        done_event.wait(timeout=120)
+    else:
+        confirmed[0] = False
+    
+    if confirmed[0] is None:
+        ColorPrint.yellow("[RosbotPanel] Update dialog timeout or error")
+        confirmed[0] = False
+    
+    if not confirmed[0]:
+        ColorPrint.gray("[RosbotPanel] User cancelled update")
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    ColorPrint.blue("[RosbotPanel] E5 task init")
-    run_e5_init(start_rosbot_task)
-    ColorPrint.blue("[RosbotPanel] E5a wait window, server, poll UI, click profile & Start botting!")
-    run_e5a_wait_win_srv_poll_click(
-        run_after_rosbot_start,
-        wait_sec=30,
-        do_debug=True,
-        do_tab=True,
-        do_start_botting=True,
-    )
+    
+    # Apply update
+    ColorPrint.blue(f"[RosbotPanel] E3c-E3e apply update: extract, copy RoS-BoT.ini, update ros_directory for {best_region}")
+    if not update_manager.apply_update(zip_path, best_region, version_str):
+        ColorPrint.yellow("[RosbotPanel] apply_update failed")
+        run_e6_done()
+        _rosbot_update_done(panel)
+        return
+
+    ColorPrint.green(f"[RosbotPanel] E3f update applied for {best_region}, ros_directory refreshed")
     run_e6_done()
-    ColorPrint.green("[RosbotPanel] E6 done, update ROSBOT completed")
+    ColorPrint.green("[RosbotPanel] Update ROSBOT completed (ROSBOT not started)")
     _rosbot_update_done(panel)
 
 
 def _rosbot_update_done(panel: Any) -> None:
-    """Main-thread wrap-up after update: refresh status, update panel button."""
+    """Main-thread wrap-up after update: refresh status, update panel button, update UI bindings."""
     refresh_rosbot_status()
     get_game_interface_data().notify_state_sync()
+    # Update UI bindings for ros_directory config change
+    try:
+        from ui.utils.config_binding import ConfigBinding
+        from providor.providor_index import get_config_value_safe
+        updated_path = get_config_value_safe("ros_settings.ros_directory", "")
+        if updated_path:
+            ConfigBinding._update_bindings("ros_settings.ros_directory", updated_path)
+            ColorPrint.gray(f"[RosbotPanel] Updated UI binding for ros_directory: {updated_path}")
+    except Exception as e:
+        ColorPrint.yellow(f"[RosbotPanel] Failed to update UI binding: {e}")
     if panel.container.winfo_exists():
         panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
 

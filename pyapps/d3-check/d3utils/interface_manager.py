@@ -69,9 +69,7 @@ class D3InterfaceManager:
         Returns:
             UIRegion or None if failed
         """
-        ColorPrint.blue("\n" + "=" * 60)
-        ColorPrint.blue("[InterfaceManager] Collecting UI Information (Test 1)")
-        ColorPrint.blue("=" * 60)
+        ColorPrint.blue("[InterfaceManager] Collecting UI...")
 
         if self._ui_collector is None:
             self._ui_collector = get_ui_region_collector_optimized()
@@ -83,13 +81,9 @@ class D3InterfaceManager:
         )
 
         if not ui_region:
-            ColorPrint.red(f"[InterfaceManager] Failed to collect UI info")
+            ColorPrint.red("[InterfaceManager] Failed to collect UI info")
             return None
-        ColorPrint.green("[InterfaceManager] UI information collected successfully")
-        ColorPrint.green(f"  Position: ({ui_region.x}, {ui_region.y})")
-        ColorPrint.green(f"  Size: {ui_region.width}x{ui_region.height}")
-        ColorPrint.green(f"  Offset: ({ui_region.ui_offset_x}, {ui_region.ui_offset_y})")
-
+        ColorPrint.green(f"[InterfaceManager] UI region ({ui_region.x},{ui_region.y}) {ui_region.width}x{ui_region.height} offset ({ui_region.ui_offset_x},{ui_region.ui_offset_y})")
         return ui_region
 
     def collect_bag_info_quik(

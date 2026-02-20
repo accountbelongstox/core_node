@@ -18,7 +18,7 @@ if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 try:
-    from rosbot_history_parser import (
+    from d3utils.rosbot_history_parser import (
         parse_history_lines,
         session_blocks_with_ts,
         baseline_rifkeys_sum,
@@ -26,7 +26,16 @@ try:
     )
     _PARSER_AVAILABLE = True
 except ImportError:
-    _PARSER_AVAILABLE = False
+    try:
+        from rosbot_history_parser import (
+            parse_history_lines,
+            session_blocks_with_ts,
+            baseline_rifkeys_sum,
+            current_session_earned,
+        )
+        _PARSER_AVAILABLE = True
+    except ImportError:
+        _PARSER_AVAILABLE = False
 
 HISTORY_PATH = r"C:\Users\accou\Documents\RoS-BoT\Logs\history.txt"
 REFRESH_INTERVAL = 0.5

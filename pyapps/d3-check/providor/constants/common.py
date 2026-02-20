@@ -65,6 +65,9 @@ DEFAULT_CLEANUP_MAX_AGE_SECONDS = 60
 # ---------------------------------------------------------------------------
 DEBUG = True
 
+# When True, the assistant/bag flow keeps all images in memory and does not write any to disk.
+FLOW_IMAGES_IN_MEMORY_ONLY = True
+
 # ---------------------------------------------------------------------------
 # UI Automation – common AutomationIds (WinForms / WPF / generic dialogs)
 # Used by ROSBOT, Battle.net, and other UI automation; single source for compatibility.
@@ -162,6 +165,11 @@ BATTLE_NET_EXE_NAME = "Battle.net.exe"
 BATTLE_NET_BUTTON_HEX = "#0074E0"
 BATTLE_NET_BUTTON_RGB = (0, 116, 224)
 
+# Battle.net config file keys
+BATTLE_NET_CONFIG_SERVICES_KEY = "Services"
+BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY = "LastLoginRegion"
+BATTLE_NET_CONFIG_REGION_CN = "CN"
+
 BN_FLOW_WAIT_AFTER_START_SEC = 3.0
 BN_FLOW_POLL_TIMEOUT_SEC = 120.0
 BN_FLOW_OAUTH_WAIT_SEC = 120.0
@@ -223,6 +231,8 @@ EXTENSION_ROSBOT_STOP = "extension.rosbot.stop"
 EXTENSION_SHUTDOWN = "extension.shutdown"
 EXTENSION_ROSBOT_STARTED = "extension.rosbot.started"
 EXTENSION_ROSBOT_STOPPED = "extension.rosbot.stopped"
+# Log monitor → event bus: one event per new log line (payload = line: str). Handlers run in observer thread; bridge queues for task thread.
+LOG_LINE = "log.line"
 
 # ---------------------------------------------------------------------------
 # Timers / intervals (generic)

@@ -15,6 +15,9 @@ win32gui = get_third_package_win32gui()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
+# Last lookup result per cache_key (found or not). Log only on state change.
+_window_finder_last_found: Dict[str, bool] = {}
+
 
 class WindowFinder:
     """
@@ -56,9 +59,6 @@ class WindowFinder:
                 ...
             ]
         """
-        ColorPrint.print_min_interval(f"\n[WindowFinder] Searching for windows: {titles}", "1min", "blue")
-        ColorPrint.print_min_interval(f"[WindowFinder] Match mode: {match_mode}, Use cache: {use_cache}", "1min", "blue")
-
         found_windows = []
 
         # Single canonical cache key per search list so all callers share one entry (e.g. D3 window)
@@ -67,7 +67,6 @@ class WindowFinder:
 
         # Step 1: Try to get from encyclopedia cache first (one key per title list)
         if use_cache and cache_key:
-            ColorPrint.print_min_interval("[WindowFinder] Checking encyclopedia cache...", "1min", "blue")
             cached_info = ENCYCLOPEDIA.get(cache_key)
 
             if cached_info:
@@ -89,7 +88,6 @@ class WindowFinder:
                                 "height": rect[3] - rect[1]
                             }
                             found_windows.append(window_info)
-                            ColorPrint.print_min_interval(f"[Cache] Found cached window: '{canonical_label}'", "1min", "green")
                         except Exception as e:
                             ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
                 else:
@@ -98,7 +96,6 @@ class WindowFinder:
 
         # Step 2: If not found in cache (or cache disabled), search all windows
         if not found_windows:
-            ColorPrint.print_min_interval("[WindowFinder] Searching through visible windows...", "1min", "blue")
 
             def enum_windows_callback(hwnd, lparam):
                 if win32gui.IsWindowVisible(hwnd):
@@ -135,7 +132,6 @@ class WindowFinder:
                                     "height": rect[3] - rect[1]
                                 }
                                 found_windows.append(window_info)
-                                ColorPrint.print_min_interval(f"[Found] Window: '{window_title}'", "1min", "green")
 
                                 # Cache under canonical key (titles[0]) so all callers share one entry
                                 if use_cache and cache_key and len(found_windows) == 1:
@@ -152,7 +148,6 @@ class WindowFinder:
                                         "class_name": win32gui.GetClassName(hwnd)
                                     }
                                     ENCYCLOPEDIA.add(cache_key, cache_data)
-                                    ColorPrint.print_min_interval(f"[Cache] Cached window info for '{canonical_label}'", "1min", "blue")
 
                                 break
                     except Exception as e:
@@ -164,10 +159,15 @@ class WindowFinder:
             except Exception as e:
                 ColorPrint.print_min_interval(f"[WindowFinder] Error enumerating windows: {e}", "1min", "red")
 
-        if found_windows:
-            ColorPrint.print_min_interval(f"[WindowFinder] Found {len(found_windows)} window(s)", "1min", "green")
-        else:
-            ColorPrint.print_min_interval(f"[WindowFinder] No windows found matching: {titles}", "1min", "yellow")
+        # Log only on state change: not found -> found, or found -> lost
+        if cache_key is not None:
+            current_found = bool(found_windows)
+            last_found = _window_finder_last_found.get(cache_key)
+            if last_found is False and current_found:
+                ColorPrint.print_min_interval(f"[WindowFinder] Window found: {canonical_label}", "1min", "green")
+            elif last_found is True and not current_found:
+                ColorPrint.print_min_interval(f"[WindowFinder] Window lost: {canonical_label}", "1min", "yellow")
+            _window_finder_last_found[cache_key] = current_found
 
         return found_windows
 

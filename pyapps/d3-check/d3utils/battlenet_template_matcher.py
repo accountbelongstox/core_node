@@ -8,25 +8,12 @@ Uses share.scaled_template_matcher_base.load_template_and_scale_by_resolution.
 
 from typing import Optional, Dict, Any, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
-from share.scaled_template_matcher_base import load_template_and_scale_by_resolution
+from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, format_match_schematic
 from pycore.pyfoundations.color_print import ColorPrint
-
-cv2 = get_third_package_cv2()
-np = get_third_package_numpy()
-from d3utils.image_matcher_registry import get_image_matcher_for_resolution
+from d3utils.image_matcher_registry import get_image_matcher_for_resolution, get_image_matcher_for_method
 from providor.constants.d3 import D3_BATTLENET_STANDARD_RESOLUTION_WIDTH, D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS
 from d3utils.d3u_common.image_conversion import convert_pil_to_bgr
-
-TM_MAP = {
-    "TM_CCOEFF": cv2.TM_CCOEFF,
-    "TM_CCOEFF_NORMED": cv2.TM_CCOEFF_NORMED,
-    "TM_CCORR": cv2.TM_CCORR,
-    "TM_CCORR_NORMED": cv2.TM_CCORR_NORMED,
-    "TM_SQDIFF": cv2.TM_SQDIFF,
-    "TM_SQDIFF_NORMED": cv2.TM_SQDIFF_NORMED,
-}
 
 
 def load_scaled_battlenet_template(
@@ -96,6 +83,11 @@ def match_battlenet_template(
     if result and result.get("success"):
         if "match_score" not in result and "num_matches" in result:
             result["match_score"] = result["num_matches"] / 100.0
+        center = result.get("center")
+        if center is not None:
+            h, w = target_bgr.shape[:2]
+            schematic = format_match_schematic(w, h, center, template_name=template_name)
+            ColorPrint.gray(schematic)
     return result if (result and result.get("success")) else None
 
 
@@ -107,8 +99,8 @@ def get_best_attempt_tm(
     tm_method: str = "TM_CCORR_NORMED",
 ) -> Optional[Dict]:
     """
-    Same load+scale as match_battlenet_template, but run cv2.matchTemplate and return best location
-    (center, polygon, match_score) for debug even when below threshold.
+    Same load+scale as match_battlenet_template; uses unified matcher with threshold=0 to return
+    best location (center, polygon, match_score) for debug even when below config threshold.
     """
     target_bgr = convert_pil_to_bgr(game_window_image)
     if target_bgr is None:
@@ -116,34 +108,24 @@ def get_best_attempt_tm(
     template_bgr, config = load_scaled_battlenet_template(template_name, window_width, window_height)
     if template_bgr is None or config is None:
         return None
-    if len(template_bgr.shape) == 3 and template_bgr.shape[2] == 4:
-        template_bgr = template_bgr[:, :, :3]
-    cv_method = TM_MAP.get(tm_method.upper(), cv2.TM_CCORR_NORMED)
-    gray_target = cv2.cvtColor(target_bgr, cv2.COLOR_BGR2GRAY)
-    gray_template = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    h, w = gray_template.shape
-    res = cv2.matchTemplate(gray_target, gray_template, cv_method)
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-    if cv_method == cv2.TM_SQDIFF_NORMED:
-        top_left = min_loc
-        match_val = float(1 - min_val)
-    elif cv_method == cv2.TM_SQDIFF:
-        top_left = min_loc
-        match_val = float(min_val)
-    else:
-        top_left = max_loc
-        match_val = float(max_val)
-    bottom_right = (top_left[0] + w, top_left[1] + h)
-    polygon = np.array([
-        [top_left[0], top_left[1]],
-        [bottom_right[0], top_left[1]],
-        [bottom_right[0], bottom_right[1]],
-        [top_left[0], bottom_right[1]]
-    ], dtype=np.float32)
-    center = np.array([(top_left[0] + bottom_right[0]) / 2, (top_left[1] + bottom_right[1]) / 2])
-    return {
-        "polygon": polygon,
-        "center": center,
-        "match_score": match_val,
-        "success": False,
-    }
+    use_alpha = config.get("use_alpha", False)
+    method = tm_method.upper() if tm_method else "TM_CCORR_NORMED"
+    matcher = get_image_matcher_for_method(method, window_width, window_height)
+    result = matcher.match_single_template(
+        target_image=target_bgr,
+        template_image=template_bgr,
+        template_name=template_name,
+        custom_threshold=0.0,
+        use_alpha=use_alpha,
+        detection_method=method,
+    )
+    if not result:
+        return None
+    result = dict(result)
+    result["success"] = False
+    center = result.get("center")
+    if center is not None:
+        h, w = target_bgr.shape[:2]
+        schematic = format_match_schematic(w, h, center, template_name=template_name)
+        ColorPrint.gray(schematic)
+    return result

@@ -90,8 +90,7 @@ class Diablo3MacroUI:
     
     def get_panel(self, key: str):
         """Return panel by key. Keys: providor.constants.ui.PANEL_KEY_*. Panel table maintained here only."""
-        attr = _PANEL_KEY_TO_ATTR.get(key)
-        return getattr(self, attr, None) if attr else None
+        return self._panel_by_key.get(key)
 
     def __init__(self, initial_config='config1'):
         """
@@ -149,6 +148,7 @@ class Diablo3MacroUI:
 
         # Init flag before _create_ui so _apply_tab_style (if ever called during init) skips main_notebook.update(); see docs/ui2 §6.3
         self._initialization_complete = False
+        self._panel_by_key = {}
         # Taskbar: apply once at 350ms; do NOT run again at 800ms (second SetWindowLong/SetWindowPos makes window unresponsive)
         self._taskbar_fix_logged = False
         self._taskbar_style_applied = False  # ensure_tk_root_in_taskbar only once
@@ -182,7 +182,11 @@ class Diablo3MacroUI:
         # Create system tray
         self._create_system_tray()
 
-        # Show window only after full build + theme + overrideredirect (docs/ui2: avoid "build twice" visible to user)
+        # If restored tab is ROSBOT, build its content synchronously before first map so first paint is not blank (docs/ui2 REPEATED_PAINT §五.1 §五.4)
+        if self.last_selected_tab == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content_sync()
+        # Single flush after deiconify only (in after(1) _flush_after_first_build); no update_idletasks here to avoid painting intermediate state (docs/ui2 REPEATED_PAINT §四.2)
+        # Show window only after full build + theme + overrideredirect (docs/ui2: 一开始构建的就是应了主题的 UI)
         self.root.deiconify()
 
         # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
@@ -421,13 +425,12 @@ class Diablo3MacroUI:
         When ui_settings.skip_taskbar_win32_fix is True, skip Win32 calls to verify if they cause unresponsive UI (report §1)."""
         skip_win32 = get_config_value_safe("ui_settings.skip_taskbar_win32_fix", True)
         if not self._taskbar_style_applied and not skip_win32:
-            self.root.update_idletasks()
+            self.root.update_idletasks()  # One pass so geometry is current for Win32 (docs/ui2 UI_REPEATED_PAINT: no second update_idletasks after Win32).
             if ensure_tk_root_in_taskbar(self.root):
                 self._taskbar_style_applied = True
                 if not self._taskbar_fix_logged:
                     self._taskbar_fix_logged = True
                     ColorPrint.blue("[UI] Main window set to taskbar (Win32)")
-            self.root.update_idletasks()
         if sys.platform == "win32":
             self._set_window_icon()
         self.root.focus_force()
@@ -504,6 +507,14 @@ class Diablo3MacroUI:
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_AUXILIARY: self.auxiliary_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
         register_ui(self)
         self.rosbot_extension_panel.ensure_content()
 
@@ -521,9 +532,10 @@ class Diablo3MacroUI:
         self.last_selected_tab = idx
         if n > 0:
             self.main_notebook.select(tab_ids[idx])
+            self.main_notebook.update_idletasks()
         self.bottom_bar.show_tab_content(idx)
-        self.root.update_idletasks()
-        self.root.update()
+        # Defer full update to after(1) so any after(0) (e.g. ensure_content) runs first; single paint with complete tree (docs/ui2 UI_REPEATED_PAINT §五.3)
+        self.root.after(1, self._flush_after_first_build)
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
         self._reregister_log_callback()
@@ -545,12 +557,18 @@ class Diablo3MacroUI:
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
 
+    def _flush_after_first_build(self):
+        """Run after(1) from _create_main_tabs: flush layout so first display is complete (after any after(0) content creation)."""
+        if self.root.winfo_exists():
+            self.root.update_idletasks()
+            self.root.update()
+
     def _apply_tab_style(self, tab_id):
         """Re-apply Dark.TNotebook styles for tab (theme single source). During init skip full update() to avoid 6 redraws; single root.update at end of _create_main_tabs suffices."""
         style = ttk.Style()
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
-        if getattr(self, '_initialization_complete', True):
+        if self._initialization_complete:
             self.main_notebook.update()
 
     def _create_table1_tab(self):
@@ -653,6 +671,14 @@ class Diablo3MacroUI:
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_AUXILIARY: self.auxiliary_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
         register_ui(self)
         self.rosbot_extension_panel.ensure_content()
 
@@ -671,6 +697,14 @@ class Diablo3MacroUI:
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_AUXILIARY: self.auxiliary_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
         register_ui(self)
         self.rosbot_extension_panel.ensure_content()
 
@@ -696,6 +730,8 @@ class Diablo3MacroUI:
                 self.main_notebook.select(tab_ids[idx])
                 self.last_selected_tab = idx
                 self.bottom_bar.show_tab_content(idx)
+                if idx == TAB_INDEX_ROSBOT:
+                    self.rosbot_extension_panel.ensure_content_sync()
             self._reregister_log_callback()
             self.root.update_idletasks()
             self.root.update()
@@ -753,8 +789,7 @@ class Diablo3MacroUI:
         self.root.lift()
         self.root.focus_force()
         nb.focus_set()
-        self.root.update_idletasks()
-        self.root.update()
+        # No update_idletasks/update here (docs/ui2 UI_REPEATED_PAINT): let event loop redraw naturally.
         ColorPrint.blue(f"[UI] Switched to tab {idx}")
 
     def _on_tab_changed(self, event=None):
@@ -779,7 +814,7 @@ class Diablo3MacroUI:
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
         # During init, still run essential updates (bottom bar, log callback, ROSBOT ensure_content) so restored tab 2 is not blank; skip only update_idletasks/update (docs/ui_5 §6.2).
-        if not getattr(self, '_initialization_complete', True):
+        if not self._initialization_complete:
             set_config_value_async("ui_settings.last_selected_tab", selected_tab)
             self.bottom_bar.show_tab_content(selected_tab)
             self._reregister_log_callback()
@@ -793,8 +828,7 @@ class Diablo3MacroUI:
         self._reregister_log_callback()
         if selected_tab == TAB_INDEX_ROSBOT:
             self.rosbot_extension_panel.ensure_content()
-        self.root.update_idletasks()
-        self.root.update()
+        # No update_idletasks/update here (docs/ui2 UI_REPEATED_PAINT): let event loop redraw naturally to avoid nested event loop and repeated draw/blank.
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):
@@ -893,10 +927,9 @@ class Diablo3MacroUI:
         return dict(aux) if isinstance(aux, dict) else {}
 
     def run(self):
-        """Run the UI. Release any stray grab (report §4: log if grab was present); do not focus_force before mainloop."""
+        """Run the UI. Release any stray grab (report §4: log if grab was present); do not focus_force before mainloop. No update_idletasks before mainloop (docs/ui2 UI_REPEATED_PAINT: single flush already in _flush_after_first_build)."""
         if self._release_any_grab():
             ColorPrint.yellow("[UI] Grab was held before mainloop; released.")
-        self.root.update_idletasks()
         self.root.mainloop()
 
     def _release_any_grab(self) -> bool:

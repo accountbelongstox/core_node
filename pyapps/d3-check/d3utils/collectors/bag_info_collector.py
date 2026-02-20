@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Bag Information Collector
-Collects bag coordinates and layout information. Updates shared game interface data.
-类库：导出前实例化，通过 get_bag_info_collector() 获取单例，禁止各处自行 new。
+Bag Information Collector. Collects bag coordinates and layout. Updates shared game interface data.
+Singleton via get_bag_info_collector(); do not instantiate elsewhere.
 """
 
 # Standard library imports
@@ -42,9 +41,13 @@ from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_
 from d3utils.d3u_common import draw_match_result
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp, get_image_pil
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
-from providor.providor_index import (
-    CONFIG,
-    get_template_path
+from share.scaled_template_matcher_base import is_match_center_in_left_region
+from providor.providor_index import CONFIG, get_template_path
+from d3utils.interface_detection import detect_interface_type_from_full_window
+from providor.constants.d3 import (
+    BAG_OPENED_INDICATOR_TEMPLATE_NAME,
+    KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME,
+    KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME,
 )
 
 
@@ -185,7 +188,7 @@ class BagInfoCollector:
 
     def _check_bag_opened(self, game_window_image) -> bool:
         """
-        Check if bag is opened using bag_opened_indicator template
+        Check if bag is opened using BAG_OPENED_INDICATOR template.
 
         Args:
             game_window_image: PIL Image of game window
@@ -194,26 +197,24 @@ class BagInfoCollector:
             True if bag is opened, False otherwise
         """
         try:
-            ColorPrint.blue("[BagInfoCollector] Detecting bag_opened_indicator...")
-
-            # Get template path
-            template_path = get_template_path("bag_opened_indicator")
+            ColorPrint.blue(f"[BagInfoCollector] Detecting {BAG_OPENED_INDICATOR_TEMPLATE_NAME}...")
+            template_path = get_template_path(BAG_OPENED_INDICATOR_TEMPLATE_NAME)
             if not template_path or not Path(template_path).exists():
-                ColorPrint.gray("[BagInfoCollector] bag_opened_indicator template not found")
+                ColorPrint.gray(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} template not found")
                 return False
 
             # Match template using scaled_matcher
             result = self.scaled_matcher.match_template(
                 target_image=game_window_image,  # PIL Image directly
-                template_name="bag_opened_indicator",
+                template_name=BAG_OPENED_INDICATOR_TEMPLATE_NAME,
                 output_dir=None
             )
 
             if result["total_matches"] > 0:
-                ColorPrint.green("[BagInfoCollector] bag_opened_indicator FOUND - Bag is opened")
+                ColorPrint.green(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} FOUND - Bag is opened")
                 return True
             else:
-                ColorPrint.yellow("[BagInfoCollector] bag_opened_indicator NOT FOUND - Bag is closed")
+                ColorPrint.yellow(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} NOT FOUND - Bag is closed")
                 return False
 
         except Exception as e:
@@ -696,9 +697,9 @@ class BagInfoCollector:
         )
         legend_y += legend_line_height
 
+        # Blacksmith has a single identifier: bag_opened_indicator only.
         interface_indicators = [
-            ("blacksmith_indicator_1", "blacksmith", COLORS['interface_indicator']),
-            ("blacksmith_indicator_2", "blacksmith", (255, 200, 0))
+            (BAG_OPENED_INDICATOR_TEMPLATE_NAME, "blacksmith", COLORS["interface_indicator"]),
         ]
 
         for indicator_name, type_name, color in interface_indicators:
@@ -875,11 +876,10 @@ class BagInfoCollector:
 
         # Template type to color mapping (extended)
         template_color_map = {
-            # Interface indicators
-            'blacksmith_indicator_1': (255, 200, 0),  # Orange-yellow
-            'blacksmith_indicator_2': (255, 165, 0),  # Orange
-            'kanai_cube_left_panel_indicator': (128, 0, 128),  # Purple
-            'kanai_right_page_indicator': (0, 128, 255),  # Orange-blue
+            # Interface indicators (blacksmith = bag_opened_indicator only)
+            BAG_OPENED_INDICATOR_TEMPLATE_NAME: (255, 200, 0),  # Orange-yellow for blacksmith
+            KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME: (128, 0, 128),  # Purple
+            KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME: (0, 128, 255),  # Orange-blue
 
             # Functional buttons
             'conversion_button': (0, 255, 0),  # Green when enabled, Red when disabled
@@ -1002,11 +1002,10 @@ class BagInfoCollector:
         Detect interface type and functional buttons
 
         Detection logic (simplified):
-        1. Check blacksmith indicators (blacksmith_indicator_1 or blacksmith_indicator_2):
-           - If found → interface_type = "blacksmith"
+        1. Blacksmith: same template bag_opened_indicator — left 30% width = blacksmith, right = bag only (not blacksmith). Accept only when match center is in the left 30% of game window (is_match_center_in_left_region). If found in left 30% → interface_type = "blacksmith".
 
-        2. Check Kanai's Cube left panel indicator (kanai_cube_left_panel_indicator):
-           - If found → interface_type = "kanai_cube"
+        2. 魔盒（卡奈）唯一图标 kanai_cube_left_panel_indicator，匹配中心须在左 30% 内：
+           - If found in left 30% → interface_type = "kanai_cube"
 
         3. If neither found → No functional interface opened
 
@@ -1025,97 +1024,29 @@ class BagInfoCollector:
         """
         ColorPrint.blue("\n[BagInfoCollector] Detecting interface type...")
 
-        # Store detection results using DetectionResult structure
         button_detections: Dict[str, DetectionResult] = {}
-
-        # Legacy detection_results for visualization compatibility
         detection_results = {
             'interface_indicators': {},
             'conversion_button': None,
             'material_button': None
         }
 
-        interface_type = None
+        interface_type, match_details = detect_interface_type_from_full_window(
+            game_window_image, want_blacksmith=True, matcher=self.scaled_matcher
+        )
+        shared_data.interface_type = interface_type
+        for name, match in match_details.items():
+            if match:
+                button_detections[name] = DetectionResult(match=match, reliable=True, state=None)
+        if interface_type == "blacksmith":
+            ColorPrint.green(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} FOUND in left 30% -> Blacksmith interface detected")
+        elif interface_type == "kanai_cube":
+            ColorPrint.green("[BagInfoCollector] kanai_cube_left_panel_indicator FOUND in left 30% -> Kanai Cube interface detected")
+        if interface_type:
+            ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
 
         # ============================================================
-        # Step 1: Check if in Blacksmith (check indicators 1 or 2)
-        # ============================================================
-        ColorPrint.blue("[BagInfoCollector] Step 1: Checking blacksmith indicators...")
-
-        blacksmith_indicators = [
-            ("blacksmith_indicator_1", "blacksmith"),
-            ("blacksmith_indicator_2", "blacksmith")
-        ]
-
-        for indicator_name, type_name in blacksmith_indicators:
-            template_path = get_template_path(indicator_name)
-            if not template_path or not Path(template_path).exists():
-                ColorPrint.gray(f"[BagInfoCollector] Template not found: {indicator_name}")
-                continue
-
-            ColorPrint.blue(f"[BagInfoCollector] Detecting {indicator_name}...")
-            result = self.scaled_matcher.match_template(
-                target_image=game_window_image,  # PIL Image directly
-                template_name=indicator_name,
-                output_dir=None
-            )
-
-            if result["total_matches"] > 0:
-                ColorPrint.green(f"[BagInfoCollector] {indicator_name} FOUND → Blacksmith interface detected")
-
-                # Store in button_detections
-                button_detections[indicator_name] = DetectionResult(
-                    match=result["matches"][0],
-                    reliable=True,
-                    state=None
-                )
-
-                # Set interface type
-                interface_type = "blacksmith"
-                shared_data.interface_type = interface_type
-                ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-
-                # Found blacksmith, no need to check conversion button
-                break
-            else:
-                ColorPrint.gray(f"[BagInfoCollector] {indicator_name} not found")
-
-        # ============================================================
-        # Step 2: If not blacksmith, check Kanai's Cube left panel indicator
-        # ============================================================
-        if not interface_type:
-            ColorPrint.blue("[BagInfoCollector] Step 2: Checking Kanai's Cube left panel indicator...")
-
-            # Detect kanai_cube_left_panel_indicator
-            indicator_path = get_template_path("kanai_cube_left_panel_indicator")
-            if indicator_path and Path(indicator_path).exists():
-                indicator_result = self.scaled_matcher.match_template(
-                    target_image=game_window_image,  # PIL Image directly
-                    template_name="kanai_cube_left_panel_indicator",
-                    output_dir=None
-                )
-
-                if indicator_result["total_matches"] > 0:
-                    ColorPrint.green("[BagInfoCollector] kanai_cube_left_panel_indicator FOUND → Kanai Cube interface detected")
-
-                    # Store in button_detections
-                    button_detections['kanai_cube_left_panel_indicator'] = DetectionResult(
-                        match=indicator_result["matches"][0],
-                        reliable=True,
-                        state=None
-                    )
-
-                    # Set interface type
-                    interface_type = "kanai_cube"
-                    shared_data.interface_type = interface_type
-                    ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-                else:
-                    ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator not found")
-            else:
-                ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator template not found")
-
-        # ============================================================
-        # Step 3: Final result
+        # Final result / no interface
         # ============================================================
         if not interface_type:
             ColorPrint.yellow("[BagInfoCollector] No functional interface detected")
@@ -1131,14 +1062,13 @@ class BagInfoCollector:
             # Note: interface_type == "kanai_cube" already means left panel is opened
             # No need to detect kanai_panel_opened separately
 
-            # Detect if Kanai's Cube right page is opened
             ColorPrint.blue("[BagInfoCollector] Detecting if Kanai's Cube right page is opened...")
-            right_page_path = get_template_path("kanai_right_page_indicator")
+            right_page_path = get_template_path(KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME)
             if right_page_path and Path(right_page_path).exists():
                 right_page_result = self.scaled_matcher.match_template(
-                    target_image=game_window_image,  # PIL Image directly
-                    template_name="kanai_right_page_indicator",
-                    output_dir=None
+                    target_image=game_window_image,
+                    template_name=KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME,
+                    output_dir=None,
                 )
 
                 if right_page_result["total_matches"] > 0:
@@ -1148,7 +1078,7 @@ class BagInfoCollector:
                     shared_data.kanai_right_page_opened = False
                     ColorPrint.yellow("[BagInfoCollector] Kanai's Cube right page is CLOSED")
             else:
-                ColorPrint.gray("[BagInfoCollector] kanai_right_page_indicator template not found")
+                ColorPrint.gray(f"[BagInfoCollector] {KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME} template not found")
                 shared_data.kanai_right_page_opened = None
 
         # Update shared_data with button_detections
@@ -1161,7 +1091,7 @@ _bag_info_collector_instance: Optional[BagInfoCollector] = None
 
 
 def get_bag_info_collector() -> BagInfoCollector:
-    """Return the global BagInfoCollector instance (singleton). 导出前实例化."""
+    """Return the global BagInfoCollector instance (singleton)."""
     global _bag_info_collector_instance
     if _bag_info_collector_instance is None:
         _bag_info_collector_instance = BagInfoCollector()

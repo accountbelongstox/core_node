@@ -58,6 +58,7 @@ class ImageMatcher:
         self.standard_width = standard_width
         self.standard_height = standard_height
         self.nfeatures = nfeatures
+        self._silent = False
 
         ColorPrint.blue(f"[ImageMatcher] Feature ratio threshold: {ratio_thresh}")
         ColorPrint.blue(f"[ImageMatcher] Minimum inliers: {min_inliers}")
@@ -94,7 +95,7 @@ class ImageMatcher:
 
         # If no standard resolution set, return 1.0 (100% - no scaling)
         if self.standard_width is None or self.standard_height is None:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[ImageMatcher] Auto-scale: Using target size as standard ({target_w}x{target_h})")
             return 1.0, 1.0
 
@@ -102,7 +103,7 @@ class ImageMatcher:
         scale_x = target_w / self.standard_width
         scale_y = target_h / self.standard_height
 
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.debug(f"[ImageMatcher] Auto-scale: Target {target_w}x{target_h} vs Standard {self.standard_width}x{self.standard_height}")
             ColorPrint.debug(f"[ImageMatcher] Auto-scale: scale_x={scale_x:.4f}, scale_y={scale_y:.4f}")
 
@@ -149,7 +150,7 @@ class ImageMatcher:
                 "success": bool
             }
         """
-        prev_silent = getattr(self, "_silent", False)
+        prev_silent = self._silent
         self._silent = silent
         try:
             return self._match_single_template_impl(
@@ -179,7 +180,7 @@ class ImageMatcher:
             scaled_w = int(template_w * scale_x)
             scaled_h = int(template_h * scale_y)
 
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[ImageMatcher] Auto-scaling template from {template_w}x{template_h} to {scaled_w}x{scaled_h}")
 
             scaled_template = cv2.resize(template_image, (scaled_w, scaled_h), interpolation=cv2.INTER_LINEAR)
@@ -190,17 +191,17 @@ class ImageMatcher:
         if detection_method_upper == "SIFT":
             detector = cv2.SIFT_create(nfeatures=self.nfeatures)
             matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.blue(f"[ImageMatcher] Using SIFT feature detector")
         elif detection_method_upper == "AKAZE":
             detector = cv2.AKAZE_create()
             matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.blue(f"[ImageMatcher] Using AKAZE feature detector")
         else:  # Default to ORB
             detector = cv2.ORB_create(nfeatures=self.nfeatures)
             matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.blue(f"[ImageMatcher] Using ORB feature detector")
 
         # Feature-based methods
@@ -219,7 +220,7 @@ class ImageMatcher:
         if detection_method_upper in feature_methods:
             # Use feature-based matching
             ratio_thresh = custom_threshold if custom_threshold is not None else self.ratio_thresh
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[ImageMatcher] Using {detection_method_upper} feature matching with threshold {ratio_thresh}")
             result = self._match_with_features(target_image, scaled_template, template_name, ratio_thresh, detector, matcher)
 
@@ -234,7 +235,7 @@ class ImageMatcher:
             # Use template-based matching
             threshold = custom_threshold if custom_threshold is not None else 0.8
             cv_method = template_method_map[detection_method_upper]
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[ImageMatcher] Using {detection_method_upper} template matching with threshold {threshold}")
             result = self._match_with_template(target_image, scaled_template, template_name, threshold, use_alpha, cv_method)
 
@@ -247,7 +248,7 @@ class ImageMatcher:
 
         else:
             # Unknown method - let it fail naturally as requested
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.red(f"[ImageMatcher] Unknown matching method: {detection_method}")
             # Deliberately not providing fallback - let the program fail as requested
             raise ValueError(f"Unknown matching method: {detection_method}. Supported methods are: {feature_methods + list(template_method_map.keys())}")
@@ -281,22 +282,22 @@ class ImageMatcher:
         kp_template, des_template = detector.detectAndCompute(gray_template, None)
         kp_target, des_target = detector.detectAndCompute(gray_target, None)
 
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_template) if kp_template else 0} keypoints in template")
             ColorPrint.debug(f"[DEBUG] {template_name}: Found {len(kp_target) if kp_target else 0} keypoints in target")
 
         if des_template is None or des_target is None:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.yellow(f"[DEBUG] {template_name}: No descriptors found")
             return None
 
         # Match features using k-NN
         try:
             matches = matcher.knnMatch(des_template, des_target, k=2)
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[DEBUG] {template_name}: knnMatch returned {len(matches)} match pairs")
         except cv2.error:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.red(f"[DEBUG] {template_name}: knnMatch failed")
             return None
 
@@ -308,11 +309,11 @@ class ImageMatcher:
                 if m.distance < effective_ratio_thresh * n.distance:
                     good_matches.append(m)
 
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.debug(f"[DEBUG] {template_name}: {len(good_matches)} good matches after ratio test (ratio_thresh={effective_ratio_thresh:.3f}, min required: {self.min_inliers})")
 
         if len(good_matches) < self.min_inliers:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.yellow(f"[DEBUG] {template_name}: Not enough good matches")
             return None
 
@@ -324,11 +325,11 @@ class ImageMatcher:
         homography, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, self.ransac_threshold)
 
         if homography is None:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.red(f"[DEBUG] {template_name}: Homography estimation failed")
             return None
 
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.green(f"[DEBUG] {template_name}: Homography found successfully!")
 
         # Transform template corners to target image space
@@ -375,7 +376,7 @@ class ImageMatcher:
         if use_alpha and len(template_image.shape) == 3 and template_image.shape[2] == 4:
             mask = template_image[:, :, 3]  # Extract alpha channel as mask
             template_image = template_image[:, :, :3]  # Use only BGR channels
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.debug(f"[DEBUG] {template_name}: Using alpha channel as mask")
 
         # Convert to grayscale
@@ -414,11 +415,11 @@ class ImageMatcher:
             best_match = max_loc
 
         method_name = self._get_method_name(effective_method)
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.debug(f"[DEBUG] {template_name}: Template matching score: {match_val:.3f} (threshold: {threshold}, method: {method_name})")
 
         if match_val < threshold:
-            if not getattr(self, "_silent", False):
+            if not self._silent:
                 ColorPrint.yellow(f"[DEBUG] {template_name}: Template matching score too low")
             return None
 
@@ -437,7 +438,7 @@ class ImageMatcher:
         center = np.array([(top_left[0] + bottom_right[0]) / 2,
                           (top_left[1] + bottom_right[1]) / 2])
 
-        if not getattr(self, "_silent", False):
+        if not self._silent:
             ColorPrint.green(f"[DEBUG] {template_name}: Template matching found match at {center}")
 
         return {

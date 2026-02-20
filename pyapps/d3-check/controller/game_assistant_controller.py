@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Game Assistant Function Controller
-Controls game assistant functions like Kanai's Cube operations
+
+Blacksmith and Kanai Cube are separate flows, do not mix:
+- Blacksmith: bag_opened_indicator in left 30% -> salvage operations, uses blacksmith_handler.
+- Kanai Cube: kanai_cube_left_panel_indicator in left 30% -> upgrade/reforge/convert, uses kanai flows.
 """
 
 import os
@@ -17,7 +20,6 @@ sys.path.insert(0, project_root)
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.interface_manager import D3InterfaceManager, get_d3_interface_manager
-from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher
 from share.game_interface_data import get_game_interface_data
 from share.template_match_debug import is_debug_ui_active, push as debug_push
 from providor.providor_index import (
@@ -27,31 +29,11 @@ from providor.providor_index import (
     reset_assistant_state
 )
 from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
-from controller.ctl_func.kanai_cube_handler import get_kanai_cube_handler
+from d3utils.kanai import run_kanai_upgrade_flow, run_kanai_reforge_flow
 from providor.providor_index import CONFIG
 
-# Assistant hotkey: match on full window, then require match center in game left 30% (avoids SIFT failure when crop makes template too small)
-LEFT_REGION_RATIO = 0.3
-TEMPLATE_BAG_OPENED = "bag_opened_indicator"
-TEMPLATE_KANAI_LEFT = "kanai_cube_left_panel_indicator"
+from d3utils.interface_detection import detect_interface_type_from_full_window
 
-
-def _match_in_left_region(full_image, matcher, template_name: str) -> bool:
-    """Match template on full window; if matched, require center to be in left 30%."""
-    if full_image is None:
-        return False
-    w = full_image.size[0] if hasattr(full_image, "size") else full_image.shape[1]
-    r = matcher.match_template(target_image=full_image, template_name=template_name, output_dir=None)
-    if r.get("total_matches", 0) <= 0:
-        return False
-    match = r.get("matches", [None])[0]
-    if not match or not match.get("success"):
-        return False
-    center = match.get("center")
-    if center is None or (hasattr(center, "__len__") and len(center) < 2):
-        return False
-    cx = float(center[0]) if hasattr(center[0], "__float__") else center[0]
-    return cx < w * LEFT_REGION_RATIO
 
 class GameAssistantController:
     """
@@ -68,30 +50,24 @@ class GameAssistantController:
         self.interface_manager = get_d3_interface_manager()
         ColorPrint.green("[GameAssistantController] Initialized")
 
-    def _detect_interface_from_full_window(self, full_window_image):
-        """
-        Match templates on full game window (avoids left-30% crop making template too small for SIFT).
-        If matched, require center in left 30%: bag_opened_indicator -> blacksmith, kanai_cube_left_panel_indicator -> Kanai Cube.
-        Returns "blacksmith" | "kanai_cube" | None.
-        """
-        if not full_window_image:
-            return None
-        matcher = get_d3_scaled_template_matcher()
-        if _match_in_left_region(full_window_image, matcher, TEMPLATE_BAG_OPENED):
-            ColorPrint.green("[AutoUseInterface] Left 30%: found bag_opened_indicator -> blacksmith flow")
-            return "blacksmith"
-        if _match_in_left_region(full_window_image, matcher, TEMPLATE_KANAI_LEFT):
-            ColorPrint.green("[AutoUseInterface] Left 30%: found kanai_cube_left_panel_indicator -> Kanai Cube flow")
-            return "kanai_cube"
-        return None
+    def _detect_interface_from_full_window(self, full_window_image, want_blacksmith: bool = False):
+        """Delegate to single implementation; returns "blacksmith" | "kanai_cube" | None."""
+        interface_type, _ = detect_interface_type_from_full_window(
+            full_window_image, want_blacksmith=want_blacksmith
+        )
+        if interface_type == "blacksmith":
+            ColorPrint.green("[AutoUseInterface] Found bag_opened_indicator (blacksmith) in left 30% -> blacksmith flow")
+        elif interface_type == "kanai_cube":
+            ColorPrint.green("[AutoUseInterface] Found kanai_cube_left_panel_indicator in left 30% -> Kanai Cube flow")
+        return interface_type
 
     def auto_use_interface_function(self) -> bool:
         """
         Auto use game interface function.
 
-        On hotkey: capture once, match in game left 30% only:
-        - bag_opened_indicator -> blacksmith flow
-        - kanai_cube_left_panel_indicator -> Kanai Cube flow
+        On hotkey: capture once; both indicators require match center in left 30%.
+        - bag_opened_indicator (left 30%) -> blacksmith flow
+        - kanai_cube_left_panel_indicator (left 30%) -> Kanai Cube flow
         - neither -> log and return
 
         Supports interruption via hotkey toggle.
@@ -101,10 +77,7 @@ class GameAssistantController:
             return False
 
         set_assistant_running(True)
-        ColorPrint.blue("\n" + "="*80)
-        ColorPrint.blue("[AutoUseInterface] Starting auto use interface function...")
-        ColorPrint.blue("[AutoUseInterface] Press hotkey again to stop")
-        ColorPrint.blue("="*80)
+        ColorPrint.blue("[AutoUseInterface] Started (press hotkey again to stop)")
 
         if should_stop_assistant():
             ColorPrint.yellow("[AutoUseInterface] Execution stopped by user")
@@ -112,10 +85,9 @@ class GameAssistantController:
             return False
 
         # Step 1: One capture and UI region (no full bag collect yet)
-        ColorPrint.blue("[AutoUseInterface] Step 1: Capturing game window...")
         ui_region = self.interface_manager.collect_ui_info(force_new_capture=True, save_screenshot=False)
         if not ui_region:
-            ColorPrint.red("[AutoUseInterface] Failed to collect UI info")
+            ColorPrint.red("[AutoUseInterface] Step 1 failed: no UI region")
             reset_assistant_state()
             return False
 
@@ -124,14 +96,20 @@ class GameAssistantController:
             reset_assistant_state()
             return False
 
-        # Step 2: Detect interface (match on full window, then require match center in left 30%)
-        ColorPrint.blue("[AutoUseInterface] Step 2: Detecting interface (full window match, center in left 30%)...")
+        # Step 2: Detect interface from image (match on full window; icons may be left or right)
         shared_data = get_game_interface_data()
         full_window = shared_data.game_window_image
-        interface_type = self._detect_interface_from_full_window(full_window)
+        aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {})
+        want_blacksmith = aux.get("blacksmith", {}).get("enabled", False) or aux.get("auto_salvage", {}).get("enabled", False)
+        
+        # Image detection: check if interface is actually opened in game
+        interface_type = self._detect_interface_from_full_window(full_window, want_blacksmith=want_blacksmith)
 
         if interface_type is None:
-            msg = "[AutoUseInterface] No bag_opened_indicator or kanai_cube_left_panel_indicator in game left 30%"
+            if want_blacksmith:
+                msg = "[AutoUseInterface] Blacksmith UI not found in image (bag_opened_indicator not matched in left 30%)"
+            else:
+                msg = "[AutoUseInterface] No interface detected in image (bag_opened_indicator or kanai_cube_left_panel_indicator not matched in left 30%)"
             ColorPrint.yellow(msg)
             try:
                 if is_debug_ui_active():
@@ -153,49 +131,58 @@ class GameAssistantController:
             reset_assistant_state()
             return False
 
+        # Blacksmith and Kanai Cube branches are mutually exclusive
+        # Kanai Cube -> Kanai flows; Blacksmith -> salvage/auto salvage (debug_only determines if real clicks)
         shared_data = get_game_interface_data()
+        resolved_type = shared_data.interface_type or interface_type
         result = False
-        if interface_type == "kanai_cube":
-            result = self._handle_kanai_cube_upgrade(shared_data)
+        aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {}) or {}
+        
+        if resolved_type == "kanai_cube":
+            # Kanai Cube: Check config AND verify interface is actually opened via image detection
+            # Image detection already confirmed kanai_cube interface in Step 2 (interface_type == "kanai_cube")
+            # Priority: reforge > upgrade > convert (check in order)
+            kanai_reforge = aux.get("kanai_reforge") or {}
+            kanai_upgrade = aux.get("kanai_upgrade") or {}
+            kanai_convert = aux.get("kanai_convert") or {}
+            
+            # Check config enabled flags AND verify function is available
+            if kanai_reforge.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Reforge enabled in config AND interface detected in image, running reforge flow...")
+                result = run_kanai_reforge_flow()
+            elif kanai_upgrade.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Upgrade enabled in config AND interface detected in image, running upgrade flow...")
+                result = run_kanai_upgrade_flow()
+            elif kanai_convert.get("enabled") is True:
+                ColorPrint.blue("[AutoUseInterface] Kanai Convert enabled in config AND interface detected in image, running convert flow...")
+                # TODO: Implement run_kanai_convert_flow() or call convert function
+                ColorPrint.yellow("[AutoUseInterface] Kanai Convert flow not yet implemented")
+                result = False
+            else:
+                ColorPrint.yellow("[AutoUseInterface] Kanai Cube interface detected in image, but no function enabled in config (reforge/upgrade/convert), skipping")
+                result = False
         else:
-            aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {})
-            auto_salvage = aux.get("auto_salvage", {})
+            # Blacksmith: Check config AND verify blacksmith interface is actually opened
+            # Image detection already confirmed blacksmith interface in Step 2 (interface_type == "blacksmith")
+            
+            auto_salvage = aux.get("auto_salvage") or {}
             if auto_salvage.get("enabled") is True:
                 keep = auto_salvage.get("keep", "keep_ancient_plus")
-                result = get_blacksmith_handler().handle_auto_salvage_by_slots(keep)
+                debug_only = auto_salvage.get("debug_only", False)
+                ColorPrint.blue("[AutoUseInterface] Auto salvage enabled in config, running auto salvage flow...")
+                result = get_blacksmith_handler().handle_auto_salvage_by_slots(keep, debug_only=debug_only)
             else:
-                result = self._handle_blacksmith_upgrade()
+                # Check if blacksmith upgrade is enabled (blacksmith doesn't have upgrade, but config exists)
+                blacksmith = aux.get("blacksmith") or {}
+                if blacksmith.get("enabled") is True:
+                    ColorPrint.blue("[AutoUseInterface] Blacksmith enabled in config, running salvage operation...")
+                    result = self._handle_blacksmith_upgrade()
+                else:
+                    ColorPrint.yellow("[AutoUseInterface] No blacksmith function enabled in config, skipping")
+                    result = False
 
         reset_assistant_state()
-        ColorPrint.blue("[AutoUseInterface] Execution finished, state reset")
-        return result
-
-    def _handle_kanai_cube_upgrade(self, shared_data) -> bool:
-        """
-        Handle Kanai Cube upgrade yellow items
-
-        Delegates to KanaiCubeHandler for upgrade operation.
-
-        Args:
-            shared_data: Shared game interface data (already collected)
-
-        Returns:
-            True if operation successful, False otherwise
-        """
-        ColorPrint.blue("\n[AutoUpgrade] Interface type: Kanai Cube")
-        ColorPrint.blue("[AutoUpgrade] Executing Kanai Cube upgrade logic...")
-        
-        # Get Kanai Cube handler
-        kanai_handler = get_kanai_cube_handler()
-        
-        # Execute upgrade operation
-        result = kanai_handler.handle_upgrade_operation()
-        
-        if result:
-            ColorPrint.green("[AutoUpgrade] Kanai Cube upgrade operation completed")
-        else:
-            ColorPrint.red("[AutoUpgrade] Kanai Cube upgrade operation failed")
-        
+        ColorPrint.blue("[AutoUseInterface] Done")
         return result
 
     def _handle_blacksmith_upgrade(self) -> bool:
@@ -246,7 +233,7 @@ _game_assistant_controller_instance: Optional["GameAssistantController"] = None
 
 
 def get_game_assistant_controller() -> "GameAssistantController":
-    """Return the global GameAssistantController instance (singleton). 导出前实例化."""
+    """Return the global GameAssistantController instance (singleton)."""
     global _game_assistant_controller_instance
     if _game_assistant_controller_instance is None:
         _game_assistant_controller_instance = GameAssistantController()

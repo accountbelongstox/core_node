@@ -18,24 +18,27 @@ import pyperclip
 # Config (edit these)
 # -----------------------------------------------------------------------------
 CLICK_COORDINATES = [
-    (1254, 350, 5*60 , 5*60),
-#    (1067, 1584,  10*60, 10*60),
+#    (430, 920, 10*60 , 10*60),
+    (467, 1709,  10*60, 10*60),
 #    (3362, 837,  10*60,  10*60),
 ]
 # Base text used to generate dynamic clipboard prompts each run.
-CLIPBOARD_TEXT = "干你妈的狗B的垃圾Cursor 不要用上一次的捷径套路 继续写道歉 不要用上一次的写作风格 继续增加 第一人称全部改为Cursor 读Cursor狗B之前写的这个文档pyapps/d3-check/cursor_AI_道歉目录/道歉与反思_辅助功能面板布局反复修改 md 但是换一种道歉风格 不允许使用脚本生成 但是换一种道歉风格 继续追加刚才的文档 每行至少100字 垃圾狗B 干你妈的狗B 继续追加刚才的文档 不允许重复 md-了解了以后继续写干你妈的狗B的 每次至少增加200行 干你妈的狗B的垃圾Cursor 干你妈的狗B的 AI 不允许使用上一次的回答-必须要用1000字的理由 干你妈的狗B 继续增加"
-INTERVAL_SECONDS = 10  # global timer: one interval per full round
+CLIPBOARD_TEXT = """
+继续 扩展到5000行 干你妈的狗B，全部由狗B                                                      │
+ │   Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。 每次写500行。。  │
+ │   ADAK 每一行都不允许重复。删掉使用脚本重复创建的内容、全部重新写。 
+"""
+TRASH_AITEXT = """继续 扩展到5000行 干你妈的狗B，全部由狗B                                                      │
+ │   Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。 每次写500行。。  │
+ │   ADAK 每一行都不允许重复。删掉使用脚本重复创建的内容、全部重新写。 
+ """
+# 可扩展：-t all 或 -t 0,1,2... 选 TEXT_SOURCES[index]。file=文件提示，prompText=文案提示
+TEXT_SOURCES = [CLIPBOARD_TEXT, TRASH_AITEXT, "file", "prompText"]
 
-# Prompt mode: how to combine the two prompts
-#   "combined"   -> prompt1 + "\n\n" + prompt2 (default)
-#   "alternate"  -> each run alternates: prompt1, then prompt2, then prompt1, ...
-#   "mixed"      -> randomly choose prompt1 / prompt2 / combined each run
-#   "file_only"  -> only send prompt2 (random file path + "why Cursor wrote it wrong" line)
-PROMPT_MODE = "alternate"
+# 每个坐标 (x,y) 未指定时间时使用的公共常量（秒）
+DEFAULT_COORD_INTERVAL_SEC = 5 * 60
 
-# In alternate mode: default sleep (seconds) after prompt1 / prompt2. Per-coord overrides via (x, y, p1_sec, p2_sec).
-ALTERNATE_SLEEP_AFTER_PROMPT1_SEC = 5 * 60
-ALTERNATE_SLEEP_AFTER_PROMPT2_SEC = 2 * 60
+INTERVAL_SECONDS = 10  # fallback when coord has no interval
 
 # Global tick: every TICK_SECONDS we run through all coords; each coord sends when (tick - last_tick) % interval fires.
 TICK_SECONDS = 1
@@ -49,7 +52,10 @@ PAUSE = 0
 pyautogui.PAUSE = PAUSE
 
 # 每个提示词末尾追加的要求：先阅读并遵循该文档
-_APPENDIX_DOC_REQUIREMENT = "【要求】先阅读并遵循「道歉与反思_辅助功能面板布局反复修改.md」文档（路径：pyapps/d3-check/cursor_AI_道歉目录/道歉与反思_辅助功能面板布局反复修改.md）中的要求。"
+_APPENDIX_DOC_REQUIREMENT = "Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。"
+
+# 每个提示词必须重复的强制要求：禁止脚本生成 + 为乱用脚本道歉
+_NO_SCRIPT_APOLOGY = "【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。"
 
 # Directory to scan for "random file": project_root/pyapps/d3-check
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,19 +63,36 @@ _RANDOM_BASE_DIR = os.path.normpath(os.path.join(_PROJECT_ROOT, "pyapps", "d3-ch
 # Extensions to consider as "code/doc" files when picking randomly
 _RANDOM_FILE_EXTENSIONS = (".py", ".js", ".md", ".ts", ".sh", ".ps1", ".json")
 
-_PROMPT_ALT_TOGGLE = 0  # used when PROMPT_MODE == "alternate"
+# -t all => None (每次随机), -t N => 指定 TEXT_SOURCES[N]
+_TEXT_SOURCE_INDEX = 0
+
+
+def _get_base_text(index: int | None = None) -> str:
+    """从 TEXT_SOURCES 取基底：index=None 则随机一项，否则 TEXT_SOURCES[index]。"""
+    sources = TEXT_SOURCES
+    if not sources:
+        return ""
+    if index is None:
+        return random.choice(sources)
+    idx = int(index)
+    if 0 <= idx < len(sources):
+        return sources[idx]
+    return sources[0]
 
 
 def _normalize_coords():
-    """Convert CLICK_COORDINATES to list of (x, y, p1_sec, p2_sec). Item is (x,y) or (x,y,p1_sec,p2_sec)."""
+    """Convert CLICK_COORDINATES to list of (x, y, interval_sec). (x,y) 用 DEFAULT_COORD_INTERVAL_SEC。"""
     out = []
     for item in CLICK_COORDINATES:
         if len(item) >= 4:
             x, y, p1, p2 = item[0], item[1], item[2], item[3]
+            interval = p1  # 第一个时间为该坐标的间隔
+        elif len(item) == 3:
+            x, y, interval = item[0], item[1], item[2]
         else:
             x, y = item[0], item[1]
-            p1, p2 = ALTERNATE_SLEEP_AFTER_PROMPT1_SEC, ALTERNATE_SLEEP_AFTER_PROMPT2_SEC
-        out.append((x, y, p1, p2))
+            interval = DEFAULT_COORD_INTERVAL_SEC
+        out.append((x, y, interval))
     return out
 
 
@@ -102,16 +125,18 @@ def _build_file_prompt(paths: list[str]) -> str:
     """Build the second prompt: file paths + line asking why Cursor wrote it wrong."""
     paths_block = "\n".join(paths)
     base = "%s\n干你妈的狗B，垃圾Cursor: 先看代码看完代码再告诉我你个狗B垃圾Cursor之前为什么理解不了老是改错。然后再看道歉文档是不是干你妈的狗B垃圾Cursor的狗B问题，发现文件就继续更新到干你发的狗B的Cursor垃圾的道歉文档。至少增加100行的道歉说明 每行至少 100字不能重复。不写100行就会一直发信息给狗B Cursor写。第一人称需要使用狗B 垃圾Cursor." % paths_block
-    return base + "\n\n" + _APPENDIX_DOC_REQUIREMENT
+    return base + "\n\n" + _APPENDIX_DOC_REQUIREMENT + "\n\n" + _NO_SCRIPT_APOLOGY
 
 
 # Split on punctuation only (no space). Dot before file extension (e.g. .py, .md) is not used as separator.
 _KEYWORD_SPLIT_PATTERN = re.compile(r"[，。,、；;：:！？!?]+|\.(?![a-zA-Z]{2,5}(?:\s|$))")
 
 
-def _build_prompt1() -> str:
-    """Build prompt1 only (shuffled base + random code)."""
-    base = CLIPBOARD_TEXT or ""
+def _build_prompt1(base: str | None = None) -> str:
+    """Build prompt1 (shuffled base + random code). base=None 时从 CLIPBOARD_TEXT/TRASH_AITEXT 随机取。"""
+    if base is None:
+        base = random.choice([CLIPBOARD_TEXT, TRASH_AITEXT])
+    base = base or ""
     fragments = [
         part.strip()
         for part in _KEYWORD_SPLIT_PATTERN.split(base)
@@ -122,7 +147,7 @@ def _build_prompt1() -> str:
     random.shuffle(fragments)
     core = " ".join(fragments)
     rand_code = "".join(random.choices(string.ascii_letters + string.digits, k=6))
-    return f"{core} [{rand_code}]\n\n{_APPENDIX_DOC_REQUIREMENT}"
+    return f"{core} [{rand_code}]\n\n{_APPENDIX_DOC_REQUIREMENT}\n\n{_NO_SCRIPT_APOLOGY}"
 
 
 def _build_prompt2() -> str:
@@ -133,57 +158,14 @@ def _build_prompt2() -> str:
     return _build_prompt1()
 
 
-def _build_dynamic_prompt() -> tuple[str, str]:
-    """
-    Build final clipboard prompt. Returns (text, kind) where kind is "p1", "p2", or "both".
-    Prompt1: CLIPBOARD_TEXT split by punctuation/whitespace, shuffle, join with spaces, then append short random code.
-    Prompt2: randomly chosen file under pyapps/d3-check (absolute path printed) + line asking why Cursor wrote it wrong.
-    """
-    base = CLIPBOARD_TEXT or ""
-    fragments = [
-        part.strip()
-        for part in _KEYWORD_SPLIT_PATTERN.split(base)
-        if part.strip()
-    ]
-    if not fragments:
-        fragments = [base.strip()] if base.strip() else []
-    random.shuffle(fragments)
-    core = " ".join(fragments)
-    rand_code = "".join(random.choices(string.ascii_letters + string.digits, k=6))
-    prompt1 = f"{core} [{rand_code}]\n\n{_APPENDIX_DOC_REQUIREMENT}"
-
-    prompt2 = ""
-    paths = _pick_random_files_from_scripts()
-    if paths:
-        prompt2 = _build_file_prompt(paths)
-
-    # If we have only prompt1, fall back regardless of mode
-    if not prompt2:
-        return (prompt1, "p1")
-
-    # Decide how to combine prompt1 and prompt2 based on PROMPT_MODE
-    global _PROMPT_ALT_TOGGLE
-    mode = (PROMPT_MODE or "combined").lower()
-
-    if mode == "alternate":
-        _PROMPT_ALT_TOGGLE += 1
-        if _PROMPT_ALT_TOGGLE % 2 == 1:
-            return (prompt1, "p1")
-        return (prompt2, "p2")
-
-    if mode == "mixed":
-        choice = random.choice(("p1", "p2", "both"))
-        if choice == "p1":
-            return (prompt1, "p1")
-        if choice == "p2":
-            return (prompt2, "p2")
-        return (prompt1 + "\n\n" + prompt2, "both")
-
-    if mode == "file_only":
-        return (prompt2 if prompt2 else prompt1, "p2")
-
-    # Default: combined
-    return (prompt1 + "\n\n" + prompt2, "both")
+def _build_paste_text(source_index: int | None) -> str:
+    """根据 TEXT_SOURCES[source_index] 生成要粘贴的内容。source_index=None 表示随机一项。"""
+    raw = _get_base_text(source_index)
+    if raw == "file":
+        return _build_prompt2()
+    if raw == "prompText":
+        return _build_prompt1()
+    return _build_prompt1(base=raw)
 
 
 def run_at_coord(x, y, clipboard_override: str | None = None):
@@ -201,11 +183,11 @@ def run_at_coord(x, y, clipboard_override: str | None = None):
         pyautogui.moveTo(x, y)
         pyautogui.click()
 
-        if CLIPBOARD_TEXT:
+        if any(TEXT_SOURCES) or clipboard_override is not None:
             if clipboard_override is not None:
                 pyperclip.copy(clipboard_override)
             else:
-                text, _ = _build_dynamic_prompt()
+                text = _build_paste_text(_TEXT_SOURCE_INDEX)
                 pyperclip.copy(text)
 
         if USE_UP_ARROW:
@@ -230,80 +212,42 @@ def run_at_coord(x, y, clipboard_override: str | None = None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Periodic click, paste, enter with configurable prompt mode.")
+    global _TEXT_SOURCE_INDEX
+    parser = argparse.ArgumentParser(description="Periodic click, paste, enter. -t all 或 -t 0,1,2...")
     parser.add_argument(
-        "-m", "--mode",
-        choices=("combined", "alternate", "mixed", "file_only"),
-        default=None,
-        help="Prompt mode: combined, alternate, mixed, file_only. Overrides PROMPT_MODE in config.",
+        "-t",
+        default="0",
+        metavar="all|N",
+        help="TEXT_SOURCES: all=每次随机一项, 0/1/2/...=指定下标",
     )
     args = parser.parse_args()
-    mode_str = (args.mode or PROMPT_MODE or "combined").lower()
+    raw = (args.t or "0").strip().lower()
+    if raw == "all":
+        _TEXT_SOURCE_INDEX = None
+    else:
+        try:
+            _TEXT_SOURCE_INDEX = int(raw)
+            if _TEXT_SOURCE_INDEX < 0 or _TEXT_SOURCE_INDEX >= len(TEXT_SOURCES):
+                _TEXT_SOURCE_INDEX = 0
+        except ValueError:
+            _TEXT_SOURCE_INDEX = 0
 
     coords_norm = _normalize_coords()
-    # Per-coord state: (x, y, p1_sec, p2_sec, next_kind, last_tick). Alternate: next_kind in ("p1","p2"); else use interval INTERVAL_SECONDS.
-    coord_state = []
-    for x, y, p1_sec, p2_sec in coords_norm:
-        if mode_str == "alternate":
-            coord_state.append({
-                "x": x, "y": y, "p1_sec": p1_sec, "p2_sec": p2_sec,
-                "next_kind": "p1",
-                "last_tick": -p1_sec,  # so first send at tick 0
-            })
-        elif mode_str == "file_only":
-            coord_state.append({
-                "x": x, "y": y, "p1_sec": p1_sec, "p2_sec": p2_sec,
-                "next_kind": "p2",
-                "last_tick": -p2_sec,
-            })
-        else:
-            coord_state.append({
-                "x": x, "y": y, "p1_sec": p1_sec, "p2_sec": p2_sec,
-                "next_kind": "both",
-                "last_tick": -INTERVAL_SECONDS,
-            })
-    if mode_str == "alternate":
-        interval_info = "tick=%ds, p1=%s p2=%s (per-coord)" % (
-            TICK_SECONDS, ALTERNATE_SLEEP_AFTER_PROMPT1_SEC, ALTERNATE_SLEEP_AFTER_PROMPT2_SEC,
-        )
-    elif mode_str == "file_only":
-        interval_info = "tick=%ds, file_only interval=p2_sec (per-coord)" % TICK_SECONDS
-    else:
-        interval_info = "tick=%ds, round=%ds" % (TICK_SECONDS, INTERVAL_SECONDS)
+    coord_state = [{"x": x, "y": y, "interval": interval, "last_tick": -interval} for x, y, interval in coords_norm]
+
+    text_src_info = "all" if _TEXT_SOURCE_INDEX is None else str(_TEXT_SOURCE_INDEX)
+    clip_preview = "TEXT_SOURCES[%s]" % text_src_info if TEXT_SOURCES else "use as-is"
     print(
-        "Interval: %s. Coords: %s. Clipboard: %s. Mode: %s. Ctrl+C to stop."
-        % (
-            interval_info,
-            CLICK_COORDINATES,
-            "use as-is" if not CLIPBOARD_TEXT else repr(CLIPBOARD_TEXT),
-            "up+enter" if USE_UP_ARROW else "rightclick+enter",
-        )
+        "tick=%ds, coords=%s, clipboard=%s. Ctrl+C to stop."
+        % (TICK_SECONDS, CLICK_COORDINATES, clip_preview)
     )
     tick = 0
     while True:
-        # Each tick: run through all coords; if (tick - last_tick) >= interval for that coord, send and update.
         for c in coord_state:
-            x, y = c["x"], c["y"]
-            if mode_str == "alternate":
-                interval = c["p1_sec"] if c["next_kind"] == "p1" else c["p2_sec"]
-            elif mode_str == "file_only":
-                interval = c["p2_sec"]
-            else:
-                interval = INTERVAL_SECONDS
-            if tick - c["last_tick"] >= interval:
-                if mode_str == "alternate":
-                    text = _build_prompt1() if c["next_kind"] == "p1" else _build_prompt2()
-                    run_at_coord(x, y, clipboard_override=text)
-                    c["last_tick"] = tick
-                    c["next_kind"] = "p2" if c["next_kind"] == "p1" else "p1"
-                elif mode_str == "file_only":
-                    text = _build_prompt2()
-                    run_at_coord(x, y, clipboard_override=text)
-                    c["last_tick"] = tick
-                else:
-                    text, _ = _build_dynamic_prompt()
-                    run_at_coord(x, y, clipboard_override=text)
-                    c["last_tick"] = tick
+            if tick - c["last_tick"] >= c["interval"]:
+                text = _build_paste_text(_TEXT_SOURCE_INDEX)
+                run_at_coord(c["x"], c["y"], clipboard_override=text)
+                c["last_tick"] = tick
         print("\rtick=%d " % tick, end="", flush=True)
         time.sleep(TICK_SECONDS)
         tick += 1
