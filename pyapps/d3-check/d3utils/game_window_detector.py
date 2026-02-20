@@ -3,7 +3,7 @@
 """
 Game Window Detector
 Detects game window position by finding anchor points in full screen screenshot.
-类库：导出前实例化，通过 get_game_window_detector() 获取单例，禁止各处自行 new。
+Singleton via get_game_window_detector(); do not instantiate elsewhere.
 """
 
 import os
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     else:
         print("\nGame window not detected")
 
-# 导出前实例化：全项目唯一 GameWindowDetector 实例
+# Single GameWindowDetector instance; use get_game_window_detector only
 _game_window_detector_instance: Optional[GameWindowDetector] = None
 
 

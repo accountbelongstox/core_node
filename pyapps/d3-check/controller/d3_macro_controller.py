@@ -231,7 +231,7 @@ class D3MacroController:
         aux = get_config_value_safe("macro_configs.auxiliary_config", {})
         aux_dict = dict(aux) if isinstance(aux, dict) else {}
         root = self.ui.root
-        if root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+        if root is not None and root.winfo_exists():
             root.after(0, lambda: self.apply_config_sync(skill_dict, aux_dict))
 
     def on_ui_skill_config_switch(self, config_name: str):
@@ -269,7 +269,7 @@ class D3MacroController:
             if idx != TAB_INDEX_ROSBOT:
                 return
             panel = get_ui_panel(PANEL_KEY_ROSBOT)
-            if panel is None or (hasattr(panel, "_content_created") and panel._content_created):
+            if panel is None or panel._content_created:
                 return
             panel.ensure_content()
         except Exception:

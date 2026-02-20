@@ -157,7 +157,7 @@ class BattlenetRegionJudge:
         return has_password is None
 
     def is_asia_password_step(self) -> bool:
-        """True when Asia login UI shows password step: password field + submit, or submit is Log in (登入) not Continue (繼續)."""
+        """True when Asia login UI shows password step: password field + submit, or submit is Log in not Continue."""
         if not self.has_asia_login_markers():
             return False
         password = _find_by_automation_id(self._controls, ASIA_LOGIN_PASSWORD_AUTOMATION_IDS)
@@ -168,7 +168,7 @@ class BattlenetRegionJudge:
             submit = _find_by_name(self._controls, ASIA_LOGIN_SUBMIT_NAME_KEYWORDS)
         if password is not None and submit is not None:
             return True
-        # After email step (Continue), UI may show "登入" (Log in) before password control is enumerated.
+        # After email step (Continue), UI may show Log in button before password control is enumerated.
         submit_name = (submit.get("name") or "").strip() if submit else ""
         continue_keywords = ASIA_LOGIN_CONTINUE_NAME_KEYWORDS
         log_in_keywords = ASIA_LOGIN_SUBMIT_NAME_KEYWORDS

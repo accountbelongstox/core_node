@@ -43,15 +43,13 @@ def _apply_d3_geometry(game_data: Any, window_info_or_none: Optional[Dict[str, A
         screen_width, screen_height = get_screen_resolution()
         game_data.fullscreen_size = (screen_width, screen_height)
         game_data.window_offset = (rect[0], rect[1])
-        if not hasattr(game_data, "_window_hwnd"):
-            game_data._window_hwnd = window_info_or_none["hwnd"]
-            game_data._window_title = window_info_or_none["title"]
+        game_data._window_hwnd = window_info_or_none["hwnd"]
+        game_data._window_title = window_info_or_none["title"]
     else:
         game_data.fullscreen_size = (0, 0)
         game_data.window_offset = (0, 0)
-        if hasattr(game_data, "_window_hwnd"):
-            game_data._window_hwnd = None
-            game_data._window_title = None
+        game_data._window_hwnd = None
+        game_data._window_title = None
 
 
 def _refresh_d3_status_internal(*, skip_dynamic: bool = False) -> tuple[Optional[Dict[str, Any]], bool]:

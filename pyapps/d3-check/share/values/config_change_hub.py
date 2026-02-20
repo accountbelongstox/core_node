@@ -35,7 +35,7 @@ class ConfigChangeHub:
     def _set_root(self, root) -> None:
         """Set root and flush any notifications queued (report §6: use after(50) to avoid crowding Map/350ms focus)."""
         self._root = root
-        if self._pending_queue and root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+        if self._pending_queue and root is not None and root.winfo_exists():
             root.after(50, self._flush_pending_queue)
 
     def subscribe(
@@ -61,7 +61,7 @@ class ConfigChangeHub:
                 root = get_root()
             except Exception:
                 root = None
-        if root is not None and (not hasattr(root, "winfo_exists") or root.winfo_exists()):
+        if root is not None and root.winfo_exists():
             if self._pending_after_id is not None:
                 try:
                     root.after_cancel(self._pending_after_id)

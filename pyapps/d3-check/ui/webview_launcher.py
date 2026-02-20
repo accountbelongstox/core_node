@@ -3,7 +3,7 @@
 """
 Diablo 3 Macro - WebView UI Launcher
 Uses NativeUIFrameworkV2 with HTML/CSS/JS frontend.
-本模块为 D3MacroWebViewAPI / WebViewFramework 的单一创建者（每窗口各一份）。
+Single creator of D3MacroWebViewAPI / WebViewFramework per window.
 """
 
 # Check and install dependencies before importing

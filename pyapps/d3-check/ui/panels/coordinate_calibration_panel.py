@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Coordinate Calibration Panel (TABLE5) - Unified Style Version
-Contains coordinate picking and calibration tools. CoordinatePicker 为按需弹出的临时对话框，用毕即关，不缓存。
+Contains coordinate picking and calibration tools. CoordinatePicker is a transient dialog created on demand and not cached.
 """
 
 import tkinter as tk

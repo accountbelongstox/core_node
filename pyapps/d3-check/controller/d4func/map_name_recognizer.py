@@ -43,7 +43,7 @@ class MapNameRecognizer:
         self.d4_data = get_d4_interface_data()
         self.i18n = i18n_manager
 
-        # OCR 引擎由类库统一初始化，APP 启动时已加载
+        # OCR engine is initialized by the registry at app startup
         self.cnocr_engine = get_cnocr_engine_for_task('map_name')
 
         # Recognition state

@@ -3,7 +3,7 @@
 """
 HTTP Bridge Controller for D3Check
 Provides HTTP API endpoints for web-based GUI communication.
-类库：HTTPBridgeServer 通过 get_http_bridge_server(host, port) 按 (host,port) 单例，禁止各处自行 new。
+Singleton per (host, port) via get_http_bridge_server(host, port); do not instantiate elsewhere.
 """
 
 import sys
@@ -22,12 +22,12 @@ from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
 
-# 导出前实例化：按 (host, port) 单例，禁止各处自行 new HTTPBridgeServer
+# Singleton per (host, port); instantiate via get_http_bridge_server only
 _http_bridge_cache: Dict[Tuple[str, int], HTTPBridgeServer] = {}
 
 
 def get_http_bridge_server(host: str, port: int) -> HTTPBridgeServer:
-    """Return cached HTTPBridgeServer for (host, port). 导出前实例化。"""
+    """Return cached HTTPBridgeServer for (host, port). Instantiate before use."""
     key = (host, port)
     if key not in _http_bridge_cache:
         _http_bridge_cache[key] = HTTPBridgeServer(host, port)

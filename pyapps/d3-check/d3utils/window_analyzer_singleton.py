@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-WindowAnalyzer 全项目唯一实例，导出前不预创建，通过 get_window_analyzer() 获取；禁止各处自行 new。
+WindowAnalyzer: single instance per project; obtain via get_window_analyzer(); do not instantiate elsewhere.
 """
 from pycore.pyutils.window_analyzer import WindowAnalyzer
 

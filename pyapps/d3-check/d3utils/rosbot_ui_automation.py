@@ -86,20 +86,18 @@ def window_has_rosbot_main_content(hwnd: int) -> bool:
         root = auto.ControlFromHandle(int(hwnd))
     except Exception:
         return False
-    if not root or (hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
+    if not root or not root.Exists():
         return False
 
     def walk(control, depth: int, max_d: int = 8) -> bool:
         if depth > max_d or control is None:
             return False
-        aid = (getattr(control, "AutomationId", None) or "").strip()
+        aid = (control.AutomationId or "").strip()
         if aid in _ROSBOT_MAIN_CONTENT_IDS:
             return True
-        children = getattr(control, "GetChildren", None)
-        if callable(children):
-            for child in children():
-                if walk(child, depth + 1, max_d):
-                    return True
+        for child in control.GetChildren():
+            if walk(child, depth + 1, max_d):
+                return True
         return False
 
     return walk(root, 0)
@@ -125,22 +123,21 @@ def _safe_control_info(control) -> Optional[Dict[str, Any]]:
     if control is None:
         return None
     info = {
-        "name": getattr(control, "Name", None) or "",
-        "type": getattr(control, "ControlTypeName", None) or "",
-        "automation_id": getattr(control, "AutomationId", None) or "",
-        "class_name": getattr(control, "ClassName", None) or "",
+        "name": control.Name or "",
+        "type": control.ControlTypeName or "",
+        "automation_id": control.AutomationId or "",
+        "class_name": control.ClassName or "",
         "rect": {"left": 0, "top": 0, "right": 0, "bottom": 0, "width": 0, "height": 0},
     }
-    r = getattr(control, "BoundingRectangle", None)
-    if r is not None and hasattr(r, "left") and hasattr(r, "width") and callable(r.width):
-        info["rect"] = {
-            "left": r.left,
-            "top": r.top,
-            "right": r.right,
-            "bottom": r.bottom,
-            "width": r.width(),
-            "height": r.height(),
-        }
+    r = control.BoundingRectangle
+    info["rect"] = {
+        "left": r.left,
+        "top": r.top,
+        "right": r.right,
+        "bottom": r.bottom,
+        "width": r.width(),
+        "height": r.height(),
+    }
     return info
 
 
@@ -160,10 +157,8 @@ def debug_print_operable_elements(window_control, max_depth: int = 12) -> None:
         if not info:
             return
         collected.append({"depth": depth, **info})
-        children = getattr(control, "GetChildren", None)
-        if callable(children):
-            for child in children():
-                walk(child, depth + 1)
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(window_control, 0)
 
@@ -218,10 +213,8 @@ def _find_controls_by_type(
                 info["control"] = control
                 info["level"] = level
                 found.append(info)
-        children = getattr(control, "GetChildren", None)
-        if callable(children):
-            for child in children():
-                walk(child, level + 1)
+        for child in control.GetChildren():
+            walk(child, level + 1)
 
     walk(window_control)
     return found
@@ -294,17 +287,15 @@ def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> O
     """Walk control tree, return first ButtonControl whose Name matches UI_NAME_KEYWORDS_OK (no AutomationId fallback)."""
     if depth > max_depth or control is None:
         return None
-    ctype = (getattr(control, "ControlTypeName", None) or "").strip()
+    ctype = (control.ControlTypeName or "").strip()
     if "Button" in ctype:
-        name = (getattr(control, "Name", None) or "").strip()
+        name = (control.Name or "").strip()
         if _name_matches_ok_keywords(name):
             return control
-    children = getattr(control, "GetChildren", None)
-    if callable(children):
-        for child in children():
-            found = _find_ok_button_in_control(child, depth + 1, max_depth)
-            if found is not None:
-                return found
+    for child in control.GetChildren():
+        found = _find_ok_button_in_control(child, depth + 1, max_depth)
+        if found is not None:
+            return found
     return None
 
 
@@ -312,14 +303,12 @@ def _window_has_control_with_automation_id(root: Any, automation_id: str, depth:
     """Walk control tree; return True if any control has AutomationId equal to automation_id."""
     if depth > max_d or root is None:
         return False
-    aid = (getattr(root, "AutomationId", None) or "").strip()
+    aid = (root.AutomationId or "").strip()
     if aid == automation_id:
         return True
-    children = getattr(root, "GetChildren", None)
-    if callable(children):
-        for child in children():
-            if _window_has_control_with_automation_id(child, automation_id, depth + 1, max_d):
-                return True
+    for child in root.GetChildren():
+        if _window_has_control_with_automation_id(child, automation_id, depth + 1, max_d):
+            return True
     return False
 
 
@@ -327,17 +316,15 @@ def _find_button_by_automation_id(root: Any, automation_id: str, depth: int = 0,
     """Walk control tree; return first ButtonControl whose AutomationId equals automation_id."""
     if depth > max_d or root is None:
         return None
-    ctype = (getattr(root, "ControlTypeName", None) or "").strip()
+    ctype = (root.ControlTypeName or "").strip()
     if "Button" in ctype:
-        aid = (getattr(root, "AutomationId", None) or "").strip()
+        aid = (root.AutomationId or "").strip()
         if aid == automation_id:
             return root
-    children = getattr(root, "GetChildren", None)
-    if callable(children):
-        for child in children():
-            found = _find_button_by_automation_id(child, automation_id, depth + 1, max_d)
-            if found is not None:
-                return found
+    for child in root.GetChildren():
+        found = _find_button_by_automation_id(child, automation_id, depth + 1, max_d)
+        if found is not None:
+            return found
     return None
 
 
@@ -380,7 +367,7 @@ def try_close_d3_must_be_launched_dialog() -> bool:
                 continue
             if not root:
                 continue
-            if hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
+            if not root.Exists():
                 continue
             # Skip dialogs that contain TextBox (e.g. KEY/license input), we must NOT auto-close those
             if _window_has_control_with_automation_id(root, UI_AUTOMATION_ID_TEXT_BOX):
@@ -403,17 +390,15 @@ def _window_has_no_items_message(root, depth: int = 0, max_d: int = 6) -> bool:
     """Walk control tree; return True if any TextControl has Name containing any of UI_NAME_KEYWORDS_NO_ITEMS (minimal keywords, CN/EN)."""
     if depth > max_d or root is None:
         return False
-    ctype = (getattr(root, "ControlTypeName", None) or "").strip()
+    ctype = (root.ControlTypeName or "").strip()
     if "Text" in ctype:
-        name = (getattr(root, "Name", None) or "") or ""
+        name = (root.Name or "") or ""
         for kw in UI_NAME_KEYWORDS_NO_ITEMS:
             if kw and kw in name:
                 return True
-    children = getattr(root, "GetChildren", None)
-    if callable(children):
-        for child in children():
-            if _window_has_no_items_message(child, depth + 1, max_d):
-                return True
+    for child in root.GetChildren():
+        if _window_has_no_items_message(child, depth + 1, max_d):
+            return True
     return False
 
 
@@ -437,7 +422,7 @@ def try_close_no_items_popup() -> bool:
             root = auto.ControlFromHandle(hwnd)
         except Exception:
             return True
-        if not root or (hasattr(root, "Exists") and callable(root.Exists) and not root.Exists()):
+        if not root or not root.Exists():
             return True
         if _window_has_no_items_message(root):
             found_hwnd.append(hwnd)
@@ -456,9 +441,7 @@ def try_close_no_items_popup() -> bool:
         root = auto.ControlFromHandle(hwnd)
     except Exception:
         return False
-    if not root:
-        return False
-    if hasattr(root, "Exists") and callable(root.Exists) and not root.Exists():
+    if not root or not root.Exists():
         return False
 
     ok_btn = _find_ok_button_in_control(root)
@@ -474,12 +457,10 @@ def try_close_no_items_popup() -> bool:
 
 def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
     """Expand ComboBox: try ExpandCollapsePattern.Expand(), else click at rect."""
-    get_exp = getattr(control, "GetExpandCollapsePattern", None)
-    if callable(get_exp):
-        pattern = get_exp()
-        if pattern is not None and hasattr(pattern, "Expand") and callable(getattr(pattern, "Expand", None)):
-            pattern.Expand()
-            return True
+    pattern = control.GetExpandCollapsePattern()
+    if pattern is not None:
+        pattern.Expand()
+        return True
     c = clicker or get_click_handler()
     return click_at_control_rect(control, clicker=c, **_ROSBOT_CLICK_PARAMS)
 
@@ -615,7 +596,7 @@ def run_after_rosbot_start(
         except Exception:
             time.sleep(MAIN_UI_POLL_INTERVAL_SECONDS)
             continue
-        if w and (not hasattr(w, "Exists") or not callable(w.Exists) or w.Exists()):
+        if w and w.Exists():
             tabs = _find_controls_by_type(w, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
             if tabs:
                 ColorPrint.green("[ROSBOT_UI] Main UI ready (main profile tab visible)")
@@ -638,7 +619,7 @@ def run_after_rosbot_start(
             window_control = auto.ControlFromHandle(hwnd)
         except Exception:
             return False
-        if not window_control or (hasattr(window_control, "Exists") and callable(window_control.Exists) and not window_control.Exists()):
+        if not window_control or not window_control.Exists():
             ColorPrint.red("[ROSBOT_UI] Window control not available")
             return False
         ok = False
@@ -690,7 +671,7 @@ def resume_rosbot_ui(
         window_control = auto.ControlFromHandle(hwnd)
     except Exception:
         return False
-    if not window_control or (hasattr(window_control, "Exists") and callable(window_control.Exists) and not window_control.Exists()):
+    if not window_control or not window_control.Exists():
         ColorPrint.red("[ROSBOT_UI] Window control not available")
         return False
 

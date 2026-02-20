@@ -3,7 +3,7 @@
 """
 Unified Styles for D3-Check Application
 Centralized styling system for consistent UI appearance.
-docs/ui2 §四.3: Single style entry = UITheme only; COLORS merged from UITheme so panels read one palette.
+docs/ui2 §4.3: Single style entry = UITheme only; COLORS merged from UITheme so panels read one palette.
 """
 
 import tkinter as tk
@@ -11,7 +11,7 @@ from tkinter import ttk
 
 from .theme import UITheme
 
-# Keys only in UnifiedStyles (not in UITheme); COLORS = UITheme.COLORS + these (docs/ui2 §四.3)
+# Keys only in UnifiedStyles (not in UITheme); COLORS = UITheme.COLORS + these (docs/ui2 §4.3)
 _UNIFIED_EXTRA_COLORS = {
     'primary': '#2E3440',
     'primary_light': '#3B4252',
@@ -39,7 +39,7 @@ _UNIFIED_EXTRA_COLORS = {
 class UnifiedStyles:
     """Centralized styling system for D3-Check UI. ttk styles from UITheme only; COLORS from UITheme + extras."""
 
-    # Single palette: UITheme first, then UnifiedStyles-only keys (docs/ui2 §四.3)
+    # Single palette: UITheme first, then UnifiedStyles-only keys (docs/ui2 §4.3)
     COLORS = {**UITheme.COLORS, **_UNIFIED_EXTRA_COLORS}
     
     # Font Configuration (9px as minimum font size)
@@ -84,7 +84,7 @@ class UnifiedStyles:
     
     @classmethod
     def configure_ttk_styles(cls):
-        """No-op: ttk styles are applied only by UITheme.apply_to_root (docs/ui2 §四.3 single style entry)."""
+        """No-op: ttk styles are applied only by UITheme.apply_to_root (docs/ui2 §4.3 single style entry)."""
         pass
     
     @classmethod

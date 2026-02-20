@@ -2,10 +2,10 @@
 """
 Battle.net UI inspector: classify controls for automation (main window vs in-UI popup).
 
-- 悬浮弹窗 (in-UI floating popup / ad overlay): 战网主界面或登录界面上叠的一小块弹窗（如活动广告），
-  有关闭按钮（Close/关闭 或 automation_id 含 winCloseButton 但非主窗口标题栏）。try_close_popup 只点这类按钮。
-- 普通登录窗口 (main window / login client): 战网主窗口本身；标题栏的 X 是 main window close，
-  automation_id 含 topLayerContainer.TopLayer.buttonContainer 且 winCloseButton，点击会关掉整个客户端，故绝不点击。
+- In-UI floating popup (ad overlay): small overlay on main or login UI with a close button (Close or automation_id
+  containing winCloseButton but not the main title bar). try_close_popup clicks only these.
+- Main window (login client): the Battle.net main window; the title-bar X is main window close (automation_id
+  with topLayerContainer.TopLayer.buttonContainer and winCloseButton); never click it (would close the whole client).
 """
 from typing import List, Dict, Any, Tuple
 
@@ -44,7 +44,7 @@ def is_popup_close_button_by_automation_id(automation_id: str) -> bool:
 
 
 def is_popup_close_button_by_name(name: str) -> bool:
-    """True if control name matches Close/关闭 (for fallback when automation_id not used)."""
+    """True if control name matches popup close keywords (fallback when automation_id not used)."""
     if not (name or "").strip():
         return False
     n = (name or "").strip()
