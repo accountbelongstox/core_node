@@ -51,7 +51,7 @@ class SystemTray(threading.Thread):
     """System tray: Icon is created and run() in this thread so Windows shows the icon."""
 
     def __init__(self, parent_ui):
-        super().__init__(daemon=True, name="TrayRunner")
+        threading.Thread.__init__(self, daemon=True, name="TrayRunner")
         self.parent_ui = parent_ui
         self.tray_icon = None
         self._tray_icon_lock = threading.Lock()

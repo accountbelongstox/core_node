@@ -8,8 +8,7 @@ Task thread calls process_rosbot_task() every 1s:
   - When tick % 2 == 0 run process_task(): flow_state gate, tick_bn_only_flow / tick_flow_master.
 All periods simulated by tick + %; no separate timers.
 
-Architecture boundary: This module is the 1s periodic task entry only. Log analysis is done by log_monitor (watchdog thread).
-This task only handles: tick_driver.on_tick() and flow (timeout detection, etc.). Does not process log lines.
+Architecture boundary: This module is the 1s periodic task entry only. Log lines from LogMonitorThread via BUS -> log_line_bridge queue; this task drains and prints+analyzes.
 """
 import os
 import sys
@@ -24,7 +23,7 @@ from d3utils.rosbot_flow_state import (
     get_bn_only_enabled,
     is_flow_active,
 )
-from d3utils.task_thread_manager import TaskStatus
+from runtime import TaskStatus
 from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
 from d3utils.rosbot_flow_rosbot_exit_state import get_total_restart_count
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
@@ -35,6 +34,8 @@ from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
 from share.asia_credentials import is_asia_credentials_dialog_pending
 from d3utils.tick_driver import on_tick as tick_driver_on_tick, get_global_tick
+from d3utils import log_line_bridge
+from d3utils.log_analyzer import analyze_log_line
 
 class RosbotTaskProcessor:
     """ROSBOT task processor for background operations (1s tick + flow)."""
@@ -73,7 +74,14 @@ class RosbotTaskProcessor:
         ColorPrint.yellow("[RosbotTaskProcessor] ROSBOT monitoring stopped")
     
     def process_task(self):
-        """Single tick: run on_tick, then when tick % 2 == 0 run flow. Log analysis is done by log_monitor (watchdog thread)."""
+        """Single tick: drain LOG_LINE queue (from LogMonitorThread via BUS), print+analyze; then on_tick and flow."""
+        for line in log_line_bridge.drain():
+            if line and line.strip():
+                ColorPrint.info(f"[ROSBOT] {line}")
+                try:
+                    analyze_log_line(line)
+                except Exception:
+                    pass
         self.game_state.rosbot_test_mode_display = get_test_mode_display_string()
         # Update total restart count from config
         total_count = get_total_restart_count()

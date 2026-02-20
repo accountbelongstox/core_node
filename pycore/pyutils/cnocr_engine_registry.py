@@ -6,7 +6,7 @@ document shares engine with general to avoid double init. GPU/CPU chosen in CnOC
 from typing import Optional, Dict, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_cnocr
+from pycore.pyfoundations.third_party import get_third_package_cnocr, get_third_package_CnOCREngine, init_third_party_cnocr
 from pycore.pyutils.ocr_cnocr_engine import CnOCREngine
 
 # (det, rec, rec_fallbacks, cand_alphabet). Prefer free doc model; number uses -fc + cand_alphabet, fallback to doc.
@@ -52,13 +52,18 @@ def _ensure_cnocr_package_loaded() -> bool:
 
 
 def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
-    """Return cached initialized engine for model_key; create and init if missing. document reuses general."""
+    """Return cached initialized engine for model_key; general uses thirdparty singleton; document reuses general."""
     global _engines_by_model
     resolve_key = _DOC_ALIAS if model_key == "document" else model_key
     if resolve_key not in _engines_by_model:
         _engines_by_model[resolve_key] = None
     eng = _engines_by_model[resolve_key]
     if eng is not None:
+        return eng
+    if resolve_key == "general":
+        eng = get_third_package_CnOCREngine()
+        if eng is not None:
+            _engines_by_model[resolve_key] = eng
         return eng
     profile = MODEL_PROFILES.get(resolve_key)
     if profile is None:
@@ -81,11 +86,10 @@ def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
 
 def ensure_cnocr_loaded_and_engines_initialized() -> bool:
     """
-    Lazy-load cnocr via third_party only. Do not pre-initialize engines;
-    engines are created on first get_cnocr_engine_by_model_key() / get_cnocr_engine_for_task().
-    Call once at app startup to ensure package is loadable.
+    Initialize CnOCR in thirdparty at app startup (not lazy). Call once when app starts.
+    Default/general engine is created in third_party; number/document created on first use.
     """
-    return _ensure_cnocr_package_loaded()
+    return init_third_party_cnocr() and _ensure_cnocr_package_loaded()
 
 
 def get_cnocr_engine_default() -> Optional[CnOCREngine]:

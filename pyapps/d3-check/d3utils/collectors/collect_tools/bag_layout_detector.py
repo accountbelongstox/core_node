@@ -3,7 +3,7 @@
 """
 Bag Layout Detector
 Detects bag slot usage by analyzing separator lines and empty slots.
-类库：导出前实例化，通过 get_bag_layout_detector() 获取默认 6x10 单例，禁止各处自行 new。
+Singleton: instantiate before export; get via get_bag_layout_detector() for default 6x10 grid. Do not instantiate elsewhere.
 """
 
 from typing import List, Dict, Tuple, Optional, Set
@@ -1301,7 +1301,7 @@ _bag_layout_detector_default: Optional[BagLayoutDetector] = None
 
 
 def get_bag_layout_detector(rows: int = 6, cols: int = 10) -> BagLayoutDetector:
-    """Return the global BagLayoutDetector instance for default grid (6x10). 导出前实例化."""
+    """Return the global BagLayoutDetector instance for default grid (6x10). Instantiated before export."""
     global _bag_layout_detector_default
     if _bag_layout_detector_default is None:
         _bag_layout_detector_default = BagLayoutDetector(rows=rows, cols=cols)

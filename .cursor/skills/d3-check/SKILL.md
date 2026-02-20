@@ -87,7 +87,13 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
   - **不得**自行维护 flow_master/bn_only/BN 步骤/extension_phase 等流程状态，也不得在流程外直接改这些状态。
 - 若需要新增流程步骤或状态：**只在 `d3utils.rosbot_flow*` 内扩展**，并同步上述三份文档；不要在 controller / timers / UI 里「补一个状态变量」。
 
-### 14. Summary
+### 14. Code language and i18n (PROJECT_STANDARDS §11)
+
+- **Code**: Comments, docstrings, log messages, and identifiers in **English**.
+- **User-facing text**: Use **i18n** (e.g. `i18n_manager.get_ui_text(...)`); do not hardcode Chinese or other locale strings in feature code.
+- **Constants excepted**: Literal constants used for matching (e.g. UI keywords, window titles in `providor.constants`) remain as-is; do not change them for “code in English.”
+
+### 16. Summary
 
 | Need | Where |
 |------|--------|
@@ -98,6 +104,7 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
 | One-shot | timers.one_shot_tasks.do_* |
 | Lifecycle/threads/events | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
+| Code language / i18n | §14 = PROJECT_STANDARDS §11: code English; UI via i18n; constants excepted |
 | Threads | THREAD_BUS_AND_REGISTRY.md |
 | Exception handling | §11: remove unnecessary catch; keep only websocket/task thread/Tk/queue/COM/network essentials |
 | Updating Cursor skills | §13: `.cursor/skills/<name>/SKILL.md`; frontmatter name+description; sync rules, PROJECT_STANDARDS |

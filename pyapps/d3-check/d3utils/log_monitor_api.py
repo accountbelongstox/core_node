@@ -12,21 +12,33 @@ Where log-driven lives (logs.txt change → print + events):
 from typing import Callable, Optional
 
 _get_monitor: Optional[Callable] = None
+_get_last_log_modified_time: Optional[Callable[[], float]] = None
 
 
 def register(get_monitor_fn: Callable) -> None:
-    """Register the get_log_monitor() from log_monitor. Called by log_monitor on load."""
+    """Called by lifecycle on load."""
     global _get_monitor
     _get_monitor = get_monitor_fn
 
 
+def register_get_last_log_modified_time(fn: Callable[[], float]) -> None:
+    """Called by lifecycle on load."""
+    global _get_last_log_modified_time
+    _get_last_log_modified_time = fn
+
+
 def set_log_file(file_path: str) -> None:
-    """Set the log file to monitor. No-op if log_monitor not yet registered."""
     if _get_monitor is not None:
         _get_monitor().set_log_file(file_path)
 
 
 def set_rosbot_running(running: bool) -> None:
-    """Set ROSBOT running status. No-op if log_monitor not yet registered."""
     if _get_monitor is not None:
         _get_monitor().set_rosbot_running(running)
+
+
+def get_last_log_modified_time() -> float:
+    """Return last log mtime; 0.0 if not registered or not initialized."""
+    if _get_last_log_modified_time is not None:
+        return _get_last_log_modified_time()
+    return 0.0

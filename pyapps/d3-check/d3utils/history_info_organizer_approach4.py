@@ -7,7 +7,7 @@ Parses RoS-BoT history.txt by classifying each line (entry_start, rift_title,
 success_duration, step_name, earned_line, repeat_4tab) and driving a state machine.
 4-tab lines are treated as fixed duplicates: do not open a new step node.
 
-Reference: docs/test_docdir_2/HistoryReader.md §4.4, docs/test_docdir_2/思路4.md.
+Reference: docs/test_docdir_2/HistoryReader.md §4.4, approach 4 doc.
 All code and comments in English.
 """
 from __future__ import annotations

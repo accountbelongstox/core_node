@@ -9,12 +9,20 @@ Consumers (main, controller, ui) import from runtime for:
 - Task threads: get_task_manager, TaskStatus
 - Thread registry: get_thread_registry
 
-Implementation lives in d3utils (event_center, shutdown_manager, system_initializer,
-task_thread_manager) and runtime (thread_registry). share = shared data only. See docs/CODE_TREE.md.
+Implementation: lifecycle (thread_registry, log_monitor, threads), runtime (re-exports from lifecycle), d3utils (event_center, shutdown_manager, system_initializer). Only main and lifecycle may reference threads. d3utils must not reference threads; no import from d3utils.log_monitor.
 """
 
-# Import thread_registry first so runtime has get_thread_registry before d3utils.system_initializer (which imports runtime) runs.
-from runtime.thread_registry import get_thread_registry
+# Runtime does not import threads; only lifecycle may reference threads. Re-export from lifecycle.
+from lifecycle import (
+    get_thread_registry,
+    get_task_manager,
+    TaskStatus,
+    get_main_function_thread,
+    get_auxiliary_function_thread,
+    D3ExtensionThread,
+    get_d3_extension_thread,
+    get_d4_extension_thread,
+)
 
 from d3utils.system_initializer import get_system_initializer
 from d3utils.shutdown_manager import (
@@ -38,9 +46,7 @@ from d3utils.event_center import (
     trigger_extension_rosbot_start,
     trigger_extension_rosbot_stop,
 )
-from d3utils.task_thread_manager import get_task_manager, TaskStatus
 
-# Wire shutdown into event_center so exit/restart handlers use shutdown_manager (avoids event_center importing shutdown_manager).
 register_shutdown_provider(is_shutdown_requested, request_shutdown, request_restart)
 
 __all__ = [
@@ -63,5 +69,10 @@ __all__ = [
     "trigger_extension_rosbot_stop",
     "get_task_manager",
     "TaskStatus",
+    "get_main_function_thread",
+    "get_auxiliary_function_thread",
+    "D3ExtensionThread",
+    "get_d3_extension_thread",
+    "get_d4_extension_thread",
     "get_thread_registry",
 ]

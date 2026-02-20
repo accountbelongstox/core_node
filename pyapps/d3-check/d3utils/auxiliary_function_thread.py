@@ -22,7 +22,7 @@ class AuxiliaryFunctionThread(threading.Thread):
     """
 
     def __init__(self):
-        super().__init__(daemon=True)
+        threading.Thread.__init__(self, daemon=True)
         self._command_queue: queue.Queue[str] = queue.Queue()
         self._shutdown = threading.Event()
 

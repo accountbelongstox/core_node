@@ -157,7 +157,7 @@ class AuxiliaryFunctionsPanel:
             pady=UnifiedStyles.SPACING['xs'],
         )
 
-        # One-click scan + 启动D3：一列两行（同列纵向堆叠）
+        # One-click scan + start D3: one column two rows (stacked vertically)
         self._scan_status = [None]
         self._scan_in_progress = False
         self._scan_progress_after_id = None
@@ -183,7 +183,7 @@ class AuxiliaryFunctionsPanel:
         debug_btn.pack(anchor="w")
 
     def _create_row1_bag_and_auxiliary(self):
-        """Second row: one unified grid 整体3列. Col0=上左/用于计算/热键/下右(合并), Col1-2=10项自动化, 最后一行=调试."""
+        """Second row: one unified grid, 3 columns. Col0=top/left/calc/ hotkey/bottom/right (merged), Col1-2=10 automation items, last row=debug."""
         row1 = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_primary'])
         row1.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
         row1.grid_columnconfigure(0, weight=1)
@@ -192,7 +192,7 @@ class AuxiliaryFunctionsPanel:
         tab_pad = UnifiedStyles.TAB_PAD
         block = tk.Frame(row1, bg=UnifiedStyles.COLORS['bg_secondary'])
         block.grid(row=0, column=0, sticky="nsew", padx=tab_pad, pady=tab_pad)
-        # 整体3列等宽; 行0=上左用于计算下右(跨3列挨在一起), 行1-5=热键+自动化, 行6=调试
+        # 3 columns equal width; row0=top/left/calc/bottom/right (span 3 cols), row1-5=hotkey+automation, row6=debug
         for c in range(3):
             block.grid_columnconfigure(c, weight=1, uniform="ac")
         for r in range(7):
@@ -259,11 +259,11 @@ class AuxiliaryFunctionsPanel:
             )
 
     def _create_bag_offset_in_block(self, block):
-        """左列 col0: 一行 上/左/用于计算范围截取/下/右 挨在一起; 第二行 热键."""
+        """Left col0: one row top/left/calc/bottom/right together; second row hotkey."""
         pad = self._pad_cell
         bag_offset_config = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
 
-        # 一行跨3列: 上/左/用于计算范围截取/下/右 挨在一起(不是同一列，横跨整行)
+        # One row spanning 3 cols: top/left/calc/bottom/right (single row, not one column)
         row0_cell = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
         row0_cell.grid(row=0, column=0, columnspan=3, sticky='nsw', padx=pad, pady=pad)
         row0_cell.grid_columnconfigure(1, weight=0)
@@ -273,7 +273,7 @@ class AuxiliaryFunctionsPanel:
         row0_cell.grid_columnconfigure(7, weight=0)
         pad_xs = UnifiedStyles.SPACING['xs']
         label_font = UnifiedStyles.FONTS['small']
-        # 上
+        # Top
         tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.top_offset"),
                  bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
                  ).grid(row=0, column=0, sticky='w', padx=(0, pad_xs), pady=2)
@@ -282,7 +282,7 @@ class AuxiliaryFunctionsPanel:
             default_value=bag_offset_config.get("top", 0), width=5,
             bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
         ).grid(row=0, column=1, sticky='w', padx=(0, pad_xs), pady=2)
-        # 左
+        # Left
         tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.left_offset"),
                  bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
                  ).grid(row=0, column=2, sticky='w', padx=(0, pad_xs), pady=2)
@@ -291,7 +291,7 @@ class AuxiliaryFunctionsPanel:
             default_value=bag_offset_config.get("left", 0), width=5,
             bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
         ).grid(row=0, column=3, sticky='w', padx=(0, pad_xs), pady=2)
-        # 用于计算范围截取
+        # Calc range capture
         ConfigBinding.create_checkbox_binding(
             row0_cell, "ui_analysis.bag_offset.use_in_calculation",
             i18n_manager.get_ui_text("ui.auxiliary_panel.bag_offset_use_in_calculation"),
@@ -300,7 +300,7 @@ class AuxiliaryFunctionsPanel:
             selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
             activebackground=UnifiedStyles.COLORS['bg_secondary'], activeforeground=UnifiedStyles.COLORS['text_primary'],
         ).grid(row=0, column=4, sticky='w', padx=(0, pad_xs), pady=2)
-        # 下
+        # Bottom
         tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.bottom_offset"),
                  bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
                  ).grid(row=0, column=5, sticky='w', padx=(0, pad_xs), pady=2)
@@ -309,7 +309,7 @@ class AuxiliaryFunctionsPanel:
             default_value=bag_offset_config.get("bottom", 0), width=5,
             bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
         ).grid(row=0, column=6, sticky='w', padx=(0, pad_xs), pady=2)
-        # 右
+        # Right
         tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.right_offset"),
                  bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
                  ).grid(row=0, column=7, sticky='w', padx=(0, pad_xs), pady=2)
@@ -319,7 +319,7 @@ class AuxiliaryFunctionsPanel:
             bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
         ).grid(row=0, column=8, sticky='w', padx=(0, pad_xs), pady=2)
 
-        # 第二行 col0: 辅助宏后停热键(与自动化行1同排)
+        # Row 2 col0: macro-stop hotkey (aligned with automation row1)
         row1_cell = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
         row1_cell.grid(row=1, column=0, sticky='nsw', padx=pad, pady=pad)
         self._create_hotkey_row(row1_cell)
@@ -404,12 +404,12 @@ class AuxiliaryFunctionsPanel:
         ]
 
         pad_cell = self._pad_cell
-        # 整体3列: col0=左块, col1/2=自动化(10项 2列 → 5行)
+        # 3 cols: col0=left block, col1/2=automation (10 items 2 cols -> 5 rows)
         start_col = 1
         debug_specs = []  # (debug_i18n_key, slug) for bottom row
 
         for idx, (i18n_key, config_key, default, has_menu, menu_config, debug_i18n_key) in enumerate(auto_functions):
-            row, col = 1 + idx // 2, idx % 2  # 10项 → row 1..5, col 1..2(与热键行对齐)
+            row, col = 1 + idx // 2, idx % 2  # 10 items -> row 1..5, col 1..2 (aligned with hotkey row)
             cell = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
             cell.grid(row=row, column=start_col + col, sticky='nsw', padx=pad_cell, pady=pad_cell)
 
@@ -522,7 +522,7 @@ class AuxiliaryFunctionsPanel:
                     ColorPrint.blue(f"[AuxPanel] Debug: {slug} (placeholder)")
             return _run
 
-        # 最后一行: 调试按钮 一行不分列，10个按钮横排
+        # Last row: debug buttons, single row, 10 buttons horizontal
         debug_row = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         debug_row.grid(row=6, column=0, columnspan=3, sticky='ew', padx=pad_cell, pady=(pad_cell, 0))
         parent.grid_rowconfigure(6, weight=0)

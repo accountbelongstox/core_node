@@ -208,7 +208,7 @@ DRIVE_CDROM = 5
 OAUTH_SCRIPT_PING_TIMEOUT_SEC = 30.0
 # Browser login fallback (CN, when Tampermonkey not connected): wait for browser by title, OCR every 2s, click EULA/Login.
 BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC = 300.0
-# Titles at different stages (match if window title contains any): 战网登录, Loading, Login, 网易账号登录
+# Titles at different stages (match if window title contains any; constants)
 BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS = ("战网登录", "Loading", "Login", "网易账号登录")
 
 # ---------------------------------------------------------------------------
@@ -231,8 +231,10 @@ EXTENSION_ROSBOT_STOP = "extension.rosbot.stop"
 EXTENSION_SHUTDOWN = "extension.shutdown"
 EXTENSION_ROSBOT_STARTED = "extension.rosbot.started"
 EXTENSION_ROSBOT_STOPPED = "extension.rosbot.stopped"
-# Log monitor → event bus: one event per new log line (payload = line: str). Handlers run in observer thread; bridge queues for task thread.
+# Log monitor → event bus: one event per new log line (payload = line: str). Handlers run in monitor thread; bridge queues for task thread.
 LOG_LINE = "log.line"
+# Log monitor init: payload = single str (path, last_modified, is_timeout). Print on handler.
+LOG_MONITOR_INIT = "log.monitor.init"
 
 # ---------------------------------------------------------------------------
 # Timers / intervals (generic)

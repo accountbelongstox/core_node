@@ -40,7 +40,7 @@ class D3ExtensionThread(threading.Thread):
     """
 
     def __init__(self, battlenet_login_check_provider: Optional[Callable[[], bool]] = None):
-        super().__init__(daemon=True)
+        threading.Thread.__init__(self, daemon=True)
         self._command_queue: queue.Queue[str] = queue.Queue()
         self._shutdown = threading.Event()
         self._battlenet_login_check_provider = battlenet_login_check_provider

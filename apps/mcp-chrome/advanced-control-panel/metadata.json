@@ -1,0 +1,7 @@
+{
+  "name": "Advanced Control Panel",
+  "description": "A comprehensive 7-tab control panel for server management, semantic analysis, data indexing, extension orchestration, and audio processing.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

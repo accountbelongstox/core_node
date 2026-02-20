@@ -360,7 +360,7 @@ def step_c10_compare(window_titles: Optional[Tuple[str, ...]] = None) -> Optiona
 
 def check_d3_online_by_m_similarity(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
     """
-    [C10] M 键仅用于测试：截图(前)->发 M->截图(后)->对比。相似高=掉线。与 C7 打开地图传送无关。Blocking；tick 流用 step_c10_send_m + 下一拍 step_c10_compare。
+    [C10] M key for test only: screenshot before -> send M -> screenshot after -> compare. High similarity = disconnect. Separate from C7 map/teleport. Blocking; tick uses step_c10_send_m then step_c10_compare.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     if not step_c10_send_m(window_titles=titles):
@@ -371,7 +371,7 @@ def check_d3_online_by_m_similarity(window_titles: Optional[Tuple[str, ...]] = N
 
 
 def step_c7a_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C7a] One tick: 向游戏发送 M 键（打开/关闭地图）。下一拍做悬赏进度检测或 C7b。与 C10 判掉线为两套逻辑。Returns True if M sent."""
+    """[C7a] One tick: send M key to game (toggle map). Next tick: bounty progress check or C7b. Separate from C10 disconnect check. Returns True if M sent."""
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     windows = WindowFinder.find_windows_by_titles(titles=list(titles), match_mode="in", use_cache=False)
     if not windows or not windows[0].get("hwnd"):
@@ -384,7 +384,7 @@ def step_c7a_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
 
 
 def step_c7a_verify_bounty_progress(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C7a 验证] 当前画面是否出现悬赏进度 UI（说明地图已打开）。用于传送前确认地图已开；若未找到可再按一次 M 后重试。Returns True if bounty progress found."""
+    """[C7a verify] Whether bounty progress UI is visible (map open). Used before teleport; if not found can press M again. Returns True if bounty progress found."""
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
@@ -394,23 +394,23 @@ def step_c7a_verify_bounty_progress(window_titles: Optional[Tuple[str, ...]] = N
 
 def _ensure_map_open_then_c7b_teleport(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
     """
-    [C7] 传送前确保地图已打开：最多两轮 M。每轮：按 M -> 等 2s -> 检测悬赏进度。
-    若任一轮找到悬赏则地图已开，等稳定后 C7b；两轮都未找到仍尽力执行 C7b（识图可能漏检），
-    文档 C7a 无到 C12 分支，不因未找到悬赏而杀 D3。
+    [C7] Ensure map is open before teleport: at most two M rounds. Each: press M -> wait 2s -> check bounty progress.
+    If any round finds bounty then map is open, wait stable then C7b; if neither finds still try C7b (detection may miss).
+    No C7a-to-C12 branch; do not kill D3 for missing bounty.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
     last_sd = None
 
-    # 预检：若地图本就已打开（悬赏进度可见），则不按 M，直接进入稳定等待后 C7b。
-    # 目的：避免「第一次地图就打开」时按 M 反而把地图关掉，导致必须第二轮再按回来。
+    # Pre-check: if map already open (bounty visible), do not press M, go to stable wait then C7b.
+    # Avoid pressing M when map is already open (would close it and require second round).
     sd0, bounty0 = _capture_and_match_bounty_progress(provider, matcher, titles)
     if sd0:
         last_sd = sd0
     if bounty0:
         ColorPrint.green(
-            f"[D3StartGameWaiter][C7] 预检已找到悬赏进度，地图已打开 -> 等待 {C7B_AFTER_BOUNTY_STABLE_SEC}s 地图稳定后再缩小+传送"
+            f"[D3StartGameWaiter][C7] Pre-check found bounty, map open -> wait {C7B_AFTER_BOUNTY_STABLE_SEC}s stable then zoom+teleport"
         )
         if not sd0 or not sd0.game_window_image:
             return False
@@ -421,13 +421,13 @@ def _ensure_map_open_then_c7b_teleport(window_titles: Optional[Tuple[str, ...]] 
         return _do_c7b_teleport(provider, titles, window_offset, game_window_size, is_windowed)
 
     for round_no in (1, 2):
-        ColorPrint.gray(f"[D3StartGameWaiter][C7] 第 {round_no} 轮: 未确认地图打开 -> 按 M 等待地图切换，检测悬赏进度")
+        ColorPrint.gray(f"[D3StartGameWaiter][C7] Round {round_no}: map not confirmed open -> press M, wait, check bounty")
         _send_m_once_then_wait_for_capture(titles)
         sd, bounty_found = _capture_and_match_bounty_progress(provider, matcher, titles)
         if sd:
             last_sd = sd
         if bounty_found:
-            ColorPrint.green(f"[D3StartGameWaiter][C7] 第 {round_no} 轮找到悬赏进度，地图已打开 -> 等待 {C7B_AFTER_BOUNTY_STABLE_SEC}s 地图稳定后再缩小+传送")
+            ColorPrint.green(f"[D3StartGameWaiter][C7] Round {round_no} found bounty, map open -> wait {C7B_AFTER_BOUNTY_STABLE_SEC}s stable then zoom+teleport")
             if not sd or not sd.game_window_image:
                 return False
             time.sleep(C7B_AFTER_BOUNTY_STABLE_SEC)
@@ -435,8 +435,8 @@ def _ensure_map_open_then_c7b_teleport(window_titles: Optional[Tuple[str, ...]] 
             game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
             is_windowed = get_game_interface_data().is_windowed_mode()
             return _do_c7b_teleport(provider, titles, window_offset, game_window_size, is_windowed)
-        ColorPrint.gray(f"[D3StartGameWaiter][C7] 第 {round_no} 轮未找到悬赏进度" + ("，进行第二轮 M" if round_no == 1 else "，仍执行 C7b 尽力传送"))
-    ColorPrint.yellow("[D3StartGameWaiter][C7] 两轮 M 后均未找到悬赏进度，按文档不杀 D3，仍执行 C7b 尽力传送")
+        ColorPrint.gray(f"[D3StartGameWaiter][C7] Round {round_no} no bounty" + (", try second M" if round_no == 1 else ", still run C7b"))
+    ColorPrint.yellow("[D3StartGameWaiter][C7] No bounty after two M rounds; per doc do not kill D3, still run C7b")
     if not last_sd or not last_sd.game_window_image:
         sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
         if not sd or not sd.game_window_image:
@@ -449,7 +449,7 @@ def _ensure_map_open_then_c7b_teleport(window_titles: Optional[Tuple[str, ...]] 
 
 
 def _run_c7a_c7w_c7b(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C7] 确保地图打开（最多两轮 M+悬赏检测）后 [C7b] 缩小+传送。Blocking；tick 流用 step_c7a_send_m -> verify_bounty -> step_c7b_*。"""
+    """[C7] Ensure map open (at most two M rounds + bounty check) then [C7b] zoom+teleport. Blocking; tick: step_c7a_send_m -> verify_bounty -> step_c7b_*."""
     return _ensure_map_open_then_c7b_teleport(window_titles=window_titles)
 
 
@@ -584,7 +584,7 @@ def open_map_verify_bounty_then_teleport_three_clicks(
             _send_m_once_then_wait_for_capture(titles)
             sd2, bounty2 = _capture_and_match_bounty_progress(provider, matcher, titles)
 
-    # 未找到悬赏进度：此 helper 与 C7 语义不同（它的返回值用于决定后续是否继续），因此保持严格失败。
+    # No bounty: this helper semantics differ from C7 (return value drives follow-up); keep strict failure here.
     if not (bounty0 or bounty1 or bounty2):
         ColorPrint.yellow("[D3StartGameWaiter] Common final step: bounty progress not found in both rounds; map may not be open")
         return False
@@ -608,13 +608,13 @@ def try_fragment2_game_tool_press_m_then_clicks(
     window_titles: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     """
-    [C6] game_tool 路径：C10 已在 run_c4_branch_result 完成（仅判掉线）。[C7] 确保地图打开（最多两轮 M+悬赏进度检测）后 [C7b] 缩小+传送。
+    [C6] game_tool path: C10 done in run_c4_branch_result (disconnect only). [C7] Ensure map open (two M rounds + bounty) then [C7b] zoom+teleport.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     state = detect_d3_already_running_state(window_titles=titles)
     if state != "game_tool":
         return False
-    ColorPrint.green("[D3StartGameWaiter][Fragment2] d3_game_tool 已见；C7 确保地图打开（预检+最多两轮 M+悬赏检测）后 C7b 传送")
+    ColorPrint.green("[D3StartGameWaiter][Fragment2] d3_game_tool visible; C7 ensure map open (precheck+two M rounds+bounty) then C7b teleport")
     return _ensure_map_open_then_c7b_teleport(window_titles=titles)
 
 

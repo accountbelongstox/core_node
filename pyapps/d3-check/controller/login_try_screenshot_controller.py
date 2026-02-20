@@ -52,6 +52,11 @@ from share.game_interface_data import (
     get_request_d_block_from_b7,
     get_and_clear_request_d_block_from_b7,
 )
+from share.asia_credentials import (
+    get_asia_credentials,
+    schedule_asia_credentials_dialog,
+    is_asia_credentials_dialog_pending,
+)
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.rosbot_flow.flow_bn_block_state import is_bn_flow_in_login_phase as _is_bn_flow_in_login_phase
 from d3utils.d3_manager import get_d3_manager
@@ -78,6 +83,7 @@ from d3utils.ocr_helper import (
 )
 from d3utils.battlenet_capture import capture_battlenet_and_save_to_category
 from d3utils.battlenet_operation import get_battlenet_operation
+from d3utils.battlenet_status_provider import ensure_battlenet_region_from_config
 from d3utils.rosbot_flow.flow_bn_block_state import get_and_clear_battlenet_tick_confirmed as _get_and_clear_battlenet_tick_confirmed
 from d3utils.rosbot_flow.flow_c_d3_direct import (
     run_c1_entry,
@@ -198,8 +204,8 @@ class LoginTryScreenshotController:
             get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
             return
         if on_login:
-            ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login (UI), run CN flow (UI only)")
-            self._run_cn_login_flow_ui_only(get_click_handler())
+            ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login (UI), run login flow by region")
+            self._run_login_flow_ui_by_region(get_click_handler())
             return
         ColorPrint.blue("[LoginTryScreenshotController] Battle.net state not login/disconnect/normal, skip")
 
@@ -286,6 +292,38 @@ class LoginTryScreenshotController:
                 self._run_cn_login_flow_click_login_button(clicker)
             else:
                 ColorPrint.yellow(f"{cn_log} perform_cn_login_flow failed (not CN or UI not found), skip")
+
+    def _run_login_flow_ui_by_region(self, clicker: ClickHandler) -> bool:
+        """
+        Run login flow by region (config only, no UI detection): Asia = fill account/password + submit;
+        CN = _run_cn_login_flow_ui_only. Returns True if a login action was performed.
+        Region from ensure_battlenet_region_from_config() then get_battlenet_region() (Battle.net.config + ros_settings.battlenet_region_cache).
+        """
+        op = get_battlenet_operation()
+        if not op.is_on_login_screen():
+            return False
+        ensure_battlenet_region_from_config()
+        region = get_game_interface_data().get_battlenet_region()
+        if region is None:
+            ColorPrint.gray("[LoginTryScreenshotController] Battle.net region not in config, skip login flow by region")
+            return False
+        if region != "cn":
+            if is_asia_credentials_dialog_pending():
+                return False
+            creds = get_asia_credentials()
+            if creds is None:
+                schedule_asia_credentials_dialog()
+                ColorPrint.gray("[LoginTryScreenshotController] Asia login: no cached credentials, dialog scheduled")
+                return False
+            email, password = creds
+            if op.is_on_asia_login_screen():
+                ok = op.perform_asia_login_fill_and_submit(email, password)
+                if ok:
+                    ColorPrint.blue("[LoginTryScreenshotController] Asia login: fill + submit done (same as BN_LoginAsia)")
+                return ok
+            return False
+        self._run_cn_login_flow_ui_only(clicker)
+        return True
 
     def _run_cn_login_flow_click_login_button(self, clicker: ClickHandler) -> None:
         """After agree + NetEase + wait: click Login button via UI Automation only (no fullscreen/OCR)."""
@@ -438,8 +476,8 @@ class LoginTryScreenshotController:
                     get_battlenet_manager().restart(bn_path, wait_after_sec=2.0)
                     time.sleep(5)
                     continue
-                ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), running login flow (UI only)...")
-                self._run_cn_login_flow_ui_only(clicker)
+                ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), running login flow by region...")
+                self._run_login_flow_ui_by_region(clicker)
                 time.sleep(3)
                 continue
             time.sleep(2)
@@ -648,7 +686,7 @@ class LoginTryScreenshotController:
                 return False
         if has_bn_confirmed and has_d3_process:
             if for_f2_only:
-                ColorPrint.gray("[LoginTryScreenshotController] A8 confirmed (BN+D3), for_f2_only=True -> skip C branch, return for F2 (ROSBOT 是否在线?)")
+                ColorPrint.gray("[LoginTryScreenshotController] A8 confirmed (BN+D3), for_f2_only=True -> skip C branch, return for F2 (ROSBOT online check)")
                 return True
             if run_c1_entry(has_bn_confirmed, has_d3_process):
                 ColorPrint.blue("[LoginTryScreenshotController] [C1] entry -> [C2] Resize -> [C3] loop (doc C1->C2->C3, already present at start)")
@@ -728,8 +766,8 @@ class LoginTryScreenshotController:
                     time.sleep(5)
                     continue
                 if on_login:
-                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), run login flow then retry...")
-                    self._run_cn_login_flow_ui_only(clicker)
+                    ColorPrint.blue("[LoginTryScreenshotController] Battle.net on login screen (UI), run login flow by region then retry...")
+                    self._run_login_flow_ui_by_region(clicker)
                     time.sleep(2)
                     continue
                 if not normal_available:

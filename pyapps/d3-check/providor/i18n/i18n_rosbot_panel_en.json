@@ -56,6 +56,7 @@
       "smart_echo_echo_returning_log": "Echo map returning to town.",
       "timeout_restart": "Auto restart ROSBOT/Diablo after X minutes timeout",
       "minutes": "minutes",
+      "seconds": "s",
       "startup_on_boot": "Startup on Boot",
       "start_rosbot_on_monitor": "Start ROSBOT when Monitor Starts",
       "test_mode": "Test Mode",
@@ -176,12 +177,14 @@
       "stage": "Stage",
       "running": "Running",
       "not_running": "Not Running",
+      "restart_count_format": "[R{count}]",
       "map_town": "Town",
       "map_greater_rift": "Greater Rift",
       "map_rift": "Rift",
       "map_echo": "Echo",
       "map_echo_completed": "Echo Done",
       "map_firstborn_temple": "Temple of the Firstborn",
+      "firstborn_reuse_needed": "Reuse needed (count %s)",
       "map_unknown": "Unknown",
       "stage_gem_upgrade": "Gem Upgrade",
       "stage_kill_boss": "Kill BOSS",
@@ -210,7 +213,16 @@
       "refresh_no_fn": "No refresh fn set (controller may not have wired window_monitor)",
       "refresh_refreshing": "Refreshing status (manual) -> running check_window in background...",
       "rosbot_started_monitoring": "ROSBOT started monitoring",
-      "rosbot_stopped_monitoring": "ROSBOT stopped monitoring"
+      "rosbot_stopped_monitoring": "ROSBOT stopped monitoring",
+      "need_key_message": "KEY input required"
+    },
+    "credentials": {
+      "title": "Battle.net Account & Password",
+      "region_type": "Type (namespace):",
+      "account": "Account (email/phone):",
+      "password": "Password:",
+      "region_asia": "Asia",
+      "region_cn": "CN"
     }
   }
 }

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Status Block: two rows (STATUS_ROW_1/2), no frame title. All value labels registered for fg updates.
-Test mode row: one label only (no "label: value" pair). See cursor_AI_反思_测试模式底栏只用一个label_1000字.
+Test mode row: one label only (no "label: value" pair).
 """
 
 import tkinter as tk
@@ -29,7 +29,7 @@ def _build_row(parent, items, status_vars):
 
 
 def _build_test_mode_row(parent, status_vars):
-    """One label only: one Label with textvariable=test_mode, no prefix. Do not use make_status_item (cursor_AI_反思_测试模式底栏只用一个label_1000字)."""
+    """One label only: one Label with textvariable=test_mode, no prefix. Do not use make_status_item."""
     row = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
     row.pack(fill=tk.X, padx=4, pady=2)
     var = status_vars.get("test_mode")

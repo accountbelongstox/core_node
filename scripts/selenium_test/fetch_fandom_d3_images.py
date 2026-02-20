@@ -11,7 +11,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
@@ -71,6 +71,39 @@ def is_fandom_image_url(url: str) -> bool:
     if not url or not isinstance(url, str):
         return False
     return "static.wikia" in url or "wikia.nocookie" in url
+
+
+def has_gallery(driver, By) -> bool:
+    """True if page has .mw-gallery-traditional (Media in category)."""
+    try:
+        els = driver.find_elements(By.CSS_SELECTOR, ".gallery.mw-gallery-traditional")
+        return len(els) > 0
+    except Exception:
+        return False
+
+
+def get_subcategory_links(driver, By) -> list:
+    """From a category page, return [(full_url, category_slug)] for each subcategory link."""
+    out = []
+    seen = set()
+    try:
+        content = driver.find_element(By.ID, "mw-content-text")
+    except Exception:
+        return []
+    for a in content.find_elements(By.CSS_SELECTOR, "a[href*='Category:']"):
+        try:
+            href = a.get_attribute("href")
+            if not href or WIKI_DOMAIN not in href or "Category:" not in href:
+                continue
+            raw = href.split("?")[0].rstrip("/")
+            if raw in seen:
+                continue
+            seen.add(raw)
+            slug = category_slug_from_url(raw)
+            out.append((href, slug))
+        except Exception:
+            pass
+    return out
 
 
 def collect_from_gallery(driver, By, wait) -> list:
@@ -184,13 +217,59 @@ def run_one(driver, session, By, wait, url: str, subdir: str, base_dir: Path) ->
     return n_files
 
 
+def crawl_category_recursive(
+    driver, session, By, wait,
+    url: str,
+    base_subdir: str,
+    base_dir: Path,
+    visited: set,
+) -> int:
+    """
+    Open category url; if it has .mw-gallery-traditional, download to base_dir/base_subdir.
+    Else get subcategory links and recurse into each (base_subdir/sub_slug).
+    """
+    key = url.split("?")[0].rstrip("/")
+    if key in visited:
+        return 0
+    visited.add(key)
+    try:
+        driver.get(url)
+        time.sleep(1.2)
+    except Exception as e:
+        print(f"  get failed {base_subdir}: {e}")
+        return 0
+    if has_gallery(driver, By):
+        out_dir = base_dir / base_subdir
+        out_dir.mkdir(parents=True, exist_ok=True)
+        urls_with_names = collect_from_gallery(driver, By, wait)
+        if not urls_with_names:
+            return 0
+        ok, fail = download_urls(session, urls_with_names, out_dir)
+        n = len(list(out_dir.glob("*.*")))
+        print(f"  [gallery] {base_subdir}: {len(urls_with_names)} images -> {out_dir} ({n} files)")
+        return n
+    subcats = get_subcategory_links(driver, By)
+    total = 0
+    for sub_url, sub_slug in subcats:
+        subdir = f"{base_subdir}/{sub_slug}" if base_subdir else sub_slug
+        total += crawl_category_recursive(driver, session, By, wait, sub_url, subdir, base_dir, visited)
+    return total
+
+
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Fetch Fandom D3 images to pyapps/d3-check/images by category.")
+    parser = argparse.ArgumentParser(
+        description="Fetch Fandom D3 images: --recursive from weapon/armor category roots, or single URL."
+    )
     parser.add_argument("-o", "--out-dir", type=Path, default=BASE_IMAGES_DIR, help="Base images directory")
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--sources", nargs="*", help="Subdir names to run (default: all)")
-    parser.set_defaults(headless=False)
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Recurse from Category:Diablo_III_weapon_icons and armor_icons until gallery pages.",
+    )
+    parser.add_argument("url", nargs="?", help="Single category/page URL (optional if --recursive)")
+    parser.add_argument("--subdir", default=None, help="Subdir name when using single URL")
     args = parser.parse_args()
 
     selenium = get_third_package_selenium()
@@ -251,14 +330,29 @@ def main():
 
     driver.implicitly_wait(5)
     wait = WebDriverWait(driver, PAGE_LOAD_WAIT)
-    subset = set(args.sources) if args.sources else None
-    total = 0
-    for url_path, subdir in D3_IMAGE_SOURCES:
-        if subset is not None and subdir not in subset:
-            continue
-        total += run_one(driver, session, By, wait, url_path, subdir, base_dir)
+
+    if args.recursive:
+        visited = set()
+        for root_url in CATEGORY_ROOT_URLS:
+            base_subdir = category_slug_from_url(root_url)
+            if base_subdir.lower().startswith("diablo_iii_"):
+                base_subdir = base_subdir[11:]
+            crawl_category_recursive(
+                driver, session, By, wait, root_url, base_subdir, base_dir, visited
+            )
+        driver.quit()
+        print(f"Recursive crawl done. Base output: {base_dir}")
+        return 0
+
+    if args.url:
+        subdir = args.subdir or category_slug_from_url(args.url)
+        run_one(driver, session, By, wait, args.url, subdir, base_dir)
+        driver.quit()
+        print(f"Base output: {base_dir}")
+        return 0
+
+    print("Use --recursive or provide a single URL.")
     driver.quit()
-    print(f"Base output: {base_dir}")
     return 0
 
 

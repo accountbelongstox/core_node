@@ -41,14 +41,21 @@ from timers.one_shot_tasks import (
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_file_with_notepad
 from providor.constants.common import TAMPERMONKEY_SCRIPT_PATH, BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME, ROSBOT_EXE_PATTERNS
-from runtime import get_task_manager, TaskStatus, trigger_extension_rosbot_start, trigger_extension_rosbot_stop, is_shutdown_requested
+from runtime import (
+    get_task_manager,
+    TaskStatus,
+    D3ExtensionThread,
+    get_d3_extension_thread,
+    trigger_extension_rosbot_start,
+    trigger_extension_rosbot_stop,
+    is_shutdown_requested,
+)
 from ui.panels.log_panel import _strip_ui_log_prefix
 import timers.timer_manager as timer_manager
 import d3utils.rosbot_task_processor as rosbot_processor
 from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
-from d3utils.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread
 from d3utils.rosbot_flow_battlenet import reset_flow_master_bn_block
-from d3utils.log_monitor import get_last_log_modified_time
+from d3utils.log_monitor_api import get_last_log_modified_time
 from d3utils.rosbot_flow_state import (
     set_flow_master_enabled,
     set_bn_only_enabled,
@@ -82,7 +89,7 @@ def _fetch_rosbot_config_then_create(panel: "RosbotExtensionPanel") -> None:
 
 
 def _fetch_rosbot_config_on_main_then_create(panel: "RosbotExtensionPanel") -> None:
-    """Run on main thread when timer is not started yet (docs/ui_5 方案 B). Build snapshot via get_config_value_safe then create UI; may block briefly."""
+    """Run on main thread when timer is not started yet (docs/ui_5 plan B). Build snapshot via get_config_value_safe then create UI; may block briefly."""
     if panel._content_created:
         return
     t0 = time.time()
@@ -169,7 +176,7 @@ class RosbotExtensionPanel:
         ColorPrint.debug_messagebox(title, message, icon)
 
     def ensure_content(self):
-        """Create panel content on first call (lazy). Prefer timer thread for config read (THREAD_BUS §5); if timer not started, use main-thread fallback (docs/ui_5 方案 B)."""
+        """Create panel content on first call (lazy). Prefer timer thread for config read (THREAD_BUS §5); if timer not started, use main-thread fallback (docs/ui_5 plan B)."""
         t0 = time.time()
         ColorPrint.gray(f"[UI-DBG] ensure_content ENTER t={t0:.3f}")
         if self._content_created:
@@ -184,13 +191,13 @@ class RosbotExtensionPanel:
             ColorPrint.gray(f"[UI-DBG] ensure_content EXIT after(0) main-thread fallback t={time.time()-t0:.3f}")
 
     def ensure_content_sync(self) -> None:
-        """Build panel content synchronously on main thread (for first show when tab is ROSBOT; docs/ui2 UI_REPEATED_PAINT §五.4)."""
+        """Build panel content synchronously on main thread (for first show when tab is ROSBOT; docs/ui2 UI_REPEATED_PAINT)."""
         if self._content_created:
             return
         _fetch_rosbot_config_on_main_then_create(self)
 
     def _create_content_with_snapshot(self, snapshot: dict) -> None:
-        """Build panel widgets on main thread using pre-fetched config snapshot. Single-frame build so first paint shows full content (docs/ui2 UI_REPEATED_PAINT §五.2)."""
+        """Build panel widgets on main thread using pre-fetched config snapshot. Single-frame build so first paint shows full content (docs/ui2 UI_REPEATED_PAINT)."""
         t0 = time.time()
         ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot ENTER t={t0:.3f}")
         self._content_created = True
@@ -329,10 +336,11 @@ class RosbotExtensionPanel:
                            pady=UnifiedStyles.SPACING['xs'])
 
         # One-click scan button: right of the three Browse buttons, spans 3 rows 1 column (only this one)
+        # _scan_progress_label is created in _create_log_display_row (log header)
         self._scan_status = [None]
         self._scan_in_progress = False
         self._scan_progress_after_id = None
-        self._scan_progress_label = None  # no progress label in log header
+        self._scan_progress_label = None
         self._path_scan_btn = tk.Button(path_frame, text=i18n_manager.get_ui_text("rosbot.scan_one_click"),
                                         bg=UnifiedStyles.COLORS['btn_secondary'],
                                         fg=UnifiedStyles.COLORS['text_primary'],
@@ -368,7 +376,8 @@ class RosbotExtensionPanel:
                 display = display[:69] + "..."
         else:
             display = i18n_manager.get_ui_text("rosbot.scan_searching")
-        self._scan_progress_label.config(text=display)
+        if self._scan_progress_label:
+            self._scan_progress_label.config(text=display)
         self._scan_progress_after_id = self.container.after(200, self._scan_progress_tick)
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, d3_path=None, error_msg=None):
@@ -377,7 +386,8 @@ class RosbotExtensionPanel:
         if self._scan_progress_after_id is not None:
             self.container.after_cancel(self._scan_progress_after_id)
         self._scan_progress_after_id = None
-        self._scan_progress_label.config(text="")
+        if self._scan_progress_label:
+            self._scan_progress_label.config(text="")
         self._path_scan_btn.config(state=tk.NORMAL, text=i18n_manager.get_ui_text("rosbot.scan_one_click"))
         if error_msg:
             messagebox.showerror(i18n_manager.get_ui_text("rosbot.error"), error_msg)
@@ -449,7 +459,7 @@ class RosbotExtensionPanel:
                            padx=UnifiedStyles.SPACING['sm'],
                            pady=UnifiedStyles.SPACING['xs'])
         pad = UnifiedStyles.SPACING['sm']
-        # 配置3列，每列等宽
+        # 3 columns, equal width
         for c in range(3):
             settings_frame.grid_columnconfigure(c, weight=1, uniform="bot_col")
         for r in range(3):
@@ -457,7 +467,6 @@ class RosbotExtensionPanel:
 
         def cell_frame(row: int, col: int) -> tk.Frame:
             f = tk.Frame(settings_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-            # 使用sticky="ew"确保列宽均匀分配，支持水平拉伸
             f.grid(row=row, column=col, sticky="ew", padx=pad, pady=UnifiedStyles.SPACING['xs'])
             return f
 
@@ -473,12 +482,12 @@ class RosbotExtensionPanel:
                 activeforeground=UnifiedStyles.COLORS['text_primary']
             ).pack(side=tk.LEFT)
 
-        # Row 0: 自动后用最新ROS | 蓝门优先捡材料 | 先民蓝门复用
+        # Row 0: auto latest ROS | blue portal priority | firstborn blue gate reuse
         add_check(cell_frame(0, 0), "rosbot.auto_enable_latest_ros", "ros_settings.auto_enable_latest_ros", True)
         add_check(cell_frame(0, 1), "rosbot.blue_portal_priority", "rosbot.blue_portal_priority", False)
         add_check(cell_frame(0, 2), "rosbot.firstborn_blue_gate_reuse", "rosbot.firstborn_blue_gate_reuse", False)
 
-        # Row 1: 是否开后捡血岩碎片 | 智能回响 + 等待 N 秒 | 测试模式 + 测试时间 __ 分钟（同一行）
+        # Row 1: pickup blood shards | smart echo + wait N s | test mode + timeout minutes
         add_check(cell_frame(1, 0), "rosbot.pickup_blood_shards", "rosbot.pickup_blood_shards", False)
         c1 = cell_frame(1, 1)
         add_check(c1, "rosbot.smart_echo", "rosbot.smart_echo", False)
@@ -490,11 +499,10 @@ class RosbotExtensionPanel:
             fg=UnifiedStyles.COLORS['text_primary'],
             buttonbackground=UnifiedStyles.COLORS['bg_tertiary']
         ).pack(side=tk.LEFT, padx=(pad, 0))
-        tk.Label(c1, text="秒",
+        tk.Label(c1, text=i18n_manager.get_ui_text("rosbot.seconds"),
                  bg=UnifiedStyles.COLORS['bg_secondary'],
                  fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
         c1_2 = cell_frame(1, 2)
-        # 复用add_check函数创建测试模式checkbox（复选框在最前面，text显示「测试模式」）
         add_check(c1_2, "rosbot.test_mode", "rosbot.test_mode", False)
         test_minutes_val = snapshot.get("rosbot.test_timeout_minutes", 30)
         sb = ConfigBinding.create_spinbox_binding_with_initial(
@@ -509,7 +517,7 @@ class RosbotExtensionPanel:
                  bg=UnifiedStyles.COLORS['bg_secondary'],
                  fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
 
-        # Row 2: 是否开后防止卡住 | 开机后动 | 超时重启 ☑ __ 分钟
+        # Row 2: prevent stuck | startup | timeout restart + minutes
         add_check(cell_frame(2, 0), "rosbot.prevent_stuck", "rosbot.prevent_stuck", False)
         add_check(cell_frame(2, 1), "rosbot.startup", "rosbot.startup", False)
         c2 = cell_frame(2, 2)
@@ -546,7 +554,7 @@ class RosbotExtensionPanel:
                           padx=(UnifiedStyles.SPACING['sm'], 0),
                           pady=UnifiedStyles.SPACING['xs'])
 
-        # Configure grid: row 0 = 主按钮列, row 1 = DEBUG 按钮行（单独一行）
+        # Configure grid: row 0 = main buttons, row 1 = DEBUG buttons
         control_frame.grid_columnconfigure(0, weight=1)
         control_frame.grid_rowconfigure(0, weight=0)
         control_frame.grid_rowconfigure(1, weight=0)
@@ -615,7 +623,7 @@ class RosbotExtensionPanel:
                                           padx=UnifiedStyles.SPACING['xs'],
                                           pady=(UnifiedStyles.SPACING['xs'], 0))
 
-        # DEBUG 按钮单独一行（行列之外）
+        # DEBUG buttons on separate row
         debug_btn_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         debug_btn_frame.grid(row=1, column=0, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=(UnifiedStyles.SPACING['xs'], 0))
         debug_btn_frame.grid_columnconfigure(0, weight=1)
@@ -656,11 +664,12 @@ class RosbotExtensionPanel:
         log_frame.grid_rowconfigure(0, weight=0)
         log_frame.grid_rowconfigure(1, weight=1)
 
-        # Header row: [log title] [status] [latency] [checkbox] (one-click scan button is only in path section above)
+        # Header row: [log title] [scan progress] [status] [latency] [checkbox]
         header = tk.Frame(log_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         header.grid(row=0, column=0, columnspan=2, sticky="ew", padx=UnifiedStyles.SPACING['sm'], pady=(UnifiedStyles.SPACING['xs'], 0))
         header.grid_columnconfigure(0, weight=1)
-        for c in (1, 2, 3, 4):
+        header.grid_columnconfigure(1, weight=1)
+        for c in (2, 3, 4):
             header.grid_columnconfigure(c, weight=0)
 
         title_lbl = tk.Label(header, text=i18n_manager.get_ui_text("rosbot.rosbot_log"),
@@ -669,19 +678,25 @@ class RosbotExtensionPanel:
                             font=UnifiedStyles.FONTS['label'])
         title_lbl.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
 
+        self._scan_progress_label = tk.Label(header, text="",
+                                            bg=UnifiedStyles.COLORS['bg_secondary'],
+                                            fg=UnifiedStyles.COLORS['text_muted'],
+                                            font=UnifiedStyles.FONTS['small'])
+        self._scan_progress_label.grid(row=0, column=1, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
+
         self._rosbot_log_status_var = tk.StringVar(value="")
         self._rosbot_log_status_lbl = tk.Label(header, textvariable=self._rosbot_log_status_var,
                                               bg=UnifiedStyles.COLORS['bg_secondary'],
                                               fg=UnifiedStyles.COLORS['text_primary'],
                                               font=UnifiedStyles.FONTS['code'])
-        self._rosbot_log_status_lbl.grid(row=0, column=1, sticky="w")
+        self._rosbot_log_status_lbl.grid(row=0, column=2, sticky="w")
 
         self._rosbot_log_latency_var = tk.StringVar(value="")
         self._rosbot_log_latency_lbl = tk.Label(header, textvariable=self._rosbot_log_latency_var,
                                                bg=UnifiedStyles.COLORS['bg_secondary'],
                                                fg=UnifiedStyles.COLORS['text_primary'],
                                                font=UnifiedStyles.FONTS['code'])
-        self._rosbot_log_latency_lbl.grid(row=0, column=2, sticky="e", padx=UnifiedStyles.SPACING['sm'])
+        self._rosbot_log_latency_lbl.grid(row=0, column=3, sticky="e", padx=UnifiedStyles.SPACING['sm'])
 
         debug_latency_check = ConfigBinding.create_checkbox_binding(
             header, "log_settings.debug_log_latency",
@@ -692,7 +707,7 @@ class RosbotExtensionPanel:
             activebackground=UnifiedStyles.COLORS['bg_secondary'],
             activeforeground=UnifiedStyles.COLORS['text_primary']
         )
-        debug_latency_check.grid(row=0, column=3, sticky="e")
+        debug_latency_check.grid(row=0, column=4, sticky="e")
         debug_latency_check.bind("<ButtonRelease-1>", lambda e: self._update_rosbot_log_status_display())
 
         # Log text widget
@@ -1005,7 +1020,7 @@ class RosbotExtensionPanel:
                 text=i18n_manager.get_ui_text("rosbot.start_rosbot"),
                 bg=UnifiedStyles.COLORS['btn_success']
             )
-        # need_key 显示在底部状态栏第三行（扩展状态），不在此处显示
+        # need_key is shown in bottom bar status row, not here
 
     def _sync_status_ui_once(self):
         """Pull current game state and update status UI (main thread). Only called after content created (code-level)."""

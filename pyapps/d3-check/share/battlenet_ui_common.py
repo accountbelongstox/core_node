@@ -50,9 +50,7 @@ def safe_control_dict(control) -> Optional[Dict[str, Any]]:
         except Exception:
             is_enabled = None
         try:
-            is_offscreen = getattr(control, "IsOffscreen", None)
-            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
-                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+            is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
         except Exception:
             is_offscreen = None
         has_valid_rect = (w is not None and h is not None and w > 0 and h > 0)
@@ -97,11 +95,8 @@ def enumerate_controls(hwnd: int) -> List[Dict[str, Any]]:
         if info:
             info["level"] = depth
             collected.append(info)
-        try:
-            for child in control.GetChildren():
-                walk(child, depth + 1)
-        except Exception:
-            pass
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(root)
     return collected
@@ -148,21 +143,18 @@ def find_raw_control_matching(root, control_dict: Dict[str, Any]):
     found = [None]
 
     def walk(control, depth: int = 0):
-        if depth > 25 or found[0] is not None:
+        if depth > 25 or found[0] is not None or control is None:
             return
-        try:
-            aid = (control.AutomationId or "").strip()
-            name = (control.Name or "").strip()
-            if want_aid and aid == want_aid and (not want_name or want_name in name):
-                found[0] = control
-                return
-            if not want_aid and want_name and want_name in name:
-                found[0] = control
-                return
-            for child in control.GetChildren():
-                walk(child, depth + 1)
-        except Exception:
-            pass
+        aid = (control.AutomationId or "").strip()
+        name = (control.Name or "").strip()
+        if want_aid and aid == want_aid and (not want_name or want_name in name):
+            found[0] = control
+            return
+        if not want_aid and want_name and want_name in name:
+            found[0] = control
+            return
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(root)
     return found[0]
@@ -173,10 +165,7 @@ def try_invoke(control) -> bool:
     try:
         if uiautomation is None:
             return False
-        get_invoke = getattr(control, "GetInvokePattern", None)
-        if get_invoke is None:
-            return False
-        pattern = get_invoke()
+        pattern = control.GetInvokePattern()
         if pattern is None:
             return False
         pattern.Invoke()

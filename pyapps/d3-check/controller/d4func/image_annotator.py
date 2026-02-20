@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Image Annotator for D4 Controller. 通过 get_image_annotator() 获取单例，禁止各处自行 new。
+Image Annotator for D4 Controller. Singleton via get_image_annotator(); do not instantiate elsewhere.
 """
 
 import sys
@@ -330,7 +330,7 @@ _image_annotator_instance = None
 
 
 def get_image_annotator() -> ImageAnnotator:
-    """Return the global ImageAnnotator instance (singleton). 导出前实例化."""
+    """Return the global ImageAnnotator instance (singleton). Instantiate before use."""
     global _image_annotator_instance
     if _image_annotator_instance is None:
         _image_annotator_instance = ImageAnnotator()

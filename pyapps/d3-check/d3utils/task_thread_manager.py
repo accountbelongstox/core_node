@@ -8,7 +8,7 @@ All public APIs are non-blocking (fire-and-forget). See docs/THREAD_BUS_AND_REGI
 import time
 import threading
 import queue
-from typing import Dict, Callable, Optional
+from typing import Any, Dict, Callable, Optional
 from enum import Enum
 from pycore.pyfoundations.color_print import ColorPrint
 
@@ -25,7 +25,7 @@ class TaskThread(threading.Thread):
     """Native thread for a single task loop. start/stop only via TaskThreadManager worker; status read/write is atomic under GIL, no lock."""
 
     def __init__(self, name: str, task_func: Callable, interval: float = 1.0):
-        super().__init__(daemon=True, name=name)
+        threading.Thread.__init__(self, daemon=True, name=name)
         self.task_func = task_func
         self.interval = interval
         self.status = TaskStatus.DISABLED
@@ -187,6 +187,33 @@ class TaskThreadManager:
     def _fire(self, cmd: str, args: tuple) -> None:
         """Enqueue command without waiting; caller is never blocked."""
         self._cmd_queue.put((cmd, args, None))
+
+    def _call(self, cmd: str, args: tuple, timeout: float = 10.0) -> Any:
+        """Enqueue command and block until worker completes. Used for init to guarantee order."""
+        result_q: queue.Queue = queue.Queue()
+        self._cmd_queue.put((cmd, args, result_q))
+        try:
+            return result_q.get(timeout=timeout)
+        except queue.Empty:
+            ColorPrint.red(f"[TaskThreadManager] _call({cmd}) timeout")
+            return None
+
+    def register_and_start_task(
+        self,
+        name: str,
+        task_func: Callable,
+        interval: float = 1.0,
+        initial_status: Optional["TaskStatus"] = None,
+    ) -> bool:
+        """Register task, start it, and set status in one synchronous sequence. Use at init to avoid race."""
+        if initial_status is None:
+            initial_status = TaskStatus.ENABLED
+        ok = self._call("register", (name, task_func, interval))
+        if not ok:
+            return False
+        self._call("start_task", (name,))
+        self._call("set_status", (name, initial_status))
+        return True
 
     def register_task(self, name: str, task_func: Callable, interval: float = 1.0) -> None:
         """Register a task. Non-blocking."""
