@@ -683,7 +683,6 @@ class RosbotExtensionPanel:
 
         self.log_text.bind("<Button-3>", self._show_rosbot_log_context_menu)
         self._schedule_rosbot_log_status_tick()
-        ColorPrint.gray(f"[UI-DBG] _create_log_display_row EXIT t={time.time()-t0:.3f}")
 
     def _update_rosbot_log_status_display(self) -> None:
         """Update last-log-ago and latency label (latency only when debug_log_latency is on). Only called from tick scheduled after content created.
@@ -984,10 +983,7 @@ class RosbotExtensionPanel:
 
     def _on_game_state_changed(self, state):
         """Invoked only on main thread by game_interface_data poll. Only when content created (code-level)."""
-        t0 = time.time()
         self._update_ui_from_state(state)
-        if time.time() - t0 > 0.05:
-            ColorPrint.gray(f"[UI-DBG] _on_game_state_changed took {time.time()-t0:.3f}s")
 
     def _update_ui_from_state(self, state):
         """Push state to bottom bar, ensure-BN button, and Start/Stop button from game_interface_data (flow writes, UI read-only)."""
