@@ -33,6 +33,7 @@ from share.game_interface_data import (
     SEPARATOR_SCAN_WIDTH_PERCENT
 )
 from providor.providor_index import CONFIG
+from providor.constants.common import FLOW_IMAGES_IN_MEMORY_ONLY
 from share.game_interface_data import get_global_scale
 
 class BagLayoutDetector:
@@ -80,6 +81,7 @@ class BagLayoutDetector:
         """
         self.rows = rows
         self.cols = cols
+        self.original_bag_image: Optional[np.ndarray] = None
 
         # Load shared color data once on initialization
         self.color_refs = get_color_references()
@@ -734,9 +736,10 @@ class BagLayoutDetector:
                     quality = item_info.get('quality', 'unknown')
                     quality_count[quality] = quality_count.get(quality, 0) + 1
 
-            ColorPrint.blue("\nItem Quality Statistics:")
+            ColorPrint.blue("\nItem Quality Statistics (color-based; 4 types: empty, magic, rare, legendary):")
             ColorPrint.green(f"  Legendary Set (Green): {quality_count['legendary_set']}")
             ColorPrint.green(f"  Legendary (Ancient): {quality_count['legendary']}")
+            ColorPrint.gray("  (Legendary tier normal/ancient/primal requires hover to detect ancient/primal line)")
             ColorPrint.green(f"  Rare (Yellow): {quality_count['rare']}")
             ColorPrint.green(f"  Magic (Blue): {quality_count['magic']}")
             if quality_count['unknown'] > 0:
@@ -802,7 +805,7 @@ class BagLayoutDetector:
         Returns:
             Combined BGR image (grid + bag screenshot + extraction + color table), or None on error.
         """
-        if not layout_result or not getattr(self, "original_bag_image", None):
+        if not layout_result or self.original_bag_image is None:
             return None
         layout = layout_result.get("layout")
         if not layout or len(layout) != self.rows or (len(layout[0]) != self.cols):
@@ -1181,7 +1184,9 @@ class BagLayoutDetector:
         item_2slot_count: int,
         color_analysis: Dict = None
     ) -> None:
-        """Create and save bag_layout_*.png; uses _build_layout_visualization_image."""
+        """Create and save bag_layout_*.png; uses _build_layout_visualization_image. No-op when FLOW_IMAGES_IN_MEMORY_ONLY."""
+        if FLOW_IMAGES_IN_MEMORY_ONLY:
+            return
         from datetime import datetime
         ColorPrint.blue("[Visualization] Creating bag layout visualization...")
         combined = self._build_layout_visualization_image(

@@ -111,8 +111,9 @@ class ThreadRegistry:
         self._game_interface_macro_thread = None
 
     def start_timer_loop_after_ui_ready(self) -> None:
-        """Start timer loop. Submit initial status refresh once in timer thread (non-blocking); further refresh only when flow-driven."""
+        """Start timer loop. First run initial status refresh on main thread so _inactive_refresh_done is set before any 10s tick; then start timer and submit one-shot (redundant run shortly after; harmless). Further refresh when flow inactive only via refresh_window_status_if_inactive at most once."""
         reapply_sigint_sigbreak_ignore_for_gui()
+        do_window_monitor_initial_check()
         if not timer_manager.is_running():
             timer_manager.start()
             ColorPrint.green("[ThreadRegistry] Timer loop started (UI ready)")

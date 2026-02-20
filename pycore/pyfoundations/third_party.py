@@ -809,6 +809,15 @@ def get_third_package_selenium():
     return _lazy_import('selenium', 'import selenium')
 
 
+def get_third_package_selenium_by():
+    """Get selenium.webdriver.common.by.By (lazy load). Returns None on failure."""
+    try:
+        selenium = get_third_package_selenium()
+        return selenium.webdriver.common.by.By if selenium else None
+    except Exception:
+        return None
+
+
 def get_third_package_webdriver_manager():
     """Get webdriver_manager package (lazy load)"""
     return _lazy_import('webdriver_manager', 'import webdriver_manager')

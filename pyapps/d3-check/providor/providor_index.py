@@ -914,15 +914,20 @@ def load_config(force_sync: bool = False):
         except (OSError, json.JSONDecodeError) as e:
             ColorPrint.debug(f"[DEBUG] Failed to reload config: {e}")
 
+# Fixed file paths under Documents (not configurable; log file vs history file are two distinct files)
+LOGS_FILE_RELATIVE = "RoS-BoT/Logs/logs.txt"
+HISTORY_FILE_RELATIVE = "RoS-BoT/Logs/history.txt"
+
+
 def get_dynamic_paths():
-    """Get paths that depend on DOCUMENTS_PATH"""
+    """Get paths that depend on DOCUMENTS_PATH."""
     return {
         'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_relative", "RoS-BoT")),
         'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_logs_relative", "RoS-BoT/Logs")),
         'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("d3check_temp_relative", ".d3check")),
         'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
-        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("logs_file_relative", "RoS-BoT/Logs/logs.txt")),
-        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("history_file_relative", "RoS-BoT/Logs/history.txt"))
+        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, LOGS_FILE_RELATIVE),
+        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, HISTORY_FILE_RELATIVE),
     }
 
 # Load configuration on import

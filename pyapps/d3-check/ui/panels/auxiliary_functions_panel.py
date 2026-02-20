@@ -36,6 +36,7 @@ from d3utils.interface_manager import get_d3_interface_manager
 from d3utils.collectors.bag_info_collector import get_bag_info_collector
 from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_detector
 from d3utils.debug_bag_hover import run_debug_bag_hover
+from controller.ctl_func.blacksmith_handler import get_blacksmith_handler
 from share.template_match_debug import (
     set_debug_ui_active,
     clear as debug_clear,
@@ -58,7 +59,8 @@ class AuxiliaryFunctionsPanel:
         """Initialize auxiliary functions panel"""
         self.parent = parent
         self.vars = {}
-        
+        self._pad_cell = UnifiedStyles.SPACING['sm']
+
         # ttk styles: single source from UITheme.apply_to_root (no second configure here; see docs/ui2)
         
         # Create main container - tab main style (UnifiedStyles.TAB_PAD, reused by all tab panels)
@@ -181,7 +183,7 @@ class AuxiliaryFunctionsPanel:
         debug_btn.pack(anchor="w")
 
     def _create_row1_bag_and_auxiliary(self):
-        """Second row: one block, full width, no inner margin."""
+        """Second row: one unified grid 整体3列. Col0=上左/用于计算/热键/下右(合并), Col1-2=10项自动化, 最后一行=调试."""
         row1 = tk.Frame(self.container, bg=UnifiedStyles.COLORS['bg_primary'])
         row1.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
         row1.grid_columnconfigure(0, weight=1)
@@ -190,29 +192,14 @@ class AuxiliaryFunctionsPanel:
         tab_pad = UnifiedStyles.TAB_PAD
         block = tk.Frame(row1, bg=UnifiedStyles.COLORS['bg_secondary'])
         block.grid(row=0, column=0, sticky="nsew", padx=tab_pad, pady=tab_pad)
-        block.grid_columnconfigure(0, weight=1)
-        block.grid_columnconfigure(1, weight=1)
-        block.grid_columnconfigure(2, weight=1)
-        block.grid_rowconfigure(0, weight=0)
-        block.grid_rowconfigure(1, weight=0)
+        # 整体3列等宽; 行0=上左用于计算下右(跨3列挨在一起), 行1-5=热键+自动化, 行6=调试
+        for c in range(3):
+            block.grid_columnconfigure(c, weight=1, uniform="ac")
+        for r in range(7):
+            block.grid_rowconfigure(r, weight=0)
 
-        bag_col = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
-        bag_col.grid(row=0, column=0, sticky="nw", rowspan=2, padx=(0, UnifiedStyles.SPACING['md']), pady=0)
-        self._create_bag_offset_in_parent(bag_col)
-
-        auto_left = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
-        auto_left.grid(row=0, column=1, sticky="nw", padx=(0, UnifiedStyles.SPACING['sm']), pady=0)
-        auto_left.grid_columnconfigure(0, weight=0)
-        auto_left.grid_columnconfigure(1, weight=1)
-        auto_left.grid_columnconfigure(2, weight=0)
-        self._create_automation_section(auto_left, start_row=0, end_row=5)
-
-        auto_right = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
-        auto_right.grid(row=0, column=2, sticky="nw", padx=0, pady=0)
-        auto_right.grid_columnconfigure(0, weight=0)
-        auto_right.grid_columnconfigure(1, weight=1)
-        auto_right.grid_columnconfigure(2, weight=0)
-        self._create_automation_section(auto_right, start_row=5, end_row=10)
+        self._create_bag_offset_in_block(block)
+        self._create_automation_section(block)
 
     def _browse_battlenet_path(self):
         current = (ConfigBinding.get_config_value("battlenet.battlenet_path") or "").strip()
@@ -271,69 +258,71 @@ class AuxiliaryFunctionsPanel:
                 + i18n_manager.get_ui_text("rosbot.scan_not_found_d3"),
             )
 
-    def _create_bag_offset_in_parent(self, parent):
-        """Bag offset column: top/left, use-in-calculation, auxiliary macro hotkey, bottom/right. Short items on one row: top+bottom, left+right."""
-        bag_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
-        bag_frame.pack(anchor="nw", pady=(0, UnifiedStyles.SPACING['sm']))
-        for c in range(4):
-            bag_frame.grid_columnconfigure(c, weight=0)
+    def _create_bag_offset_in_block(self, block):
+        """左列 col0: 一行 上/左/用于计算范围截取/下/右 挨在一起; 第二行 热键."""
+        pad = self._pad_cell
         bag_offset_config = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
-        pad = UnifiedStyles.SPACING['xs']
-        pad_md = UnifiedStyles.SPACING['md']
 
-        # Row 0: top + left (two short items on one row)
-        self._create_spinbox_row(
-            bag_frame,
-            i18n_manager.get_ui_text("ui.auxiliary_panel.top_offset"),
-            "top",
-            bag_offset_config.get("top", 0),
-            -500, 500,
-            row=0, col_offset=0, spinbox_width=5, compact=True,
-        )
-        self._create_spinbox_row(
-            bag_frame,
-            i18n_manager.get_ui_text("ui.auxiliary_panel.left_offset"),
-            "left",
-            bag_offset_config.get("left", 0),
-            -500, 500,
-            row=0, col_offset=2, spinbox_width=5, compact=True,
-        )
-        # Row 1: 用于计算范围截取
-        use_offset_cb = ConfigBinding.create_checkbox_binding(
-            bag_frame, "ui_analysis.bag_offset.use_in_calculation",
+        # 一行跨3列: 上/左/用于计算范围截取/下/右 挨在一起(不是同一列，横跨整行)
+        row0_cell = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
+        row0_cell.grid(row=0, column=0, columnspan=3, sticky='nsw', padx=pad, pady=pad)
+        row0_cell.grid_columnconfigure(1, weight=0)
+        row0_cell.grid_columnconfigure(3, weight=0)
+        row0_cell.grid_columnconfigure(4, weight=0)
+        row0_cell.grid_columnconfigure(5, weight=0)
+        row0_cell.grid_columnconfigure(7, weight=0)
+        pad_xs = UnifiedStyles.SPACING['xs']
+        label_font = UnifiedStyles.FONTS['small']
+        # 上
+        tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.top_offset"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
+                 ).grid(row=0, column=0, sticky='w', padx=(0, pad_xs), pady=2)
+        ConfigBinding.create_spinbox_binding(
+            row0_cell, "ui_analysis.bag_offset.top", from_=-500, to=500, increment=1,
+            default_value=bag_offset_config.get("top", 0), width=5,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
+        ).grid(row=0, column=1, sticky='w', padx=(0, pad_xs), pady=2)
+        # 左
+        tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.left_offset"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
+                 ).grid(row=0, column=2, sticky='w', padx=(0, pad_xs), pady=2)
+        ConfigBinding.create_spinbox_binding(
+            row0_cell, "ui_analysis.bag_offset.left", from_=-500, to=500, increment=1,
+            default_value=bag_offset_config.get("left", 0), width=5,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
+        ).grid(row=0, column=3, sticky='w', padx=(0, pad_xs), pady=2)
+        # 用于计算范围截取
+        ConfigBinding.create_checkbox_binding(
+            row0_cell, "ui_analysis.bag_offset.use_in_calculation",
             i18n_manager.get_ui_text("ui.auxiliary_panel.bag_offset_use_in_calculation"),
             default_value=False,
-            bg=UnifiedStyles.COLORS['bg_secondary'],
-            fg=UnifiedStyles.COLORS['text_primary'],
+            bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'],
             selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
-            activebackground=UnifiedStyles.COLORS['bg_secondary'],
-            activeforeground=UnifiedStyles.COLORS['text_primary'],
-        )
-        use_offset_cb.grid(row=1, column=0, columnspan=4, sticky="w", padx=pad_md, pady=pad)
-        # Row 2: auxiliary macro start/stop hotkey
-        hotkey_row = tk.Frame(bag_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
-        hotkey_row.grid(row=2, column=0, columnspan=4, sticky="w", padx=pad_md, pady=pad)
-        hotkey_row.grid_columnconfigure(1, weight=0)
-        self._create_hotkey_row(hotkey_row)
-        # Row 3: 下右（两小项合成一行）
-        self._create_spinbox_row(
-            bag_frame,
-            i18n_manager.get_ui_text("ui.auxiliary_panel.bottom_offset"),
-            "bottom",
-            bag_offset_config.get("bottom", 0),
-            -500, 500,
-            row=3, col_offset=0, spinbox_width=5, compact=True,
-        )
-        self._create_spinbox_row(
-            bag_frame,
-            i18n_manager.get_ui_text("ui.auxiliary_panel.right_offset"),
-            "right",
-            bag_offset_config.get("right", 0),
-            -500, 500,
-            row=3, col_offset=2, spinbox_width=5, compact=True,
-        )
+            activebackground=UnifiedStyles.COLORS['bg_secondary'], activeforeground=UnifiedStyles.COLORS['text_primary'],
+        ).grid(row=0, column=4, sticky='w', padx=(0, pad_xs), pady=2)
+        # 下
+        tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.bottom_offset"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
+                 ).grid(row=0, column=5, sticky='w', padx=(0, pad_xs), pady=2)
+        ConfigBinding.create_spinbox_binding(
+            row0_cell, "ui_analysis.bag_offset.bottom", from_=-500, to=500, increment=1,
+            default_value=bag_offset_config.get("bottom", 0), width=5,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
+        ).grid(row=0, column=6, sticky='w', padx=(0, pad_xs), pady=2)
+        # 右
+        tk.Label(row0_cell, text=i18n_manager.get_ui_text("ui.auxiliary_panel.right_offset"),
+                 bg=UnifiedStyles.COLORS['bg_secondary'], fg=UnifiedStyles.COLORS['text_primary'], font=label_font,
+                 ).grid(row=0, column=7, sticky='w', padx=(0, pad_xs), pady=2)
+        ConfigBinding.create_spinbox_binding(
+            row0_cell, "ui_analysis.bag_offset.right", from_=-500, to=500, increment=1,
+            default_value=bag_offset_config.get("right", 0), width=5,
+            bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'], font=UnifiedStyles.FONTS['input'],
+        ).grid(row=0, column=8, sticky='w', padx=(0, pad_xs), pady=2)
 
-        return bag_frame
+        # 第二行 col0: 辅助宏后停热键(与自动化行1同排)
+        row1_cell = tk.Frame(block, bg=UnifiedStyles.COLORS['bg_secondary'])
+        row1_cell.grid(row=1, column=0, sticky='nsw', padx=pad, pady=pad)
+        self._create_hotkey_row(row1_cell)
 
     def _create_spinbox_row(self, parent, label_text, var_name, default, min_val, max_val, row, col_offset=0, spinbox_width=10, compact=False):
         """Create a spinbox configuration row using ConfigBinding. compact=True: smaller padx, spinbox width and font for bag offset."""
@@ -363,11 +352,11 @@ class AuxiliaryFunctionsPanel:
 
 
 
-    def _create_automation_section(self, parent, start_row=0, end_row=10):
-        """Create automation section (no title). Items start_row..end_row-1, grid row 0,1,2,..."""
-        # Auto functions: (i18n_key, config_key, default, _, has_menu, menu_config, debug_i18n_key)
+    def _create_automation_section(self, parent):
+        """Create automation section: 3 columns, checkbox+input in same cell; debug buttons on bottom row."""
+        # (i18n_key, config_key, default, has_menu, menu_config, debug_i18n_key)
         auto_functions = [
-            ("auxiliary_panel.blood_shard_enabled", "macro_configs.auxiliary_config.blood_shard.enabled", False, 0, True, {
+            ("auxiliary_panel.blood_shard_enabled", "macro_configs.auxiliary_config.blood_shard.enabled", False, True, {
                 "menu_config_key": "macro_configs.auxiliary_config.blood_shard.type",
                 "menu_items": [
                     ("auxiliary_panel.blood_shard_type_weapon", "weapon"),
@@ -380,9 +369,9 @@ class AuxiliaryFunctionsPanel:
                 "menu_default": "weapon",
                 "count_config_key": "macro_configs.auxiliary_config.blood_shard.count"
             }, "auxiliary_panel.debug_blood_shard"),
-            ("auxiliary_panel.quick_pickup_enabled", "macro_configs.auxiliary_config.quick_pickup.enabled", False, 1, False, None, "auxiliary_panel.debug_quick_pickup"),
-            ("auxiliary_panel.blacksmith_enabled", "macro_configs.auxiliary_config.blacksmith.enabled", False, 2, False, None, "auxiliary_panel.debug_blacksmith"),
-            ("auxiliary_panel.kanai_reforge_enabled", "macro_configs.auxiliary_config.kanai_reforge.enabled", False, 3, True, {
+            ("auxiliary_panel.quick_pickup_enabled", "macro_configs.auxiliary_config.quick_pickup.enabled", False, False, None, "auxiliary_panel.debug_quick_pickup"),
+            ("auxiliary_panel.blacksmith_enabled", "macro_configs.auxiliary_config.blacksmith.enabled", False, False, None, "auxiliary_panel.debug_blacksmith"),
+            ("auxiliary_panel.kanai_reforge_enabled", "macro_configs.auxiliary_config.kanai_reforge.enabled", False, True, {
                 "menu_config_key": "macro_configs.auxiliary_config.kanai_reforge.mode",
                 "menu_items": [
                     ("auxiliary_panel.kanai_reforge_until_ancient", "until_ancient"),
@@ -391,8 +380,8 @@ class AuxiliaryFunctionsPanel:
                 ],
                 "menu_default": "until_ancient"
             }, "auxiliary_panel.debug_kanai_reforge"),
-            ("auxiliary_panel.kanai_upgrade_enabled", "macro_configs.auxiliary_config.kanai_upgrade.enabled", False, 4, False, None, "auxiliary_panel.debug_kanai_upgrade"),
-            ("auxiliary_panel.kanai_convert_enabled", "macro_configs.auxiliary_config.kanai_convert.enabled", False, 5, True, {
+            ("auxiliary_panel.kanai_upgrade_enabled", "macro_configs.auxiliary_config.kanai_upgrade.enabled", False, False, None, "auxiliary_panel.debug_kanai_upgrade"),
+            ("auxiliary_panel.kanai_convert_enabled", "macro_configs.auxiliary_config.kanai_convert.enabled", False, True, {
                 "menu_config_key": "macro_configs.auxiliary_config.kanai_convert.material",
                 "menu_items": [
                     ("auxiliary_panel.kanai_convert_forgotten_soul", "forgotten_soul"),
@@ -401,7 +390,7 @@ class AuxiliaryFunctionsPanel:
                 ],
                 "menu_default": "forgotten_soul"
             }, "auxiliary_panel.debug_kanai_convert"),
-            ("auxiliary_panel.auto_salvage_enabled", "macro_configs.auxiliary_config.auto_salvage.enabled", False, 6, True, {
+            ("auxiliary_panel.auto_salvage_enabled", "macro_configs.auxiliary_config.auto_salvage.enabled", False, True, {
                 "menu_config_key": "macro_configs.auxiliary_config.auto_salvage.keep",
                 "menu_items": [
                     ("auxiliary_panel.auto_salvage_keep_ancient_plus", "keep_ancient_plus"),
@@ -409,45 +398,38 @@ class AuxiliaryFunctionsPanel:
                 ],
                 "menu_default": "keep_ancient_plus"
             }, "auxiliary_panel.debug_auto_salvage"),
-            ("auxiliary_panel.drop_equipment_enabled", "macro_configs.auxiliary_config.drop_equipment.enabled", False, 7, False, None, "auxiliary_panel.debug_drop_equipment"),
-            ("auxiliary_panel.sound_feedback", "macro_configs.auxiliary_config.sound_feedback", True, 8, False, None, "auxiliary_panel.debug_sound_feedback"),
-            ("auxiliary_panel.smart_pause", "macro_configs.auxiliary_config.smart_pause", True, 9, False, None, "auxiliary_panel.debug_smart_pause"),
+            ("auxiliary_panel.drop_equipment_enabled", "macro_configs.auxiliary_config.drop_equipment.enabled", False, False, None, "auxiliary_panel.debug_drop_equipment"),
+            ("auxiliary_panel.sound_feedback", "macro_configs.auxiliary_config.sound_feedback", True, False, None, "auxiliary_panel.debug_sound_feedback"),
+            ("auxiliary_panel.smart_pause", "macro_configs.auxiliary_config.smart_pause", True, False, None, "auxiliary_panel.debug_smart_pause"),
         ]
 
-        _label_wraplength = 200  # allow left label to wrap to two lines
-        subset = auto_functions[start_row:end_row]
+        pad_cell = self._pad_cell
+        # 整体3列: col0=左块, col1/2=自动化(10项 2列 → 5行)
+        start_col = 1
+        debug_specs = []  # (debug_i18n_key, slug) for bottom row
 
-        for idx, (i18n_key, config_key, default, _, has_menu, menu_config, debug_i18n_key) in enumerate(subset):
-            row = idx
-            # Checkbox in column 0; wraplength so long text can show two lines
+        for idx, (i18n_key, config_key, default, has_menu, menu_config, debug_i18n_key) in enumerate(auto_functions):
+            row, col = 1 + idx // 2, idx % 2  # 10项 → row 1..5, col 1..2(与热键行对齐)
+            cell = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+            cell.grid(row=row, column=start_col + col, sticky='nsw', padx=pad_cell, pady=pad_cell)
+
             check = ConfigBinding.create_checkbox_binding(
-                parent, config_key, text=i18n_manager.get_ui_text(i18n_key), default_value=default,
+                cell, config_key, text=i18n_manager.get_ui_text(i18n_key), default_value=default,
                 bg=UnifiedStyles.COLORS['bg_secondary'],
                 fg=UnifiedStyles.COLORS['text_primary'],
                 selectcolor=UnifiedStyles.COLORS['bg_tertiary'],
                 activebackground=UnifiedStyles.COLORS['bg_secondary'],
                 activeforeground=UnifiedStyles.COLORS['text_primary'],
-                wraplength=_label_wraplength,
+                wraplength=160,
             )
-            check.grid(row=row, column=0, sticky='nsw',
-                      padx=UnifiedStyles.SPACING['md'],
-                      pady=UnifiedStyles.SPACING['sm'])
+            check.pack(side=tk.LEFT, anchor='w', padx=(0, pad_cell), pady=2)
 
-            # Add combobox menu in column 1 if specified
-            # KEY-VALUE pattern: Display i18n text, store fixed English values
+            opts_frame = tk.Frame(cell, bg=UnifiedStyles.COLORS['bg_secondary'])
             if has_menu and menu_config:
-                # menu_items contains: (i18n_key, internal_value)
-                # We translate i18n_key dynamically to support language switching
                 menu_items = menu_config["menu_items"]
-
-                # Translate i18n keys to display texts
                 display_texts = [i18n_manager.get_ui_text(item[0]) for item in menu_items]
-                # Build mapping: display_text -> internal_value
-                value_mapping = {i18n_manager.get_ui_text(item[0]): item[1] for item in menu_items}
-                # Build reverse mapping: internal_value -> i18n_key (not translated text!)
                 reverse_mapping = {item[1]: item[0] for item in menu_items}
 
-                # Get current saved value and convert to display text (traverse path; stop if any node is not a dict)
                 config_parts = menu_config["menu_config_key"].split('.')
                 current_value = CONFIG
                 for part in config_parts:
@@ -456,36 +438,24 @@ class AuxiliaryFunctionsPanel:
                         break
                     current_value = current_value.get(part, menu_config["menu_default"])
 
-                # Convert stored value to display text via i18n key; fallback to menu_default so dropdown always has a valid option
                 default_value = menu_config.get("menu_default")
                 if isinstance(current_value, str) and current_value in reverse_mapping:
-                    i18n_key_for_display = reverse_mapping[current_value]
-                    current_display = i18n_manager.get_ui_text(i18n_key_for_display)
+                    current_display = i18n_manager.get_ui_text(reverse_mapping[current_value])
                 else:
-                    if default_value and default_value in reverse_mapping:
-                        current_display = i18n_manager.get_ui_text(reverse_mapping[default_value])
-                    else:
-                        current_display = display_texts[0] if display_texts else ""
+                    current_display = i18n_manager.get_ui_text(reverse_mapping[default_value]) if default_value and default_value in reverse_mapping else (display_texts[0] if display_texts else "")
 
-                # Optional: count spinbox (e.g. blood_shard.count) in column 1
                 count_config_key = menu_config.get("count_config_key")
-                col1_widget = parent
                 if count_config_key:
-                    col1_widget = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
-                    col1_widget.grid(row=row, column=1, sticky='w',
-                                    padx=UnifiedStyles.SPACING['md'],
-                                    pady=UnifiedStyles.SPACING['sm'])
                     parts = count_config_key.split('.')
                     cur = CONFIG
                     for p in parts:
                         cur = cur.get(p, 15) if isinstance(cur, dict) else 15
                     count_val = int(cur) if isinstance(cur, (int, float)) else 15
                     count_var = tk.IntVar(value=max(1, min(999, count_val)))
-                    # Blood shard count: show input only, no label, to save width
-                    spinbox = tk.Spinbox(col1_widget, from_=1, to=999, width=5, textvariable=count_var,
+                    spinbox = tk.Spinbox(opts_frame, from_=1, to=999, width=4, textvariable=count_var,
                                         bg=UnifiedStyles.COLORS['input_bg'], fg=UnifiedStyles.COLORS['input_text'],
                                         font=UnifiedStyles.FONTS['input'])
-                    spinbox.pack(side=tk.LEFT, padx=(0, UnifiedStyles.SPACING['sm']))
+                    spinbox.pack(side=tk.LEFT, padx=(0, pad_cell))
 
                     def on_count_change(key=count_config_key):
                         s = str(count_var.get()).strip()
@@ -502,29 +472,20 @@ class AuxiliaryFunctionsPanel:
                     count_var.trace_add('write', lambda *a: on_count_change())
                     spinbox.bind('<FocusOut>', lambda e: on_count_change())
 
-                # Create StringVar for the combobox (master for correct root binding)
                 menu_var = var_str(parent, current_display)
-                menu = ThemedCombobox.create(col1_widget, textvariable=menu_var,
-                                            values=display_texts, state='readonly', width=18)
-                if count_config_key:
-                    menu.pack(side=tk.LEFT)
-                else:
-                    menu.grid(row=row, column=1, sticky='w',
-                             padx=UnifiedStyles.SPACING['md'],
-                             pady=UnifiedStyles.SPACING['sm'])
+                menu = ThemedCombobox.create(opts_frame, textvariable=menu_var,
+                                            values=display_texts, state='readonly', width=12)
+                menu.pack(side=tk.LEFT)
 
-                # Bind selection event to save the internal value (not display text)
                 def on_menu_select(event, key=menu_config["menu_config_key"], items=menu_items):
                     display_text = menu_var.get()
                     internal_value = None
-                    for i18n_key, value in items:
-                        if i18n_manager.get_ui_text(i18n_key) == display_text:
+                    for ik, value in items:
+                        if i18n_manager.get_ui_text(ik) == display_text:
                             internal_value = value
                             break
                     if internal_value is None:
                         internal_value = items[0][1]
-
-                    # Save internal value to CONFIG (traverse only dicts; ensure path exists)
                     config_parts = key.split('.')
                     config_obj = CONFIG
                     for part in config_parts[:-1]:
@@ -543,29 +504,38 @@ class AuxiliaryFunctionsPanel:
                     if isinstance(config_obj, dict):
                         config_obj[config_parts[-1]] = internal_value
                     queue_config_save()
-
                 menu.bind('<<ComboboxSelected>>', on_menu_select)
+                opts_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-            # Column 2: debug button; same row height as left (sticky ns), style consistent with section
-            def _make_debug_cmd(slug):
-                def _run():
-                    if slug == "kanai_upgrade":
-                        timer_manager.submit_one_shot(run_debug_bag_hover)
-                    else:
-                        ColorPrint.blue(f"[AuxPanel] Debug: {slug} (placeholder)")
-                return _run
             slug = debug_i18n_key.replace("auxiliary_panel.debug_", "") if debug_i18n_key else ""
-            debug_btn = tk.Button(
-                parent,
-                text=i18n_manager.get_ui_text(debug_i18n_key),
+            debug_specs.append((debug_i18n_key, slug))
+
+        def _make_debug_cmd(slug):
+            def _run():
+                if slug in ("kanai_upgrade", "blacksmith"):
+                    def on_blacksmith_debug():
+                        aux = (CONFIG.get("macro_configs", {}) or {}).get("auxiliary_config", {}) or {}
+                        keep = (aux.get("auto_salvage") or {}).get("keep", "keep_ancient_plus")
+                        get_blacksmith_handler().handle_auto_salvage_by_slots(keep, debug_only=False)
+                    timer_manager.submit_one_shot(lambda: run_debug_bag_hover(on_blacksmith_debug=on_blacksmith_debug))
+                else:
+                    ColorPrint.blue(f"[AuxPanel] Debug: {slug} (placeholder)")
+            return _run
+
+        # 最后一行: 调试按钮 一行不分列，10个按钮横排
+        debug_row = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
+        debug_row.grid(row=6, column=0, columnspan=3, sticky='ew', padx=pad_cell, pady=(pad_cell, 0))
+        parent.grid_rowconfigure(6, weight=0)
+        for di18n, slug in debug_specs:
+            btn = tk.Button(
+                debug_row,
+                text=i18n_manager.get_ui_text(di18n),
                 bg=UnifiedStyles.COLORS['btn_secondary'],
                 fg=UnifiedStyles.COLORS['text_primary'],
                 font=UnifiedStyles.FONTS['button'],
-                command=_make_debug_cmd(slug)
+                command=_make_debug_cmd(slug),
             )
-            debug_btn.grid(row=row, column=2, sticky='ns',
-                          padx=UnifiedStyles.SPACING['md'],
-                          pady=UnifiedStyles.SPACING['sm'])
+            btn.pack(side=tk.LEFT, padx=(0, pad_cell), pady=2)
 
     def _create_hotkey_row(self, parent):
         """Hotkey label + input in given parent frame."""
@@ -757,8 +727,7 @@ class AuxiliaryFunctionsPanel:
         def _refresh(info_widget, img_widget, small_img_widget, w):
             no_img_msg = i18n_manager.get_ui_text("ui.auxiliary_panel.no_game_window_image")
             no_data_msg = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data")
-            manager = get_d3_interface_manager()
-            manager.collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
+            get_d3_interface_manager().collect_bag_info_quik(force_new_capture=True, save_screenshot=False)
             game_data = get_game_interface_data()
             img = game_data.game_window_image
             coords = game_data.bag_coordinates

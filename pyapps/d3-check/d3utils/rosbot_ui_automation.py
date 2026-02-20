@@ -92,7 +92,7 @@ def window_has_rosbot_main_content(hwnd: int) -> bool:
         if depth > max_d:
             return False
         try:
-            aid = (getattr(control, "AutomationId", None) or "").strip()
+            aid = ((control.AutomationId if hasattr(control, "AutomationId") else None) or "").strip()
             if aid in _ROSBOT_MAIN_CONTENT_IDS:
                 return True
             for child in control.GetChildren():
@@ -333,9 +333,10 @@ def _find_ok_button_in_control(control, depth: int = 0, max_depth: int = 6) -> O
     if depth > max_depth:
         return None
     try:
-        ctype = getattr(control, "ControlTypeName", None) or ""
+        ctype = (control.ControlTypeName if hasattr(control, "ControlTypeName") else None) or ""
         if "Button" in ctype:
-            name = (getattr(control, "Name", None) or "").strip()
+            name = (control.Name if hasattr(control, "Name") else None) or ""
+            name = (name or "").strip()
             if _name_matches_ok_keywords(name):
                 return control
     except Exception:
@@ -355,7 +356,8 @@ def _window_has_control_with_automation_id(root: Any, automation_id: str, depth:
     if depth > max_d:
         return False
     try:
-        aid = (getattr(root, "AutomationId", None) or "").strip()
+        aid = (root.AutomationId if hasattr(root, "AutomationId") else None) or ""
+        aid = (aid or "").strip()
         if aid == automation_id:
             return True
         for child in root.GetChildren():
@@ -371,9 +373,10 @@ def _find_button_by_automation_id(root: Any, automation_id: str, depth: int = 0,
     if depth > max_d:
         return None
     try:
-        ctype = getattr(root, "ControlTypeName", None) or ""
+        ctype = (root.ControlTypeName if hasattr(root, "ControlTypeName") else None) or ""
         if "Button" in ctype:
-            aid = (getattr(root, "AutomationId", None) or "").strip()
+            aid = (root.AutomationId if hasattr(root, "AutomationId") else None) or ""
+            aid = (aid or "").strip()
             if aid == automation_id:
                 return root
         for child in root.GetChildren():
@@ -451,9 +454,10 @@ def _window_has_no_items_message(root, depth: int = 0, max_d: int = 6) -> bool:
     if depth > max_d:
         return False
     try:
-        ctype = getattr(root, "ControlTypeName", None) or ""
+        ctype = (root.ControlTypeName if hasattr(root, "ControlTypeName") else None) or ""
         if "Text" in ctype:
-            name = (getattr(root, "Name", None) or "") or ""
+            name = (root.Name if hasattr(root, "Name") else None) or ""
+            name = (name or "") or ""
             for kw in UI_NAME_KEYWORDS_NO_ITEMS:
                 if kw and kw in name:
                     return True
@@ -529,10 +533,10 @@ def try_close_no_items_popup() -> bool:
 def _try_expand_combo(control, clicker: Optional[ClickHandler] = None) -> bool:
     """Expand ComboBox: try ExpandCollapsePattern.Expand(), else click at rect."""
     try:
-        get_exp = getattr(control, "GetExpandCollapsePattern", None)
-        if get_exp:
+        get_exp = control.GetExpandCollapsePattern if hasattr(control, "GetExpandCollapsePattern") else None
+        if get_exp is not None:
             pattern = get_exp()
-            if pattern and getattr(pattern, "Expand", None):
+            if pattern is not None and hasattr(pattern, "Expand") and pattern.Expand is not None:
                 pattern.Expand()
                 return True
     except Exception:
@@ -663,6 +667,7 @@ def run_after_rosbot_start(
     time.sleep(SERVER_WAIT_SECONDS)
 
     poll_count = MAIN_UI_POLL_TIMEOUT_SECONDS // MAIN_UI_POLL_INTERVAL_SECONDS
+    main_tab_seen = False
     for _ in range(poll_count):
         try:
             w = auto.ControlFromHandle(hwnd)
@@ -670,12 +675,13 @@ def run_after_rosbot_start(
                 tabs = _find_controls_by_type(w, "TabItemControl", TAB_MAIN_PROFILE_NAMES)
                 if tabs:
                     ColorPrint.green("[ROSBOT_UI] Main UI ready (main profile tab visible)")
+                    main_tab_seen = True
                     break
         except Exception:
             pass
         time.sleep(MAIN_UI_POLL_INTERVAL_SECONDS)
     else:
-        ColorPrint.yellow("[ROSBOT_UI] Main profile tab not seen within timeout, attempting tab/start anyway")
+        ColorPrint.yellow("[ROSBOT_UI] Main profile tab not seen within timeout, attempting tab/start anyway (E5a->E6->F3 on skip)")
 
     winfo_fresh = get_rosbot_manager().get_rosbot_window()
     if winfo_fresh and winfo_fresh.get("hwnd"):
@@ -704,7 +710,10 @@ def run_after_rosbot_start(
             ok = ok or any(results)
         return ok
 
-    return _do_ui()
+    did_click = _do_ui()
+    if not main_tab_seen and not did_click:
+        ColorPrint.gray("[ROSBOT_UI] E5a: timeout path, UI controls not available; completing E5a without click -> E6 -> F3 only")
+    return did_click
 
 
 def resume_rosbot_ui(

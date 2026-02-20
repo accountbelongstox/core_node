@@ -33,10 +33,8 @@ class ExtensionPhase(str, Enum):
     C_C7a_SEND_M = "C_C7a_SEND_M"             # C7a send M (open/close map)
     C_C7a_WAIT = "C_C7a_WAIT"                 # C7w_Wait 2s
     C_C7a_VERIFY_BOUNTY = "C_C7a_VERIFY_BOUNTY"  # Verify bounty progress to confirm map open; if not found can do second M round
-    C_C7b_AFTER_BOUNTY_WAIT = "C_C7b_AFTER_BOUNTY_WAIT"  # After bounty found wait N ticks then C7b minimize (tick-driven, no sleep)
-    C_C7b_MINIMIZE = "C_C7b_MINIMIZE"        # C7b minimize map
-    C_C7b_WAIT = "C_C7b_WAIT"
-    C_C7b_TELEPORT = "C_C7b_TELEPORT"         # C7b teleport -> C8_Result -> A8_Success
+    C_C7b_MINIMIZE = "C_C7b_MINIMIZE"        # C7b minimize map (redirects to C7a then action group)
+    C_ACTION_GROUP = "C_ACTION_GROUP"         # Running an action group (one step per tick; other tick events ignored). See docs/ACTION_GROUPS_DESIGN.md.
 
 
 # Single global state for extension flow (C branch when D3 already running)
@@ -132,14 +130,12 @@ def is_running() -> bool:
     return _phase != ExtensionPhase.IDLE.value
 
 
-# C7b click sequence (minimize -> teleport1 -> teleport2): inside event group do not run refresh, only extension_flow_tick_step drives; avoid screenshot/refresh in between breaking click coherence
-C7B_CLICK_EVENT_PHASES = (
-    ExtensionPhase.C_C7b_AFTER_BOUNTY_WAIT.value,
-    ExtensionPhase.C_C7b_WAIT.value,
-    ExtensionPhase.C_C7b_TELEPORT.value,
-)
+# Action group running: flow_master skips refresh, runs one action-group step per tick (see ACTION_GROUPS_DESIGN.md).
+def is_in_action_group() -> bool:
+    """When in action group, flow_master runs only extension_flow_tick_step (one step per tick), no refresh; other tick-driven events ignored."""
+    return _phase == ExtensionPhase.C_ACTION_GROUP.value
 
 
 def is_in_c7b_click_event_group() -> bool:
-    """Event group: when in C7b click sequence, flow_master runs only extension_flow_tick_step, no refresh_for_routing or full refresh before extension; resume after click event ticks complete."""
-    return _phase in C7B_CLICK_EVENT_PHASES
+    """Check if currently in C7b click event group phase (C7b minimize map)."""
+    return _phase == ExtensionPhase.C_C7b_MINIMIZE.value

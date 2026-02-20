@@ -18,6 +18,18 @@ D3_STANDARD_RESOLUTION_HEIGHT = 800
 D3_BATTLENET_STANDARD_RESOLUTION_WIDTH = 960
 D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT = 540
 D3_KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20
+# Interface indicator template keys (same as D3_TEMPLATE_CONFIGS in providor_index)
+# 同一图标 bag_opened_indicator：靠左 30% 宽内 = 铁匠入口，靠右 = 仅背包已打开（不视为铁匠）
+BAG_OPENED_INDICATOR_TEMPLATE_NAME = "bag_opened_indicator"
+BLACKSMITH_INDICATOR_1_TEMPLATE_NAME = "blacksmith_indicator_1"
+BLACKSMITH_INDICATOR_2_TEMPLATE_NAME = "blacksmith_indicator_2"
+# 魔盒（卡奈）界面识别的唯一图标
+KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME = "kanai_cube_left_panel_indicator"
+KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME = "kanai_right_page_indicator"
+# Kanai right-panel next-page clicks from first page (upgrade=2, reforge=1)
+KANAI_UPGRADE_PAGE_CLICKS = 2
+KANAI_REFORGE_PAGE_CLICKS = 1
+
 D3_STANDARD_OUTER_WIDTH = D3_STANDARD_RESOLUTION_WIDTH + WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT
 D3_STANDARD_OUTER_HEIGHT = D3_STANDARD_RESOLUTION_HEIGHT + TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM
 
@@ -42,7 +54,9 @@ BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME = "battlenet_d3_small_map"
 # ---------------------------------------------------------------------------
 # ROSBOT / flow
 # ---------------------------------------------------------------------------
-ROSBOT_LOG_TIMEOUT_SECONDS_DEFAULT = 300
+# F3 log timeout: default minutes (UI rosbot.timeout_minutes). Single source for default; F3 and panel use this.
+ROSBOT_LOG_TIMEOUT_MINUTES_DEFAULT = 30
+ROSBOT_LOG_TIMEOUT_SECONDS_DEFAULT = 300  # Legacy; prefer ROSBOT_LOG_TIMEOUT_MINUTES_DEFAULT * 60
 
 # ---------------------------------------------------------------------------
 # D3 in-game
@@ -89,10 +103,16 @@ ROSBOT_EXE_PATTERNS = ("ros-bot*.exe", "RoS-BoT*.exe")
 # ROSBOT update check: GameTools base dir (ros-bot*.exe from here or config); Downloads dir for zip
 ROSBOT_GAMETOOLS_BASE = r"D:\applications\GameTools"
 ROSBOT_ZIP_MIN_SIZE_MB = 20
-# Downloads zip match: Asia first, then global/CN/English
-ROSBOT_ZIP_KEYWORDS_ASIA = ("亚服", "asia", "Asia")
-ROSBOT_ZIP_KEYWORDS_GLOBAL = ("国际服", "global", "Global")
+ROSBOT_ZIP_MAX_SIZE_MB = 50  # 压缩包大小范围 20–50MB
+# Downloads zip match: 国际服=亚服，优先检测亚服（亚服包名可能同时含亚服和国服字样，归亚服）
+ROSBOT_ZIP_KEYWORDS_ASIA = ("亚服", "asia", "Asia", "国际服", "global", "Global")
 ROSBOT_ZIP_KEYWORDS_CN = ("国服", "cn", "CN")
+# ROSBOT directory namespace: region-specific subdirectories under GameTools
+ROSBOT_DIR_NAMESPACE_ASIA = "Asia"  # 亚服目录命名空间
+ROSBOT_DIR_NAMESPACE_CN = "CN"      # 国服目录命名空间
+# Region display names for UI
+ROSBOT_REGION_DISPLAY_ASIA = "亚服"
+ROSBOT_REGION_DISPLAY_CN = "国服"
 
 # ---------------------------------------------------------------------------
 # ROSBOT UI automation

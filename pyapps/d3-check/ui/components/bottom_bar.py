@@ -13,7 +13,10 @@ from ..theme import UITheme
 from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
 from d3utils.i18n_manager import i18n_manager
+from providor.providor_index import get_config_value_safe
+from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
 from runtime import is_shutdown_requested
+from share.game_interface_data import get_game_interface_data
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 
@@ -31,12 +34,14 @@ class BottomBar:
         self.window_size = var_str(parent, "0x0")
         self.config_name_var = var_str(parent, "Config 1")
         self.battlenet_status = var_str(parent, "-")
+        self.battlenet_region = var_str(parent, "-")
         self.ros_status = var_str(parent, "-")
         self.ros_found_status = var_str(parent, "-")
         self.d3_status = var_str(parent, "-")
         self.map_status = var_str(parent, "-")
         self.stage_status = var_str(parent, "-")
         self.oauth_status = var_str(parent, "-")
+        self.test_mode_status = var_str(parent, "")
 
         self._value_labels = {}
 
@@ -71,6 +76,7 @@ class BottomBar:
         status_container.grid_columnconfigure(0, weight=1)
         status_vars = {
             "battlenet": self.battlenet_status,
+            "battlenet_region": self.battlenet_region,
             "ros": self.ros_status,
             "ros_found": self.ros_found_status,
             "d3": self.d3_status,
@@ -78,9 +84,29 @@ class BottomBar:
             "stage": self.stage_status,
             "oauth": self.oauth_status,
             "window_size": self.window_size,
+            "test_mode": self.test_mode_status,
         }
         self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
         self._status_block.frame.grid(row=0, column=0, sticky="ew")
+
+        self._set_region_display_from_config()
+
+    def _region_display_text(self, region_key) -> str:
+        """Single source: region key -> display (亚服/国服/未知)."""
+        i18n = i18n_manager
+        if region_key == "cn":
+            return i18n.get_ui_text("rosbot.server_cn") or "国服"
+        if region_key == "asia":
+            return i18n.get_ui_text("rosbot.server_asia") or "亚服"
+        return i18n.get_ui_text("rosbot.server_unknown") or "未知"
+
+    def _set_region_display_from_config(self) -> None:
+        """Set battlenet_region var from config/game_data so it shows at UI startup."""
+        g = get_game_interface_data()
+        region = g.get_battlenet_region()
+        if region is None:
+            region = get_config_value_safe("ros_settings.battlenet_region_cache")
+        self.battlenet_region.set(self._region_display_text(region) if region else self._region_display_text(None))
 
     def _register_status_labels(self, value_labels: dict):
         """Called by BottomBarStatusBlock: value_labels = var_key -> Label (for fg updates)."""
@@ -162,7 +188,10 @@ class BottomBar:
             bn_text = f"{bn_text}({region_suffix})"
         self.battlenet_status.set(bn_text)
 
+        self.battlenet_region.set(self._region_display_text(region_key))
+
         ros_ext = state.get("rosbot_extended_status") or "not_found"
+        ros_has_main_ui = state.get("rosbot_has_main_ui", True)
         exe_name = (state.get("rosbot_found_exe_name") or "").strip()
         window_title = (state.get("rosbot_found_window_title") or "").strip()
         ros_val = "-"
@@ -170,12 +199,16 @@ class BottomBar:
             ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
             ros_fg = C['success']
         elif ros_ext == "paused":
-            if exe_name or window_title:
+            if not ros_has_main_ui:
+                ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
+                ros_fg = C['error']
+            elif exe_name or window_title:
                 fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
                 ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
+                ros_fg = C['warning']
             else:
                 ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
-            ros_fg = C['warning']
+                ros_fg = C['warning']
         else:
             ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
             ros_fg = C['error']
@@ -183,6 +216,10 @@ class BottomBar:
         need_key_msg = (state.get("rosbot_need_key_message") or "").strip()
         if need_key and need_key_msg:
             ros_val = f"{ros_val}({need_key_msg})"
+        # Add restart count display
+        restart_count = state.get("rosbot_total_restart_count", 0)
+        if restart_count > 0:
+            ros_val = f"{ros_val} [重启{restart_count}次]"
         self.ros_status.set(ros_val or "-")
 
         if not state.get("d3_running", False):
@@ -215,10 +252,21 @@ class BottomBar:
         )
         oauth_fg = C['success'] if oauth_connected else C['error']
 
+        region_fg = C['success'] if region_key in ("asia", "cn") else C['warning']
+
         fg_map = {
-            "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
+            "battlenet": bn_fg, "battlenet_region": region_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
             "stage": stage_fg, "oauth": oauth_fg,
         }
         for key, lb in (self._value_labels or {}).items():
             if key in fg_map:
                 lb.config(fg=fg_map[key])
+
+        # Test mode row: show when rosbot.test_mode is on; use state from tick (rosbot_test_mode_display) so it updates every poll/tick, else compute once so row appears without ROSBOT
+        test_mode_on = bool(get_config_value_safe("rosbot.test_mode", False))
+        tm_text = (state.get("rosbot_test_mode_display") or get_test_mode_display_string() or "").strip() if test_mode_on else ""
+        self.test_mode_status.set(tm_text)
+        if tm_text:
+            self._status_block._test_mode_row.pack(side=tk.TOP, fill=tk.X, padx=4, pady=2)
+        else:
+            self._status_block._test_mode_row.pack_forget()

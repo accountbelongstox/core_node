@@ -395,6 +395,25 @@ function Invoke-PnpmCommand {
             # Run pnpm setup
             & $pnpmExe setup
             Write-DebugLog -Message "pnpm setup completed" -Category "PNPM" -Color "Green"
+
+            # Ensure pnpm global bin directory is in PATH after setup
+            try {
+                $pnpmGlobalBinDirTemp = & $pnpmExe config get global-bin-dir 2>&1 | Select-Object -First 1
+                if (-not [string]::IsNullOrEmpty($pnpmGlobalBinDirTemp) -and $pnpmGlobalBinDirTemp -ne "undefined") {
+                    if (Test-Path $pnpmGlobalBinDirTemp) {
+                        $parentDir = Split-Path $PSScriptRoot -Parent
+                        $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+                        if (Test-Path $windowsPathFunctionPath) {
+                            . $windowsPathFunctionPath
+                            Write-DebugLog -Message "Ensuring pnpm global bin directory is in PATH after setup: $pnpmGlobalBinDirTemp" -Category "PNPM" -Color "Yellow"
+                            Add-Path -newPath $pnpmGlobalBinDirTemp
+                            Write-DebugLog -Message "pnpm global bin directory PATH check completed after setup" -Category "PNPM" -Color "Green"
+                        }
+                    }
+                }
+            } catch {
+                Write-DebugLog -Message "Warning: Failed to ensure pnpm bin in PATH after setup: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
+            }
         } else {
             Write-DebugLog -Message "CRITICAL: pnpm installation failed" -Category "PNPM" -Color "Red"
             return $null
@@ -423,6 +442,24 @@ function Invoke-PnpmCommand {
 
         Write-DebugLog -Message "pnpm global-dir: $pnpmGlobalDir" -Category "PNPM" -Color "Cyan"
         Write-DebugLog -Message "pnpm global-bin-dir: $pnpmGlobalBinDir" -Category "PNPM" -Color "Cyan"
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        # Add-Path function handles duplicate checking internally
+        if (Test-Path $pnpmGlobalBinDir) {
+            $parentDir = Split-Path $PSScriptRoot -Parent
+            $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+            if (Test-Path $windowsPathFunctionPath) {
+                . $windowsPathFunctionPath
+                Write-DebugLog -Message "Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
+                Add-Path -newPath $pnpmGlobalBinDir
+                Write-DebugLog -Message "pnpm global bin directory PATH check completed" -Category "PNPM" -Color "Green"
+            } else {
+                Write-DebugLog -Message "Warning: WindowsPathFunction.ps1 not found, cannot add pnpm bin to PATH" -Category "PNPM" -Color "Yellow"
+            }
+        } else {
+            Write-DebugLog -Message "Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Category "PNPM" -Color "Yellow"
+            Write-DebugLog -Message "Will be added to PATH when directory is created" -Category "PNPM" -Color "Cyan"
+        }
     }
     catch {
         Write-DebugLog -Message "Failed to get pnpm directories: $($_.Exception.Message)" -Category "PNPM" -Color "Red"
@@ -497,6 +534,18 @@ function Invoke-PnpmCommand {
     # Install package using pnpm
     Write-DebugLog -Message "Installing package via pnpm: $PackageName" -Category "PNPM" -Color "Yellow"
     try {
+        # Ensure current process PATH is refreshed before calling pnpm
+        # This is critical because pnpm checks PATH during installation
+        try {
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
+            [Environment]::SetEnvironmentVariable("Path", $combinedPath, "Process")
+            Write-DebugLog -Message "Refreshed current process PATH before pnpm installation" -Category "PNPM" -Color "Cyan"
+        } catch {
+            Write-DebugLog -Message "Warning: Failed to refresh process PATH: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
+        }
+
         $installArgs = "add --global $PackageName"
         Write-DebugLog -Message "Command: $pnpmExe $installArgs" -Category "PNPM" -Color "Magenta"
 

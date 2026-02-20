@@ -152,7 +152,7 @@ class SystemInitializer:
         Initialize timer system.
 
         Two drivers:
-        - timer_manager: single-thread loop; task log_monitor (1s). State detection (window_monitor)
+        - timer_manager: single-thread loop. State detection (window_monitor)
           is NOT registered here; when UI Start is used, status is updated by tick-driven flow (rosbot_task).
           Loop started after UI ready (start_timer_loop_after_ui_ready).
         - task_thread_manager: one thread per task; rosbot_task (1s) drives ROSBOT flow (ROSBOT_FLOW.md)
@@ -176,7 +176,7 @@ class SystemInitializer:
 
             # State detection (window_monitor): driven by tick_driver tick % 10 -> refresh_window_status_if_inactive.
 
-            # Log monitor: driven by tick_driver tick % 1; when watchdog available still file-change driven, fallback tick
+            # Log monitor: watchdog drives; directly calls analyze_log_line (real-time, no queue)
             log_monitor_module.set_log_file(LOGS_FILE_PATH)
 
             # D4 controller runs in D4ExtensionThread (started after UI ready), not in timer_manager

@@ -284,13 +284,10 @@
     "rosbot_logs_relative": "RoS-BoT/Logs",
     "d3check_temp_relative": ".d3check",
     "annotated_screenshots_relative": ".d3check/annotated_screenshots",
-    "logs_file_relative": "RoS-BoT/Logs/logs.txt",
-    "history_file_relative": "RoS-BoT/Logs/history.txt",
     "bot_program_absolute": "D:\\applications\\GamesBot",
     "keys_ini_absolute": "D:\\applications\\GamesBot\\Keys.ini"
   },
   "filenames": {
-    "logs_filename": "logs.txt",
     "bot_program_name": "RoS-BoT.exe"
   },
   "process_names": {
@@ -318,6 +315,8 @@
     "startup_description": "开机启动",
     "monitor_start_rosbot": false,
     "monitor_start_rosbot_description": "启动监控时启动ROSBOT",
+    "firstborn_blue_gate_reuse": false,
+    "firstborn_blue_gate_reuse_description": "先民蓝门复用",
     "path": "",
     "path_description": "ROSBOT可执行文件路径",
     "timeout_minutes": 8,

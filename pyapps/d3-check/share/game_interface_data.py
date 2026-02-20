@@ -7,6 +7,7 @@ Shared across all controllers and UI components
 """
 
 import ctypes
+import json
 import os
 import sys
 import tkinter as tk
@@ -29,10 +30,15 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.insert(0, project_root)
 
-from providor.constants.common import TMP_DIR
+from providor.constants.common import (
+    TMP_DIR,
+    BATTLE_NET_CONFIG_SERVICES_KEY,
+    BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY,
+    BATTLE_NET_CONFIG_REGION_CN,
+)
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
-from providor.providor_index import get_template_path
+from providor.providor_index import get_template_path, BATTLE_NET_CONFIG_PATH
 from pycore.pyfoundations.color_print import ColorPrint
 
 # Global scale variables (moved from providor_index)
@@ -527,6 +533,27 @@ def get_scaled_blacksmith_salvage_oneclick_blue() -> Tuple[int, int]:
 def get_scaled_blacksmith_salvage_oneclick_yellow() -> Tuple[int, int]:
     return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_oneclick_yellow)
 
+
+def get_scaled_blacksmith_ui_coords() -> Dict[str, Tuple[int, int]]:
+    """
+    Return all blacksmith UI relative coordinates scaled for current game window.
+    Keys: tab_forge_weapon, tab_armor, tab_salvage_materials, tab_repair, tab_train,
+    salvage_button, salvage_dialog_salvage_button, salvage_dialog_confirm, salvage_dialog_cancel.
+    Values are (x, y) relative to game window (add window_offset for screen coords).
+    """
+    return {
+        "tab_forge_weapon": get_scaled_blacksmith_tab_forge_weapon(),
+        "tab_armor": get_scaled_blacksmith_tab_armor(),
+        "tab_salvage_materials": get_scaled_blacksmith_tab_salvage_materials(),
+        "tab_repair": get_scaled_blacksmith_tab_repair(),
+        "tab_train": get_scaled_blacksmith_tab_train(),
+        "salvage_button": get_scaled_blacksmith_salvage_button(),
+        "salvage_dialog_salvage_button": get_scaled_blacksmith_salvage_dialog_salvage_button(),
+        "salvage_dialog_confirm": get_scaled_blacksmith_salvage_dialog_confirm(),
+        "salvage_dialog_cancel": get_scaled_blacksmith_salvage_dialog_cancel(),
+    }
+
+
 def get_scaled_game_focus_click_point() -> Tuple[int, int]:
     """Scaled coordinate for clicking to bring game window to foreground (instead of other topmost methods)."""
     return d3_scale_single_coord(STANDARD_COORDS.game_focus_click_point)
@@ -631,7 +658,12 @@ class BagCoordinates:
 
 @dataclass
 class BagLayout:
-    """Bag layout data with item information"""
+    """
+    Bag layout data with item information.
+
+    物品质量（颜色可识别）：空、魔法(蓝)、稀有(黄)、传奇(绿)。
+    传奇阶位：普通 / 远古 / 太古。远古与太古无法仅凭颜色识别，需 hover 在装备上识别远古线/太古线。
+    """
     layout: List[List[int]]  # 2D array of slot usage
     items: Dict[Tuple[int, int], Dict]  # Mapping (row, col) to item info with quality
 
@@ -689,11 +721,14 @@ class D3InterfaceData(InterfaceDataBase):
     # Game state management (merged from GameState for D3/ROSBOT)
     battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
     rosbot_window_found: bool = False  # True when extended_status is paused (has window)
+    rosbot_has_main_ui: bool = False  # True only when paused and content-validated main window; else False (UI shows "未找到" when paused and not has_main_ui)
     rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
     rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
     ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
     d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
+    # D13 found D3 window with for_f2_only: set True so next C1 tick uses d3_just_entered -> C7a map teleport (ROSBOT_FLOW_MERMAID)
+    d3_just_entered_from_d13: bool = False
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
 
@@ -715,6 +750,12 @@ class D3InterfaceData(InterfaceDataBase):
     # ROSBOT UI need-key state (set by refresh_rosbot_status from timer thread; main thread only reads from snapshot)
     rosbot_need_key_input: bool = False
     rosbot_need_key_message: str = ""
+    # Test mode (rosbot.test_mode): display line for bottom bar, set each tick when test_mode; None when off
+    rosbot_test_mode_display: Optional[str] = None
+    # ROSBOT disconnection detected from logs ("WARN - Disconnected" or "Session Time out")
+    rosbot_disconnected_from_log: bool = False
+    # ROSBOT total restart count (all types: normal_pause, test_debug_exit, process gone, log disconnect)
+    rosbot_total_restart_count: int = 0
 
     # State change callbacks (merged from GameState). Invoked only on main thread via _drain_and_notify (no after() from background).
     _callbacks: List[Callable] = field(default_factory=list)
@@ -743,11 +784,14 @@ class D3InterfaceData(InterfaceDataBase):
         self.button_detections = None
         self.battlenet_window_found = False
         self.rosbot_window_found = False
+        self.rosbot_has_main_ui = False
         self.rosbot_extended_status = "not_found"
         self.rosbot_running = False
         self.rosbot_flow_master_enabled = False
         self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
+        self.d3_just_entered_from_d13 = False
+        self.rosbot_disconnected_from_log = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
         self.d3_on_login_screen = False
@@ -761,6 +805,8 @@ class D3InterfaceData(InterfaceDataBase):
         self.rosbot_found_window_title = ""
         self.rosbot_need_key_input = False
         self.rosbot_need_key_message = ""
+        self.rosbot_test_mode_display = None
+        self.rosbot_total_restart_count = 0
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -781,6 +827,7 @@ class D3InterfaceData(InterfaceDataBase):
             "functional_interface": self.functional_interface,
             "battlenet_window_found": self.battlenet_window_found,
             "rosbot_window_found": self.rosbot_window_found,
+            "rosbot_has_main_ui": self.rosbot_has_main_ui,
             "rosbot_extended_status": self.rosbot_extended_status,
             "rosbot_running": self.rosbot_running,
             "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
@@ -796,13 +843,17 @@ class D3InterfaceData(InterfaceDataBase):
             "battlenet_region": self.battlenet_region,
             "rosbot_found_exe_name": self.rosbot_found_exe_name,
             "rosbot_found_window_title": self.rosbot_found_window_title,
+            "rosbot_need_key_input": self.rosbot_need_key_input,
+            "rosbot_need_key_message": self.rosbot_need_key_message,
+            "rosbot_test_mode_display": self.rosbot_test_mode_display,
+            "rosbot_total_restart_count": self.rosbot_total_restart_count,
         }
 
     # ==================== Game State Methods (with callback notification) ====================
     # These methods are kept because they trigger callbacks
 
-    def set_battlenet_status(self, window_found: bool):
-        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks."""
+    def set_battlenet_status(self, window_found: bool) -> bool:
+        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.battlenet_window_found != window_found:
@@ -811,6 +862,7 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def get_battlenet_region(self) -> Optional[str]:
         """Return cached Battle.net server region: \"asia\" | \"cn\" | None."""
@@ -841,10 +893,10 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
-    def set_rosbot_extended_status(self, status: str):
-        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks."""
+    def set_rosbot_extended_status(self, status: str) -> bool:
+        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks. Returns True if value changed."""
         if status not in ("not_found", "running", "paused"):
-            return
+            return False
         should_notify = False
         with self._lock:
             if self.rosbot_extended_status != status:
@@ -854,9 +906,21 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] ROSBOT extended status: {status}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
-    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = ""):
-        """Set found ROSBOT process name and window title for status bar (process:xxx.exe title:xxx). Notify callbacks."""
+    def set_rosbot_has_main_ui(self, has_main_ui: bool) -> bool:
+        """Set whether current ROSBOT window is content-validated main UI (paused + main). When False, UI shows \"未找到\". Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_has_main_ui != has_main_ui:
+                self.rosbot_has_main_ui = has_main_ui
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = "") -> bool:
+        """Set found ROSBOT process name and window title for status bar (process:xxx.exe title:xxx). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.rosbot_found_exe_name != exe_name or self.rosbot_found_window_title != window_title:
@@ -865,6 +929,7 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_rosbot_ui_need_key(self, need_key_input: bool, message: str = ""):
         """Set ROSBOT need-key state (from timer thread via refresh_rosbot_status). Main thread only reads from snapshot."""
@@ -905,8 +970,8 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
-    def set_d3_status(self, running: bool):
-        """Set D3 running status and notify callbacks."""
+    def set_d3_status(self, running: bool) -> bool:
+        """Set D3 running status and notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.d3_running != running:
@@ -915,14 +980,50 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
+
+    def set_d3_just_entered_from_d13(self, value: bool) -> None:
+        """Set when D13 found D3 window with for_f2_only; next C1 tick uses d3_just_entered -> C7a (ROSBOT_FLOW_MERMAID)."""
+        with self._lock:
+            self.d3_just_entered_from_d13 = value
+
+    def get_and_clear_d3_just_entered_from_d13(self) -> bool:
+        """Return current value and clear. Flow master calls before start_extension_flow_c_branch to pass d3_just_entered."""
+        with self._lock:
+            v = self.d3_just_entered_from_d13
+            self.d3_just_entered_from_d13 = False
+            return v
+
+    def set_rosbot_disconnected_from_log(self, disconnected: bool) -> None:
+        """Set ROSBOT disconnection detected from logs (log_analyzer detects "WARN - Disconnected" or "Session Time out")."""
+        with self._lock:
+            self.rosbot_disconnected_from_log = disconnected
+
+    def get_and_clear_rosbot_disconnected_from_log(self) -> bool:
+        """Return current value and clear. Flow master checks this to trigger F4 when ROSBOT disconnection detected."""
+        with self._lock:
+            v = self.rosbot_disconnected_from_log
+            self.rosbot_disconnected_from_log = False
+            return v
+
+    def set_rosbot_total_restart_count(self, count: int) -> bool:
+        """Set ROSBOT total restart count. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_total_restart_count != count:
+                self.rosbot_total_restart_count = count
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
 
     def set_d3_dynamic_status(
         self,
         on_login_screen: bool = False,
         disconnected: bool = False,
         in_game: bool = False,
-    ):
-        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks."""
+    ) -> bool:
+        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if (
@@ -936,14 +1037,15 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_battlenet_dynamic_status(
         self,
         on_login_screen: bool = False,
         disconnected: bool = False,
         normal_available: bool = False,
-    ):
-        """Set Battle.net dynamic state (same priority as D3). Notify callbacks."""
+    ) -> bool:
+        """Set Battle.net dynamic state (same priority as D3). Notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if (
@@ -957,6 +1059,7 @@ class D3InterfaceData(InterfaceDataBase):
                 should_notify = True
         if should_notify:
             self._notify_callbacks()
+        return should_notify
 
     def set_map_type(self, map_type: str):
         """Set map type and notify callbacks"""
@@ -993,6 +1096,7 @@ class D3InterfaceData(InterfaceDataBase):
                 "battlenet_window_found": self.battlenet_window_found,
                 "battlenet_region": self.battlenet_region,
                 "rosbot_window_found": self.rosbot_window_found,
+                "rosbot_has_main_ui": self.rosbot_has_main_ui,
                 "rosbot_extended_status": self.rosbot_extended_status,
                 "rosbot_running": self.rosbot_running,
                 "d3_running": self.d3_running,
@@ -1008,6 +1112,8 @@ class D3InterfaceData(InterfaceDataBase):
                 "rosbot_found_window_title": self.rosbot_found_window_title,
                 "rosbot_need_key_input": self.rosbot_need_key_input,
                 "rosbot_need_key_message": self.rosbot_need_key_message,
+                "rosbot_test_mode_display": self.rosbot_test_mode_display,
+                "rosbot_total_restart_count": self.rosbot_total_restart_count,
             }
 
     def start_main_thread_poll(self, after_fn: Callable, interval_ms: int = 100):
@@ -1531,6 +1637,7 @@ def get_global_scale() -> tuple:
 def get_game_interface_data() -> D3InterfaceData:
     """
     Get global shared game interface data instance (singleton)
+    On first initialization, reads Battle.net region from config file and sets it.
 
     Returns:
         Global D3InterfaceData instance
@@ -1539,8 +1646,39 @@ def get_game_interface_data() -> D3InterfaceData:
 
     if _game_interface_data is None:
         _game_interface_data = D3InterfaceData()
+        # Initialize Battle.net region from config file on first creation
+        _initialize_battlenet_region_from_config(_game_interface_data)
 
     return _game_interface_data
+
+
+def _initialize_battlenet_region_from_config(game_data: D3InterfaceData) -> None:
+    """
+    Initialize Battle.net region from config file during game data initialization.
+    Reads from Battle.net.config file: Services.LastLoginRegion.
+    If not CN, sets to "asia"; if CN, sets to "cn".
+    """
+    config_path = Path(BATTLE_NET_CONFIG_PATH)
+    if not config_path.exists():
+        return
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config: {e}")
+        return
+    if not isinstance(data, dict):
+        return
+    services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    if not isinstance(services, dict):
+        return
+    last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    if not last_login_region or not isinstance(last_login_region, str):
+        return
+    if last_login_region == BATTLE_NET_CONFIG_REGION_CN:
+        game_data.set_battlenet_region("cn")
+    else:
+        game_data.set_battlenet_region("asia")
 
 
 def clear_game_interface_data():

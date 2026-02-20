@@ -1,6 +1,6 @@
 # 日志全部状态与组合说明（LOG_ALL_STATES）
 
-基于整份 ROSBOT 日志（`Documents/RoS-BoT/Logs/logs.txt`）扫描得到的**所有状态**。状态 = **缩进组件（tab 组件）** + **日志信息类型**。非空行总数 73017，共 **66 种** 状态组合。
+基于整份 ROSBOT 日志（`Documents/RoS-BoT/Logs/history.txt`）扫描得到的**所有状态**。状态 = **缩进组件（tab 组件）** + **日志信息类型**。非空行总数 73017，共 **66 种** 状态组合。
 
 ---
 

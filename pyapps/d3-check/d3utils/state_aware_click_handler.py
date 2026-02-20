@@ -135,7 +135,7 @@ class StateAwareClickHandler:
         if not self._check_state(f"move mouse to ({x}, {y})"):
             return False
 
-        return self.click_handler.move_mouse(x, y, duration)
+        return self.click_handler.move_mouse_to(x, y, duration)
 
     def move_mouse_curve(self, x: int, y: int, curve_type: str = 'bezier', duration: Optional[float] = None) -> bool:
         """

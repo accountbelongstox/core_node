@@ -15,7 +15,7 @@
 [TaskThread] Task thread 'rosbot_task' started
 [TaskThread] Started task thread: rosbot_task
 [TaskThreadManager] All task threads started
-[LogMonitor] Monitoring log file: C:\Users\accou/Documents\RoS-BoT/Logs/logs.txt
+[LogMonitor] Monitoring log file: C:\Users\accou/Documents\RoS-BoT/Logs/history.txt
 [INIT] Timer system initialized (loop will start after UI ready)
 [INIT] GUI mode: Ctrl+C ignored (close via UI only)
 [TimerManager] Registered task 'sigint_guard' with interval 1.0s (enabled=True)

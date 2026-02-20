@@ -28,6 +28,8 @@ from providor.constants.d3 import (
 from providor.providor_index import get_template_path, get_template_threshold, get_template_use_alpha, get_template_match_method
 from share.game_interface_data import get_global_scale
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
+from d3utils.image_matcher_registry import get_image_matcher_for_method
+from d3utils.match_debug_notify import notify_match
 
 
 # D3 built-in constants (this module owns D3 standard resolution for scaling)
@@ -59,7 +61,12 @@ class D3ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             standard_height=D3_STANDARD_HEIGHT,
             get_scale_factors=get_global_scale,
             get_template_config=_d3_get_template_config,
+            get_matcher=lambda method: get_image_matcher_for_method(
+                method, D3_STANDARD_WIDTH, D3_STANDARD_HEIGHT,
+                ratio_thresh=0.80, min_inliers=4, nfeatures=10000,
+            ),
             log_prefix="[D3ScaledMatcher]",
+            on_after_match=notify_match,
         )
         ColorPrint.green("[D3ScaledTemplateMatcher] Initialized")
 

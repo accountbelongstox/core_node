@@ -3,18 +3,17 @@
 Unified tick driver: single clock source, use % to simulate flow periods. No third-party independent timers.
 - Clock: task thread calls on_tick() every 1s, _global_tick_count += 1.
 - Flow periods (% based):
-  - log_monitor: tick % 1 == 0  (every 1 tick = 1s)
   - flow_master / bn_only: tick % 2 == 0 (every 2 ticks = 2s, matches _flow_tick_count)
   - smart_echo OCR: tick % 3 == 0 (every 3 ticks = 3s)
   - sigint_guard: tick % 1 == 0 (GUI mode reset SIGINT every 1s)
   - inactive_refresh: tick % 10 == 0 (when flow off refresh status every 10s)
+- Log monitor: driven only by watchdog (file change), not from tick.
 """
 from typing import Optional
 
 _global_tick_count: int = 0
 
 # Flow periods (tick count, 1 tick = 1s)
-TICK_LOG_MONITOR = 1
 TICK_FLOW_STEP = 2
 TICK_SMART_ECHO = 3
 TICK_INACTIVE_REFRESH = 10
@@ -34,19 +33,13 @@ def get_flow_tick_from_global() -> int:
 def on_tick() -> None:
     """
     Called once per 1s by task thread. Increment _global_tick_count, dispatch by %:
-    - log_monitor (tick % 1), sigint_guard (tick % 1), smart_echo (tick % 3), inactive_refresh (tick % 10).
+    - sigint_guard (tick % 1), smart_echo (tick % 3), inactive_refresh (tick % 10).
+    Log monitor is driven only by watchdog (file change), not here.
     Do not call flow here (process_rosbot_task calls when tick % 2 == 0).
     """
     global _global_tick_count
     _global_tick_count += 1
     t = _global_tick_count
-
-    if t % TICK_LOG_MONITOR == 0:
-        try:
-            import d3utils.log_monitor as _log_mod
-            _log_mod.check_logs()
-        except Exception:
-            pass
 
     if t % TICK_SIGINT_GUARD == 0:
         try:

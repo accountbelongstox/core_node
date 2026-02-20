@@ -32,6 +32,7 @@ from share.coordinate_helper import (
     calculate_random_delay
     # debug_show_title_bar_range - removed, use only for debugging
 )
+from providor.constants.common import CLICK_MOVE_DURATION_SEC, CLICK_PAUSE_AFTER_MOVE_SEC
 
 
 class D4OperationBase(ABC):
@@ -101,7 +102,7 @@ class D4OperationBase(ABC):
             return False
         screen_x, screen_y = screen_point
         ColorPrint.blue(f"[D4OperationBase] Clicking title bar at screen ({screen_x}, {screen_y})")
-        pyautogui.click(screen_x, screen_y)
+        self.click_handler.click(screen_x, screen_y, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
         ColorPrint.green(f"[D4OperationBase] ✓ Title bar clicked successfully")
         return True
 
@@ -128,7 +129,7 @@ class D4OperationBase(ABC):
         if duration is None:
             duration = calculate_random_delay()
         ColorPrint.gray(f"[D4OperationBase] Clicking point at screen ({screen_x}, {screen_y})")
-        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
+        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration, direct_click=True, return_to_original=True, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
 
     def _click_region(
         self,
@@ -162,7 +163,7 @@ class D4OperationBase(ABC):
         if duration is None:
             duration = calculate_random_delay()
         ColorPrint.gray(f"[D4OperationBase] Clicking region at random screen ({screen_x}, {screen_y})")
-        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration)
+        return self.click_handler.click(screen_x, screen_y, button=button, duration=duration, direct_click=True, return_to_original=True, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
 
     def _move_to(self, x: int, y: int, duration: float = 0.2) -> bool:
         """

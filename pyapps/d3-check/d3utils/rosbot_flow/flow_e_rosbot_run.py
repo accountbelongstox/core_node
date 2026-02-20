@@ -11,7 +11,7 @@ from typing import Callable, Any, Optional, Tuple
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import CONFIG
 
-from d3utils.rosbot_flow_f3_log_timeout import set_f3_rosbot_started_at
+from d3utils.rosbot_flow_f3_baseline import set_f3_rosbot_started_at
 from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.rosbot_update_check import run_rosbot_update_check, apply_rosbot_update
 
@@ -85,7 +85,7 @@ def run_e4_start() -> bool:
 
 
 def run_e5_init(start_rosbot_task_fn: Callable[[], Any]) -> None:
-    """[E5] Task init: start_rosbot_task (log file, set_rosbot_running, etc.)."""
+    """[E5] Task init: start_rosbot_task (file path, set_rosbot_running, etc.)."""
     start_rosbot_task_fn()
 
 
@@ -95,5 +95,5 @@ def run_e5a_wait_win_srv_poll_click(run_after_rosbot_start_fn: Callable[..., Any
 
 
 def run_e6_done() -> None:
-    """[E6] Main thread wrap-up, log. Caller (panel) enables periodic task and updates UI."""
+    """[E6] Main thread wrap-up. Caller (panel) enables periodic task and updates UI."""
     pass

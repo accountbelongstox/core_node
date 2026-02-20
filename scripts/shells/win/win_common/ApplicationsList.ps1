@@ -1212,6 +1212,22 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    OpenClaw = @{
+        PackageId           = "openclaw"
+        Exec                = "openclaw"
+        Name                = "OpenClaw"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "OpenClaw - Personal AI assistant (https://openclaw.ai), WhatsApp/Telegram/Slack/Discord gateway with Pi RPC agent"
+        InstallType         = "npm"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AdditionalKeywords = @("openclaw", "claw", "openclaw-gateway")
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
         Exec               = "Tabby.exe"

@@ -21,6 +21,8 @@ export const BACKGROUND_MESSAGE_TYPES = {
   REFRESH_SERVER_STATUS: 'refresh_server_status',
   SERVER_STATUS_CHANGED: 'server_status_changed',
   INITIALIZE_SEMANTIC_ENGINE: 'initialize_semantic_engine',
+  ELEMENT_PICKER_FRAME_EVENT: 'element_picker_frame_event',
+  ELEMENT_PICKER_UI_EVENT: 'element_picker_ui_event',
 } as const;
 
 // Offscreen message types
@@ -63,6 +65,17 @@ export const TOOL_MESSAGE_TYPES = {
 
   // Interactive elements
   GET_INTERACTIVE_ELEMENTS: 'getInteractiveElements',
+
+  // Accessibility tree
+  GENERATE_ACCESSIBILITY_TREE: 'generateAccessibilityTree',
+  RESOLVE_REF: 'resolveRef',
+  ENSURE_REF_FOR_SELECTOR: 'ensureRefForSelector',
+
+  // Element picker
+  ELEMENT_PICKER_UI_SHOW: 'elementPickerUiShow',
+  ELEMENT_PICKER_UI_HIDE: 'elementPickerUiHide',
+  ELEMENT_PICKER_UI_UPDATE: 'elementPickerUiUpdate',
+  ELEMENT_PICKER_UI_PING: 'elementPickerUiPing',
 
   // Network requests
   NETWORK_SEND_REQUEST: 'sendPureNetworkRequest',
