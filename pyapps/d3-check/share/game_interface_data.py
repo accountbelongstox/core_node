@@ -1651,31 +1651,41 @@ def get_game_interface_data() -> D3InterfaceData:
 
 def _initialize_battlenet_region_from_config(game_data: D3InterfaceData) -> None:
     """
-    Initialize Battle.net region from config file during game data initialization.
-    Reads from Battle.net.config file: Services.LastLoginRegion.
-    If not CN, sets to "asia"; if CN, sets to "cn".
+    Initialize Battle.net region once at app startup. Source: config file on disk only (not memory).
+    Reads Battle.net.config file: Services.LastLoginRegion. CN (case-insensitive) -> "cn", else -> "asia".
     """
     config_path = Path(BATTLE_NET_CONFIG_PATH)
+    ColorPrint.gray(
+        f"[GameInterfaceData] BN region init (once at startup, from config file not memory): file={config_path} exists={config_path.exists()}"
+    )
     if not config_path.exists():
+        ColorPrint.gray("[GameInterfaceData] BN region init: file missing, skip (region stays None)")
         return
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
-        ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config: {e}")
+        ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config file: {e}")
         return
     if not isinstance(data, dict):
+        ColorPrint.gray("[GameInterfaceData] BN region init: root not dict, skip")
         return
     services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
     if not isinstance(services, dict):
+        ColorPrint.gray("[GameInterfaceData] BN region init: Services missing or not dict, skip")
         return
     last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    raw_from_file = last_login_region if isinstance(last_login_region, str) else repr(last_login_region)
+    ColorPrint.gray(
+        f"[GameInterfaceData] BN region init: read from file Services.LastLoginRegion={repr(raw_from_file)}"
+    )
     if not last_login_region or not isinstance(last_login_region, str):
+        ColorPrint.gray("[GameInterfaceData] BN region init: LastLoginRegion empty/invalid, skip")
         return
-    if last_login_region == BATTLE_NET_CONFIG_REGION_CN:
-        game_data.set_battlenet_region("cn")
-    else:
-        game_data.set_battlenet_region("asia")
+    is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
+    region = "cn" if is_cn else "asia"
+    ColorPrint.gray(f"[GameInterfaceData] BN region init: -> region={region}")
+    game_data.set_battlenet_region(region)
 
 
 def clear_game_interface_data():

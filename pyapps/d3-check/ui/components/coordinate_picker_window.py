@@ -27,7 +27,7 @@ from providor.providor_index import (
     CLIENT_TYPE_D3_GAME,
     CLIENT_TYPE_D4_GAME,
 )
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str, var_int, var_bool
 from ..utils.app_root import get_app_root

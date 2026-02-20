@@ -63,7 +63,7 @@ from .grid_config import (
 )
 
 # Import i18n manager (project-wide singleton) from d3utils
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 __all__ = [
     # Constants

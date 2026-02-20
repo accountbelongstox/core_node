@@ -8,7 +8,7 @@ A specialized input widget for capturing keyboard shortcuts
 import tkinter as tk
 from tkinter import ttk
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 
 class HotkeyInput(tk.Entry):

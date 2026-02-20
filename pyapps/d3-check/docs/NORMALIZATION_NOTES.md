@@ -16,21 +16,23 @@ Summary of normalization applied and items left for architecture or explicitly e
 - **providor/constants/** and **providor_index.py** window-title lists: Matching/config literals per §11.
 - **utils/_obsolete_***, **state/_obsolete_***: Obsolete code, not normalized.
 
+## i18n_manager and reference UI JSON (done)
+
+- **i18n_manager**: Single place **providor/i18n_manager.py**; init once on first import. All call sites use `from providor.i18n_manager import i18n_manager`. `d3utils/i18n_manager.py` is re-export only.
+- **share/asia_credentials.py**: Top-level import from providor; no lazy import.
+- **Reference UI JSON**: Docs reference JSON (e.g. Battle.net UI snapshot) is **not loaded at runtime**. **battlenet_region_judge** uses only hardcoded constants from `providor.constants.d3` (D3_TAB_*, START_GAME_* for Asia); no file reference.
+
 ## Unreasonable or follow-up (need architecture / product decision)
 
 1. **Lazy imports (§6.1)**  
-   Many modules use function-level `from X import Y` to avoid circular imports. PROJECT_STANDARDS §6.1 requires resolving cycles by architecture (split module, dependency injection, shared layer), not by lazy import.  
-   **Reasonable exception**: `share/asia_credentials.py` imports `d3utils.i18n_manager` only when the dialog is shown, so share does not depend on d3utils at load time; this is an intentional boundary.  
-   **Others** (e.g. d3utils/history/compat.py, history_info_organizer_approach5.py, controller/d4func/exp_farming.py, d4_scaled_template_matcher.py, timers/one_shot_tasks.py, share/values/config_change_hub.py, lifecycle/thread_registry.py, ocr_helper.py, i18n_manager.py CONFIG lazy load): Fixing would require dependency inversion or module splits. Recommend tracking in a separate refactor and not blocking normalization.
+   Many modules still use function-level `from X import Y` to avoid circular imports.  
+   **Others** (e.g. d3utils/history/compat.py, controller/d4func/exp_farming.py, d4_scaled_template_matcher.py, timers/one_shot_tasks.py, share/values/config_change_hub.py, lifecycle/thread_registry.py, ocr_helper.py, providor.i18n_manager CONFIG lazy load): Fixing would require dependency inversion or module splits. Recommend tracking in a separate refactor.
 
 2. **traceback / datetime / time inside functions**  
    Some files `import traceback` or `import time`/`datetime` inside except blocks or helpers. §6.1 allows optional third-party at module level; standard library is usually at top. These are minor and can be moved to top in a cleanup.
 
 3. **Scripts section names**  
    `scripts/test_history_organizer_poll.py` uses Chinese section names (e.g. "思路2对比") in output. Could be moved to i18n or English in a later pass if scripts are considered part of the product surface.
-
-4. **Filename "登陆后的战网元素.json"**  
-   `battlenet_region_judge.py` references this path; it is a resource filename. Renaming would require updating any docs or config that refer to it; left as-is.
 
 ## Reference
 

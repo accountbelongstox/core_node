@@ -10,7 +10,7 @@ import sys
 import os
 from typing import Optional, Callable
 
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 class MenuBar:
     """Menu bar component with language selection"""

@@ -32,7 +32,7 @@ import lifecycle  # noqa: E402
 from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
 from runtime import get_system_initializer
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from pycore.pyfoundations.color_print import ColorPrint
 
 

@@ -45,7 +45,7 @@ from .unified_styles import UnifiedStyles
 from ui.utils.config_binding import ConfigBinding
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from providor.constants.ui import (
     TAB_INDEX_MAIN,
     TAB_INDEX_AUXILIARY,

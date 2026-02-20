@@ -11,7 +11,7 @@ from typing import Optional, Callable
 from ..theme.theme import UITheme
 from ..utils.config_binding import ConfigBinding
 from runtime import trigger_window_minimize, trigger_window_maximize, trigger_app_restart, trigger_app_exit
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from pycore.pyfoundations.color_print import ColorPrint
 
 

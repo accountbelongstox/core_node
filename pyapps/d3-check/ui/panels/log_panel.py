@@ -20,7 +20,7 @@ from runtime import is_shutdown_requested
 from ..unified_styles import UnifiedStyles
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 
 

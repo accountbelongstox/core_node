@@ -243,6 +243,7 @@ pyapps/d3-check/
 | 重置 Flow-master BN 块 | reset_flow_master_bn_block() |
 | **流程禁止定时器** | 仅 tick 驱动；超时用 deadline/deadline_tick；流程步内禁止 time.sleep（§4.1） |
 | 代码语言 / 多语言 | §11：代码英文；用户可见文案 i18n；匹配/配置用常量除外 |
+| i18n 入口 | providor.i18n_manager 唯一；不加载参考用 UI JSON，特征硬编码 |
 
 ### D4 规范化核对清单
 
@@ -258,3 +259,5 @@ pyapps/d3-check/
 - **其他（用户可见文案）**：界面文案、提示、按钮标签等**使用多语言**：通过 **providor i18n**（如 `i18n_manager.get_ui_text(...)`）获取，不在业务代码中写死中文或其它语言字符串。
 - **常量除外**：用于匹配、配置键、窗口标题关键字等**字面常量**（如 `providor.constants.common`、`providor.constants.d3` 中的元组/列表值）**保持现状**，不因“代码英文”而改动；新增匹配用常量仍可按需使用多语言字面量。
 - 与 §八 一致：字面常量进 providor；用户可见文案进 i18n JSON，代码侧仅引用 i18n key 或英文 fallback。
+- **i18n 单一入口**：`i18n_manager` 仅定义并初始化于 **providor/i18n_manager.py**；全项目统一 `from providor.i18n_manager import i18n_manager`，不在他处再实现或持有实例。
+- **参考用 UI 文档不加载**：docs 下用于“参考”的 UI 元素 JSON（如战网界面快照）仅供人工查阅；运行时**不得**读取该文件，检测用特征一律**硬编码**在代码中（如 `providor.constants.d3`）。
