@@ -7,7 +7,7 @@ Test mode row: one label only (no "label: value" pair).
 
 import tkinter as tk
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from .status_item import make_status_item
 from .status_row_config import STATUS_ROW_1, STATUS_ROW_2
 

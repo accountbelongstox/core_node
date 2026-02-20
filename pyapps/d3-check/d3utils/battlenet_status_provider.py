@@ -28,11 +28,11 @@ from d3utils.status_provider_common import refresh_window_state
 def _read_region_from_battlenet_config() -> Optional[str]:
     """
     Read Battle.net region from config file: ~/AppData/Roaming/Battle.net/Battle.net.config
-    Returns "asia" if Services.LastLoginRegion is not "CN", "cn" if it is "CN", or None if not found/invalid.
-    Path uses os.path.expanduser("~") to get current user's home directory automatically.
+    Returns "cn" if Services.LastLoginRegion is CN (case-insensitive), "asia" otherwise, or None if not found/invalid.
     """
     config_path = Path(BATTLE_NET_CONFIG_PATH)
     if not config_path.exists():
+        ColorPrint.gray("[BattlenetStatusProvider] _read_region_from_battlenet_config: config missing")
         return None
     try:
         with open(config_path, "r", encoding="utf-8") as f:
@@ -47,10 +47,16 @@ def _read_region_from_battlenet_config() -> Optional[str]:
         return None
     last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
     if not last_login_region or not isinstance(last_login_region, str):
+        ColorPrint.gray(
+            f"[BattlenetStatusProvider] _read_region_from_battlenet_config: LastLoginRegion empty/invalid raw={repr(last_login_region)}"
+        )
         return None
-    if last_login_region == BATTLE_NET_CONFIG_REGION_CN:
-        return "cn"
-    return "asia"
+    is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
+    result = "cn" if is_cn else "asia"
+    ColorPrint.gray(
+        f"[BattlenetStatusProvider] _read_region_from_battlenet_config: LastLoginRegion={repr(last_login_region)} -> {result}"
+    )
+    return result
 
 
 def ensure_battlenet_region_from_config() -> None:

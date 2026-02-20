@@ -6,6 +6,7 @@ Used by thread registry and panels. Long-lived thread classes live in controller
 """
 
 import json
+import os
 import re
 import shutil
 import time
@@ -40,6 +41,8 @@ from d3utils.rosbot_task_processor import run_full_status_refresh, start_rosbot_
 from d3utils.rosbot_ui_automation import run_after_rosbot_start, try_close_d3_must_be_launched_dialog
 from d3utils.rosbot_update_check import ask_yes_no_on_main_thread
 from d3utils.rosbot_update_manager import get_rosbot_update_manager
+import d3utils.rosbot_manager as rosbot_manager_module
+from providor.providor_index import set_config_value_safe
 from providor.constants.d3 import (
     ROSBOT_REGION_DISPLAY_ASIA,
     ROSBOT_REGION_DISPLAY_CN,
@@ -543,7 +546,20 @@ def do_rosbot_update(panel: Any) -> None:
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    
+
+    # Already have this version on disk (target dir has main exe) -> skip extract, ensure CONFIG and UI
+    if update_manager.target_already_has_version(best_region, version_str, zip_path):
+        ColorPrint.gray(
+            f"[RosbotPanel] Already up to date: target directory has main exe for {best_region} {version_str}, skipping extract"
+        )
+        final_dir = update_manager.get_target_final_dir(best_region, version_str, zip_path)
+        if final_dir:
+            set_config_value_safe("ros_settings.ros_directory", os.path.normpath(final_dir))
+            rosbot_manager_module._rosbot_manager = None
+        run_e6_done()
+        _rosbot_update_done(panel)
+        return
+
     # Apply update
     ColorPrint.blue(f"[RosbotPanel] E3c-E3e apply update: extract, copy RoS-BoT.ini, update ros_directory for {best_region}")
     if not update_manager.apply_update(zip_path, best_region, version_str):

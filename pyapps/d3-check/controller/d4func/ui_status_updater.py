@@ -15,7 +15,7 @@ sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.common import DEBUG
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from share.game_interface_data import get_d4_interface_data
 from .map_name_utils import get_current_map_name_from_shared_data
 # D4State functionality now integrated into D4InterfaceData

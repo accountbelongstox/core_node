@@ -48,8 +48,6 @@ START_GAME_NAME_KEYWORDS_ASIA = ("Play", "開始遊戲", "Playing Now")
 # ---------------------------------------------------------------------------
 # D3 Battle.net (D3-specific)
 # ---------------------------------------------------------------------------
-# Post-login Battle.net UI elements reference (docs/); used by battlenet_region_judge for Asia D3 tab / Play detection
-BATTLE_NET_POST_LOGIN_ELEMENTS_JSON = "登陆后的战网元素.json"
 BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME = "logo.png"
 BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME = "battlenet_d3_small_map"
 
@@ -106,10 +104,11 @@ ROSBOT_EXE_PATTERNS = ("ros-bot*.exe", "RoS-BoT*.exe")
 ROSBOT_GAMETOOLS_BASE = r"D:\applications\GameTools"
 ROSBOT_ZIP_MIN_SIZE_MB = 20
 ROSBOT_ZIP_MAX_SIZE_MB = 50  # Zip size range 20-50MB
-# Downloads zip match: international=Asia, prefer Asia (constants)
+# Region semantics: CN = 国服 only; Asia = 亚服 + 国际服 (international). Version is per-region: dir = {Asia|CN}_{version}.
+# Zip filename match: Asia = any ASIA keyword; CN = CN keyword and no ASIA (Asia has priority).
 ROSBOT_ZIP_KEYWORDS_ASIA = ("亚服", "asia", "Asia", "国际服", "global", "Global")
 ROSBOT_ZIP_KEYWORDS_CN = ("国服", "cn", "CN")
-# ROSBOT directory namespace: region-specific subdirectories under GameTools
+# ROSBOT directory namespace: GameTools\{Asia|CN}_{version}\RosBot (version always tied to that region)
 ROSBOT_DIR_NAMESPACE_ASIA = "Asia"
 ROSBOT_DIR_NAMESPACE_CN = "CN"
 # Region display names for UI

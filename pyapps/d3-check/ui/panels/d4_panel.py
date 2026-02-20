@@ -24,7 +24,7 @@ ensure_d3_check_in_sys_path()
 from providor.providor_index import CONFIG, queue_config_save
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 # Import map name utilities
 from controller.d4func.map_name_utils import get_current_map_name_from_shared_data

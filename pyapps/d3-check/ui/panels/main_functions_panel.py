@@ -22,7 +22,7 @@ from ..widgets import HotkeyInput, ThemedCheckbutton, ThemedCombobox, ThemedEntr
 from ..theme import UITheme
 
 # Import i18n (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 
 # Import CONFIG and ConfigBinding
 from providor.providor_index import CONFIG, CONFIG_USER_PATH, queue_config_save

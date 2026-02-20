@@ -12,7 +12,7 @@ from typing import Optional
 from ..theme import UITheme
 from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from providor.providor_index import get_config_value_safe
 from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
 from runtime import is_shutdown_requested

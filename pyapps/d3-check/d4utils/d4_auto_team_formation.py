@@ -5,17 +5,8 @@ Auto Team Formation Manager
 Automatically creates team when Find Team is detected (OCR text locale-specific, e.g. CN "寻找队伍")
 """
 
-import sys
 import time
-from pathlib import Path
 from typing import Optional
-
-from share.project_path import ensure_d3_check_in_sys_path, get_project_root
-ensure_d3_check_in_sys_path()
-
-# Add pycore path
-pycore_path = get_project_root().parent / "pycore"
-sys.path.insert(0, str(pycore_path))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d4utils.d4_operation_base import D4OperationBase

@@ -22,7 +22,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..widgets import ThemedCombobox
 from ..utils.app_root import get_app_root

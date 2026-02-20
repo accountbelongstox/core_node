@@ -93,6 +93,9 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
 - **User-facing text**: Use **i18n** (e.g. `i18n_manager.get_ui_text(...)`); do not hardcode Chinese or other locale strings in feature code.
 - **Constants excepted**: Literal constants used for matching (e.g. UI keywords, window titles in `providor.constants`) remain as-is; do not change them for “code in English.”
 
+- **i18n single place**: Import only `from providor.i18n_manager import i18n_manager`; single init in providor.
+- **Reference UI JSON**: Docs reference JSON (e.g. Battle.net UI snapshot) is for human reference only; do not load at runtime; hardcode detection features in code (providor.constants).
+
 ### 16. Summary
 
 | Need | Where |
@@ -105,6 +108,7 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
 | Lifecycle/threads/events | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
 | Code language / i18n | §14 = PROJECT_STANDARDS §11: code English; UI via i18n; constants excepted |
+| i18n / reference JSON | §14: providor.i18n_manager only; do not load reference UI JSON; hardcode features |
 | Threads | THREAD_BUS_AND_REGISTRY.md |
 | Exception handling | §11: remove unnecessary catch; keep only websocket/task thread/Tk/queue/COM/network essentials |
 | Updating Cursor skills | §13: `.cursor/skills/<name>/SKILL.md`; frontmatter name+description; sync rules, PROJECT_STANDARDS |

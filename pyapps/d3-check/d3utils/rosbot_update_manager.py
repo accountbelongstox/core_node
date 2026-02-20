@@ -12,6 +12,7 @@ Design doc: docs/ROSBOT_UPDATE_FLOW.md
   - Prerequisite: Only execute when game_interface_data.get_battlenet_region() is asia or cn
 
 2. How to extract
+  - Region: asia = 亚服/国际服 (Asia_*), cn = 国服 (CN_*). Version is per-region; directory = {Asia|CN}_{version}.
   - Create directory under GameTools: {region}_{version} (Asia_36.0129 or CN_36.0129, see ROSBOT_DIR_NAMESPACE_*)
   - Extract zip to that directory (zipfile.ZipFile.extractall(extract_to))
   - Recursively find RoS-BoT.exe or ros-bot*.exe (ROSBOT_EXE_PATTERNS), only care about exe directory
@@ -49,7 +50,7 @@ from d3utils.rosbot_manager import get_rosbot_manager
 import d3utils.rosbot_manager as rosbot_manager_module
 from share.game_interface_data import get_game_interface_data
 
-# Version: two-segment numbers like 36.0129 -> (36, 129); directory name uses English region: Asia / CN
+# Version: two-segment numbers like 36.0129 -> (36, 129). Directory = Asia_version or CN_version (version always bound to that region).
 _VERSION_RE = re.compile(r"(\d{1,4})\.?(\d{2,5})")
 _MIN_ZIP_BYTES = ROSBOT_ZIP_MIN_SIZE_MB * 1024 * 1024
 _MAX_ZIP_BYTES = ROSBOT_ZIP_MAX_SIZE_MB * 1024 * 1024
@@ -501,6 +502,53 @@ class RosbotUpdateManager:
         # Final check if exe is found
         return self.find_rosbot_exe_recursive(root_dir) is not None
 
+    def target_already_has_version(
+        self,
+        region: str,
+        version_str: Optional[str] = None,
+        zip_path: Optional[str] = None,
+    ) -> bool:
+        """
+        Return True if the target directory for this (region, version) already exists and
+        contains the main exe. Region asia -> Asia_* (亚服/国际服), cn -> CN_* (国服).
+        Version is per-region: Asia_36.0129 and CN_36.0129 are distinct directories.
+        """
+        if region not in ("asia", "cn"):
+            return False
+        if not version_str and zip_path:
+            v = self.parse_version_from_name(os.path.basename(zip_path))
+            version_str = self.version_to_str(v) if v else None
+        if not version_str:
+            return False
+        region_dir = ROSBOT_DIR_NAMESPACE_ASIA if region == "asia" else ROSBOT_DIR_NAMESPACE_CN
+        parent_name = f"{region_dir}_{version_str}"
+        final_dir = os.path.join(ROSBOT_GAMETOOLS_BASE, parent_name, ROSBOT_FINAL_DIR_NAME)
+        if not os.path.exists(final_dir) or not os.path.isdir(final_dir):
+            return False
+        exe_in_final = self.find_rosbot_exe_recursive(final_dir)
+        if not exe_in_final:
+            return False
+        parent_dir = os.path.dirname(final_dir)
+        return os.path.basename(parent_dir) == parent_name
+
+    def get_target_final_dir(
+        self,
+        region: str,
+        version_str: Optional[str] = None,
+        zip_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Return target directory for (region, version): GameTools/{Asia|CN}_{version}/RosBot. Version is tied to region (asia=Asia, cn=CN)."""
+        if region not in ("asia", "cn"):
+            return None
+        if not version_str and zip_path:
+            v = self.parse_version_from_name(os.path.basename(zip_path))
+            version_str = self.version_to_str(v) if v else None
+        if not version_str:
+            return None
+        region_dir = ROSBOT_DIR_NAMESPACE_ASIA if region == "asia" else ROSBOT_DIR_NAMESPACE_CN
+        parent_name = f"{region_dir}_{version_str}"
+        return os.path.join(ROSBOT_GAMETOOLS_BASE, parent_name, ROSBOT_FINAL_DIR_NAME)
+
     def apply_update(
         self,
         zip_path: str,
@@ -538,16 +586,17 @@ class RosbotUpdateManager:
         parent_name = f"{region_dir}_{version_str}"
         final_dir = os.path.join(ROSBOT_GAMETOOLS_BASE, parent_name, ROSBOT_FINAL_DIR_NAME)
         
-        # Check if target directory already exists (skip update if already updated to this version)
+        # Check if target directory already has this version (main exe present) -> skip extract
+        if self.target_already_has_version(region, version_str):
+            ColorPrint.gray(
+                f"[RosbotUpdateManager] Already up to date: {final_dir} has main exe for {region} {version_str}, skipping extract"
+            )
+            return True
         if os.path.exists(final_dir) and os.path.isdir(final_dir):
             exe_in_final = self.find_rosbot_exe_recursive(final_dir)
             if exe_in_final:
-                # Verify it's actually the target version by checking parent directory name
                 parent_dir = os.path.dirname(final_dir)
-                if os.path.basename(parent_dir) == parent_name:
-                    ColorPrint.gray(f"[RosbotUpdateManager] Target directory already exists with exe: {final_dir}, skipping update")
-                    return True
-                else:
+                if os.path.basename(parent_dir) != parent_name:
                     ColorPrint.gray(f"[RosbotUpdateManager] Target directory exists but parent name mismatch, proceeding with update")
         
         # Use unique temp directory for this update run

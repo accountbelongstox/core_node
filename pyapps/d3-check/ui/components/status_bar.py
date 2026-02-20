@@ -12,7 +12,7 @@ import time
 from ..theme import UITheme
 from ..unified_styles import UnifiedStyles
 from ..utils.tk_variables import var_str
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 import sys
 import os
 
