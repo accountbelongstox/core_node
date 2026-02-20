@@ -48,6 +48,8 @@ START_GAME_NAME_KEYWORDS_ASIA = ("Play", "開始遊戲", "Playing Now")
 # ---------------------------------------------------------------------------
 # D3 Battle.net (D3-specific)
 # ---------------------------------------------------------------------------
+# Post-login Battle.net UI elements reference (docs/); used by battlenet_region_judge for Asia D3 tab / Play detection
+BATTLE_NET_POST_LOGIN_ELEMENTS_JSON = "登陆后的战网元素.json"
 BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME = "logo.png"
 BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME = "battlenet_d3_small_map"
 
