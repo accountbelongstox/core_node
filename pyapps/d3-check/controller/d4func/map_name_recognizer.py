@@ -16,7 +16,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 Image = get_third_package_PIL_Image()
 
 from share.game_interface_data import get_d4_interface_data
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from .map_name_utils import set_current_map_name
 from d3utils.cnocr_engine_registry import get_cnocr_engine_for_task
 
