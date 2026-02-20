@@ -4,13 +4,7 @@
 Screenshot Handler for D4 Controller. Singleton via get_screenshot_handler(); do not instantiate elsewhere.
 """
 
-import sys
-from pathlib import Path
 from datetime import datetime
-
-# Add project paths
-current_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(current_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import DIABLO_IV_WINDOW_TITLES

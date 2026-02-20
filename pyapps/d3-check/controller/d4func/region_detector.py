@@ -4,16 +4,10 @@
 Region Detector for D4 Controller. Singleton via get_region_detector(); do not instantiate elsewhere.
 """
 
-import sys
-from pathlib import Path
 from datetime import datetime
 
-# Add project paths
-current_dir = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(current_dir))
-
 from pycore.pyfoundations.color_print import ColorPrint
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 # D4State functionality now integrated into D4InterfaceData
 from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (

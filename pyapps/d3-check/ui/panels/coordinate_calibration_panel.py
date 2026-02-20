@@ -35,7 +35,7 @@ from ..unified_styles import UnifiedStyles
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.d3_manager import get_d3_manager
 from ..utils.tk_variables import var_str, var_bool
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 from ..components.yolo_annotation_window import YoloAnnotationWindow
 from ..components.coordinate_picker_window import CoordinatePicker

@@ -9,7 +9,6 @@ Shared across all controllers and UI components
 import ctypes
 import json
 import os
-import sys
 import tkinter as tk
 import threading
 from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, Callable
@@ -24,11 +23,6 @@ numpy = get_third_package_numpy()
 np = numpy
 cv2 = get_third_package_cv2()
 Image = get_third_package_PIL_Image()
-
-# Add project path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
 
 from providor.constants.common import (
     TMP_DIR,

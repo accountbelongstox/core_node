@@ -21,7 +21,7 @@ from providor.providor_index import CONFIG, load_config, queue_config_save, CONF
 from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController, get_game_interface_controller
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from runtime import (
     get_main_function_thread,
     get_auxiliary_function_thread,

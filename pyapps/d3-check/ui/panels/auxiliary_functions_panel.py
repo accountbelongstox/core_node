@@ -26,7 +26,7 @@ from ..unified_styles import UnifiedStyles
 from ..widgets import HotkeyInput, ThemedCombobox
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ..utils.tk_variables import var_str
 from ui.utils.config_binding import ConfigBinding
 from share.game_interface_data import get_game_interface_data, get_scaled_bag_region, get_global_scale

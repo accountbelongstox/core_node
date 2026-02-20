@@ -8,6 +8,7 @@ from tkinter import ttk
 from typing import Optional, Tuple
 
 from providor.constants.common import ASIA_LOGIN_DEBUG_INPUT
+from providor.i18n_manager import i18n_manager
 from providor.providor_index import get_config_value_safe, set_config_value_safe
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.security import (
@@ -29,7 +30,6 @@ REGION_LABELS = (("Asia", REGION_ASIA), ("CN", REGION_CN))
 
 def _get_region_labels() -> Tuple[Tuple[str, str], ...]:
     """Return ((display_label, region_key), ...) using i18n."""
-    from d3utils.i18n_manager import i18n_manager
     return (
         (i18n_manager.get_ui_text("credentials.region_asia", "Asia"), REGION_ASIA),
         (i18n_manager.get_ui_text("credentials.region_cn", "CN"), REGION_CN),
@@ -46,7 +46,6 @@ def _label_for_region(region: str) -> str:
     for label, r in _get_region_labels():
         if r == region:
             return label
-    from d3utils.i18n_manager import i18n_manager
     return i18n_manager.get_ui_text("credentials.region_asia", "Asia")
 
 # When True: dialog was scheduled or is open; tick driver skips until dialog closes (OK/Cancel).
@@ -171,7 +170,6 @@ def _show_credentials_dialog(default_region: str = REGION_ASIA) -> None:
     except Exception:
         return
 
-    from d3utils.i18n_manager import i18n_manager
     region_options = _get_region_labels()
     labels = [lb for lb, _ in region_options]
 

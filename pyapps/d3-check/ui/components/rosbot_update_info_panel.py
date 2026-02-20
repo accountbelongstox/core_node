@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Dict, List, Optional, Callable
 
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 
 
