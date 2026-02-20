@@ -1122,8 +1122,6 @@ class D3InterfaceData(InterfaceDataBase):
 
     def _drain_and_notify(self):
         """Runs on main thread only (scheduled by after). Schedule next first so one failing callback does not stop the poll."""
-        import time as _t
-        t0 = _t.time()
         if self._poll_after_fn is not None:
             self._poll_after_fn(self._poll_interval_ms, self._drain_and_notify)
         state = self.get_state_snapshot()
@@ -1131,15 +1129,9 @@ class D3InterfaceData(InterfaceDataBase):
             callbacks = self._callbacks.copy()
         for callback in callbacks:
             try:
-                cb_t0 = _t.time()
                 callback(state)
-                elapsed = _t.time() - cb_t0
-                if elapsed > 0.05:
-                    ColorPrint.gray(f"[UI-DBG] _drain_and_notify callback {callback.__name__} took {elapsed:.3f}s")
             except Exception:
                 pass
-        if _t.time() - t0 > 0.05:
-            ColorPrint.gray(f"[UI-DBG] _drain_and_notify total took {_t.time()-t0:.3f}s n_callbacks={len(callbacks)}")
 
     def notify_state_sync(self):
         """State changed; UI will reflect on next main-thread poll (no cross-thread after)."""
@@ -1664,24 +1656,30 @@ def _initialize_battlenet_region_from_config(game_data: D3InterfaceData) -> None
         return
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
+            raw_text = f.read()
+    except OSError as e:
         ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config file: {e}")
         return
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        ColorPrint.yellow(f"[GameInterfaceData] Battle.net config JSON error: {e}")
+        ColorPrint.gray(f"[GameInterfaceData] BN region init: full config as debug:\n{raw_text[:3000]}\n--- end ---")
+        return
     if not isinstance(data, dict):
-        ColorPrint.gray("[GameInterfaceData] BN region init: root not dict, skip")
+        ColorPrint.gray("[GameInterfaceData] BN region init: root not dict, full config as debug:\n{raw_text[:3000]}\n--- end ---")
         return
     services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
     if not isinstance(services, dict):
-        ColorPrint.gray("[GameInterfaceData] BN region init: Services missing or not dict, skip")
+        ColorPrint.gray("[GameInterfaceData] BN region init: Services missing or not dict, full config as debug:\n{raw_text[:3000]}\n--- end ---")
         return
     last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
-    raw_from_file = last_login_region if isinstance(last_login_region, str) else repr(last_login_region)
     ColorPrint.gray(
-        f"[GameInterfaceData] BN region init: read from file Services.LastLoginRegion={repr(raw_from_file)}"
+        f"[GameInterfaceData] BN region init: read Services.LastLoginRegion={repr(last_login_region)}"
     )
     if not last_login_region or not isinstance(last_login_region, str):
-        ColorPrint.gray("[GameInterfaceData] BN region init: LastLoginRegion empty/invalid, skip")
+        ColorPrint.gray("[GameInterfaceData] BN region init: LastLoginRegion empty/invalid, printing full config as debug:")
+        ColorPrint.gray(f"[GameInterfaceData] --- Battle.net.config full text ---\n{raw_text}\n--- end ---")
         return
     is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
     region = "cn" if is_cn else "asia"

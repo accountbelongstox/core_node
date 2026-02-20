@@ -25,7 +25,7 @@ _FIELD_INPUT_INTERVAL_MIN = 0.05
 _FIELD_INPUT_INTERVAL_MAX = 0.15
 
 if TYPE_CHECKING:
-    from d3utils.battlenet_operation import BattlenetOperation
+    from d3utils.battlenet_operation_base import BattlenetOperationBase
 
 UIA_VALUE_PATTERN_ID = 10002
 
@@ -150,7 +150,7 @@ class BattlenetAsiaOps:
     Asia Battle.net diff: perform email step and password step; predicates delegated to BattlenetRegionJudge.
     """
 
-    def __init__(self, battlenet_op: "BattlenetOperation"):
+    def __init__(self, battlenet_op: "BattlenetOperationBase"):
         self._op = battlenet_op
 
     def _judge(self, controls: Optional[List[Dict[str, Any]]] = None) -> BattlenetRegionJudge:

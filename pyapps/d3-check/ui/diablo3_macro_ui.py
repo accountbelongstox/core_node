@@ -738,9 +738,7 @@ class Diablo3MacroUI:
 
     def _reregister_log_callback(self):
         """Register only the current tab's panel as ColorPrint callback."""
-        t0 = time.time()
         ColorPrint.clear_all_callbacks()
-        ColorPrint.gray(f"[UI-DBG] _reregister_log_callback after clear t={time.time()-t0:.3f}")
         if not self.main_notebook.winfo_exists():
             idx = TAB_INDEX_MAIN
         else:
@@ -752,7 +750,6 @@ class Diablo3MacroUI:
             ColorPrint.register_callback(self.d4_panel.add_log_message)
         elif idx == TAB_INDEX_LOG:
             ColorPrint.register_callback(self.log_panel.add_log_message)
-        ColorPrint.gray(f"[UI-DBG] _reregister_log_callback EXIT idx={idx} t={time.time()-t0:.3f}")
 
     def _register_panel_language_listeners(self):
         """Register language change listeners. Panels with _on_language_changed listed explicitly (code-level)."""

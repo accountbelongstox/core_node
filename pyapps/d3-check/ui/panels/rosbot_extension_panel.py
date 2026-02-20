@@ -65,41 +65,28 @@ from share.asia_credentials import schedule_battlenet_credentials_dialog
 
 def _fetch_rosbot_config_then_create(panel: "RosbotExtensionPanel") -> None:
     """Run in timer thread: fetch all config values, then schedule UI creation on main thread (THREAD_BUS_AND_REGISTRY §5)."""
-    t0 = time.time()
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create ENTER (timer thread) t={t0:.3f}")
     if panel._content_created:
-        ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create SKIP already created")
         return
     snapshot = {}
     for i, (key_path, default) in enumerate(ROSBOT_PANEL_CONFIG_KEYS):
         snapshot[key_path] = get_config_value_safe(key_path, default)
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create snapshot done n={len(snapshot)} t={time.time()-t0:.3f}")
     def on_main():
-        t1 = time.time()
-        ColorPrint.gray(f"[UI-DBG] on_main (create_content_with_snapshot) ENTER t={t1:.3f}")
         if panel._content_created:
-            ColorPrint.gray(f"[UI-DBG] on_main SKIP already created")
             return
         panel._create_content_with_snapshot(snapshot)
-        ColorPrint.gray(f"[UI-DBG] on_main EXIT t={time.time()-t1:.3f}")
     panel.container.after(0, on_main)
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_then_create EXIT after(0) scheduled t={time.time()-t0:.3f}")
 
 
 def _fetch_rosbot_config_on_main_then_create(panel: "RosbotExtensionPanel") -> None:
     """Run on main thread when timer is not started yet (docs/ui_5 plan B). Build snapshot via get_config_value_safe then create UI; may block briefly."""
     if panel._content_created:
         return
-    t0 = time.time()
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create ENTER (main thread fallback) t={t0:.3f}")
     snapshot = {}
     for key_path, default in ROSBOT_PANEL_CONFIG_KEYS:
         snapshot[key_path] = get_config_value_safe(key_path, default)
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create snapshot done n={len(snapshot)} t={time.time()-t0:.3f}")
     if panel._content_created:
         return
     panel._create_content_with_snapshot(snapshot)
-    ColorPrint.gray(f"[UI-DBG] _fetch_rosbot_config_on_main_then_create EXIT t={time.time()-t0:.3f}")
 
 
 # Config keys and defaults for this panel; read in timer thread to avoid main-thread block (THREAD_BUS: no blocking on config worker).
@@ -175,18 +162,12 @@ class RosbotExtensionPanel:
 
     def ensure_content(self):
         """Create panel content on first call (lazy). Prefer timer thread for config read (THREAD_BUS §5); if timer not started, use main-thread fallback (docs/ui_5 plan B)."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] ensure_content ENTER t={t0:.3f}")
         if self._content_created:
-            ColorPrint.gray(f"[UI-DBG] ensure_content SKIP already created")
             return
         if timer_manager.is_running():
             timer_manager.submit_one_shot(lambda: _fetch_rosbot_config_then_create(self))
-            ColorPrint.gray(f"[UI-DBG] ensure_content EXIT submit_one_shot done t={time.time()-t0:.3f}")
         else:
-            # Timer not started yet (e.g. restore last tab = ROSBOT during _create_main_tabs). Defer to main thread (after(0)) to avoid blocking bind/callback (tkdocs: after for defer).
             self.container.after(0, lambda: _fetch_rosbot_config_on_main_then_create(self))
-            ColorPrint.gray(f"[UI-DBG] ensure_content EXIT after(0) main-thread fallback t={time.time()-t0:.3f}")
 
     def ensure_content_sync(self) -> None:
         """Build panel content synchronously on main thread (for first show when tab is ROSBOT; docs/ui2 UI_REPEATED_PAINT)."""
@@ -196,21 +177,14 @@ class RosbotExtensionPanel:
 
     def _create_content_with_snapshot(self, snapshot: dict) -> None:
         """Build panel widgets on main thread using pre-fetched config snapshot. Single-frame build so first paint shows full content (docs/ui2 UI_REPEATED_PAINT)."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot ENTER t={t0:.3f}")
         self._content_created = True
         self._create_config_panel(snapshot)
-        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot after _create_config_panel t={time.time()-t0:.3f}")
         self._create_control_and_log_then_sync()
-        ColorPrint.gray(f"[UI-DBG] _create_content_with_snapshot EXIT t={time.time()-t0:.3f}")
 
     def _create_control_and_log_then_sync(self) -> None:
         """Second chunk: control panel + log row, then sync status. Runs on main thread after yield."""
-        t0 = time.time()
         self._create_control_panel()
-        ColorPrint.gray(f"[UI-DBG] _create_control_and_log_then_sync after _create_control_panel t={time.time()-t0:.3f}")
         self._create_log_display_row()
-        ColorPrint.gray(f"[UI-DBG] _create_control_and_log_then_sync after _create_log_display_row t={time.time()-t0:.3f}")
         ColorPrint.register_callback(self.add_log_message)
         if self._register_status_ui_fn:
             self._register_status_ui_fn()
@@ -218,8 +192,6 @@ class RosbotExtensionPanel:
 
     def _create_config_panel(self, snapshot: dict):
         """Create ROSBOT configuration panel (no top label to save space). Uses snapshot to avoid main-thread config read."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_config_panel ENTER t={t0:.3f}")
         config_frame = ttk.Frame(self.container)
         config_frame.grid(row=0, column=0, sticky="new",
                          padx=(0, UnifiedStyles.SPACING['sm']),
@@ -230,15 +202,11 @@ class RosbotExtensionPanel:
 
         # ROSBOT path configuration
         self._create_path_section(config_frame, snapshot)
-        ColorPrint.gray(f"[UI-DBG] _create_config_panel after _create_path_section t={time.time()-t0:.3f}")
         # Bot settings
         self._create_bot_settings(config_frame, snapshot)
-        ColorPrint.gray(f"[UI-DBG] _create_config_panel EXIT t={time.time()-t0:.3f}")
 
     def _create_path_section(self, parent, snapshot: dict):
         """Create path section (no title to save space). Uses snapshot to avoid main-thread config read."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_path_section ENTER t={t0:.3f}")
         path_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         path_frame.grid(row=0, column=0, columnspan=2, sticky="ew",
                        padx=UnifiedStyles.SPACING['sm'],
@@ -347,7 +315,6 @@ class RosbotExtensionPanel:
         self._path_scan_btn.grid(row=0, column=3, rowspan=3, sticky="ns",
                                  padx=(UnifiedStyles.SPACING['sm'], 0),
                                  pady=UnifiedStyles.SPACING['xs'])
-        ColorPrint.gray(f"[UI-DBG] _create_path_section EXIT t={time.time()-t0:.3f}")
 
     def _run_one_click_scan(self):
         """Run path scan in background thread; UI stays responsive, progress shown via _scan_progress_tick."""
@@ -445,8 +412,6 @@ class RosbotExtensionPanel:
 
     def _create_bot_settings(self, parent, snapshot: dict):
         """Create bot settings section. Uses snapshot to avoid main-thread config read."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_bot_settings ENTER t={t0:.3f}")
         settings_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.bot_settings"),
                                       bg=UnifiedStyles.COLORS['bg_secondary'],
                                       fg=UnifiedStyles.COLORS['text_primary'],
@@ -539,12 +504,9 @@ class RosbotExtensionPanel:
         tk.Label(c2, text=i18n_manager.get_ui_text("rosbot.minutes"),
                  bg=UnifiedStyles.COLORS['bg_secondary'],
                  fg=UnifiedStyles.COLORS['text_primary']).pack(side=tk.LEFT)
-        ColorPrint.gray(f"[UI-DBG] _create_bot_settings EXIT t={time.time()-t0:.3f}")
 
     def _create_control_panel(self):
         """Create ROSBOT control and status panel"""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_control_panel ENTER t={t0:.3f}")
         control_frame = ttk.LabelFrame(self.container, text=i18n_manager.get_ui_text("rosbot.control_panel"), style='TLabelframe')
         control_frame.grid(row=0, column=1, sticky="new",
                           padx=(UnifiedStyles.SPACING['sm'], 0),
@@ -557,7 +519,6 @@ class RosbotExtensionPanel:
 
         # Control buttons (status display merged into bottom bar Game Status row)
         self._create_control_buttons(control_frame)
-        ColorPrint.gray(f"[UI-DBG] _create_control_panel EXIT t={time.time()-t0:.3f}")
 
     def _create_control_buttons(self, parent):
         """Create control buttons with toggle functionality (same as ensure Battle.net: click toggles, button state updates on click)."""
@@ -646,8 +607,6 @@ class RosbotExtensionPanel:
 
     def _create_log_display_row(self):
         """Create log display in row 1. Header: one-click scan (left) + scan progress + log title (right) + status + latency + checkbox. Then log text + scrollbar."""
-        t0 = time.time()
-        ColorPrint.gray(f"[UI-DBG] _create_log_display_row ENTER t={t0:.3f}")
         self._last_log_time: Optional[float] = None
         self._last_latency_sec: Optional[float] = None
 
