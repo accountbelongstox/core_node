@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Auto Team Formation Manager
-Automatically creates team when Find Team (e.g. OCR "寻找队伍") is detected
+Automatically creates team when Find Team is detected (OCR text locale-specific, e.g. CN "寻找队伍")
 """
 
 import sys

@@ -43,7 +43,7 @@ def run_e1_kill() -> None:
 
 
 def run_e2_sleep(seconds: float = 1.0) -> None:
-    """[E2] Sleep (default 1s)."""
+    """[E2] Sleep (default 1s). Non-tick thread only (extension thread); short sleep for process/UI stability per §4.1 exception."""
     time.sleep(seconds)
 
 

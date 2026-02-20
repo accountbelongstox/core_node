@@ -362,22 +362,20 @@ class RosbotExtensionPanel:
         timer_manager.submit_one_shot(lambda: do_path_scan(self))
 
     def _scan_progress_tick(self) -> None:
-        """Update scan progress label from _scan_status (called on main thread every 200ms)."""
+        """Update scan progress label from _scan_status (called on main thread every 200ms). Safe when label not yet created (lazy content)."""
         if not self._scan_in_progress:
             return
-        current = self._scan_status[0]
-        if current:
-            msg = i18n_manager.get_ui_text("rosbot.scan_current_folder")
-            if isinstance(msg, str) and "%s" in msg:
-                display = msg % current
+        label = self._scan_progress_label
+        if label is not None:
+            current = self._scan_status[0]
+            if current:
+                msg = i18n_manager.get_ui_text("rosbot.scan_current_folder")
+                display = (msg % current) if isinstance(msg, str) and "%s" in msg else f"{msg} {current}"
+                if len(display) > 72:
+                    display = display[:69] + "..."
             else:
-                display = f"{msg} {current}"
-            if len(display) > 72:
-                display = display[:69] + "..."
-        else:
-            display = i18n_manager.get_ui_text("rosbot.scan_searching")
-        if self._scan_progress_label:
-            self._scan_progress_label.config(text=display)
+                display = i18n_manager.get_ui_text("rosbot.scan_searching")
+            label.config(text=display)
         self._scan_progress_after_id = self.container.after(200, self._scan_progress_tick)
 
     def _apply_scan_results(self, battlenet_path, rosbot_dirs, d3_path=None, error_msg=None):
