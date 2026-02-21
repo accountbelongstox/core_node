@@ -366,23 +366,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config2": {
         "skills": {
@@ -416,23 +421,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config3": {
         "skills": {
@@ -466,23 +476,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config4": {
         "skills": {
@@ -516,23 +531,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       }
     },
     "auxiliary_config": {

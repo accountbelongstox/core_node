@@ -7,18 +7,25 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import argparse
-import logging.config
-import os
 import platform
 import signal
-import sys
 import traceback
 
 sys.path.insert(0, 'pyManageCenter')
 sys.path.append('pyManageCenter/protocol')
 
+from pycore.pyfoundations.color_print import ColorPrint
 from ManageCenter import ManageCenter
 from util.config_path_mgr import SYS_CONFIG_DIR, DEFAULT_USER_CONFIG_DIR
 
@@ -28,15 +35,12 @@ MC_TASK_CFG_FILE = 'cfg/task/mc/MCTask.json'
 MC_CFG_FILE = 'cfg/platform/MC.ini'
 MC_LOG_CFG_FILE = 'cfg/platform/MCLog.ini'
 
-LOG = None
-
 
 def main():
     """
     ManageCenter main entry
     :return:
     """
-    global LOG
     try:
         parser = argparse.ArgumentParser(description='')
         parser.add_argument('--cfgpath', type=str, default='', help='config path')
@@ -49,10 +53,7 @@ def main():
         platform_cfg_path = os.path.join(SYS_CONFIG_DIR, MC_CFG_FILE)
         log_cfg_path = os.path.join(SYS_CONFIG_DIR, MC_LOG_CFG_FILE)
 
-        logging.config.fileConfig(log_cfg_path)
-        LOG = logging.getLogger('ManageCenter')
-
-        LOG.info('Task Cfg Path: {}'.format(task_cfg_path))
+        ColorPrint.blue('Task Cfg Path: {}'.format(task_cfg_path))
 
         manage_center = ManageCenter(taskCfgPath=task_cfg_path,
                                      platformCfgPath=platform_cfg_path)
@@ -69,16 +70,16 @@ def main():
         signal.signal(signal.SIGINT, SigHandle)
 
         if manage_center.Initialize(args.runType):
-            LOG.info('==== ManageCenter is going to run ====')
+            ColorPrint.blue('==== ManageCenter is going to run ====')
             manage_center.Run()
             manage_center.Finish()
-            LOG.info('==== ManageCenter exit.... ====')
+            ColorPrint.blue('==== ManageCenter exit.... ====')
         else:
-            LOG.error('==== ManageCenter Init failed! ====')
+            ColorPrint.red('==== ManageCenter Init failed! ====')
 
     except Exception as e:
         traceMsg = traceback.format_exc()
-        LOG.error('exception: {0} trace msg: {1}'.format(e, traceMsg))
+        ColorPrint.red('exception: {0} trace msg: {1}'.format(e, traceMsg))
 
 
 if __name__ == '__main__':

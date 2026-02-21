@@ -24,6 +24,13 @@ from pycore.pyfoundations.third_party import (
 )
 from pycore.pyutils.pybrowser.utils.browser_finder import find_browser, find_driver
 
+_requests_mod = get_third_package_requests()
+if _requests_mod is None:
+    try:
+        import requests as _requests_mod
+    except ImportError:
+        _requests_mod = None
+
 BASE_OUT_DIR = _REPO_ROOT / "pyapps" / "d3-check" / "images" / "maxroll_d3planner"
 PLANNER_WAIT_TIMEOUT = 30
 EXPORT_CLICK_WAIT = 5
@@ -332,10 +339,6 @@ def run(url: str, out_dir: Path, driver, By) -> dict:
             images, equipment_image_urls = _collect_equipment_images_from_wrapper(driver, By)
         except Exception:
             equipment_image_urls = equipment_image_urls or []
-    try:
-        import requests as _requests_mod
-    except ImportError:
-        _requests_mod = get_third_package_requests()
     requests_pkg = _requests_mod
     if requests_pkg:
         session = requests_pkg.Session()

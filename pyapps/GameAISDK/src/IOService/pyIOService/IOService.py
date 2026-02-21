@@ -7,13 +7,22 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import configparser
-import logging
 import os
 import time
 
-import cv2
+from pycore.pyfoundations.third_party import get_third_package_cv2
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
 
 from common.Define import TASK_STATUS_INIT_SUCCESS
 from common.CommonContext import IO_SERVICE_CONTEXT
@@ -31,8 +40,6 @@ OTHERS_LOOP_RATE = 1
 OTHERS_LOOP_COUNT = int(MAIN_LOOP_RATE / OTHERS_LOOP_RATE)
 
 TBUS_CFG_PATH = 'cfg/platform/bus.ini'
-
-LOG = logging.getLogger('IOService')
 
 
 class IOService(object):
@@ -67,7 +74,7 @@ class IOService(object):
         # Load config file
         ret = self._LoadConfig()
         if not ret:
-            LOG.error('Load Config failed!')
+            ColorPrint.red('Load Config failed!')
             return False
 
         IO_SERVICE_CONTEXT['test_mode'] = self.__debugTestMode
@@ -85,20 +92,20 @@ class IOService(object):
         # Initialize sub modules
         tbus_cfg_path = os.path.join(SYS_CONFIG_DIR, TBUS_CFG_PATH)
         if not self.__commMgr.Initialize(tbus_cfg_path):
-            LOG.error('TBUSMgr Initialize failed.')
+            ColorPrint.red('TBUSMgr Initialize failed.')
             return False
 
         if IO_SERVICE_CONTEXT['io_service_type'] == 'HTTP':
             if not self.__httpServer.Initialize(self.__clientCfg):
-                LOG.error('Http Server Initialize failed!')
+                ColorPrint.red('Http Server Initialize failed!')
                 return False
         else:
             if not self.__clientSocket.Initialize(self.__clientCfg):
-                LOG.error('Client Socket Initialize failed!')
+                ColorPrint.red('Client Socket Initialize failed!')
                 return False
 
         if not self.__controlSocket.Initialize(self.__controlCfg) or not self.__msgHandler.Initialize():
-            LOG.error('Control Socket Initialize failed! or MsgHandler Initialize failed!')
+            ColorPrint.red('Control Socket Initialize failed! or MsgHandler Initialize failed!')
             return False
         return True
 
@@ -124,13 +131,13 @@ class IOService(object):
                 msgHandlerMS = int(1000 * (updateMsgHandlerTime - beginTime))
                 frameMS = int(1000 * (updateFrameTime - updateMsgHandlerTime))
                 othersMS = int(1000 * (endTime - updateFrameTime))
-                LOG.warning('MainLoop overschedule %sms: %s=%s+%s+%s', overMS, totalMS,
-                            msgHandlerMS, frameMS, othersMS)
+                ColorPrint.yellow('MainLoop overschedule %sms: %s=%s+%s+%s' % (
+                    overMS, totalMS, msgHandlerMS, frameMS, othersMS))
             self.__loopCount += 1
 
         self.__msgHandler.SendUnregisterToAIControl()
 
-        LOG.info('Exit mainloop!')
+        ColorPrint.blue('Exit mainloop!')
 
     def Finish(self):
         """
@@ -166,7 +173,7 @@ class IOService(object):
         frameSeq = IO_SERVICE_CONTEXT['frame_seq']
 
         if frame is None:
-            LOG.error('Decode image error, check the image encode.')
+            ColorPrint.red('Decode image error, check the image encode.')
             return
 
         if self.__lastFrameSeq == frameSeq:
@@ -189,7 +196,7 @@ class IOService(object):
             iniCfg = configparser.ConfigParser()
             iniCfg.read(self.__platformCfgPath)
         else:
-            LOG.error('Config File not exist in %s', self.__platformCfgPath)
+            ColorPrint.red('Config File not exist in %s' % (self.__platformCfgPath,))
             return False
 
         try:
@@ -220,7 +227,7 @@ class IOService(object):
             self.__controlCfg['STAFFNAME'] = iniCfg.get('CONTROL_COMMUNICATION', 'StaffName')
             self.__controlCfg['pattern'] = iniCfg.getint('CONTROL_COMMUNICATION', 'Pattern')
         except KeyError as e:
-            LOG.error('Load Config File[%s] failed, err: %s', self.__platformCfgPath, e)
+            ColorPrint.red('Load Config File[%s] failed, err: %s' % (self.__platformCfgPath, e))
             return False
 
         return True

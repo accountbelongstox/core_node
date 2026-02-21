@@ -7,11 +7,22 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import logging
 import threading
 import time
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2
+
+cv2 = get_third_package_cv2()
+
 import subprocess
 import re
 import os
@@ -130,35 +141,21 @@ class ADBTouchSampler(object):
     def get_sample(self):
         # frame = self.__screen.GetScreen()
         err_code, frame = self.__device_instance.get_image()
-        if err_code != 0:
-            return None
+        if err_code != 0 or frame is None:
+            return None, None
 
-        if frame is not None:
-            h, w = frame.shape[:2]
-            if h < w:
-                h = int(h * self.__short_edge_ratio)
-            else:
-                w = int(w * self.__short_edge_ratio)
-            frame = cv2.resize(frame.copy(), (w, h))
-
+        # use original size (no resize); map touch to actual frame shape
+        frame_h, frame_w = frame.shape[0], frame.shape[1]
         ret_points = []
         points = self.__parser.get_touch_points()
-
-        # 对points结果进行坐标转换到截图frame的坐标系下
         for p in points:
-            if p is None:
+            if p is None or p.x is None or p.y is None:
                 continue
+            if self.__rotation == SCREEN_ORI_PORTRAIT:
+                x = int(p.x / self.__touchXMax * frame_w)
+                y = int(p.y / self.__touchYMax * frame_h)
             else:
-                if p.x is None or p.y is None:
-                    continue
-                else:
-                    if self.__rotation == SCREEN_ORI_PORTRAIT:
-                        x = int(p.x / self.__touchXMax * self.__screenCaptureWidth * self.__short_edge_ratio)
-                        y = int(p.y / self.__touchYMax * self.__screenCaptureHeight)
-                    else:
-                        x = int(p.y / self.__touchYMax * self.__screenCaptureHeight)
-                        y = int(self.__screenCaptureWidth * self.__short_edge_ratio - p.x /
-                                self.__touchXMax * self.__screenCaptureWidth * self.__short_edge_ratio)
-
-                    ret_points.append(TouchPoint(p.trackingId, x, y))
+                x = int(p.y / self.__touchYMax * frame_h)
+                y = int(frame_w - p.x / self.__touchXMax * frame_w)
+            ret_points.append(TouchPoint(p.trackingId, x, y))
         return frame, ret_points

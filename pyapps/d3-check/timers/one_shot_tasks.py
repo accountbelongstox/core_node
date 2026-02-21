@@ -19,7 +19,7 @@ from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
 from d3utils.window_analyzer_singleton import get_window_analyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
-from providor.providor_index import CACHE_DIR, CONFIG
+from providor.providor_index import CACHE_DIR, CONFIG, get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.path_scanner import scan_for_paths
 from d3utils.rosbot_manager import get_rosbot_manager
@@ -48,10 +48,12 @@ from providor.constants.d3 import (
     ROSBOT_REGION_DISPLAY_CN,
 )
 from ui.components.rosbot_update_info_panel import RosbotUpdateInfoPanel
+from ui.utils.config_binding import ConfigBinding
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
 from share.game_interface_data import get_game_interface_data
+from runtime import is_shutdown_requested
 
 # Injected by controller; timers must not import controller.
 _ensure_bn_started_fn: Optional[Callable[[], bool]] = None
@@ -77,15 +79,36 @@ pythoncom = get_third_package_pythoncom()
 _rosdebug_running_busy = False
 
 
-def do_path_scan(panel: Any, include_rosbot: bool = True) -> None:
+def _schedule_on_main(container: Any, callback: Callable[[], None]) -> None:
+    """Schedule callback on main thread. No-op if shutdown requested or widget gone (avoids RuntimeError: main thread is not in main loop)."""
+    if is_shutdown_requested():
+        return
+    try:
+        winfo_exists = getattr(container, "winfo_exists", None)
+        if not callable(winfo_exists) or not winfo_exists():
+            return
+        container.after(0, callback)
+    except RuntimeError:
+        pass
+
+
+def do_path_scan(panel: Any, include_rosbot: bool = True, force_scan_rosbot: bool = False) -> None:
     """Path scan work. Run in timer thread via submit_one_shot; schedules UI update on main.
-    When include_rosbot is False, only Battle.net and D3 are scanned; panel._apply_scan_results receives empty ros list."""
+    After scan, triggers ROSBOT update check and applies update without dialog if found.
+    When include_rosbot is False, only Battle.net and D3 are scanned; panel._apply_scan_results receives empty ros list.
+    When force_scan_rosbot is True, scan drives for all ROSBOT dirs (Asia/CN) even if one is configured, for region/version matching."""
     def progress_cb(current_dir: str) -> None:
         if panel._scan_status is not None:
             panel._scan_status[0] = current_dir
 
-    bn, ros, d3 = scan_for_paths(progress_callback=progress_cb, include_rosbot=include_rosbot)
-    panel.container.after(0, lambda: panel._apply_scan_results(bn, ros, d3))
+    bn, ros, d3 = scan_for_paths(
+        progress_callback=progress_cb,
+        include_rosbot=include_rosbot,
+        force_scan_rosbot=force_scan_rosbot,
+    )
+    if include_rosbot:
+        do_rosbot_update(panel, silent=True)
+    _schedule_on_main(panel.container, lambda: panel._apply_scan_results(bn, ros, d3))
 
 
 def do_login_check(
@@ -109,7 +132,7 @@ def do_login_check(
     except Exception as e:
         err = e
     gen = generation
-    panel.container.after(0, lambda: panel._on_login_check_done(result, err, generation=gen))
+    _schedule_on_main(panel.container, lambda: panel._on_login_check_done(result, err, generation=gen))
 
 
 def do_start_d3() -> None:
@@ -144,7 +167,7 @@ def do_battlenet_only_check(panel: Any) -> None:
             ColorPrint.yellow("[OneShot] do_battlenet_only_check: callback not set")
     except Exception as e:
         err = e
-    panel.container.after(0, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
+    _schedule_on_main(panel.container, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
 
 
 def do_refresh_status(refresh_fn: Callable[[], None]) -> None:
@@ -263,10 +286,10 @@ def _do_window_ui_analyze(
                 ColorPrint.blue(f"[RosbotPanel] {copy_message}")
             open_folder(Path(out_dir))
 
-        panel.container.after(0, _on_done)
+        _schedule_on_main(panel.container, _on_done)
     else:
         err = result.get("error", error_not_found) if result else error_not_found
-        panel.container.after(0, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
+        _schedule_on_main(panel.container, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
 
 
 def _do_window_ui_analyze_by_hwnd(
@@ -290,7 +313,7 @@ def _do_window_ui_analyze_by_hwnd(
     hwnd = winfo.get("hwnd")
     title = (winfo.get("title") or "").strip() or "ROSBOT"
     if not hwnd:
-        panel.container.after(0, lambda: ColorPrint.red(f"[RosbotPanel] {log_label}: {error_not_found}"))
+        _schedule_on_main(panel.container, lambda: ColorPrint.red(f"[RosbotPanel] {log_label}: {error_not_found}"))
         return
     result = analyzer.analyze_window_by_handle(hwnd, title, program_name)
     if result and result.get("success"):
@@ -328,10 +351,10 @@ def _do_window_ui_analyze_by_hwnd(
                 ColorPrint.blue(f"[RosbotPanel] {copy_message}")
             open_folder(Path(out_dir))
 
-        panel.container.after(0, _on_done)
+        _schedule_on_main(panel.container, _on_done)
     else:
         err = result.get("error", error_not_found) if result else error_not_found
-        panel.container.after(0, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
+        _schedule_on_main(panel.container, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
 
 
 def do_rosbot_debug(panel: Any) -> None:
@@ -376,7 +399,7 @@ def do_rosbot_debug(panel: Any) -> None:
             run_e1_kill()
             run_e2_sleep(1.0)
             if not run_e4_start():
-                panel.container.after(0, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: start failed"))
+                _schedule_on_main(panel.container, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: start failed"))
                 return
             run_e5_init(start_rosbot_task)
             run_e5a_wait_win_srv_poll_click(
@@ -390,7 +413,7 @@ def do_rosbot_debug(panel: Any) -> None:
             winfo = mgr.get_any_rosbot_window_for_debug()
 
     if not winfo or not winfo.get("hwnd"):
-        panel.container.after(0, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: Window not found"))
+        _schedule_on_main(panel.container, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: Window not found"))
         return
     _do_window_ui_analyze_by_hwnd(
         panel,
@@ -420,10 +443,10 @@ def _send_f7_for_status(mgr: Any, status: str) -> bool:
     return False
 
 
-def do_rosbot_update(panel: Any) -> None:
+def do_rosbot_update(panel: Any, silent: bool = False) -> None:
     """
     Update ROSBOT only: E1 kill -> E2 sleep -> [E3] E3a-E3f (find zip, confirm, extract/copy/update path).
-    Does NOT start ROSBOT (no E4/E5/E5a). Only update and show success/fail prompt.
+    Does NOT start ROSBOT (no E4/E5/E5a). When silent=True (e.g. from scan): no dialogs, apply directly if update found.
     """
     ColorPrint.blue("[RosbotPanel] Update ROSBOT: E1 kill existing")
     run_e1_kill()
@@ -489,63 +512,64 @@ def do_rosbot_update(panel: Any) -> None:
 
     if not best_update:
         ColorPrint.gray("[RosbotPanel] No update found in Downloads")
-        detection_data = {
-            "current_ros_dir": cur_dir or "",
-            "current_version": cur_ver_str,
-            "downloads_dir": downloads_dir,
-            "regions": detection_per_region,
-        }
+        if not silent:
+            detection_data = {
+                "current_ros_dir": cur_dir or "",
+                "current_version": cur_ver_str,
+                "downloads_dir": downloads_dir,
+                "regions": detection_per_region,
+            }
 
-        def show_info_panel():
-            try:
-                info_panel = RosbotUpdateInfoPanel(panel.container)
-                info_panel.show_no_update_info(detection_data)
-            except Exception as e:
-                ColorPrint.red(f"[RosbotPanel] Info panel error: {e}")
-        if panel.container.winfo_exists():
-            panel.container.after(0, show_info_panel)
+            def show_info_panel():
+                try:
+                    info_panel = RosbotUpdateInfoPanel(panel.container)
+                    info_panel.show_no_update_info(detection_data)
+                except Exception as e:
+                    ColorPrint.red(f"[RosbotPanel] Info panel error: {e}")
+            if panel.container.winfo_exists():
+                _schedule_on_main(panel.container, show_info_panel)
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    
+
     zip_path, is_newer, version_str = best_update
     region_display_name = ROSBOT_REGION_DISPLAY_ASIA if best_region == "asia" else ROSBOT_REGION_DISPLAY_CN
-    
-    # Ask for confirmation using popup panel (main thread blocking)
-    confirmed = [None]
-    done_event = threading.Event()
-    
-    def show_update_dialog():
-        try:
-            info_panel = RosbotUpdateInfoPanel(panel.container)
-            confirmed[0] = info_panel.show_update_available(
-                region_display=region_display_name,
-                version_str=version_str or "?",
-                zip_path=zip_path
-            )
-        except Exception as e:
-            ColorPrint.red(f"[RosbotPanel] Update dialog error: {e}")
+
+    if not silent:
+        confirmed = [None]
+        done_event = threading.Event()
+
+        def show_update_dialog():
+            try:
+                info_panel = RosbotUpdateInfoPanel(panel.container)
+                confirmed[0] = info_panel.show_update_available(
+                    region_display=region_display_name,
+                    version_str=version_str or "?",
+                    zip_path=zip_path
+                )
+            except Exception as e:
+                ColorPrint.red(f"[RosbotPanel] Update dialog error: {e}")
+                confirmed[0] = False
+            finally:
+                done_event.set()
+
+        if panel.container.winfo_exists():
+            _schedule_on_main(panel.container, show_update_dialog)
+            done_event.wait(timeout=120)
+        else:
             confirmed[0] = False
-        finally:
-            done_event.set()
-    
-    # Schedule dialog on main thread and wait
-    if panel.container.winfo_exists():
-        panel.container.after(0, show_update_dialog)
-        # Wait for dialog to complete (with timeout)
-        done_event.wait(timeout=120)
+
+        if confirmed[0] is None:
+            ColorPrint.yellow("[RosbotPanel] Update dialog timeout or error")
+            confirmed[0] = False
+
+        if not confirmed[0]:
+            ColorPrint.gray("[RosbotPanel] User cancelled update")
+            run_e6_done()
+            _rosbot_update_done(panel)
+            return
     else:
-        confirmed[0] = False
-    
-    if confirmed[0] is None:
-        ColorPrint.yellow("[RosbotPanel] Update dialog timeout or error")
-        confirmed[0] = False
-    
-    if not confirmed[0]:
-        ColorPrint.gray("[RosbotPanel] User cancelled update")
-        run_e6_done()
-        _rosbot_update_done(panel)
-        return
+        ColorPrint.gray("[RosbotPanel] Scan-triggered update: applying without dialog")
 
     # Already have this version on disk (target dir has main exe) -> skip extract, ensure CONFIG and UI
     if update_manager.target_already_has_version(best_region, version_str, zip_path):
@@ -580,16 +604,14 @@ def _rosbot_update_done(panel: Any) -> None:
     get_game_interface_data().notify_state_sync()
     # Update UI bindings for ros_directory config change
     try:
-        from ui.utils.config_binding import ConfigBinding
-        from providor.providor_index import get_config_value_safe
         updated_path = get_config_value_safe("ros_settings.ros_directory", "")
         if updated_path:
             ConfigBinding._update_bindings("ros_settings.ros_directory", updated_path)
             ColorPrint.gray(f"[RosbotPanel] Updated UI binding for ros_directory: {updated_path}")
     except Exception as e:
         ColorPrint.yellow(f"[RosbotPanel] Failed to update UI binding: {e}")
-    if panel.container.winfo_exists():
-        panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
+    _schedule_on_main(panel.container, lambda: _update_rosbot_button_if_exists(panel))
+    _schedule_on_main(panel.container, lambda: panel._refresh_path_icons())
 
 
 def _update_rosbot_button_if_exists(panel: Any) -> None:

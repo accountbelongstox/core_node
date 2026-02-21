@@ -36,7 +36,10 @@ BN_FLOW_SNAPSHOTS_DIR = _ROOT_PATH / ".cache" / "bn_flow_snapshots"
 # When False, save_ui_elements_snapshot skips file write and _enumerate_controls to avoid extra I/O and UI read each step.
 DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS = False
 
-YOLO_DATASET_BASE_DIR = Path(r"D:\applications\GameTools\Yolo")
+# Unified YOLO root (env YOLO_DATA_ROOT or default). Generated datasets go under _generated/{client_type}/.
+YOLO_DATA_ROOT = Path(os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data"))
+# Legacy: fallback when pycore yolo_data_layout not used (e.g. collect session list).
+YOLO_DATASET_BASE_DIR = YOLO_DATA_ROOT / "_generated" / "d3_game"
 YOLO_COLLECT_HUE_MIN = 0.0
 YOLO_COLLECT_HUE_MAX = 360.0
 YOLO_COLLECT_HUE_STEP = 17.0

@@ -47,6 +47,7 @@ if IS_WINDOWS_SYSTEM:
     import win32process
     import win32gui
     from ...WrappedDeviceAPI.deviceAPI.pcDevice.windows.win32driver import probe, by
+    from ...WrappedDeviceAPI.deviceAPI.pcDevice.windows.win32driver.probe import Win32Probe
 
 logger = logging.getLogger("sdktool")
 
@@ -452,7 +453,6 @@ class ProjectNode(metaclass=Singleton):
 
     @staticmethod
     def _generate_qpath(hwnd):
-        from ...WrappedDeviceAPI.deviceAPI.pcDevice.windows.win32driver.probe import Win32Probe
         sep_list = ['/', '|', '!', '$']
 
         win32_probe = Win32Probe()

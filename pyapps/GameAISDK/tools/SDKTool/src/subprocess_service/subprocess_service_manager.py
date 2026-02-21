@@ -7,18 +7,27 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
+import logging
 import os
 import signal
 import subprocess
 import time
-import logging
 
-import psutil
+from pycore.pyfoundations.third_party import get_third_package_psutil
 
+psutil = get_third_package_psutil()
+
+from .process_timer import ProcessTimer
 from .subprocess_utils import get_sys_platform
 from .threading_lock import thread_lock
-from .process_timer import ProcessTimer
 
 logger = logging.getLogger("sdktool")
 
@@ -125,6 +134,9 @@ class SubprocessManager(object):
     def kill(self):
         return self.stop_subprocess()
 
+    # Timeout (seconds) for waiting child process exit after terminate (psutil 7.x: wait after terminate to avoid zombies)
+    _CHILD_WAIT_TIMEOUT = 2
+
     @staticmethod
     def _recursive_kill(pro):
         logger.info("begin to recursive kill %s child process", pro.pid)
@@ -133,6 +145,11 @@ class SubprocessManager(object):
         for p_child in p_childs:
             logger.debug("kill child pro: %s", p_child.pid)
             p_child.terminate()
+            try:
+                p_child.wait(timeout=SubprocessManager._CHILD_WAIT_TIMEOUT)
+            except psutil.TimeoutExpired:
+                p_child.kill()
+                p_child.wait(timeout=1)
 
         pro.wait()
         pro.terminate()

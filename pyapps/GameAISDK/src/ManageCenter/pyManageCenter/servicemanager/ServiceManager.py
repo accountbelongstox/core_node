@@ -7,14 +7,21 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
-import logging
 import subprocess
 
+from pycore.pyfoundations.color_print import ColorPrint
 from common.Define import *
 from actionstrategy.EmptyActionStrategy import EmptyActionStrategy
-
-LOG = logging.getLogger('ManageCenter')
 
 
 class ServiceContext(object):
@@ -85,17 +92,17 @@ class ServiceManager(object):
         """
         ret, _ = self.IsServiceAlreadyRegistered(addr)
         if ret:
-            LOG.warning('Add Service addr[{0}] already registered!'.format(addr))
+            ColorPrint.yellow('Add Service addr[{0}] already registered!'.format(addr))
             return False
         else:
             if serviceType == SERVICE_TYPE_UI:
-                LOG.info('Add UIRecogn Service addr[{0}]!'.format(addr))
+                ColorPrint.blue('Add UIRecogn Service addr[{0}]!'.format(addr))
                 self.__uiServiceContextDict[addr] = ServiceContext(SERVICE_TYPE_UI, addr)
             elif serviceType == SERVICE_TYPE_AGENT:
-                LOG.info('Add AgentAI Service addr[{0}]!'.format(addr))
+                ColorPrint.blue('Add AgentAI Service addr[{0}]!'.format(addr))
                 self.__agentServiceContextDict[addr] = ServiceContext(SERVICE_TYPE_AGENT, addr)
             elif serviceType == SERVICE_TYPE_REG:
-                LOG.info('Add GameReg Service addr[{0}]!'.format(addr))
+                ColorPrint.blue('Add GameReg Service addr[{0}]!'.format(addr))
                 self.__regServiceContextDict[addr] = ServiceContext(SERVICE_TYPE_REG, addr)
 
             self._CheckServiceReady()
@@ -111,7 +118,7 @@ class ServiceManager(object):
         """
         ret, serviceType = self.IsServiceAlreadyRegistered(addr)
         if not ret:
-            LOG.warning('Del Service addr[{0}] not registered!'.format(addr))
+            ColorPrint.yellow('Del Service addr[{0}] not registered!'.format(addr))
             return False
         else:
             if serviceType == SERVICE_TYPE_UI:
@@ -147,7 +154,7 @@ class ServiceManager(object):
         """
         ret, serviceType = self.IsServiceAlreadyRegistered(addr)
         if not ret:
-            LOG.warning('Change Service addr[{0}] not registered!'.format(addr))
+            ColorPrint.yellow('Change Service addr[{0}] not registered!'.format(addr))
             return False
         else:
             if serviceType == SERVICE_TYPE_UI:
@@ -179,7 +186,7 @@ class ServiceManager(object):
         Pause agentai process via signal SIGUSR1
         :return:
         """
-        LOG.info('Pause Agent')
+        ColorPrint.blue('Pause Agent')
         return subprocess.call(['pkill', '-SIGUSR1', '-f', 'agentai.py'])
 
     def RestoreAgent(self):
@@ -187,7 +194,7 @@ class ServiceManager(object):
         Restore agentai process via signal SIGUSR2
         :return:
         """
-        LOG.info('Restore Agent')
+        ColorPrint.blue('Restore Agent')
         return subprocess.call(['pkill', '-SIGUSR2', '-f', 'agentai.py'])
 
     def RestartService(self):
@@ -197,16 +204,16 @@ class ServiceManager(object):
         """
         self.Reset()
         if self.__runType == RUN_TYPE_UI_AI:
-            LOG.info('Restart UI+AI Service')
+            ColorPrint.blue('Restart UI+AI Service')
             return subprocess.call(['./restart_service.sh', 'UI+AI'])
         elif self.__runType == RUN_TYPE_AI:
-            LOG.info('Restart AI Service')
+            ColorPrint.blue('Restart AI Service')
             return subprocess.call(['./restart_service.sh', 'AI'])
         elif self.__runType == RUN_TYPE_UI:
-            LOG.info('Restart UI Service')
+            ColorPrint.blue('Restart UI Service')
             return subprocess.call(['./restart_service.sh', 'UI'])
         else:
-            LOG.error('Invalid run type [{}]'.format(self.__runType))
+            ColorPrint.red('Invalid run type [{}]'.format(self.__runType))
             return False
 
     def _CheckServiceReady(self):
@@ -221,12 +228,12 @@ class ServiceManager(object):
             self.__isServiceReady = len(self.__uiServiceContextDict) > 0
 
         if not self.__isServiceReady:
-            LOG.info('Services not ready! '
+            ColorPrint.blue('Services not ready! '
                      'U({})A({})R({})'.format(len(self.__uiServiceContextDict),
                                               len(self.__agentServiceContextDict),
                                               len(self.__regServiceContextDict)))
         else:
-            LOG.info('All Services ready! '
+            ColorPrint.blue('All Services ready! '
                      'U({})A({})R({})'.format(len(self.__uiServiceContextDict),
                                               len(self.__agentServiceContextDict),
                                               len(self.__regServiceContextDict)))
@@ -238,19 +245,19 @@ class ServiceManager(object):
 
         for addr in self.__uiServiceContextDict:
             if self.__uiServiceContextDict[addr].status != TASK_STATUS_INIT_SUCCESS:
-                LOG.info('UI Service[{0}] task status not ready!'.format(addr))
+                ColorPrint.blue('UI Service[{0}] task status not ready!'.format(addr))
                 self.__isTaskReady = False
                 return
 
         for addr in self.__agentServiceContextDict:
             if self.__agentServiceContextDict[addr].status != TASK_STATUS_INIT_SUCCESS:
-                LOG.info('AI Service[{0}] task status not ready!'.format(addr))
+                ColorPrint.blue('AI Service[{0}] task status not ready!'.format(addr))
                 self.__isTaskReady = False
                 return
 
         for addr in self.__regServiceContextDict:
             if self.__regServiceContextDict[addr].status != TASK_STATUS_INIT_SUCCESS:
-                LOG.info('Reg Service[{0}] task status not ready!'.format(addr))
+                ColorPrint.blue('Reg Service[{0}] task status not ready!'.format(addr))
                 self.__isTaskReady = False
                 return
 
@@ -277,7 +284,7 @@ class ServiceManager(object):
                 if addr in self.__regServiceContextDict.keys():
                     ret = (True, serviceType)
             else:
-                LOG.debug('Service addr[{0}] not registerd!'.format(addr))
+                ColorPrint.gray('Service addr[{0}] not registerd!'.format(addr))
                 ret = (False, serviceType)
         else:
             if addr in self.__uiServiceContextDict.keys():
@@ -287,7 +294,7 @@ class ServiceManager(object):
             elif addr in self.__regServiceContextDict.keys():
                 ret = (True, SERVICE_TYPE_REG)
             else:
-                LOG.debug('Service addr[{0}] not registerd!'.format(addr))
+                ColorPrint.gray('Service addr[{0}] not registerd!'.format(addr))
 
         return ret
 

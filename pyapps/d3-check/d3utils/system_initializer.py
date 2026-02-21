@@ -19,7 +19,7 @@ ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.hotkey_listener import HotkeyListener, get_global_hotkey_listener
-from providor.providor_index import initialize_config, LOGS_FILE_PATH
+from providor.providor_index import CONFIG, initialize_config, LOGS_FILE_PATH
 
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
@@ -28,8 +28,11 @@ from d3utils.cnocr_engine_registry import ensure_cnocr_loaded_and_engines_initia
 from d3utils.shutdown_manager import (
     is_shutdown_requested,
     register_hotkey_listener,
+    register_shutdown_hook,
 )
-from d3utils.d3u_common.hotkey_registry import initialize_hotkeys
+from d3utils.d3u_common.hotkey_registry import initialize_hotkeys, unregister_all_auxiliary_hotkeys
+
+register_shutdown_hook(unregister_all_auxiliary_hotkeys)
 from d3utils.signal_utils import (
     set_gui_mode_sigint_ignored,
     _reapply_sigint_sigbreak_ignore,
@@ -206,6 +209,8 @@ class SystemInitializer:
                 return False
 
             # CnOCR: load/install once and pre-init all engines (general/number/document)
+            if CONFIG.get("log_settings", {}).get("show_debug_logs", False):
+                os.environ["PYCORE_CNOCR_DEBUG"] = "1"
             if not ensure_cnocr_loaded_and_engines_initialized():
                 ColorPrint.yellow("[INIT] CnOCR load/init skipped or failed, OCR features may be limited")
 

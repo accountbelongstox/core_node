@@ -7,6 +7,13 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import traceback
 import ctypes
@@ -15,8 +22,11 @@ import logging
 
 import win32gui
 import win32con
-import cv2
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 _is_windows = platform.platform().upper().startswith('WINDOWS')
 
@@ -93,8 +103,25 @@ def get_image(hwnd=None):
         hwnd = win32gui.GetDesktopWindow()
 
     try:
-        dc = ctypes.windll.user32.GetWindowDC(hwnd)
-        cdc = ctypes.windll.gdi32.CreateCompatibleDC(dc)
+        u32, g32 = ctypes.windll.user32, ctypes.windll.gdi32
+        u32.GetWindowDC.argtypes = [ctypes.c_void_p]
+        u32.GetWindowDC.restype = ctypes.c_void_p
+        g32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+        g32.CreateCompatibleDC.restype = ctypes.c_void_p
+        g32.CreateDIBSection.argtypes = [ctypes.c_void_p, ctypes.POINTER(BITMAPINFO), ctypes.c_uint, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_uint]
+        g32.CreateDIBSection.restype = ctypes.c_void_p
+        g32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        g32.SelectObject.restype = ctypes.c_void_p
+        g32.BitBlt.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint32]
+        g32.BitBlt.restype = ctypes.c_int
+        g32.GetDIBits.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p, ctypes.POINTER(BITMAPINFO), ctypes.c_uint]
+        g32.GetDIBits.restype = ctypes.c_int
+        g32.DeleteObject.argtypes = [ctypes.c_void_p]
+        g32.DeleteObject.restype = ctypes.c_int
+        g32.DeleteDC.argtypes = [ctypes.c_void_p]
+        g32.DeleteDC.restype = ctypes.c_int
+        dc = u32.GetWindowDC(hwnd)
+        cdc = g32.CreateCompatibleDC(dc)
 
         l, t, r, b = win32gui.GetWindowRect(hwnd)
         w = r - l
@@ -114,7 +141,7 @@ def get_image(hwnd=None):
         bmiCapture.bmiHeader.biClrUsed = 0
         bmiCapture.bmiHeader.biClrImportant = 0
 
-        hbm_capture = ctypes.windll.gdi32.CreateDIBSection(cdc,
+        hbm_capture = g32.CreateDIBSection(cdc,
                                                           ctypes.byref(bmiCapture),
                                                           win32con.DIB_RGB_COLORS,
                                                           ctypes.byref(lpBits),
@@ -125,8 +152,8 @@ def get_image(hwnd=None):
         image_data = None
         if hbm_capture:
 
-            hbmOld = ctypes.windll.gdi32.SelectObject(cdc, hbm_capture)
-            ctypes.windll.gdi32.BitBlt(cdc,
+            hbmOld = g32.SelectObject(cdc, hbm_capture)
+            g32.BitBlt(cdc,
                                        0,
                                        0,
                                        w,
@@ -143,7 +170,7 @@ def get_image(hwnd=None):
             # A bottom-up DIB is specified by setting the height to a positive number,
             # while a top-down DIB is specified by setting the height to a negative number.
             bmiCapture.bmiHeader.biHeight = 0 - h
-            cpy_bytes = ctypes.windll.gdi32.GetDIBits(cdc,
+            cpy_bytes = g32.GetDIBits(cdc,
                                                       hbm_capture,
                                                       0,
                                                       h,
@@ -159,14 +186,14 @@ def get_image(hwnd=None):
                 pBuf2[2::3] = pBuf[2::4]
                 image_data = reshape(from_buffer(pBuf2), w, h, 3)
 
-            ctypes.windll.gdi32.SelectObject(cdc, hbmOld)
-            ctypes.windll.gdi32.DeleteObject(hbm_capture)
+            g32.SelectObject(cdc, hbmOld)
+            g32.DeleteObject(hbm_capture)
 
-        ctypes.windll.gdi32.DeleteDC(cdc)
-        ctypes.windll.gdi32.DeleteDC(dc)
+        g32.DeleteDC(cdc)
+        g32.DeleteDC(dc)
         return image_data
 
-    except ValueError:
+    except (ValueError, OverflowError, ctypes.ArgumentError):
         traceback.print_exc()
         logger.error(traceback.format_exc())
         return None

@@ -7,16 +7,21 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import configparser
-import logging
-import os
-
 import tbus
 
+from pycore.pyfoundations.color_print import ColorPrint
 from common.Define import RUN_TYPE_UI_AI, RUN_TYPE_AI, RUN_TYPE_UI
-
-LOG = logging.getLogger('ManageCenter')
 
 
 class CommManager(object):
@@ -57,12 +62,12 @@ class CommManager(object):
                     self.__Reg1Addr, self.__Reg2Addr,
                     self.__UI1Addr, self.__UI2Addr,
                     self.__Agent1Addr, self.__Agent2Addr]:
-            LOG.error('TBus get address failed')
+            ColorPrint.red('TBus get address failed')
             return False
 
         ret = tbus.Init(self.__selfAddr, configFile)
         if ret != 0:
-            LOG.error('TBus Init failed with return code[%s]', ret)
+            ColorPrint.red('TBus Init failed with return code[%s]' % (ret,))
             return False
 
         if self.__runType == RUN_TYPE_UI_AI:
@@ -84,7 +89,7 @@ class CommManager(object):
         """
         ret = tbus.SendTo(addr, buff)
         if ret != 0:
-            LOG.debug('TBus Send To %s return code[%s]', addr, ret)
+            ColorPrint.gray('TBus Send To %s return code[%s]' % (addr, ret))
             return False
         return True
 
@@ -94,7 +99,7 @@ class CommManager(object):
         """
         ret = tbus.SendTo(self.__IOAddr, buff)
         if ret != 0:
-            LOG.debug('TBus Send To IOService return code[%s]', ret)
+            ColorPrint.gray('TBus Send To IOService return code[%s]' % (ret,))
             return False
         return True
 
@@ -141,6 +146,6 @@ class CommManager(object):
             tbusArgs['Agent1Addr'] = config.get('BusConf', 'Agent1Addr')
             tbusArgs['Agent2Addr'] = config.get('BusConf', 'Agent2Addr')
         else:
-            LOG.error('Tbus Config File not exist in %s', cfgPath)
+            ColorPrint.red('Tbus Config File not exist in %s' % (cfgPath,))
 
         return tbusArgs

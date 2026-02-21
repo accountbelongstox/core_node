@@ -8,21 +8,28 @@ Unified tick driver: single clock source, use % to simulate flow periods. No thi
   - sigint_guard: tick % 1 == 0 (GUI mode reset SIGINT every 1s)
   - inactive_refresh: tick % 10 == 0 (when flow off refresh status every 10s)
 - Log monitor: driven only by watchdog (file change), not from tick.
+- Inactive refresh: callback registered by window_monitor_timer (avoids circular import with flow -> tick_driver -> window_monitor_timer -> rosbot_task_processor -> flow).
 """
-from typing import Optional
+from typing import Optional, Callable
 
-import timers.window_monitor_timer as _wm
 import d3utils.smart_echo as _smart
 from d3utils.signal_utils import _reapply_sigint_sigbreak_ignore
 from pycore.pyfoundations.color_print import ColorPrint
 
 _global_tick_count: int = 0
+_inactive_refresh_callback: Optional[Callable[[], None]] = None
 
 # Flow periods (tick count, 1 tick = 1s)
 TICK_FLOW_STEP = 2
 TICK_SMART_ECHO = 3
 TICK_INACTIVE_REFRESH = 10
 TICK_SIGINT_GUARD = 1
+
+
+def register_inactive_refresh(callback: Callable[[], None]) -> None:
+    """Register callback for tick % TICK_INACTIVE_REFRESH. Called by window_monitor_timer when it loads."""
+    global _inactive_refresh_callback
+    _inactive_refresh_callback = callback
 
 
 def get_global_tick() -> int:
@@ -58,8 +65,8 @@ def on_tick() -> None:
         except Exception as e:
             ColorPrint.red(f"[TickDriver] smart_echo: {e}")
 
-    if t % TICK_INACTIVE_REFRESH == 0:
+    if t % TICK_INACTIVE_REFRESH == 0 and _inactive_refresh_callback is not None:
         try:
-            _wm.refresh_window_status_if_inactive()
+            _inactive_refresh_callback()
         except Exception as e:
             ColorPrint.red(f"[TickDriver] inactive_refresh: {e}")

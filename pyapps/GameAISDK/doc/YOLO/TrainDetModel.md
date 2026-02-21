@@ -203,11 +203,13 @@ python DelUnLabelImg.py
 
 - x_center 中心点横坐标：这里的坐标并不是绝对坐标（真实坐标），而是相对于图片宽度的相对坐标，转换公式为<x_center> = <absolute_x> / <image_width>，这里的absolute_x是指标注框中心的横坐标
 
-- y_center  中心点纵坐标：这里的坐标并不是绝对坐标（真实坐标），而是相对于图片高度的相对坐标，转换公式为<x_center> = <absolute_y> / <image_height>，这里的absolute_x是指标注框中心的纵坐标
+- y_center  中心点纵坐标：这里的坐标并不是绝对坐标（真实坐标），而是相对于图片高度的相对坐标，转换公式为 y_center = <absolute_y> / <image_height>，其中 absolute_y 为标注框中心的纵坐标（像素）
 
 - width 标注框宽度：这里的宽度并不是绝对宽度（真实宽度），而是相对于图片宽度的相对宽度，转换公式为width = <absolute_width> / <image_width>
 
-height 标注框宽度：这里的宽度并不是绝对宽度（真实宽度），而是相对于图片宽度的相对高度，转换公式为height = <absolute_height> / <image_height>
+- height 标注框高度：相对于图片高度的相对高度，转换公式为 height = <absolute_height> / <image_height>
+
+上述归一化坐标与 Ultralytics YOLO 及官方文档一致，取值范围 [0,1]。实现见 `yolo_label_lib.voc_annotations_to_yolo_labels` 与 pycore `annotation_io.export_yolo_detection_txt`。
 
 ### 5.1 创建文件夹
 

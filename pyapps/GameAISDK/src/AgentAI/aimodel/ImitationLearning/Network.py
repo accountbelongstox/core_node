@@ -7,13 +7,26 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
-import logging
 import os
 import shutil
-import cv2
 import random
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+
 import tensorflow as tf
 
 from tensorflow.python.keras import backend as K
@@ -42,7 +55,6 @@ class Network(object):
     """
 
     def __init__(self, trainDataDir, testDataDir, trainClassDir, testClassDir, cfgData):
-        self.logger = logging.getLogger('agent')
         self.sampleBuf = {}
         self.imageChannel = 3
 
@@ -82,7 +94,7 @@ class Network(object):
             self.actionSpaceList.append(len(actionName))
 
         if len(self.taskList) > 2:
-            self.logger.error('Imitation learning only supports one or two tasks')
+            ColorPrint.red('Imitation learning only supports one or two tasks')
 
         self.actionPriorWeightsDict = dict()
         for key in self.taskActionDict.keys():
@@ -112,13 +124,13 @@ class Network(object):
         """
         Initialize function
         """
-        self.logger.info('execute the init in network of imitation')
+        ColorPrint.blue('execute the init in network of imitation')
 
     def Finish(self):
         """
         Finish fuction
         """
-        self.logger.info('execute the finish in network of imitation')
+        ColorPrint.blue('execute the finish in network of imitation')
 
     @staticmethod
     def LossCCEPieceWise(y_true, y_pred):
@@ -152,7 +164,7 @@ class Network(object):
         nb_val_samples = len(self.testFileName)
 
         kerasModel = self.KerasModel()
-        self.logger.info(kerasModel.summary())
+        ColorPrint.blue(kerasModel.summary())
 
         if self.taskList == [0, 1]:
             kerasModel.compile(optimizer=tf.keras.optimizers.Adam(lr=0.001,
@@ -178,10 +190,10 @@ class Network(object):
 
         for trainIter in range(self.trainIter):
             # obtain input features for network
-            self.logger.info('trainIter is %d, image size: %d', trainIter, self.imageSize)
+            ColorPrint.blue('trainIter is %d, image size: %d' % (trainIter, self.imageSize))
             validation_steps = int(nb_val_samples / self.netBatchSize)
-            self.logger.info("the nb_val_samples is %d, batchSize: %d, validation_steps:%d",
-                             nb_val_samples, self.netBatchSize, validation_steps)
+            ColorPrint.blue("the nb_val_samples is %d, batchSize: %d, validation_steps:%d" % (
+                nb_val_samples, self.netBatchSize, validation_steps))
             trainHistory = kerasModel.fit_generator(DataGenerator(self.actionSpaceList,
                                                                   imgFiles=self.trainFileName,
                                                                   labels=self.trainLabel,
@@ -199,18 +211,18 @@ class Network(object):
             trainAcc, valAcc = self.GetAcc(trainHistory)
             valAccList.append(valAcc + trainAcc)
 
-            kerasModel.save_weights(self.modelPath + 'my_model_weights' + np.str(trainIter) + '.h5')
+            kerasModel.save_weights(self.modelPath + 'my_model_weights' + str(trainIter) + '.h5')
 
-            logging.info('Network: Iteration %d....%d: train_acc is %s and val_acc is %s',
-                trainIter, self.trainIter, str(trainAcc), str(valAcc))
+            ColorPrint.blue('Network: Iteration %d....%d: train_acc is %s and val_acc is %s' % (
+                trainIter, self.trainIter, str(trainAcc), str(valAcc)))
             if trainIter < (self.trainIter - 1):
                 self.progressReport.SendTrainProgress(int((trainIter + 1) * 100 / self.trainIter))
 
         indexAccValMax = valAccList.index(np.max(valAccList))
 
-        logging.info('Use model from the %sth iteration', str(indexAccValMax))
+        ColorPrint.blue('Use model from the %sth iteration' % (str(indexAccValMax),))
 
-        srcModelName = self.modelPath + 'my_model_weights' + np.str(indexAccValMax) + '.h5'
+        srcModelName = self.modelPath + 'my_model_weights' + str(indexAccValMax) + '.h5'
         dstModelName = self.modelPath + 'my_model_weights' + '.h5'
         shutil.copyfile(srcModelName, dstModelName)
 
@@ -303,21 +315,21 @@ class Network(object):
         Construct two structures of network
         """
         input_shape = (self.imageSize, self.imageSize, self.imageChannel)
-        self.logger.info('input shape:%s', str(input_shape))
+        ColorPrint.blue('input shape:%s' % (str(input_shape),))
         imgInput = Input(shape=input_shape)
 
         if self.isSmallNet:
-            self.logger.info('use small net(50), KerasModelSmallNet50')
+            ColorPrint.blue('use small net(50), KerasModelSmallNet50')
             x = self.KerasModelSmallNet50(imgInput)
         else:
             if self.useResNet:
-                self.logger.info('use res net, KerasModelResNet')
+                ColorPrint.blue('use res net, KerasModelResNet')
                 x = self.KerasModelResNet(imgInput)
             else:
-                self.logger.info('use small net(150), KerasModelSmallNet150')
+                ColorPrint.blue('use small net(150), KerasModelSmallNet150')
                 x = self.KerasModelSmallNet150(imgInput)
 
-        self.logger.info('task list:%s', str(self.taskList))
+        ColorPrint.blue('task list:%s' % (str(self.taskList),))
         for taskIndex in self.taskList:
             actionName = self.actionNameDict[taskIndex]
             if taskIndex == 0:
@@ -374,7 +386,7 @@ class Network(object):
 
         kerasModelExtFea = Model(inputs=kerasModel.input,
                                  outputs=kerasModel.get_layer('fc_feature').output)
-        self.logger.info(kerasModelExtFea.summary())
+        ColorPrint.blue(kerasModelExtFea.summary())
 
         modelLSTM = self.KerasModelLSTM()
 
@@ -402,7 +414,7 @@ class Network(object):
             kerasModelExtFea)
 
         if feaTrain is None:
-            self.logger.error('No image is found in %s', self.trainDataDir)
+            ColorPrint.red('No image is found in %s' % (self.trainDataDir,))
 
         valAccList = list()
         for trainIter in range(self.trainIter):
@@ -414,16 +426,16 @@ class Network(object):
             valAccList.append(valAcc + trainAcc)
 
             modelLSTM.save_weights(self.modelPath + 'my_model_weights_LSTM'
-                                   + np.str(trainIter) + '.h5')
+                                   + str(trainIter) + '.h5')
 
-            logging.info('NetworkLSTM: Iter %d....%d: train_acc is %s and val_acc is %s',
-                         trainIter, self.trainIter, str(trainAcc), str(valAcc))
+            ColorPrint.blue('NetworkLSTM: Iter %d....%d: train_acc is %s and val_acc is %s' % (
+                trainIter, self.trainIter, str(trainAcc), str(valAcc)))
 
         indexAccValMax = valAccList.index(np.max(valAccList))
 
-        logging.info('Use model from the %sth iteration', str(indexAccValMax))
+        ColorPrint.blue('Use model from the %sth iteration' % (str(indexAccValMax),))
 
-        srcModelName = self.modelPath + 'my_model_weights_LSTM' + np.str(indexAccValMax) + '.h5'
+        srcModelName = self.modelPath + 'my_model_weights_LSTM' + str(indexAccValMax) + '.h5'
         dstModelName = self.modelPath + 'my_model_weights_LSTM' + '.h5'
         shutil.copyfile(srcModelName, dstModelName)
         self.progressReport.SendTrainProgress(100)
@@ -597,7 +609,7 @@ class Network(object):
 
             actionScore = [actionScore[n] * self.actionPriorWeightsDict[taskIndex][n]
                            for n in range(len(actionScore))]
-            self.logger.info('actionScore is %s', str(actionScore))
+            ColorPrint.blue('actionScore is %s' % (str(actionScore),))
             predAction = np.argmax(actionScore)
         else:
             actionScore = [np.floor(actionScore[n] * 1000) + self.randomRatio
@@ -606,7 +618,7 @@ class Network(object):
             actionScore = [actionScore[n] * self.actionPriorWeightsDict[taskIndex][n]
                            for n in range(len(actionScore))]
 
-            self.logger.info('actionScore is %s', str(actionScore))
+            ColorPrint.blue('actionScore is %s' % (str(actionScore),))
 
             predAction = int(self.RandomIndex(actionScore))
 

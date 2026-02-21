@@ -7,9 +7,15 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import json
-import logging
 import os
 import queue
 import tarfile
@@ -17,14 +23,19 @@ import time
 import threading
 from urllib import request
 
-import cv2
-import msgpack
+from pycore.pyfoundations.third_party import get_third_package_cv2
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+
+try:
+    from pycore.pyfoundations.third_party import get_third_package_msgpack
+    msgpack = get_third_package_msgpack()
+except ImportError:
+    import msgpack
 import msgpack_numpy as mn
 
 from common.Define import *
-
-LOG = logging.getLogger('ManageCenter')
-LOG_RESULT = logging.getLogger('Result')
 
 LOG_FILE_PATH = '../log'
 
@@ -89,7 +100,7 @@ class ResultManager(object):
             self.__frameQueue.put_nowait((frame, frameSeq, AIFlag))
             return True
         except queue.Full:
-            LOG.warning('Result saving video failed, frameQueue Full')
+            ColorPrint.yellow('Result saving video failed, frameQueue Full')
             return False
 
     def SavingActionLog(self, actionBuff, frameSeq):
@@ -106,7 +117,7 @@ class ResultManager(object):
             self.__actionQueue.put_nowait((actionBuff, frameSeq))
             return True
         except queue.Full:
-            LOG.warning('Result saving action log failed, actionQueue Full')
+            ColorPrint.yellow('Result saving action log failed, actionQueue Full')
             return False
 
 
@@ -179,9 +190,9 @@ class ResultThread(threading.Thread):
             'Authorization': 'Token {}'.format(context['token'])
         }
 
-        LOG.info('Result HTTP URL [{}]'.format(self.__resultHTTPUrl))
-        LOG.info('State HTTP URL [{}]'.format(self.__stateHTTPUrl))
-        LOG.info('HTTP Header [{}]'.format(self.__HTTPHeader))
+        ColorPrint.blue('Result HTTP URL [{}]'.format(self.__resultHTTPUrl))
+        ColorPrint.blue('State HTTP URL [{}]'.format(self.__stateHTTPUrl))
+        ColorPrint.blue('HTTP Header [{}]'.format(self.__HTTPHeader))
 
         self.__apiUser = context['api_user']
         self.__rtxUser = context['rtx_user']
@@ -265,14 +276,14 @@ class ResultThread(threading.Thread):
             return False
 
         try:
-            actionData = msgpack.unpackb(actionBuff, object_hook=mn.decode, encoding='utf-8')
+            actionData = msgpack.unpackb(actionBuff, object_hook=mn.decode)
             actionData['video_frame_seq'] = self.__frameSeqList.index(frameSeq)
         except ValueError:
-            LOG.error('Wrong action frameSeq[{}]'.format(frameSeq))
+            ColorPrint.red('Wrong action frameSeq[{}]'.format(frameSeq))
             return False
 
         actionStr = json.dumps(actionData)
-        LOG_RESULT.debug('{}'.format(actionStr))
+        ColorPrint.gray('{}'.format(actionStr))
         return True
 
     def _ReportResult(self):
@@ -305,12 +316,12 @@ class ResultThread(threading.Thread):
         if self.__videoWriter is not None:
             return True
         else:
-            LOG.error('Create videoWriter failed!')
+            ColorPrint.red('Create videoWriter failed!')
             return False
 
     def _WritingVideo(self, frame):
         if self.__videoWriter is None:
-            LOG.error('Call RoundStart first!')
+            ColorPrint.red('Call RoundStart first!')
             return
 
         self.__videoWriter.write(frame)
@@ -355,14 +366,14 @@ class ResultThread(threading.Thread):
 
         jsonData = json.dumps(data)
         jsonData = bytes(jsonData, 'utf-8')
-        LOG.info('POST data [{}]'.format(jsonData))
+        ColorPrint.blue('POST data [{}]'.format(jsonData))
         try:
             result = self._RequestInfo(url, header, jsonData)
         except Exception as e:
-            LOG.error('Send POST to AITEST failed err[{}], if you run AI SDK locally, please ignore'.format(e))
+            ColorPrint.red('Send POST to AITEST failed err[{}], if you run AI SDK locally, please ignore'.format(e))
             return
 
-        LOG.info('POST ret [{}]'.format(json.loads(result)))
+        ColorPrint.blue('POST ret [{}]'.format(json.loads(result)))
         return
 
     def _RequestInfo(self, url, header, data):

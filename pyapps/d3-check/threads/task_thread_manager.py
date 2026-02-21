@@ -9,16 +9,8 @@ import time
 import threading
 import queue
 from typing import Any, Dict, Callable, Optional
-from enum import Enum
 from pycore.pyfoundations.color_print import ColorPrint
-
-
-class TaskStatus(Enum):
-    """Task execution status"""
-    DISABLED = "disabled"
-    ENABLED = "enabled"
-    RUNNING = "running"
-    ERROR = "error"
+from share.values.task_status import TaskStatus
 
 
 class TaskThread(threading.Thread):

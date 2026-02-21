@@ -182,8 +182,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error in collect: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _check_bag_opened(self, game_window_image) -> bool:
@@ -219,8 +217,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error checking bag opened: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _detect_bag_border(
@@ -272,8 +268,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error getting bag coordinates: {e}")
-            import traceback
-            traceback.print_exc()
             return None, None, None, None
 
     def _calculate_bag_coordinates(self, bag_match: Dict) -> Optional[BagCoordinates]:
@@ -348,8 +342,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error calculating bag coordinates: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _detect_bag_layout(self, screenshot_image: np.ndarray, bag_coords: BagCoordinates) -> Optional[BagLayout]:
@@ -399,8 +391,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error detecting bag layout: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _save_comprehensive_detection_result(
@@ -427,8 +417,6 @@ class BagInfoCollector:
                 ColorPrint.green(f"[BagInfoCollector] Saved comprehensive result: {annotated_path}")
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error in comprehensive detection result: {e}")
-            import traceback
-            traceback.print_exc()
 
     def get_annotated_detection_image(
         self,
@@ -456,8 +444,6 @@ class BagInfoCollector:
             return get_image_pil(annotator)
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] get_annotated_detection_image: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _draw_comprehensive_detection_annotation(

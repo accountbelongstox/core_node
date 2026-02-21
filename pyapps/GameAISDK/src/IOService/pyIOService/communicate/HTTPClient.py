@@ -7,15 +7,23 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import json
-import logging
 import queue
 import threading
 import time
 from urllib import request
 
-LOG = logging.getLogger('IOService')
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class HTTPThread(threading.Thread):
@@ -33,8 +41,8 @@ class HTTPThread(threading.Thread):
         self.__url = 'http://%s:%d/ai_sdk/state_notify' % (self.__ip, self.__port)
         self.__HTTPHeader = {'Content-Type': 'application/json', 'STAFFNAME': self.__staffName}
 
-        LOG.info('ASM HTTP URL [%s]', self.__url)
-        LOG.info('ASM HTTP Header [%s]', self.__HTTPHeader)
+        ColorPrint.blue('ASM HTTP URL [%s]' % (self.__url,))
+        ColorPrint.blue('ASM HTTP Header [%s]' % (self.__HTTPHeader,))
 
     def run(self):
         while True:
@@ -49,11 +57,11 @@ class HTTPThread(threading.Thread):
         try:
             ret = self._PostJsonData(msgData)
         except ResourceWarning as e:
-            LOG.warning('Send POST to ASM failed err[%s], if you run AI SDK locally, please ignore', e)
+            ColorPrint.yellow('Send POST to ASM failed err[%s], if you run AI SDK locally, please ignore' % (e,))
             return False
 
         if ret['error'] < 0:
-            LOG.error('POST return err[%s/%s]', ret['error'], ret['errstr'])
+            ColorPrint.red('POST return err[%s/%s]' % (ret['error'], ret['errstr']))
             return False
         if 'msg_id' in ret['data']:
             self.__recvQueue.put_nowait(ret['data'])
@@ -108,7 +116,7 @@ class HTTPClient(object):
         try:
             self.__sendQueue.put_nowait(msgBuff)
         except queue.Full:
-            LOG.warning('sendQueue full')
+            ColorPrint.yellow('sendQueue full')
 
     def Recv(self):
         """
@@ -120,7 +128,7 @@ class HTTPClient(object):
             try:
                 msgBuff = self.__recvQueue.get_nowait()
             except queue.Empty:
-                LOG.warning('recvQueue empty')
+                ColorPrint.yellow('recvQueue empty')
                 break
             msgBuffList.append(msgBuff)
 

@@ -7,11 +7,24 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 from __future__ import division
 import os
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
 import torch
+
+np = get_third_package_numpy()
 from torch import optim
 from .model import DQN
 

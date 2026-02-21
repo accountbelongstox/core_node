@@ -7,16 +7,24 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
-import logging
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+np = get_third_package_numpy()
 
 from protocol import common_pb2
 from common.Define import UI_SCREEN_ORI_LANDSCAPE, SERVICE_REGISTER, SERVICE_UNREGISTER, TASK_STATUS_INIT_SUCCESS, \
     TASK_STATUS_INIT_FAILURE, SERVICE_TYPE_AGENT, SERVICE_TYPE_UI, GAME_STATE_START, GAME_STATE_OVER, \
     GAME_STATE_MATCH_WIN, GAME_STATE_UI, GAME_STATE_NONE, SERVICE_TYPE_REG, RUN_TYPE_UI_AI, RUN_TYPE_UI
 
-LOG = logging.getLogger('ManageCenter')
 
 
 class MsgHandler(object):
@@ -75,10 +83,10 @@ class MsgHandler(object):
             # Call message handler function
             handleFunc = self.__msgDict.get(msg.eMsgID)
             if handleFunc is not None:
-                LOG.warning('MsgID[{0}], addr:{1}, handle function{2}'.format(msg.eMsgID, addr, handleFunc))
+                ColorPrint.yellow('MsgID[{0}], addr:{1}, handle function{2}'.format(msg.eMsgID, addr, handleFunc))
                 handleFunc(msg, addr)
             else:
-                LOG.warning('Unhandled MsgID[{0}]'.format(msg.eMsgID))
+                ColorPrint.yellow('Unhandled MsgID[{0}]'.format(msg.eMsgID))
 
     def _RegisterMsgHandler(self, msgID, msgFuncHandler):
         self.__msgDict[msgID] = msgFuncHandler
@@ -192,12 +200,12 @@ class MsgHandler(object):
         height = msg.stSrcImageInfo.nHeight
         width = msg.stSrcImageInfo.nWidth
 
-        imgdata = np.fromstring(msg.stSrcImageInfo.byImageData, np.uint8)
+        imgdata = np.frombuffer(msg.stSrcImageInfo.byImageData, dtype=np.uint8)
         shape = (height, width, 3)
         gameFrame = np.reshape(imgdata, shape)
-        LOG.debug('recv frame data, frameIndex={}'.format(frameSeq))
+        ColorPrint.gray('recv frame data, frameIndex={}'.format(frameSeq))
         jsonData = msg.stSrcImageInfo.strJsonData
-        LOG.debug('recv json data={}'.format(jsonData))
+        ColorPrint.gray('recv json data={}'.format(jsonData))
 
         self.__gameMgr.SetGameFrame(gameFrame, frameSeq)
         self.__gameMgr.SetGameData(jsonData, frameSeq)
@@ -206,14 +214,14 @@ class MsgHandler(object):
     def _OnAIAction(self, msg, addr):
         ret, _ = self.__serviceMgr.IsServiceAlreadyRegistered(addr, SERVICE_TYPE_AGENT)
         if not ret:
-            LOG.warning('Recv AIAction from unregistered AI addr[{}], ignore!'.format(addr))
+            ColorPrint.yellow('Recv AIAction from unregistered AI addr[{}], ignore!'.format(addr))
             return
 
         frameSeq = msg.stAIAction.nFrameSeq
-        LOG.debug('recv action data, frameIndex={}'.format(frameSeq))
+        ColorPrint.gray('recv action data, frameIndex={}'.format(frameSeq))
 
         if not self.__serviceMgr.IsTaskReady():
-            LOG.debug('Task not ready')
+            ColorPrint.gray('Task not ready')
             return
 
         msg = self.__serviceMgr.PerformAIActionStrategy(addr, msg)
@@ -222,51 +230,51 @@ class MsgHandler(object):
         self.__resultMgr.SavingActionLog(actionBuff, frameSeq)
 
         msgBuff = msg.SerializeToString()
-        LOG.debug('send action data, frameIndex={}'.format(frameSeq))
+        ColorPrint.gray('send action data, frameIndex={}'.format(frameSeq))
         self.__commMgr.SendMsgToIOService(msgBuff)
 
     def _OnUIAction(self, msg, addr):
         ret, _ = self.__serviceMgr.IsServiceAlreadyRegistered(addr, SERVICE_TYPE_UI)
         if not ret:
-            LOG.warning('Recv UIAction from unregistered UI addr[{}], ignore!'.format(addr))
+            ColorPrint.yellow('Recv UIAction from unregistered UI addr[{}], ignore!'.format(addr))
             return
 
         gameState = msg.stUIAction.eGameState
         gameStarted = self.__gameMgr.GameStarted()
         if gameState == common_pb2.PB_STATE_START:
             self.__gameMgr.SetGameState(GAME_STATE_START)
-            LOG.info('GameState Start')
+            ColorPrint.blue('GameState Start')
             self.SendUIGameStartMsgToAI()
         elif gameState == common_pb2.PB_STATE_OVER:
             if gameStarted:
                 self.__gameMgr.SetGameState(GAME_STATE_OVER)
-                LOG.info('GameState Over')
+                ColorPrint.blue('GameState Over')
                 self.SendUIGameOverMsgToAI()
             else:
-                LOG.warning('Wrong recv PB_STATE_OVER while GameState is not started, ignore!')
+                ColorPrint.yellow('Wrong recv PB_STATE_OVER while GameState is not started, ignore!')
         elif gameState == common_pb2.PB_STATE_MATCH_WIN:
             if gameStarted:
                 self.__gameMgr.SetGameState(GAME_STATE_MATCH_WIN)
-                LOG.info('GameState Win')
+                ColorPrint.blue('GameState Win')
                 self.SendUIGameOverMsgToAI()
             else:
-                LOG.warning('Wrong recv PB_STATE_MATCH_WIN while GameState is not started, ignore!')
+                ColorPrint.yellow('Wrong recv PB_STATE_MATCH_WIN while GameState is not started, ignore!')
         elif gameState == common_pb2.PB_STATE_UI:
             if gameStarted:
-                LOG.info('Recv PB_STATE_UI while GameState is started!')
+                ColorPrint.blue('Recv PB_STATE_UI while GameState is started!')
                 msg.stUIAction.eGameState = common_pb2.PB_STATE_START
             else:
                 self.__gameMgr.SetGameState(GAME_STATE_UI)
         elif gameState == common_pb2.PB_STATE_NONE:
             if gameStarted:
-                LOG.info('Recv PB_STATE_NONE while GameState is started!')
+                ColorPrint.blue('Recv PB_STATE_NONE while GameState is started!')
                 msg.stUIAction.eGameState = common_pb2.PB_STATE_START
             else:
                 self.__gameMgr.SetGameState(GAME_STATE_NONE)
         else:
-            LOG.warning('Unhandled GameState[{0}]'.format(gameState))
+            ColorPrint.yellow('Unhandled GameState[{0}]'.format(gameState))
 
-        LOG.info('GameState:{} [1:UI 2:START 3:OVER 4:MATCH_WIN'
+        ColorPrint.blue('GameState:{} [1:UI 2:START 3:OVER 4:MATCH_WIN'
                  ' 0:NONE(Default)]'.format(self.__gameMgr.GetGameState()))
 
         msg = self.__serviceMgr.PerformUIActionStrategy(addr, msg)
@@ -277,7 +285,7 @@ class MsgHandler(object):
     def _OnServiceRegister(self, msg, addr):
         regType = msg.stServiceRegister.eRegisterType
         serviceType = msg.stServiceRegister.eServiceType
-        LOG.info('Recv ServiceRegister from {2}, regType[{0}],'
+        ColorPrint.blue('Recv ServiceRegister from {2}, regType[{0}],'
                  ' serviceType[{1}]'.format(regType, serviceType, addr))
 
         if regType == common_pb2.PB_SERVICE_REGISTER:
@@ -296,13 +304,13 @@ class MsgHandler(object):
                 self.__serviceMgr.DelService(SERVICE_TYPE_REG, addr)
 
         if self.__serviceMgr.IsServiceReady():
-            LOG.info('All Services already Registered, now register')
+            ColorPrint.blue('All Services already Registered, now register')
             self.SendServiceRegisterMsgToIO(SERVICE_REGISTER)
 
     def _OnTaskReport(self, msg, addr):
         ret, _ = self.__serviceMgr.IsServiceAlreadyRegistered(addr)
         if not ret:
-            LOG.warning('Recv TaskReport from unregistered Service addr[{}], ignore!'.format(addr))
+            ColorPrint.yellow('Recv TaskReport from unregistered Service addr[{}], ignore!'.format(addr))
             return
 
         taskStatus = msg.stTaskReport.eTaskStatus
@@ -310,15 +318,15 @@ class MsgHandler(object):
         if taskStatus == common_pb2.PB_TASK_INIT_SUCCESS:
             self.__serviceMgr.ChangeServiceStatus(addr, TASK_STATUS_INIT_SUCCESS)
             if self.__serviceMgr.IsTaskReady():
-                LOG.info('All Services task status ready, now report')
+                ColorPrint.blue('All Services task status ready, now report')
                 self.SendTaskReportMsgToIO(TASK_STATUS_INIT_SUCCESS)
         else:
-            LOG.warning('Service[{}] init task failure, now report'.format(addr))
+            ColorPrint.yellow('Service[{}] init task failure, now report'.format(addr))
             self.SendTaskReportMsgToIO(TASK_STATUS_INIT_FAILURE)
 
     def _OnChangeGameState(self, msg, addr):
         if self.__runType in [RUN_TYPE_UI_AI, RUN_TYPE_UI]:
-            LOG.warning('Reject Client Change GameState in UI+AI or UI mode')
+            ColorPrint.yellow('Reject Client Change GameState in UI+AI or UI mode')
             return
 
         gameState = msg.stChangeGameState.eGameState
@@ -336,34 +344,34 @@ class MsgHandler(object):
         elif gameState == common_pb2.PB_STATE_NONE:
             self.__gameMgr.SetGameState(GAME_STATE_NONE)
         else:
-            LOG.warning('Unhandled GameState[{0}]'.format(gameState))
+            ColorPrint.yellow('Unhandled GameState[{0}]'.format(gameState))
 
-        LOG.info('Client Change GameState:{} [1:UI 2:START 3:OVER 4:MATCH_WIN'
+        ColorPrint.blue('Client Change GameState:{} [1:UI 2:START 3:OVER 4:MATCH_WIN'
                  ' 0:NONE(Default)]'.format(self.__gameMgr.GetGameState()))
 
     def _OnPauseAgent(self, msg, addr):
-        LOG.info('Recv MSG_PAUSE_AGENT msg')
+        ColorPrint.blue('Recv MSG_PAUSE_AGENT msg')
         self.__serviceMgr.PauseAgent()
 
     def _OnRestoreAgent(self, msg, addr):
-        LOG.info('Recv MSG_RESTORE_AGENT msg')
+        ColorPrint.blue('Recv MSG_RESTORE_AGENT msg')
         self.__serviceMgr.RestoreAgent()
 
     def _OnRestart(self, msg, addr):
-        LOG.info('Recv MSG_RESTART msg')
+        ColorPrint.blue('Recv MSG_RESTART msg')
         self.__serviceMgr.Reset()
         self.__gameMgr.Reset()
         if self.__serviceMgr.RestartService() == 0:
-            LOG.info('Restart Service SUCCESS')
+            ColorPrint.blue('Restart Service SUCCESS')
             self.SendRestartResultToIO(0)
         else:
-            LOG.error('Restart Service FAILURE')
+            ColorPrint.red('Restart Service FAILURE')
             self.SendRestartResultToIO(1)
 
     def _OnAgentState(self, msg, addr):
         agentState = msg.stAgentState.eAgentState
         agentStateStr = msg.stAgentState.strAgentState
-        LOG.info('Recv MSG_AGENT_STATE msg, AgentState:{0}'
+        ColorPrint.blue('Recv MSG_AGENT_STATE msg, AgentState:{0}'
                  '/{1}'.format(agentState, agentStateStr))
 
         # if self.__resultType == RESULT_TYPE_AI:
@@ -378,7 +386,7 @@ class MsgHandler(object):
     def _OnNewTask(self, msg, addr):
         strTaskID = msg.stNewTask.strTaskID
 
-        LOG.info('Recv MSG_NEW_TASK msg, taskID[{0}]'.format(strTaskID))
+        ColorPrint.blue('Recv MSG_NEW_TASK msg, taskID[{0}]'.format(strTaskID))
 
         self.__resultMgr.UpdateContext(taskID=strTaskID)
 
@@ -387,34 +395,34 @@ class MsgHandler(object):
         nGameID = msg.stTestID.nGameID
         strGameVersion = msg.stTestID.strGameVersion
 
-        LOG.info('Recv MSG_TEST_ID msg, testID[{0}] gameID[{1}] '
+        ColorPrint.blue('Recv MSG_TEST_ID msg, testID[{0}] gameID[{1}] '
                  'gameVersion[{2}]'.format(testID, nGameID, strGameVersion))
 
         self.__resultMgr.UpdateContext(testID=testID, gameID=nGameID, gameVersion=strGameVersion)
 
     def _OnIMTrainState(self, msg, addr):
         progress = msg.stIMTrainState.nProgress
-        LOG.info('Recv MSG_IM_TRAIN_STATE msg, progress: {}'.format(progress))
+        ColorPrint.blue('Recv MSG_IM_TRAIN_STATE msg, progress: {}'.format(progress))
 
         msgBuff = msg.SerializeToString()
         self.__commMgr.SendMsgToIOService(msgBuff)
 
     def _get_source_info(self, msg, addr):
 
-        LOG.info('get source info request, msg: {}'.format(msg))
+        ColorPrint.blue('get source info request, msg: {}'.format(msg))
         if self.__source_info is not None:
             response = self.__source_info.SerializeToString()
             self.__commMgr.SendMsgToIOService(response)
 
         # msgBuff = msg.SerializeToString()
         # addrList = self.__serviceMgr.GetAllServiceAddr(serviceType=SERVICE_TYPE_AGENT)
-        # LOG.info("the address List is {}, SERVICE_TYPE_AGENT:{}".format(addrList, SERVICE_TYPE_AGENT))
+        # ColorPrint.blue("the address List is {}, SERVICE_TYPE_AGENT:{}".format(addrList, SERVICE_TYPE_AGENT))
         # for addr in addrList:
-        #     LOG.info('Send source request to AI[{}]'.format(addr))
+        #     ColorPrint.blue('Send source request to AI[{}]'.format(addr))
         #     self.__commMgr.SendTo(addr, msgBuff)
 
     def _get_source_response(self, msg, address):
-        LOG.info('get source response from the agent, msg: {}'.format(msg))
+        ColorPrint.blue('get source response from the agent, msg: {}'.format(msg))
         self.__source_info = msg
         # msg_buff = msg.SerializeToString()
         #self.__commMgr.SendMsgToIOService(msg_buff)
@@ -447,7 +455,7 @@ class MsgHandler(object):
         :return:
         """
         msgBuff = self._CreateSrcImgMsg(frameSeq, gameFrame, gameData)
-        LOG.info('send frame data, frameIndex={1} to addr[{0}]'.format(addr, frameSeq))
+        ColorPrint.blue('send frame data, frameIndex={1} to addr[{0}]'.format(addr, frameSeq))
         self.__commMgr.SendTo(addr, msgBuff)
 
     def SendUIAPIStateMsgTo(self, addr, gameFrame, frameSeq, stucked=False):
@@ -469,7 +477,7 @@ class MsgHandler(object):
         if gameFrame is None:
             return
 
-        LOG.info('Send UIAPIState to [{0}], frame_seq[{1}]'.format(addr, frameSeq))
+        ColorPrint.blue('Send UIAPIState to [{0}], frame_seq[{1}]'.format(addr, frameSeq))
 
         msgBuff = self._CreateUIAPIStateMsg(uiAPIState, frameSeq, gameFrame, screenOri, gameState)
         self.__commMgr.SendTo(addr, msgBuff)
@@ -481,7 +489,7 @@ class MsgHandler(object):
         :return:
         """
         msgBuff = self._CreateAIServiceStateMsg(serviceStateResult)
-        LOG.info('Send AIServiceState to IO, [{}]'.format(serviceStateResult))
+        ColorPrint.blue('Send AIServiceState to IO, [{}]'.format(serviceStateResult))
         self.__commMgr.SendMsgToIOService(msgBuff)
 
     def SendRestartResultToIO(self, result):
@@ -502,7 +510,7 @@ class MsgHandler(object):
 
         addrList = self.__serviceMgr.GetAllServiceAddr(serviceType=SERVICE_TYPE_AGENT)
         for addr in addrList:
-            LOG.info('Send UIGameStart to AI[{}]'.format(addr))
+            ColorPrint.blue('Send UIGameStart to AI[{}]'.format(addr))
             self.__commMgr.SendTo(addr, msgBuff)
 
     def SendUIGameOverMsgToAI(self):
@@ -514,5 +522,5 @@ class MsgHandler(object):
 
         addrList = self.__serviceMgr.GetAllServiceAddr(serviceType=SERVICE_TYPE_AGENT)
         for addr in addrList:
-            LOG.info('Send UIGameOver to AI[{}]'.format(addr))
+            ColorPrint.blue('Send UIGameOver to AI[{}]'.format(addr))
             self.__commMgr.SendTo(addr, msgBuff)

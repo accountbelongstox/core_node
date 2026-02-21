@@ -21,7 +21,7 @@ from pycore.pyfoundations.third_party import get_third_package_win32gui, get_thi
 _ROSBOT_KEY_DIALOG_JSON_PATH = Path(__file__).resolve().parent.parent / "docs" / "rosbot_ui_elements_1.json"
 _ROSBOT_KEY_DIALOG_TITLE_CACHE: Optional[str] = None
 # Fallback when i18n not available; prefer i18n_manager.get_ui_text("rosbot.need_key_message", ...)
-ROSBOT_NEED_KEY_MESSAGE = "需要输入KEY"
+ROSBOT_NEED_KEY_MESSAGE = "Key required"
 
 
 def _load_rosbot_key_dialog_signature() -> Tuple[str, str]:

@@ -7,9 +7,16 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
-
-import os
 import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
+
 import argparse
 import platform
 import signal
@@ -17,12 +24,14 @@ import logging
 import logging.config
 import traceback
 
+from pycore.pyfoundations.color_print import ColorPrint
 
 sys.path.append('AgentAI')
 sys.path.append('AgentAI/protocol')
 sys.path.append('API')
 
 from aiframework.AIFrameWork import AIFrameWork
+from aiframework.IMTrainFrameWork import IMTrainFrameWork
 from util.config_path_mgr import SYS_CONFIG_DIR
 # os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -79,20 +88,17 @@ def SetLogLevel(logLevel):
 
 def RunFrameWork(runMode):
     if runMode == 'train':
-        logger = logging.getLogger('agent')
-        logger.info('train the model, runMode:{0}'.format(runMode))
-        from aiframework.IMTrainFrameWork import IMTrainFrameWork
+        ColorPrint.blue('train the model, runMode:{0}'.format(runMode))
         imTrainFrameWork = IMTrainFrameWork()
         if imTrainFrameWork.Init() is True:
             imTrainFrameWork.Train()
         imTrainFrameWork.Finish()
     else:
-        logger = logging.getLogger('agent')
-        logger.info('run the model, runMode:{0}'.format(runMode))
+        ColorPrint.blue('run the model, runMode:{0}'.format(runMode))
         if aiFramework.Init() is True:
-            logger.info('after init, runMode:{0}'.format(runMode))
+            ColorPrint.blue('after init, runMode:{0}'.format(runMode))
             aiFramework.Run(True)
-        logger.info('finish run ai framework, runMode:{0}'.format(runMode))
+        ColorPrint.blue('finish run ai framework, runMode:{0}'.format(runMode))
         aiFramework.Finish()
 
 def Main():
@@ -131,8 +137,7 @@ def Main():
         RunFrameWork(args.mode)
     except Exception as e:
         msg = traceback.format_exc()
-        logger = logging.getLogger('agent')
-        logger.error('exception: {0} msg: {1}'.format(e, msg))
+        ColorPrint.red('exception: {0} msg: {1}'.format(e, msg))
 
 if __name__ == '__main__':
     Main()

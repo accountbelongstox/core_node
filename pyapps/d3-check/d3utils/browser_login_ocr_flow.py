@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Browser login OCR flow: when Tampermonkey is not connected (CN), wait for browser
-window by title, capture frontmost browser every 2s, OCR, and click EULA checkbox+agree
-or login button. Same steps as Tampermonkey script; 5 min timeout then flow returns to start.
+Browser login OCR flow (CN, no Tampermonkey).
+Flow: find browser by BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS -> activate to front + wait ->
+center 80% region capture (ImageGrab) -> OCR -> button bbox + offset -> click.
 """
 
+import os
+import tempfile
 import time
 from typing import Optional, Tuple, List, Dict, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageGrab
 from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.window_activator import WindowActivator
 from d3utils.click_handler_singleton import get_click_handler
 
 from providor.constants.common import (
@@ -38,6 +41,14 @@ SUCCESS_TEXT_SUBSTR = "现在可以返回战网游戏或应用程序"
 # Poll interval (capture + OCR every this many seconds)
 POLL_INTERVAL_SEC = 2.0
 
+# Center region of browser window: 80% width and height (for OCR to reduce noise)
+CENTER_REGION_WIDTH_RATIO = 0.8
+CENTER_REGION_HEIGHT_RATIO = 0.8
+
+# B11 OCR DEBUG: when True, save center-80% image used for OCR to temp dir when no 登录/同意/EULA found
+B11_OCR_DEBUG = True
+B11_OCR_DEBUG_DIR = os.path.join(tempfile.gettempdir(), "browser_login_ocr_debug")
+
 
 def _boxes_from_raw(raw_result: List[Dict], keywords: List[str]) -> List[Dict[str, Any]]:
     """From OCR raw_result, return [{keyword, text, bbox}] for items matching any keyword."""
@@ -59,6 +70,39 @@ def _boxes_from_raw(raw_result: List[Dict], keywords: List[str]) -> List[Dict[st
     return out
 
 
+def _format_raw_with_position(raw_result: List[Dict]) -> str:
+    """Format OCR raw_result items that have position for logging: text @ (x,y,w,h)."""
+    if not raw_result:
+        return "[]"
+    parts = []
+    for item in raw_result:
+        text = (item.get("text") or "").strip()
+        if not text:
+            continue
+        pos = item.get("position")
+        bbox = _position_to_bbox(pos) if pos is not None else None
+        if bbox is None:
+            continue
+        x1, y1, x2, y2 = bbox
+        w, h = round(x2 - x1), round(y2 - y1)
+        parts.append("%s@(%d,%d,%d,%d)" % (repr(text)[:32], round(x1), round(y1), w, h))
+    return "[" + ", ".join(parts) + "]" if parts else "[]"
+
+
+def _rect_center_region(
+    left: int, top: int, right: int, bottom: int,
+    width_ratio: float = CENTER_REGION_WIDTH_RATIO,
+    height_ratio: float = CENTER_REGION_HEIGHT_RATIO,
+) -> Tuple[int, int, int, int]:
+    """Return (left, top, right, bottom) of the center region of the given rect (80% by default)."""
+    w, h = right - left, bottom - top
+    cw = max(1, int(w * width_ratio))
+    ch = max(1, int(h * height_ratio))
+    cx = left + (w - cw) // 2
+    cy = top + (h - ch) // 2
+    return (cx, cy, cx + cw, cy + ch)
+
+
 def _capture_window_rect(left: int, top: int, right: int, bottom: int):
     """Capture screen region; return PIL Image or None. Requires ImageGrab at module load."""
     if ImageGrab is None:
@@ -72,7 +116,7 @@ def _click_in_window(
     window_rect: Tuple[int, int, int, int],
     bbox: Tuple[float, float, float, float],
 ) -> bool:
-    """Click at bbox center in window; bbox is (min_x, min_y, max_x, max_y) in window coords."""
+    """Click at bbox center: offset = window_rect (left, top); screen = offset + bbox_center(bbox)."""
     left, top, _, _ = window_rect
     cx, cy = bbox_center(bbox)
     screen_x = int(left + cx)
@@ -90,22 +134,32 @@ def run_one_poll(
     notify_oauth_done=None,
 ) -> str:
     """
-    One poll step: find frontmost browser with login title, capture, OCR, click what is found.
+    One poll: find browser by BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS; if not found wait this tick (return continue);
+    if found: activate to front + wait -> capture center 80% (ImageGrab) -> OCR -> click at bbox_center + rect offset.
     Returns:
       "success"  - detected success text or clicked through; caller should call notify_oauth_done if needed
       "timeout"  - time.time() >= deadline; flow should go to BN_Exit
-      "continue" - no browser yet or no clickable element this round
+      "continue" - no browser yet (wait by title) or no clickable element this round
     """
     if time.time() >= deadline:
         return "timeout"
+    # B11: find browser by title constant; if not found -> wait this tick (do not do other work)
     win = get_frontmost_browser_login_window(title_substrs=BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS)
     if not win:
+        ColorPrint.gray("[BrowserLoginOCR] B11 wait: no window matching title %s, skip this tick" % (BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS,))
         return "continue"
-    rect = win.get("rect")
-    if not rect or len(rect) < 4:
+    full_rect = win.get("rect")
+    if not full_rect or len(full_rect) < 4:
         return "continue"
-    left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
-    time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
+    hwnd = win.get("hwnd")
+    if hwnd is not None:
+        try:
+            WindowActivator().activate_window_by_handle(int(hwnd))
+        except Exception:
+            pass
+        time.sleep(ACTIVATE_BEFORE_CAPTURE_DELAY_SEC)
+    left, top, right, bottom = _rect_center_region(full_rect[0], full_rect[1], full_rect[2], full_rect[3])
+    rect = (left, top, right, bottom)
     img = _capture_window_rect(left, top, right, bottom)
     if img is None:
         return "continue"
@@ -120,19 +174,16 @@ def run_one_poll(
             notify_oauth_done()
         return "success"
     clk = clicker or get_click_handler()
-    # EULA: checkbox (approximate: left of EULA text) + agree button
+    # B11 real-time OCR: use constants 登录/同意/EULA to get position, click when found (CN browser OAuth)
     eula_boxes = _boxes_from_raw(raw, [EULA_LABEL_SUBSTR])
     agree_boxes = _boxes_from_raw(raw, [AGREE_BTN_SUBSTR])
-    cancel_boxes = _boxes_from_raw(raw, [CANCEL_BTN_SUBSTR])
     login_boxes = _boxes_from_raw(raw, [LOGIN_BTN_SUBSTR])
-    # Prefer agree button that is not cancel (AGREE_BTN_SUBSTR but not CANCEL_BTN_SUBSTR)
     agree_btn = None
     for ab in agree_boxes:
         if ab.get("text", "").find(CANCEL_BTN_SUBSTR) == -1:
             agree_btn = ab
             break
     if eula_boxes and agree_btn:
-        # Click checkbox: left of EULA text (first char region)
         bbox = eula_boxes[0]["bbox"]
         check_cx = bbox[0] - 24
         check_cy = (bbox[1] + bbox[3]) / 2
@@ -142,16 +193,36 @@ def run_one_poll(
         _click_in_window(clk, rect, check_bbox)
         time.sleep(0.3)
         _click_in_window(clk, rect, agree_btn["bbox"])
-        ColorPrint.blue("[BrowserLoginOCR] Clicked EULA checkbox + agree")
+        ColorPrint.blue("[BrowserLoginOCR] B11 OCR: EULA+同意 at center 80% -> clicked")
         return "continue"
     if agree_btn and not eula_boxes:
         _click_in_window(clk, rect, agree_btn["bbox"])
-        ColorPrint.blue("[BrowserLoginOCR] Clicked agree button")
+        ColorPrint.blue("[BrowserLoginOCR] B11 OCR: 同意 at center 80% -> clicked")
         return "continue"
     if login_boxes:
         _click_in_window(clk, rect, login_boxes[0]["bbox"])
-        ColorPrint.blue("[BrowserLoginOCR] Clicked login button")
+        ColorPrint.blue("[BrowserLoginOCR] B11 OCR: 登录 at center 80% -> clicked")
         return "continue"
+    # DEBUG: save the exact center-80%% image used for OCR when no 登录/同意/EULA found
+    debug_path = None
+    if B11_OCR_DEBUG and img is not None:
+        try:
+            os.makedirs(B11_OCR_DEBUG_DIR, exist_ok=True)
+            ts = time.strftime("%Y%m%d_%H%M%S", time.localtime()) + "_%d" % (time.time() % 1 * 1000)
+            fname = "b11_center80_%s.png" % ts
+            debug_path = os.path.join(B11_OCR_DEBUG_DIR, fname)
+            img.save(debug_path)
+            debug_path = os.path.abspath(debug_path)
+        except Exception as e:
+            ColorPrint.yellow("[BrowserLoginOCR] B11 DEBUG save image failed: %s" % e)
+    with_pos = _format_raw_with_position(raw)
+    text_preview = (result.get("text") or "")[:200]
+    has_any_position = any(_position_to_bbox(item.get("position")) is not None for item in raw)
+    extra = (" | DEBUG image: %s" % debug_path) if debug_path else ""
+    ColorPrint.gray(
+        "[BrowserLoginOCR] B11 OCR: center 80%% no 登录/同意/EULA, next tick | with position: %s | raw_count=%d has_position=%s text=%s%s"
+        % (with_pos, len(raw), has_any_position, repr(text_preview), extra)
+    )
     return "continue"
 
 

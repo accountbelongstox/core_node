@@ -7,14 +7,27 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import csv
 import logging
 import operator
 import os
 import shutil
-import numpy as np
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+
 from .util import ObtainTaskDict, FindIndex, RepeatList
 
 

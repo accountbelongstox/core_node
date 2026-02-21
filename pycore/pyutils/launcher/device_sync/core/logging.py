@@ -7,11 +7,11 @@ Centralized logging setup for device sync components.
 
 import logging
 import sys
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-import platform
 from pathlib import Path
 from datetime import datetime
-import subprocess
+
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyutils.system_launcher import open_dir
 
 # Log directory
 LOG_DIR = Path.home() / '.device_sync' / 'logs'
@@ -71,15 +71,8 @@ def get_log_file() -> Path:
 
 
 def open_log_directory():
-    """Open log directory in file explorer."""
-    system = platform.system()
-
-    if system == 'Windows':
-        subprocess.Popen(['explorer', str(LOG_DIR)])
-    elif system == 'Darwin':  # macOS
-        subprocess.Popen(['open', str(LOG_DIR)])
-    else:  # Linux
-        subprocess.Popen(['xdg-open', str(LOG_DIR)])
+    """Open log directory in file explorer via pycore.system_launcher."""
+    open_dir(LOG_DIR)
 
 
 # Create main logger

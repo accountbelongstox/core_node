@@ -1172,8 +1172,6 @@ class BagLayoutDetector:
 
         except Exception as e:
             ColorPrint.red(f"[Visualization] Error creating visualization: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _save_layout_visualization(

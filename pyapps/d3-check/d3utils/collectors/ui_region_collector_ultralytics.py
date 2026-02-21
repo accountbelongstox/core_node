@@ -29,7 +29,7 @@ import tempfile
 
 _ultralytics = get_third_package_ultralytics()
 ULTRALYTICS_AVAILABLE = _ultralytics is not None
-YOLO = getattr(_ultralytics, "YOLO", None) if _ultralytics else None
+YOLO = _ultralytics.YOLO if _ultralytics is not None else None
 if not ULTRALYTICS_AVAILABLE:
     ColorPrint.yellow("[UIRegionCollectorUltralytics] Ultralytics not installed")
 
@@ -233,8 +233,6 @@ class UIRegionCollectorUltralytics:
 
         except Exception as e:
             ColorPrint.red(f"[ERROR] Collection failed: {e}")
-            import traceback
-            traceback.print_exc()
             self._update_shared_data_error(str(e), timestamp)
             return None
 
@@ -399,13 +397,11 @@ class UIRegionCollectorUltralytics:
             try:
                 if temp_screenshot_path.exists():
                     temp_screenshot_path.unlink()
-            except:
+            except OSError:
                 pass
 
         except Exception as e:
             ColorPrint.red(f"[Save] Error saving annotated screenshot: {e}")
-            import traceback
-            traceback.print_exc()
 
     def _update_shared_data_error(self, error_msg: str, timestamp: str) -> None:
         """Update shared data with error"""
@@ -486,8 +482,6 @@ class UIRegionCollectorUltralytics:
 
         except Exception as e:
             ColorPrint.red(f"[Train] Training failed: {e}")
-            import traceback
-            traceback.print_exc()
 
     def validate(self, data_yaml_path: str) -> None:
         """

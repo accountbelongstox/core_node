@@ -22,6 +22,7 @@
         "continuous": "Continuous",
         "single": "Single",
         "hold": "Hold",
+        "ignore": "Ignore",
         "drag": "Drag",
         "disabled": "Disabled",
         "buff": "Keep Buff"
@@ -32,7 +33,7 @@
       "quick_switch": "Quick Switch",
       "movement": "Movement",
       "potion": "Potion",
-      "potion_interval": "Potion Interval(ms)",
+      "water": "Water",
       "quick_switch_title": "Quick Switch to This Config",
       "auto_start": "Auto Start Macro After Switch",
       "macro_start_title": "Macro Start Method",
@@ -80,11 +81,13 @@
       "quick_switch": "Quick Switch",
       "movement_key": "Movement Key",
       "potion_key": "Potion Key",
+      "water_key": "Water Key",
       "status": "Status",
       "config_loaded": "Config Loaded"
     },
     "basic_info": {
       "title": "Basic Info",
+      "auxiliary_function_area": "Auxiliary Function Area",
       "current_config_info": "Current Config Info",
       "config_file": "Config File",
       "file_exists": "File Exists",
@@ -109,8 +112,11 @@
         "skill3": "Skill 3",
         "skill4": "Skill 4",
         "left_click": "Left Click",
-        "right_click": "Right Click"
+        "right_click": "Right Click",
+        "potion": "Potion"
       },
+      "key_left_click": "L-Click",
+      "key_right_click": "R-Click",
       "strategies": {
         "disabled": "Disabled",
         "hold": "Hold",
@@ -133,7 +139,7 @@
       "quick_switch": "Quick Switch",
       "movement": "Movement",
       "potion": "Potion",
-      "potion_interval": "Potion Interval(ms)",
+      "water": "Water",
       "strategy_options": {
         "continuous": "Continuous",
         "single": "Single",

@@ -26,8 +26,9 @@ flowchart TB
         B7_WaitUI["[B7] 轮询 UI 直到出现确切元素"]
         B8_Found{"[B8] 轮询 UI 找到元素？"}
         B9_UIState{"[B9] 当前界面是？"}
-        B10_Agree["[B10] 步骤1：点同意、确认<br/>→打开浏览器网易登录页"]
-        B11_OAuth["[B11] 步骤2：等待油猴返回"]
+        B10_Agree["[B10] 国服：点同意、确认→浏览器"]
+        B11_Browser["[B11] 国服：标题找浏览器、置顶wait、中心80%OCR、偏移点登录"]
+        B10a_Asia["[B10a] 亚服登录"]
         B12_Ok["[B12] 继续"]
         B5w_ExitWait["[B5w] 等待战网退出完成"]
         B13_Poll{"[B13] 轮询 UI 结果？"}
@@ -48,20 +49,22 @@ flowchart TB
         B7_WaitUI --> B8_Found
         B8_Found -->|"超时未找到"| B5_Exit
         B8_Found -->|"找到"| B9_UIState
-        B9_UIState -->|"登录界面"| B10_Agree
+        B9_UIState -->|"登录界面 国服"| B10_Agree
+        B9_UIState -->|"登录界面 亚服"| B10a_Asia
         B9_UIState -->|"主界面/已登录"| B12_Ok
-        B10_Agree --> B11_OAuth
-        B10_Agree -.->|"打开浏览器"| T1_WaitBtn
-        B11_OAuth -->|"超时→B5 退出战网"| B5_Exit
+        B10_Agree --> B11_Browser
+        B11_Browser -->|"超时→B5"| B5_Exit
+        B11_Browser -->|"成功"| B12_Ok
+        B10a_Asia --> B13_Poll
         B5_Exit --> B5w_ExitWait
         B5w_ExitWait --> B1_Entry
-        T1_Close -.->|"oauth-done，B11 返回"| B12_Ok
-        B11_OAuth -->|返回| B12_Ok
         B6_Activate --> B13_Poll
         B13_Poll -->|已登录| B14_Ok
         B13_Poll -->|掉线| B15a_Offline
         B13_Poll -->|超时| B15b_Timeout
         B13_Poll -->|其他| B15c_Other
+        B13_Poll -->|"登录界面 国服"| B10_Agree
+        B13_Poll -->|"登录界面 亚服"| B10a_Asia
         B15a_Offline --> B5_Exit
         B15b_Timeout --> B5_Exit
         B15c_Other --> B6_Activate

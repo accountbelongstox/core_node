@@ -5,6 +5,7 @@ Auto Team Formation Manager
 Automatically creates team when Find Team is detected (OCR text locale-specific, e.g. CN "寻找队伍")
 """
 
+import random
 import time
 from typing import Optional
 
@@ -202,7 +203,6 @@ class D4AutoTeamFormation(D4OperationBase):
         row_height = region_height / 7
         target_y = y1 + (row - 0.5) * row_height
         center_x = (x1 + x2) // 2
-        import random
         offset_x = random.randint(-5, 5)
         offset_y = random.randint(-5, 5)
         click_x = int(center_x + offset_x)
@@ -262,7 +262,6 @@ class D4AutoTeamFormation(D4OperationBase):
         x1, y1, x2, y2 = self.REGION_COORDS['Confirm Team Button']
         center_x = (x1 + x2) // 2
         center_y = (y1 + y2) // 2
-        import random
         offset_x = random.randint(-3, 3)
         offset_y = random.randint(-3, 3)
         click_point = (center_x + offset_x, center_y + offset_y)

@@ -7,6 +7,13 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import os
 import json
@@ -15,8 +22,11 @@ import random
 import xml.dom.minidom as xmlDoc
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
-import cv2
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 PROD_MIN_SAMPLE_NUM = 2000
 DEBUG_MIN_SAMPLE_NUM = 50

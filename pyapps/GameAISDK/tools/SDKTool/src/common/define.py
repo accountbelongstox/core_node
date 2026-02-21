@@ -604,7 +604,8 @@ Number_Int_Key = \
         # 'scoreTaskID',
         'maxScoreRepeatedTimes',
         'durationMS',
-        "hostPort"
+        "hostPort",
+        "RecordHttpPort"
         # 'winTaskID',
         # 'loseTaskID'
     ]
@@ -738,6 +739,26 @@ LOG_LEVEL = \
     ]
 
 RECORD_CONFIG_FILE = 'Resource/cfg/record_cfg.json'
+# Record config: key -> UI display label (locale strings)
+RECORD_CONFIG_KEY_DISPLAY_NAMES = {
+    "Debug": "调试模式(关闭可隐藏录制窗口上的动作框0,1,2,3)",
+    "FrameFPS": "帧率(FPS)",
+    "OutputAsVideo": "输出为视频",
+    "LogTimestamp": "记录时间戳",
+    "FrameWidth": "帧宽度",
+    "FrameHeight": "帧高度",
+    "RecordHttpPort": "HTTP端口(start/end_segment)",
+}
+# Record config panel column order
+RECORD_CONFIG_KEYS_ORDER = [
+    "Debug",
+    "FrameFPS",
+    "OutputAsVideo",
+    "LogTimestamp",
+    "FrameWidth",
+    "FrameHeight",
+    "RecordHttpPort",
+]
 RECORD_ANDROID_GUIDANCE_IMG = 'Resource/Sample_Record.PNG'
 RECORD_WINDOWS_GUIDANCE_IMG = 'Resource/Sample_Record2.PNG'
 

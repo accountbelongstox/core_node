@@ -19,6 +19,12 @@ import traceback
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
+
 __cur_dir = os.path.dirname(os.path.abspath(__file__))
 __sdk_path = os.path.abspath(os.path.join(__cur_dir, '..', '..', '..', 'src'))
 sys.path.insert(0, __sdk_path)
@@ -84,6 +90,12 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         if method == 'quit':
             LOG.info('to be ready to quit')
             sampler.set_exited()
+        elif method == 'start_segment':
+            LOG.info('start_segment (parameter)')
+            sampler.set_start_segment()
+        elif method == 'end_segment':
+            LOG.info('end_segment (parameter)')
+            sampler.set_end_segment()
 
         return self.__echo_response()
 
@@ -100,7 +112,8 @@ def main():
     device_id = None
     device_type = DeviceType.Android.value
     port = 52808
-    options, _ = getopt.getopt(sys.argv[1:], 's:p:m:h')
+    continuous = False
+    options, _ = getopt.getopt(sys.argv[1:], 's:p:m:ch')
     for opt, value in options:
         if opt == '-h':
             print_usage()
@@ -111,8 +124,10 @@ def main():
             port = int(value)
         elif opt == '-m':
             device_type = value
+        elif opt == '-c':
+            continuous = True
 
-    sampler = ActionSampler(device_id, device_type)
+    sampler = ActionSampler(device_id, device_type, continuous=continuous)
 
     threading.Thread(target=http_server, args=(port,), name='http_server', daemon=True).start()
 
