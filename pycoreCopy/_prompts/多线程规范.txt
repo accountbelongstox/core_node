@@ -1,3 +1,0 @@
-为了降低复杂度，你应该明白是由一个主线程启动tk络，和pyside线程，而不是tk作为一个线程结束 后又启动另一个线程，主线程一直都在，同时还一个tick定时器线程，同时为了减低线程的复杂度，所有 以上线程都原生继承Thread，而不是由Thread启动，同时所有 的事务通知使用一个全局的queue，比入D:\programing\core_node\pycore\pyfoundations\encyclopedia.py 中添加多线程的支持 。
-同时，线程间不允许互相传递参数，只能修改全局的queue，或发送信号通知。避免传参导致的问题，将这个更新到规范  D:\programing\core_node\development-guides\PYTHON_PYCORE_BASE_GUIDE_THIS_FILE_NO_AI_EDIT.md 同时重构。
-注意写明，只要是用线程启动的，直接将该代码原生就 继承Thread ，而不是使用线程启动。这是本项目的多线程规范 。
