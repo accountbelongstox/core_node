@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QLineEdit, QPushButton, QCheckBox, QSpinBox,
     QTextEdit, QScrollArea, QFrame, QFileDialog, QMessageBox,
-    QMenu,
+    QMenu, QApplication,
 )
 from PySide6.QtGui import QAction
 
@@ -19,7 +19,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe, LOGS_FILE_PATH
 from providor.i18n_manager import i18n_manager
 from share.game_interface_data import get_game_interface_data
-from timers.one_shot_tasks import do_path_scan, do_rosbot_update
+from timers.one_shot_tasks import do_path_scan, do_rosbot_update, do_window_monitor_initial_check
 from d3utils.path_scanner import pick_best_rosbot_dir_by_region, are_paths_valid_for_skip_scan
 from pycore.pyutils.system_launcher import open_file_with_notepad
 from providor.constants.common import TAMPERMONKEY_SCRIPT_PATH
@@ -483,7 +483,6 @@ class RosbotExtensionPanelQt(QWidget):
         else:
             text = self.log_text.toPlainText()
         if text.strip():
-            from PySide6.QtWidgets import QApplication
             app = QApplication.instance()
             if app:
                 app.clipboard().setText(text)
@@ -537,7 +536,6 @@ class RosbotExtensionPanelQt(QWidget):
         schedule_battlenet_credentials_dialog()
 
     def _request_status_refresh(self) -> None:
-        from timers.one_shot_tasks import do_window_monitor_initial_check
         timer_manager.submit_one_shot(do_window_monitor_initial_check)
 
     def _update_rosbot(self) -> None:
