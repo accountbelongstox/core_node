@@ -164,7 +164,7 @@ class MainFunctionsPanelQt(QWidget):
             self._sync_bottom_bar_options()
 
     def _sync_bottom_bar_options(self):
-        if getattr(self.bottom_bar, "set_option_state", None):
+        if self.bottom_bar is not None:
             self.bottom_bar.set_option_state(
                 sound=self._sound_cb.isChecked(),
                 smart_pause=self._smart_pause_cb.isChecked(),
@@ -325,7 +325,7 @@ class MainFunctionsPanelQt(QWidget):
         for skill_key in SKILL_TABLE_KEYS:
             data = skills_data.get(skill_key, {})
             key_w = self.skill_vars.get(f"{skill_key}_key")
-            if key_w is not None and hasattr(key_w, "set_hotkey") and skill_key not in ("left_click", "right_click"):
+            if key_w is not None and skill_key not in ("left_click", "right_click"):
                 key_w.set_hotkey(data.get("key", "Q" if skill_key == "potion" else ""))
             strategy_w = self.skill_vars.get(f"{skill_key}_strategy")
             if strategy_w is not None and isinstance(strategy_w, QComboBox):
@@ -338,7 +338,7 @@ class MainFunctionsPanelQt(QWidget):
                     w.blockSignals(False)
         for hotkey_key, default in PER_CONFIG_HOTKEY_SPEC:
             w = self.skill_vars.get(hotkey_key)
-            if w is not None and hasattr(w, "set_hotkey"):
+            if w is not None:
                 w.set_hotkey(cfg.get(hotkey_key, default))
 
     def set_skill_config_switch_callback(self, callback: Callable[[str], None]) -> None:
