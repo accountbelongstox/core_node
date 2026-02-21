@@ -25,10 +25,27 @@ from d3utils.battlenet_operation import get_battlenet_operation
 from d3utils.status_provider_common import refresh_window_state
 
 
+def _find_last_login_region_recursive(obj):
+    """Recursively find Services.LastLoginRegion; config key containing Services is dynamic (e.g. install ID)."""
+    if not isinstance(obj, dict):
+        return None
+    services = obj.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    if isinstance(services, dict) and BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY in services:
+        val = services[BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY]
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        return val if isinstance(val, str) else None
+    for v in obj.values():
+        found = _find_last_login_region_recursive(v)
+        if found:
+            return found
+    return None
+
+
 def _read_region_from_battlenet_config() -> Optional[str]:
     """
-    Read Battle.net region from config file: ~/AppData/Roaming/Battle.net/Battle.net.config
-    Returns "cn" if Services.LastLoginRegion is CN (case-insensitive), "asia" otherwise, or None if not found/invalid.
+    Read Battle.net region from config file. Services.LastLoginRegion is under a dynamic key (install ID), search recursively.
+    Returns "cn" if LastLoginRegion is CN (case-insensitive), "asia" otherwise, or None if not found/invalid.
     """
     config_path = Path(BATTLE_NET_CONFIG_PATH)
     if not config_path.exists():
@@ -50,14 +67,7 @@ def _read_region_from_battlenet_config() -> Optional[str]:
         ColorPrint.gray(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: root not dict, keys={list(data.keys()) if hasattr(data, 'keys') else type(data).__name__}")
         ColorPrint.gray(f"[BattlenetStatusProvider] config file raw text (first 2000 chars):\n{raw_text[:2000]}")
         return None
-    services = data.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
-    ColorPrint.gray(
-        f"[BattlenetStatusProvider] _read_region_from_battlenet_config: path={config_path} Services keys={list(services.keys()) if isinstance(services, dict) else type(services).__name__}"
-    )
-    if not isinstance(services, dict):
-        ColorPrint.gray(f"[BattlenetStatusProvider] _read_region_from_battlenet_config: Services not dict, full config as text:\n{raw_text[:3000]}")
-        return None
-    last_login_region = services.get(BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY, "")
+    last_login_region = _find_last_login_region_recursive(data)
     ColorPrint.gray(
         f"[BattlenetStatusProvider] _read_region_from_battlenet_config: read LastLoginRegion={repr(last_login_region)}"
     )
@@ -67,6 +77,7 @@ def _read_region_from_battlenet_config() -> Optional[str]:
         )
         ColorPrint.gray(f"[BattlenetStatusProvider] --- Battle.net.config full text ---\n{raw_text}\n--- end ---")
         return None
+    # CN region -> "cn"; non-CN (KR/US/EU/TW etc.) -> "asia"
     is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
     result = "cn" if is_cn else "asia"
     ColorPrint.gray(
@@ -78,7 +89,7 @@ def _read_region_from_battlenet_config() -> Optional[str]:
 def ensure_battlenet_region_from_config() -> None:
     """
     Resolve Battle.net region from config only (no UI). When game_data.battlenet_region is None:
-    1) Read Battle.net.config file (Services.LastLoginRegion): CN -> "cn", else -> "asia";
+    1) Read Battle.net.config file (Services.LastLoginRegion): CN -> "cn", non-CN (KR/US/EU/TW etc.) -> "asia";
     2) If not found, read ros_settings.battlenet_region_cache.
     Sets game_data.battlenet_region and optionally ros_settings.battlenet_region_cache when read from file.
     Call before using get_battlenet_region() when region must be config-based.

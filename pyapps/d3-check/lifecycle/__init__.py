@@ -11,7 +11,8 @@ from .shutdown_runner import run_thread_shutdown_sequence
 register_shutdown_runner(run_thread_shutdown_sequence)
 
 from .thread_registry import ThreadRegistry, get_thread_registry
-from threads.task_thread_manager import get_task_manager, TaskStatus
+from share.values import TaskStatus
+from threads.task_thread_manager import get_task_manager
 from threads.main_function_thread import get_main_function_thread
 from threads.auxiliary_function_thread import get_auxiliary_function_thread
 from threads.d3_extension_thread import D3ExtensionThread, get_d3_extension_thread

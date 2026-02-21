@@ -7,16 +7,28 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import sys
 import os
 import json
-import logging
 import base64
-import cv2
-from cffi import FFI
-import numpy as np
 
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+
+from cffi import FFI
 
 ffi = FFI()
 
@@ -24,11 +36,11 @@ if sys.platform != "win32":
     lib = ffi.dlopen(None)
 else:
     try:
-        logging.info("begin open UIRecognize.exe")
+        ColorPrint.blue("begin open UIRecognize.exe")
         __dir__ = os.path.dirname(os.path.abspath(__file__))
         lib = ffi.dlopen("{}/../../UIRecognize.exe".format(__dir__))
     except Exception as error:
-        logging.error("open UIRecognize failed, error {}".format(error))
+        ColorPrint.red("open UIRecognize failed, error {}".format(error))
 
 try:
     ffi.cdef("""
@@ -39,7 +51,7 @@ try:
         bool PyLOGE(char *pszLogContent);
     """)
 except Exception as e:
-    logging.error("cdef function SendScriptUIAction failed")
+    ColorPrint.red("cdef function SendScriptUIAction failed")
 
 
 UI_ACTION_NONE = 0
@@ -125,7 +137,7 @@ class UIControlAPI(object):
                 self.__tasks[taskID] = task
             # logger.info("python:tasks {}".format(self.__tasks))
         except Exception as e:
-            logger.error("Couldn't parse， Reason {}".format(e))
+            ColorPrint.red("Couldn't parse， Reason {}".format(e))
         return True
 
     def GetData(self, strKey):
@@ -141,15 +153,15 @@ class UIControlAPI(object):
                 height = self.__uiState.get("height")
                 data = self.__uiState.get(strKey)
                 if None in [width, height, data]:
-                    print("get data failed")
+                    ColorPrint.red("get data failed")
                     return
                 shape = (height, width, 3)
                 imageB = base64.b64decode(data)
-                imageArr = np.fromstring(imageB, np.uint8)
+                imageArr = np.frombuffer(imageB, dtype=np.uint8)
                 gameFrame = np.reshape(imageArr, shape)
                 return gameFrame
         except Exception as error:
-            logger.error("error is {}".format(error))
+            ColorPrint.red("error is {}".format(error))
 
     def SetData(self, strKey, value):
         """
@@ -207,18 +219,18 @@ class UIControlAPI(object):
         pkgDict["samplePath"] = self.__uiState.get("samplePath")
         pkgDict["stateID"] = self.__uiState.get("stateID")
         pkgDict["scriptActions"] = []
-        logging.info("pkgDict:{}, actionList {}".format(pkgDict, actionIDList))
+        ColorPrint.blue("pkgDict:{}, actionList {}".format(pkgDict, actionIDList))
         for actionID in actionIDList:
             unitAction = dict()
             unitAction["actionID"] = actionID
             taskParams = self.__tasks.get(actionID)
             if taskParams is None:
-                logger.error("action id is invalid {}".format(actionID))
+                ColorPrint.red("action id is invalid {}".format(actionID))
                 continue
 
             taskType = taskParams.get("type")
 
-            logging.info("taskType is {}".format(taskType))
+            ColorPrint.blue("taskType is {}".format(taskType))
 
             if taskType == "click":
                 self._PackClick(unitAction, actionIDDict, taskParams, taskType)
@@ -231,10 +243,10 @@ class UIControlAPI(object):
 
             pkgDict["scriptActions"].append(unitAction)
         paramStr = json.dumps(pkgDict)
-        logger.info("python-->c++ func: param str is {}".format(paramStr))
-        logger.info("python:begin call function send script ui action")
+        ColorPrint.blue("python-->c++ func: param str is {}".format(paramStr))
+        ColorPrint.blue("python:begin call function send script ui action")
         flag = lib.SendScriptUIAction(paramStr.encode('utf-8'))
-        logger.info("python:over call function send script ui action, result is {}.".format(flag))
+        ColorPrint.blue("python:over call function send script ui action, result is {}.".format(flag))
 
     def CtrlResult(self):
         """

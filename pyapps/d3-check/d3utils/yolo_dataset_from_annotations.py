@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 D3-check: generate YOLO dataset from UI-collected screenshot_history.
-Output dir: D:\\applications\\GameTools\\Yolo\\yolo_dataset_YYYYMMDD_HHMMSS
+Output: YOLO_DATA_ROOT/_generated/{client_type}/yolo_dataset_YYYYMMDD_HHMMSS (or output_dir if given).
 """
 
 from datetime import datetime
@@ -15,16 +15,22 @@ from pycore.pyutils.ultralytics.annotation_to_yolo_dataset import (
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.common import YOLO_DATASET_BASE_DIR
 
+try:
+    from pycore.pyutils.voc_annotator.yolo_data_layout import get_yolo_generated_dataset_path
+except ImportError:
+    get_yolo_generated_dataset_path = None
+
 
 def generate_dataset_from_screenshot_history(
     screenshot_history: List[Dict[str, Any]],
     class_names: List[str],
     train_ratio: float = 0.8,
     output_dir: Optional[Path] = None,
+    client_type: str = "d3_game",
 ) -> Dict[str, Any]:
     """
     Build YOLO dataset from screenshot_history. If output_dir is given, use it;
-    otherwise create YOLO_DATASET_BASE_DIR / yolo_dataset_YYYYMMDD_HHMMSS.
+    otherwise create under YOLO_DATA_ROOT/_generated/{client_type}/yolo_dataset_YYYYMMDD_HHMMSS.
 
     screenshot_history: list of {
         "image": PIL.Image,
@@ -45,7 +51,11 @@ def generate_dataset_from_screenshot_history(
         dataset_dir = Path(output_dir)
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        dataset_dir = YOLO_DATASET_BASE_DIR / f"yolo_dataset_{timestamp}"
+        folder_name = f"yolo_dataset_{timestamp}"
+        if get_yolo_generated_dataset_path:
+            dataset_dir = Path(get_yolo_generated_dataset_path(client_type or "d3_game", folder_name))
+        else:
+            dataset_dir = YOLO_DATASET_BASE_DIR / folder_name
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     entries = []

@@ -6,8 +6,19 @@
 
 import xml.etree.ElementTree as ET
 import os
+import sys
 import cPickle
-import numpy as np
+
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+np = get_third_package_numpy()
+
 
 def parse_rec(filename):
     """ Parse a PASCAL VOC xml file """
@@ -123,7 +134,7 @@ def voc_eval(detpath,
     for imagename in imagenames:
         R = [obj for obj in recs[imagename] if obj['name'] == classname]
         bbox = np.array([x['bbox'] for x in R])
-        difficult = np.array([x['difficult'] for x in R]).astype(np.bool)
+        difficult = np.array([x['difficult'] for x in R]).astype(bool)
         det = [False] * len(R)
         npos = npos + sum(~difficult)
         class_recs[imagename] = {'bbox': bbox,

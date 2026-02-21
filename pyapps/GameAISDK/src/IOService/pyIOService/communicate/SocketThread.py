@@ -7,15 +7,27 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
-import logging
 import threading
 import time
 
-import msgpack
+try:
+    from pycore.pyfoundations.third_party import get_third_package_msgpack
+    msgpack = get_third_package_msgpack()
+except ImportError:
+    import msgpack
 import msgpack_numpy as mn
 
-LOG = logging.getLogger('IOService')
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 class RecvThread(threading.Thread):
@@ -33,11 +45,11 @@ class RecvThread(threading.Thread):
         while self.__runningFlag.isSet():
             buff = self.__recvSocket.Recv()
             if buff is None or len(buff) == 0:
-                LOG.error('Recv buff is None')
+                ColorPrint.red('Recv buff is None')
                 time.sleep(0.001)
                 continue
 
-            data = msgpack.unpackb(buff, object_hook=mn.decode, encoding='utf-8')
+            data = msgpack.unpackb(buff, object_hook=mn.decode)
             self.__recvQueue.put_nowait(data)
             time.sleep(0.001)
 
@@ -72,7 +84,7 @@ class SendThread(threading.Thread):
                     self.__sendSocket.Send(buff)
                     time.sleep(0.001)
                     continue
-                LOG.error('Send data is None')
+                ColorPrint.red('Send data is None')
 
             time.sleep(0.001)
             continue

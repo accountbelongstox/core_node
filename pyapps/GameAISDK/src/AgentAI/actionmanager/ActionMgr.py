@@ -7,20 +7,30 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import json
-import logging
 
-import msgpack
+try:
+    from pycore.pyfoundations.third_party import get_third_package_msgpack
+    msgpack = get_third_package_msgpack()
+except ImportError:
+    import msgpack
 import msgpack_numpy as mn
 from connect.BusConnect import BusConnect
 
 from protocol import common_pb2
+from pycore.pyfoundations.color_print import ColorPrint
 
 MSG_ID_AI_ACTION = 2000
-
-LOG = logging.getLogger('agent')
-LOG_REGACTION = logging.getLogger('regaction')
 
 class ActionMgr(object):
     """
@@ -44,7 +54,7 @@ class ActionMgr(object):
         :return:
         """
         if self.__initialized:
-            LOG.info('Close connection...')
+            ColorPrint.blue('Close connection...')
             self.__connect.Close()
             self.__initialized = False
 
@@ -57,7 +67,7 @@ class ActionMgr(object):
         :return:
         """
         if not self.__initialized:
-            LOG.warning('Call Initialize first!')
+            ColorPrint.yellow('Call Initialize first!')
             return False
 
         actionData['msg_id'] = MSG_ID_AI_ACTION
@@ -70,14 +80,13 @@ class ActionMgr(object):
         msg.stAIAction.byAIActionBuff = actionBuff
         #msgBuff = msg.SerializeToString()
 
-        if LOG_REGACTION.level <= logging.DEBUG:
-            actionStr = json.dumps(actionData)
-            LOG_REGACTION.debug('{}||action||{}'.format(frameSeq, actionStr))
+        actionStr = json.dumps(actionData)
+        ColorPrint.gray('{}||action||{}'.format(frameSeq, actionStr))
 
         self.__connect.SendMsg(msg, BusConnect.PEER_NODE_SDKTOOL)
 
         ret = self.__connect.SendMsg(msg, BusConnect.PEER_NODE_MC)
         if ret != 0:
-            LOG.warning('TBus Send To MC return code[{0}]'.format(ret))
+            ColorPrint.yellow('TBus Send To MC return code[{0}]'.format(ret))
             return False
         return True

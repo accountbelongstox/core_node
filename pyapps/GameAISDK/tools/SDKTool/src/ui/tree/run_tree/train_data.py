@@ -7,18 +7,28 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import json
 import logging
 import traceback
 from collections import OrderedDict
 import os
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2
+
+cv2 = get_third_package_cv2()
 
 from ....config_manager.ai.ai_manager import AIManager
 from ....ui.tree.project_data_manager import ProjectDataManager
 from ....common.define import RECORD_CONFIG_FILE, ACTION_SAMPLE_CFG_PATH, BASE_ACTION_CFG_PATH, \
-    AI_ACTION_TYPES, ACTION_SAMPLE_GAME_ACTION_CFG_PATH
+    AI_ACTION_TYPES, ACTION_SAMPLE_GAME_ACTION_CFG_PATH, RECORD_CONFIG_KEYS_ORDER
 from ...dialog.tip_dialog import show_warning_tips
 
 logger = logging.getLogger("sdktool")
@@ -26,8 +36,7 @@ logger = logging.getLogger("sdktool")
 
 class TrainData(object):
     def __init__(self):
-        # 记录显示在界面上的数据
-        self.__record_param = None
+        self.__record_param = None  # in-memory record params for config panel
 
     def load_record_data(self):
         if self.__record_param is None:
@@ -35,70 +44,68 @@ class TrainData(object):
         return self.__record_param
 
     def new_record_data(self):
-        try:
-            with open(RECORD_CONFIG_FILE) as f:
-                self.__record_param = json.load(f, object_pairs_hook=OrderedDict)
-        except IOError as err:
-            msg = traceback.format_exc()
-            logger.error("err is %s, traceback %s", str(err), msg)
-            # return False
-
+        raw = None
+        if os.path.exists(ACTION_SAMPLE_CFG_PATH):
+            try:
+                with open(ACTION_SAMPLE_CFG_PATH, encoding='utf-8') as f:
+                    raw = json.load(f, object_pairs_hook=OrderedDict)
+            except (OSError, IOError, ValueError):
+                raw = None
+        if raw is None:
+            try:
+                with open(RECORD_CONFIG_FILE, encoding='utf-8') as f:
+                    raw = json.load(f, object_pairs_hook=OrderedDict)
+            except (OSError, IOError, ValueError) as err:
+                logger.error("load record config failed: %s", err)
+                traceback.print_exc()
+                return self.__record_param if self.__record_param is not None else OrderedDict()
+        self.__record_param = OrderedDict()
+        for k in RECORD_CONFIG_KEYS_ORDER:
+            if k in raw:
+                self.__record_param[k] = raw[k]
+        for k, v in raw.items():
+            if k not in self.__record_param:
+                self.__record_param[k] = v
         return self.__record_param
 
     def save_record_data(self, in_param=None):
-        """ 保存录制的配置参数
-
-        :param in_param: 录制参数
-        :return:
-        """
+        """Persist record config into project cfg. Merges in_param and network size into cfg/cfg.json."""
         if in_param is None:
             in_param = OrderedDict()
 
+        cfg_path = ACTION_SAMPLE_CFG_PATH if os.path.exists(ACTION_SAMPLE_CFG_PATH) else RECORD_CONFIG_FILE
         try:
-            # self._save_project_data(in_param)
-            # 读取模板配置文件
-            # with open(ACTION_SAMPLE_CFG_TEMPLATE_PATH) as f:
-            # action_sample_param写在配置文件中的数据
-            # 如果之前已经保存过一次，只需要重新打开，修改后，保存;否则需要打开模板，修改后，保存。
-            if os.path.exists(ACTION_SAMPLE_CFG_PATH):  # 如果已存在cfg/cfg.json文件，则加载此配置
-                f = open(ACTION_SAMPLE_CFG_PATH)
-            else:
-                f = open(RECORD_CONFIG_FILE)  # 加载默认配置'Resource/record_cfg.json'
-            # with open(RECORD_CONFIG_FILE) as f:
-            action_sample_param = json.load(f, object_pairs_hook=OrderedDict)
-            # 将工具面板的录制参数的实时配置覆盖已有配置
-            for key, value in in_param.items():
-                if key in action_sample_param.keys():
-                    action_sample_param[key] = value
-                if key in self.__record_param.keys():
-                    self.__record_param[key] = value
+            with open(cfg_path, encoding='utf-8') as f:
+                action_sample_param = json.load(f, object_pairs_hook=OrderedDict)
+        except (OSError, IOError, ValueError) as err:
+            logger.error("save_record_data: read failed %s", err)
+            return
 
-            if 'FrameHeight' not in action_sample_param:  # 如果没有初始值，设置一个
-                action_sample_param['FrameHeight'] = 360  # 默认横屏, 16:9
-                action_sample_param['FrameWidth'] = 640
-            ai_mgr = AIManager()
-            imitation = ai_mgr.get_ai_parameter(ai_mgr.get_ai_type())
-            im_configure = imitation.get_config()
-            if im_configure:
-                # 更新为网络的参数
-                network = im_configure['network']
-                action_sample_param['FrameHeight'] = network['inputHeight']
-                action_sample_param['FrameWidth'] = network['inputWidth']
-            action_sample_param["GameName"] = 'output'
-            self._save_project_data(action_sample_param)
-            with open(ACTION_SAMPLE_CFG_PATH, "w") as f:  # 保存到cfg/cfg.json中
+        for key, value in in_param.items():
+            self.__record_param[key] = value
+            action_sample_param[key] = value
+
+        if 'FrameHeight' not in action_sample_param:
+            action_sample_param['FrameHeight'] = 360
+            action_sample_param['FrameWidth'] = 640
+        ai_mgr = AIManager()
+        imitation = ai_mgr.get_ai_parameter(ai_mgr.get_ai_type())
+        im_configure = imitation.get_config()
+        if im_configure:
+            network = im_configure['network']
+            action_sample_param['FrameHeight'] = network['inputHeight']
+            action_sample_param['FrameWidth'] = network['inputWidth']
+        action_sample_param["GameName"] = 'output'
+        self._save_project_data(action_sample_param)
+        try:
+            with open(ACTION_SAMPLE_CFG_PATH, "w", encoding='utf-8') as f:
                 json.dump(action_sample_param, f, indent=4, separators=(',', ':'))
-        except RuntimeError as err:
-            msg = traceback.format_exc()
-            logger.error("save record file err: %s, traceback %s", str(err), msg)
+        except (OSError, IOError) as err:
+            logger.error("save_record_data: write failed %s", err)
 
     @staticmethod
     def _save_project_data(param):
-        """ 设置项目信息参数
-
-        :param param: action params
-        :return:
-        """
+        """Set SavePath and ActionCfgFile on param from current project."""
         data_mgr = ProjectDataManager()
         project_path = data_mgr.get_project_path()
         abs_path = "{}/{}/".format(os.getcwd(), project_path)

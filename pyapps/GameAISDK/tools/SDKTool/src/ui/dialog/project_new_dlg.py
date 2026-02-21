@@ -54,7 +54,7 @@ class ProjectNewDlg(QtWidgets.QDialog):
 
     def pop_up(self):
         self.move(QCursor.pos())
-        self.exec_()
+        self.exec()
 
     def check_valid(self):
         name = self.edit_name.text()

@@ -7,12 +7,22 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import configparser
-import logging
 import os
 import time
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
 
 from common.Define import RUN_TYPE_UI_AI, RESULT_TYPE_AI, SERVICE_UNREGISTER, SERVICE_TYPE_REG, SERVICE_TYPE_UI, \
     ALL_NORMAL, AGENT_EXIT, UI_EXIT, REG_EXIT, RESULT_TYPE_UI, RUN_TYPE_AI, RUN_TYPE_UI
@@ -30,8 +40,6 @@ OTHERS_LOOP_RATE = 1
 OTHERS_LOOP_COUNT = int(MAIN_LOOP_RATE / OTHERS_LOOP_RATE)
 
 TBUS_CFG_PATH = 'cfg/platform/bus.ini'
-
-LOG = logging.getLogger('ManageCenter')
 
 
 class ManageCenter(object):
@@ -72,7 +80,7 @@ class ManageCenter(object):
         # Load config file
         ret = self._LoadConfig(runType)
         if not ret:
-            LOG.error('Load Config failed!')
+            ColorPrint.red('Load Config failed!')
             return False
 
         # Construct sub modules
@@ -86,22 +94,22 @@ class ManageCenter(object):
 
         # Initialize sub modules
         if not self.__serviceMgr.Initialize():
-            LOG.error('ServiceManager Initialize failed!')
+            ColorPrint.red('ServiceManager Initialize failed!')
             return False
 
         tbus_cfg_path = os.path.join(SYS_CONFIG_DIR, TBUS_CFG_PATH)
         if not self.__commMgr.Initialize(tbus_cfg_path):
-            LOG.error('CommMgr Initialize failed!')
+            ColorPrint.red('CommMgr Initialize failed!')
             return False
 
         if not self.__msgHandler.Initialize() or not self.__monitorMgr.Initialize():
-            LOG.error('MsgHandler Initialize failed! or MonitorManager Initialize failed!')
+            ColorPrint.red('MsgHandler Initialize failed! or MonitorManager Initialize failed!')
             return False
 
         if not self.__resultMgr.Initialize(taskID=self.__taskID,
                                            resultOutputPath=self.__resultPath,
                                            context=self.__resultCfg):
-            LOG.error('ResultManager Initialize failed!')
+            ColorPrint.red('ResultManager Initialize failed!')
             return False
 
         self.__initTimestamp = time.time()
@@ -129,12 +137,12 @@ class ManageCenter(object):
                 msgMS = int(1000 * (updateMsgTime - beginTime))
                 frameMS = int(1000 * (updateFrameTime - updateMsgTime))
                 othersMS = int(1000 * (endTime - updateFrameTime))
-                LOG.warning('MainLoop overschedule %sms: %s=%s+%s+%s', overMS, totalMS, msgMS, frameMS, othersMS)
+                ColorPrint.yellow('MainLoop overschedule %sms: %s=%s+%s+%s' % (overMS, totalMS, msgMS, frameMS, othersMS))
             self.__loopCount += 1
 
         self.__msgHandler.SendServiceRegisterMsgToIO(SERVICE_UNREGISTER)
 
-        LOG.info('Exit mainloop!')
+        ColorPrint.blue('Exit mainloop!')
 
     def Finish(self):
         """
@@ -203,14 +211,14 @@ class ManageCenter(object):
             return
 
         if result == ALL_NORMAL:
-            LOG.info('All services process is running!')
+            ColorPrint.blue('All services process is running!')
         else:
             if result & AGENT_EXIT:
-                LOG.warning('Agent service process exit!')
+                ColorPrint.yellow('Agent service process exit!')
             if result & UI_EXIT:
-                LOG.warning('UI service process exit!')
+                ColorPrint.yellow('UI service process exit!')
             if result & REG_EXIT:
-                LOG.warning('Reg service process exit!')
+                ColorPrint.yellow('Reg service process exit!')
 
         self.__msgHandler.SendAIServiceStateToIO(result)
         self.__lastMonitorResult = result
@@ -226,10 +234,10 @@ class ManageCenter(object):
             self.__runType = RUN_TYPE_UI
             self.__resultType = RESULT_TYPE_UI
         else:
-            LOG.error('Invalid RunType %s', runType)
+            ColorPrint.red('Invalid RunType %s' % (runType,))
             return False
 
-        LOG.info('RunType is %s', self.__runType)
+        ColorPrint.blue('RunType is %s' % (self.__runType,))
 
         if not self._LoadPlatformConfig():
             return False
@@ -245,7 +253,7 @@ class ManageCenter(object):
             iniCfg = configparser.ConfigParser()
             iniCfg.read(self.__platformCfgPath)
         else:
-            LOG.error('Config File not exist in %s', self.__platformCfgPath)
+            ColorPrint.red('Config File not exist in %s' % (self.__platformCfgPath,))
             return False
 
         try:
@@ -263,7 +271,7 @@ class ManageCenter(object):
 
             self.__resultType = iniCfg.get('RESULT', 'Type', fallback=self.__resultType)
         except KeyError as e:
-            LOG.error('Load Config File[%s] failed, err: %s', self.__platformCfgPath, e)
+            ColorPrint.red('Load Config File[%s] failed, err: %s' % (self.__platformCfgPath, e))
             return False
         return True
 

@@ -3,8 +3,22 @@
 # OK actually that might not be a great idea, idk, work in progress
 # Use at your own risk. or don't, i don't care
 
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
+
 from scipy.misc import imread
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2
+
+cv2 = get_third_package_cv2()
+
 
 def array_to_image(arr):
     arr = arr.transpose(2,0,1)

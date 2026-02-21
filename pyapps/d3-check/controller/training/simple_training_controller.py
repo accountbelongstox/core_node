@@ -81,8 +81,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Training failed for '{project_name}': {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def train_detection(self, project_name: str, **kwargs):
@@ -126,8 +124,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Training failed for '{project_name}': {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def list_projects(self):
@@ -179,8 +175,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def train_unified_detection(self, **kwargs):
@@ -219,8 +213,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
 

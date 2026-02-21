@@ -7,17 +7,33 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import os
 import sys
 import time
 import shutil
-import logging
 import threading
 import json
 
-import matplotlib.pyplot as plot
-import zmq
+try:
+    from pycore.pyfoundations.third_party import get_third_package_zmq, get_third_package_matplotlib
+    zmq = get_third_package_zmq()
+    matplotlib = get_third_package_matplotlib()
+    plot = matplotlib.pyplot
+except ImportError:
+    import zmq
+    import matplotlib
+    plot = matplotlib.pyplot
+
+from pycore.pyfoundations.color_print import ColorPrint
+
 from PyQt5.QtWidgets import QApplication
 
 from ....canvas.ui_canvas import canvas
@@ -77,7 +93,6 @@ class CNNTrainSample(object):
 
     def __init__(self, sample_path):
         self.__train_sample_path = sample_path
-        self.__logger = logging.getLogger('sdktool')
         self.__canvas = canvas
         # self.__ui = ui
 
@@ -106,6 +121,7 @@ class CNNTrainSample(object):
         self.__train_log_param = None
         self.__process_running = False
         self.__socket = None
+        self.__zmq_context = None
 
     def __init_test_map(self):
         """ 初始化test_map目录
@@ -151,7 +167,7 @@ class CNNTrainSample(object):
         src_test_data_file = self._get_dataset_path(_test_dataset_file)
         dst_model_file = self._get_model_path()
         if not os.path.exists(dst_model_file) or not os.path.exists(src_test_data_file):
-            self.__logger.error("weight file or test data not exist, model_file: {}, "
+            ColorPrint.red("weight file or test data not exist, model_file: {}, "
                                 "test_data_file: {}".format(dst_model_file, _test_dataset_file))
             return False
         else:
@@ -172,7 +188,7 @@ class CNNTrainSample(object):
 
     def run(self):
         if not bsa.exist_service(service_name=self.TRAIN_SAMPLE_SERVICE_NAME):
-            self.__logger.info("start train")
+            ColorPrint.blue("start train")
             self.__init_test_map()
             self._clear_files()
             is_ok, desc = self._train_sample()
@@ -230,17 +246,16 @@ class CNNTrainSample(object):
         run_program = "python train_val.py --max_epoch {} --train_label_list {}".format(max_epoch, train_dataset_path)
         for k, v in run_program_params.items():
             run_program = " {} --{} {}".format(run_program, k, str(v))
-        self.__logger.info(run_program)
+        ColorPrint.blue(run_program)
         self.__process_running = True
         is_ok, desc = bsa.start_service(service_name=self.TRAIN_SAMPLE_SERVICE_NAME,
                                         run_programs=run_program,
                                         process_param_type=bsa.SUBPROCESS_SHELL_TYPE,
                                         callback_func=self._process_monitor_callback)
         if not is_ok:
-            self.__logger.error("start train sample failed: %s", desc)
+            ColorPrint.red("start train sample failed: %s" % (desc,))
         else:
-            self.__logger.info('start train sample success '
-                               'pid: %s', bsa.get_pids(service_name=self.TRAIN_SAMPLE_SERVICE_NAME))
+            ColorPrint.blue('start train sample success pid: %s' % (bsa.get_pids(service_name=self.TRAIN_SAMPLE_SERVICE_NAME),))
         time.sleep(1)
         os.chdir(current_path)
         return is_ok, desc
@@ -256,8 +271,8 @@ class CNNTrainSample(object):
 
     def __build_socket(self):
         self.__delete_socket()
-        context = zmq.Context()
-        self.__socket = context.socket(zmq.PULL)
+        self.__zmq_context = zmq.Context()
+        self.__socket = self.__zmq_context.socket(zmq.PULL)
         self.__socket.bind("tcp://*:5558")
 
     def __delete_socket(self):
@@ -265,9 +280,12 @@ class CNNTrainSample(object):
             if self.__socket:
                 self.__socket.close()
         except BlockingIOError:
-            self.__logger.error('failed to close socket')
+            ColorPrint.red('failed to close socket')
         finally:
             self.__socket = None
+        if self.__zmq_context is not None:
+            self.__zmq_context.term()
+            self.__zmq_context = None
 
     def _paint_train_log(self):
         set_log_text("训练网络模型")
@@ -277,11 +295,11 @@ class CNNTrainSample(object):
 
         def _paint_log(train_log_param, lock):
             font1 = {'family': 'Times New Roman', 'weight': 'normal', 'size': 12}
-            self.__logger.info("************start paint log************")
+            ColorPrint.blue("************start paint log************")
 
             while not train_log_param.exit_paint:
                 if not self.__process_running:
-                    self.__logger.error('remote process quit')
+                    ColorPrint.red('remote process quit')
                     break
 
                 time.sleep(3)
@@ -295,7 +313,7 @@ class CNNTrainSample(object):
                                                                                     train_log_param.current_step,
                                                                                     train_log_param.step,
                                                                                     speed, avg_loss)
-                self.__logger.info(msg)
+                ColorPrint.blue(msg)
 
                 plot.figure(num=1, clear=True)
                 plot.xlabel('epoch', font1)
@@ -316,11 +334,11 @@ class CNNTrainSample(object):
                 if len(train_log_param.loss) > 0 and \
                         train_log_param.current_epoch == train_log_param.epoch and \
                         train_log_param.current_step == train_log_param.step:
-                    self.__logger.info("reach max epoch")
+                    ColorPrint.blue("reach max epoch")
                     break
             train_log_param.set_exit_paint_log(False)
-            self.__logger.info("************exit paint log************")
-            self.__logger.info('stop service(%s)', self.TRAIN_SAMPLE_SERVICE_NAME)
+            ColorPrint.blue("************exit paint log************")
+            ColorPrint.blue('stop service(%s)', self.TRAIN_SAMPLE_SERVICE_NAME)
             # self.finish_train()
 
         self.__paint_log_thread = threading.Thread(target=_paint_log, args=(self.__train_log_param, self.__lock))
@@ -348,31 +366,32 @@ class CNNTrainSample(object):
             :param paint_log_thread:
             :return:
             """
-            self.__logger.info("************start recv log************")
+            ColorPrint.blue("************start recv log************")
             all_finished = False
+            recv_poll_timeout_ms = 1000
             while not train_log_param.exit_recv:
                 if not self.__process_running:
-                    self.__logger.error('remote process quit')
+                    ColorPrint.red('remote process quit')
                     break
 
-                self.__logger.debug("recv loss %s", train_log_param.loss)
+                if socket.poll(recv_poll_timeout_ms) == 0:
+                    continue
+                ColorPrint.gray("recv loss %s" % (train_log_param.loss,))
                 try:
-                    data = socket.recv(flags=zmq.NOBLOCK)
+                    data = socket.recv()
                     if not data:
                         continue
-                    self.__logger.info(b"recv log data is: %s", data)
+                    ColorPrint.blue("recv log data is: %s" % (data,))
                     data = json.loads(data.decode('utf-8'))
-
                 except zmq.ZMQError as err:
-                    self.__logger.warning("zmq receive warning: {}".format(err))
-                    time.sleep(5)
+                    ColorPrint.yellow("zmq receive warning: {}".format(err))
                     continue
 
-                self.__logger.debug("recv log data is %s", data)
+                ColorPrint.gray("recv log data is %s" % (data,))
                 state = data.get('state')
                 if state == 'over':
                     self._save_weight()
-                    self.__logger.info("************recv over************")
+                    ColorPrint.blue("************recv over************")
                     all_finished = True
                     train_log_param.current_epoch = train_log_param.epoch
                     train_log_param.current_step = train_log_param.step
@@ -394,10 +413,10 @@ class CNNTrainSample(object):
                 if (epoch_iter + 1) == epoch_size:
                     train_log_param.loss.append(cur_loss)
 
-                self.__logger.info("cur_epoch:%s, BASE_TRAIN_EPOCH:%s, epoch_size:%s, epoch_iter:%s",
-                                   cur_epoch, BASE_TRAIN_EPOCH, epoch_size, epoch_iter)
+                ColorPrint.blue("cur_epoch:%s, BASE_TRAIN_EPOCH:%s, epoch_size:%s, epoch_iter:%s" % (
+                    cur_epoch, BASE_TRAIN_EPOCH, epoch_size, epoch_iter))
 
-            self.__logger.info("************exit recv log************")
+            ColorPrint.blue("************exit recv log************")
             train_log_param.set_exit_recv_log(False)
 
             # 等待绘制线程退出
@@ -406,7 +425,7 @@ class CNNTrainSample(object):
             # 设置训练结束
             self.finish_train()
             if not all_finished:
-                self.__logger.error('train task is not finished!')
+                ColorPrint.red('train task is not finished!')
 
         self.__socket = None
         self.__build_socket()
@@ -418,26 +437,26 @@ class CNNTrainSample(object):
         self.__recvLogThread.start()
 
     def _compute_map(self):
-        self.__logger.info("********start compute map************")
+        ColorPrint.blue("********start compute map************")
         while self.__process_running:
             data = self.__socket.recv().decode('utf-8')
-            self.__logger.info("recv log data is %s", data)
+            ColorPrint.blue("recv log data is %s" % (data,))
             if data == 'over':
-                self.__logger.info("recv over")
+                ColorPrint.blue("recv over")
                 break
             else:
                 time.sleep(1)
 
         if os.path.exists(self.__map_path):
-            self.__logger.info("process success")
+            ColorPrint.blue("process success")
             # 加载图像文件
             canvas_signal_inst.canvas_show_img(self.__map_path)
         else:
             raise Exception("image not exist {}".format(self.__map_path))
-        self.__logger.info("********exit compute map********")
+        ColorPrint.blue("********exit compute map********")
 
     def _process_monitor_callback(self, service_state, desc, *args, **kwargs):
-        self.__logger.info("service state(%s), desc(%s), args: %s, kwargs:%s", service_state, desc, args, kwargs)
+        ColorPrint.blue("service state(%s), desc(%s), args: %s, kwargs:%s" % (service_state, desc, args, kwargs))
         if service_state != ProcessTimer.SERVICE_STATE_RUNING:
             self.__process_running = False
 
@@ -452,13 +471,13 @@ class CNNTrainSample(object):
 
         txt_count = get_files_count(self.__pre_dir, ".txt")
         self.__canvas.create_process_bar("计算map", "处理中", 0, target_count)
-        self.__logger.info("********start show compute information************")
+        ColorPrint.blue("********start show compute information************")
         all_finished = False
         while self.__process_running:
             if txt_count >= target_count:
                 all_finished = True
                 break
-            self.__logger.debug("txt count is %s, target_count %s", txt_count, target_count)
+            ColorPrint.gray("txt count is %s, target_count %s" % (txt_count, target_count))
             self.__canvas.set_bar_cur_value(txt_count)
             QApplication.processEvents()
             time.sleep(0.5)
@@ -469,7 +488,7 @@ class CNNTrainSample(object):
             show_message_tips("处理完成")
         else:
             show_warning_tips('分析进程异常退出')
-        self.__logger.info("********exit show compute information************")
+        ColorPrint.blue("********exit show compute information************")
 
     def analyze_result(self):
         if bsa.has_service_running():
@@ -491,7 +510,7 @@ class CNNTrainSample(object):
 
         # 必须有训练结果文件，才能进行分析
         if not self.__weight_file or not os.path.exists(self.__weight_file):
-            self.__logger.warning('taret file(%s) is not found', self.__weight_file)
+            ColorPrint.yellow('taret file(%s) is not found', self.__weight_file)
             show_warning_tips('请先完成训练!')
             return
 
@@ -504,7 +523,7 @@ class CNNTrainSample(object):
 
         run_program = "python detectmap.py --save_folder {} --label_list {}".format(self.__run_result_path,
                                                                                     test_dataset_path)
-        self.__logger.info("**********detectmap**********")
+        ColorPrint.blue("**********detectmap**********")
 
         self.__process_running = True
         self.__socket = None
@@ -516,12 +535,12 @@ class CNNTrainSample(object):
                                         callback_func=self._process_monitor_callback)
 
         if not is_ok:
-            self.__logger.error("start %s service failed, %s", self.ANALYZE_SERVICE_NAME, desc)
+            ColorPrint.red("start %s service failed, %s" % (self.ANALYZE_SERVICE_NAME, desc))
             show_warning_tips(desc)
             self.__delete_socket()
             return
-        self.__logger.info('start %s service success, pid: %s', self.ANALYZE_SERVICE_NAME,
-                           bsa.get_pids(service_name=self.ANALYZE_SERVICE_NAME))
+        ColorPrint.blue('start %s service success, pid: %s' % (self.ANALYZE_SERVICE_NAME,
+            bsa.get_pids(service_name=self.ANALYZE_SERVICE_NAME)))
 
         os.chdir(current_path)
 
@@ -538,21 +557,21 @@ class CNNTrainSample(object):
         self.finish_map()
 
     def finish_map(self):
-        self.__logger.info("finish map process pid: %s", bsa.get_pids(service_name=self.ANALYZE_SERVICE_NAME))
+        ColorPrint.blue("finish map process pid: %s" % (bsa.get_pids(service_name=self.ANALYZE_SERVICE_NAME),))
         is_ok, _ = bsa.stop_service(service_name=self.ANALYZE_SERVICE_NAME)
         if not is_ok:
-            self.__logger.error("stop train sample failed")
+            ColorPrint.red("stop train sample failed")
         else:
-            self.__logger.info("stop train sample success")
+            ColorPrint.blue("stop train sample success")
 
     def finish_train(self):
         self.__delete_socket()
-        self.__logger.info("finish train process pid: %s", bsa.get_pids(service_name=self.TRAIN_SAMPLE_SERVICE_NAME))
+        ColorPrint.blue("finish train process pid: %s" % (bsa.get_pids(service_name=self.TRAIN_SAMPLE_SERVICE_NAME),))
         is_ok, desc = bsa.stop_service(service_name=self.TRAIN_SAMPLE_SERVICE_NAME)
         if not is_ok:
-            self.__logger.error("stop train sample failed，desc:%s", desc)
+            ColorPrint.red("stop train sample failed，desc:%s" % (desc,))
         else:
-            self.__logger.info("stop train sample success")
+            ColorPrint.blue("stop train sample success")
         if self.__train_log_param is not None:
             self.__lock.acquire()
             self.__train_log_param.set_exit(True)

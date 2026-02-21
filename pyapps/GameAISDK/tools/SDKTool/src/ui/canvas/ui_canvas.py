@@ -7,11 +7,22 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import logging
 import time
 import os
-import cv2
+
+from pycore.pyfoundations.third_party import get_third_package_cv2
+
+cv2 = get_third_package_cv2()
+
 from PyQt5.QtGui import QCursor, QPainter, QBrush, QPixmap, QIcon, QColor
 from PyQt5.QtCore import Qt, pyqtSignal, QPointF, QPoint
 from PyQt5.QtWidgets import QWidget, QMenu, QAction, QApplication
@@ -716,7 +727,7 @@ class UICanvas(QWidget):
             mode = tree_mgr.get_mode()
             if mode == Mode.UI_AUTO_EXPLORE and self.selected_shape is not None:
                 self.right_menu.addAction(self.action_delete_shape)
-                self.right_menu.exec_(QCursor.pos())
+                self.right_menu.exec(QCursor.pos())
 
             self.prev_point = pos
             self.repaint()
@@ -802,12 +813,12 @@ class UICanvas(QWidget):
         :return:
         """
         if self.selected_vertex():
-            self.right_menu.exec_(QCursor.pos())
+            self.right_menu.exec(QCursor.pos())
             return
 
         menu = self.menus[bool(self.selected_shape_copy)]
         self.restore_cursor()
-        if not menu.exec_(self.mapToGlobal(evt_pos)) \
+        if not menu.exec(self.mapToGlobal(evt_pos)) \
                 and self.selected_shape_copy:
             # Cancel the move by deleting the shadow copy.
             self.selected_shape_copy = None

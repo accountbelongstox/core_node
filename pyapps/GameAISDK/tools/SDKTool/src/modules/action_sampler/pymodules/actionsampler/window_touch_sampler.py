@@ -7,13 +7,23 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import logging
 import time
 import threading
 from queue import Queue
 
-import cv2
+from pycore.pyfoundations.third_party import get_third_package_cv2
+
+cv2 = get_third_package_cv2()
+
 import win32gui
 import win32con
 import win32api
@@ -173,7 +183,8 @@ class WindowTouchSampler(object):
         if img_data is None:
             return None, None
 
-        img_data = cv2.resize(img_data, (self.__frame_width, self.__frame_height))
+        # use original size (no resize)
+        frame_h, frame_w = img_data.shape[0], img_data.shape[1]
 
         pts = []
         evts = parse_mouse_evts()
@@ -190,8 +201,8 @@ class WindowTouchSampler(object):
                     continue
                 if c_y <= 0 or c_y >= self.__window_height:
                     continue
-                p_x = int(self.__frame_width * c_x / self.__window_width)
-                p_y = int(self.__frame_height * c_y / self.__window_height)
+                p_x = int(frame_w * c_x / self.__window_width)
+                p_y = int(frame_h * c_y / self.__window_height)
                 pts.append([HookEventType.MOUSE, msgid, [p_x, p_y]])
 
         evts = parse_keyboard_evts()

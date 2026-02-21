@@ -12,7 +12,8 @@ import threading
 from typing import Callable, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
-from threads.task_thread_manager import get_task_manager, TaskStatus
+from share.values import TaskStatus
+from threads.task_thread_manager import get_task_manager
 from d3utils.rosbot_task_registry import get_start_rosbot_task, get_stop_rosbot_task
 from d3utils.event_signals import trigger_extension_rosbot_started, trigger_extension_rosbot_stopped
 from d3utils.rosbot_flow_state import get_flow_master_enabled

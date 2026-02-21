@@ -7,18 +7,25 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
-
-import logging.config
+import sys
 import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
+
 import platform
 import signal
-import sys
 import traceback
 import argparse
 
 sys.path.insert(0, 'pyIOService')
 sys.path.append('pyIOService/protocol')
 
+from pycore.pyfoundations.color_print import ColorPrint
 from IOService import IOService
 from util.config_path_mgr import SYS_CONFIG_DIR, DEFAULT_USER_CONFIG_DIR
 
@@ -28,15 +35,12 @@ IO_TASK_CFG_FILE = 'cfg/task/io/IOTask.json'
 IO_CFG_FILE = 'cfg/platform/IO.ini'
 IO_LOF_CFG_FILE = 'cfg/platform/IOLog.ini'
 
-LOG = None
-
 
 def main():
     """
     IOService main entry
     :return:
     """
-    global LOG
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--cfgpath', type=str, default='', help='config path')
     args = parser.parse_args()
@@ -47,10 +51,7 @@ def main():
     platform_cfg_path = os.path.join(SYS_CONFIG_DIR, IO_CFG_FILE)
     log_cfg_path = os.path.join(SYS_CONFIG_DIR, IO_LOF_CFG_FILE)
 
-    logging.config.fileConfig(log_cfg_path)
-    LOG = logging.getLogger('IOService')
-
-    LOG.info('Task Cfg Path: {}'.format(task_cfg_path))
+    ColorPrint.blue('Task Cfg Path: {}'.format(task_cfg_path))
 
     try:
         io_service = IOService(taskCfgPath=task_cfg_path,
@@ -68,16 +69,16 @@ def main():
         signal.signal(signal.SIGINT, SigHandle)
 
         if io_service.Initialize():
-            LOG.info('==== IOService is going to run ====')
+            ColorPrint.blue('==== IOService is going to run ====')
             io_service.Run()
             io_service.Finish()
-            LOG.info('==== IOService exit.... ====')
+            ColorPrint.blue('==== IOService exit.... ====')
         else:
-            LOG.error('==== IOService Init failed! ====')
+            ColorPrint.red('==== IOService Init failed! ====')
 
     except Exception as e:
         traceMsg = traceback.format_exc()
-        LOG.error('exception: {0} trace msg: {1}'.format(e, traceMsg))
+        ColorPrint.red('exception: {0} trace msg: {1}'.format(e, traceMsg))
 
 
 if __name__ == '__main__':

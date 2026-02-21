@@ -86,14 +86,15 @@ class MonitorThread(threading.Thread):
             self.__procList.append(MonitorItemContext('UIRecognize', None, SERVICE_TYPE_UI))
 
     def run(self):
+        # psutil 7.x: process_iter(attrs=[...]) one-shot API, avoids NoSuchProcess race and is more efficient
         while True:
-            for proc in psutil.process_iter():
-                try:
-                    procName = proc.name()
-                    cmdLine = proc.cmdline()
-                    pid = proc.pid
-                except Exception:
+            for proc in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+                info = proc.info
+                pid = info.get('pid')
+                if pid is None:
                     continue
+                procName = info.get('name') or ''
+                cmdLine = info.get('cmdline') or []
 
                 for serviceProc in self.__procList:
                     if serviceProc.name not in procName:

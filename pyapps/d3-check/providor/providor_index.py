@@ -742,23 +742,15 @@ def sync_config():
 def fix_config_with_template():
     """Fix current CONFIG with template before saving"""
     try:
-        ColorPrint.gray("[DEBUG] Fixing CONFIG with template...")
-        
         # Load template config
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             template_config = json.load(f)
-        
         # Merge missing keys from template (template as source, CONFIG as target)
         # Only add missing keys, preserve existing user values
         modified = merge_template_to_config(template_config, CONFIG)
-        
         if modified:
-            ColorPrint.gray("[DEBUG] CONFIG fixed with missing keys from template")
-        else:
-            ColorPrint.gray("[DEBUG] CONFIG is already complete")
-            
+            ColorPrint.debug("[DEBUG] CONFIG fixed with missing keys from template")
         return modified
-        
     except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
@@ -884,6 +876,7 @@ def _do_initial_load():
         ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
         with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
             CONFIG.update(json.load(f))
+        fix_config_with_template()
         ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
         ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
         _config_initialized = True

@@ -7,16 +7,30 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
-import cv2
 import os
 import sys
 import threading
 import time
 from queue import Queue
-import numpy as np
 import json
 import platform
+
+from pycore.pyfoundations.third_party import (
+    get_third_package_cv2,
+    get_third_package_numpy,
+    get_third_package_ultralytics,
+)
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 from aimodel.AIModel import AIModel
 from util import util
@@ -28,11 +42,15 @@ if _is_windows_system:
     from .windows.Coverage import Coverage
     from .windows.Utils.Image import GetLocalImage, ResizeImage, MatchImage, MatchImageWithRect, MatchMask, IsBlackImage
     from .windows.Utils.Rectangle import IOU
+    from .windows.Yolov3.OpencvYolov3 import OpencvYolov3 as Yolov3
+    from .windows.DetectRefineNet import DetectRefineNet
     pluginPath = './PlugIn/ai/UIAuto/windows/DetectRefineNet'
 elif _is_linux_system:
     from .ubuntu.Coverage import Coverage
     from .ubuntu.Utils.Image import GetLocalImage, ResizeImage, MatchImage, MatchImageWithRect, MatchMask, IsBlackImage
     from .ubuntu.Utils.Rectangle import IOU
+    from .ubuntu.Yolov3.OpencvYolov3 import OpencvYolov3 as Yolov3
+    from .ubuntu.DetectRefineNet import DetectRefineNet
     pluginPath = './PlugIn/ai/UIAuto/ubuntu/DetectRefineNet'
 else:
     raise Exception('system is not support!')
@@ -272,17 +290,26 @@ class AI(AIModel):
 
     def _InitDetector(self, uiAutoCfg):
         self.__modelType = uiAutoCfg['ButtonDetection'].get('ModelType')
-        if self.__modelType != 'Yolov3' and self.__modelType != 'RefineNet':
+        if self.__modelType not in ('Yolov3', 'RefineNet', 'Ultralytics'):
             self.logger.error('unknown model type: {}'.format(self.__modelType))
             return False
 
         sys.path.append(pluginPath)
-        if self.__modelType == 'Yolov3':
-            if _is_windows_system:
-                from .windows.Yolov3.OpencvYolov3 import OpencvYolov3 as Yolov3
-            else:
-                from .ubuntu.Yolov3.OpencvYolov3 import OpencvYolov3 as Yolov3
+        if self.__modelType == 'Ultralytics':
+            model_path = util.ConvertToSDKFilePath(
+                uiAutoCfg['ButtonDetection'].get('ModelPath') or
+                uiAutoCfg['ButtonDetection'].get('PtPath', '')
+            )
+            if not model_path or not os.path.isfile(model_path):
+                self.logger.error('Ultralytics YOLO model file not found: {}'.format(model_path))
+                return False
+            conf = float(uiAutoCfg['ButtonDetection'].get('Threshold', 0.25))
+            ultralytics = get_third_package_ultralytics()
+            self.__detector = ultralytics.YOLO(model_path)
+            self.__detectorConf = conf
+            self.logger.info('Ultralytics YOLO loaded: {} conf={}'.format(model_path, conf))
 
+        if self.__modelType == 'Yolov3':
             param = dict()
             param['cfgPath'] = util.ConvertToSDKFilePath(uiAutoCfg['ButtonDetection'].get('CfgPath'))
             param['weightsPath'] = util.ConvertToSDKFilePath(uiAutoCfg['ButtonDetection'].get('WeightsPath'))
@@ -296,15 +323,11 @@ class AI(AIModel):
                 return False
 
         if self.__modelType == 'RefineNet':
-            if _is_windows_system:
-                from .windows.DetectRefineNet import DetectRefineNet
-            else:
-                from .ubuntu.DetectRefineNet import DetectRefineNet
             pthModelPath = util.ConvertToSDKFilePath(uiAutoCfg['ButtonDetection'].get('PthModelPath'))
             threshold = uiAutoCfg['ButtonDetection'].get('Threshold')
 
             labels = ('__background__', 'return', 'close', 'tag', 'other')
-            self.__detector = DetectRefineNet.DetectRefineNet(labels, img_dim=320, num_classes=5, obj_thresh=threshold,
+            self.__detector = DetectRefineNet(labels, img_dim=320, num_classes=5, obj_thresh=threshold,
                                                               nms_thresh=0.10,
                                                               version='Refine_hc2net_version3',
                                                               onnx_model='',
@@ -327,6 +350,40 @@ class AI(AIModel):
         else:
             self.__mask = None
         return True
+
+    def _RunUltralyticsDetector(self, image):
+        """Run Ultralytics YOLO on image and return result in same format as Yolov3/RefineNet.
+        When Debug.ShowButton is True, uses Results.save() to write annotated debug image (advanced usage).
+        """
+        conf = self.__detectorConf
+        predictions = self.__detector.predict(image, conf=conf, verbose=False)
+        bboxes = []
+        if predictions:
+            r = predictions[0]
+            if self.__showButton:
+                debug_dir = os.path.join(os.getcwd(), 'debug_ultralytics')
+                os.makedirs(debug_dir, exist_ok=True)
+                out_path = os.path.join(debug_dir, 'latest.jpg')
+                r.save(filename=out_path)
+            if r.boxes is not None and len(r.boxes):
+                names = r.names or {}
+                xyxy = r.boxes.xyxy
+                confs = r.boxes.conf
+                clss = r.boxes.cls
+                for i in range(len(r.boxes)):
+                    x1, y1, x2, y2 = float(xyxy[i][0]), float(xyxy[i][1]), float(xyxy[i][2]), float(xyxy[i][3])
+                    cls_id = int(clss[i].item())
+                    name = names.get(cls_id, str(cls_id))
+                    score = float(confs[i].item())
+                    bboxes.append({
+                        'name': name,
+                        'x': int(x1),
+                        'y': int(y1),
+                        'w': int(x2 - x1),
+                        'h': int(y2 - y1),
+                        'score': score,
+                    })
+        return {'flag': len(bboxes) > 0, 'bboxes': bboxes}
 
     def _GetState(self):
         # get one image as image1
@@ -399,6 +456,9 @@ class AI(AIModel):
         # button detection using RefineNet
         elif self.__modelType == 'RefineNet':
             result = self.__detector.predict(detImage)
+        # button detection using Ultralytics YOLO (YOLOv8+)
+        elif self.__modelType == 'Ultralytics':
+            result = self._RunUltralyticsDetector(detImage)
         else:
             self.logger.info('modelType:{} error'.format(self.__modelType))
             return buttonList

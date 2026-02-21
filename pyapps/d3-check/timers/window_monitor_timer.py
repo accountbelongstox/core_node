@@ -19,6 +19,7 @@ from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_task_processor import run_full_status_refresh
 from timers.timer_manager import register_task
 from d3utils.d3_status_provider import get_current_d3_window
+from d3utils.tick_driver import register_inactive_refresh
 
 from providor.constants.common import DEFAULT_INTERVAL
 
@@ -102,6 +103,9 @@ def refresh_window_status_if_inactive() -> None:
     _notify_callbacks(d3_info)
     _last_window_found = bool(d3_info)
     _inactive_refresh_done = True
+
+
+register_inactive_refresh(refresh_window_status_if_inactive)
 
 
 def check_window() -> None:

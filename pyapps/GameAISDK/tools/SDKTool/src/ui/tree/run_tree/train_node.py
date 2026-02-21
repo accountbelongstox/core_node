@@ -7,32 +7,50 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
-
-import re
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import logging
+import os
+import platform
+import re
+import threading
 import time
 import traceback
-import os
 from collections import OrderedDict
-import urllib.request
-import threading
-import platform
 
-import matplotlib.pyplot as plot
-import numpy
+from pycore.pyfoundations.third_party import (
+    get_third_package_numpy,
+    get_third_package_urllib3,
+    get_third_package_matplotlib,
+)
+
+matplotlib = get_third_package_matplotlib()
+plot = matplotlib.pyplot
 from PyQt5.QtCore import QObject, Qt, pyqtSignal
 from PyQt5.QtWidgets import QComboBox, QTreeWidgetItem
 
+numpy = get_third_package_numpy()
+
 from ...canvas.data_source import DataSource
 from ...main_window.tool_window import ui
-from ....common.define import TRAIN_NAME, CONFIG_RECORD, START_RECORD, STOP_RECORD, START_TRAIN, STOP_TRAIN, \
-    BOOL_FLAGS, ACTION_SAMPLE_PATH, RECORD_ANDROID_GUIDANCE_IMG, RECORD_WINDOWS_GUIDANCE_IMG, SDK_PATH, BIN_PATH
+from ....common.define import (
+    TRAIN_NAME, CONFIG_RECORD, START_RECORD, STOP_RECORD, START_TRAIN, STOP_TRAIN,
+    BOOL_FLAGS, ACTION_SAMPLE_PATH, RECORD_ANDROID_GUIDANCE_IMG, RECORD_WINDOWS_GUIDANCE_IMG,
+    SDK_PATH, BIN_PATH, RECORD_CONFIG_KEY_DISPLAY_NAMES, RECORD_CONFIG_KEYS_ORDER,
+)
 from ...canvas.canvas_signal import canvas_signal_inst
 from ...dialog.label_dialog import LabelDialog
 from ...dialog.tip_dialog import show_warning_tips
-from ...utils import set_log_text, get_sub_nodes, create_tree_item, ExecResult, get_tree_top_nodes, save_action, \
-    valid_number_value, filter_info_log, is_image
+from ...utils import (
+    set_log_text, get_sub_nodes, create_tree_item, ExecResult, get_tree_top_nodes,
+    save_action, valid_number_value, filter_info_log, is_image,
+)
 from .train_data import TrainData
 from ....context.app_context import AppContext
 from ....project.project_manager import g_project_manager
@@ -103,20 +121,28 @@ class TrainNode(QObject):
         self.clear_right_tree_signal.emit(result)
         self.__right_tree.clear()
         param = self.__data.load_record_data()
-        for key, value in param.items():
-            self.create_complex_node(key=key, value=value)
+        self._http_server_port = int(param.get('RecordHttpPort', 52808))
+        for key in RECORD_CONFIG_KEYS_ORDER:
+            if key not in param:
+                continue
+            display_name = RECORD_CONFIG_KEY_DISPLAY_NAMES.get(key, key)
+            self.create_complex_node(key=key, value=param[key], display_name=display_name)
 
     def _combobox_text_changed(self, text):
         current_item = self.__right_tree.currentItem()
         current_item.setText(1, text)
 
-    def create_complex_node(self, key, value, root=None, edit_flag=True):
-        # 0: key, 1:value, 2:type
+    def create_complex_node(self, key, value, root=None, edit_flag=True, display_name=None):
+        """Build tree row: col0 = display_name or key, col1 = value. Record config stores real key in UserRole."""
         if root is None:
             sub_node = QTreeWidgetItem(self.__right_tree)
-            sub_node.setText(0, key)
+            sub_node.setText(0, display_name if display_name else key)
+            if display_name is not None:
+                sub_node.setData(0, Qt.UserRole, key)
         else:
-            sub_node = create_tree_item(key=key, edit=edit_flag)
+            sub_node = create_tree_item(key=display_name if display_name else key, edit=edit_flag)
+            if display_name is not None:
+                sub_node.setData(0, Qt.UserRole, key)
             root.addChild(sub_node)
             root.setExpanded(True)
 
@@ -138,7 +164,7 @@ class TrainNode(QObject):
         elif isinstance(value, (dict, OrderedDict)):
             logger.debug("value %s type dict", value)
             for sub_key, sub_value in value.items():
-                self.create_complex_node(key=sub_key, value=sub_value, root=sub_node, edit_flag=edit_flag)
+                self.create_complex_node(key=sub_key, value=sub_value, root=sub_node, edit_flag=edit_flag, display_name=None)
 
             sub_node.setExpanded(True)
 
@@ -166,11 +192,13 @@ class TrainNode(QObject):
         param = self.__data.load_record_data()
         if param is None:
             return
-        # 展示，不可编辑
-        for key, value in param.items():
+        # Read-only; same display names and keys as record config panel
+        for key in RECORD_CONFIG_KEYS_ORDER:
+            if key not in param:
+                continue
             item = QTreeWidgetItem(self.__right_tree)
-            item.setText(0, key)
-            item.setText(1, str(value))
+            item.setText(0, RECORD_CONFIG_KEY_DISPLAY_NAMES.get(key, key))
+            item.setText(1, str(param[key]))
 
     def is_training(self):
         return bsa.exist_service(service_name=self.AISDK_TRAIN_SERVICE_NAME)
@@ -179,14 +207,13 @@ class TrainNode(QObject):
         return bsa.exist_process(self.ACTION_SAMPLE_SERVICE_NAME)
 
     def _notify_record_process_stop(self):
-        """ 通知录制进程退出
-
-        :return:
-        """
+        """Send HTTP GET to record process quit endpoint."""
         def notify_record_process_stop():
             cmd = 'http://127.0.0.1:%s?method=quit' % self._http_server_port
             logger.info('http get request: %s', cmd)
-            urllib.request.urlopen(cmd)
+            urllib3 = get_third_package_urllib3()
+            resp = urllib3.request("GET", cmd, timeout=2.0)
+            resp.close()
 
         pthread = threading.Thread(target=notify_record_process_stop, name='notify_record_process_stop', daemon=True)
         pthread.start()
@@ -217,6 +244,8 @@ class TrainNode(QObject):
         self.__right_tree.clear()
 
         try:
+            param = self.__data.load_record_data()
+            self._http_server_port = int(param.get('RecordHttpPort', 52808))
             # 转换为录制所需要的配置文件
             self.__data.save_record_data()
             self.__data.save_sample_action()
@@ -266,11 +295,9 @@ class TrainNode(QObject):
             canvas_signal_inst.canvas_show_img(image_name)
             self.show_record_info()
             set_log_text("****start record*****")
-        except RuntimeError as err:
-            cb_msg = traceback.format_exc()
-            msg = "start record failed: {}\n traceback {}".format(str(err), cb_msg)
-            logger.error(msg)
-            set_log_text(msg)
+        except Exception as err:
+            logger.error("start record failed: %s\n%s", err, traceback.format_exc())
+            set_log_text("start record failed: %s" % err)
 
     def _stop_record(self):
         # 尝试通过http请求通知录制进程退出
@@ -291,14 +318,11 @@ class TrainNode(QObject):
         dlg.pop_up()
 
     def save_record_config(self):
-        """ 保存录制的配置
-
-        :return:
-        """
+        """Persist right-tree record params into project cfg."""
         tree_param = OrderedDict()
         top_level_nodes = get_tree_top_nodes(self.__right_tree)
         for top_level_node in top_level_nodes:
-            node_key = top_level_node.text(0)
+            node_key = top_level_node.data(0, Qt.UserRole) if top_level_node.data(0, Qt.UserRole) else top_level_node.text(0)
             if top_level_node.childCount() == 0:
                 node_value = top_level_node.text(1)
                 tree_param[node_key] = node_value
@@ -348,15 +372,12 @@ class TrainNode(QObject):
             return -1, -1
         try:
             cur_num_index = line.index('/')
-            cur_num = line[0:cur_num_index]
-            cur_num = int(cur_num)
-            # 截取cur_num到结尾的字符
-            batch_num = line[cur_num_index+1:]
-            batch_num = batch_num.split()[0]
+            cur_num = int(line[0:cur_num_index])
+            batch_num = line[cur_num_index + 1:].split()[0]
             batch_num = int(batch_num)
             return cur_num, batch_num
-        except RuntimeError as err:
-            logger.error("error: %s", str(err))
+        except (ValueError, IndexError) as err:
+            logger.error("_parser_progress: %s", err)
             return -1, -1
 
     def _parser_log(self):
@@ -369,9 +390,8 @@ class TrainNode(QObject):
             return -1, -1, -1, -1, None
         try:
             str_line = line.decode('utf-8')
-        except ValueError as err:
-            logger.error('error line:%s', str(err))
-            logger.error('error line:%s', line)
+        except (ValueError, UnicodeDecodeError) as err:
+            logger.error("_parser_log decode: %s", err)
             return -1, -1, -1, -1, None
         iter_data, acc_data = self._parser_acc_log(str_line)
         cur_num, batch_num = self._parser_progress(str_line)
@@ -517,9 +537,8 @@ class TrainNode(QObject):
                         log_text += "train over....\n save mode to path: '{}/data/ImitationModel/'.".format(ai_sdk_path)
                         self.log_signal.emit(log_text)
                         plot.close(1)
-                except RuntimeError as e:
-                    exp = traceback.format_exc()
-                    logger.error("************ %s %s ****", str(e), exp)
+                except Exception as e:
+                    logger.error("_paint_train_log: %s\n%s", e, traceback.format_exc())
 
         paint_log_thread = threading.Thread(target=_paint_log, args=())
         paint_log_thread.start()
@@ -567,11 +586,9 @@ class TrainNode(QObject):
 
             # 绘制训练信息
             self._paint_train_log()
-        except RuntimeError as err:
-            msg = traceback.format_exc()
-            msg = "start train failed: {}, traceback {}".format(err, msg)
-            logger.error(msg)
-            set_log_text(msg)
+        except Exception as err:
+            logger.error("start train failed: %s\n%s", err, traceback.format_exc())
+            set_log_text("start train failed: %s" % err)
 
     def _stop_train(self):
         self.run_signal.emit('train', '', False)

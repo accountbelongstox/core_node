@@ -7,12 +7,23 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import configparser
-import logging
-import os
 
-import numpy as np
+from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+np = get_third_package_numpy()
+
 import tbus
 
 from .protocol import common_pb2
@@ -39,9 +50,6 @@ MSG_REGER_MAPDIRECTIONREG_TYPE = 'mapDirection'
 MSG_REGER_MULTCOLORVAR_TYPE = 'multcolorvar'
 MSG_REGER_SHOOTGAMEBLOOD_TYPE = 'shoot game blood'
 MSG_REGER_SHOOTGAMEHURT_TYPE = 'shoot game hurt'
-
-LOG = logging.getLogger('agent')
-
 
 class MsgMgr(object):
     """
@@ -78,15 +86,15 @@ class MsgMgr(object):
             self.__gameRegAddr = tbus.GetAddress(strgameRegAddr)
             self.__selfAddr = tbus.GetAddress(strselfAddr)
             self.__sdkToolAddr = tbus.GetAddress(strToolAddr)
-            LOG.info("gamereg addr is %s, self addr is %s", self.__gameRegAddr, self.__selfAddr)
+            ColorPrint.blue("gamereg addr is %s, self addr is %s" % (self.__gameRegAddr, self.__selfAddr))
             ret = tbus.Init(self.__selfAddr, self.__cfgPath)
             if ret != 0:
-                LOG.error('tbus init failed with return code[%s]', ret)
+                ColorPrint.red('tbus init failed with return code[%s]' % (ret,))
                 return False
 
             return True
 
-        LOG.error('tbus config file not exist in %s', self.__cfgPath)
+        ColorPrint.red('tbus config file not exist in %s' % (self.__cfgPath,))
 
         return False
 
@@ -101,7 +109,7 @@ class MsgMgr(object):
         outBuff = self._CreateMsg(msgID, msgValue)
 
         if outBuff is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         return self._Send(outBuff)
@@ -126,7 +134,7 @@ class MsgMgr(object):
         msgBuff = msg.SerializeToString()
 
         if msgBuff is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         return self._Send(msgBuff)
@@ -153,7 +161,7 @@ class MsgMgr(object):
                 h, w = img_data.shape[:2]
                 result = msg['value'].get('result')
                 if result:
-                    LOG.debug('recv frame data, frameIndex=%s, h:%s, w:%s, result:%s', frameSeq, h, w, str(result))
+                    ColorPrint.gray('recv frame data, frameIndex=%s, h:%s, w:%s, result:%s' % (frameSeq, h, w, str(result)))
 
             return msg
         return None
@@ -163,7 +171,7 @@ class MsgMgr(object):
         tbus exit
         :return: None
         """
-        LOG.info('tbus exit...')
+        ColorPrint.blue('tbus exit...')
         tbus.Exit(self.__selfAddr)
 
     def _CreateMsg(self, msgID, msgValue):
@@ -178,7 +186,7 @@ class MsgMgr(object):
     def _Send(self, outBuff):
         ret = tbus.SendTo(self.__gameRegAddr, outBuff)
         if ret != 0:
-            LOG.error('TBus Send To UI Anuto Addr return code[%s]', ret)
+            ColorPrint.red('TBus Send To UI Anuto Addr return code[%s]' % (ret,))
             return False
         return True
 
@@ -195,12 +203,12 @@ class MsgMgr(object):
         msgBuff = msg.SerializeToString()
 
         if msgBuff is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         ret = tbus.SendTo(self.__sdkToolAddr, msgBuff)
         if ret != 0:
-            LOG.error('TBus Send To SDKTool Addr return code[%s]', ret)
+            ColorPrint.red('TBus Send To SDKTool Addr return code[%s]' % (ret,))
             return False
         return True
 
@@ -588,7 +596,7 @@ class MsgMgr(object):
         ResDict['value']['deviceIndex'] = Result.stPBResultValue.nDeviceIndex
         ResDict['value']['strJsonData'] = Result.stPBResultValue.strJsonData
         ResDict['value']['groupID'] = 1  # for test
-        data = np.fromstring(Result.stPBResultValue.byImgData, np.uint8)
+        data = np.frombuffer(Result.stPBResultValue.byImgData, dtype=np.uint8)
         ResDict['value']['image'] = np.reshape(
             data, (Result.stPBResultValue.nHeight, Result.stPBResultValue.nWidth, 3)
         )
@@ -801,7 +809,7 @@ class MsgMgr(object):
     @staticmethod
     def _UnSerialPixRegResult(result, height, width):
 
-        LOG.debug('_UnSerialPixRegResult, result:%s, height:%s, width:%s', result, height, width)
+        ColorPrint.gray('_UnSerialPixRegResult, result:%s, height:%s, width:%s' % (result, height, width))
         ResList = []
         for res in result.stPBResultRes:
             pixSingleDict = {}
@@ -885,7 +893,7 @@ class MsgMgr(object):
     @staticmethod
     def _GetValueFromDict(dic, key):
         if key not in dic.keys():
-            LOG.error("%s is needed", key)
+            ColorPrint.red("%s is needed" % (key,))
             raise Exception('{} is needed'.format(key))
 
         return dic[key]

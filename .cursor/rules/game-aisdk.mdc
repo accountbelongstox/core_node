@@ -1,0 +1,17 @@
+---
+description: "GameAISDK: imports at top (platform-specific allowed after guard); no import in except; meaningful catch only; code/comments in English; third-party via pycore third_party. Doc: key points only. Sub-app rule per development-guides/CURSOR_SUBAPP_RULES.md."
+globs: pyapps/GameAISDK/**
+alwaysApply: false
+---
+
+# GameAISDK rule
+
+(Applies only to pyapps/GameAISDK. Multi-sub-app pattern: development-guides/CURSOR_SUBAPP_RULES.md.)
+
+1. **Imports.** All imports at file top. Exception: platform-specific modules after a clear guard (e.g. `if sys.platform == 'win32':` then import win32driver). Resolve circular imports by structure (split module, DI, shared layer); no lazy import in except/catch.
+2. **No import in except.** Do not add or move imports inside try/except. Optional third-party at module level only: `try: import x\n except ImportError: x = None`.
+3. **Meaningful catch.** Use try/except only where needed (file I/O, network, subprocess, decode). Catch concrete types (IOError, OSError, ValueError, etc.); avoid bare except or catch-all that hides bugs. In the handler: log and re-raise or return a clear result; no empty or no-op handlers.
+4. **Code language.** Code, comments, docstrings, and log messages in English. User-facing UI strings (e.g. button labels) may stay in current locale; config keys and match keywords unchanged.
+5. **Third-party.** Use root pycore for third-party packages: `from pycore.pyfoundations.third_party import get_third_package_*`; call getter at top level and use the returned module. Do not add direct `import numpy`/`import cv2` etc. where a getter exists.
+6. **pycore import path.** Before any `import pycore` or `from pycore...`, ensure the directory that contains the `pycore` package is on `sys.path`. Standard pattern: from `__file__` walk up until a directory containing `pycore` is found, then `sys.path.insert(0, _dir)` if not already present. This must run at module load, before any pycore import.
+7. **Docs.** When adding or changing docs, write only key points; no redundant or obvious filler.

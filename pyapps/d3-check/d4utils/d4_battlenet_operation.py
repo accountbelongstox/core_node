@@ -4,9 +4,12 @@ D4 Battle.net operation: click D4 tab, click Play, activate window.
 Reuses share.battlenet_window_finder and share.battlenet_ui_common. No D3/ROSBOT imports.
 Asia vs CN: tab/play automation_id and name keywords differ; region from game_interface_data or config.
 """
+import os
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
+
+from pycore.pyutils.system_launcher import start_program, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.click_handler_singleton import get_click_handler
@@ -23,7 +26,12 @@ from share.battlenet_ui_common import (
     rect_center,
 )
 from providor.providor_index import get_config_value_safe
-from providor.constants.common import BN_CLICK_MOVE_DURATION_SEC, BN_CLICK_PAUSE_AFTER_MOVE_SEC
+from providor.constants.common import (
+    BATTLE_NET_EXE_NAME,
+    BN_CLICK_MOVE_DURATION_SEC,
+    BN_CLICK_PAUSE_AFTER_MOVE_SEC,
+)
+from d3utils.process_helper import kill_process_by_exe
 from providor.constants.d4 import (
     D4_TAB_AUTOMATION_IDS,
     D4_TAB_NAME_KEYWORDS,
@@ -195,29 +203,20 @@ class D4BattlenetOperation:
         return _play_button_indicates_starting(ctrl)
 
     def start(self) -> bool:
-        """Start Battle.net client. Uses share get_battlenet_path + subprocess."""
+        """Start Battle.net client via os.startfile (in-process)."""
         path = get_battlenet_path()
         if not path:
             ColorPrint.red("[D4BattlenetOperation] Battle.net path not configured")
             return False
-        import subprocess
-        import os
         ColorPrint.blue("[D4BattlenetOperation] Starting Battle.net: %s" % path)
-        subprocess.run(
-            ["explorer", str(path)],
-            cwd=str(path.parent),
-            capture_output=True,
-            text=True,
-            timeout=30,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        )
-        ColorPrint.green("[D4BattlenetOperation] Battle.net start command sent")
-        return True
+        if start_program(path):
+            ColorPrint.green("[D4BattlenetOperation] Battle.net start command sent")
+            return True
+        ColorPrint.red("[D4BattlenetOperation] Start failed")
+        return False
 
     def close(self) -> bool:
-        """Kill Battle.net process. Uses d3utils.process_helper (shared infra)."""
-        from providor.constants.common import BATTLE_NET_EXE_NAME
-        from d3utils.process_helper import kill_process_by_exe
+        """Kill Battle.net process via process_helper."""
         ColorPrint.blue("[D4BattlenetOperation] Killing Battle.net...")
         return kill_process_by_exe(BATTLE_NET_EXE_NAME, log_prefix="[D4BattlenetOperation]")
 

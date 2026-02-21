@@ -7,6 +7,15 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
 import select
 import socket
@@ -15,7 +24,11 @@ import sys
 import threading
 import time
 import os
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+np = get_third_package_numpy()
+
 import configparser
 from manage.master import Master
 from manage.worker import Worker
@@ -219,7 +232,7 @@ class Server:
             LOG.error('magic number error')
             return None
 
-        np_array = np.fromstring(data_bin[16:], np.uint8)
+        np_array = np.frombuffer(data_bin[16:], dtype=np.uint8)
         image = np.reshape(np_array, (IMAGE_WIDTH, IMAGE_HEIGHT))
         done = bool(terminal == 1)
         LOG.debug('receive frame information from fd {}: frame index = {}, reward = {}'.format(client_socket.fileno(),

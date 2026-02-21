@@ -1,29 +1,42 @@
-absl-py==0.9.0
+# absl-py: provided by pycore third_party (get_third_package_absl) when run from core_node; tensorflow may also pull it
+# absl-py==0.9.0
 astor==0.8.1
-certifi==2019.11.28
+# certifi: provided by pycore third_party (get_third_package_certifi) when run from core_node
+# certifi==2019.11.28
 cffi==1.12.3
-chardet==3.0.4
+# chardet: provided by pycore third_party (get_third_package_chardet)
 gast==0.3.3
-grpcio==1.27.2
-h5py==2.9.0
-idna==2.9
+# grpcio: provided by pycore third_party (get_third_package_grpc) when run from core_node; tensorflow may also pull it
+# grpcio==1.27.2
+# h5py: provided by pycore third_party (get_third_package_h5py) when run from core_node; TF/Keras may also pull it
+# h5py==2.9.0
+# idna: provided by pycore third_party (get_third_package_idna)
 Markdown==3.2.1
-msgpack==0.6.1
+# msgpack: provided by pycore third_party (get_third_package_msgpack) when run from core_node
+# msgpack==0.6.1
 msgpack-numpy==0.4.4.3
-numpy==1.14.5
-opencv-python==3.4.2.17
-protobuf==3.7.0
+# numpy: provided by pycore third_party (get_third_package_numpy) when run from core_node
+# numpy==1.14.5
+# opencv-python: provided by pycore third_party (get_third_package_cv2) when run from core_node
+# opencv-python==3.4.2.17
+# protobuf: provided by pycore third_party (get_third_package_google_protobuf) when run from core_node; tensorflow/grpcio may also pull it
+# protobuf==3.7.0
 psutil==5.6.0
 pycparser==2.19
-pyzmq==18.0.1
-requests==2.23.0
-six==1.14.0
+# pyzmq: provided by pycore third_party (get_third_package_zmq) when run from core_node
+# pyzmq==18.0.1
+# requests: provided by pycore third_party (get_third_package_requests) when run from core_node
+# requests==2.23.0
+# six: provided by pycore third_party (get_third_package_six) when run from core_node; tensorflow/protobuf and others may also pull it
+# six==1.14.0
 tensorboard==1.10.0
 tensorflow==1.10.0
 termcolor==1.1.0
-urllib3==1.24.1
-Werkzeug==1.0.0
-zmq==0.0.0
+# urllib3: provided by pycore third_party (get_third_package_urllib3)
+# Werkzeug: provided by pycore third_party (get_third_package_werkzeug) when run from core_node; tensorboard may also pull it
+# Werkzeug==1.0.0
+# zmq: meta-package; use pyzmq via third_party (get_third_package_zmq)
+# zmq==0.0.0
 pywinauto==0.6.8
 mss==6.0.0
 torch==1.3.0+cpu -f https://download.pytorch.org/whl/torch_stable.html

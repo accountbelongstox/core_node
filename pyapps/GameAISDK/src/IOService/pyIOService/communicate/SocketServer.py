@@ -7,15 +7,22 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
-import logging
 import queue
 
+from pycore.pyfoundations.color_print import ColorPrint
 from communicate.SocketThread import RecvThread
 from communicate.SocketThread import SendThread
 from communicate.ZMQSocket import ZMQSocket
-
-LOG = logging.getLogger('IOService')
 
 
 class SocketServer(object):
@@ -87,11 +94,11 @@ class SocketServer(object):
                                       sendLastMsg=self.__sendOnlyLastMsg)
 
         if not self.__recvSocket.Initialize():
-            LOG.error('SocketServer init recv socket failed!')
+            ColorPrint.red('SocketServer init recv socket failed!')
             return False
 
         if not self.__sendSocket.Initialize():
-            LOG.error('SocketServer init send socket failed!')
+            ColorPrint.red('SocketServer init send socket failed!')
             return False
 
         self.__recvthread = RecvThread(self.__recvSocket, self.__recvQueue)
@@ -100,5 +107,5 @@ class SocketServer(object):
         self.__sendthread.setDaemon(True)
         self.__recvthread.start()
         self.__sendthread.start()
-        LOG.info('Create SocketServer threads succeed')
+        ColorPrint.blue('Create SocketServer threads succeed')
         return True

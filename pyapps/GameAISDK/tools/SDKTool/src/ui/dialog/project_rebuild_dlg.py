@@ -59,4 +59,4 @@ class ProjectRebuildDlg(QtWidgets.QDialog):
 
     def pop_up(self):
         self.move(QCursor.pos())
-        self.exec_()
+        self.exec()

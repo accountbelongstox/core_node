@@ -9,7 +9,6 @@ Flow: same-dir exe list (other exes first, then main) -> find_process_by_exe_nam
 import os
 import glob
 import time
-import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple, Callable
 
@@ -26,6 +25,7 @@ from pycore.pyfoundations.third_party import (
 from providor.constants.d3 import ROSBOT_EXE_PATTERNS
 from d3utils.f3_refresh_line import is_f3_refresh_silent
 from d3utils.process_helper import kill_process_by_pid
+from pycore.pyutils.system_launcher import start_program
 
 psutil = get_third_package_psutil()
 win32gui = get_third_package_win32gui()
@@ -83,6 +83,7 @@ class ROSBOTManager:
         self.startup_delay = ros_settings.get("startup_delay_seconds", 3)
         self.detection_timeout = ros_settings.get("process_detection_timeout", 30)
         self._main_window_content_validator: Optional[Callable[[int], bool]] = None
+        self._last_logged_find_rosbot_exe: Optional[str] = None
 
     def get_ros_directory(self) -> Optional[str]:
         """Return configured ROS directory path (directory of exe if config is exe path), or None if empty."""
@@ -105,20 +106,27 @@ class ROSBOTManager:
         return True
 
     def find_rosbot_exe(self) -> Optional[str]:
-        """Find main ROSBOT exe: first try exact rosbot_exe_name in directory, then ROSBOT_EXE_PATTERNS."""
+        """Find main ROSBOT exe: first try exact rosbot_exe_name in directory, then ROSBOT_EXE_PATTERNS.
+        Logs 'Found main exe' only when the result path changes (avoids log spam on every poll)."""
         base = self.get_ros_directory()
         if not base:
+            self._last_logged_find_rosbot_exe = None
             return None
         exact = os.path.join(base, self.rosbot_exe_name)
         if os.path.isfile(exact):
-            ColorPrint.gray(f"[ROSBOTManager] Found main exe: {exact}")
+            if self._last_logged_find_rosbot_exe != exact:
+                ColorPrint.gray(f"[ROSBOTManager] Found main exe: {exact}")
+                self._last_logged_find_rosbot_exe = exact
             return exact
         for pattern in ROSBOT_EXE_PATTERNS:
             search = os.path.join(base, pattern)
             for path in glob.glob(search):
                 if os.path.isfile(path):
-                    ColorPrint.gray(f"[ROSBOTManager] Found main exe: {path}")
+                    if self._last_logged_find_rosbot_exe != path:
+                        ColorPrint.gray(f"[ROSBOTManager] Found main exe: {path}")
+                        self._last_logged_find_rosbot_exe = path
                     return path
+        self._last_logged_find_rosbot_exe = None
         return None
 
     def find_other_exe_files(self) -> List[str]:
@@ -543,23 +551,14 @@ class ROSBOTManager:
         return ok
 
     def start_executable(self, exe_path: str) -> bool:
-        """Start an executable (Popen, cwd=dir). Original _obsolete_rosbot_manager used Popen; Battle.net uses explorer."""
+        """Start an executable via pycore system_launcher.start_program."""
         if not exe_path or not os.path.isfile(exe_path):
             return False
-        try:
-            cwd = os.path.dirname(exe_path)
-            subprocess.Popen(
-                exe_path,
-                cwd=cwd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
+        if start_program(exe_path):
             ColorPrint.green(f"[ROSBOTManager] Started: {exe_path}")
             return True
-        except Exception as e:
-            ColorPrint.red(f"[ROSBOTManager] Start error: {e}")
-            return False
+        ColorPrint.red("[ROSBOTManager] Start failed")
+        return False
 
     def start(self) -> bool:
         """Start main ROSBOT exe (find_rosbot_exe + start_executable)."""

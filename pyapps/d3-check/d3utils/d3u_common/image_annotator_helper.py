@@ -265,8 +265,6 @@ def draw_grid_overlay(
             )
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing grid overlay: {e}")
-        import traceback
-        traceback.print_exc()
 
 def draw_match_result(
     annotator: ImageAnnotator,
@@ -385,8 +383,6 @@ def draw_match_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match result: {e}")
-        import traceback
-        traceback.print_exc()
 
 
 def save_match_debug_image(
@@ -644,8 +640,6 @@ def draw_match_results(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match results: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_anchor_detection_result(
     annotator: ImageAnnotator,
@@ -859,8 +853,6 @@ def save_anchor_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving anchor detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_bag_detection_result(
     annotator: ImageAnnotator,
@@ -942,8 +934,6 @@ def save_bag_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving bag detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def _draw_bag_layout_grid(
     annotator: ImageAnnotator,
@@ -1082,5 +1072,3 @@ def _draw_bag_layout_grid(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing bag layout grid: {e}")
-        import traceback
-        traceback.print_exc()

@@ -7,11 +7,21 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import logging
 
 import tensorflow as tf
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+np = get_third_package_numpy()
 
 from .ReplayMemory import ReplayMemory
 

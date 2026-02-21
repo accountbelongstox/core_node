@@ -23,7 +23,7 @@ from d3utils.rosbot_flow_state import (
     get_bn_only_enabled,
     is_flow_active,
 )
-from runtime import TaskStatus
+from share.values import TaskStatus
 from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
 from d3utils.rosbot_flow_rosbot_exit_state import get_total_restart_count
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow

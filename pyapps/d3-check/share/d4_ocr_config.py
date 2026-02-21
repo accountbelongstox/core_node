@@ -41,16 +41,31 @@ class OCRConfig:
             description='Document/book scanning model (CnOCR)',
             use_case='Long text passages, descriptions, lore text'
         ),
+        'general_en': OCRModelConfig(
+            det_model_name='en_PP-OCRv3_det',
+            rec_model_name='en_PP-OCRv3',
+            description='English detection + recognition (PP-OCR)',
+            use_case='English text with position'
+        ),
+        'general_cht': OCRModelConfig(
+            det_model_name='ch_PP-OCRv3_det',
+            rec_model_name='chinese_cht_PP-OCRv3',
+            description='Traditional Chinese recognition (PP-OCR)',
+            use_case='Traditional Chinese text with position'
+        ),
     }
 
     TASK_CONFIGS = {
         'map_name': 'general',
+        'browser_login': 'general',
         'quest_text': 'general',
         'item_name': 'general',
         'damage_number': 'number',
         'health_value': 'number',
         'tier_input': 'number',
         'document': 'document',
+        'english': 'general_en',
+        'traditional': 'general_cht',
     }
 
     @classmethod

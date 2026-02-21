@@ -191,7 +191,7 @@ class OpTree(object):
                 if tree_mgr.get_mode() == Mode.UI_AUTO_EXPLORE:
                     self.__trees[Mode.UI_AUTO_EXPLORE].on_right_menu()
 
-            menu.exec_(QtGui.QCursor.pos())
+            menu.exec(QtGui.QCursor.pos())
 
     def set_right_tree_menu(self, tree_widget):
         menu = QtWidgets.QMenu(tree_widget)
@@ -223,7 +223,7 @@ class OpTree(object):
             menu.addAction(self.action_add_refer_template)
         menu.addAction(self.action_detail_conf)
         menu.addAction(self.action_hidden_Conf)
-        menu.exec_(QtGui.QCursor.pos())
+        menu.exec(QtGui.QCursor.pos())
 
     def double_click_left_tree(self, node, column):
         if node is None:

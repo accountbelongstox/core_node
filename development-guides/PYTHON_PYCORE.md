@@ -1,4 +1,8 @@
-# Python pycore Development Guide
+# Python pycore Project Specification
+
+This document is the **project specification** for `pycore`. It defines language rules, architecture, and module boundaries. For pycore code, this specification takes precedence. Format follows common style-guide practice: **REQUIRED** / **FORBIDDEN** / **Rule** with explicit decisions.
+
+---
 
 ## 1. Core Development Standards
 
@@ -69,8 +73,6 @@
 - Can call pyutils to organize basic multi-functional class libraries
 - Provides higher-level abstractions that combine multiple pyutils modules
 - Should focus on organizing and orchestrating pyutils functionality rather than re-implementing it
-
-A
 
 ### 3.4 pygvar Usage
 - Central location for all constants and variables
@@ -197,17 +199,17 @@ pyapps/{appname}/
 - **Usage**: `server.route('route_name', handler_function)` then `await server.start()`
 - **Client Lifecycle**: CONNECTING → CONNECTED → RECONNECTING (ws=None on disconnect) → removed after timeout
 
-## 6. Module Caller Service
+## 6a. Module Caller Service
 
-### 6.1 Overview
+### 6a.1 Overview
 Pycore Module Caller (`pycore.callmodule`) is a FastAPI service providing HTTP API access to pycore modules. Service port: 59000 (default). See `/www/programing/core_node/pycore/callmodule/README.md` for detailed documentation.
 
-### 6.2 Entry Points
+### 6a.2 Entry Points
 - Primary: `python3 -m pycore.callmodule`
 - Standalone: `/www/programing/core_node/run_callmodule_service.py`
 - Systemd: `systemctl start pycore-module-caller`
 
-### 6.3 Unified Utils Export
+### 6a.3 Unified Utils Export
 All pyutils utilities are exported from `pycore.pyutils` with `*_AVAILABLE` flags. Import pattern: `from pycore.pyutils import ocr_manager, OCR_AVAILABLE`. Use `get_available_utilities()` to check all available utilities. GUI components require `PYUTILS_LOAD_GUI=1` environment variable.
 
 ## 9. Database System

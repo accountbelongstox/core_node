@@ -7,16 +7,30 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
+import sys
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 import os
 import sys
 import json
 import math
-import logging
-import cv2
-import numpy as np
-from matplotlib.font_manager import FontProperties
-import matplotlib.pyplot as plt
+from pycore.pyfoundations.third_party import (
+    get_third_package_cv2,
+    get_third_package_numpy,
+    get_third_package_matplotlib,
+)
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+matplotlib = get_third_package_matplotlib()
+plt = matplotlib.pyplot
+FontProperties = matplotlib.font_manager.FontProperties
 
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
@@ -37,7 +51,6 @@ plt.rcParams['axes.unicode_minus'] = False   # 用来正常显示负号
 
 class ExploreResult(object):
     def __init__(self, path=None):
-        self.__logger = logging.getLogger('sdktool')
         # self.__canvas = canvas
         self.__ui = ui
         self.__image_list = []
@@ -92,8 +105,8 @@ class ExploreResult(object):
                 image_label_dict[key]["image"] = item
                 image_label_dict[key]["label"] = jsonfile
 
-        self.__logger.info("images count %s,  json count %s, pairs count %s", len(img_list),
-                           len(json_list), len(image_label_dict.keys()))
+        ColorPrint.blue("images count %s,  json count %s, pairs count %s" % (
+            len(img_list), len(json_list), len(image_label_dict.keys())))
 
         ui_graph = UIGraph()
         ui_graph.set_canvas_scale(canvas.get_scale())
@@ -105,7 +118,7 @@ class ExploreResult(object):
                 label_list = content.get("labels")
                 cur_image = content.get("fileName")
                 if not label_list:
-                    self.__logger.error("%s label is none", ui_label_file)
+                    ColorPrint.red("%s label is none" % (ui_label_file,))
                     continue
 
                 for button in label_list:
@@ -120,7 +133,7 @@ class ExploreResult(object):
                         # uiGraph.add_edge(value.get("image"), nextUI)
                         ui_graph.add_edge(cur_image, next_ui)
 
-        self.__logger.info("edges num %s node num %s", len(ui_graph.edges()), len(ui_graph.nodes()))
+        ColorPrint.blue("edges num %s node num %s" % (len(ui_graph.edges()), len(ui_graph.nodes())))
 
         for node in ui_graph.nodes():
             img_path = self.__explore_ret_path + '/' + str(node)
@@ -162,19 +175,19 @@ class ExploreResult(object):
         plt.figure(1)
         json_file = self.__explore_ret_path + '/coverage.json'
         if not os.path.exists(json_file):
-            self.__logger.error("file %s not exists", json_file)
+            ColorPrint.red("file %s not exists" % (json_file,))
             return
         try:
             with open(json_file) as f:
                 value = json.load(f)
         except IOError as e:
-            self.__logger.error("load json file %s failed, err: %s", json_file, e)
+            ColorPrint.red("load json file %s failed, err: %s" % (json_file, e))
             return
 
         button_value = value.get("button")
         scene_value = value.get("scene")
         if None in [button_value, scene_value]:
-            self.__logger.error("read button or scene from file %s failed", json_file)
+            ColorPrint.red("read button or scene from file %s failed" % (json_file,))
             return
 
         plt.cla()
@@ -234,13 +247,13 @@ class ExploreResult(object):
     def ui_coverage(self):
         json_file = self.__explore_ret_path + '/coverage.json'
         if not os.path.exists(json_file):
-            self.__logger.error("file %s not exists", json_file)
+            ColorPrint.red("file %s not exists" % (json_file,))
             return
         try:
             with open(json_file) as f:
                 value = json.load(f)
         except IOError as e:
-            self.__logger.error("load json file %s failed, err: %s", json_file, e)
+            ColorPrint.red("load json file %s failed, err: %s" % (json_file, e))
             return
 
         cover_list = value.get('coverList') or []

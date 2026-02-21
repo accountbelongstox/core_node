@@ -39,6 +39,7 @@
             "continuous": "连续",
             "single": "单次",
             "hold": "按住",
+            "ignore": "忽略",
             "drag": "拖拽",
             "disabled": "禁用",
             "buff": "保持Buff"
@@ -49,7 +50,7 @@
           "quick_switch": "快速切换",
           "movement": "移动",
           "potion": "药水",
-          "potion_interval": "药水间隔(ms)",
+          "water": "约水",
           "quick_switch_title": "快速切换至本配置",
           "auto_start": "切换后自动启动宏",
           "macro_start_title": "宏启动方式",
@@ -493,6 +494,7 @@
             "continuous": "Continuous",
             "single": "Single",
             "hold": "Hold",
+            "ignore": "Ignore",
             "drag": "Drag",
             "disabled": "Disabled",
             "buff": "Keep Buff"
@@ -503,7 +505,7 @@
           "quick_switch": "Quick Switch",
           "movement": "Movement",
           "potion": "Potion",
-          "potion_interval": "Potion Interval(ms)",
+          "water": "Water",
           "quick_switch_title": "Quick Switch to This Config",
           "auto_start": "Auto Start Macro After Switch",
           "macro_start_title": "Macro Start Method",

@@ -7,17 +7,24 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
-
+import sys
 import os
-import logging
-import queue
-import time
-import json
-import threading
+_dir = os.path.dirname(os.path.abspath(__file__))
+for _ in range(12):
+    if os.path.isdir(os.path.join(_dir, "pycore")):
+        if _dir not in sys.path:
+            sys.path.insert(0, _dir)
+        break
+    _dir = os.path.dirname(_dir)
 
+import json
+import queue
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-LOG = logging.getLogger('IOService')
+from pycore.pyfoundations.color_print import ColorPrint
+
 SEND_QUEUE = queue.Queue()
 RECV_QUEUE = queue.Queue()
 
@@ -54,9 +61,9 @@ class ResquestHandler(BaseHTTPRequestHandler):
         http server post handler
         :return:
         """
-        LOG.info(self.command)
-        LOG.info(self.path)
-        LOG.info(self.headers)
+        ColorPrint.blue(str(self.command))
+        ColorPrint.blue(str(self.path))
+        ColorPrint.blue(str(self.headers))
 
         try:
             length = int(self.headers.get('content-length'))
@@ -97,7 +104,7 @@ class ResquestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(responseData).encode('utf-8'))
         except KeyError as e:
-            LOG.error('do_Post error: %s', e)
+            ColorPrint.red('do_Post error: %s' % (e,))
 
 
 class HTTPServerThread(threading.Thread):
@@ -142,7 +149,7 @@ class HttpServer(object):
         self.__httpServerThread = HTTPServerThread(cfg['recv_port'])
         self.__httpServerThread.setDaemon(True)
         self.__httpServerThread.start()
-        LOG.info('Start HTTP, listen port: %s', cfg['recv_port'])
+        ColorPrint.blue('Start HTTP, listen port: %s' % (cfg['recv_port'],))
         return True
 
     def Finish(self):

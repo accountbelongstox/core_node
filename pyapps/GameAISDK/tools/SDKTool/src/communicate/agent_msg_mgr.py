@@ -7,15 +7,27 @@ For full details, please refer to the file "LICENSE.txt" which is provided as pa
 
 Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
 """
-
-import os
 import sys
-import logging
+import os
+_dir = os.path.dirname(os.path.abspath(__file__))
+while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
+    _dir = os.path.dirname(_dir)
+if _dir and _dir not in sys.path:
+    sys.path.insert(0, _dir)
+
 import configparser as ConfigParser
 
-import msgpack
+try:
+    from pycore.pyfoundations.third_party import get_third_package_msgpack
+    msgpack = get_third_package_msgpack()
+except ImportError:
+    import msgpack
 import msgpack_numpy
-import numpy as np
+
+from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+np = get_third_package_numpy()
 
 from ..common.define import ACTION_ID_CLICK, ACTION_ID_DOWN, ACTION_ID_UP, ACTION_ID_MOVE, ACTION_ID_SWIPE, \
     ACTION_NAMES, ACTION_ID_SWIPEDOWN, ACTION_ID_SWIPEMOVE, SDK_BIN_PATH, WINDOW_ACTION_NAMES
@@ -53,7 +65,6 @@ MSG_REGER_MULTCOLORVAR_TYPE = 'multcolorvar'
 MSG_REGER_SHOOTGAMEBLOOD_TYPE = 'shoot game blood'
 MSG_REGER_SHOOTGAMEHURT_TYPE = 'shoot game hurt'
 
-LOG = logging.getLogger('sdktool')
 
 
 class MsgMgr(object):
@@ -107,22 +118,22 @@ class MsgMgr(object):
             self.__sdk_tool_addr = tbus.GetAddress(str_tool_addr)
             self.__self_addr = tbus.GetAddress(strself_addr)
 
-            LOG.info("strgameRegAddr is {0}, strUIAddr is {1}, "
+            ColorPrint.blue("strgameRegAddr is {0}, strUIAddr is {1}, "
                      "strAgentAddr: {2}".format(strgame_reg_addr, str_ui_addr, str_agent_addr))
 
-            LOG.info("gamereg addr is {0}, self addr is {1}".format(self.__game_reg_addr,
+            ColorPrint.blue("gamereg addr is {0}, self addr is {1}".format(self.__game_reg_addr,
                                                                     self.__self_addr))
             ret = tbus.Init(self.__self_addr, self.__cfg_path)
             if ret != 0:
-                LOG.error('tbus init failed with return code[{0}]'.format(ret))
+                ColorPrint.red('tbus init failed with return code[{0}]'.format(ret))
                 return False
 
-            LOG.info("*************__agent_addr {} **************".format(self.__agent_addr))
+            ColorPrint.blue("*************__agent_addr {} **************".format(self.__agent_addr))
 
             return True
 
         else:
-            LOG.error('tbus config file not exist in {0}'.format(self.__cfg_path))
+            ColorPrint.red('tbus config file not exist in {0}'.format(self.__cfg_path))
             return False
 
     def proc_msg(self, msg_id, msg_value):
@@ -136,7 +147,7 @@ class MsgMgr(object):
         out_buff = self._create_msg(msg_id, msg_value)
 
         if out_buff is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         return self._send(out_buff)
@@ -164,7 +175,7 @@ class MsgMgr(object):
         msg_buff = msg.SerializeToString()
 
         if msg_buff is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         return self._send(msg_buff)
@@ -185,7 +196,7 @@ class MsgMgr(object):
         msg = msg_pb.SerializeToString()
 
         if msg is None:
-            LOG.error('create msg failed')
+            ColorPrint.red('create msg failed')
             return False
 
         return self._send_ui(msg)
@@ -196,22 +207,22 @@ class MsgMgr(object):
         :return: True or False
         """
         msg_buff_ret = None
-        LOG.debug("begin receive the message from gamereg, __game_reg_addr is {0} ".format(self.__game_reg_addr))
+        ColorPrint.gray("begin receive the message from gamereg, __game_reg_addr is {0} ".format(self.__game_reg_addr))
         msg_buff = tbus.RecvFrom(self.__game_reg_addr)
         while msg_buff is not None:
             msg_buff_ret = msg_buff
             msg_buff = tbus.RecvFrom(self.__game_reg_addr)
 
         if msg_buff_ret:
-            LOG.debug("receive the message from gamereg")
+            ColorPrint.gray("receive the message from gamereg")
             # msg = msgpack.unpackb(msgBuffRet, object_hook=mn.decode, encoding='utf-8')
             msg = self._unserial_result_msg(msg_buff_ret)
             if msg:
                 frame_seq = msg['value'].get('frameSeq')
-                LOG.debug('recv frame data, frameIndex={0}'.format(frame_seq))
+                ColorPrint.gray('recv frame data, frameIndex={0}'.format(frame_seq))
                 return msg
             else:
-                LOG.error("unserial result message failed")
+                ColorPrint.red("unserial result message failed")
                 return None
         return None
 
@@ -223,13 +234,13 @@ class MsgMgr(object):
             msg_buff = tbus.RecvFrom(self.__uirecognize_addr)
 
         if msg_buff_ret:
-            LOG.debug("receive the message from UI")
+            ColorPrint.gray("receive the message from UI")
             # msg = msgpack.unpackb(msgBuffRet, object_hook=mn.decode, encoding='utf-8')
             msg = self._unserial_ui_result_msg(msg_buff_ret)
             if msg:
                 return msg
             else:
-                LOG.error("unserial result message failed")
+                ColorPrint.red("unserial result message failed")
                 return None
         return None
 
@@ -251,7 +262,7 @@ class MsgMgr(object):
         tbus exit
         :return: None
         """
-        LOG.info('tbus exit...')
+        ColorPrint.blue('tbus exit...')
         tbus.Exit(self.__self_addr)
 
     def _unserial_agent_msg(self, msg):
@@ -262,7 +273,7 @@ class MsgMgr(object):
         # 收到agent原图像的消息
         if msg_id == common_pb2.MSG_SRC_IMAGE_INFO:
             agent_image_info = dict()
-            data = np.fromstring(msgPB.stSrcImageInfo.byImageData, np.uint8)
+            data = np.frombuffer(msgPB.stSrcImageInfo.byImageData, dtype=np.uint8)
             image = np.reshape(data, (msgPB.stSrcImageInfo.nHeight, msgPB.stSrcImageInfo.nWidth, 3))
 
             agent_image_info['image'] = image
@@ -274,20 +285,20 @@ class MsgMgr(object):
             agent_action_info = dict()
             action_data = msgPB.stAIAction.byAIActionBuff
 
-            action_dict = msgpack.unpackb(action_data, object_hook=msgpack_numpy.decode, encoding='utf-8')
+            action_dict = msgpack.unpackb(action_data, object_hook=msgpack_numpy.decode)
 
             action_id = action_dict['action_id']
             if self.__device_type == DeviceType.Android.value:
                 if action_id in ACTION_NAMES.keys():
                     action_name = ACTION_NAMES[action_id]
                 else:
-                    LOG.error("unkown android action id {}".format(action_id))
+                    ColorPrint.red("unkown android action id {}".format(action_id))
                     action_name = 'unkown android action id {}'.format(action_id)
             elif self.__device_type == DeviceType.Windows.value:
                 if action_id in WINDOW_ACTION_NAMES.keys():
                     action_name = WINDOW_ACTION_NAMES[action_id]
                 else:
-                    LOG.error("unkown window action id {}".format(action_id))
+                    ColorPrint.red("unkown window action id {}".format(action_id))
                     action_name = 'unkown window action id {}'.format(action_id)
 
             agent_action_info['action_name'] = action_name
@@ -302,7 +313,7 @@ class MsgMgr(object):
             return agent_action_info
 
         else:
-            LOG.error("receive wrong msg {}".format(msg_id))
+            ColorPrint.red("receive wrong msg {}".format(msg_id))
             return None
 
     def _unserial_ui_result_msg(self, msg):
@@ -310,7 +321,7 @@ class MsgMgr(object):
         msg_pb.ParseFromString(msg)
         msg_id = msg_pb.eMsgID
         if msg_id != common_pb2.MSG_UI_ACTION:
-            LOG.error('wrong msg id: {}'.format(msg_id))
+            ColorPrint.red('wrong msg id: {}'.format(msg_id))
             return None
 
         ui_result_dict = dict()
@@ -333,7 +344,7 @@ class MsgMgr(object):
                     action['points'].append(point)
 
             ui_result_dict['actions'].append(action)
-        data = np.fromstring(msg_pb.stUIAction.stSrcImageInfo.byImageData, np.uint8)
+        data = np.frombuffer(msg_pb.stUIAction.stSrcImageInfo.byImageData, dtype=np.uint8)
         ui_result_dict['image'] = np.reshape(data,
                                              (msg_pb.stUIAction.stSrcImageInfo.nHeight,
                                               msg_pb.stUIAction.stSrcImageInfo.nWidth, 3))
@@ -352,7 +363,7 @@ class MsgMgr(object):
     def _send(self, out_buff):
         ret = tbus.SendTo(self.__game_reg_addr, out_buff)
         if ret != 0:
-            LOG.error('TBus Send To  GameReg Addr return code[{0}]'.format(ret))
+            ColorPrint.red('TBus Send To  GameReg Addr return code[{0}]'.format(ret))
             return False
 
         return True
@@ -360,7 +371,7 @@ class MsgMgr(object):
     def _send_ui(self, out_buff):
         ret = tbus.SendTo(self.__uirecognize_addr, out_buff)
         if ret != 0:
-            LOG.error('TBus Send To UI Addr return code[{0}]'.format(ret))
+            ColorPrint.red('TBus Send To UI Addr return code[{0}]'.format(ret))
             return False
 
         return True
@@ -706,7 +717,7 @@ class MsgMgr(object):
         res_dict['value']['deviceIndex'] = result.stPBResultValue.nDeviceIndex
         res_dict['value']['strJsonData'] = result.stPBResultValue.strJsonData
         res_dict['value']['groupID'] = 1  # for test
-        data = np.fromstring(result.stPBResultValue.byImgData, np.uint8)
+        data = np.frombuffer(result.stPBResultValue.byImgData, dtype=np.uint8)
         res_dict['value']['image'] = np.reshape(
             data, (result.stPBResultValue.nHeight, result.stPBResultValue.nWidth, 3)
         )
@@ -952,7 +963,7 @@ class MsgMgr(object):
 
     def _get_value_from_dict(self, dic, key):
         if key not in dic.keys():
-            LOG.error("{} is needed".format(key))
+            ColorPrint.red("{} is needed".format(key))
             raise Exception('{} is needed'.format(key))
 
         return dic[key]

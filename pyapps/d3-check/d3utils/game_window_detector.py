@@ -110,8 +110,6 @@ class GameWindowDetector:
 
         except Exception as e:
             ColorPrint.red(f"[Detector] Error detecting game window: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _find_bottom_left_anchor(self, screenshot_path: str) -> Optional[Dict]:

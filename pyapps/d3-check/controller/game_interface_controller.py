@@ -18,7 +18,10 @@ ensure_d3_check_in_sys_path()
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
+from d3utils.macro_config_provider import get_current_skill_config
+from d3utils.macro_config_ops import run_one_skill_tick
 from providor.providor_index import CONFIG
+from share.game_interface_data import get_game_interface_data
 from controller.game_assistant_controller import GameAssistantController, get_game_assistant_controller
 from runtime import get_thread_registry
 
@@ -58,9 +61,10 @@ class GameInterfaceController:
     def __init__(self):
         """Initialize game interface controller"""
         self.hotkey_manager = get_global_hotkey_manager()
-        self.registered_hotkeys: Dict[str, str] = {}  # hotkey -> description mapping
+        self.registered_hotkeys: Dict[str, str] = {}
         self.initialized = False
         self.macro_running = False
+        self._last_skill_times: Optional[Dict[str, float]] = None
         # Macro thread owned by ThreadRegistry; no self.macro_thread
 
         # Initialize game assistant controller (lazy)
@@ -211,11 +215,8 @@ class GameInterfaceController:
         
         try:
             ColorPrint.blue("[MACRO] Starting macro execution...")
-            
-            # Get current skill configuration
-            current_config_name = 'config1'  # Default config
-            skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(current_config_name, {})
-            
+            # Use active config from macro_config_provider (loads current_skill_config; updates when config changes)
+            skill_config = get_current_skill_config()
             self.macro_running = True
             get_thread_registry().start_game_interface_macro(self, skill_config)
 
@@ -271,15 +272,16 @@ class GameInterfaceController:
     
     def _execute_skill_sequence(self, skill_config: Dict):
         """
-        Execute skill sequence based on configuration
-        
-        Args:
-            skill_config: Skill configuration dictionary
+        Execute one macro tick: send skill keys to D3 window per current config (interval/delay/strategy).
+        Config is re-read each tick via get_current_skill_config so config switch takes effect immediately.
         """
         try:
-            # TODO: Implement skill execution logic
-            # This is a placeholder implementation
-            pass
+            hwnd = get_game_interface_data()._window_hwnd
+            if not hwnd:
+                return
+            cfg = get_current_skill_config()
+            last = self._last_skill_times
+            self._last_skill_times = run_one_skill_tick(hwnd, cfg, last)
         except Exception as e:
             ColorPrint.red(f"[ERROR] Skill sequence execution error: {e}")
     

@@ -6,7 +6,6 @@ Find window by process (Battle.net.exe) only; delegates to share.battlenet_windo
 """
 
 import os
-import subprocess
 import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable
@@ -14,6 +13,7 @@ from typing import Optional, List, Dict, Any, Callable
 from providor.constants.common import BATTLE_NET_EXE_NAME
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.system_launcher import start_program
 from pycore.pyutils.window_activator import WindowActivator
 from providor.providor_index import CONFIG, BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
@@ -59,22 +59,13 @@ class BattleNetManager:
         return self.start(path)
 
     def start(self, exe_path: Path) -> bool:
-        """Start Battle.net via explorer. Returns True if command sent."""
-        try:
-            ColorPrint.blue(f"[BattleNetManager] Starting Battle.net: {exe_path}")
-            subprocess.run(
-                ["explorer", str(exe_path)],
-                cwd=str(exe_path.parent),
-                capture_output=True,
-                text=True,
-                timeout=30,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
+        """Start Battle.net via system_launcher.start_program. Returns True if command sent."""
+        ColorPrint.blue(f"[BattleNetManager] Starting Battle.net: {exe_path}")
+        if start_program(exe_path):
             ColorPrint.green("[BattleNetManager] Battle.net start command sent")
             return True
-        except Exception as e:
-            ColorPrint.red(f"[BattleNetManager] Start error: {e}")
-            return False
+        ColorPrint.red("[BattleNetManager] Start failed")
+        return False
 
     def find_windows(
         self,
