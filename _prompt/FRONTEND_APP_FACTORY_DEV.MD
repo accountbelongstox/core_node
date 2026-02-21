@@ -1,3 +1,0 @@
-在 应用组合 ,已经发布app中使用相同的一个mock数据,注意其他使用到的也要使用这个mock数据,同时确保所有数据的一致性,不要重复定义,并扩展兼容性,同时查看文档,使用解密后的图片数据作为app的icon和splash图,同时在前端中扩展出显示app的icon和splash图的地方. poly_apps/appfactory-master-dashboard/docs/ENCRYPTED_ASSETS_SYSTEM.md d现在解密密码由get传递,同时在浏览器解密,如果没有密码,则直接显示原始二进制(可能是乱码),现在的要求是,1:框架只负责组织图片数据,但图片名称和格式是明文的,2解密和密码由浏览器端负责,3:任何解密数据都显示,即使乱码解密,但力图片名和格式是明文的.4:如果加密端未满要求或处理不正确,更新文档,将则另一个AI写加密端:poly_apps/appfactory-master-dashboard/docs/ENCRYPTED_ASSETS_SYSTEM.md 
-
-修复后更新文档,说明如何接收GET密码并解密,如果没有GET参数默认为密码为""
