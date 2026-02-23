@@ -12,6 +12,23 @@
 
 # MCP Server 本地开发指南
 
+## 0. 架构与 DD 集成（总览）
+
+MCP 在项目中的整体架构、与 DD 菜单的一键安装与同步流程，见独立文档：
+
+- **架构与 DD 集成**：`development-guides/MCP_ARCHITECTURE_AND_DD_INTEGRATION.md`
+
+要点：
+
+- **DD 入口**：`dd.cmd` → `scripts/shells/win/dd.ps1` 主菜单中有「MCP Management」项。
+- **MCP 子菜单**：`scripts/shells/win/menu_itemshells/MCPManagementMenu.ps1`，提供「一键安装所有 MCP」「安装 Chrome MCP」「安装 Context7 MCP」「安装内置 MCP (Wait Please)」等。
+- **一键安装编排**：`menu_itemshells/InstallAllMCPServices.ps1` 依次执行：Chrome MCP 构建与注册 → Context7 包确保 → Wait Please 安装 → 调用 `scripts/pytools/ai_tools` 下各客户端同步脚本（Claude/Codex/Gemini/Droid）。
+- **同步层**：`scripts/pytools/ai_tools` 中的 `mcp_config_provider.py` 与 `*_sync_mcp_servers.py` 负责向各 AI 客户端写入 MCP 配置；DD 菜单的一键安装最后一步会调用这些 Python 脚本。
+
+本地 MCP 服务开发（在 `ncore/mcp_server` 下新增服务、更新模板等）仍按本文档第 1 节及以下规范执行。
+
+---
+
 ## 1. 概述
 
 ### 1.1 核心原则
@@ -105,4 +122,13 @@ class ServiceNameConstants:
 - **环境变量**: 不再传递路径相关环境变量，路径通过代码自动推导
 - **⚠️ 重要提醒**: 开发任何MCP服务后，必须同步更新以上所有4个模板文件
 
+### 1.6 与 DD 菜单的衔接（可选）
+
+若希望新开发的 MCP 服务出现在 DD 的「MCP Management」菜单中，需：
+
+1. **仅被一键安装编排调用**：在 `scripts/shells/win/menu_itemshells/InstallAllMCPServices.ps1` 中增加对应步骤（类似 Context7、Wait Please），调用该服务的安装或启动脚本；路径通过 `$script:CORE_NODE_DIR` 与 `Join-Path` 解析，禁止使用 `..\..\` 等相对路径。
+2. **单独菜单项**：在 `MCPManagementMenu.ps1` 的 `$menuItems` 中增加一项，并实现对应的 `Invoke-*` 函数，内部调用该服务的安装/启动脚本。
+3. **被同步到各 AI 客户端**：在 `scripts/pytools/ai_tools/mcp_config_provider.py` 中增加该服务的配置（如 HTTP URL 或 stdio command），并在各 `*_sync_mcp_servers.py` 中确保使用该配置写入对应客户端。
+
+以上行为与流程的完整说明见 `MCP_ARCHITECTURE_AND_DD_INTEGRATION.md`。
 

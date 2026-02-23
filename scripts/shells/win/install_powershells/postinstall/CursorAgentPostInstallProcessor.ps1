@@ -11,13 +11,19 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Cursor Agent Post-Installation Processor
-# Ensures Cursor agent CLI and RipGrep (BurntSushi.ripgrep.MSVC) are installed; verifies both, no skip.
+# Cursor install never skips agent detection; agent detection never skips PATH refresh. Repeated runs fully verify and repair.
 
 $script:AgentInstallUrl = "https://cursor.com/install?win32=true"
 $script:RipgrepWingetId = "BurntSushi.ripgrep.MSVC"
 
+function Update-ProcessPathFromRegistry {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = $machinePath + ";" + $userPath
+}
+
 function Test-AgentCommandPresent {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Update-ProcessPathFromRegistry
     $cursorCmd = Get-Command cursor -ErrorAction SilentlyContinue
     if ($cursorCmd) { return $true }
     $agentCmd = Get-Command agent -ErrorAction SilentlyContinue
@@ -26,7 +32,7 @@ function Test-AgentCommandPresent {
 }
 
 function Test-RipgrepPresent {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Update-ProcessPathFromRegistry
     $rgCmd = Get-Command rg -ErrorAction SilentlyContinue
     if (-not $rgCmd) { return $false }
     try {
@@ -38,7 +44,7 @@ function Test-RipgrepPresent {
 }
 
 function Get-AgentVersion {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Update-ProcessPathFromRegistry
     try {
         $v = & cursor --version 2>&1
         if ($v) { return ($v | Out-String).Trim() }
@@ -51,7 +57,7 @@ function Get-AgentVersion {
 }
 
 function Get-RipgrepVersion {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    Update-ProcessPathFromRegistry
     try {
         $v = & rg --version 2>&1
         if ($v) { return ($v | Out-String).Trim() }
@@ -76,35 +82,41 @@ function Invoke-CursorAgentPostInstallProcessor {
     $agentOk = $false
     $ripgrepOk = $false
 
-    # --- Agent CLI: always run install path if needed, then verify and print version (do not skip) ---
-    if (Test-AgentCommandPresent) {
-        Write-Host "$LogPrefix Agent CLI already present (verified)." -ForegroundColor Green
-        $agentOk = $true
-    } else {
+    # Cursor install never skips agent detection; agent detection never skips PATH. Always refresh PATH then detect.
+    Update-ProcessPathFromRegistry
+    if ($PackageName -eq "Cursor") {
+        Write-Host "$LogPrefix Cursor install flow: running full agent detection (PATH refreshed, no skip)." -ForegroundColor Cyan
+    }
+
+    # --- Step 1: Agent CLI. Always run PATH-backed detection first; install/repair only when missing or broken. ---
+    $agentPresentBefore = Test-AgentCommandPresent
+    $agentVerBefore = Get-AgentVersion
+    $agentBroken = $agentPresentBefore -and (-not $agentVerBefore -or [string]::IsNullOrWhiteSpace($agentVerBefore))
+    $agentNeedInstall = -not $agentPresentBefore -or $agentBroken
+    if ($agentBroken) {
+        Write-Host "$LogPrefix Agent CLI in PATH but version check failed (broken); will attempt repair." -ForegroundColor Yellow
+    }
+    if ($agentNeedInstall) {
         Write-Host "$LogPrefix Installing Cursor agent CLI (cursor + agent command)..." -ForegroundColor Cyan
         try {
             Invoke-RestMethod -Uri $script:AgentInstallUrl -Method Get | Invoke-Expression
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-            if (Test-AgentCommandPresent) {
-                Write-Host "$LogPrefix Agent CLI install verified (cursor/agent command found)." -ForegroundColor Green
-                $agentOk = $true
-            } else {
-                Write-Host "$LogPrefix Agent CLI install ran but verification failed: cursor/agent command not found in PATH." -ForegroundColor Red
-            }
         } catch {
             Write-Host "$LogPrefix Agent CLI install failed: $($_.Exception.Message)" -ForegroundColor Red
         }
-    }
-    if ($agentOk) {
-        $agentVer = Get-AgentVersion
-        if ($agentVer) { Write-Host "$LogPrefix Agent CLI version: $agentVer" -ForegroundColor Cyan } else { Write-Host "$LogPrefix Agent CLI version: (could not get)" -ForegroundColor Yellow }
-    }
-
-    # --- RipGrep: always run install path if needed, then verify and print version (do not skip) ---
-    if (Test-RipgrepPresent) {
-        Write-Host "$LogPrefix RipGrep (rg) already present (verified)." -ForegroundColor Green
-        $ripgrepOk = $true
     } else {
+        Write-Host "$LogPrefix Agent CLI present and version OK; skipping install (idempotent)." -ForegroundColor Green
+    }
+    # Always run full agent detection after install/repair (never skip); PATH refresh is inside detection.
+    Update-ProcessPathFromRegistry
+    $agentOk = Test-AgentCommandPresent
+    $agentVer = Get-AgentVersion
+    if ($agentVer) { Write-Host "$LogPrefix Agent CLI version: $agentVer" -ForegroundColor Cyan } else { Write-Host "$LogPrefix Agent CLI version: (could not get)" -ForegroundColor Yellow }
+    if ($agentOk) { Write-Host "$LogPrefix Agent CLI detection: present." -ForegroundColor Green } else { Write-Host "$LogPrefix Agent CLI detection: not found in PATH." -ForegroundColor Red }
+
+    # --- Step 2: RipGrep. Always run PATH-backed detection; install when not present; never skip detection. ---
+    Update-ProcessPathFromRegistry
+    $ripgrepPresentBefore = Test-RipgrepPresent
+    if (-not $ripgrepPresentBefore) {
         Write-Host "$LogPrefix Installing RipGrep (BurntSushi.ripgrep.MSVC) via winget..." -ForegroundColor Cyan
         try {
             $wingetPath = Get-Command winget -ErrorAction SilentlyContinue
@@ -112,25 +124,19 @@ function Invoke-CursorAgentPostInstallProcessor {
                 Write-Host "$LogPrefix winget not found; cannot install RipGrep." -ForegroundColor Red
             } else {
                 $proc = Start-Process -FilePath "winget" -ArgumentList "install", "--id", $script:RipgrepWingetId, "-e", "--accept-package-agreements", "--accept-source-agreements" -Wait -PassThru -NoNewWindow
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                if ($proc.ExitCode -eq 0 -and (Test-RipgrepPresent)) {
-                    Write-Host "$LogPrefix RipGrep install verified (rg found)." -ForegroundColor Green
-                    $ripgrepOk = $true
-                } elseif (Test-RipgrepPresent) {
-                    Write-Host "$LogPrefix RipGrep verified (rg found)." -ForegroundColor Green
-                    $ripgrepOk = $true
-                } else {
-                    Write-Host "$LogPrefix RipGrep install completed but verification failed: rg not found in PATH (exit code $($proc.ExitCode))." -ForegroundColor Red
-                }
             }
         } catch {
             Write-Host "$LogPrefix RipGrep install failed: $($_.Exception.Message)" -ForegroundColor Red
         }
+    } else {
+        Write-Host "$LogPrefix RipGrep present; skipping install (idempotent)." -ForegroundColor Green
     }
-    if ($ripgrepOk) {
-        $rgVer = Get-RipgrepVersion
-        if ($rgVer) { Write-Host "$LogPrefix RipGrep version: $rgVer" -ForegroundColor Cyan } else { Write-Host "$LogPrefix RipGrep version: (could not get)" -ForegroundColor Yellow }
-    }
+    # Always run full RipGrep detection after (never skip); PATH refresh is inside detection.
+    Update-ProcessPathFromRegistry
+    $ripgrepOk = Test-RipgrepPresent
+    $rgVer = Get-RipgrepVersion
+    if ($rgVer) { Write-Host "$LogPrefix RipGrep version: $rgVer" -ForegroundColor Cyan } else { Write-Host "$LogPrefix RipGrep version: (could not get)" -ForegroundColor Yellow }
+    if ($ripgrepOk) { Write-Host "$LogPrefix RipGrep detection: present." -ForegroundColor Green } else { Write-Host "$LogPrefix RipGrep detection: not found in PATH." -ForegroundColor Red }
 
     if (-not $agentOk) {
         Write-Host "$LogPrefix Result: Agent CLI not ensured (verification failed)." -ForegroundColor Red

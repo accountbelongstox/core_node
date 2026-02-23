@@ -51,7 +51,7 @@ B11_OCR_DEBUG_DIR = os.path.join(tempfile.gettempdir(), "browser_login_ocr_debug
 
 
 def _boxes_from_raw(raw_result: List[Dict], keywords: List[str]) -> List[Dict[str, Any]]:
-    """From OCR raw_result, return [{keyword, text, bbox}] for items matching any keyword."""
+    """From OCR raw_result, return [{keyword, text, bbox, score?}] for items matching any keyword."""
     if not raw_result or not keywords:
         return []
     out = []
@@ -65,9 +65,27 @@ def _boxes_from_raw(raw_result: List[Dict], keywords: List[str]) -> List[Dict[st
             continue
         for kw in keywords:
             if kw in text:
-                out.append({"keyword": kw, "text": text, "bbox": bbox})
+                out.append({
+                    "keyword": kw, "text": text, "bbox": bbox,
+                    "score": item.get("score"),
+                })
                 break
     return out
+
+
+def _pick_best_btn(boxes: List[Dict[str, Any]], exact_text: str, max_chars: int = 5) -> Optional[Dict[str, Any]]:
+    """From matched boxes, exclude text longer than max_chars, then prefer exact text match then highest score."""
+    if not boxes:
+        return None
+    short = [b for b in boxes if len((b.get("text") or "").strip()) <= max_chars]
+    if not short:
+        return None
+    exact = [b for b in short if (b.get("text") or "").strip() == exact_text]
+    if exact:
+        exact.sort(key=lambda b: (b.get("score") if b.get("score") is not None else -1.0), reverse=True)
+        return exact[0]
+    short.sort(key=lambda b: (b.get("score") if b.get("score") is not None else -1.0), reverse=True)
+    return short[0]
 
 
 def _format_raw_with_position(raw_result: List[Dict]) -> str:
@@ -87,6 +105,28 @@ def _format_raw_with_position(raw_result: List[Dict]) -> str:
         w, h = round(x2 - x1), round(y2 - y1)
         parts.append("%s@(%d,%d,%d,%d)" % (repr(text)[:32], round(x1), round(y1), w, h))
     return "[" + ", ".join(parts) + "]" if parts else "[]"
+
+
+def _log_all_recognized(raw_result: List[Dict], result: Dict[str, Any]) -> None:
+    """Log every recognized item (step print). Each line: [i] text | position (x,y,w,h) or no_position | score."""
+    if not raw_result:
+        ColorPrint.gray("[BrowserLoginOCR] B11 OCR (all): raw_count=0")
+        return
+    full_text = (result.get("text") or "").strip()
+    ColorPrint.gray("[BrowserLoginOCR] B11 OCR (all): raw_count=%d full_text=%s" % (len(raw_result), repr(full_text)[:120]))
+    for i, item in enumerate(raw_result):
+        text = (item.get("text") or "").strip()
+        pos = item.get("position")
+        bbox = _position_to_bbox(pos) if pos is not None else None
+        score = item.get("score")
+        if bbox is not None:
+            x1, y1, x2, y2 = bbox
+            w, h = round(x2 - x1), round(y2 - y1)
+            pos_str = "(%d,%d,%d,%d)" % (round(x1), round(y1), w, h)
+        else:
+            pos_str = "no_position"
+        score_str = (" score=%.3f" % score) if score is not None else ""
+        ColorPrint.gray("[BrowserLoginOCR]   [%d] %s | %s%s" % (i, repr(text)[:48], pos_str, score_str))
 
 
 def _rect_center_region(
@@ -167,6 +207,7 @@ def run_one_poll(
     if not result:
         return "continue"
     raw = (result.get("raw_result") or [])
+    _log_all_recognized(raw, result)
     text_flat = (result.get("text") or "")
     if SUCCESS_TEXT_SUBSTR in text_flat:
         ColorPrint.blue("[BrowserLoginOCR] Success text found, consider OAuth done")
@@ -178,13 +219,20 @@ def run_one_poll(
     eula_boxes = _boxes_from_raw(raw, [EULA_LABEL_SUBSTR])
     agree_boxes = _boxes_from_raw(raw, [AGREE_BTN_SUBSTR])
     login_boxes = _boxes_from_raw(raw, [LOGIN_BTN_SUBSTR])
-    agree_btn = None
-    for ab in agree_boxes:
-        if ab.get("text", "").find(CANCEL_BTN_SUBSTR) == -1:
-            agree_btn = ab
-            break
+    agree_candidates = [b for b in agree_boxes if CANCEL_BTN_SUBSTR not in (b.get("text") or "")]
+    agree_btn = _pick_best_btn(agree_candidates, AGREE_BTN_SUBSTR)
+    ColorPrint.gray(
+        "[BrowserLoginOCR] B11 matched: EULA=%d agree_boxes=%d agree_btn=%s login=%d"
+        % (len(eula_boxes), len(agree_boxes), "yes" if agree_btn else "no", len(login_boxes))
+    )
     if eula_boxes and agree_btn:
-        bbox = eula_boxes[0]["bbox"]
+        eula_item = eula_boxes[0]
+        agree_item = agree_btn
+        ColorPrint.blue(
+            "[BrowserLoginOCR] B11 match: keyword=EULA+同意 | EULA_text=%s EULA_bbox=%s | agree_text=%s agree_bbox=%s"
+            % (repr(eula_item.get("text", ""))[:40], eula_item.get("bbox"), repr(agree_item.get("text", ""))[:40], agree_item.get("bbox"))
+        )
+        bbox = eula_item["bbox"]
         check_cx = bbox[0] - 24
         check_cy = (bbox[1] + bbox[3]) / 2
         if check_cx < 0:
@@ -192,17 +240,28 @@ def run_one_poll(
         check_bbox = (check_cx - 8, check_cy - 8, check_cx + 8, check_cy + 8)
         _click_in_window(clk, rect, check_bbox)
         time.sleep(0.3)
-        _click_in_window(clk, rect, agree_btn["bbox"])
+        _click_in_window(clk, rect, agree_item["bbox"])
         ColorPrint.blue("[BrowserLoginOCR] B11 OCR: EULA+同意 at center 80% -> clicked")
         return "continue"
     if agree_btn and not eula_boxes:
-        _click_in_window(clk, rect, agree_btn["bbox"])
+        agree_item = agree_btn
+        ColorPrint.blue(
+            "[BrowserLoginOCR] B11 match: keyword=同意 | text=%s bbox=%s -> clicking"
+            % (repr(agree_item.get("text", ""))[:48], agree_item.get("bbox"))
+        )
+        _click_in_window(clk, rect, agree_item["bbox"])
         ColorPrint.blue("[BrowserLoginOCR] B11 OCR: 同意 at center 80% -> clicked")
         return "continue"
     if login_boxes:
-        _click_in_window(clk, rect, login_boxes[0]["bbox"])
-        ColorPrint.blue("[BrowserLoginOCR] B11 OCR: 登录 at center 80% -> clicked")
-        return "continue"
+        login_item = _pick_best_btn(login_boxes, LOGIN_BTN_SUBSTR)
+        if login_item:
+            ColorPrint.blue(
+                "[BrowserLoginOCR] B11 match: keyword=登录 | text=%s bbox=%s -> clicking"
+                % (repr(login_item.get("text", ""))[:48], login_item.get("bbox"))
+            )
+            _click_in_window(clk, rect, login_item["bbox"])
+            ColorPrint.blue("[BrowserLoginOCR] B11 OCR: 登录 at center 80% -> clicked")
+            return "continue"
     # DEBUG: save the exact center-80%% image used for OCR when no 登录/同意/EULA found
     debug_path = None
     if B11_OCR_DEBUG and img is not None:

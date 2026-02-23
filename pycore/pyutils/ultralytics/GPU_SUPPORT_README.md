@@ -161,9 +161,9 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 ```
 
-**对于CUDA 11.8**：
+**对于CUDA 12.6**（与 onnxruntime-gpu 一致）：
 ```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 
 ### 步骤3：验证安装

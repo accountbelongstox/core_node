@@ -1,19 +1,28 @@
-# Chrome MCP Server Startup Script (Windows)
-# Entry script - only responsible for calling Python and executing commands
-# No business logic here
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using Split-Path, Join-Path, or Resolve-Path.
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+# Chrome MCP Server Startup Script (Windows). Entry script - only responsible for calling Python and executing commands.
 
 $ErrorActionPreference = "Stop"
 
-# Get script directory and project root
 $ScriptDir = Split-Path -Parent $PSScriptRoot
 $ProjectRoot = $ScriptDir
-$InitialDir = Get-Location
-Set-Location $ProjectRoot
-
-# Import variable management library and key definitions
 $VarManagerPath = Join-Path $PSScriptRoot "VarManager.ps1"
 $VarKeysPath = Join-Path $PSScriptRoot "VarKeys.ps1"
+$PythonScript = Join-Path $PSScriptRoot "build_orchestrator.py"
+$PythonExe = $null
+$InitialDir = Get-Location
 
+Set-Location $ProjectRoot
 . $VarKeysPath
 Import-Module $VarManagerPath -Force
 
@@ -23,26 +32,32 @@ Write-Host "  Chrome MCP Server - Windows"
 Write-Host "========================================"
 Write-Host ""
 
-# ======================================
-# Step 1: Call Python for processing
-# ======================================
 Write-Host "[Python] Processing build configuration..."
 Write-Host ""
 
-$PythonScript = Join-Path $PSScriptRoot "build_orchestrator.py"
-
-# Check if Python is installed
-try {
-    $null = Get-Command python -ErrorAction Stop
-} catch {
+if ($env:PYTHON_EXE -and (Test-Path -LiteralPath $env:PYTHON_EXE)) {
+    $PythonExe = $env:PYTHON_EXE
+} else {
+    try {
+        $cmd = Get-Command python -ErrorAction Stop
+        if ($cmd.Source) { $PythonExe = $cmd.Source }
+    } catch { }
+    if (-not $PythonExe) {
+        try {
+            $cmd = Get-Command python3 -ErrorAction Stop
+            if ($cmd.Source) { $PythonExe = $cmd.Source }
+        } catch { }
+    }
+}
+if (-not $PythonExe) {
     Write-Host "ERROR: Python is not installed or not in PATH" -ForegroundColor Red
-    Write-Host "Please install Python 3.7+ from https://www.python.org/" -ForegroundColor Yellow
+    Write-Host "Run DD.CMD and use Install to install Python, or set PYTHON_EXE to your python.exe path." -ForegroundColor Yellow
     exit 1
 }
 
 # Run Python script
 try {
-    python $PythonScript
+    & $PythonExe $PythonScript
     if ($LASTEXITCODE -ne 0) {
         $error = Get-Var -Key ([VarKeys]::ERROR) -Default "Unknown error"
         Write-Host ""

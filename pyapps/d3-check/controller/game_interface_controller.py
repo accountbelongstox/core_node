@@ -5,6 +5,7 @@ Game Interface Controller
 Handles initialization and management of game interface functionality
 """
 
+import ctypes
 import os
 import sys
 import time
@@ -194,13 +195,20 @@ class GameInterfaceController:
             ColorPrint.red(f"[ERROR] Macro pause/resume error: {e}")
     
     def _on_combat_trigger(self):
-        """Handle combat functions hotkey"""
+        """Handle combat functions hotkey (e.g. from alternate binding). Main combat hotkey is wired to D3MacroController._toggle_combat_macro."""
         try:
             ColorPrint.blue("[HOTKEY] Combat functions triggered")
-            # TODO: Implement combat functions
             self._execute_combat_functions()
         except Exception as e:
             ColorPrint.red(f"[ERROR] Combat functions error: {e}")
+
+    def _execute_combat_functions(self):
+        """Execute one combat/macro tick or trigger combat UI. Override or extend for custom combat behavior."""
+        hwnd = get_game_interface_data()._window_hwnd
+        if hwnd and self._is_diablo_running():
+            self._execute_skill_sequence(get_current_skill_config())
+        else:
+            ColorPrint.yellow("[HOTKEY] Combat: D3 window not available, skipping")
     
     def start_macro(self) -> bool:
         """
@@ -257,15 +265,17 @@ class GameInterfaceController:
     
     def _is_diablo_running(self) -> bool:
         """
-        Check if Diablo III is running
-        
-        Returns:
-            True if Diablo III is running, False otherwise
+        Check if Diablo III window is available (handle set by d3_status_provider and still valid).
+        Returns True if _window_hwnd is set and the window exists; False otherwise.
         """
         try:
-            # TODO: Implement Diablo III process check
-            # This is a placeholder implementation
-            return True
+            hwnd = get_game_interface_data()._window_hwnd
+            if not hwnd:
+                return False
+            if sys.platform != "win32":
+                return True
+            user32 = ctypes.windll.user32
+            return bool(user32.IsWindow(int(hwnd)))
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to check Diablo III status: {e}")
             return False

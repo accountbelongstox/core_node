@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import shutil
 import zipfile
-import tempfile
 from pathlib import Path
 from typing import Optional, List, Union
 
@@ -88,25 +87,24 @@ def hf_download_zip_and_extract(
     revision: Optional[str] = None,
 ) -> bool:
     """
-    Download a zip from Hub and extract to extract_to. Returns True on success.
+    Download a zip from Hub (uses default cache; no re-download if already cached) and extract to extract_to.
+    Returns True on success. Ref: https://huggingface.co/docs/huggingface_hub/guides/download
     """
     hub = ensure_huggingface_hub()
     if hub is None:
         return False
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = hub.hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                local_dir=tmp,
-                revision=revision or "main",
-            )
-            if not path or not os.path.isfile(path):
-                return False
-            extract_to = Path(extract_to)
-            extract_to.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(path, "r") as z:
-                z.extractall(extract_to)
+        path = hub.hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            revision=revision or "main",
+        )
+        if not path or not os.path.isfile(path):
+            return False
+        extract_to = Path(extract_to)
+        extract_to.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "r") as z:
+            z.extractall(extract_to)
         return True
     except Exception as e:
         ColorPrint.red(f"[HF] download+extract failed: {e}")

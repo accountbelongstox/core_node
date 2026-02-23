@@ -23,7 +23,7 @@
 
 | 能力 | 说明 | 主要入口 |
 |------|------|----------|
-| 标注 UI | PySide6 标注工具，替代 labelImg；支持矩形/多边形/椭圆/圆 | `run_voc_annotator(images_dir, save_dir, config_path, project_name, classes)` |
+| 标注 UI | tkinter 标注工具，替代 labelImg；支持矩形/多边形/椭圆/圆 | `run_voc_annotator(images_dir, save_dir, config_path, project_name, classes)` |
 | 存储格式 | 每图一 JSON（shapes: shape_type, label, points, difficult）；可选同步写 VOC XML（仅矩形） | `annotation_io.load_annotations`, `save_annotations`, `voc_io` |
 | YOLO 目录约定 | 项目/片段目录布局、data.yaml 书写 | `yolo_data_layout`: `YOLO_DATA_ROOT`, `get_yolo_data_dir`, `get_yolo_images_dir`, `get_yolo_labels_dir`, `write_data_yaml` |
 
@@ -109,8 +109,8 @@
 
 ### 4.5 依赖关系（整合后）
 
-- **voc_annotator**：仅依赖 PySide6、stdlib、pycore 基础；不依赖 ultralytics 包。  
-- **ultralytics**：可依赖 `voc_annotator.annotation_io`、`voc_annotator.yolo_data_layout`（用于「从标注目录构建数据集」和统一路径）；不反向依赖 PySide6。  
+- **voc_annotator**：仅依赖 tkinter、PIL、stdlib、pycore 基础；不依赖 ultralytics 包。  
+- **ultralytics**：可依赖 `voc_annotator.annotation_io`、`voc_annotator.yolo_data_layout`（用于「从标注目录构建数据集」和统一路径）；不反向依赖 tkinter。  
 - **GameAISDK yolo_label_lib**：继续负责 launch_labelimg（调 voc_annotator）、clean_unlabeled、voc_annotations_to_yolo_labels、annotations_to_yolo_segment；可选地内部改为调用 pycore 的桥接函数，减少重复逻辑。
 
 ---

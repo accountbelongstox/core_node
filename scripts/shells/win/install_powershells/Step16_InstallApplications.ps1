@@ -754,9 +754,37 @@ function Install-BasePackage {
             $executable = Invoke-WebDownloadCommand -PackageName $PackageName -InstallDir $InstallDir -DownloadUrl $DownloadUrl -ExecutableName $ExecutableName -Keyword $EXEC_NAME -AdditionalKeywords @($PackageName.ToLower()) -OnlyCheckFlag $false -ForceInstall $false -IsArchive $IsArchive -ArchiveType $ArchiveType
             $installed = $null -ne $executable
         }
+        "postscript" {
+            $InstallScript = if ($PackageMeta.ContainsKey("InstallScript")) { $PackageMeta.InstallScript } else { "" }
+            if ([string]::IsNullOrWhiteSpace($InstallScript)) {
+                Write-Host "$SCRIPT_INDEX Error: postscript InstallType requires InstallScript in PackageMeta for $PackageName" -ForegroundColor Red
+                $installed = $false
+            } else {
+                $postinstallDir = Join-Path $PSScriptRoot "postinstall"
+                $scriptPath = Join-Path $postinstallDir $InstallScript
+                if (-not (Test-Path $scriptPath)) {
+                    Write-Host "$SCRIPT_INDEX Error: Install script not found: $scriptPath" -ForegroundColor Red
+                    $installed = $false
+                } else {
+                    Write-Host "$SCRIPT_INDEX Running postscript installer: $InstallScript" -ForegroundColor Cyan
+                    & $scriptPath
+                    $installed = $?
+                    if (-not $installed) {
+                        Write-Host "$SCRIPT_INDEX Postscript installer reported failure" -ForegroundColor Red
+                    }
+                    if ($installed -and $EXEC_NAME) {
+                        $searchPaths = @()
+                        if ($PackageMeta.ContainsKey("InstallSearchPaths") -and $PackageMeta.InstallSearchPaths) {
+                            $searchPaths = $PackageMeta.InstallSearchPaths | Where-Object { $_ -and (Test-Path $_ -ErrorAction SilentlyContinue) }
+                        }
+                        $executable = Find-ExecutableByKeyword -Keywords $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -AdditionalScanPaths $searchPaths -IncludeSystemPaths $true -Recursive $true
+                    }
+                }
+            }
+        }
         default {
             Write-Host "$SCRIPT_INDEX Unknown installation type '$InstallType' for $PackageName" -ForegroundColor Red
-            Write-Host "$SCRIPT_INDEX Supported types: winget, npm, pip, pipx, uv, uvx, poetry, choco, scoop, cargo, go, gem, brew, web" -ForegroundColor Yellow
+            Write-Host "$SCRIPT_INDEX Supported types: winget, npm, pip, pipx, uv, uvx, poetry, choco, scoop, cargo, go, gem, brew, web, postscript" -ForegroundColor Yellow
             $installed = $false
         }
     }

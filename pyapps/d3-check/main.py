@@ -5,7 +5,7 @@ D3Check - Diablo III Bot Auto Control System
 Main entry point for the application
 
 Usage:
-    python main.py   # Start PySide6 GUI + HTTP bridge (no CLI args, no Ctrl+C handler, exit via UI only)
+    python main.py   # Start TK GUI + HTTP bridge (no CLI args, no Ctrl+C handler, exit via UI only)
 """
 
 import os
@@ -29,13 +29,6 @@ sys.path.insert(0, _repo_root)
 # Lifecycle: registers thread-shutdown runner with shutdown_manager. Only main (and event bus) may import lifecycle.
 import lifecycle  # noqa: E402
 
-# Create QApplication before any Qt UI (required for PySide6)
-from pycore.pyfoundations.third_party import get_third_package_pyside6
-get_third_package_pyside6()
-from PySide6.QtWidgets import QApplication as QtApplication
-if QtApplication.instance() is None:
-    QtApplication(sys.argv)
-
 from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
 from runtime import get_system_initializer
@@ -46,7 +39,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 def main():
     """Main application entry point. No args; starts TK GUI + HTTP bridge. No Ctrl+C exit; hotkeys/UI handle exit."""
     ColorPrint.blue("\n" + "=" * 80)
-    ColorPrint.blue("D3Check - GUI Mode (PySide6 + HTTP Bridge)")
+    ColorPrint.blue("D3Check - GUI Mode (TK + HTTP Bridge)")
     ColorPrint.blue("=" * 80)
 
     try:

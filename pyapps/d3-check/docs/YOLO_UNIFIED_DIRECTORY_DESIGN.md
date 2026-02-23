@@ -189,12 +189,14 @@ YOLO_DATA_ROOT/
 
 ## 9. 与当前实现的对应关系
 
-| 当前（旧） | 统一后（新） |
-|------------|--------------|
+**当前代码已采用「统一后」布局**：根为 **YOLO_DATA_ROOT**（见 ALL_PATH_REQUIREMENTS_TABLE、YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES §3.7）。下表为旧命名到统一布局的对应关系。
+
+| 旧（已废弃） | 统一后（当前） |
+|--------------|----------------|
 | YOLO_RECORD_BASE_DIR = d3-check/data/yolo_record | 项目树 = YOLO_DATA_ROOT/{client_type}/{project_name} |
 | project_path/output/seg_xxx（record + frames） | segment_path = project_path/{segment_id}；record/、frames/ 在段内 |
 | 项目级 patch_images、patch_data.json | 仍在项目根；路径 = YOLO_DATA_ROOT/…/project_name/patch_images、patch_data.json |
-| YOLO_DATASET_BASE_DIR/yolo_dataset_*（生成数据） | YOLO_DATA_ROOT/_generated/…/yolo_dataset_YYYYMMDD_HHMMSS/ |
+| YOLO_DATASET_BASE_DIR/yolo_dataset_*（生成数据） | YOLO_DATA_ROOT/_generated/…/yolo_dataset_YYYYMMDD_HHMMSS/（providor 中 YOLO_DATASET_BASE_DIR = YOLO_DATA_ROOT/_generated/d3_game） |
 | .cache/training_data/2_datasets、3_models | YOLO_DATA_ROOT/_datasets、YOLO_DATA_ROOT/_models |
 | .cache/training_data/1_sources/projects、shared/backgrounds | YOLO_DATA_ROOT/_sources/projects、_sources/shared/backgrounds |
 

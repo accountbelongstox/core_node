@@ -281,8 +281,7 @@ class LogPanel:
                 ColorPrint.red(f"[LogPanel] Failed to save logs: {e}")
 
     def _filter_logs(self, event=None):
-        """Filter logs based on selected level"""
-        # Log filtering is handled in add_log_message
+        """Filter logs based on selected level. Filtering is applied in add_log_message when appending; this callback is for UI bindings only."""
         pass
 
     def _test_bag(self):

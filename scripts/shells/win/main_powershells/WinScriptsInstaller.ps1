@@ -64,6 +64,7 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step100_InstallDeepSeekOCR.ps1',
     'scripts/shells/win/install_powershells/Step101_InstallQwen25.ps1',
     'scripts/shells/win/install_powershells/Step102_InstallNLLB200.ps1',
+    'scripts/shells/win/install_powershells/postinstall/WeChatInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/NodePostInstallProcessor.ps1',

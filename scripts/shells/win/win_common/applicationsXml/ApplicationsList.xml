@@ -1592,26 +1592,6 @@
             </DesktopShortcuts>
         </AdsPowerGlobal>
         
-        <WeChat>
-            <PackageId>Tencent.WeChat</PackageId>
-            <Exec>WeChat.exe</Exec>
-            <Name>WeChat</Name>
-            <DesktopCategory>SocialMedia</DesktopCategory>
-            <Description>Popular instant messaging and social media app</Description>
-            <InstallType>winget</InstallType>
-            <ForceToInstallDir>true</ForceToInstallDir>
-            <VerifySuffix></VerifySuffix>
-            <AdditionalKeywords>
-                <Keyword>WeChat</Keyword>
-                <Keyword>Weixin</Keyword>
-            </AdditionalKeywords>
-            <DesktopShortcuts>
-                <Shortcut>
-                    <CreateDesktopShortcut>true</CreateDesktopShortcut>
-                </Shortcut>
-            </DesktopShortcuts>
-        </WeChat>
-        
         <OneTwoThreePan>
             <PackageId>123.123pan</PackageId>
             <Exec>123pan.exe</Exec>
