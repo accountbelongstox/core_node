@@ -3,7 +3,7 @@ using System.IO;
 using System.Windows;
 using DotCore.UIInspect;
 
-namespace DotCore.Host.SimpleUi;
+namespace DotApps.SimpleUi;
 
 public partial class MainWindow : Window
 {
