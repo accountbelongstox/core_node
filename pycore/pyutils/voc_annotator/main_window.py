@@ -2,41 +2,21 @@
 """
 VOC Annotator main window: project/config, waterfall image grid, class list, cache.
 Zoom persisted; config_path loads/saves project_name, classes, and class_colors.
+Tkinter implementation (no PySide6).
 """
 
 import os
 import random
+import shutil
 import sys
-from typing import Callable, Dict, List, Optional, Tuple
-
-if os.name == "nt":
-    os.environ.setdefault("QT_QPA_PLATFORM", "windows:dpiawareness=1")
-
-from PySide6.QtCore import Qt, QSize, QEventLoop, QTimer
-from PySide6.QtGui import QAction, QIcon, QPixmap, QImage, QColor
-from PySide6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QToolBar,
-    QPushButton,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
-    QFileDialog,
-    QMessageBox,
-    QScrollArea,
-    QSplitter,
-    QComboBox,
-    QInputDialog,
-    QMenu,
-    QFrame,
-)
+import tkinter as tk
+from tkinter import ttk
+from tkinter import filedialog
+from tkinter import messagebox
+from tkinter import simpledialog
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pyside6
 
 from . import config
 from . import voc_io
@@ -49,11 +29,16 @@ from .canvas import AnnotatorCanvas, DRAW_MODE_RECTANGLE, DRAW_MODE_POLYGON, DRA
 from .waterfall_flow import WaterfallFlowWidget
 from .annotation_table import GlobalAnnotationTable, ImageAnnotationList
 
-get_third_package_pyside6()
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
+
+_PIL_Image = get_third_package_PIL_Image()
+_PIL_ImageTk = get_third_package_PIL_ImageTk()
+
+THUMB_MAX_HEIGHT = 72
+THUMB_MAX_LIST = 800
 
 
 def list_segments_from_project(project_path: str) -> List[Tuple[str, str]]:
-    """List segment dirs as direct children of project_path (unified layout). Returns [(segment_id, segment_path)] newest first. No d3-check dependency."""
     if not project_path or not project_path.strip():
         return []
     proj = os.path.abspath(project_path.rstrip(os.sep))
@@ -67,212 +52,29 @@ def list_segments_from_project(project_path: str) -> List[Tuple[str, str]]:
         return []
 
 
-# UI theme: light, clean palette; toolbar/panels/tables/buttons styled per Qt 6 stylesheet docs
-ANNOTATOR_STYLESHEET = """
-QMainWindow {
-    background-color: #f0f2f5;
-}
-QMenuBar {
-    background-color: #e8eaed;
-    padding: 2px 0;
-    spacing: 4px;
-}
-QMenuBar::item {
-    padding: 4px 10px;
-    border-radius: 4px;
-    background: transparent;
-}
-QMenuBar::item:selected {
-    background-color: #d2d6db;
-}
-QMenuBar::item:pressed {
-    background-color: #b8bcc4;
-}
-QToolBar#MainToolbar {
-    background-color: #e8eaed;
-    border: none;
-    border-bottom: 1px solid #d0d4d8;
-    padding: 6px 8px;
-    spacing: 6px;
-}
-QToolBar QPushButton {
-    min-height: 24px;
-    padding: 4px 10px;
-    border: 1px solid #c4c8cc;
-    border-radius: 6px;
-    background-color: #ffffff;
-    color: #202124;
-}
-QToolBar QPushButton:hover {
-    background-color: #f1f3f4;
-    border-color: #a8acb0;
-}
-QToolBar QPushButton:pressed {
-    background-color: #e4e6e8;
-}
-QToolBar QPushButton:checked {
-    background-color: #1a73e8;
-    color: #ffffff;
-    border-color: #1a73e8;
-}
-QToolBar QLabel {
-    color: #5f6368;
-    font-weight: 500;
-}
-QComboBox {
-    min-height: 24px;
-    padding: 2px 8px;
-    border: 1px solid #c4c8cc;
-    border-radius: 6px;
-    background-color: #ffffff;
-    color: #202124;
-}
-QComboBox:hover {
-    border-color: #a8acb0;
-}
-QComboBox::drop-down {
-    border: none;
-    padding-right: 6px;
-}
-QFrame#ClassPanel {
-    background-color: #ffffff;
-    border: 1px solid #dadce0;
-    border-radius: 8px;
-    padding: 10px;
-    margin: 2px;
-}
-QFrame#ClassPanel QLabel {
-    color: #5f6368;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-QListWidget {
-    background-color: #ffffff;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    padding: 2px;
-    outline: none;
-}
-QListWidget::item {
-    padding: 6px 8px;
-    border-radius: 4px;
-}
-QListWidget::item:selected {
-    background-color: #e8f0fe;
-    color: #1967d2;
-}
-QListWidget::item:hover {
-    background-color: #f1f3f4;
-}
-QTableWidget {
-    background-color: #ffffff;
-    border: 1px solid #dadce0;
-    border-radius: 6px;
-    gridline-color: #e8eaed;
-}
-QTableWidget::item {
-    padding: 4px 8px;
-}
-QTableWidget::item:selected {
-    background-color: #e8f0fe;
-    color: #1967d2;
-}
-QHeaderView::section {
-    background-color: #e8eaed;
-    color: #5f6368;
-    padding: 8px 10px;
-    border: none;
-    border-right: 1px solid #dadce0;
-    border-bottom: 1px solid #dadce0;
-    font-weight: 600;
-}
-QHeaderView::section:first {
-    border-top-left-radius: 6px;
-}
-QHeaderView::section:last {
-    border-top-right-radius: 6px;
-    border-right: none;
-}
-QSplitter::handle {
-    background-color: #dadce0;
-    width: 4px;
-    height: 4px;
-}
-QSplitter::handle:hover {
-    background-color: #1a73e8;
-}
-QScrollArea {
-    border: none;
-    background-color: #f0f2f5;
-}
-QStatusBar {
-    background-color: #e8eaed;
-    color: #5f6368;
-    border-top: 1px solid #d0d4d8;
-    padding: 2px 8px;
-}
-QLabel#PanelTitle {
-    color: #3c4043;
-    font-weight: 600;
-    font-size: 13px;
-    padding: 4px 0;
-}
-QWidget#GlobalTablePanel, QWidget#ImageListPanel {
-    background-color: #ffffff;
-    border: 1px solid #dadce0;
-    border-radius: 8px;
-    padding: 8px;
-}
-QPushButton {
-    min-height: 22px;
-    padding: 4px 12px;
-    border: 1px solid #c4c8cc;
-    border-radius: 6px;
-    background-color: #ffffff;
-    color: #202124;
-}
-QPushButton:hover {
-    background-color: #f1f3f4;
-    border-color: #a8acb0;
-}
-QPushButton:pressed {
-    background-color: #e4e6e8;
-}
-QPushButton:disabled {
-    background-color: #f1f3f4;
-    color: #9aa0a6;
-}
-"""
-
-
 def _random_rgb() -> List[int]:
     return [random.randint(60, 255), random.randint(60, 255), random.randint(60, 255)]
 
-THUMB_MAX_HEIGHT = 72
-THUMB_MAX_LIST = 800
 
-
-def _thumbnail_for_image(path: str, max_height: int = THUMB_MAX_HEIGHT) -> Optional[QPixmap]:
-    """Load image and return scaled pixmap for list icon; None on failure."""
+def _thumbnail_for_image(path: str, max_height: int = THUMB_MAX_HEIGHT):
+    """Return a small PhotoImage for list display; caller must keep reference. None on failure."""
     if not path or not os.path.isfile(path):
         return None
     try:
-        img = QImage(path)
-        if img.isNull():
-            return None
-        h = min(img.height(), max_height)
-        if h < 1:
-            h = 1
-        w = int(img.width() * h / img.height()) if img.height() else h
-        if w < 1:
-            w = 1
-        scaled = img.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        return QPixmap.fromImage(scaled)
+        pil = _PIL_Image.open(path)
+        if pil.mode != "RGB":
+            pil = pil.convert("RGB")
+        w, h = pil.size
+        if h > max_height:
+            r = getattr(_PIL_Image, "Resampling", None)
+            resample = getattr(r, "LANCZOS", None) if r else getattr(_PIL_Image, "LANCZOS", 1)
+            pil = pil.resize((int(w * max_height / h), max_height), resample)
+        return _PIL_ImageTk.PhotoImage(pil)
     except OSError:
         return None
 
 
-class VOCAnnotatorWindow(QMainWindow):
+class VOCAnnotatorWindow:
     def __init__(
         self,
         images_dir: Optional[str] = None,
@@ -281,19 +83,17 @@ class VOCAnnotatorWindow(QMainWindow):
         project_name: Optional[str] = None,
         config_path: Optional[str] = None,
         project_path: Optional[str] = None,
-        parent: Optional[QWidget] = None,
+        parent: Optional[tk.Tk] = None,
     ):
         ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__ start: project_path=%s, images_dir=%s" % (project_path, images_dir))
-        super().__init__(parent)
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: super().__init__ done")
+        self._root = parent if parent is not None else tk.Tk()
+        self._win = tk.Toplevel(self._root) if parent is not None else self._root
         self._project_path = project_path
-        self._segment_list: List[Tuple[str, str]] = []  # (timestamp, segment_path)
+        self._segment_list: List[Tuple[str, str]] = []
         if project_path and os.path.isdir(project_path):
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: project_path is dir, resolving config and segments")
             if not config_path:
                 config_path = os.path.join(project_path, "annotator_config.json")
             self._segment_list = list_segments_from_project(project_path)
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: list_segments_from_project returned %d segments" % len(self._segment_list))
             if self._segment_list and not images_dir:
                 first_seg = self._segment_list[0][1]
                 frames_dir = os.path.join(first_seg, "frames")
@@ -304,14 +104,12 @@ class VOCAnnotatorWindow(QMainWindow):
         self._images_dir = images_dir or config.get_last_images_dir() or ""
         self._save_dir = save_dir or config.get_last_save_dir() or self._images_dir
         self._project_name = project_name or ""
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: _images_dir=%s, _config_path=%s" % (self._images_dir, self._config_path))
         self._image_list: List[str] = []
         self._current_index = -1
         self._patch_sources: List[dict] = []
         self._external_items: List[tuple] = []
         self._external_item_meta: List[tuple] = []
-
-        self._class_colors: Dict[str, QColor] = {}
+        self._class_colors: Dict[str, Tuple[int, int, int]] = {}
         if config_path and os.path.isfile(config_path):
             proj = project_config.load_project_config(config_path)
             self._classes = list(proj.get(project_config.CONFIG_KEY_CLASSES, []) or [])
@@ -320,199 +118,134 @@ class VOCAnnotatorWindow(QMainWindow):
             raw = proj.get(project_config.CONFIG_KEY_CLASS_COLORS) or {}
             for name, rgb in raw.items():
                 if isinstance(rgb, (list, tuple)) and len(rgb) >= 3:
-                    self._class_colors[str(name)] = QColor(rgb[0], rgb[1], rgb[2])
+                    self._class_colors[str(name)] = (int(rgb[0]), int(rgb[1]), int(rgb[2]))
         else:
             self._classes = list(classes) if classes else []
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: loaded %d classes" % len(self._classes))
         for c in self._classes:
             if c not in self._class_colors:
-                self._class_colors[c] = QColor(*_random_rgb())
+                self._class_colors[c] = tuple(_random_rgb())
         self._focused_canvas: Optional[AnnotatorCanvas] = None
         self._card_scale = 1.0
+        self._external_thumb_refs: List[Any] = []
 
-        self.setWindowTitle("VOC Annotator" + (" - " + self._project_name if self._project_name else " (pycore)"))
-        self.resize(1200, 800)
+        self._win.title("VOC Annotator" + (" - " + self._project_name if self._project_name else " (pycore)"))
+        self._win.geometry("1200x800")
 
-        menu = self.menuBar().addMenu("&File")
-        open_act = QAction("Open &Dir", self)
-        open_act.setShortcut("Ctrl+O")
-        open_act.triggered.connect(self._open_dir)
-        menu.addAction(open_act)
-        save_dir_act = QAction("Change save &dir", self)
-        save_dir_act.triggered.connect(self._change_save_dir)
-        menu.addAction(save_dir_act)
-        save_act_menu = QAction("&Save", self)
-        save_act_menu.setShortcut("Ctrl+S")
-        save_act_menu.triggered.connect(self._save_current)
-        menu.addAction(save_act_menu)
-        menu.addSeparator()
-        load_external_act = QAction("Load patch images (补丁图)", self)
-        load_external_act.triggered.connect(self._load_external_dir)
-        menu.addAction(load_external_act)
-        gen_dataset_act = QAction("Generate YOLO dataset", self)
-        gen_dataset_act.triggered.connect(self._generate_yolo_dataset)
-        menu.addAction(gen_dataset_act)
+        menubar = tk.Menu(self._win)
+        self._win.config(menu=menubar)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Open Dir", accelerator="Ctrl+O", command=self._open_dir)
+        file_menu.add_command(label="Change save dir", command=self._change_save_dir)
+        file_menu.add_command(label="Save", accelerator="Ctrl+S", command=self._save_current)
+        file_menu.add_separator()
+        file_menu.add_command(label="Load patch images (补丁图)", command=self._load_external_dir)
+        file_menu.add_command(label="Generate YOLO dataset", command=self._generate_yolo_dataset)
+        self._win.bind("<Control-o>", lambda e: self._open_dir())
+        self._win.bind("<Control-s>", lambda e: self._save_current())
+        self._win.bind("<Control-plus>", lambda e: self._zoom_in())
+        self._win.bind("<Control-equal>", lambda e: self._zoom_in())
+        self._win.bind("<Control-minus>", lambda e: self._zoom_out())
+        self._win.bind("<Delete>", lambda e: self._delete_selected())
+        self._win.bind("<BackSpace>", lambda e: self._delete_selected())
 
-        central = QWidget()
-        self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+        main = tk.Frame(self._win, padx=4, pady=4)
+        main.pack(fill="both", expand=True)
 
-        toolbar = QToolBar()
-        toolbar.setObjectName("MainToolbar")
-        self.addToolBar(toolbar)
-
-        zoom_out_btn = QPushButton("Zoom -")
-        zoom_out_btn.setToolTip("Zoom out (Ctrl+-)")
-        zoom_out_btn.clicked.connect(self._zoom_out)
-        toolbar.addWidget(zoom_out_btn)
-
-        self._zoom_label = QLabel("100%")
-        self._zoom_label.setMinimumWidth(52)
-        toolbar.addWidget(self._zoom_label)
-
-        zoom_in_btn = QPushButton("Zoom +")
-        zoom_in_btn.setToolTip("Zoom in (Ctrl++)")
-        zoom_in_btn.clicked.connect(self._zoom_in)
-        toolbar.addWidget(zoom_in_btn)
-
-        toolbar.addSeparator()
-        toolbar.addWidget(QLabel(" Shape:"))
-        rect_btn = QPushButton("Rect")
-        rect_btn.setCheckable(True)
-        rect_btn.setChecked(True)
-        rect_btn.clicked.connect(lambda: self._set_shape_mode(DRAW_MODE_RECTANGLE))
-        toolbar.addWidget(rect_btn)
-        poly_btn = QPushButton("Polygon")
-        poly_btn.setCheckable(True)
-        poly_btn.clicked.connect(lambda: self._set_shape_mode(DRAW_MODE_POLYGON))
-        toolbar.addWidget(poly_btn)
-        ellipse_btn = QPushButton("Ellipse")
-        ellipse_btn.setCheckable(True)
-        ellipse_btn.clicked.connect(lambda: self._set_shape_mode(DRAW_MODE_ELLIPSE))
-        toolbar.addWidget(ellipse_btn)
-        circle_btn = QPushButton("Circle")
-        circle_btn.setCheckable(True)
-        circle_btn.clicked.connect(lambda: self._set_shape_mode(DRAW_MODE_CIRCLE))
-        toolbar.addWidget(circle_btn)
-        self._shape_buttons = [rect_btn, poly_btn, ellipse_btn, circle_btn]
-
-        toolbar.addSeparator()
-        save_act = QAction("Save", self)
-        save_act.setShortcut("Ctrl+S")
-        save_act.triggered.connect(self._save_current)
-        toolbar.addAction(save_act)
-
-        self._segment_combo: Optional[QComboBox] = None
+        toolbar = tk.Frame(main)
+        toolbar.pack(fill="x", pady=(0, 4))
+        zoom_out_btn = ttk.Button(toolbar, text="Zoom -", width=8, command=self._zoom_out)
+        zoom_out_btn.pack(side="left", padx=2)
+        self._zoom_label = ttk.Label(toolbar, text="100%", width=6)
+        self._zoom_label.pack(side="left", padx=2)
+        zoom_in_btn = ttk.Button(toolbar, text="Zoom +", width=8, command=self._zoom_in)
+        zoom_in_btn.pack(side="left", padx=2)
+        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
+        ttk.Label(toolbar, text=" Shape:").pack(side="left", padx=2)
+        self._shape_buttons = []
+        self._shape_mode_var = tk.StringVar(value="Rect")
+        for label, mode in [("Rect", DRAW_MODE_RECTANGLE), ("Polygon", DRAW_MODE_POLYGON), ("Ellipse", DRAW_MODE_ELLIPSE), ("Circle", DRAW_MODE_CIRCLE)]:
+            btn = ttk.Button(toolbar, text=label, width=8, command=lambda m=mode, l=label: self._set_shape_mode(m, l))
+            btn.pack(side="left", padx=2)
+            self._shape_buttons.append((btn, mode))
+        self._shape_mode_label = ttk.Label(toolbar, textvariable=self._shape_mode_var, width=8)
+        self._shape_mode_label.pack(side="left", padx=4)
+        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
+        ttk.Button(toolbar, text="Save", command=self._save_current).pack(side="left", padx=2)
+        self._segment_combo: Optional[ttk.Combobox] = None
         if self._segment_list:
-            toolbar.addSeparator()
-            toolbar.addWidget(QLabel(" Segment:"))
-            self._segment_combo = QComboBox()
-            self._segment_combo.setMinimumWidth(160)
-            for ts, seg_path in self._segment_list:
-                self._segment_combo.addItem(ts, seg_path)
-            self._segment_combo.currentIndexChanged.connect(self._on_segment_changed)
-            toolbar.addWidget(self._segment_combo)
-            self._segment_combo.blockSignals(True)
+            ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=8)
+            ttk.Label(toolbar, text=" Segment:").pack(side="left", padx=2)
+            self._segment_combo = ttk.Combobox(toolbar, values=[ts for ts, _ in self._segment_list], state="readonly", width=18)
+            self._segment_combo.pack(side="left", padx=2)
+            self._segment_combo.bind("<<ComboboxSelected>>", self._on_segment_combo_changed)
             for i, (_, seg_path) in enumerate(self._segment_list):
                 if os.path.normpath(self._images_dir) == os.path.normpath(os.path.join(seg_path, "frames")):
-                    self._segment_combo.setCurrentIndex(i)
+                    self._segment_combo.current(i)
                     break
             else:
-                self._segment_combo.setCurrentIndex(0)
-            self._segment_combo.blockSignals(False)
+                self._segment_combo.current(0)
+        delete_btn = ttk.Button(toolbar, text="Delete selected box", command=self._delete_selected)
+        delete_btn.pack(side="left", padx=2)
 
-        delete_btn = QPushButton("Delete selected box")
-        delete_btn.clicked.connect(self._delete_selected)
-        toolbar.addWidget(delete_btn)
+        paned = tk.PanedWindow(main, orient="horizontal", sashwidth=4)
+        paned.pack(fill="both", expand=True)
 
-        layout.addWidget(toolbar)
-
-        main_splitter = QSplitter(Qt.Horizontal)
-
-        self._global_table = GlobalAnnotationTable()
-        self._global_table.setObjectName("GlobalTablePanel")
-        self._global_table.setMaximumWidth(380)
-        self._global_table.image_activated.connect(self._on_global_table_image_activated)
-        self._global_table.annotation_deleted.connect(self._on_image_annotation_deleted)
+        self._global_table = GlobalAnnotationTable(paned)
+        self._global_table.set_image_activated_callback(self._on_global_table_image_activated)
+        self._global_table.set_annotation_deleted_callback(self._on_image_annotation_deleted)
         self._global_table.set_class_colors(self._class_colors)
-        main_splitter.addWidget(self._global_table)
+        paned.add(self._global_table.widget(), width=380, minsize=200)
 
-        center_splitter = QSplitter(Qt.Vertical)
-        self._waterfall = WaterfallFlowWidget()
-        self._waterfall.current_canvas_changed.connect(self._on_waterfall_canvas_focused)
-        self._waterfall.cache_changed.connect(self._on_annotation_cache_changed)
-        center_splitter.addWidget(self._waterfall)
-
-        self._image_annotation_list = ImageAnnotationList()
-        self._image_annotation_list.setObjectName("ImageListPanel")
-        self._image_annotation_list.annotation_deleted.connect(self._on_image_annotation_deleted)
-        self._image_annotation_list.annotation_selected.connect(self._on_image_annotation_selected)
+        center_paned = tk.PanedWindow(paned, orient="vertical", sashwidth=4)
+        self._waterfall = WaterfallFlowWidget(center_paned)
+        self._waterfall.set_current_canvas_changed_callback(self._on_waterfall_canvas_focused)
+        self._waterfall.set_cache_changed_callback(self._on_annotation_cache_changed)
+        self._waterfall.set_card_context_menu_callback(self._on_card_right_click)
+        center_paned.add(self._waterfall.widget(), height=600, minsize=120)
+        self._image_annotation_list = ImageAnnotationList(center_paned)
+        self._image_annotation_list.set_annotation_deleted_callback(self._on_image_annotation_deleted)
+        self._image_annotation_list.set_annotation_selected_callback(self._on_image_annotation_selected)
         self._image_annotation_list.set_class_colors(self._class_colors)
-        center_splitter.addWidget(self._image_annotation_list)
-        center_splitter.setSizes([600, 200])
-        main_splitter.addWidget(center_splitter)
+        center_paned.add(self._image_annotation_list.widget(), height=200, minsize=80)
+        paned.add(center_paned, width=700, minsize=400)
 
-        class_panel = QFrame()
-        class_panel.setObjectName("ClassPanel")
-        class_panel.setMaximumWidth(240)
-        class_layout = QVBoxLayout(class_panel)
-        self._info_frame = QFrame()
-        self._info_frame.setObjectName("InfoArea")
-        self._info_frame.setStyleSheet("QFrame#InfoArea { background-color: #e8eaed; border-radius: 6px; padding: 6px; margin-bottom: 6px; }")
-        info_layout = QVBoxLayout(self._info_frame)
-        info_layout.setContentsMargins(8, 6, 8, 6)
-        self._info_current_label = QLabel("Current (for labeling): —")
-        self._info_current_label.setStyleSheet("font-weight: 600; color: #3c4043; font-size: 12px;")
-        info_layout.addWidget(self._info_current_label)
-        self._info_color_swatch = QLabel()
-        self._info_color_swatch.setFixedHeight(20)
-        self._info_color_swatch.setStyleSheet("background-color: #9aa0a6; border-radius: 4px; border: 1px solid #dadce0;")
-        self._info_color_swatch.setToolTip("Annotation color for current class")
-        info_layout.addWidget(self._info_color_swatch)
-        class_layout.addWidget(self._info_frame)
-        class_layout.addWidget(QLabel("Classes (click to label):"))
-        self._class_list = QListWidget()
-        self._class_list.setMaximumWidth(180)
-        self._class_list.setEditTriggers(QListWidget.DoubleClicked | QListWidget.SelectedClicked)
+        class_panel = tk.Frame(paned, padx=8, pady=8, relief="ridge", bd=1)
+        info_f = tk.Frame(class_panel, bg="#e8eaed", padx=8, pady=6)
+        info_f.pack(fill="x", pady=(0, 6))
+        self._info_current_label = tk.Label(info_f, text="Current (for labeling): —", font=("", 11, "bold"), bg="#e8eaed")
+        self._info_current_label.pack(anchor="w")
+        self._info_color_swatch = tk.Label(info_f, text=" ", bg="#9aa0a6", height=1, width=4)
+        self._info_color_swatch.pack(anchor="w", pady=2)
+        tk.Label(class_panel, text="Classes (click to label):").pack(anchor="w")
+        self._class_list = tk.Listbox(class_panel, height=10, width=22, selectmode="single")
+        self._class_list.pack(fill="x", pady=2)
         for c in self._classes:
-            item = QListWidgetItem(c)
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            self._class_list.addItem(item)
-        self._class_list.itemClicked.connect(self._on_class_clicked)
-        self._class_list.itemChanged.connect(self._on_class_name_changed)
-        class_layout.addWidget(self._class_list)
-        add_class_btn = QPushButton("+")
-        add_class_btn.setMaximumWidth(30)
-        add_class_btn.setToolTip("Add new class")
-        add_class_btn.clicked.connect(self._add_class_inline)
-        class_layout.addWidget(add_class_btn)
-        class_layout.addWidget(QLabel("Patch (补丁图):"))
-        self._external_list = QListWidget()
-        self._external_list.setMaximumWidth(180)
-        self._external_list.setMaximumHeight(120)
-        self._external_list.itemDoubleClicked.connect(self._on_external_item_double_clicked)
-        self._external_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self._external_list.customContextMenuRequested.connect(self._on_external_context_menu)
-        class_layout.addWidget(self._external_list)
-        load_external_btn = QPushButton("Load external dir")
-        load_external_btn.clicked.connect(self._load_external_dir)
-        class_layout.addWidget(load_external_btn)
-        merge_external_btn = QPushButton("Merge selected to class")
-        merge_external_btn.clicked.connect(self._merge_external_to_class)
-        class_layout.addWidget(merge_external_btn)
-        class_layout.addStretch()
-        main_splitter.addWidget(class_panel)
+            self._class_list.insert("end", c)
+        self._class_list.bind("<<ListboxSelect>>", self._on_class_select)
+        self._class_list.bind("<Double-1>", self._on_class_double_edit)
+        ttk.Button(class_panel, text="+", width=3, command=self._add_class_inline).pack(anchor="w", pady=2)
+        tk.Label(class_panel, text="Patch (补丁图):").pack(anchor="w")
+        self._external_list = tk.Listbox(class_panel, height=5, width=22, selectmode="extended")
+        self._external_list.pack(fill="x", pady=2)
+        self._external_list.bind("<Double-1>", self._on_external_item_double_clicked)
+        self._external_list.bind("<Button-3>", self._on_external_context_menu)
+        ttk.Button(class_panel, text="Load external dir", command=self._load_external_dir).pack(fill="x", pady=2)
+        ttk.Button(class_panel, text="Merge selected to class", command=self._merge_external_to_class).pack(fill="x", pady=2)
+        paned.add(class_panel, width=240, minsize=160)
 
-        main_splitter.setSizes([300, 700, 200])
-        layout.addWidget(main_splitter)
-
-        self.setStyleSheet(ANNOTATOR_STYLESHEET)
-
-        self._status_label = QLabel("")
-        self.statusBar().addWidget(self._status_label)
+        self._status_label = ttk.Label(main, text="")
+        self._status_label.pack(anchor="w", pady=2)
+        for w, msg in [
+            (zoom_out_btn, "Zoom out (Ctrl+-)"),
+            (zoom_in_btn, "Zoom in (Ctrl++)"),
+            (delete_btn, "Delete selected annotation (Del/BackSpace)"),
+        ]:
+            w.bind("<Enter>", lambda e, m=msg: self._status_label.config(text=m))
+            w.bind("<Leave>", lambda e: self._status_label.config(text="%d images" % len(self._image_list) if self._image_list else ""))
 
         def _class_colors_rgb() -> Dict[str, List[int]]:
-            return {k: [c.red(), c.green(), c.blue()] for k, c in self._class_colors.items()}
+            return {k: [c[0], c[1], c[2]] for k, c in self._class_colors.items()}
 
         def _save_config() -> None:
             if self._config_path:
@@ -525,7 +258,7 @@ class VOCAnnotatorWindow(QMainWindow):
 
         def _ensure_class_color(name: str) -> None:
             if name and name not in self._class_colors:
-                self._class_colors[name] = QColor(*_random_rgb())
+                self._class_colors[name] = tuple(_random_rgb())
                 _save_config()
 
         self._class_colors_rgb = _class_colors_rgb
@@ -536,22 +269,39 @@ class VOCAnnotatorWindow(QMainWindow):
         self._update_zoom_label()
 
         if self._classes:
-            self._class_list.setCurrentRow(0)
+            self._class_list.selection_set(0)
+            self._class_list.see(0)
             self._waterfall.set_default_class(self._classes[0])
         self._update_class_info_area()
 
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: UI built, loading images or opening dir")
         if self._images_dir and os.path.isdir(self._images_dir):
             self._load_image_list()
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: _load_image_list done")
         else:
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: no _images_dir, calling _open_dir (may show dialog)")
             self._open_dir()
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: _open_dir returned")
 
         self._reload_patch_sources()
         self._refresh_external_list()
+
+        self._win.protocol("WM_DELETE_WINDOW", self._on_close)
         ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.__init__: finished")
+
+    def _on_segment_combo_changed(self, event=None) -> None:
+        if not self._segment_combo:
+            return
+        i = self._segment_combo.current()
+        if i < 0 or i >= len(self._segment_list):
+            return
+        _, seg_path = self._segment_list[i]
+        frames_dir = os.path.join(seg_path, "frames")
+        if not os.path.isdir(frames_dir):
+            return
+        self._save_current()
+        self._images_dir = frames_dir
+        self._save_dir = frames_dir
+        config.set_last_images_dir(frames_dir)
+        config.set_last_save_dir(frames_dir)
+        self._load_image_list()
+        self._status_label.config(text="Segment: %s" % os.path.basename(seg_path))
 
     def _reload_patch_sources(self) -> None:
         self._patch_sources = patch_data.load_patch_sources(self._config_path)
@@ -569,43 +319,44 @@ class VOCAnnotatorWindow(QMainWindow):
                 self._external_item_meta.append((si, ii))
 
     def _refresh_external_list(self) -> None:
-        self._external_list.clear()
+        self._external_list.delete(0, "end")
+        self._external_thumb_refs.clear()
         for idx, (path, class_name) in enumerate(self._external_items):
             display_name = os.path.basename(path) if os.path.dirname(path) else path
-            item = QListWidgetItem("%s  →  %s" % (display_name, class_name))
-            item.setData(Qt.UserRole, (path, class_name, idx))
+            self._external_list.insert("end", "%s  →  %s" % (display_name, class_name))
             thumb = _thumbnail_for_image(path, 48)
             if thumb is not None:
-                item.setIcon(QIcon(thumb))
-            self._external_list.addItem(item)
+                self._external_thumb_refs.append(thumb)
 
     def _load_external_dir(self) -> None:
-        d = QFileDialog.getExistingDirectory(
-            self, "Select directory of patch images (补丁图)", os.path.expanduser("~")
-        )
+        d = filedialog.askdirectory(title="Select directory of patch images (补丁图)", initialdir=os.path.expanduser("~"))
         if not d:
             return
         items = patch_data.load_patch_dir(d)
         if not items:
-            self._status_label.setText("No images in directory")
+            self._status_label.config(text="No images in directory")
             return
         patch_data.add_patch_source(self._config_path, d, items)
         self._reload_patch_sources()
         self._refresh_external_list()
-        self._status_label.setText("Patch source +%d from %s (total %d)" % (len(items), os.path.basename(d), len(self._external_items)))
+        self._status_label.config(text="Patch source +%d from %s (total %d)" % (len(items), os.path.basename(d), len(self._external_items)))
 
-    def _on_external_item_double_clicked(self, item: QListWidgetItem) -> None:
-        data = item.data(Qt.UserRole)
-        if not data or len(data) < 3:
+    def _on_external_item_double_clicked(self, event) -> None:
+        sel = self._external_list.curselection()
+        if not sel:
             return
-        path, old_class, idx = data[0], data[1], data[2]
-        new_class, ok = QInputDialog.getText(self, "Edit class", "Class name for %s:" % os.path.basename(path), text=old_class)
-        if not ok or not new_class.strip():
+        row = sel[0]
+        if row < 0 or row >= len(self._external_item_meta):
+            return
+        path, old_class = self._external_items[row]
+        idx = row
+        new_class = simpledialog.askstring("Edit class", "Class name for %s:" % os.path.basename(path), initialvalue=old_class)
+        if not new_class or not new_class.strip():
             return
         new_class = new_class.strip()
         if new_class not in self._classes:
             self._classes.append(new_class)
-            self._class_list.addItem(QListWidgetItem(new_class))
+            self._class_list.insert("end", new_class)
             self._ensure_class_color(new_class)
             self._waterfall.set_class_colors(self._class_colors)
             self._global_table.set_class_colors(self._class_colors)
@@ -618,27 +369,23 @@ class VOCAnnotatorWindow(QMainWindow):
         self._reload_patch_sources()
         self._refresh_external_list()
 
-    def _on_external_context_menu(self, pos) -> None:
-        rows = [i.row() for i in self._external_list.selectedIndexes()]
-        if not rows:
+    def _on_external_context_menu(self, event) -> None:
+        sel = self._external_list.curselection()
+        if not sel:
             return
-        menu = QMenu(self)
-        merge_act = QAction("Merge selected to same class", self)
-        merge_act.triggered.connect(self._merge_external_to_class)
-        menu.addAction(merge_act)
-        remove_act = QAction("Remove selected", self)
-        remove_act.triggered.connect(self._remove_external_selected)
-        menu.addAction(remove_act)
-        menu.exec(self._external_list.mapToGlobal(pos))
+        menu = tk.Menu(self._win, tearoff=0)
+        menu.add_command(label="Merge selected to same class", command=self._merge_external_to_class)
+        menu.add_command(label="Remove selected", command=self._remove_external_selected)
+        menu.tk_popup(event.x_root, event.y_root)
 
     def _remove_external_selected(self) -> None:
-        rows = [i.row() for i in self._external_list.selectedIndexes()]
+        rows = list(self._external_list.curselection())
+        if not rows:
+            return
         to_remove = []
         for r in rows:
             if 0 <= r < len(self._external_item_meta):
                 to_remove.append(self._external_item_meta[r])
-        if not to_remove:
-            return
         by_source = {}
         for si, ii in to_remove:
             by_source.setdefault(si, []).append(ii)
@@ -655,19 +402,17 @@ class VOCAnnotatorWindow(QMainWindow):
         self._refresh_external_list()
 
     def _merge_external_to_class(self) -> None:
-        rows = [i.row() for i in self._external_list.selectedIndexes()]
+        rows = list(self._external_list.curselection())
         if not rows:
-            QMessageBox.information(self, "Merge", "Select one or more external images first.")
+            messagebox.showinfo("Merge", "Select one or more external images first.")
             return
-        class_name, ok = QInputDialog.getItem(
-            self, "Merge to class", "Class name:", self._classes, 0, True
-        )
-        if not ok or not (class_name and str(class_name).strip()):
+        class_name = simpledialog.askstring("Merge to class", "Class name:", initialvalue=self._classes[0] if self._classes else "")
+        if not class_name or not class_name.strip():
             return
-        class_name = str(class_name).strip()
+        class_name = class_name.strip()
         if class_name not in self._classes:
             self._classes.append(class_name)
-            self._class_list.addItem(QListWidgetItem(class_name))
+            self._class_list.insert("end", class_name)
             self._ensure_class_color(class_name)
             self._waterfall.set_class_colors(self._class_colors)
             self._global_table.set_class_colors(self._class_colors)
@@ -680,25 +425,21 @@ class VOCAnnotatorWindow(QMainWindow):
         patch_data.save_patch_sources(self._config_path, self._patch_sources)
         self._reload_patch_sources()
         self._refresh_external_list()
-        self._status_label.setText("Merged %d image(s) to class %s" % (len(rows), class_name))
+        self._status_label.config(text="Merged %d image(s) to class %s" % (len(rows), class_name))
 
     def _generate_yolo_dataset(self) -> None:
         if not self._images_dir or not os.path.isdir(self._images_dir):
-            QMessageBox.warning(self, "Generate", "Open an images directory first.")
+            messagebox.showwarning("Generate", "Open an images directory first.")
             return
         if not self._classes:
-            QMessageBox.warning(self, "Generate", "Add at least one class.")
+            messagebox.showwarning("Generate", "Add at least one class.")
             return
         self._save_current()
-        out_dir = QFileDialog.getExistingDirectory(
-            self, "Output directory for YOLO dataset", self._save_dir or self._images_dir
-        )
+        out_dir = filedialog.askdirectory(title="Output directory for YOLO dataset", initialdir=self._save_dir or self._images_dir)
         if not out_dir:
             return
-        num_syn, ok = QInputDialog.getInt(
-            self, "Synthetic images", "Number of paste images (0 = only annotated):", 50, 0, 1000, 10
-        )
-        if not ok:
+        num_syn = simpledialog.askinteger("Synthetic images", "Number of paste images (0 = only annotated):", initialvalue=50, minvalue=0, maxvalue=1000)
+        if num_syn is None:
             return
         images_out = os.path.join(out_dir, yolo_data_layout.IMAGES_SUBDIR)
         labels_out = os.path.join(out_dir, yolo_data_layout.LABELS_SUBDIR)
@@ -706,7 +447,6 @@ class VOCAnnotatorWindow(QMainWindow):
         os.makedirs(labels_out, exist_ok=True)
         exts = (".jpg", ".jpeg", ".png", ".bmp")
         count_annot = 0
-        import shutil
         for path in self._image_list:
             if not path.lower().endswith(exts):
                 continue
@@ -736,105 +476,112 @@ class VOCAnnotatorWindow(QMainWindow):
                 bg_paths = [p for p in self._image_list if p.lower().endswith(exts) and os.path.isfile(p)]
                 if bg_paths:
                     count_syn = detection_paste_generator.generate_detection_by_paste(
-                        bg_paths,
-                        patch_items,
-                        self._classes,
-                        images_out,
-                        labels_out,
-                        num_images=num_syn,
-                        patches_per_image=(2, 8),
+                        bg_paths, patch_items, self._classes, images_out, labels_out,
+                        num_images=num_syn, patches_per_image=(2, 8),
                     )
         yolo_data_layout.write_data_yaml(out_dir, self._classes, train_subdir=yolo_data_layout.IMAGES_SUBDIR)
         msg = "Generated: %d annotated images" % count_annot
         if count_syn > 0:
             msg += ", %d synthetic (paste)" % count_syn
         msg += ". data.yaml written."
-        self._status_label.setText(msg)
-        QMessageBox.information(self, "Generate", msg)
+        self._status_label.config(text=msg)
+        messagebox.showinfo("Generate", msg)
 
-    def _set_shape_mode(self, mode: str) -> None:
+    def _set_shape_mode(self, mode: str, label: Optional[str] = None) -> None:
+        if label is None:
+            label = {"rectangle": "Rect", "polygon": "Polygon", "ellipse": "Ellipse", "circle": "Circle"}.get(mode, "Rect")
+        self._shape_mode_var.set(label)
         self._waterfall.set_draw_mode(mode)
-        modes = [DRAW_MODE_RECTANGLE, DRAW_MODE_POLYGON, DRAW_MODE_ELLIPSE, DRAW_MODE_CIRCLE]
-        idx = modes.index(mode) if mode in modes else 0
-        for i, btn in enumerate(self._shape_buttons):
-            btn.setChecked(i == idx)
         if mode == DRAW_MODE_POLYGON:
-            self._status_label.setText("Polygon: click points, then Enter to close")
+            self._status_label.config(text="Polygon: click points, then Enter to close")
+        else:
+            try:
+                sel = self._class_list.curselection()
+                name = self._classes[sel[0]] if self._classes and sel else ""
+                self._status_label.config(text="Current class: %s" % name if name else "")
+            except (IndexError, tk.TclError):
+                self._status_label.config(text="")
 
     def _update_class_info_area(self) -> None:
-        """Refresh info area: current labeling class and its color."""
-        item = self._class_list.currentItem()
-        if item:
-            name = item.text().strip()
-            self._info_current_label.setText("Current (for labeling): %s" % (name or "—"))
-            if name and name in self._class_colors:
-                c = self._class_colors[name]
-                hex_color = "#%02x%02x%02x" % (c.red(), c.green(), c.blue())
-                self._info_color_swatch.setStyleSheet(
-                    "background-color: %s; border-radius: 4px; border: 1px solid #dadce0;" % hex_color
-                )
-                self._info_color_swatch.setToolTip("Annotation color: RGB(%d, %d, %d)" % (c.red(), c.green(), c.blue()))
+        sel = self._class_list.curselection()
+        if sel:
+            idx = sel[0]
+            if 0 <= idx < len(self._classes):
+                name = self._classes[idx]
+                self._info_current_label.config(text="Current (for labeling): %s" % (name or "—"))
+                if name and name in self._class_colors:
+                    c = self._class_colors[name]
+                    hex_color = "#%02x%02x%02x" % (c[0], c[1], c[2])
+                    self._info_color_swatch.config(bg=hex_color)
+                    self._info_color_swatch.config(text=" ")
+                else:
+                    self._info_color_swatch.config(bg="#9aa0a6")
             else:
-                self._info_color_swatch.setStyleSheet("background-color: #9aa0a6; border-radius: 4px; border: 1px solid #dadce0;")
-                self._info_color_swatch.setToolTip("Annotation color for current class")
+                self._info_current_label.config(text="Current (for labeling): —")
+                self._info_color_swatch.config(bg="#9aa0a6")
         else:
-            self._info_current_label.setText("Current (for labeling): —")
-            self._info_color_swatch.setStyleSheet("background-color: #9aa0a6; border-radius: 4px; border: 1px solid #dadce0;")
-            self._info_color_swatch.setToolTip("Select a class from the list")
+            self._info_current_label.config(text="Current (for labeling): —")
+            self._info_color_swatch.config(bg="#9aa0a6")
 
-    def _on_class_clicked(self, item: QListWidgetItem) -> None:
-        name = item.text().strip()
-        if name:
+    def _on_class_select(self, event) -> None:
+        sel = self._class_list.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if 0 <= idx < len(self._classes):
+            name = self._classes[idx]
             self._waterfall.set_default_class(name)
-            self._status_label.setText("Current class: %s" % name)
+            self._status_label.config(text="Current class: %s" % name)
             self._update_class_info_area()
 
-    def _on_class_name_changed(self, item: QListWidgetItem) -> None:
-        """Handle class name edit: update _classes list at same index, save config."""
-        row = self._class_list.row(item)
+    def _on_class_double_edit(self, event) -> None:
+        sel = self._class_list.curselection()
+        if not sel:
+            return
+        row = sel[0]
         if row < 0 or row >= len(self._classes):
             return
-        new_name = item.text().strip()
-        if not new_name:
-            item.setText(self._classes[row])
-            return
         old_name = self._classes[row]
+        new_name = simpledialog.askstring("Rename class", "New name:", initialvalue=old_name)
+        if not new_name or not new_name.strip():
+            return
+        new_name = new_name.strip()
         if new_name == old_name:
             return
         if new_name in self._classes and self._classes.index(new_name) != row:
-            item.setText(old_name)
-            self._status_label.setText("Class name already exists")
+            self._status_label.config(text="Class name already exists")
             return
         self._classes[row] = new_name
         if old_name in self._class_colors:
             self._class_colors[new_name] = self._class_colors.pop(old_name)
         self._save_config()
+        self._class_list.delete(row)
+        self._class_list.insert(row, new_name)
+        self._class_list.selection_set(row)
         self._waterfall.set_class_colors(self._class_colors)
         self._global_table.set_class_colors(self._class_colors)
         self._image_annotation_list.set_class_colors(self._class_colors)
         self._update_class_info_area()
-        self._status_label.setText("Class renamed: %s → %s (ID: %d)" % (old_name, new_name, row))
+        self._status_label.config(text="Class renamed: %s → %s (ID: %d)" % (old_name, new_name, row))
 
     def _add_class_inline(self) -> None:
-        """Add new class with auto-generated name (class0, class1, ...), no dialog."""
         base = "class"
         idx = 0
         while f"{base}{idx}" in self._classes:
             idx += 1
         name = f"{base}{idx}"
         self._classes.append(name)
-        item = QListWidgetItem(name)
-        item.setFlags(item.flags() | Qt.ItemIsEditable)
-        self._class_list.addItem(item)
+        self._class_list.insert("end", name)
         self._ensure_class_color(name)
         self._waterfall.set_class_colors(self._class_colors)
         self._global_table.set_class_colors(self._class_colors)
         self._image_annotation_list.set_class_colors(self._class_colors)
         self._waterfall.set_default_class(name)
-        self._class_list.setCurrentRow(self._class_list.count() - 1)
-        self._class_list.editItem(item)
+        self._class_list.selection_clear(0, "end")
+        self._class_list.selection_set(self._class_list.size() - 1)
+        self._class_list.see("end")
         self._update_class_info_area()
-        self._status_label.setText("Added class: %s (ID: %d)" % (name, len(self._classes) - 1))
+        self._status_label.config(text="Added class: %s (ID: %d)" % (name, len(self._classes) - 1))
 
     def _on_waterfall_canvas_focused(self, canvas) -> None:
         self._focused_canvas = canvas
@@ -857,26 +604,72 @@ class VOCAnnotatorWindow(QMainWindow):
                 self._image_annotation_list.set_image_annotations(image_path, shapes)
 
     def _on_global_table_image_activated(self, image_path: str) -> None:
-        """Scroll to and focus the card for this image."""
         self._waterfall.focus_card_for_image(image_path)
 
+    def _on_card_right_click(self, image_path: str, x_root: int, y_root: int) -> None:
+        cache = self._waterfall.get_annotation_cache()
+        shapes = cache.get(image_path, [])
+        menu = tk.Menu(self._win, tearoff=0)
+        can_delete = len(shapes) == 0
+        if can_delete:
+            menu.add_command(
+                label="Delete image (删除图片)",
+                command=lambda: self._delete_image_from_disk(image_path),
+            )
+        else:
+            menu.add_command(
+                label="Delete image (only when no annotations)",
+                state="disabled",
+            )
+        try:
+            menu.tk_popup(x_root, y_root)
+        finally:
+            menu.grab_release()
+
+    def _delete_image_from_disk(self, image_path: str) -> None:
+        cache = self._waterfall.get_annotation_cache()
+        if cache.get(image_path):
+            messagebox.showwarning("Delete", "Image has annotations; remove them first.")
+            return
+        if not os.path.isfile(image_path):
+            return
+        if not messagebox.askyesno("Delete image", "Delete image file and its annotation files?\n%s" % os.path.basename(image_path)):
+            return
+        base = os.path.splitext(os.path.basename(image_path))[0]
+        for ext in (".json", ".xml"):
+            p = os.path.join(self._save_dir, base + ext)
+            if os.path.isfile(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+        try:
+            os.remove(image_path)
+        except OSError:
+            messagebox.showerror("Delete", "Could not delete image file.")
+            return
+        self._image_list = [p for p in self._image_list if p != image_path]
+        if cache and image_path in cache:
+            del cache[image_path]
+        if self._image_list:
+            self._refresh_waterfall_from_list()
+        else:
+            self._waterfall.set_images([], lambda p: [])
+            self._update_annotation_tables()
+        self._status_label.config(text="Deleted image: %s" % os.path.basename(image_path) if self._image_list else "No images")
+
     def _on_image_annotation_deleted(self, image_path: str, shape_index: int) -> None:
-        """Delete annotation from cache and update canvas."""
         cache = self._waterfall.get_annotation_cache()
         if image_path in cache and 0 <= shape_index < len(cache[image_path]):
             cache[image_path].pop(shape_index)
-            card_canvas = None
             for c in self._waterfall._cards:
                 if c.image_path() == image_path:
-                    card_canvas = c.canvas()
-                    card_canvas.set_shapes(cache[image_path])
+                    c.canvas().set_shapes(cache[image_path])
+                    self._focused_canvas = c.canvas()
                     break
-            if card_canvas:
-                self._focused_canvas = card_canvas
             self._update_annotation_tables()
 
     def _on_image_annotation_selected(self, image_path: str, shape_index: int) -> None:
-        """Select annotation in canvas."""
         for c in self._waterfall._cards:
             if c.image_path() == image_path:
                 canvas = c.canvas()
@@ -889,7 +682,7 @@ class VOCAnnotatorWindow(QMainWindow):
 
     def _update_zoom_label(self) -> None:
         pct = int(round(self._card_scale * 100))
-        self._zoom_label.setText("%d%%" % pct)
+        self._zoom_label.config(text="%d%%" % pct)
         config.set_zoom_percent(pct)
 
     def _zoom_in(self) -> None:
@@ -903,10 +696,7 @@ class VOCAnnotatorWindow(QMainWindow):
         self._update_zoom_label()
 
     def _open_dir(self) -> None:
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow._open_dir: opening QFileDialog.getExistingDirectory (modal)")
-        sys.stdout.flush()
-        d = QFileDialog.getExistingDirectory(self, "Open images directory", self._images_dir or os.path.expanduser("~"))
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow._open_dir: user chose=%s" % (d or "(cancelled)"))
+        d = filedialog.askdirectory(title="Open images directory", initialdir=self._images_dir or os.path.expanduser("~"))
         if not d:
             return
         self._images_dir = d
@@ -916,61 +706,52 @@ class VOCAnnotatorWindow(QMainWindow):
             config.set_last_save_dir(d)
         self._load_image_list()
 
-    def _on_segment_changed(self, index: int) -> None:
-        if not self._segment_list or index < 0 or index >= len(self._segment_list):
-            return
-        _, seg_path = self._segment_list[index]
-        frames_dir = os.path.join(seg_path, "frames")
-        if not os.path.isdir(frames_dir):
-            return
-        self._save_current()
-        self._images_dir = frames_dir
-        self._save_dir = frames_dir
-        config.set_last_images_dir(frames_dir)
-        config.set_last_save_dir(frames_dir)
-        self._load_image_list()
-        self._status_label.setText("Segment: %s" % os.path.basename(seg_path))
-
     def _change_save_dir(self) -> None:
-        d = QFileDialog.getExistingDirectory(self, "Change save directory", self._save_dir or self._images_dir)
+        d = filedialog.askdirectory(title="Change save directory", initialdir=self._save_dir or self._images_dir)
         if not d:
             return
         self._save_dir = d
         config.set_last_save_dir(d)
-        self._status_label.setText("Save dir: %s" % d)
+        self._status_label.config(text="Save dir: %s" % d)
 
     def _load_annotations_for_path(self, path: str):
         size = voc_io.image_size_from_file(path)
         return annotation_io.load_annotations(path, self._save_dir, size)
 
     def _load_image_list(self) -> None:
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow._load_image_list: _images_dir=%s" % self._images_dir)
         self._image_list = []
         exts = (".jpg", ".jpeg", ".png", ".bmp")
         try:
             for f in sorted(os.listdir(self._images_dir)):
                 if f.lower().endswith(exts):
                     self._image_list.append(os.path.join(self._images_dir, f))
-        except OSError as e:
-            ColorPrint.blue("[DEBUG] VOCAnnotatorWindow._load_image_list: OSError listing dir: %s" % e)
+        except OSError:
             pass
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow._load_image_list: found %d images" % len(self._image_list))
         if len(self._image_list) > THUMB_MAX_LIST:
-            self._status_label.setText("%d images (showing first %d)" % (len(self._image_list), THUMB_MAX_LIST))
+            self._status_label.config(text="%d images (showing first %d)" % (len(self._image_list), THUMB_MAX_LIST))
         else:
-            self._status_label.setText("%d images" % len(self._image_list))
+            self._status_label.config(text="%d images" % len(self._image_list))
         if self._image_list:
-            self._waterfall.set_images(self._image_list, self._load_annotations_for_path)
-            self._waterfall.set_card_scale(self._card_scale)
-            self._waterfall.set_class_colors(self._class_colors)
-            self._global_table.set_class_colors(self._class_colors)
-            self._image_annotation_list.set_class_colors(self._class_colors)
-            self._waterfall.set_draw_mode(DRAW_MODE_RECTANGLE)
-            if self._classes:
-                self._waterfall.set_default_class(self._classes[0])
-            else:
-                self._waterfall.set_default_class("")
+            self._refresh_waterfall_from_list()
+        else:
+            self._waterfall.set_images([], lambda p: [])
             self._update_annotation_tables()
+
+    def _refresh_waterfall_from_list(self) -> None:
+        if not self._image_list:
+            return
+        self._waterfall.set_images(self._image_list, self._load_annotations_for_path)
+        self._waterfall.set_card_scale(self._card_scale)
+        self._waterfall.set_class_colors(self._class_colors)
+        self._global_table.set_class_colors(self._class_colors)
+        self._image_annotation_list.set_class_colors(self._class_colors)
+        self._waterfall.set_draw_mode(DRAW_MODE_RECTANGLE)
+        self._shape_mode_var.set("Rect")
+        if self._classes:
+            self._waterfall.set_default_class(self._classes[0])
+        else:
+            self._waterfall.set_default_class("")
+        self._update_annotation_tables()
 
     def _save_current(self) -> None:
         cache = self._waterfall.get_annotation_cache()
@@ -983,20 +764,22 @@ class VOCAnnotatorWindow(QMainWindow):
                 continue
             annotation_io.save_annotations(path, self._save_dir, size, shapes, write_voc=True)
             saved += 1
-        self._status_label.setText("Saved %d image(s)" % saved)
+        self._status_label.config(text="Saved %d image(s)" % saved)
 
     def _delete_selected(self) -> None:
         if self._focused_canvas and self._focused_canvas.delete_selected():
-            self._status_label.setText("Deleted selected box")
+            self._status_label.config(text="Deleted selected box")
 
-    def keyPressEvent(self, event) -> None:
-        super().keyPressEvent(event)
-
-    def closeEvent(self, event) -> None:
-        ColorPrint.blue("[DEBUG] VOCAnnotatorWindow.closeEvent: saving and accepting close")
+    def _on_close(self) -> None:
         self._save_current()
         config.set_zoom_percent(int(round(self._card_scale * 100)))
-        event.accept()
+        self._win.destroy()
+
+    def is_destroyed(self) -> bool:
+        try:
+            return not self._win.winfo_exists()
+        except tk.TclError:
+            return True
 
 
 def run_voc_annotator(
@@ -1008,90 +791,35 @@ def run_voc_annotator(
     project_path: Optional[str] = None,
     event_pump_schedule: Optional[Callable[[Callable[[], None], int], None]] = None,
 ) -> None:
-    """Open VOC Annotator window. When event_pump_schedule(callback, delay_ms) is provided (e.g. Tk after), Qt is driven by the host loop pumping processEvents(); does not block. Otherwise blocks until closed."""
-    def _log(msg: str) -> None:
-        ColorPrint.blue("[DEBUG] " + msg)
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-    _log("run_voc_annotator entry: project_path=%s, images_dir=%s, save_dir=%s" % (project_path, images_dir, save_dir))
-    created_app = False
-    app = QApplication.instance()
-    if app is None:
-        _log("run_voc_annotator: no QApplication.instance(), creating QApplication([])")
-        app = QApplication([])
-        created_app = True
-    else:
-        _log("run_voc_annotator: using existing QApplication.instance()")
-    app.setQuitOnLastWindowClosed(False)
-    _log("run_voc_annotator: setQuitOnLastWindowClosed(False), creating VOCAnnotatorWindow")
-    try:
-        win = VOCAnnotatorWindow(
-            images_dir=images_dir,
-            save_dir=save_dir,
-            classes=classes,
-            project_name=project_name,
-            config_path=config_path,
-            project_path=project_path,
-        )
-    except Exception as e:
-        _log("run_voc_annotator: VOCAnnotatorWindow() raised: %s" % type(e).__name__ + ": " + str(e))
-        import traceback
-        traceback.print_exc()
-        sys.stdout.flush()
-        sys.stderr.flush()
-        raise
-    _log("run_voc_annotator: VOCAnnotatorWindow created, setting WA_DeleteOnClose and event loop")
-    win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    loop = QEventLoop()
-    win.destroyed.connect(lambda: _log("run_voc_annotator: window destroyed, event loop will exit"))
-    win.destroyed.connect(loop.quit)
-
-    def _do_show_immediate():
-        _log("run_voc_annotator: (immediate) setting geometry and showing (showNormal)")
-        app.processEvents()
-        win.setGeometry(100, 100, 1200, 800)
-        win.showNormal()
-        _log("run_voc_annotator: win.showNormal() returned")
-        app.processEvents()
-        win.setWindowState(Qt.WindowState.WindowActive)
-        win.raise_()
-        win.activateWindow()
-        app.processEvents()
-        _log("run_voc_annotator: (immediate) raise/activate done")
-
-    # Tk (or other host) drives Qt: show once then pump processEvents via schedule; no block.
+    """Open VOC Annotator window (Tk). When event_pump_schedule(callback, delay_ms) is provided, the host drives the UI loop; does not block. Otherwise blocks until window closed."""
+    root = getattr(tk, "_default_root", None)
+    created_root = False
+    if root is None:
+        root = tk.Tk()
+        root.withdraw()
+        created_root = True
+    win = VOCAnnotatorWindow(
+        images_dir=images_dir,
+        save_dir=save_dir,
+        classes=classes,
+        project_name=project_name,
+        config_path=config_path,
+        project_path=project_path,
+        parent=root,
+    )
     if event_pump_schedule is not None:
-        _do_show_immediate()
         def pump_once():
-            try:
-                app.processEvents()
-                if win.isVisible():
-                    event_pump_schedule(pump_once, 50)
-            except Exception:
-                pass
+            if not win.is_destroyed():
+                try:
+                    root.update()
+                except tk.TclError:
+                    pass
+                event_pump_schedule(pump_once, 50)
         event_pump_schedule(pump_once, 50)
-        _log("run_voc_annotator: event_pump_schedule started, returning (non-blocking)")
         return
-
-    # Standalone: show before event loop. Deferring to QTimer can cause showNormal() to block on Windows.
-    if created_app:
-        _do_show_immediate()
-        _log("run_voc_annotator: entering loop.exec() (block until window closed)")
-        loop.exec()
-    else:
-        def _do_show():
-            try:
-                _do_show_immediate()
-            except Exception as e:
-                _log("run_voc_annotator: win.showNormal() raised %s: %s" % (type(e).__name__, e))
-                import traceback
-                traceback.print_exc()
-                sys.stderr.flush()
-                loop.quit()
-                return
-        _log("run_voc_annotator: scheduling show() on first Qt event loop tick (avoids Tk/Qt focus issues)")
-        QTimer.singleShot(0, _do_show)
-        _log("run_voc_annotator: entering loop.exec() (block until window closed)")
-        loop.exec()
-    _log("run_voc_annotator: loop.exec() returned, exiting")
+    root.wait_window(win._win)
+    if created_root:
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass

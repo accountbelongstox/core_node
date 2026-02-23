@@ -1,8 +1,8 @@
-# VOC Annotator Design (pycore, PySide6, GameAISDK + YOLO compatible)
+# VOC Annotator Design (pycore, tkinter, GameAISDK + YOLO compatible)
 
 ## 1. Purpose
 
-Provide an in-project image annotation tool equivalent to labelImg, implemented in **pycore** with **PySide6** (project standard). Supports **rectangle** (VOC/GameAISDK detection), **polygon**, **ellipse**, **circle**, and **custom polygon** for segmentation/OBB. Output conforms to **GameAISDK** VOC XML (detection) and is exportable to **YOLO detection/segmentation** formats.
+Provide an in-project image annotation tool equivalent to labelImg, implemented in **pycore** with **tkinter** (Python standard library). Supports **rectangle** (VOC/GameAISDK detection), **polygon**, **ellipse**, **circle**, and **custom polygon** for segmentation/OBB. Output conforms to **GameAISDK** VOC XML (detection) and is exportable to **YOLO detection/segmentation** formats.
 
 References: labelImg; GameAISDK doc/YOLO/TrainDetModel.md; Ultralytics docs (detect: bbox; segment: polygon; NDJSON OBB); GameAISDK SDKTool shape (RECT, POLYGON, etc.); labelme (polygon/rectangle/circle/line/point).
 
@@ -13,7 +13,7 @@ References: labelImg; GameAISDK doc/YOLO/TrainDetModel.md; Ultralytics docs (det
 - **Project/config**: Open with **project_name** and **config_path** (passed by d3-check); load config **immediately**; **one project → multiple segments → shared classes**; add class names and persist to config.
 - **Class list**: Show **item names** from config; **click** one to set as current class for new shapes; can **add** class (saved to config); **one image** can be labeled with **multiple classes** by switching current class.
 - **Shapes**: Support **rectangle** (current), **polygon**, **ellipse**, **circle**, **custom polygon**; store per GameAISDK + YOLO conventions; export detection (VOC/YOLO bbox) and segmentation (YOLO polygon).
-- **Stack**: PySide6 only; third-party via pycore; code/comments in English.
+- **Stack**: tkinter only; third-party via pycore (PIL for images); code/comments in English.
 
 ## 3. LabelImg parity (reference)
 
@@ -78,24 +78,23 @@ This format is read by GameAISDK `voc_label.py` and `yolo_label_lib.voc_annotati
 - **Path**: `pycore/pyutils/voc_annotator/`
 - **Public API**:
   - `run_voc_annotator(images_dir: str, save_dir: Optional[str] = None, classes: Optional[List[str]] = None) -> None`
-    - Opens PySide6 window; loads image list from `images_dir`; save XMLs to `save_dir` (default `images_dir`); optional predefined `classes`.
-  - Optional: `get_pyside6_app()` if we need to run inside existing QApplication.
+    - Opens tkinter window; loads image list from `images_dir`; save XMLs to `save_dir` (default `images_dir`); optional predefined `classes`.
 - **Files**:
   - `__init__.py`: export `run_voc_annotator`, version.
   - `config.py`: load/save zoom and paths (JSON); default zoom 100.
   - `voc_io.py`: read image size; read/write VOC XML (GameAISDK detection).
   - `annotation_io.py`: load/save unified JSON (shapes: rectangle, polygon, ellipse, circle); export VOC XML from rectangles; `load_annotations`, `save_annotations`, `shapes_to_boxes`, `boxes_to_shapes`.
   - `project_config.py`: load/save project config (project_name, classes) at config_path.
-  - `main_window.py`: PySide6 QMainWindow – menu, toolbar (Zoom, Shape modes: Rect/Polygon/Ellipse/Circle, Save, Class list), thumbnail file list, class list, canvas.
-  - `canvas.py`: QWidget – draw shapes at scale; modes: rectangle (drag), polygon (click + Enter to close), ellipse/circle (drag); store shapes (shape_type, label, points, difficult); get_boxes/get_shapes for VOC and JSON.
+  - `main_window.py`: tkinter Toplevel – menu, toolbar (Zoom, Shape modes: Rect/Polygon/Ellipse/Circle, Save, Class list), class list, canvas, tables.
+  - `canvas.py`: tk.Canvas – draw shapes at scale; modes: rectangle (drag), polygon (click + Enter to close), ellipse/circle (drag); store shapes (shape_type, label, points, difficult); get_boxes/get_shapes for VOC and JSON.
   - `DESIGN.md`: this document.
 
-- **Dependencies**: PySide6 via `get_third_package_pyside6()` at top level; stdlib xml.etree.ElementTree for VOC; no PyQt5, no labelImg import.
+- **Dependencies**: tkinter (stdlib); PIL/Pillow via pycore third_party for image load/thumbnail; stdlib xml.etree.ElementTree for VOC; no PySide6, no PyQt5, no labelImg import.
 
 ## 7. Thread and app lifecycle
 
-- Run in main thread: `run_voc_annotator()` creates `QApplication` if not existing, then `MainWindow`, then `app.exec()`. Call from host (d3-check/GameAISDK) as a blocking call or from a dedicated process; if host already has Qt, we may accept an optional `QApplication` instance (future).
-- For d3-check: may be launched in-process (same process as Tk) or in subprocess. When run in-process, Windows may log "SetProcessDpiAwarenessContext() failed: Access is denied" because the process DPI context was already set by Tk; see §24 for the mitigation.
+- Run in main thread: `run_voc_annotator()` uses existing `tk._default_root` or creates `tk.Tk()`, then builds a `Toplevel` window. Blocks with `root.wait_window(win)` unless `event_pump_schedule` is provided (host-driven update loop). Call from host (d3-check/GameAISDK) as blocking or with `event_pump_schedule` for in-process Tk.
+- For d3-check: may be launched in-process (same process as host Tk) with `event_pump_schedule(root.after)` so the host event loop drives the annotator window.
 
 ## 8. Class list and predefined classes
 
@@ -266,7 +265,7 @@ Supported annotation shapes and how they map to GameAISDK / Ultralytics YOLO:
 
 | Item            | Choice                                                                 |
 |-----------------|------------------------------------------------------------------------|
-| GUI             | PySide6 (QMainWindow, QWidget canvas, QToolBar, QListWidget file list) |
+| GUI             | tkinter (Toplevel, Canvas, Frame toolbar, Listbox/Treeview) |
 | Default size    | 100% (1:1); configurable default in config                            |
 | Zoom            | Zoom in / Zoom out buttons; show percentage; persist to config         |
 | Config          | JSON under pycore user dir; keys: zoom_percent, last_images_dir, last_save_dir |
@@ -309,9 +308,6 @@ Supported annotation shapes and how they map to GameAISDK / Ultralytics YOLO:
 - **Card layout**: Each card shows the image at **100% of the card width** with proportional height (aspect ratio preserved); the **title (filename)** is displayed **below** the image; then the **Undo** button. Cards are resizable with the layout (size policy Expanding horizontally).
 - **Default class**: On startup, if the project has at least one class, the first class is selected in the class list and set as the default for drawing; the info area shows that class and its annotation color.
 
-## 24. Windows DPI (SetProcessDpiAwarenessContext failed)
+## 24. Windows DPI (tkinter)
 
-- **Symptom**: When the annotator runs in the same process as a host that already set DPI awareness (e.g. d3-check with Tk), Qt 6 may log: `SetProcessDpiAwarenessContext() failed: Access is denied` (Qt defaults to Per-Monitor DPI Aware V2; Windows allows only one such call per process).
-- **Mitigation**: Before creating `QApplication`, we set `QT_QPA_PLATFORM=windows:dpiawareness=1` (System DPI aware) when not already set, so Qt does not try to switch to Per-Monitor V2. See Qt 6 High DPI docs: https://doc.qt.io/qt-6/highdpi.html#configuring-windows (qt.conf `[Platforms] WindowsArguments = dpiawareness=0,1,2`).
-- **Optional**: If the warning persists, the user can add a `qt.conf` next to the Python executable with:
-  `[Platforms]` and `WindowsArguments = dpiawareness=1`.
+- The annotator uses tkinter only; no Qt/DPI conflict when run in the same process as a Tk host. Tk uses the process DPI context as set by the host or OS.

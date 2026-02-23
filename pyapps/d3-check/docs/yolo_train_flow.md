@@ -91,7 +91,7 @@
 | `flow1_new_segment` | 步骤1d 新段 |
 | `flow1_is_recording` | 步骤1 状态 |
 | `flow2_export_frames` | 步骤2 切图 |
-| `flow3_open_label_tool` | 步骤3 打开标注（TODO：GameAISDK/labelImg） |
+| `flow3_open_label_tool` | 步骤3 打开标注。当前为 Python Tk 开发；推荐由 UI 传 `project_path` + `tk_after`；`tk_after` 非空时子进程启动 voc_annotator，避免阻塞主循环。详见 docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md。 |
 | `flow4_clean_unlabeled` | 步骤4 整理（TODO：GameAISDK） |
 | `flow5_voc_to_yolo` | 步骤5 转换（TODO：GameAISDK voc_label） |
 | `flow6_get_train_config_paths` | 步骤6a 配置路径（TODO：GameAISDK） |

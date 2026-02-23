@@ -716,6 +716,9 @@ class LoginTryScreenshotController:
                     ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: activate_window...")
                     get_battlenet_manager().activate_window()
                     time.sleep(0.3)
+                    if op.is_loading_ui_visible():
+                        ColorPrint.gray("[LoginTryScreenshotController] 战网正在载入中，本 tick 跳过，下次 tick 再试")
+                        return False
                     ColorPrint.gray("[LoginTryScreenshotController] [D fast] progress: get_dynamic_state...")
                     on_login, disconnected, normal_available, *_ = op.get_dynamic_state()
                     if not normal_available:
@@ -756,6 +759,9 @@ class LoginTryScreenshotController:
                         continue
                     return False
                 time.sleep(1)
+                if op.is_loading_ui_visible():
+                    ColorPrint.gray("[LoginTryScreenshotController] 战网正在载入中，本 tick 跳过，下次 tick 再试")
+                    return False
 
                 # Branch by UI state (no screenshot/OCR/template)
                 ColorPrint.gray("[LoginTryScreenshotController] [D] progress: get_dynamic_state...")

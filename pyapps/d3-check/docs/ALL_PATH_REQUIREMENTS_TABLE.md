@@ -8,17 +8,16 @@
 
 ## 〇、新目录要求（设计文档与迁移脚本）
 
-以下来自 **pycore/pyutils/voc_annotator/DESIGN.md** 与 **scripts/migrate_structure.py**，是相对「旧」代码的**新**约定。
+以下与 **YOLO_UNIFIED_DIRECTORY_DESIGN.md**、**docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md** 一致；与 pycore voc_annotator DESIGN、migrate_structure 的对应关系见下表。
 
 | 来源 | 路径/规则 | 用途 |
 |------|-----------|------|
-| **voc_annotator DESIGN §9** | **标准路径** = `YOLO_RECORD_BASE_DIR/{client_type}`（如 `.../yolo_record/d4_game`）。其下**直接子目录**均为项目，列入下拉。 | 录制项目「要求放」的标准位置（与当前代码一致）。 |
-| **voc_annotator DESIGN §9** | **项目路径可任意**：默认用标准路径；**新建** = 选任意目录作项目根；**载入项目** = 选非标准目录，加入 **cache**（持久化在 `coord_calibration.yolo_project_list`）。 | 非标准路径不要求放在 data/yolo_record，但会进缓存供下拉使用。 |
-| **voc_annotator DESIGN §16** | **训练数据根**：`YOLO_DATA_ROOT`（如 `D:\programing\yolo_data`）。布局 **`{YOLO_DATA_ROOT}/{project_name}/{segment_id}/`**，其下 **images/**、**labels/**、**data.yaml**。 | 训练用目录（pycore yolo_data_layout 已实现）。 |
-| **migrate_structure.py** | **新训练数据结构**（3 层）：根 = `{d3-check}/.cache/training_data`。**1_sources/projects**（每项目下 patch_images）、**1_sources/shared/backgrounds**、**2_datasets/classification**、**2_datasets/detection**、**3_models/classification**、**3_models/detection**。 | 训练数据迁移后的「新」目录；旧 = `.cache/training_data/source/training_projects`。 |
-| **migrate_structure.py** | **旧训练数据**：`{d3-check}/.cache/training_data/source/training_projects/<project>/`（PNG 直接放项目下）。迁移后 → **1_sources/projects/<project>/patch_images/**。 | 迁移脚本的源/目标，与 YOLO 录制路径无关。 |
+| **YOLO_UNIFIED_DIRECTORY_DESIGN** | **唯一根** = **YOLO_DATA_ROOT**（环境变量或默认 `D:\programing\yolo_data`）。**项目树** = `{YOLO_DATA_ROOT}/{client_type}/{project_name}/`，其下直接子目录为段（segment_id），段内 record/、frames/、images/、labels/、data.yaml。 | 录制/项目/标注/训练统一根；与当前代码一致。 |
+| **voc_annotator DESIGN §9 对齐** | **标准路径** = `YOLO_DATA_ROOT/{client_type}`。其下**直接子目录**均为项目，列入下拉。**项目路径可任意**：载入非标准目录时加入 **cache**（`coord_calibration.yolo_project_list`）。 | 与 ALL_PATH 〇「YOLO 录制项目」一致。 |
+| **YOLO_UNIFIED / voc DESIGN §16 对齐** | **训练/段内布局**：`{YOLO_DATA_ROOT}/{client_type}/{project_name}/{segment_id}/` 下 **images/**、**labels/**、**data.yaml**。生成数据 = `_generated/`，训练用数据集 = `_datasets/`，模型 = `_models/`。 | 与 YOLO_UNIFIED_DIRECTORY_DESIGN 一致。 |
+| **migrate_structure.py** | 根 = `{d3-check}/.cache/training_data`：**1_sources/projects**、**2_datasets/**、**3_models/**。 | 迁移脚本用，与 YOLO_DATA_ROOT 项目树独立。 |
 
-小结：**新目录要求**里「要求放」的仍是 **YOLO_RECORD_BASE_DIR**（标准路径）；项目可建在任意目录（载入/新建进 cache）。**训练数据**有两套：① YOLO_DATA_ROOT（voc 标注/训练 layout）；② .cache/training_data 的 1_sources/2_datasets/3_models（迁移脚本的新结构）。
+小结：**要求放**的 YOLO 项目根 = **YOLO_DATA_ROOT**（非 d3-check 下的 data/yolo_record，已废弃 YOLO_RECORD_BASE_DIR）。项目可建在标准路径下或载入非标准路径进 cache。训练/生成数据均在 YOLO_DATA_ROOT 下或 .cache/training_data（迁移）。
 
 ---
 
@@ -27,9 +26,9 @@
 | 含义 | 变量/来源 | 实际指什么 | 用途 |
 |------|-----------|------------|------|
 | **应用项目根** | `share/project_path.py` 的 `_PROJECT_ROOT`、`get_project_root()`；`main.py` 的 `_project_dir`；`providor/constants/common.py` 的 `_ROOT_PATH` / `ROOT_DIR` | **pyapps/d3-check** 这个代码库的根目录 | 模板、脚本、导入路径等，都相对这个根。 |
-| **YOLO 录制项目** | `_yolo_current_project_path`、`project_path`（yolo_record / coordinate_calibration_panel） | **一个文件夹**，例如 `{d3-check}/data/yolo_record/d3_game/我的项目名`，其下有 `output/`、`patch_images` 等 | 录制输出目录、当前选中的「项目」、导出/标注时的工作目录。**要求放**的位置 = 在 `YOLO_RECORD_BASE_DIR` 下（即 `data/yolo_record/{client_type}/` 下）。 |
+| **YOLO 录制项目** | `_yolo_current_project_path`、`project_path`（yolo_record / coordinate_calibration_panel） | **一个文件夹**，例如 `{YOLO_DATA_ROOT}/battlenet/default` 或 `{YOLO_DATA_ROOT}/d3_game/我的项目名`，其下有段目录、`patch_images` 等 | 录制输出目录、当前选中的「项目」、导出/标注时的工作目录。**要求放**的位置 = 在 **YOLO_DATA_ROOT** 下（即 `{YOLO_DATA_ROOT}/{client_type}/{project_name}/`）。非标准路径可载入并进 cache（coord_calibration.yolo_project_list）。 |
 
-因此：**「要求放的项目路径」** = 把 **YOLO 录制项目文件夹** 放在 **`{d3-check}/data/yolo_record`** 下（再按 client_type 分子目录），**不是**「把东西放在 DATA_DIR」或「随便一个 data 目录」。
+因此：**「要求放的项目路径」** = 把 **YOLO 录制项目文件夹** 放在 **YOLO_DATA_ROOT** 下（再按 client_type、project_name 分子目录），与 YOLO_UNIFIED_DIRECTORY_DESIGN 一致。**不是** DATA_DIR（用户配置目录）或 d3-check 下的 data/yolo_record（旧表曾写，当前代码已用 YOLO_DATA_ROOT）。见 docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md。
 
 ---
 
@@ -37,8 +36,8 @@
 
 | 变量/路径 | 定义位置 | 实际路径 | 用途 |
 |-----------|----------|----------|------|
-| **YOLO_RECORD_BASE_DIR** | `d3utils/yolo_record.py:32` | **`{d3-check}/data/yolo_record`** | **唯一「要求放」目录**（与 voc_annotator DESIGN §9 标准路径一致）：录制/项目数据的标准根；其下按 client_type 分子目录（d3_game、d4_game、battlenet），每个子目录为一个 YOLO 录制项目。 |
-| _D3_CHECK_ROOT | `d3utils/yolo_record.py:14` | `pyapps/d3-check` | 推导 YOLO_RECORD_BASE_DIR、GameAISDK 等。 |
+| **YOLO_DATA_ROOT** | `pycore.pyutils.voc_annotator.yolo_data_layout` 或 `d3utils/yolo_record.py` fallback | **`os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data")`** | **YOLO 录制/项目/标注统一根**（与 YOLO_UNIFIED_DIRECTORY_DESIGN 一致）。项目树 = `{YOLO_DATA_ROOT}/{client_type}/{project_name}/`；其下按 client_type 分子目录（battlenet、d3_game、d4_game）。见 docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md §3.7。 |
+| _D3_CHECK_ROOT | `d3utils/yolo_record.py:14` | `pyapps/d3-check` | 推导 GameAISDK、pycore 等路径。 |
 | ROOT_DIR / _ROOT_PATH | `providor/constants/common.py:11,16` | `pyapps/d3-check` | 应用项目根，模板等相对路径基准。 |
 | TEMPLATE_DIR | `providor/constants/common.py:19` | `{ROOT_DIR}/images` | 模板图片。 |
 | CONFIG_PATH | `providor/providor_index.py:513` | `{providor}/template_config.json` | 模板配置 JSON。 |
@@ -88,8 +87,8 @@
 |-----------|----------|----------|------|
 | ROSBOT_GAMETOOLS_BASE | `providor/constants/d3.py:104` | **`D:\applications\GameTools`** | RoS-BoT 更新/安装根目录。 |
 | ROSBOT_TEMP_BASE_DIR | `d3utils/rosbot_update_manager.py:59` | `{ROSBOT_GAMETOOLS_BASE}/.tmp` | 更新临时目录。 |
-| YOLO_DATASET_BASE_DIR | `providor/constants/common.py:39` | **`D:\applications\GameTools\Yolo`** | 截图生成 YOLO 数据集输出根（yolo_dataset_YYYYMMDD_HHMMSS）。 |
-| YOLO_DATA_ROOT | `pycore/pyutils/voc_annotator/yolo_data_layout.py:19` | `os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data")` | 训练用目录根（data.yaml、images/、labels/，按 project_name/segment_id 布局）。 |
+| YOLO_DATA_ROOT | `providor/constants/common.py:40`（Path）或 pycore/yolo_record | 环境变量或默认 `D:\programing\yolo_data` | YOLO 统一根：项目树、生成数据、训练数据均在此下。见 YOLO_UNIFIED_DIRECTORY_DESIGN。 |
+| YOLO_DATASET_BASE_DIR | `providor/constants/common.py:42` | **`{YOLO_DATA_ROOT}/_generated/d3_game`** | 截图生成 YOLO 数据集输出（yolo_dataset_* 等）的默认根。 |
 
 ---
 
@@ -108,17 +107,17 @@
 
 | 类型 | 说明 |
 |------|------|
-| **「data」歧义** | **要求放**的目录是 **`{d3-check}/data/yolo_record`**（即 YOLO_RECORD_BASE_DIR），**不是** DATA_DIR（`~/.core_node/.d3check`）。DATA_DIR 是用户配置/缓存目录，名字带 data 但和「项目 data」无关。 |
-| **「项目」歧义** | **应用项目根** = d3-check 代码库根（ROOT_DIR / get_project_root）。**YOLO 录制项目** = 一个放在 data/yolo_record 下的**文件夹**。说「项目路径」时通常指后者；「要求放的项目路径」= 放在 data/yolo_record 下的项目文件夹。 |
-| **YOLO 三个根目录** | ① **YOLO_RECORD_BASE_DIR** = `{d3-check}/data/yolo_record` → 录制/当前项目**要求放**在这里。② **YOLO_DATASET_BASE_DIR** = `D:\applications\GameTools\Yolo` → 截图生成的数据集输出（yolo_dataset_*）。③ **YOLO_DATA_ROOT**（pycore）= `D:\programing\yolo_data`（或环境变量）→ 训练用 data.yaml/images/labels 根。三者用途不同、路径不同，不可混用。 |
+| **「data」歧义** | **YOLO 项目要求放**在 **YOLO_DATA_ROOT**（如 `D:\programing\yolo_data`）下，**不是** DATA_DIR（`~/.core_node/.d3check`）。DATA_DIR 是用户配置/缓存目录，名字带 data 但和「YOLO 项目 data」无关。 |
+| **「项目」歧义** | **应用项目根** = d3-check 代码库根（ROOT_DIR / get_project_root）。**YOLO 录制项目** = 一个放在 YOLO_DATA_ROOT 下的**文件夹**（`{client_type}/{project_name}/`）。说「项目路径」时通常指后者；「要求放的项目路径」= 放在 YOLO_DATA_ROOT 下的项目文件夹。 |
+| **YOLO 根目录** | **YOLO_DATA_ROOT**（pycore 或 yolo_record fallback）= 环境变量或默认 `D:\programing\yolo_data`，为录制/项目/标注/训练统一根（YOLO_UNIFIED_DIRECTORY_DESIGN）。**YOLO_DATASET_BASE_DIR**（providor）= `YOLO_DATA_ROOT/_generated/d3_game` 等 → 截图生成的数据集输出。旧文档曾写 YOLO_RECORD_BASE_DIR = d3-check/data/yolo_record，当前代码已统一为 YOLO_DATA_ROOT，见 YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md §3.7。 |
 | **ROSBOT 两处路径** | **ROSBOT_PATH**（Documents 下）= 日志/配置等用户侧目录。**ROSBOT_GAMETOOLS_BASE** = D 盘 GameTools = 程序安装/更新目录。不是冲突，但易混。 |
 | **脚本硬编码** | watch_rosbot_history 的 HISTORY_PATH、slot_line_scan_columns 的 TARGET_DIR、rosbot_extension_panel 的默认 GamesBot 路径：与 CONFIG/常量不一致，换环境会失效或歧义。 |
-| **旧 vs 新目录** | **旧** = 代码里唯一「要求放」= `YOLO_RECORD_BASE_DIR`（data/yolo_record）。**新**（DESIGN + 迁移）：标准路径同旧；项目可建在任意目录（载入/新建进 cache）；训练数据 = YOLO_DATA_ROOT（project/segment/images,labels,data.yaml）与 .cache/training_data 的 1_sources/2_datasets/3_models。不冲突，新设计在「标准路径」上与旧一致，并扩展了「非标准项目路径」与训练/迁移目录。 |
+| **旧 vs 新目录** | **当前代码**：YOLO 录制/项目根 = **YOLO_DATA_ROOT**（pycore 或 yolo_record fallback），项目树 = `{YOLO_DATA_ROOT}/{client_type}/{project_name}/`。非标准路径可载入并进 CONFIG cache。训练/生成数据 = YOLO_DATA_ROOT 下 _generated、_datasets、_models 等（YOLO_UNIFIED_DIRECTORY_DESIGN）。.cache/training_data 的 1_sources/2_datasets/3_models 为迁移脚本用。 |
 
 ---
 
 ## 七、小结：哪些是「要求放」的、什么是「项目」
 
-- **唯一「要求放」的目录**：**`{d3-check}/data/yolo_record`**（YOLO_RECORD_BASE_DIR）。约定：**YOLO 录制项目文件夹**应放在此目录下（再按 client_type 分子目录），不是用户目录下的 data，也不是 DATA_DIR。
+- **YOLO 项目「要求放」的目录**：**YOLO_DATA_ROOT**（如 `D:\programing\yolo_data` 或环境变量）。约定：**YOLO 录制项目文件夹**应放在 `{YOLO_DATA_ROOT}/{client_type}/{project_name}/` 下（YOLO_UNIFIED_DIRECTORY_DESIGN）；非标准路径可载入并进 CONFIG cache。不是 DATA_DIR（用户配置目录）。见 docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md。
 - **「项目」**：在 UI/录制流程里指 **YOLO 录制项目** = 上述目录下的一个子文件夹；在 share/project_path、main.py、ROOT_DIR 里指 **d3-check 应用项目根**。
 - 其他所有路径均为：用户数据、缓存、模板、RoS-BoT、YOLO 数据集输出、YOLO 训练根、脚本本地硬编码等，**非「要求放」的项目 data 路径**。

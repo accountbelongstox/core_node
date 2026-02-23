@@ -18,7 +18,7 @@
 |------|--------|--------|------|
 | **ONNX Runtime** | `onnxruntime` | `onnxruntime-gpu[cuda,cudnn]`，另装 `nvidia-cublas-cu12`、`tensorrt-cu12`（完整基础库，满足 CUDA EP + TensorRT EP） | 互斥安装；安装选型用 `get_ort_install_package()`；ensure 时由 onnx_runtime_capability 安装上述全部；检测是否已装用 `ORT_CPU_PKG` / `ORT_GPU_PKG`。 |
 | **CnOCR** | `cnocr[ort-cpu]` | `cnocr[ort-gpu]` | 选型用 `get_cnocr_pip_package()`。 |
-| **PyTorch** | 默认 pip（CPU） | `--index-url https://download.pytorch.org/whl/cu118`（third_party 中） | 不在 cpu_gpu_packages 中；由 `_ensure_torch_cuda_build_first()`（如被调用）使用 `PYTORCH_CUDA_INDEX_URL`。Ultralytics 等可能提示 cu121/cu124，项目未统一 PyTorch CUDA 版本。 |
+| **PyTorch** | 默认 pip（CPU） | `--index-url https://download.pytorch.org/whl/cu126`（third_party 中） | 不在 cpu_gpu_packages 中；由 `_ensure_torch_cuda_build_first()`（如被调用）使用 `PYTORCH_CUDA_INDEX_URL`。与 onnxruntime-gpu（CUDA 12）一致，推荐 cu126。 |
 | **PaddlePaddle** | `paddlepaddle` | 当前未用 GPU 安装路径 | `get_paddle_install_package()` 目前恒返回 CPU 包；GPU 需时可在此扩展。 |
 
 ---

@@ -91,7 +91,7 @@ class LocalCapabilities(BaseModel):
                         "model": "NVIDIA GeForce RTX 3060",
                         "memory": 12288,
                         "available": True,
-                        "cuda_version": "11.8"
+                        "cuda_version": "12.6"
                     },
                     "memory": {
                         "total": 16384,

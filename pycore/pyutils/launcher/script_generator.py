@@ -41,9 +41,9 @@ class ScriptGenerator:
         """
         bat_path = self.temp_dir / f'launch_terminal_{index}.bat'
         
-        # Format: wt.exe --pos "x,y" --size "cols.rows"
-        # Use start command to ensure window positioning works correctly
-        cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
+        # Format: wt.exe -w new --pos "x,y" --size "cols.rows"
+        # -w new forces a new window so each launch gets its own window (not tab in existing)
+        cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
         
         lines = [
             '@echo off',
@@ -125,7 +125,7 @@ class ScriptGenerator:
         arguments = ubuntu_shortcut.get('arguments', '')
         
         # Build command: Use Windows Terminal to launch Ubuntu with position and size
-        # Format: wt.exe --pos "x,y" --size "cols.rows" <target> <arguments>
+        # Format: wt.exe -w new --pos "x,y" --size "cols.rows" <target> <arguments>
         if target:
             # Combine target and arguments
             if arguments:
@@ -133,8 +133,8 @@ class ScriptGenerator:
             else:
                 ubuntu_cmd = target
             
-            # Use Windows Terminal to launch with position and size
-            cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" {ubuntu_cmd}'
+            # Use Windows Terminal to launch with position and size (-w new = new window)
+            cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}" {ubuntu_cmd}'
         else:
             # Fallback: try to launch shortcut directly (won't have position/size control)
             shortcut_path = ubuntu_shortcut.get('path', '')
@@ -142,7 +142,7 @@ class ScriptGenerator:
                 cmd = f'start "" "{shortcut_path}"'
             else:
                 # Last resort: try wsl.exe
-                cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" wsl.exe'
+                cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}" wsl.exe'
         
         lines = [
             '@echo off',

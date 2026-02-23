@@ -40,12 +40,16 @@ class OcrInitializer:
         run_pip_install: Callable[[str, Optional[str]], None],  # (package_name, index_url=None)
         clear_cnocr_cache: Callable[[], None],
         is_pip_package_installed: Callable[[str], bool],
+        verify_onnx_import: Optional[Callable[[], bool]] = None,
+        run_pip_install_force: Optional[Callable[[str], None]] = None,
     ):
         self._get_cnocr = get_cnocr
         self._run_pip_uninstall = run_pip_uninstall
         self._run_pip_install = run_pip_install
         self._clear_cnocr_cache = clear_cnocr_cache
         self._is_pip_package_installed = is_pip_package_installed
+        self._verify_onnx_import = verify_onnx_import if verify_onnx_import is not None else (lambda: True)
+        self._run_pip_install_force = run_pip_install_force
         self._done = False
         self._prewarmed: dict[str, Any] = {}
 
@@ -75,28 +79,67 @@ class OcrInitializer:
         Uninstall the other runtime only if installed; install target only if missing.
         Target: OCR on CUDA 12 (PyPI onnxruntime-gpu). When installing gpu, always use PyPI (CUDA 12).
         CUDA 12 DLLs (cublasLt64_12 etc.) are provided by ensure_onnx_cuda_usable via nvidia-cublas-cu12.
+        When switching to GPU: install (if needed) then verify import works; only then uninstall CPU so we never leave ORT broken.
         """
         use_gpu = CUDADetector.is_cuda_available()
         gpu_installed = self._is_pip_package_installed(ORT_GPU_PKG)
 
         need_uninstall, need_install = self._need_onnx_runtime_switch()
+        target_pkg = get_ort_install_package()
+
         if not need_uninstall and not need_install:
             ColorPrint.blue("[HF] No ONNX runtime switch needed (target already active).")
+            if use_gpu and not self._verify_onnx_import():
+                ColorPrint.blue("[HF] ORT GPU import check failed; force-reinstalling onnxruntime-gpu...")
+                if self._run_pip_install_force is not None:
+                    self._run_pip_install_force(target_pkg)
+                    if not self._verify_onnx_import():
+                        ColorPrint.yellow("[HF] ORT GPU still not importable; installing onnxruntime (CPU) so app can run.")
+                        self._run_pip_install(ORT_CPU_PKG)
+                        self._clear_cnocr_cache()
+                else:
+                    ColorPrint.yellow("[HF] ORT GPU import check failed; install onnxruntime (CPU) manually if needed.")
             return
-        if need_uninstall:
-            if use_gpu:
-                ColorPrint.blue("[HF] Uninstalling CPU-only onnxruntime before using ort-gpu...")
-                self._run_pip_uninstall(ORT_CPU_PKG)
-            else:
-                ColorPrint.blue("[HF] Uninstalling onnxruntime-gpu before using ort-cpu...")
-                self._run_pip_uninstall(ORT_GPU_PKG)
-        target_pkg = get_ort_install_package()
-        if need_install:
+
+        if use_gpu and need_uninstall and need_install:
+            # CPU installed, GPU not: pip usually requires uninstall CPU before installing GPU. Uninstall -> install -> verify; if verify fails restore CPU.
+            ColorPrint.blue("[HF] Uninstalling CPU-only onnxruntime before installing ort-gpu...")
+            self._run_pip_uninstall(ORT_CPU_PKG)
+            ColorPrint.blue("[HF] Installing onnxruntime-gpu[cuda,cudnn] for ort-gpu (CUDA 12)...")
+            self._run_pip_install(target_pkg)
+            if not self._verify_onnx_import():
+                ColorPrint.yellow("[HF] ORT GPU import check failed after install; restoring onnxruntime (CPU) so app can run.")
+                self._run_pip_install(ORT_CPU_PKG)
+            self._clear_cnocr_cache()
+            return
+        if need_install and not (use_gpu and need_uninstall):
             if use_gpu:
                 ColorPrint.blue("[HF] Installing onnxruntime-gpu[cuda,cudnn] for ort-gpu (CUDA 12)...")
             else:
                 ColorPrint.blue("[HF] Installing onnxruntime for ort-cpu...")
             self._run_pip_install(target_pkg)
+
+        if need_uninstall and use_gpu and not need_install:
+            # GPU already installed, CPU also listed by pip. Do NOT uninstall CPU here: both packages
+            # provide the same module name "onnxruntime" and share the same site-packages path;
+            # uninstalling onnxruntime (CPU) would remove the module files and break the current
+            # process (e.g. module has no attribute get_available_providers). Ensure import works
+            # and optionally force-reinstall GPU so disk state is correct; leave CPU package as-is.
+            if not self._verify_onnx_import():
+                if self._run_pip_install_force is not None:
+                    ColorPrint.blue("[HF] ORT GPU import check failed; force-reinstalling onnxruntime-gpu...")
+                    self._run_pip_install_force(target_pkg)
+                    if not self._verify_onnx_import():
+                        ColorPrint.yellow("[HF] ORT GPU still not importable after reinstall; installing onnxruntime (CPU) so app can run.")
+                        self._run_pip_install(ORT_CPU_PKG)
+                        self._clear_cnocr_cache()
+                else:
+                    ColorPrint.yellow("[HF] ORT GPU import check failed; install onnxruntime (CPU) manually if needed.")
+            # Skip CPU uninstall: avoid breaking shared onnxruntime module used by ort-gpu.
+        elif need_uninstall and not use_gpu:
+            ColorPrint.blue("[HF] Uninstalling onnxruntime-gpu before using ort-cpu...")
+            self._run_pip_uninstall(ORT_GPU_PKG)
+
         if need_uninstall or need_install:
             self._clear_cnocr_cache()
 

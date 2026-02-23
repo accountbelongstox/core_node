@@ -140,13 +140,16 @@ def flow3_open_label_tool(
     project_path: Optional[str] = None,
     tk_after: Optional[object] = None,
 ) -> Tuple[bool, str]:
-    """Step 3: Open VOC annotator UI. When tk_after is set (Tk host), launch annotator in subprocess to avoid Qt+Tk same-process crash on Windows. Otherwise project_path -> in-process; else images_dir -> GameAISDK launch_labelimg."""
+    """Step 3: Open VOC annotator UI. Call convention (see docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md).
+    App is Python Tk; UI passes project_path + tk_after (Tk root). When tk_after is set, launch annotator in subprocess so the main Tk loop stays responsive.
+    If project_path valid and tk_after None: in-process run_voc_annotator (if available). If no valid project_path but images_dir valid: GameAISDK launch_labelimg.
+    """
     ColorPrint.blue("[DEBUG] flow3_open_label_tool entry: project_path=%s, images_dir=%s, labels_output_dir=%s" % (project_path, images_dir, labels_output_dir))
     ColorPrint.blue("[DEBUG] flow3_open_label_tool: project_ok=%s" % bool(project_path and os.path.isdir(project_path)))
     if project_path and os.path.isdir(project_path):
         if tk_after is not None:
             annotator_images_dir = images_dir if (images_dir and os.path.isdir(images_dir)) else None
-            ColorPrint.blue("[DEBUG] flow3_open_label_tool: launching VOC annotator in subprocess (avoid Qt+Tk same process)")
+            ColorPrint.blue("[DEBUG] flow3_open_label_tool: launching VOC annotator in subprocess (Tk: keep main loop responsive)")
             ok, msg = _launch_voc_annotator_subprocess(project_path, annotator_images_dir)
             if not ok:
                 return False, msg or "Failed to start annotator process"

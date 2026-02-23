@@ -47,7 +47,11 @@ try:
         FRAMES_SUBDIR,
     )
 except ImportError:
-    YOLO_DATA_ROOT = os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data")
+    try:
+        from providor.constants import common as _providor_common
+        YOLO_DATA_ROOT = str(_providor_common.YOLO_DATA_ROOT)
+    except Exception:
+        YOLO_DATA_ROOT = os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data")
     get_yolo_data_root = None
     get_yolo_project_path = None
     get_yolo_segment_path = None

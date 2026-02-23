@@ -25,6 +25,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
 from pycore.pyfoundations.cuda_detector import CUDADetector
 from pycore.pyfoundations.cuda_initializer import CudaInitializer
+from pycore.pyfoundations.onnx_runtime_capability import last_ort_install_ran
 from pycore.pyfoundations.ocr_initializer import OcrInitializer
 from pycore.pyfoundations.safe_subprocess import subprocess
 from pycore.pyfoundations.pybasecommon.commander import Commander
@@ -210,6 +211,15 @@ OPTIONAL_PACKAGES = {
     "gi": "PyGObject",
 }
 
+# Windows-only optional: WinRT OCR (Windows.Media.Ocr). Multiple pip packages required; loaded via get_third_package_windows_ocr().
+WINDOWS_OCR_WINRT_PACKAGES = [
+    "winrt-Windows.Foundation",
+    "winrt-Windows.Media.Ocr",
+    "winrt-Windows.Graphics.Imaging",
+    "winrt-Windows.Storage.Streams",
+    "winrt-Windows.Globalization",
+]
+
 # Windows-only packages
 # IMPORTANT: DO NOT MODIFY - These packages are only available on Windows
 # The installation logic below automatically skips these on Linux/Mac
@@ -241,7 +251,7 @@ WINDOWS_ONLY_PACKAGES = {
 # This file only handles Python packages installable via pip
 
 # PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
-PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu118"
+PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu126"
 
 # ---------------------------------------------------------------------------
 # Pip / command execution: SINGLE COMMON PATH (per Python subprocess docs)
@@ -302,6 +312,39 @@ def _run_pip_install_for_ocr(package_name: str, index_url: Optional[str] = None)
     """
     pip_cmd = build_pip_install_command(package_name, index_url=index_url)
     run_pip_install_with_realtime_output(pip_cmd, package_name)
+
+
+def _run_pip_install_for_ocr_force(package_name: str) -> None:
+    """Run pip install <package_name> --force-reinstall. Used when ORT GPU is listed but import fails."""
+    pip_cmd = build_pip_install_command(package_name) + ["--force-reinstall"]
+    run_pip_install_with_realtime_output(pip_cmd, package_name)
+
+
+def _fix_ort_dependency_conflicts() -> None:
+    """
+    Run only when ORT GPU was just installed (last_ort_install_ran()). Pip may then report numba/osam conflicts.
+    Fix without version pinning: upgrade numba (may accept current numpy); reinstall osam --no-deps so it keeps using onnxruntime-gpu.
+    """
+    if not last_ort_install_ran():
+        return
+    if _is_pip_package_installed("numba"):
+        ColorPrint.blue("[HF] Reinstalling numba (no version pin) after ORT install...")
+        pip_cmd = build_pip_install_command("numba", upgrade=True)
+        run_pip_install_with_realtime_output(pip_cmd, "numba")
+    if _is_pip_package_installed("osam"):
+        ColorPrint.blue("[HF] Reinstalling osam with --no-deps (onnxruntime-gpu satisfies runtime)...")
+        pip_cmd = build_pip_install_command("osam", upgrade=True) + ["--no-deps"]
+        run_pip_install_with_realtime_output(pip_cmd, "osam")
+
+
+def _verify_onnx_import() -> bool:
+    """Return True if 'import onnxruntime as ort; ort.get_available_providers()' succeeds in a subprocess."""
+    proc = run_third_party_command(
+        [sys.executable, "-c", "import onnxruntime as ort; ort.get_available_providers()"],
+        capture_output=True,
+        timeout=30,
+    )
+    return proc is not None and proc.returncode == 0
 
 
 def _clear_cnocr_cache() -> None:
@@ -383,6 +426,29 @@ def _ensure_torch_cuda_build_first():
     importlib.invalidate_caches()
     if "torch" in sys.modules:
         del sys.modules["torch"]
+
+    # Verify CUDA torch actually loads (e.g. avoid WinError 127 from torch_cuda.dll). If not, install CPU build so app runs.
+    proc = run_third_party_command(
+        [sys.executable, "-c", "import torch"],
+        capture_output=True,
+        timeout=60,
+    )
+    if proc is not None and proc.returncode != 0:
+        err = (proc.stderr or "").strip() or (proc.stdout or "").strip()
+        ColorPrint.yellow(
+            "[CUDA] PyTorch CUDA build failed to load (e.g. WinError 127 / missing DLL). Installing CPU build so the app can run."
+        )
+        if err:
+            ColorPrint.yellow("[CUDA] Error: " + err[:400])
+        pip_cpu = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--force-reinstall"]
+        if current_platform != "Windows":
+            pip_cpu.extend(["--break-system-packages", "--ignore-installed"])
+        else:
+            pip_cpu.append("--no-user")
+        run_pip_install_with_realtime_output(pip_cpu, "torch (CPU fallback)")
+        importlib.invalidate_caches()
+        if "torch" in sys.modules:
+            del sys.modules["torch"]
 
 
 def build_pip_install_command(
@@ -1264,6 +1330,8 @@ _ocr_initializer = OcrInitializer(
     run_pip_install=_run_pip_install_for_ocr,
     clear_cnocr_cache=_clear_cnocr_cache,
     is_pip_package_installed=_is_pip_package_installed,
+    verify_onnx_import=_verify_onnx_import,
+    run_pip_install_force=_run_pip_install_for_ocr_force,
 )
 
 
@@ -1282,6 +1350,8 @@ def init_third_party_cnocr() -> bool:
     if hub is not None:
         _ensure_huggingface_cli_on_path()
     _cuda_initializer.run()
+    if last_ort_install_ran():
+        _fix_ort_dependency_conflicts()
     return _ocr_initializer.run()
 
 
@@ -1609,6 +1679,75 @@ def get_third_package_win32ui():
     return _PACKAGE_CACHE['win32ui']
 
 
+def get_third_package_windows_ocr():
+    """
+    Get Windows native OCR (WinRT Windows.Media.Ocr) types. Windows only; optional.
+    Returns a namespace-like object with: OcrEngine, SoftwareBitmap, BitmapPixelFormat,
+    Buffer, Language, BitmapAlphaMode. None if not Windows or import/install fails.
+    Ref: https://learn.microsoft.com/en-us/uwp/api/windows.media.ocr
+    """
+    if platform.system() != 'Windows':
+        return None
+    cache_key = 'windows_ocr'
+    if cache_key not in _PACKAGE_CACHE:
+        try:
+            from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
+            from winrt.windows.graphics.imaging import (
+                SoftwareBitmap,
+                BitmapPixelFormat,
+                BitmapAlphaMode,
+            )
+            from winrt.windows.storage.streams import Buffer
+            from winrt.windows.globalization import Language
+            from winrt.windows.foundation import IAsyncOperation
+            _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
+                'OcrEngine': OcrEngine,
+                'OcrResult': OcrResult,
+                'OcrLine': OcrLine,
+                'OcrWord': OcrWord,
+                'SoftwareBitmap': SoftwareBitmap,
+                'BitmapPixelFormat': BitmapPixelFormat,
+                'BitmapAlphaMode': BitmapAlphaMode,
+                'Buffer': Buffer,
+                'Language': Language,
+                'IAsyncOperation': IAsyncOperation,
+            })()
+        except (ImportError, ModuleNotFoundError):
+            for pkg in WINDOWS_OCR_WINRT_PACKAGES:
+                if not _is_pip_package_installed(pkg):
+                    ColorPrint.yellow(
+                        "[INSTALL] Windows OCR (WinRT) not found. Installing '%s'..." % pkg
+                    )
+                    pip_cmd = build_pip_install_command(pkg)
+                    run_pip_install_with_realtime_output(pip_cmd, pkg)
+            importlib.invalidate_caches()
+            try:
+                from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
+                from winrt.windows.graphics.imaging import (
+                    SoftwareBitmap,
+                    BitmapPixelFormat,
+                    BitmapAlphaMode,
+                )
+                from winrt.windows.storage.streams import Buffer
+                from winrt.windows.globalization import Language
+                from winrt.windows.foundation import IAsyncOperation
+                _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
+                    'OcrEngine': OcrEngine,
+                    'OcrResult': OcrResult,
+                    'OcrLine': OcrLine,
+                    'OcrWord': OcrWord,
+                    'SoftwareBitmap': SoftwareBitmap,
+                    'BitmapPixelFormat': BitmapPixelFormat,
+                    'BitmapAlphaMode': BitmapAlphaMode,
+                    'Buffer': Buffer,
+                    'Language': Language,
+                    'IAsyncOperation': IAsyncOperation,
+                })()
+            except (ImportError, ModuleNotFoundError):
+                _PACKAGE_CACHE[cache_key] = None
+    return _PACKAGE_CACHE[cache_key]
+
+
 def get_third_package_pywinauto():
     """Get pywinauto package (lazy load, Windows only)"""
     if 'pywinauto' not in _PACKAGE_CACHE:
@@ -1780,6 +1919,7 @@ __all__ = [
     'get_third_package_win32api',
     'get_third_package_win32process',
     'get_third_package_win32ui',
+    'get_third_package_windows_ocr',
     'get_third_package_pywinauto',
     'get_third_package_pygetwindow',
     'get_third_package_uiautomation',

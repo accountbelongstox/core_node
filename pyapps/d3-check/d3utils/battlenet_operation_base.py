@@ -34,6 +34,8 @@ from providor.constants.common import (
     BATTLE_NET_LOGIN_FAILED_PRIMARY_AUTOMATION_IDS,
     BATTLE_NET_LOGIN_FAILED_SECONDARY_AUTOMATION_IDS,
     BATTLE_NET_LOGIN_FAILED_KEYWORDS,
+    BATTLE_NET_LOADING_INDICATOR_CONTROL_TYPE,
+    BATTLE_NET_LOADING_INDICATOR_NAME_SUBSTRINGS,
 )
 
 pythoncom = get_third_package_pythoncom()
@@ -203,6 +205,54 @@ class BattlenetOperationBase:
 
     def activate_window(self) -> bool:
         return get_battlenet_manager().activate_window()
+
+    def _find_loading_indicator_by_structure(self) -> Optional[Dict[str, Any]]:
+        """Find first control matching reference structure: type=TextControl, name contains loading substring (EN/CN). One walk, return on first match."""
+        root = self._get_root_control()
+        if not root:
+            return None
+        subs = BATTLE_NET_LOADING_INDICATOR_NAME_SUBSTRINGS
+        type_ok = (BATTLE_NET_LOADING_INDICATOR_CONTROL_TYPE, "Text")
+        found: List[Optional[Dict[str, Any]]] = [None]
+
+        def walk(control, depth: int = 0):
+            if depth > 25 or found[0] is not None:
+                return
+            try:
+                ctype = (control.ControlTypeName or "").strip()
+                name = (control.Name or "").strip()
+                if ctype in type_ok:
+                    for sub in subs:
+                        if sub and sub in name:
+                            info = _safe_control_dict(control)
+                            if info:
+                                found[0] = info
+                            return
+                for child in control.GetChildren():
+                    walk(child, depth + 1)
+            except Exception:
+                pass
+
+        walk(root)
+        return found[0]
+
+    def is_loading_ui_visible(self) -> bool:
+        """True if BN shows 载入中 UI (structure: TextControl + loading name). Tick-driven: call once per tick."""
+        return self._find_loading_indicator_by_structure() is not None
+
+    def _has_loading_indicator(self, controls: List[Dict[str, Any]]) -> bool:
+        """True if any control matches BN loading UI: type TextControl and name contains loading substring (EN/CN)."""
+        subs = BATTLE_NET_LOADING_INDICATOR_NAME_SUBSTRINGS
+        type_ok = (BATTLE_NET_LOADING_INDICATOR_CONTROL_TYPE, "Text")
+        for c in controls or []:
+            ctype = (c.get("type") or "").strip()
+            if ctype not in type_ok:
+                continue
+            name = (c.get("name") or "").strip()
+            for sub in subs:
+                if sub and sub in name:
+                    return True
+        return False
 
     def _enumerate_controls(self) -> List[Dict[str, Any]]:
         _ensure_com()

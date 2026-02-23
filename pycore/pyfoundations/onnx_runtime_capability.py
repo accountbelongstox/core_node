@@ -93,7 +93,10 @@ def _probe_ort_cuda() -> bool:
         import onnxruntime as ort
     except ImportError:
         return False
-    if "CUDAExecutionProvider" not in ort.get_available_providers():
+    get_providers = getattr(ort, "get_available_providers", None)
+    if get_providers is None:
+        return False
+    if "CUDAExecutionProvider" not in get_providers():
         return False
     model_bytes = _make_minimal_onnx_bytes()
     if not model_bytes:
@@ -127,6 +130,15 @@ def is_onnx_cuda_usable() -> bool:
 _ORT_GPU_REQUIRED = ("nvidia-cublas-cu12",)
 
 
+# Set to True when _run_ensure_cuda12_packages actually ran pip install (did not skip). Used so dependency fix runs only when pip may have printed conflicts.
+_ort_install_ran_this_run: bool = False
+
+
+def last_ort_install_ran() -> bool:
+    """True if this process ran ORT GPU install (did not skip); used to run dependency fix only when pip may have shown conflicts."""
+    return _ort_install_ran_this_run
+
+
 def _run_ensure_cuda12_packages(
     run_pip_install: Optional[Callable[[str], None]],
     log: Callable[[str], None],
@@ -138,6 +150,8 @@ def _run_ensure_cuda12_packages(
     to avoid long/hanging installs; use CUDA EP only, or install tensorrt-cu12 manually if needed.
     When is_pip_package_installed is provided, skip pip install if ORT GPU and all _ORT_GPU_REQUIRED are already installed.
     """
+    global _ort_install_ran_this_run
+    _ort_install_ran_this_run = False
     if run_pip_install is None:
         return
     if is_pip_package_installed is not None:
@@ -152,6 +166,7 @@ def _run_ensure_cuda12_packages(
         run_pip_install(ort_pkg)
         for pkg in _ORT_GPU_REQUIRED:
             run_pip_install(pkg)
+        _ort_install_ran_this_run = True
     except Exception:
         pass
 

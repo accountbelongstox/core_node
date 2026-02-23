@@ -43,7 +43,7 @@ def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
             return ("cpu",), (
                 "PyTorch is CPU-only (not compiled with CUDA). "
                 "To use GPU: install CUDA build from https://pytorch.org/get-started/locally "
-                "(e.g. pip install torch --index-url https://download.pytorch.org/whl/cu118)."
+                "(e.g. pip install torch --index-url https://download.pytorch.org/whl/cu126)."
             )
         if not torch.cuda.is_available():
             return ("cpu",), (

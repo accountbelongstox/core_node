@@ -594,6 +594,8 @@ class CoordinateCalibrationPanel:
         self._last_record_port = port
         self._last_record_project_path = project_path
         if project_path:
+            self._yolo_current_project_path = os.path.normpath(project_path)
+            set_config_value_async(CONFIG_KEY_YOLO_CURRENT_PROJECT, self._yolo_current_project_path)
             self._update_yolo_project_dropdown()
         self._append_log(i18n_manager.get_ui_text("ui.coord_calibration.yolo_record_start_ok") or "Recording started")
         if project_path:
@@ -799,9 +801,13 @@ class CoordinateCalibrationPanel:
             return []
 
     def _get_yolo_current_project(self):
-        """Current project (namespace): explicit Create/Load path, or last record path, or default YOLO_DATA_ROOT/{client_type}/default."""
-        if getattr(self, '_yolo_current_project_path', None) and os.path.isdir(self._yolo_current_project_path) and is_valid_project_path(self._yolo_current_project_path):
-            return self._yolo_current_project_path
+        """Current project path. CONFIG is source of truth: sync from CONFIG then return valid path (or last record path or default). See docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md."""
+        saved = get_config_value_safe(CONFIG_KEY_YOLO_CURRENT_PROJECT, None) if get_config_value_safe else None
+        if saved and isinstance(saved, str) and saved.strip():
+            candidate = os.path.normpath(saved.strip())
+            if os.path.isdir(candidate) and is_valid_project_path(candidate):
+                self._yolo_current_project_path = candidate
+                return candidate
         if getattr(self, '_last_record_project_path', None) and os.path.isdir(self._last_record_project_path) and is_valid_project_path(self._last_record_project_path):
             return self._last_record_project_path
         default = get_default_project_path(self.current_client_type)

@@ -125,6 +125,17 @@ BATTLE_NET_LOGIN_FAILED_SECONDARY_AUTOMATION_IDS = ()
 BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel", "取消")
 BATTLE_NET_CONNECTING_AUTOMATION_IDS = ()
 BATTLE_NET_CONNECTING_KEYWORDS = ("Connecting", "连接中")
+# Battle.net "loading" UI: TextControl with name containing one of these (EN/CN). Wait until gone before D3 tab/Play.
+BATTLE_NET_LOADING_INDICATOR_CONTROL_TYPE = "TextControl"
+BATTLE_NET_LOADING_INDICATOR_NAME_SUBSTRINGS = (
+    "Update Agent",
+    "wake it up",
+    "Attempting to wake",
+    "战网",
+    "载入",
+    "正在启动",
+    "正在载入",
+)
 BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS = ("winCloseButton",)
 BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS = UI_NAME_KEYWORDS_CLOSE
 BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS = ("topLayerContainer.TopLayer.buttonContainer",)

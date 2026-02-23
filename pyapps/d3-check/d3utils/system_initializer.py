@@ -214,6 +214,17 @@ class SystemInitializer:
             if not ensure_cnocr_loaded_and_engines_initialized():
                 ColorPrint.yellow("[INIT] CnOCR load/init skipped or failed, OCR features may be limited")
 
+            # Windows: report native OCR (WinRT) availability (optional; app uses CnOCR for recognition)
+            if platform.system() == "win32":
+                try:
+                    from pycore.pyfoundations.third_party import get_third_package_windows_ocr
+                    if get_third_package_windows_ocr() is not None:
+                        ColorPrint.blue("[INIT] Windows OCR (WinRT) available (optional)")
+                    else:
+                        ColorPrint.gray("[INIT] Windows OCR (WinRT) not available (optional)")
+                except Exception:
+                    ColorPrint.gray("[INIT] Windows OCR (WinRT) not loaded (optional)")
+
             # Initialize hotkeys
             if not initialize_hotkeys():
                 ColorPrint.yellow("[INIT] Hotkey initialization had issues, but continuing...")

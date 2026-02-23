@@ -188,8 +188,10 @@ def _zip_already_extracted(
     zip_to_ppocr_model: Optional[Callable[[str], Optional[str]]],
 ) -> bool:
     """
-    Return True iff the model from this zip is already present at the path the library uses.
-    CnSTD/CnOCR load only from target_root/ppocr/<model_name>/ (see docstring at top). We scan that path only.
+    Return True iff the model from this zip is already present so we can skip download.
+    Checks: (1) target_root/ppocr/<model_name>/ (library path), (2) target_root/<stem>/,
+    (3) target_root/models/cnstd/1.2/<stem>/, (4) target_root/models/cnocr/2.3/<stem>/,
+    (5) any dir under target_root whose name contains model_name and has .onnx (HF zip layout may vary).
     """
     root = Path(target_root).resolve()
     if zip_to_ppocr_model is None:
@@ -198,8 +200,23 @@ def _zip_already_extracted(
     if not model_name:
         return False
     expect_dir = root / "ppocr" / model_name
-    has_onnx = _dir_has_onnx(expect_dir)
-    return has_onnx
+    if _dir_has_onnx(expect_dir):
+        return True
+    stem = zip_basename[:-4] if zip_basename.endswith(".zip") else zip_basename
+    candidates = [
+        root / stem,
+        root / CNSTD_SUBDIR / stem,
+        root / CNOCR_SUBDIR / stem,
+    ]
+    for d in candidates:
+        if d.is_dir() and _dir_has_onnx(d):
+            return True
+    if not root.is_dir():
+        return False
+    for d in root.rglob("*"):
+        if d.is_dir() and model_name in d.name and _dir_has_onnx(d):
+            return True
+    return False
 
 
 def _normalize_extract_to_ppocr(
@@ -241,6 +258,11 @@ def _normalize_extract_to_ppocr(
     if source_dir is None:
         for d in root.iterdir():
             if d.is_dir() and d.name != "ppocr" and _dir_has_onnx(d):
+                source_dir = d
+                break
+    if source_dir is None and root.is_dir():
+        for d in root.rglob("*"):
+            if d.is_dir() and model_name in d.name and _dir_has_onnx(d):
                 source_dir = d
                 break
     if source_dir is not None:
@@ -286,6 +308,7 @@ def _download_and_extract_zips_to(
             to_download = [rel for rel in zips if rel not in to_skip]
             for rel in to_skip:
                 ColorPrint.blue("[HF] Skip (already present): %s" % os.path.basename(rel))
+                _normalize_extract_to_ppocr(Path(target_root), os.path.basename(rel), zip_to_ppocr_model)
             if to_download:
                 ColorPrint.blue("[HF] Will download (allowlist):")
                 for z in to_download:

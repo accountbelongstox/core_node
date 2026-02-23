@@ -28,7 +28,7 @@ def _diagnose_torch_cuda():
         detail["cuda_compiled"] = getattr(torch.version, "cuda", None)
         detail["cuda_available"] = torch.cuda.is_available()
         if detail["cuda_compiled"] is None or (isinstance(detail["cuda_compiled"], str) and detail["cuda_compiled"] == ""):
-            return False, "PyTorch was built without CUDA (CPU-only build). To use GPU: install CUDA build from https://pytorch.org/get-started/locally (e.g. pip install torch --index-url https://download.pytorch.org/whl/cu118).", detail
+            return False, "PyTorch was built without CUDA (CPU-only build). To use GPU: install CUDA build from https://pytorch.org/get-started/locally (e.g. pip install torch --index-url https://download.pytorch.org/whl/cu126).", detail
         if not detail["cuda_available"]:
             return False, "PyTorch is CUDA-built but torch.cuda.is_available() is False (driver/runtime issue or no GPU). Check NVIDIA driver and CUDA runtime.", detail
         detail["device_count"] = torch.cuda.device_count()

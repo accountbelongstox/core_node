@@ -49,7 +49,6 @@ $script:SCRIPT_INSTALL_ENTRIES = @(
     @{ Key = "script:Step100_InstallDeepSeekOCR.ps1"; Display = "DeepSeek OCR" },
     @{ Key = "script:Step101_InstallQwen25.ps1"; Display = "Qwen 2.5" },
     @{ Key = "script:Step102_InstallNLLB200.ps1"; Display = "NLLB 200" },
-    @{ Key = "script:Step127_InstallWeChat.ps1"; Display = "WeChat (official page)" },
     @{ Key = "script:Step128_InstallCursorAgent.ps1"; Display = "CursorAgent" }
 )
 
