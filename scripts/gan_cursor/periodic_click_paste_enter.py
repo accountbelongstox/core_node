@@ -26,7 +26,7 @@ CLICK_COORDINATES = [
     (1372, 889,  1*60, 10, False, True),
     (1426, 1411,  1*60, 10, False, True),
     (453, 1637,  1*60, 10, False, True),
-    (2315, 418,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
+#    (2315, 418,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
 ]
 # 每组随机抽几条拼成「先输出A；先输出B；…」一次塞给 Cursor，比单条更耗 Token。
 WASTE_PHRASE_GROUP_SIZE_MIN = 5
