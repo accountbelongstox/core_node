@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace DotCore.Host.SimpleUi;
+namespace DotApps.SimpleUi;
 
 public partial class App : Application
 {

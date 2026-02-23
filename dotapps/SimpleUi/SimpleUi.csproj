@@ -3,8 +3,10 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <RootNamespace>DotApps.SimpleUi</RootNamespace>
+    <AssemblyName>SimpleUi</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\DotCore.UIInspect\DotCore.UIInspect.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.UIInspect\DotCore.UIInspect.csproj" />
   </ItemGroup>
 </Project>
