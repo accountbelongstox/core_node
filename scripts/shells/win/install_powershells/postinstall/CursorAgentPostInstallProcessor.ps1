@@ -65,6 +65,21 @@ function Get-RipgrepVersion {
     return ""
 }
 
+# Cursor IDE runs: node ...\AppData\Local\cursor-agent\versions\<version>\index.js
+# If that path is missing/corrupt (e.g. another install step removed it), idempotent skip would leave agent broken.
+function Test-AgentRuntimeIntact {
+    $versionsDir = Join-Path $env:LOCALAPPDATA "cursor-agent\versions"
+    if (-not (Test-Path $versionsDir -PathType Container)) { return $false }
+    try {
+        $versionDirs = Get-ChildItem -Path $versionsDir -Directory -ErrorAction SilentlyContinue
+        foreach ($dir in $versionDirs) {
+            $indexJs = Join-Path $dir.FullName "index.js"
+            if (Test-Path $indexJs -PathType Leaf) { return $true }
+        }
+    } catch { }
+    return $false
+}
+
 function Invoke-CursorAgentPostInstallProcessor {
     param(
         [Parameter(Mandatory = $true)]
@@ -92,9 +107,13 @@ function Invoke-CursorAgentPostInstallProcessor {
     $agentPresentBefore = Test-AgentCommandPresent
     $agentVerBefore = Get-AgentVersion
     $agentBroken = $agentPresentBefore -and (-not $agentVerBefore -or [string]::IsNullOrWhiteSpace($agentVerBefore))
-    $agentNeedInstall = -not $agentPresentBefore -or $agentBroken
+    $runtimeIntact = Test-AgentRuntimeIntact
+    $agentNeedInstall = -not $agentPresentBefore -or $agentBroken -or -not $runtimeIntact
     if ($agentBroken) {
         Write-Host "$LogPrefix Agent CLI in PATH but version check failed (broken); will attempt repair." -ForegroundColor Yellow
+    }
+    if (-not $runtimeIntact -and $agentPresentBefore) {
+        Write-Host "$LogPrefix Agent runtime missing or corrupt (no index.js under cursor-agent\versions); will re-run install." -ForegroundColor Yellow
     }
     if ($agentNeedInstall) {
         Write-Host "$LogPrefix Installing Cursor agent CLI (cursor + agent command)..." -ForegroundColor Cyan
