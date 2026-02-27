@@ -490,6 +490,13 @@ if ($exitCode -eq 0) {{
                 Write-Host "[BUILD] Failed to open Explorer: $_" -ForegroundColor Yellow
             }}
         }}
+        # Print adb install command for easy copy (use first release APK, else first found)
+        $apkForAdb = $foundApks | Where-Object {{ $_.ToString() -like '*release*.apk' }} | Select-Object -First 1
+        if (-not $apkForAdb) {{ $apkForAdb = $foundApks[0] }}
+        if ($apkForAdb) {{
+            Write-Host ""
+            Write-Host "[BUILD] ADB install (copy): adb install -r `"$apkForAdb`"" -ForegroundColor Cyan
+        }}
     }} else {{
         Write-Host "[BUILD] No APK files found in expected locations" -ForegroundColor Yellow
     }}
