@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.ButtonRecognizer</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\DotCore.Utils.ImageColor\DotCore.Utils.ImageColor.csproj" />
+    <ProjectReference Include="..\DotCore.Utils.ImageContours\DotCore.Utils.ImageContours.csproj" />
+    <ProjectReference Include="..\DotCore.Utils.ImageMorphology\DotCore.Utils.ImageMorphology.csproj" />
+    <ProjectReference Include="..\DotCore.Utils.ImagePreprocess\DotCore.Utils.ImagePreprocess.csproj" />
+    <ProjectReference Include="..\DotCore.Utils\DotCore.Utils.csproj" />
+    <ProjectReference Include="..\DotCore.TemplateMatcher\DotCore.TemplateMatcher.csproj" />
+    <ProjectReference Include="..\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.Windows" />
+  </ItemGroup>
+</Project>

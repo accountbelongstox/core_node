@@ -19,7 +19,7 @@ from providor.constants.d3 import (
     ROSBOT_DIR_NAMESPACE_CN,
 )
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 from d3utils.drive_order import get_fixed_drive_roots_for_scan
 
 # Log prefix for UI (ROSBOT log receives these via ColorPrint callback)
@@ -108,7 +108,8 @@ def _scan_dir(
 
 def _get_configured_battlenet_path() -> Optional[str]:
     """Return configured Battle.net path if non-empty and file exists, else None."""
-    path = (CONFIG.get("battlenet") or {}).get("battlenet_path", "").strip()
+    battlenet = get_config_section("battlenet")
+    path = battlenet.get("battlenet_path", "").strip()
     if not path or not os.path.isfile(path):
         return None
     if os.path.basename(path) != BATTLE_NET_EXE_NAME:
@@ -118,7 +119,8 @@ def _get_configured_battlenet_path() -> Optional[str]:
 
 def _get_configured_d3_path() -> Optional[str]:
     """Return configured D3 path if non-empty and file exists, else None."""
-    path = (CONFIG.get("d3") or {}).get("d3_path", "").strip()
+    d3 = get_config_section("d3")
+    path = d3.get("d3_path", "").strip()
     if not path or not os.path.isfile(path):
         return None
     if os.path.basename(path) != DIABLO_III_EXE_NAME:
@@ -128,7 +130,8 @@ def _get_configured_d3_path() -> Optional[str]:
 
 def _get_configured_ros_directory() -> Optional[str]:
     """Return configured ROSBOT directory if non-empty and dir exists, else None."""
-    path = (CONFIG.get("ros_settings") or {}).get("ros_directory", "").strip()
+    ros_settings = get_config_section("ros_settings")
+    path = ros_settings.get("ros_directory", "").strip()
     if not path or not os.path.isdir(path):
         return None
     return path

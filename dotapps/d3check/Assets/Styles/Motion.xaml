@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Fluent 2 motion: transition durations and easing. Use in styles/triggers for show/hide, list entrance. -->
+  <Duration x:Key="FluentMotionShort">0:0:0.15</Duration>
+  <Duration x:Key="FluentMotionNormal">0:0:0.25</Duration>
+  <Duration x:Key="FluentMotionLong">0:0:0.4</Duration>
+  <!-- Opacity transition for fade in/out -->
+  <Style x:Key="FluentContentFade" TargetType="ContentControl">
+    <Style.Triggers>
+      <Trigger Property="IsVisible" Value="True">
+        <Trigger.EnterActions>
+          <BeginStoryboard>
+            <Storyboard>
+              <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="{StaticResource FluentMotionNormal}"/>
+            </Storyboard>
+          </BeginStoryboard>
+        </Trigger.EnterActions>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+</ResourceDictionary>

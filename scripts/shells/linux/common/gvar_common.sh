@@ -329,6 +329,25 @@ _resolve_device_mount_path() {
     return 1
 }
 
+# Returns 0 if path is safe for recursive chown/chmod (not /, /usr, /etc, etc.). Prints path to stderr. Use before chown -R/chmod -R.
+safe_path_for_recursive_chown() {
+    local path="$1"
+    echo "[SAFE_PATH] path=$path" >&2
+    [ -z "$path" ] && return 1
+    case "$path" in
+        /) return 1;;
+        /usr|/usr/*) return 1;;
+        /etc|/etc/*) return 1;;
+        /bin|/bin/*) return 1;;
+        /sbin|/sbin/*) return 1;;
+        /lib|/lib/*) return 1;;
+        /var) return 1;;
+    esac
+    [[ "$path" != /* ]] && return 1
+    return 0
+}
+export -f safe_path_for_recursive_chown
+
 # Centralized path for persisted base data directory (used by bootstrap and project)
 BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
 
@@ -1245,10 +1264,20 @@ if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
     $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
 fi
 
-# Function to create script-specific temporary directory
+# Function to create script-specific temporary directory (restricted to /usr/tmp/<script_name>)
 create_script_temp_dir() {
     local script_name="$1"
+    # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
+    case "$script_name" in
+        */*|*..*) echo "[ERROR] create_script_temp_dir: invalid script_name (no / or ..): $script_name" >&2; return 1 ;;
+    esac
+    [ -z "$script_name" ] && echo "[ERROR] create_script_temp_dir: empty script_name" >&2 && return 1
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
+    # Ensure result is strictly under /usr/tmp (or configured GLOBAL_TEMP_DIR)
+    case "$script_temp_dir" in
+        /usr/tmp/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under /usr/tmp: $script_temp_dir" >&2; return 1 ;;
+    esac
 
     if [ ! -d "$script_temp_dir" ]; then
         $USE_SUDO mkdir -p "$script_temp_dir"

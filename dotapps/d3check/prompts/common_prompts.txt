@@ -1,0 +1,139 @@
+对比 tab[3] 与 PYTHON .\pyapps\d3-check\main.py 当前的完成情况，
+要求UI元素旅放置位置一样并补上技能是否是连续、单次等下拉项
+1：1参考  PYTHON .\pyapps\d3-check\main.py 中的逻辑（注意不是代码）                                                                                                                     
+对比 pycore\pyutils\voc_annotator 与 dot 当前完成情况，评估 dot 还差多少并补齐 UI 和业务逻辑；在 dotcore 中建立公共类库，按 1:1 参考 pycore 的架构逻辑（注意是逻辑不是代码），实现多 APP 共用公共库、子 APP 调用公共库组合成 d3 组织子类库的结构；同时必须使用工具查看 dot 官方差异化文档，最后修正代码与文档不一致的部分。
+
+现在的问题是为什么反复  继续 看，弄懂小窗探测，登陆页，各个wait页。先搞清楚亚服类库。
+按 1:1 参考 PYTHON .\pyapps\d3-check\main.py 和 pycore 的架构逻辑（注意是逻辑不是代码），按多 APP 共用公共库、子 APP 调用公共库的结构开发；注意数据中心化、同时必须使用工具查看 dot 官方差异化文档，最后修正代码与文档不一致的部分。
+并对比 PYTHON .\pyapps\d3-check\main.py 1：1
+完成DOT dotnet run --project dotapps\d3check\d3check.csproj           
+ 
+
+  ▶︎ Auto-run all commands (shift+tab to turn off)
+  
+调用工具查看Cursor AI项目规范和skill更新文档。
+
+请对当前项目结构与依赖进行全面核对，重点检查以下内容：
+
+dotcore 模块
+
+是否严格遵守架构规范，未引入任何子 APP 的类库。
+
+是否已完整包含所有应归属的公共类库（不存在公共类库遗漏在子 APP 中的情况）。
+
+是否不存在对子 APP 业务模块的反向依赖。
+
+子 APP 模块
+
+是否未放置“范围过宽”的公共类库（例如可被多个模块复用的工具类、基础能力组件等）。
+
+是否所有通用能力均通过依赖 dotcore 提供的公共类库 实现。
+
+是否不存在重复定义公共能力或私自维护公共组件的情况。
+
+依赖关系校验
+
+依赖方向是否为：子 APP → dotcore。
+
+是否存在跨子 APP 直接依赖。
+
+是否存在循环依赖。
+
+请输出核对结果，并明确列出：
+
+不符合规范的模块
+
+具体问题点
+
+调整建议
+
+风险等级（高 / 中 / 低）
+
+
+
+
+
+
+  1. ROSBOT Start/Stop 与战网类库
+
+  战网操作（亚服/国服分离，不混用）
+  • DotCore.D3Check 中新增：
+    • `IBattlenetOperation`：Region、Start、Close、ActivateWindow（与 Python
+      get_battlenet_operation() 返回的 Asia/CN 契约一致）
+    • `BattlenetOperationAsia`（DotCore.D3Check.Battlenet）：仅亚服
+    • `BattlenetOperationCn`：仅国服
+    • `BattlenetOperationFactory.GetOperation(region)`：仅根据 "asia" / "cn"
+      返回对应实现，不混用
+  • Start/Close/ActivateWindow 当前为占位实现，后续可接 BattlenetManager + UI 自动化。
+
+  启动前检测区服
+  • 点击 Start ROSBOT 时：
+    1. 先解析区服：BattlenetRegionDetection.DetectRegion()（读
+       %APPDATA%\Battle.net\Battle.net.config 的
+       Services.LastLoginRegion，CN→"cn"，其它→"asia"）
+    2. 若读不到则用配置 ros_settings.battlenet_region_cache
+    3. 若仍无区服则提示无法启动，不设 flow
+    4. 有区服则：GameInterfaceData.SetBattlenetRegion(region)，必要时写入
+       ros_settings.battlenet_region_cache，再
+       SetRosbotFlowMasterEnabled(true)、SetRosbotStatus(true)，按钮切为 Stop
+  • Stop：SetRosbotFlowMasterEnabled(false)、SetRosbotStatus(false)，按钮切回 Start。
+
+  GameInterfaceData（与 Python game_interface_data 一致）
+  • SetBattlenetRegion(string?)、SetRosbotStatus(bool)、SetRosbotFlowMasterEnabled(bool)
+  • GameInterfaceStateSnapshot 增加 RosbotFlowMasterEnabled
+  • RosbotPanel 注册 GameInterfaceData 回调，用 UpdateRosbotControlFromState() 刷新
+    Start/Stop 按钮文案
+
+  配置
+  • ConfigKeys.RosSettingsBattlenetRegionCache = "ros_settings.battlenet_region_cache"
+
+  逻辑对齐 Python：main.py → controller → runtime/task → ensure_battlenet_region_from_config
+  + get_battlenet_operation(region)，以及 rosbot_extension_panel 的 Start/Stop/flow_master。
+
+  ────────────────────────────────────────
+
+
+
+  2. Voc Annotator：pycore vs dot 对比与差距
+
+  • 在 development-guides/DOT_VOC_ANNOTATOR_PROGRESS.md 中新增 §6 Gap assessment：
+    • 公共库：voc_io、annotation_io、project_config、config 与 DotCore.VocAnnotator 已 1:1
+      对应，无缺口
+    • Dot 应用当前为「仅矩形」canvas；pycore 还有 polygon/ellipse/circle，若需完全一致可在
+      dotapps/VocAnnotator 的 canvas 上补齐
+    • waterfall_flow / annotation_table 与 Dot 的列表/表格在行为上等价
+
+
+  ────────────────────────────────────────
+
+
+
+  3. 文档与架构（与 DOT_ARCHITECTURE / SKILL / DOT_UI 一致）
+
+  • development-guides/DOT_ARCHITECTURE.md：在 §1 中补充
+    DotCore.D3Check、DotCore.VocAnnotator 的目录与职责说明
+  • development-guides/DOT_UI_PROJECT_SPECIFICATION.md、.cursor/rules/dot-ui.mdc：dotapps UI（WPF/MAUI/Blazor）**规范以该文档为准**，遵循 Clean Architecture + MVVM + Fluent 2
+  • dotcore/DESIGN.md：项目列表与角色表中加入 DotCore.D3Check、DotCore.VocAnnotator
+  • dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md：增加 DotCore.D3Check 行与 §4.8（Battle.net
+    Asia/CN、GameInterfaceData、BattlenetRegionDetection、Factory）
+
+
+  ────────────────────────────────────────
+
+
+
+  4. 尚未实现（与 Python 的差异）
+
+  • 扩展线程/1s tick：Python 的 rosbot_task 定时驱动 flow、log 分析等；Dot
+    侧尚未接后台任务，仅更新了状态与按钮。
+  • Ensure Battle.net 按钮：仅刷新 i18n 文案，未接 flow 的 “BN only” 模式。
+  • BattlenetOperation Start/Close/ActivateWindow：仍为占位，需在 app 中接 BattlenetManager
+     与 UI 自动化（如 FlaUI）后再实现。
+
+  关闭正在运行的 d3check 后再执行 dotnet build dotcore/dotcore.sln 即可完整通过；当前 dotnet
+  build dotcore/DotCore.D3Check/DotCore.D3Check.csproj 已成功。
+
+Voc Annotator 与 dot 找到本类的中的项目设计不完整
+   的地方，调用工具查看yolo文档，以及本项目的annotator的数据结构。数据传递等。以及是否逻
+  辑自洽，代码一致（不使用命令行，而是使用类库引入Annotator）。
+   直到没有发现问题。这次换思路检测，调用工具查看官方推荐的设计文档。

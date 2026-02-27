@@ -2,6 +2,73 @@
   "version": 3,
   "targets": {
     "net8.0": {
+      "Microsoft.Win32.SystemEvents/8.0.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net6.0/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          }
+        }
+      },
+      "Paddle.Runtime.win_x64/3.3.0.1": {
+        "type": "package",
+        "build": {
+          "build/_._": {}
+        }
+      },
+      "PaddleOCRSharp/6.1.0": {
+        "type": "package",
+        "dependencies": {
+          "Paddle.Runtime.win_x64": "3.3.0.1",
+          "System.Drawing.Common": "8.0.7"
+        },
+        "compile": {
+          "lib/net8.0/PaddleOCRSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/PaddleOCRSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/PaddleOCRSharp.targets": {}
+        }
+      },
+      "System.Drawing.Common/8.0.7": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "8.0.0"
+        },
+        "compile": {
+          "lib/net8.0/System.Drawing.Common.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/System.Drawing.Common.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net6.0/_._": {}
+        }
+      },
       "DotCore.Common/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v8.0",
@@ -28,6 +95,166 @@
     }
   },
   "libraries": {
+    "Microsoft.Win32.SystemEvents/8.0.0": {
+      "sha512": "9opKRyOKMCi2xJ7Bj7kxtZ1r9vbzosMvRrdEhVhDz8j8MoBGgB+WmC94yH839NPH+BclAjtQ/pyagvi/8gDLkw==",
+      "type": "package",
+      "path": "microsoft.win32.systemevents/8.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net461/Microsoft.Win32.SystemEvents.targets",
+        "buildTransitive/net462/_._",
+        "buildTransitive/net6.0/_._",
+        "buildTransitive/netcoreapp2.0/Microsoft.Win32.SystemEvents.targets",
+        "lib/net462/Microsoft.Win32.SystemEvents.dll",
+        "lib/net462/Microsoft.Win32.SystemEvents.xml",
+        "lib/net6.0/Microsoft.Win32.SystemEvents.dll",
+        "lib/net6.0/Microsoft.Win32.SystemEvents.xml",
+        "lib/net7.0/Microsoft.Win32.SystemEvents.dll",
+        "lib/net7.0/Microsoft.Win32.SystemEvents.xml",
+        "lib/net8.0/Microsoft.Win32.SystemEvents.dll",
+        "lib/net8.0/Microsoft.Win32.SystemEvents.xml",
+        "lib/netstandard2.0/Microsoft.Win32.SystemEvents.dll",
+        "lib/netstandard2.0/Microsoft.Win32.SystemEvents.xml",
+        "microsoft.win32.systemevents.8.0.0.nupkg.sha512",
+        "microsoft.win32.systemevents.nuspec",
+        "runtimes/win/lib/net6.0/Microsoft.Win32.SystemEvents.dll",
+        "runtimes/win/lib/net6.0/Microsoft.Win32.SystemEvents.xml",
+        "runtimes/win/lib/net7.0/Microsoft.Win32.SystemEvents.dll",
+        "runtimes/win/lib/net7.0/Microsoft.Win32.SystemEvents.xml",
+        "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.dll",
+        "runtimes/win/lib/net8.0/Microsoft.Win32.SystemEvents.xml",
+        "useSharedDesignerContext.txt"
+      ]
+    },
+    "Paddle.Runtime.win_x64/3.3.0.1": {
+      "sha512": "RF/jsupI2sNWPBhlGQVWxtATeDVGSec+JgMGOXWDVre9wb1Ut2nmkSmNYS5hmoltFO3QlDB7x7Rb5NOqMmqnVw==",
+      "type": "package",
+      "path": "paddle.runtime.win_x64/3.3.0.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "build/Paddle.Runtime.win_x64.targets",
+        "build/win_x64/concrt140.dll",
+        "build/win_x64/libiomp5md.dll",
+        "build/win_x64/mkldnn.dll",
+        "build/win_x64/mklml.dll",
+        "build/win_x64/msvcp140.dll",
+        "build/win_x64/msvcp140_1.dll",
+        "build/win_x64/msvcp140_2.dll",
+        "build/win_x64/opencv_world470.dll",
+        "build/win_x64/paddle_inference.dll",
+        "build/win_x64/paddle_yt_common.dll",
+        "build/win_x64/paddle_yt_phi.dll",
+        "build/win_x64/tbb12.dll",
+        "build/win_x64/tbbmalloc.dll",
+        "build/win_x64/tbbmalloc_proxy.dll",
+        "build/win_x64/vcamp140.dll",
+        "build/win_x64/vccorlib140.dll",
+        "build/win_x64/vcomp140.dll",
+        "build/win_x64/vcruntime140.dll",
+        "build/win_x64/vcruntime140_1.dll",
+        "build/win_x64/yaml-cpp.dll",
+        "build/win_x64/ytcputools.exe",
+        "ico.png",
+        "paddle.runtime.win_x64.3.3.0.1.nupkg.sha512",
+        "paddle.runtime.win_x64.nuspec"
+      ]
+    },
+    "PaddleOCRSharp/6.1.0": {
+      "sha512": "EztTzk/K+Q6POK3LFxKNTWO+EBBDWrcdoJbY0hrePF1dVuFe6BQVScsGQYD78jvPb2tFZFVVkizTP4T+OILMqg==",
+      "type": "package",
+      "path": "paddleocrsharp/6.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "build/PaddleOCRSharp.targets",
+        "build/ytLib/PaddleOCR.dll",
+        "build/ytLib/inference/PaddleOCR.config.json",
+        "build/ytLib/inference/PaddleOCRStructure.config.json",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_cls_infer/inference.json",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_cls_infer/inference.pdiparams",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_cls_infer/inference.yml",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_det_infer/inference.json",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_det_infer/inference.pdiparams",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_det_infer/inference.yml",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_rec_infer/inference.json",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_rec_infer/inference.pdiparams",
+        "build/ytLib/inference/yt_PP-OCRv5_mobile_rec_infer/inference.yml",
+        "build/ytLib/inference/yt_SLANet_plus_infer/inference.json",
+        "build/ytLib/inference/yt_SLANet_plus_infer/inference.pdiparams",
+        "build/ytLib/inference/yt_SLANet_plus_infer/inference.yml",
+        "ico.png",
+        "lib/net10.0/PaddleOCRSharp.dll",
+        "lib/net10.0/PaddleOCRSharp.xml",
+        "lib/net40/PaddleOCRSharp.dll",
+        "lib/net40/PaddleOCRSharp.xml",
+        "lib/net45/PaddleOCRSharp.dll",
+        "lib/net45/PaddleOCRSharp.xml",
+        "lib/net461/PaddleOCRSharp.dll",
+        "lib/net461/PaddleOCRSharp.xml",
+        "lib/net47/PaddleOCRSharp.dll",
+        "lib/net47/PaddleOCRSharp.xml",
+        "lib/net48/PaddleOCRSharp.dll",
+        "lib/net48/PaddleOCRSharp.xml",
+        "lib/net6.0/PaddleOCRSharp.dll",
+        "lib/net6.0/PaddleOCRSharp.xml",
+        "lib/net7.0/PaddleOCRSharp.dll",
+        "lib/net7.0/PaddleOCRSharp.xml",
+        "lib/net8.0/PaddleOCRSharp.dll",
+        "lib/net8.0/PaddleOCRSharp.xml",
+        "lib/net9.0/PaddleOCRSharp.dll",
+        "lib/net9.0/PaddleOCRSharp.xml",
+        "lib/netstandard2.0/PaddleOCRSharp.dll",
+        "lib/netstandard2.0/PaddleOCRSharp.xml",
+        "paddleocrsharp.6.1.0.nupkg.sha512",
+        "paddleocrsharp.nuspec"
+      ]
+    },
+    "System.Drawing.Common/8.0.7": {
+      "sha512": "DoeBae0gZvxs3mtfoub6F1k28fSkFPzmhFuvblplKMnLYKmTMVy0j4Yxahh96KM532JzHGDxhJn1VpMKSB1pyg==",
+      "type": "package",
+      "path": "system.drawing.common/8.0.7",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net461/System.Drawing.Common.targets",
+        "buildTransitive/net462/_._",
+        "buildTransitive/net6.0/_._",
+        "buildTransitive/netcoreapp2.0/System.Drawing.Common.targets",
+        "lib/MonoAndroid10/_._",
+        "lib/MonoTouch10/_._",
+        "lib/net462/System.Drawing.Common.dll",
+        "lib/net462/System.Drawing.Common.pdb",
+        "lib/net462/System.Drawing.Common.xml",
+        "lib/net6.0/System.Drawing.Common.dll",
+        "lib/net6.0/System.Drawing.Common.pdb",
+        "lib/net6.0/System.Drawing.Common.xml",
+        "lib/net7.0/System.Drawing.Common.dll",
+        "lib/net7.0/System.Drawing.Common.pdb",
+        "lib/net7.0/System.Drawing.Common.xml",
+        "lib/net8.0/System.Drawing.Common.dll",
+        "lib/net8.0/System.Drawing.Common.pdb",
+        "lib/net8.0/System.Drawing.Common.xml",
+        "lib/netstandard2.0/System.Drawing.Common.dll",
+        "lib/netstandard2.0/System.Drawing.Common.pdb",
+        "lib/netstandard2.0/System.Drawing.Common.xml",
+        "lib/xamarinios10/_._",
+        "lib/xamarinmac20/_._",
+        "lib/xamarintvos10/_._",
+        "lib/xamarinwatchos10/_._",
+        "system.drawing.common.8.0.7.nupkg.sha512",
+        "system.drawing.common.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
     "DotCore.Common/1.0.0": {
       "type": "project",
       "path": "../DotCore.Common/DotCore.Common.csproj",
@@ -42,7 +269,8 @@
   "projectFileDependencyGroups": {
     "net8.0": [
       "DotCore.Common >= 1.0.0",
-      "DotCore.Foundations >= 1.0.0"
+      "DotCore.Foundations >= 1.0.0",
+      "PaddleOCRSharp >= 6.1.0"
     ]
   },
   "packageFolders": {
@@ -52,17 +280,19 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\programing\\core_node\\dotcore\\src\\DotCore.Utils\\DotCore.Utils.csproj",
+      "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj",
       "projectName": "DotCore.Utils",
-      "projectPath": "D:\\programing\\core_node\\dotcore\\src\\DotCore.Utils\\DotCore.Utils.csproj",
+      "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj",
       "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
-      "outputPath": "D:\\programing\\core_node\\dotcore\\src\\DotCore.Utils\\obj\\",
+      "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
+        "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+        "D:\\programing\\core_node\\NuGet.Config",
         "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
@@ -71,17 +301,18 @@
         "net8.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {}
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "D:\\programing\\core_node\\dotcore\\src\\DotCore.Common\\DotCore.Common.csproj": {
-              "projectPath": "D:\\programing\\core_node\\dotcore\\src\\DotCore.Common\\DotCore.Common.csproj"
+            "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+              "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
             },
-            "D:\\programing\\core_node\\dotcore\\src\\DotCore.Foundations\\DotCore.Foundations.csproj": {
-              "projectPath": "D:\\programing\\core_node\\dotcore\\src\\DotCore.Foundations\\DotCore.Foundations.csproj"
+            "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+              "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
             }
           }
         }
@@ -101,8 +332,19 @@
     "frameworks": {
       "net8.0": {
         "targetAlias": "net8.0",
+        "dependencies": {
+          "PaddleOCRSharp": {
+            "target": "Package",
+            "version": "[6.1.0, )",
+            "versionCentrallyManaged": true
+          }
+        },
         "centralPackageVersions": {
-          "FlaUI.UIA3": "5.0.0"
+          "FlaUI.UIA3": "5.0.0",
+          "OpenCvSharp4.Extensions": "4.10.0.20240616",
+          "OpenCvSharp4.Windows": "4.10.0.20240616",
+          "PaddleOCRSharp": "6.1.0",
+          "System.Drawing.Common": "8.0.0"
         },
         "imports": [
           "net461",

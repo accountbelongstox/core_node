@@ -11,7 +11,7 @@ from typing import Any, Dict
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 from d3utils.macro_config_loader import get_macro_config_loader
 
 
@@ -30,7 +30,10 @@ def get_current_skill_config() -> Dict[str, Any]:
 
 def get_skill_config_by_name(config_name: str) -> Dict[str, Any]:
     """Return skill config dict for the given config name (read from CONFIG)."""
-    configs = CONFIG.get("macro_configs", {}).get("skill_configs", {})
+    macro_configs = get_config_section("macro_configs")
+    configs = macro_configs.get("skill_configs", {})
+    if not isinstance(configs, dict):
+        configs = {}
     out = dict(configs.get(config_name, {}))
     if "skills" not in out:
         out["skills"] = {}

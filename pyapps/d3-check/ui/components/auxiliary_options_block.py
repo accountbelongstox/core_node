@@ -11,7 +11,7 @@ Config: ui_analysis.bag_offset.*, macro_configs.auxiliary_config.*.
 import tkinter as tk
 from typing import Any, List, Optional, Tuple
 
-from providor.providor_index import CONFIG, queue_config_save
+from providor.providor_index import CONFIG, get_config_section, queue_config_save
 from providor.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 from ui.unified_styles import UnifiedStyles
@@ -41,7 +41,10 @@ def create_auxiliary_options_block(parent: tk.Widget) -> tk.Frame:
 
 def _create_bag_offset_row(block: tk.Frame) -> None:
     """Row 0: offset label + one Entry (t,l,b,r). Uses OffsetInputHelper: focus loss -> comma display, non-numeric merged as comma."""
-    bag = CONFIG.get("ui_analysis", {}).get("bag_offset", {})
+    ui_analysis = get_config_section("ui_analysis")
+    bag = ui_analysis.get("bag_offset", {})
+    if not isinstance(bag, dict):
+        bag = {}
     pad = _PAD
     font_s = UnifiedStyles.FONTS["small"]
     t0 = bag.get("top", 0)

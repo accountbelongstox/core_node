@@ -45,7 +45,7 @@ from providor.constants.d3 import (
     BATTLE_NET_D3_SMALL_MAP_SOURCE_FILENAME,
     BATTLE_NET_D3_SMALL_MAP_TEMPLATE_NAME,
 )
-from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS, CONFIG
+from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS, get_config_section
 from pycore.pyutils.common.window_finder import WindowFinder
 from share.game_interface_data import (
     get_game_interface_data,
@@ -566,7 +566,7 @@ class LoginTryScreenshotController:
                 get_game_interface_data().set_d3_status(True)
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
-                if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                if get_config_section("ros_settings").get("auto_start_rosbot", True) and get_rosbot_manager().start():
                     set_f3_rosbot_started_at()
                     fn = get_start_rosbot_task()
                     if fn:
@@ -588,7 +588,7 @@ class LoginTryScreenshotController:
                 get_game_interface_data().set_d3_status(True)
                 get_rosbot_manager().kill_if_running()
                 time.sleep(1)
-                if CONFIG.get("ros_settings", {}).get("auto_start_rosbot", True) and get_rosbot_manager().start():
+                if get_config_section("ros_settings").get("auto_start_rosbot", True) and get_rosbot_manager().start():
                     set_f3_rosbot_started_at()
                     fn = get_start_rosbot_task()
                     if fn:

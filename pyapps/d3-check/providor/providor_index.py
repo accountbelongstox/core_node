@@ -527,6 +527,14 @@ CONFIG = {}
 # Single control for first load: avoid dual "if not CONFIG" in load_config vs initialize_config
 _config_initialized = False
 
+
+def get_config_section(key: str, default: Optional[dict] = None) -> dict:
+    """Return CONFIG[key] only if it is a dict; otherwise return default or {}. Avoids 'str' object has no attribute 'get' when config value is wrong type."""
+    if default is None:
+        default = {}
+    val = CONFIG.get(key, default)
+    return val if isinstance(val, dict) else default
+
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
 
@@ -914,11 +922,12 @@ HISTORY_FILE_RELATIVE = "RoS-BoT/Logs/history.txt"
 
 def get_dynamic_paths():
     """Get paths that depend on DOCUMENTS_PATH."""
+    paths = get_config_section("paths")
     return {
-        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_relative", "RoS-BoT")),
-        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_logs_relative", "RoS-BoT/Logs")),
-        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("d3check_temp_relative", ".d3check")),
-        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
+        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_relative", "RoS-BoT")),
+        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_logs_relative", "RoS-BoT/Logs")),
+        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, paths.get("d3check_temp_relative", ".d3check")),
+        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
         'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, LOGS_FILE_RELATIVE),
         'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, HISTORY_FILE_RELATIVE),
     }

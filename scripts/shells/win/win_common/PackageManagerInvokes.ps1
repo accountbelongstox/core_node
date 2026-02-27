@@ -4123,6 +4123,9 @@ function Invoke-PowerShellCommand {
     catch {
         $errorMsg = $_.Exception.Message
         Write-DebugLog -Message "Error installing PowerShell package $PackageName - $errorMsg" -Category "POWERSHELL" -Color "Red"
+        if ($PackageName -eq "CursorAgent" -and $errorMsg -match "denied|Access to the path") {
+            Write-Host "       [POWERSHELL] Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
+        }
         return $null
     }
 }

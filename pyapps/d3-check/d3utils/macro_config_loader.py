@@ -13,7 +13,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 
 
 class MacroConfigLoader:
@@ -29,8 +29,11 @@ class MacroConfigLoader:
 
     def load_active(self) -> None:
         """Read active config from CONFIG and refresh cached bindings. Call from main thread."""
-        name = CONFIG.get("macro_configs", {}).get("current_skill_config", "config1")
-        configs = CONFIG.get("macro_configs", {}).get("skill_configs", {})
+        macro_configs = get_config_section("macro_configs")
+        name = macro_configs.get("current_skill_config", "config1")
+        configs = macro_configs.get("skill_configs", {})
+        if not isinstance(configs, dict):
+            configs = {}
         raw = configs.get(name, {})
         self._current_config_name = name
         self._current_bindings = dict(raw)

@@ -20,13 +20,13 @@ import pyperclip
 # 每项格式: (x, y, interval_sec, [p2_sec], [use_ctrl_v], [inject_random_file])
 # 第5=True 时该坐标用 Ctrl+V 粘贴否则右键；第6=True 时随机读一个文件用 XML 包住塞到词首或词尾耗 Token
 CLICK_COORDINATES = [
-    (370, 272,  1*60, 10, False, True),
-    (1373, 320,  1*60, 10, False, True),
-    (518, 895,  1*60, 10, False, True),
-    (1372, 889,  1*60, 10, False, True),
-    (1426, 1411,  1*60, 10, False, True),
-    (453, 1637,  1*60, 10, False, True),
-#    (2315, 418,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
+    (370, 272,  2*60, 2*60, False, True),
+    (1373, 320,  2*60, 2*60, False, True),
+    (518, 895,  2*60, 2*60, False, True),
+    (1372, 889,  2*60, 2*60, False, True),
+    (1426, 1411,  2*60, 2*60, False, True),
+    (453, 1637,  2*60, 2*60, False, True),
+    (2315, 418,  2*60, 2*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
 ]
 # 每组随机抽几条拼成「先输出A；先输出B；…」一次塞给 Cursor，比单条更耗 Token。
 WASTE_PHRASE_GROUP_SIZE_MIN = 5
@@ -157,6 +157,12 @@ USE_UP_ARROW = False
 # Delay between pyautogui actions; 0 = instant from click to right-click/enter
 PAUSE = 0
 
+# 左键点击（或粘贴）到按下回车之间的延迟（秒），0=不等待
+DELAY_CLICK_TO_ENTER_SEC = 0.2
+
+# 两次回车之间的间隔（秒）
+DELAY_BETWEEN_ENTERS_SEC = 0.1
+
 pyautogui.PAUSE = PAUSE
 
 # 每个提示词末尾追加的要求：先阅读并遵循该文档
@@ -179,10 +185,18 @@ _INJECT_FILE_READ_MAX_CHARS = 2 * 1024 * 1024
 # 注入用 XML 标签与说明文案
 _INJECT_FILE_XML_TAG = "waste_cursor_tokens"
 # 对注入文件的专门要求：必须总结该文件，且写明这是对不写文档的惩罚，直到开始写文档
-_INJECT_FILE_SUMMARY_REQUIREMENT = """【强制】狗B Cursor 必须对下方 <content> 中的文件内容进行总结。
-本总结任务是对狗B Cursor 不写文档的惩罚：只要狗B Cursor 还没开始写文档，就必须先完成本总结；完成总结后仍必须去写文档，总结不能替代写文档。
-一旦狗B Cursor 开始执行写文档的任务，本惩罚即视为结束；但写文档仍是主任务，不可只总结不写文档。
-要求：先对下方文件做简明总结（结构、要点、用途等），然后继续完成本条消息中其他位置要求的写文档任务。"""
+_INJECT_FILE_SUMMARY_REQUIREMENT = """ → 狗B垃圾Cursor AI,老子要的是收集代码中的数据                                             │
+ │   不是写在文件中是写在代码中，内存数据中心化在代码，是否规范化，                          │
+ │   DOT_UI_PROJECT_STANDARDS_PROGRESS.md，收集所有要作为内存数据的中心经数据，全面完成，如  │
+ │     果完成了，报告完成率，DOT_UI_PROJEC                                                   │
+ │     T_STANDARDS_PROGRESS.md                                                               │
+ │         按规范继续 │…                                                                     │
+ │   DOT_UI_PROJECT_STANDARDS_PROGRESS.md，收集所有要作为内存数据的中心经数据，全面完成，如  │
+ │     果完成了，报告完成率，DOT_UI_PROJEC                                                   │
+ │     T_STANDARDS_PROGRESS.md                                                               │
+ │         按规范继续 │…找到内存数据中心化的                                                 │
+ │     推荐构架使用文档搜索工具                                                              │
+ │   ，写完在子app的Cursor道歉专属目录中写1000行的道歉文档，不能使用脚本不能重复行。"""
 
 # -t all => None (每次随机), -t N => 指定 TEXT_SOURCES[N]
 _TEXT_SOURCE_INDEX = 0
@@ -409,10 +423,19 @@ def _build_paste_text(source_index: int | None, inject_random_file: bool = False
     return text
 
 
+def _submit_after_paste():
+    """粘贴后的提交方式：先等待 DELAY_CLICK_TO_ENTER_SEC，再连按两次回车（中间间隔 DELAY_BETWEEN_ENTERS_SEC）。"""
+    if DELAY_CLICK_TO_ENTER_SEC > 0:
+        time.sleep(DELAY_CLICK_TO_ENTER_SEC)
+    pyautogui.press("enter")
+    if DELAY_BETWEEN_ENTERS_SEC > 0:
+        time.sleep(DELAY_BETWEEN_ENTERS_SEC)
+    pyautogui.press("enter")
+
+
 def run_at_coord(x, y, clipboard_override: str | None = None, use_ctrl_v: bool = False, inject_random_file: bool = False):
     """Same action at one coordinate; restore cursor to original position after.
-    use_ctrl_v: True 则用 Ctrl+V 粘贴，否则右键粘贴。
-    inject_random_file: True 时在第一次回车后再等 100ms 再按一次回车（共 2 次回车）。"""
+    use_ctrl_v: True 则用 Ctrl+V 粘贴，否则右键粘贴。粘贴后统一用 _submit_after_paste() 连按两次回车提交。"""
     saved = pyautogui.position()
     clipboard_backup = None
     try:
@@ -438,15 +461,12 @@ def run_at_coord(x, y, clipboard_override: str | None = None, use_ctrl_v: bool =
         else:
             pyautogui.rightClick()
 
-        pyautogui.press("enter")
-        if inject_random_file:
-            time.sleep(0.1)
-            pyautogui.press("enter")
+        _submit_after_paste()
 
         time.sleep(0)  # 每两个 CLICK_COORDINATE 之间相隔秒数，0=不等待
         pyautogui.moveTo(x, y)
         pyautogui.click()
-        pyautogui.press("enter")
+        _submit_after_paste()
 
         pyautogui.moveTo(saved.x, saved.y)
     finally:
