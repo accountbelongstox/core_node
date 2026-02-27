@@ -410,10 +410,31 @@ ensure_project_cloned() {
         return 1
     fi
 
-    echo "  $USE_SUDO chown -R $(whoami):$(whoami) $CORE_NODE_PROJECT_ROOT"
-    $USE_SUDO chown -R "$(whoami):$(whoami)" "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
-    echo "  $USE_SUDO chmod -R 755 $CORE_NODE_PROJECT_ROOT"
-    $USE_SUDO chmod -R 755 "$CORE_NODE_PROJECT_ROOT" 2>/dev/null || true
+    # Validate and print project root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
+    local project_root="$CORE_NODE_PROJECT_ROOT"
+    echo "  [SAFE_PATH] project_root=$project_root"
+    if [ -z "$project_root" ]; then
+        log_err "project_root is empty; skipping chown/chmod to avoid system damage"
+        return 0
+    fi
+    case "$project_root" in
+        /) log_err "project_root is /; refusing chown/chmod"; return 0;;
+        /usr|/usr/*) log_err "project_root under /usr; refusing chown/chmod"; return 0;;
+        /etc|/etc/*) log_err "project_root under /etc; refusing chown/chmod"; return 0;;
+        /bin|/bin/*) log_err "project_root under /bin; refusing chown/chmod"; return 0;;
+        /sbin|/sbin/*) log_err "project_root under /sbin; refusing chown/chmod"; return 0;;
+        /lib|/lib/*) log_err "project_root under /lib; refusing chown/chmod"; return 0;;
+        /var) log_err "project_root is /var; refusing chown/chmod"; return 0;;
+    esac
+    if [[ "$project_root" != /* ]]; then
+        log_err "project_root is not absolute: $project_root; refusing chown/chmod"
+        return 0
+    fi
+
+    echo "  $USE_SUDO chown -R $(whoami):$(whoami) $project_root"
+    $USE_SUDO chown -R "$(whoami):$(whoami)" "$project_root" 2>/dev/null || true
+    echo "  $USE_SUDO chmod -R 755 $project_root"
+    $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
     return 0
 }
 

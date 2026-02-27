@@ -14,7 +14,7 @@ from collections import deque
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, LOGS_FILE_PATH
+from providor.providor_index import get_config_section, LOGS_FILE_PATH
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.d3_manager import get_d3_manager
@@ -40,11 +40,13 @@ def register_login_try_callback(cb: Callable[[], None]) -> None:
 
 def _get_login_try_trigger() -> str:
     """Trigger string for login-try screenshot (from config, else default constant)."""
-    return CONFIG.get("log_detection", {}).get("login_try", LOGIN_TRY_TRIGGER_DEFAULT)
+    log_detection = get_config_section("log_detection")
+    return log_detection.get("login_try", LOGIN_TRY_TRIGGER_DEFAULT)
 
 
 def _smart_echo_enabled() -> bool:
-    return bool(CONFIG.get("rosbot", {}).get("smart_echo", False))
+    rosbot = get_config_section("rosbot")
+    return bool(rosbot.get("smart_echo", False))
 
 
 # --- Smart echo trigger logic (no "Game ended") ---
@@ -159,7 +161,8 @@ class LogAnalyzer:
         # Temple of the Firstborn: in-memory counter _firstborn_objective_count; when UI "firstborn blue gate reuse" on, only odd count updates map.
         if "Objective RunLogic: Temple of the Firstbor" in line:
             self._firstborn_objective_count += 1
-            firstborn_reuse = bool(CONFIG.get("rosbot", {}).get("firstborn_blue_gate_reuse", False))
+            rosbot = get_config_section("rosbot")
+            firstborn_reuse = bool(rosbot.get("firstborn_blue_gate_reuse", False))
             is_odd = (self._firstborn_objective_count % 2 == 1)
             if not firstborn_reuse or is_odd:
                 self.game_state.set_map_type("firstborn_temple")

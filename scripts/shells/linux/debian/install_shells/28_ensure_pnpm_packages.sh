@@ -30,6 +30,9 @@ fi
 
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 
+# Fallback registry when registry.npmjs.org returns 403 (e.g. network/proxy/geo restriction)
+FALLBACK_REGISTRY="https://registry.npmmirror.com/"
+
 migrate_old_npm_installation() {
     local old_base_dir=$(map_web_path "dev_system_old")
 
@@ -134,31 +137,46 @@ ensure_package() {
 
     echo "[$SCRIPT_INDEX] Installing $package..."
 
-    # Special handling for puppeteer
-    if [ "$package" = "puppeteer" ]; then
-        # Install puppeteer with PUPPETEER_SKIP_DOWNLOAD to avoid chromium installation
-        # This is safer and faster than trying to install system chromium
-        if PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions add -g "$package"; then
-            echo "[$SCRIPT_INDEX] $package installed successfully"
-            echo "[$SCRIPT_INDEX] Note: Puppeteer installed in skip-download mode. Chromium binary will be downloaded on first use."
-            return 0
+    do_install() {
+        if [ "$package" = "puppeteer" ]; then
+            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions add -g "$package"
         else
-            echo "[$SCRIPT_INDEX] Failed to install $package"
-            return 1
+            run_pnpm_from_common_functions add -g "$package"
         fi
-    else
-        # Install regular package
-        if run_pnpm_from_common_functions add -g "$package"; then
-            echo "[$SCRIPT_INDEX] $package installed successfully"
+    }
+
+    local install_out
+    local install_ret
+    install_out=$(do_install 2>&1)
+    install_ret=$?
+    if [ "$install_ret" -eq 0 ]; then
+        echo "[$SCRIPT_INDEX] $package installed successfully"
+        return 0
+    fi
+    if echo "$install_out" | grep -qE '403|Forbidden|ERR_PNPM_FETCH_403'; then
+        echo "[$SCRIPT_INDEX] Install failed with 403, retrying with fallback registry..."
+        run_pnpm_from_common_functions config set registry "$FALLBACK_REGISTRY"
+        local user_home="${HOME:-/root}"
+        local pnpmrc_path="$user_home/.pnpmrc"
+        if [ -f "$pnpmrc_path" ]; then
+            local enable_scripts
+            enable_scripts=$(run_pnpm_from_common_functions config get enable-pre-post-scripts 2>/dev/null || echo "true")
+            printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$FALLBACK_REGISTRY" "$enable_scripts" > "$pnpmrc_path"
+        fi
+        if do_install; then
+            echo "[$SCRIPT_INDEX] $package installed successfully (via fallback registry)"
             return 0
-        else
-            echo "[$SCRIPT_INDEX] Failed to install $package"
-            return 1
         fi
     fi
+    echo "[$SCRIPT_INDEX] Failed to install $package"
+    return 1
 }
 
 echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
+
+# Idempotent: every step runs on each invocation. We only skip at finest granularity
+# (e.g. skip installing a single package when it is already installed). Re-running
+# repairs partial failures (e.g. previous run failed on 403 for some packages).
 
 migrate_old_npm_installation
 
@@ -231,7 +249,29 @@ EOF
     fi
 }
 
-# Ensure pnpm is installed first (bootstrap)
+# Test registry access; on 403/Forbidden or fetch failure, switch to fallback registry (no auth required).
+ensure_registry_accessible() {
+    local view_out
+    local view_ret
+    view_out=$(run_pnpm_from_common_functions view npm version 2>&1)
+    view_ret=$?
+    if [ "$view_ret" -eq 0 ] && [ -n "$view_out" ] && ! echo "$view_out" | grep -qE '403|Forbidden|ERR_PNPM_FETCH_403'; then
+        echo "[$SCRIPT_INDEX] Registry access OK: $(run_pnpm_from_common_functions config get registry)"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Registry returned 403 or unreachable, switching to fallback: $FALLBACK_REGISTRY"
+    run_pnpm_from_common_functions config set registry "$FALLBACK_REGISTRY"
+    local user_home="${HOME:-/root}"
+    local pnpmrc_path="$user_home/.pnpmrc"
+    if [ -f "$pnpmrc_path" ]; then
+        local enable_scripts
+        enable_scripts=$(run_pnpm_from_common_functions config get enable-pre-post-scripts 2>/dev/null || echo "true")
+        printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$FALLBACK_REGISTRY" "$enable_scripts" > "$pnpmrc_path"
+    fi
+    echo "[$SCRIPT_INDEX] Fallback registry configured"
+}
+
+# Ensure pnpm is installed first (bootstrap). Do not skip later steps when pnpm already exists.
 echo "[$SCRIPT_INDEX] Ensuring pnpm is installed..."
 
 # Check if pnpm exists using absolute path
@@ -261,8 +301,10 @@ else
     fi
 fi
 
+# Always run: re-apply config and registry so re-run repairs wrong or missing config.
 # Configure pnpm global directories
 configure_pnpm_global_dirs
+ensure_registry_accessible
 
 echo "[$SCRIPT_INDEX] Checking currently installed global packages..."
 
@@ -306,45 +348,33 @@ PACKAGES_JSON+="}"
 echo "[$SCRIPT_INDEX] Checking packages using Node.js script..."
 echo "[$SCRIPT_INDEX] Package mapping: $PACKAGES_JSON"
 
-# Use Node.js script to check which packages are missing
+# Always run: try to install/repair every listed package; ensure_package skips only when that package is already installed and linked.
 if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
     echo "[$SCRIPT_INDEX] Using Node.js script for package detection..."
     MISSING_PACKAGES=$(node "$CHECK_PACKAGES_SCRIPT" check "$PACKAGES_JSON")
     
     if [ -n "$MISSING_PACKAGES" ] && [ "$MISSING_PACKAGES" != "[]" ]; then
         echo "[$SCRIPT_INDEX] Missing packages detected: $MISSING_PACKAGES"
-        
-        # Parse missing packages and install them
-        echo "$MISSING_PACKAGES" | jq -r '.[]' | while read -r package; do
-            if [ -n "$package" ]; then
-                echo "[$SCRIPT_INDEX] Installing missing package: $package"
-                if ! ensure_package "$package"; then
-                    echo "[$SCRIPT_INDEX] Failed to install $package"
-                fi
-            fi
-        done
-    else
-        echo "[$SCRIPT_INDEX] All required packages are already installed"
     fi
+fi
+
+# Iterate all packages every run so re-run repairs partial failures; ensure_package skips only when that package is already installed.
+failed_packages=()
+for install_name in "${!PACKAGES[@]}"; do
+    if ! ensure_package "$install_name"; then
+        failed_packages+=("$install_name")
+    fi
+done
+
+if [ ${#failed_packages[@]} -gt 0 ]; then
+    echo "[$SCRIPT_INDEX] Failed to install packages: ${failed_packages[*]}"
 else
-    echo "[$SCRIPT_INDEX] Warning: check_global_packages.js not found, falling back to individual package checking..."
-    failed_packages=()
-    
-    for install_name in "${!PACKAGES[@]}"; do
-        if ! ensure_package "$install_name"; then
-            failed_packages+=("$install_name")
-        fi
-    done
-    
-    if [ ${#failed_packages[@]} -gt 0 ]; then
-        echo "[$SCRIPT_INDEX] Failed to install packages: ${failed_packages[*]}"
-    else
-        echo "[$SCRIPT_INDEX] All packages installed successfully"
-    fi
+    echo "[$SCRIPT_INDEX] All packages installed successfully"
 fi
 
 echo "[$SCRIPT_INDEX] Package installation process completed"
 
+# Always run: create/repair symlinks for all global binaries (no skip; idempotent).
 # Function to verify pnpm configuration
 verify_pnpm_config() {
     echo ""
@@ -386,15 +416,15 @@ handle_node_binaries() {
         if [ -n "$pnpm_bin_dir" ] && [ -d "$pnpm_bin_dir" ]; then
             echo "[$SCRIPT_INDEX] pnpm global bin directory: $pnpm_bin_dir"
 
-            # Create symlinks for all binaries in pnpm global bin directory
+            # Create or repair symlinks for all binaries; compare canonical paths for idempotency.
             for binary in "$pnpm_bin_dir"/*; do
                 if [ -f "$binary" ] && [ -x "$binary" ]; then
                     binary_name=$(basename "$binary")
+                    real_binary=$(readlink -f "$binary" 2>/dev/null || echo "$binary")
 
-                    # Skip if symlink already exists and points to correct location
                     if [ -L "/usr/local/bin/$binary_name" ]; then
-                        local current_target=$(readlink "/usr/local/bin/$binary_name")
-                        if [ "$current_target" = "$binary" ]; then
+                        current_target=$(readlink -f "/usr/local/bin/$binary_name" 2>/dev/null || readlink "/usr/local/bin/$binary_name")
+                        if [ -n "$current_target" ] && [ "$current_target" = "$real_binary" ]; then
                             continue
                         fi
                     fi
@@ -413,6 +443,7 @@ handle_node_binaries() {
     fi
 }
 
+# Always run: create/repair symlinks and verify config (no skip; idempotent).
 # Handle binary links
 echo "[$SCRIPT_INDEX] Setting up pnpm global package symlinks..."
 handle_node_binaries

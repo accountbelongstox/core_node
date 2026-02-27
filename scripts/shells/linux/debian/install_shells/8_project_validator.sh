@@ -220,9 +220,29 @@ restore_project() {
                 return 1
             fi
 
-            # Set proper permissions
-            $USE_SUDO chown -R $(whoami):$(whoami) "$project_root" 2>/dev/null || true
-            $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
+            # Validate and print project root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
+            log "[SAFE_PATH] project_root=$project_root"
+            if [ -z "$project_root" ]; then
+                error "project_root is empty; skipping chown/chmod to avoid system damage"
+            else
+                case "$project_root" in
+                    /) error "project_root is /; refusing chown/chmod";;
+                    /usr|/usr/*) error "project_root under /usr; refusing chown/chmod";;
+                    /etc|/etc/*) error "project_root under /etc; refusing chown/chmod";;
+                    /bin|/bin/*) error "project_root under /bin; refusing chown/chmod";;
+                    /sbin|/sbin/*) error "project_root under /sbin; refusing chown/chmod";;
+                    /lib|/lib/*) error "project_root under /lib; refusing chown/chmod";;
+                    /var) error "project_root is /var; refusing chown/chmod";;
+                    *)
+                        if [[ "$project_root" != /* ]]; then
+                            error "project_root is not absolute: $project_root; refusing chown/chmod"
+                        else
+                            $USE_SUDO chown -R $(whoami):$(whoami) "$project_root" 2>/dev/null || true
+                            $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
+                        fi
+                        ;;
+                esac
+            fi
 
             log "Project restoration completed successfully"
             return 0

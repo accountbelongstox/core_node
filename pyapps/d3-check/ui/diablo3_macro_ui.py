@@ -17,7 +17,7 @@ from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe
+from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe, get_config_section
 from providor.constants.common import (
     ROOT_DIR,
     UI_SETTINGS_WINDOW_GEOMETRY,
@@ -376,7 +376,8 @@ class Diablo3MacroUI:
 
     def _set_window_icon(self):
         """Set window/taskbar icon: config app_icon path, else default .ico / logo.png / app_icon.png (Windows may auto-generate .ico from logo), else generated (same as tray)."""
-        path_cfg = (CONFIG.get("ui_settings") or {}).get(UI_SETTINGS_APP_ICON) or ""
+        ui_settings = get_config_section("ui_settings")
+        path_cfg = ui_settings.get(UI_SETTINGS_APP_ICON) or ""
         if path_cfg:
             p = Path(path_cfg)
             path = (Path(ROOT_DIR) / path_cfg).resolve() if not p.is_absolute() else p.resolve()
@@ -913,7 +914,7 @@ class Diablo3MacroUI:
         self.root.mainloop()
 
     def _release_any_grab(self) -> bool:
-        """Release grab on any widget that holds it (report §4). Returns True if a grab was released."""
+        """Release grab on any widget that holds it (docs/ui_analyzer §C: grab_current may return str or list). Returns True if a grab was released."""
         try:
             current = self.root.grab_current()
             if not current:
@@ -921,13 +922,24 @@ class Diablo3MacroUI:
             paths = current if isinstance(current, (list, tuple)) else [current]
             released = False
             for path in paths:
-                if not isinstance(path, str):
+                w = None
+                if isinstance(path, str):
+                    try:
+                        w = self.root.nametowidget(path)
+                        if not w.winfo_exists():
+                            continue
+                    except (tk.TclError, KeyError):
+                        continue
+                elif hasattr(path, "grab_release") and callable(path.grab_release):
+                    w = path
+                if w is None:
                     continue
-                w = self.root.nametowidget(path)
-                if w.winfo_exists():
+                try:
                     w.grab_release()
                     released = True
-                    ColorPrint.yellow(f"[UI] Released grab on widget: {path}")
+                    ColorPrint.yellow(f"[UI] Released grab on widget: {path!r}")
+                except tk.TclError:
+                    pass
             return released
         except (tk.TclError, KeyError):
             return False

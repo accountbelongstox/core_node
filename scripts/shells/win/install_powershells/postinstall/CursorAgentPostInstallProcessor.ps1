@@ -120,7 +120,12 @@ function Invoke-CursorAgentPostInstallProcessor {
         try {
             Invoke-RestMethod -Uri $script:AgentInstallUrl -Method Get | Invoke-Expression
         } catch {
-            Write-Host "$LogPrefix Agent CLI install failed: $($_.Exception.Message)" -ForegroundColor Red
+            $errMsg = $_.Exception.Message
+            Write-Host "$LogPrefix Agent CLI install failed: $errMsg" -ForegroundColor Red
+            if ($errMsg -match "denied|Access to the path") {
+                Write-Host "$LogPrefix Idempotent repair ran but install failed (permission). Agent remains broken until you run the command below." -ForegroundColor Yellow
+                Write-Host "$LogPrefix Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
+            }
         }
     } else {
         Write-Host "$LogPrefix Agent CLI present and version OK; skipping install (idempotent)." -ForegroundColor Green

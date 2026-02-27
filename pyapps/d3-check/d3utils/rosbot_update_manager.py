@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Any, Dict
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, set_config_value_safe, get_config_value_safe
+from providor.providor_index import CONFIG, get_config_section, set_config_value_safe, get_config_value_safe
 from providor.constants.d3 import (
     ROSBOT_GAMETOOLS_BASE,
     ROSBOT_ZIP_MIN_SIZE_MB,
@@ -97,7 +97,8 @@ class RosbotUpdateManager:
         Returns:
             str: Downloads directory path
         """
-        path = CONFIG.get("paths", {}).get("downloads_dir", "").strip()
+        paths = get_config_section("paths")
+        path = paths.get("downloads_dir", "").strip()
         if path and os.path.isdir(path):
             return path
         return os.path.join(os.path.expanduser("~"), "Downloads")

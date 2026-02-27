@@ -62,6 +62,18 @@
 
 ---
 
+### 标题栏拖动“动另一个”现象（非线程、非双窗口）
+
+- **现象**  
+  启动后看起来像两个 UI：一个可操作，另一个在拖动标题栏时跟着动。
+- **原因**  
+  主流程仅创建一个 `tk.Tk()`（Single creator in `D3MacroController.run()`），并非真的两个窗口。标题栏拖拽时用 `root.winfo_x()` / `root.winfo_y()` 计算新位置；在 **overrideredirect(True)** 的无边框根窗口上，这两者往往不是屏幕坐标（有时为 0 或相对父窗口），`geometry("+x+y")` 被设错，窗口跳到错误位置，看起来像“另一个窗口在动”。
+- **修复**  
+  `ui/components/title_bar.py` 的 `_on_drag` 中改为使用 **`winfo_rootx()` / `winfo_rooty()`**（与 resize、`_save_window_geometry` 一致），保证拖拽使用屏幕坐标。
+- **状态**：已实施。
+
+---
+
 ## 尚未实施的方案
 
 - **报告 §1 方案 B**：在首次 Map 之前通过 Win32 设好 EXSTYLE/owner（需调整创建顺序）。  

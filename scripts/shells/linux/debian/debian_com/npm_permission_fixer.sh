@@ -70,6 +70,17 @@ detect_permission_issues() {
     return $issues_found
 }
 
+# Refuse recursive chown/chmod on system paths; allow /usr/local (npm prefix)
+_npm_safe_path_for_chown() {
+    local path="$1"
+    [ -z "$path" ] && return 1
+    [[ "$path" != /* ]] && return 1
+    case "$path" in
+        /|/usr/bin|/usr/bin/*|/usr/sbin|/usr/sbin/*|/usr/lib|/usr/lib/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # Fix node_modules directory permissions
 fix_modules_directory() {
     if [ ! -d "$NPM_GLOBAL_MODULES" ]; then
@@ -78,6 +89,11 @@ fix_modules_directory() {
     fi
 
     log_install "Fixing node_modules directory permissions..."
+    log_install "[SAFE_PATH] NPM_GLOBAL_MODULES=$NPM_GLOBAL_MODULES"
+    if ! _npm_safe_path_for_chown "$NPM_GLOBAL_MODULES"; then
+        log_warning "Refusing chown/chmod on system path: $NPM_GLOBAL_MODULES"
+        return 1
+    fi
 
     # Set ownership
     $USE_SUDO chown -R root:root "$NPM_GLOBAL_MODULES" 2>/dev/null || {
@@ -109,6 +125,11 @@ fix_bin_directory() {
     fi
 
     log_install "Fixing bin directory permissions..."
+    log_install "[SAFE_PATH] NPM_BIN=$NPM_BIN"
+    if ! _npm_safe_path_for_chown "$NPM_BIN"; then
+        log_warning "Refusing chown on system path: $NPM_BIN"
+        return 1
+    fi
 
     # Set ownership
     $USE_SUDO chown -R root:root "$NPM_BIN" 2>/dev/null || {
@@ -140,6 +161,11 @@ fix_cache_directory() {
     fi
 
     log_install "Fixing cache directory permissions..."
+    log_install "[SAFE_PATH] NPM_CACHE=$NPM_CACHE"
+    if ! _npm_safe_path_for_chown "$NPM_CACHE"; then
+        log_warning "Refusing chown/chmod on system path: $NPM_CACHE"
+        return 1
+    fi
 
     # Cache directory should be owned by the user running npm
     local cache_owner="root"
@@ -170,6 +196,11 @@ fix_super_scripts_directory() {
     fi
 
     log_install "Fixing super_scripts directory permissions..."
+    log_install "[SAFE_PATH] super_scripts_dir=$super_scripts_dir"
+    if ! _npm_safe_path_for_chown "$super_scripts_dir"; then
+        log_warning "Refusing chown/chmod on system path: $super_scripts_dir"
+        return 1
+    fi
 
     $USE_SUDO chown -R root:root "$super_scripts_dir" 2>/dev/null || true
     $USE_SUDO chmod -R 755 "$super_scripts_dir" 2>/dev/null || true
