@@ -268,20 +268,35 @@ class Step19ViewEffectsController:
 
     def _kill_server_processes(self):
         """
-        Cross-platform process killing functionality for Flask server
+        Cross-platform process killing functionality for Flask server.
+        Never kills the current process (Flask may run in a thread in the same process).
         """
         try:
-            PrintHelper.info(f"[PROCESS-KILLER] Searching for Flask server processes on port {self.server_port}...", source=self.step_name)
+            current_pid = os.getpid()
+            PrintHelper.info(f"[PROCESS-KILLER] current process PID={current_pid}, searching for Flask server on port {self.server_port}...", source=self.step_name)
 
             killed_count = 0
+
+            # Prefer in-process shutdown when server runs in same process (thread)
+            if self.server and getattr(self.server, '_werkzeug_server', None):
+                PrintHelper.info(f"[PROCESS-KILLER] Shutting down in-process server first (same process as build).", source=self.step_name)
+                self._shutdown_inprocess_server()
+                if getattr(self, '_inprocess_stopped', False):
+                    return True
 
             # Method 1: Find processes by port using psutil (call connections() per process; 'connections' not valid attr on Windows)
             for proc in psutil.process_iter(['pid', 'name']):
                 try:
+                    raw_pid = proc.info.get('pid')
+                    if raw_pid is None:
+                        continue
+                    pid = int(raw_pid)
+                    if pid == current_pid:
+                        PrintHelper.info(f"[PROCESS-KILLER] Skipping current process (PID={pid}).", source=self.step_name)
+                        continue
                     conns = proc.connections()
                     for conn in conns:
                         if getattr(conn, 'laddr', None) and getattr(conn.laddr, 'port', None) == self.server_port:
-                            pid = proc.info['pid']
                             name = proc.info.get('name', '')
                             PrintHelper.info(f"[PROCESS-KILLER] Found process: {name} (PID: {pid}) using port {self.server_port}", source=self.step_name)
                             if self._kill_process_by_pid(pid):
@@ -293,17 +308,25 @@ class Step19ViewEffectsController:
                 except Exception:
                     continue
 
-            # Method 2: Platform-specific port killing as fallback
-            if killed_count == 0:
-                PrintHelper.info(f"[PROCESS-KILLER] No processes found via psutil, trying platform-specific methods...", source=self.step_name)
-                success = self._kill_by_port_platform_specific()
-                return success
+            if killed_count == 0 and not getattr(self, '_inprocess_stopped', False):
+                PrintHelper.info(f"[PROCESS-KILLER] No other process on port {self.server_port}; server runs in this process. Stopping via shutdown.", source=self.step_name)
+                self._shutdown_inprocess_server()
 
-            return killed_count > 0
+            return killed_count > 0 or getattr(self, '_inprocess_stopped', False)
 
         except Exception as e:
             PrintHelper.error(f"[PROCESS-KILLER] Error in cross-platform process killing: {e}", source=self.step_name)
             return False
+
+    def _shutdown_inprocess_server(self):
+        """Stop the in-process Flask server (same process as build script)."""
+        self._inprocess_stopped = False
+        try:
+            if self.server and getattr(self.server, '_werkzeug_server', None):
+                self.server._werkzeug_server.shutdown()
+                self._inprocess_stopped = True
+        except Exception as e:
+            PrintHelper.warning(f"[PROCESS-KILLER] In-process server shutdown: {e}", source=self.step_name)
 
     def _kill_process_by_pid(self, pid: int) -> bool:
         """Kill a process by PID using cross-platform methods"""
