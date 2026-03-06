@@ -783,7 +783,7 @@ app_travel [code_assets]
 │   │   │   ├── CggYHlXWwYCAWSf4AD7T3hxEde0314.jpg
 │   │   │   ├── CggYHlXWwYCAWSf4AD7T3hxEde0314_D_500_250.jpg
 │   │   │   ├── CghzfFWwxsuAHIL8ABLulITTChw397.jpg
-│   │   │   ├── carousel_promo_food_001.jpg
+│   │   │   ├── carousel_promo_food_001.png
 │   │   │   ├── d846f0a902264018b0bbf57410e6127a_D_250_250_Q90.jpg
 │   │   │   ├── zg0516000000zifq4FC3C.jpg
 │   │   │   ├── zg0a15000000ypf1tBC70.jpg

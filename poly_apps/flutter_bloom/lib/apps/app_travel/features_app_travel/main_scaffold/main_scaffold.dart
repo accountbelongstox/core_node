@@ -21,6 +21,7 @@ import '../profile/views/profile_screen.dart';
 import '../../router_app_travel/routes_provider_app_travel.dart';
 import '../../localization_app_travel/localization_keys_app_travel.dart';
 import '../../resources_app_travel/colors_app_travel.dart';
+import '../../resources_app_travel/assets_images_app_travel.dart';
 
 class MainScaffold extends StatefulWidget {
   final int initialIndex;
@@ -84,28 +85,37 @@ class _MainScaffoldState extends State<MainScaffold> {
         onTap: _onNavItemTapped,
         showLabels: true,
         selectedItemColor: TravelColors.travelPrimary,
+        backgroundColor: Colors.white,
         items: [
           NavigationItem(
             icon: Icons.home_outlined,
             activeIcon: Icons.home,
+            iconImage: AssetsImagesAppTravel.travelNavTabHome,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabHome,
             label: TravelLocalizationKeys.travelHome.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.calendar_today_outlined,
             activeIcon: Icons.calendar_today,
+            iconImage: AssetsImagesAppTravel.travelNavTabJourney,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabJourney,
             label: TravelLocalizationKeys.travelJourney.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.chat_bubble_outline,
             activeIcon: Icons.chat_bubble,
+            iconImage: AssetsImagesAppTravel.travelNavTabService,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabService,
             label: TravelLocalizationKeys.travelCustomerService.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.explore_outlined,
             activeIcon: Icons.explore,
+            iconImage: AssetsImagesAppTravel.travelNavTabExplore,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabExplore,
             label: TravelLocalizationKeys.travelExploreWorld.tr(context),
             route: TravelAppRoutesProvider.routeSearch,
             badge: TravelLocalizationKeys.travelTravelGuide.tr(context),
@@ -114,6 +124,8 @@ class _MainScaffoldState extends State<MainScaffold> {
           NavigationItem(
             icon: Icons.person_outline,
             activeIcon: Icons.person,
+            iconImage: AssetsImagesAppTravel.travelNavTabMine,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabMine,
             label: TravelLocalizationKeys.travelMine.tr(context),
             route: TravelAppRoutesProvider.routeProfile,
           ),
