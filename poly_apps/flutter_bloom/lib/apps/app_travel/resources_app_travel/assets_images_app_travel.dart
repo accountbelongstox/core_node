@@ -17,6 +17,13 @@ class AssetsImagesAppTravel {
   static const String _baseNav = 'assets/apps/app_travel/images/nav';
   static const String _baseUpload = 'assets/apps/app_travel/images/upload';
 
+  // Bottom nav tab icons (image + label, no icon font)
+  static const String travelNavTabHome = 'assets/apps/app_travel/images/nav_tab_home.png';
+  static const String travelNavTabJourney = 'assets/apps/app_travel/images/nav_tab_journey.png';
+  static const String travelNavTabService = 'assets/apps/app_travel/images/nav_tab_service.png';
+  static const String travelNavTabExplore = 'assets/apps/app_travel/images/nav_tab_explore.png';
+  static const String travelNavTabMine = 'assets/apps/app_travel/images/nav_tab_mine.png';
+
   // Navigation Icons
   static const String travelNavHotel = '$_baseNav/grid-nav-items-hotel@v7.15.png';
   static const String travelNavFlight = '$_baseNav/grid-nav-items-flight@v7.15.png';
@@ -73,7 +80,7 @@ class AssetsImagesAppTravel {
   ];
 
   // Swiper Banner Images
-  static const String travelSwiperPromoFood = '$_baseUpload/carousel_promo_food_001.jpg';
+  static const String travelSwiperPromoFood = '$_baseUpload/carousel_promo_food_001.png';
   static const String travelSwiper1 = '$_baseUpload/zg0516000000zifq4FC3C.jpg';
   static const String travelSwiper2 = '$_baseUpload/zg0a15000000ypf1tBC70.jpg';
   static const String travelSwiper3 = '$_baseUpload/zg0e15000000yqzweE43E.jpg';

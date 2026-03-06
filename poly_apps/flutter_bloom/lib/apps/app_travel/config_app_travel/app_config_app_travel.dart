@@ -15,6 +15,8 @@
 class TravelAppConfig {
   static const String appId = 'travel';
   static const String appName = 'Travel App';
+  static const String appNameEn = 'Qunar Travel';
+  static const String appNameZh = '去哪儿旅行';
   static const String appVersion = '1.0.0';
   static const String appDescription = 'Tourism and travel guide application';
 
