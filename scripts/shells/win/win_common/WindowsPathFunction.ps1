@@ -293,6 +293,17 @@ function Add-Path {
         } else {
             Write-Log "Path $newPath already exists" -color "Yellow"
         }
+
+        # Always refresh current process PATH to ensure consistency (idempotent repair step)
+        # This ensures that commands executed immediately after Add-Path can access the new PATH
+        try {
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
+            [Environment]::SetEnvironmentVariable("Path", $combinedPath, "Process")
+        } catch {
+            Write-Log "Warning: Failed to refresh current process PATH: $($_.Exception.Message)" -color "Yellow"
+        }
     } catch {
         Write-Log "ERROR: Failed to add $newPath to PATH: $($_.Exception.Message)" -color "Red"
     }

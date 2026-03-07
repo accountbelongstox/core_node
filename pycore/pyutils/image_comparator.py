@@ -220,7 +220,7 @@ class ImageComparator:
 
 # Example usage
 if __name__ == "__main__":
-    from pyfoundations.color_print import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 
     try:
         # Load two images

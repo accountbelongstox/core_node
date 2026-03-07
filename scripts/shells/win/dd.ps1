@@ -275,6 +275,17 @@ $script:MenuItems = @(
         }
     },
     @{
+        Text              = "MCP Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $mcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching MCP Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $mcpMenuScript
+        }
+    },
+    @{
         Text              = "Exit"
         Values            = @("default")
         CurrentValueIndex = 0

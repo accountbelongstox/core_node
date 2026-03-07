@@ -1,0 +1,9 @@
+{
+    "FrameHeight": 360,
+    "RecordHttpPort": 52808,
+    "LogTimestamp": false,
+    "FrameFPS": 10,
+    "FrameWidth": 540,
+    "Debug": true,
+    "OutputAsVideo": false
+}

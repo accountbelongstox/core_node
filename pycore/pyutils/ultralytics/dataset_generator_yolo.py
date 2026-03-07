@@ -17,9 +17,10 @@ from typing import List, Dict, Tuple, Optional, Callable, Union
 from abc import ABC, abstractmethod
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyutils.common import ultralytics_comm
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
+np = get_third_package_numpy()
 
 # Import enhancer utilities (used in direct patch mode)
 try:
@@ -127,27 +128,8 @@ class YOLODatasetGenerator(ABC):
         return False
 
     def _color_jitter(self, img: np.ndarray) -> np.ndarray:
-        """
-        Apply color jittering
-
-        Args:
-            img: Input image
-
-        Returns:
-            Jittered image
-        """
-        if np.random.random() > 0.5:
-            # Brightness
-            factor = np.random.uniform(0.9, 1.1)
-            img = np.clip(img * factor, 0, 255).astype(np.uint8)
-
-        if np.random.random() > 0.5:
-            # Contrast
-            factor = np.random.uniform(0.9, 1.1)
-            mean = img.mean()
-            img = np.clip((img - mean) * factor + mean, 0, 255).astype(np.uint8)
-
-        return img
+        """Apply color jittering (brightness/contrast). Uses common ultralytics_comm."""
+        return ultralytics_comm.color_jitter(img)
 
     def save_metadata(self, metadata: Dict, filename: str = "metadata.json"):
         """
@@ -792,19 +774,7 @@ class DetectionDatasetGenerator(YOLODatasetGenerator):
         return patch, new_w, new_h
 
     def _create_data_yaml(self):
-        """Create data.yaml for YOLO training"""
-        data_yaml = {
-            'path': str(self.output_dir.absolute()),
-            'train': 'images',
-            'val': 'images',
-            'nc': 1,
-            'names': ['object']
-        }
-
-        yaml_file = self.output_dir / "data.yaml"
-        with open(yaml_file, 'w', encoding='utf-8') as f:
-            for key, value in data_yaml.items():
-                if isinstance(value, list):
-                    f.write(f"{key}: {value}\n")
-                else:
-                    f.write(f"{key}: {value}\n")
+        """Create data.yaml for YOLO training (single class 'object')."""
+        ultralytics_comm.write_data_yaml(
+            str(self.output_dir), ["object"], train_subdir="images", val_subdir="images"
+        )

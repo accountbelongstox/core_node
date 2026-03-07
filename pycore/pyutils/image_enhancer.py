@@ -9,14 +9,19 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL
+from pycore.pyfoundations.third_party import (
+    get_third_package_cv2,
+    get_third_package_numpy,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+)
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
-PIL = get_third_package_PIL()
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
-ImageFont = PIL.ImageFont
+np = get_third_package_numpy()
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 
 class ImageEnhancement(ABC):

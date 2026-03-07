@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 Configuration Package
-Unified configuration management for D3-Check application
+Unified configuration management for D3-Check application.
+
+Prefer direct imports from submodules (no secondary encapsulation):
+  from config.unified_config import get_config_manager, get_skill_config, ...
+  from config.grid_config import get_grid_config, update_grid_config
+  Literal constants (GRID_ROWS, etc.) from providor.constants.common.
 """
 
 # Import from unified config
@@ -57,9 +62,8 @@ from .grid_config import (
     update_grid_config as grid_update_config
 )
 
-# Import i18n manager (keep separate) - now from d3utils
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
+# Import i18n manager (project-wide singleton) from d3utils
+from providor.i18n_manager import i18n_manager
 
 __all__ = [
     # Constants

@@ -17,13 +17,11 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
 pystray = get_third_package_pystray()
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 from ..core.config import get_global_config
 from ..server.unified import UnifiedHTTPServer

@@ -16,16 +16,22 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32ui, get_third_package_PIL
+from pycore.pyfoundations.third_party import (
+    get_third_package_win32gui,
+    get_third_package_win32con,
+    get_third_package_win32ui,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+)
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 win32ui = get_third_package_win32ui()
-PIL = get_third_package_PIL()
 
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
-ImageFont = PIL.ImageFont
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 
 # --- Embedded ColorPrint Class for rich console output ---

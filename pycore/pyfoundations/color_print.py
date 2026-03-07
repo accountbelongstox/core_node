@@ -108,7 +108,6 @@ class ColorPrintCallback:
 # Global callback handler instance
 _color_print_callback = ColorPrintCallback()
 
-
 class ColorPrint:
     """Base class for colored console output"""
     GREEN = '\033[92m'
@@ -126,6 +125,7 @@ class ColorPrint:
 
     _printed_hashes = set()
     _last_print_times = {}
+    _last_print_time = 0.0  # 上次任意打印的时间，用于计算并显示距上次打印耗时
     
     @staticmethod
     def register_callback(callback):
@@ -190,11 +190,35 @@ class ColorPrint:
     def get_callback_count():
         """Get number of registered callbacks"""
         return _color_print_callback.get_callback_count()
-    
+
+    @staticmethod
+    def debug_messagebox(title: str, message: str, icon: str = "info"):
+        """Log via ColorPrint only (no popup). Format: [title] message by icon (error=red, warning=yellow, else debug)."""
+        text = f"[{title}] {message}"
+        if icon == "error":
+            ColorPrint.red(text)
+        elif icon == "warning":
+            ColorPrint.yellow(text)
+        else:
+            ColorPrint.debug(text)
+
     @staticmethod
     def _log_to_callback(message, color_type="white", log_level=None):
         """Send message to all registered callbacks"""
         _color_print_callback.notify(message, color_type, log_level)
+
+    @staticmethod
+    def _message_with_elapsed(message: str) -> str:
+        """在 message 的 [title] 中注入距上次打印的耗时；若无 [title] 则前缀耗时。"""
+        now = time.time()
+        delta = 0.0 if ColorPrint._last_print_time == 0 else (now - ColorPrint._last_print_time)
+        ColorPrint._last_print_time = now
+        delta_str = f"+{delta:.2f}s"
+        # 若有 [xxx] 形式，在 ] 前插入耗时，即 [xxx +1.23s]
+        bracket_end = message.find("]")
+        if message.startswith("[") and bracket_end > 0:
+            return message[:bracket_end] + " " + delta_str + message[bracket_end:]
+        return "[" + delta_str + "] " + message
 
     @staticmethod
     def _write(message, color, end='\n'):
@@ -204,12 +228,31 @@ class ColorPrint:
         if ColorPrint._mcp_mode:
             return  # Completely suppress output in MCP mode
 
+        message = ColorPrint._message_with_elapsed(message)
         if ColorPrint._disable_colors:
             # Output plain text without ANSI codes
             print(message, end=end, file=ColorPrint._output_stream)
         else:
             # Output with ANSI color codes
             print(f"{color}{message}{ColorPrint.RESET}", end=end, file=ColorPrint._output_stream)
+
+    @staticmethod
+    def _write_refresh(message: str, color: str) -> None:
+        """Write to the same line (overwrite): \\r + message (truncated to terminal width) + padding. No elapsed prefix. Flush."""
+        if ColorPrint._mcp_mode:
+            return
+        try:
+            width = max(1, shutil.get_terminal_size().columns)
+        except Exception:
+            width = 80
+        plain = message if len(message) <= width else message[: width - 1]
+        pad = " " * max(0, width - len(plain))
+        out = f"\r{color}{plain}{pad}{ColorPrint.RESET}"
+        if ColorPrint._disable_colors:
+            print(out, end="", flush=True, file=ColorPrint._output_stream)
+        else:
+            print(out, end="", flush=True, file=ColorPrint._output_stream)
+        ColorPrint._log_to_callback(message, "gray" if color == ColorPrint.GRAY else "white", "DEBUG")
     
     @staticmethod
     def green(message, end='\n'):
@@ -258,6 +301,19 @@ class ColorPrint:
         """Print debug text (gray)"""
         ColorPrint._write(message, ColorPrint.GRAY, end=end)
         ColorPrint._log_to_callback(message, "gray", "DEBUG")
+
+    @staticmethod
+    def gray_refresh(message: str) -> None:
+        """Print gray text on the same line (overwrite previous content). No newline, no elapsed prefix."""
+        ColorPrint._write_refresh(message, ColorPrint.GRAY)
+
+    @staticmethod
+    def refresh_line(message: str, color: str = "gray") -> None:
+        """Print on the same line (overwrite). color: 'gray'|'blue'|'yellow'|'red'|'green'|'white'|'cyan'."""
+        c = getattr(ColorPrint, color.upper(), None) if isinstance(color, str) else color
+        if c is None or not isinstance(c, str):
+            c = ColorPrint.GRAY
+        ColorPrint._write_refresh(message, c)
 
     # ========================================
     # Semantic aliases for consistent API

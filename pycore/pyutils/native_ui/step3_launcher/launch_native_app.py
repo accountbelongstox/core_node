@@ -27,6 +27,7 @@ from pycore.pyutils.native_ui.step9_frontend import (
 from pycore.pylauncher.singleton_detector import SingletonDetector
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 from pycore.pyfoundations.third_party import get_third_package_pyside6
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
 from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
@@ -34,6 +35,7 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
     PySide6UIConfig,
     PySide6TrayMenuItem
 )
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import StartupWindowConfig
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 
 try:
@@ -142,9 +144,8 @@ def launch_native_app(config: NativeUIConfig) -> None:
             # Unregister ColorPrint callback
             ColorPrint.unregister_callback(thread._colorprint_callback)
 
-            # Close debug window directly (don't trigger app.close - that would shutdown entire app!)
-            # Use stop() instead of request_close() to ensure _stop_event is set (prevents tray mode)
-            thread.stop()
+            # Close debug window via THREAD_BUS (TkinterStartupThread handler sets _stop_event + request_close)
+            THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'frontend.ready'}, async_mode=False)
 
         # Register handler with high priority to ensure it runs first
         THREAD_BUS.register_event_handler('frontend.ready', handle_frontend_ready_early, priority=100)
@@ -204,25 +205,16 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
         IMPORTANT: Don't manually stop services here!
         Let THREAD_BUS.request_shutdown() handle service shutdown via shutdown stack.
-        This ensures proper shutdown order (RPC v2 → Heartbeat → etc.)
+        Debug window is closed via THREAD_BUS (ui.startup.request_close).
         """
         source = event_data.get('source', 'unknown')
         ColorPrint.yellow(f"[NativeLauncher] Handling app.close event (source: {source})")
 
-        # CRITICAL FIX: Stop startup thread (if it exists and is running)
-        # This must be done manually as it's not registered in shutdown stack
-        if startup_thread_ref and startup_thread_ref.get('thread'):
-            thread = startup_thread_ref['thread']
-            if thread and thread.is_alive():
-                ColorPrint.blue("[NativeLauncher] Stopping startup thread (debug window/tray)...")
-                # Use stop() instead of request_close() to ensure:
-                # 1. _stop_event is set (prevents entering tray mode after window closes)
-                # 2. Tray is stopped if running
-                # 3. Window is closed if still open
-                thread.stop()
+        # Close debug window via THREAD_BUS (TkinterStartupThread listens and closes)
+        if config.show_debug_window:
+            THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': source}, async_mode=False)
 
         # Trigger THREAD_BUS shutdown to stop all services in proper order
-        # Don't manually stop services - let shutdown stack handle it
         if not THREAD_BUS.is_shutdown_requested():
             ColorPrint.blue("[NativeLauncher] Triggering THREAD_BUS shutdown...")
             THREAD_BUS.request_shutdown(
@@ -235,6 +227,20 @@ def launch_native_app(config: NativeUIConfig) -> None:
     # Register with high priority to ensure cleanup happens early
     THREAD_BUS.register_event_handler('app.close', handle_app_close, priority=90)
     ColorPrint.blue("[NativeLauncher] Registered app.close event handler for THREAD_BUS shutdown")
+
+    # Register shutdown handler to close tk debug window via THREAD_BUS (singleton / any shutdown)
+    # Priority -1 so it runs before pyside6_quit (0). TkinterStartupThread (single tk build) listens.
+    def close_debug_window_via_bus():
+        ColorPrint.blue("[NativeLauncher] Shutdown: requesting debug window close via THREAD_BUS...")
+        THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'shutdown'}, async_mode=False)
+
+    THREAD_BUS.register_shutdown_handler(
+        handler=close_debug_window_via_bus,
+        priority=-1,
+        name="debug_window_close"
+    )
+    if config.debug:
+        ColorPrint.blue("[NativeLauncher] Registered shutdown handler (priority=-1) for debug window close via THREAD_BUS")
 
     # ========== Phase 5: Singleton Detection ==========
     # Create singleton detector with shutdown_existing=True
@@ -867,8 +873,20 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: Callb
     ui_config.on_closing = lambda: callback_manager.execute_closing_callbacks()
     ui_config.on_closed = lambda: callback_manager.execute_closed_callbacks()
 
+    # Only one tk window: if launcher already shows TkinterStartupThread (show_debug_window),
+    # do not show framework's tk window (pass show_startup=False).
+    startup_config = None
+    if config.show_debug_window:
+        startup_config = StartupWindowConfig(
+            app_name=config.app_name,
+            icon_path=config.icon_path,
+            show_startup=False,
+            auto_close=True,
+            daemon=True
+        )
+
     # Create and start PySide6 framework
-    framework = PySide6Framework(ui_config)
+    framework = PySide6Framework(ui_config, startup_config)
 
     # Register shutdown handler to close window after all services stopped
     # This must be registered AFTER framework is created and BEFORE framework.start()

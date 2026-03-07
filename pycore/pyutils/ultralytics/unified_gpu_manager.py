@@ -302,12 +302,14 @@ class UnifiedGPUManager:
             # Determine CUDA version from driver
             cuda_version = self._get_cuda_version_from_driver()
 
-            if cuda_version >= 12.4:
+            if cuda_version >= 12.6:
+                index_url = "https://download.pytorch.org/whl/cu126"
+            elif cuda_version >= 12.4:
                 index_url = "https://download.pytorch.org/whl/cu124"
             elif cuda_version >= 12.1:
                 index_url = "https://download.pytorch.org/whl/cu121"
             else:
-                index_url = "https://download.pytorch.org/whl/cu118"
+                index_url = "https://download.pytorch.org/whl/cu126"
 
             self._print(f"[INFO] Installing PyTorch for CUDA {cuda_version:.1f}")
 
@@ -422,12 +424,12 @@ class UnifiedGPUManager:
         self._print("\n2. Uninstall existing PyTorch:")
         self._print("   pip uninstall torch torchvision torchaudio -y")
         self._print("\n3. Install PyTorch with CUDA support:")
+        self._print("\n   For CUDA 12.6 (recommended; matches onnxruntime-gpu):")
+        self._print("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126")
         self._print("\n   For CUDA 12.4:")
         self._print("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124")
         self._print("\n   For CUDA 12.1:")
         self._print("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121")
-        self._print("\n   For CUDA 11.8:")
-        self._print("   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118")
         self._print("\n" + "=" * 80)
 
     def _print_pytorch_rocm_install_instructions(self):

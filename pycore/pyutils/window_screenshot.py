@@ -12,21 +12,42 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_PIL, get_third_package_pyautogui, get_third_package_mss
+from pycore.pyfoundations.third_party import (
+    get_third_package_win32gui,
+    get_third_package_win32con,
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageGrab,
+    get_third_package_pyautogui,
+    get_third_package_mss,
+)
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
-PIL = get_third_package_PIL()
 pyautogui = get_third_package_pyautogui()  # May be None on Linux without X11 display access
 mss = get_third_package_mss()
 
-ImageGrab = PIL.ImageGrab
-Image = PIL.Image
+ImageGrab = get_third_package_PIL_ImageGrab()
+Image = get_third_package_PIL_Image()
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window_activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
+from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+
+# Exe-based browser skip filter for WindowFinder (no app-specific logic in core)
+_skip_browser_if = get_default_skip_browser_callable()
+
+# Off-screen rect threshold (Windows uses ~-32000 for minimized windows)
+_OFFSCREEN_THRESHOLD = -30000
+
+
+def _is_rect_minimized_or_offscreen(rect: Tuple[int, int, int, int]) -> bool:
+    """True if rect is off-screen (e.g. minimized window)."""
+    if not rect or len(rect) < 4:
+        return True
+    left, top = rect[0], rect[1]
+    return left < _OFFSCREEN_THRESHOLD or top < _OFFSCREEN_THRESHOLD
 
 
 class WindowScreenshot:
@@ -91,6 +112,67 @@ class WindowScreenshot:
             ColorPrint.print_min_interval(f"[ERROR] Error activating window '{title}': {e}", "1min", "red")
             return False
 
+    def capture_first_window_to_memory(
+        self,
+        titles: List[str],
+        use_cache: bool = True
+    ) -> Optional[Tuple[Image.Image, Dict]]:
+        """
+        Find first matching window, activate it (bring to front), then capture to memory.
+        No file path; returns (PIL Image, info_dict) or None. info_dict has window_title, window_offset, window_size.
+        """
+        try:
+            window_info = None
+            cache_key = f"window_cache_{titles[0].lower()}" if (use_cache and titles) else None
+            if use_cache and cache_key:
+                cached_info = ENCYCLOPEDIA.get(cache_key)
+                if cached_info and cached_info.get("hwnd") and win32gui.IsWindow(cached_info["hwnd"]) and win32gui.IsWindowVisible(cached_info["hwnd"]):
+                    try:
+                        rect = win32gui.GetWindowRect(cached_info["hwnd"])
+                        window_info = {
+                            "hwnd": cached_info["hwnd"],
+                            "title": cached_info.get("title"),
+                            "rect": rect,
+                        }
+                    except Exception:
+                        ENCYCLOPEDIA.remove(cache_key)
+            if not window_info:
+                windows = WindowFinder.find_windows_by_titles(
+                    titles=titles,
+                    match_mode=self.match_mode,
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
+                )
+                if not windows:
+                    return None
+                window_info = windows[0]
+            hwnd = window_info["hwnd"]
+            title = window_info.get("title") or ""
+            self.activate_window(hwnd, title)
+            time.sleep(0.35)
+            try:
+                rect = win32gui.GetWindowRect(hwnd)
+            except Exception:
+                rect = window_info.get("rect")
+            if not rect or len(rect) < 4:
+                return None
+            left, top, right, bottom = rect
+            width, height = right - left, bottom - top
+            if width <= 0 or height <= 0:
+                return None
+            img = self.capture_screen_region(left, top, width, height)
+            if img is None:
+                return None
+            info = {
+                "window_title": title,
+                "window_offset": (left, top),
+                "window_size": (width, height),
+            }
+            return (img, info)
+        except Exception as e:
+            ColorPrint.print_min_interval(f"[ERROR] capture_first_window_to_memory: {e}", "1min", "red")
+            return None
+
     def capture_window_screenshot(self, window_info: Dict, filename_prefix: str = "window") -> Optional[Path]:
         """
         Capture screenshot of a window
@@ -142,7 +224,8 @@ class WindowScreenshot:
         self,
         titles: List[str],
         filename_prefix: str = "window_fast",
-        use_cache: bool = True
+        use_cache: bool = True,
+        save_to_disk: bool = True
     ) -> Optional[Dict]:
         """
         Find and screenshot FIRST matching window (optimized with encyclopedia cache)
@@ -159,21 +242,13 @@ class WindowScreenshot:
 
         Args:
             titles: List of window titles to search (finds FIRST match)
-            filename_prefix: Prefix for screenshot filename
+            filename_prefix: Prefix for screenshot filename (ignored when save_to_disk=False)
             use_cache: Whether to use encyclopedia cache
+            save_to_disk: If False, keep image in memory only (result["image"]), no temp file
 
         Returns:
-            Same structure as capture_window_fast() for consistency:
-            {
-                "screenshot_path": Path,
-                "window_title": str or None,
-                "window_rect": tuple or None,
-                "window_offset": tuple,  # (offset_x, offset_y)
-                "window_size": tuple,  # (width, height)
-                "scaled_screenshot_path": None,
-                "scaled_offset": None,
-                "scale_ratio": None
-            }
+            Dict with window_title, window_rect, window_offset, window_size; when save_to_disk
+            also screenshot_path; when save_to_disk=False has "image" (PIL Image) and screenshot_path=None.
         """
         ColorPrint.print_min_interval(f"\n[FAST_SINGLE] Starting optimized single window capture...", "1min", "blue")
         ColorPrint.print_min_interval(f"[FAST_SINGLE] Searching for titles: {titles}", "1min", "blue")
@@ -182,34 +257,31 @@ class WindowScreenshot:
             window_info = None
             found_from_cache = False
 
-            # Step 1: Try to get from encyclopedia cache first
-            if use_cache:
+            # Step 1: Try to get from encyclopedia cache first (same canonical key as WindowFinder)
+            canonical_label = titles[0] if titles else ""
+            cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
+            if use_cache and cache_key:
                 ColorPrint.print_min_interval("[FAST_SINGLE] Checking encyclopedia cache...", "1min", "blue")
+                cached_info = ENCYCLOPEDIA.get(cache_key)
 
-                for title in titles:
-                    cache_key = f"window_cache_{title.lower()}"
-                    cached_info = ENCYCLOPEDIA.get(cache_key)
-
-                    if cached_info:
-                        hwnd = cached_info.get("hwnd")
-                        # Validate cached window
-                        if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                            # Update rect from current window state
-                            try:
-                                rect = win32gui.GetWindowRect(hwnd)
-                                window_info = {
-                                    "hwnd": hwnd,
-                                    "title": cached_info.get("title"),
-                                    "rect": rect,
-                                    "class_name": cached_info.get("class_name")
-                                }
-                                found_from_cache = True
-                                ColorPrint.print_min_interval(f"[CACHE] Found cached window: '{window_info['title']}'", "1min", "green")
-                                break
-                            except Exception as e:
-                                ColorPrint.print_min_interval(f"[CACHE] Error reading cached window rect: {e}", "1min", "yellow")
-                        else:
-                            ColorPrint.print_min_interval(f"[CACHE] Cached window invalid for '{title}'", "1min", "yellow")
+                if cached_info:
+                    hwnd = cached_info.get("hwnd")
+                    if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                        try:
+                            rect = win32gui.GetWindowRect(hwnd)
+                            window_info = {
+                                "hwnd": hwnd,
+                                "title": cached_info.get("title"),
+                                "rect": rect,
+                                "class_name": cached_info.get("class_name")
+                            }
+                            found_from_cache = True
+                            ColorPrint.print_min_interval(f"[CACHE] Found cached window: '{canonical_label}'", "1min", "green")
+                        except Exception as e:
+                            ColorPrint.print_min_interval(f"[CACHE] Error reading cached window rect: {e}", "1min", "yellow")
+                    else:
+                        ENCYCLOPEDIA.remove(cache_key)
+                        ColorPrint.print_min_interval(f"[CACHE] Cached window invalid for '{canonical_label}', removed", "1min", "yellow")
 
             # Step 2: If not found in cache, search for window using WindowFinder
             if not window_info:
@@ -217,21 +289,33 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
                 if not windows:
-                    ColorPrint.print_min_interval(f"[FAST_SINGLE] No windows found matching: {titles}", "1min", "yellow")
+                    ColorPrint.yellow(f"[FAST_SINGLE] No windows found matching: {titles}")
                     return None
 
                 # Take FIRST match only
                 window_info = windows[0]
                 ColorPrint.print_min_interval(f"[FAST_SINGLE] Found window: '{window_info['title']}'", "1min", "green")
 
-            # Step 3: Capture fullscreen + crop (fast method)
+            # Step 3: If window is minimized or off-screen, activate and refresh rect before capture
             hwnd = window_info["hwnd"]
             title = window_info["title"]
             rect = window_info["rect"]
+            if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                ColorPrint.print_min_interval(f"[FAST_SINGLE] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                if not self.activate_window(hwnd, title):
+                    ColorPrint.print_min_interval(f"[FAST_SINGLE] Proceeding after activation attempt", "1min", "yellow")
+                time.sleep(1)
+                try:
+                    rect = win32gui.GetWindowRect(hwnd)
+                    window_info["rect"] = rect
+                except Exception as e:
+                    ColorPrint.print_min_interval(f"[FAST_SINGLE] Could not refresh rect after activate: {e}", "1min", "yellow")
+
             left, top, right, bottom = rect
             window_width = right - left
             window_height = bottom - top
@@ -262,16 +346,7 @@ class WindowScreenshot:
             window_screenshot = screenshot_full.crop((left, top, right, bottom))
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Cropped window region: {window_width}x{window_height}", "1min", "blue")
 
-            # Save screenshot
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            filename = f"{filename_prefix}_{timestamp}.png"
-            filepath = self.tmp_dir / filename
-
-            window_screenshot.save(filepath)
-            ColorPrint.print_min_interval(f"[FAST_SINGLE] Saved: {filepath}", "1min", "green")
-
             result = {
-                "screenshot_path": filepath,
                 "window_title": title,
                 "window_rect": rect,
                 "window_offset": (left, top),
@@ -280,6 +355,16 @@ class WindowScreenshot:
                 "scaled_offset": None,
                 "scale_ratio": None
             }
+            if save_to_disk:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+                filename = f"{filename_prefix}_{timestamp}.png"
+                filepath = self.tmp_dir / filename
+                window_screenshot.save(filepath)
+                ColorPrint.print_min_interval(f"[FAST_SINGLE] Saved: {filepath}", "1min", "green")
+                result["screenshot_path"] = filepath
+            else:
+                result["screenshot_path"] = None
+                result["image"] = window_screenshot
 
             total_time = time.time() - start_time
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Total time: {total_time*1000:.2f}ms", "1min", "green")
@@ -287,7 +372,7 @@ class WindowScreenshot:
             return result
 
         except Exception as e:
-            ColorPrint.print_min_interval(f"[FAST_SINGLE] Error in single window capture: {e}", "1min", "red")
+            ColorPrint.red(f"[FAST_SINGLE] Error in single window capture: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -346,11 +431,12 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
             if titles and not windows:
-                ColorPrint.print_min_interval(f"[FAST] No windows found matching: {titles}", "1min", "yellow")
+                ColorPrint.yellow(f"[FAST] No windows found matching: {titles}")
                 return None
 
             # Get window info if available
@@ -359,6 +445,16 @@ class WindowScreenshot:
                 hwnd = window_info["hwnd"]
                 title = window_info["title"]
                 rect = window_info["rect"]
+                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                    ColorPrint.print_min_interval(f"[FAST] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                    if not self.activate_window(hwnd, title):
+                        ColorPrint.print_min_interval(f"[FAST] Proceeding after activation attempt", "1min", "yellow")
+                    time.sleep(1)
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        window_info["rect"] = rect
+                    except Exception as e:
+                        ColorPrint.print_min_interval(f"[FAST] Could not refresh rect after activate: {e}", "1min", "yellow")
                 ColorPrint.print_min_interval(f"[FAST] Found window: '{title}' (Handle: {hwnd})", "1min", "green")
                 ColorPrint.print_min_interval(f"[FAST] Window rect: {rect}", "1min", "blue")
             else:
@@ -473,7 +569,7 @@ class WindowScreenshot:
             return result
 
         except Exception as e:
-            ColorPrint.print_min_interval(f"[FAST] Error in fast capture: {e}", "1min", "red")
+            ColorPrint.red(f"[FAST] Error in fast capture: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -568,7 +664,8 @@ class WindowScreenshot:
                 windows = WindowFinder.find_windows_by_titles(
                     titles=titles,
                     match_mode=self.match_mode,
-                    use_cache=use_cache
+                    use_cache=use_cache,
+                    skip_browser_if=_skip_browser_if
                 )
 
                 if not windows:
@@ -576,11 +673,22 @@ class WindowScreenshot:
                     return None
 
                 window_info = windows[0]
+                hwnd = window_info["hwnd"]
+                title = window_info["title"]
                 rect = window_info["rect"]
+                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                    ColorPrint.print_min_interval(f"[WindowRegion] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
+                    if not self.activate_window(hwnd, title):
+                        ColorPrint.print_min_interval(f"[WindowRegion] Proceeding after activation attempt", "1min", "yellow")
+                    time.sleep(1)
+                    try:
+                        rect = win32gui.GetWindowRect(hwnd)
+                        window_info["rect"] = rect
+                    except Exception as e:
+                        ColorPrint.print_min_interval(f"[WindowRegion] Could not refresh rect: {e}", "1min", "yellow")
                 left, top, right, bottom = rect
                 width = right - left
                 height = bottom - top
-                title = window_info["title"]
                 ColorPrint.print_min_interval(f"[WindowRegion] Found window: '{title}' ({width}x{height})", "1min", "gray")
                 return (left, top, width, height, title)
             else:
@@ -595,6 +703,45 @@ class WindowScreenshot:
 
         except Exception as e:
             ColorPrint.print_min_interval(f"[ERROR] Failed to get window region: {e}", "1min", "red")
+            return None
+
+    def capture_screen_region(
+        self,
+        left: int,
+        top: int,
+        width: int,
+        height: int
+    ) -> Optional[Image.Image]:
+        """
+        Native screen region capture: grab only the given screen rect (no fullscreen then crop).
+        Uses mss sct.grab(monitor) with monitor = {left, top, width, height}.
+
+        Args:
+            left: Screen X of region top-left
+            top: Screen Y of region top-left
+            width: Region width in pixels
+            height: Region height in pixels
+
+        Returns:
+            PIL Image of the region or None if failed
+        """
+        try:
+            if width <= 0 or height <= 0:
+                ColorPrint.print_min_interval("[ScreenRegion] Invalid width/height", "1min", "red")
+                return None
+            with mss.mss() as sct:
+                monitor = {
+                    "left": left,
+                    "top": top,
+                    "width": width,
+                    "height": height,
+                }
+                screenshot = sct.grab(monitor)
+                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+            ColorPrint.print_min_interval(f"[ScreenRegion] Native grab: ({left},{top}) {width}x{height}", "1min", "gray")
+            return img
+        except Exception as e:
+            ColorPrint.print_min_interval(f"[ERROR] capture_screen_region: {e}", "1min", "red")
             return None
 
     def capture_window_grid_region(

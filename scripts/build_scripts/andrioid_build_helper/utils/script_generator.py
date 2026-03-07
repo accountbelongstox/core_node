@@ -175,7 +175,8 @@ Write-Host "WARNING: This operation cannot be undone!" -ForegroundColor Red
 Write-Host ""
 
 # Ask for confirmation
-$confirmation = Read-Host "Do you want to proceed with cleanup? (Y/N)"
+$confirmation = Read-Host "Do you want to proceed with cleanup? (Y/N) [N]"
+if ([string]::IsNullOrWhiteSpace($confirmation)) { $confirmation = 'N' }
 
 if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {{
     Write-Host ""
@@ -564,7 +565,8 @@ while ($retryCount -le $maxRetries -and $exitCode -ne 0) {{
         # Ask for retry cleanup confirmation
         Write-Host ""
         Write-Host "[ORCHESTRATOR] Build failed. Do you want to clean and retry?" -ForegroundColor Yellow
-        $retryConfirmation = Read-Host "Clean build directories and retry? (Y/N)"
+        $retryConfirmation = Read-Host "Clean build directories and retry? (Y/N) [N]"
+        if ([string]::IsNullOrWhiteSpace($retryConfirmation)) { $retryConfirmation = 'N' }
 
         if ($retryConfirmation -eq 'Y' -or $retryConfirmation -eq 'y') {{
             # Run retry cleanup (lighter cleanup for retries)

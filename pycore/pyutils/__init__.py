@@ -9,6 +9,9 @@ Quick Imports:
     from pycore.pyutils import edge_tts_manager, EDGE_TTS_AVAILABLE
     from pycore.pyutils import ADBManager, DEVICE_CONTROL_AVAILABLE
     from pycore.pyutils import get_available_utilities
+    from pycore.pyutils.security import encrypt_password, decrypt_password, is_likely_ciphertext
+    from pycore.pyutils.field_input import type_into_field, FieldInputSimulator, CLEAR_MODE_REPLACE, CLEAR_MODE_APPEND, CLEAR_MODE_NONE
+    from pycore.pyutils.ime_switch import save_and_switch_ime_to_english, restore_ime, is_ime_switch_available
 """
 
 # ============================================================================
@@ -83,6 +86,35 @@ except Exception:
     TouchOnlySyncStrategy = None
     SyncEvent = None
     GROUP_CONTROL_AVAILABLE = False
+
+# ============================================================================
+# Field Input Simulator (focus, clear, type into input fields)
+# ============================================================================
+try:
+    from pycore.pyutils.field_input import (
+        type_into_field,
+        fill_field_with_fallback,
+        FieldInputSimulator,
+        CLEAR_MODE_REPLACE,
+        CLEAR_MODE_APPEND,
+        CLEAR_MODE_NONE,
+    )
+except Exception:
+    type_into_field = None
+    fill_field_with_fallback = None
+    FieldInputSimulator = None
+    CLEAR_MODE_REPLACE = "replace"
+    CLEAR_MODE_APPEND = "append"
+    CLEAR_MODE_NONE = "none"
+
+# ============================================================================
+# Tkinter taskbar (Windows: show overrideredirect window in taskbar)
+# ============================================================================
+try:
+    from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+except Exception:
+    ensure_tk_root_in_taskbar = None
+    set_windows_app_user_model_id = None
 
 # ============================================================================
 # Video Stream Utilities
@@ -224,7 +256,7 @@ try:
             TaskTimer,
             TimerTask,
             MainThreadExecutor,
-            StartupWindow,
+            TkinterStartupThread,
             ColorPrintCapture,
             launch_app_with_startup,
         )
@@ -239,7 +271,7 @@ try:
         TaskTimer = None
         TimerTask = None
         MainThreadExecutor = None
-        StartupWindow = None
+        TkinterStartupThread = None
         ColorPrintCapture = None
         launch_app_with_startup = None
 except Exception:
@@ -251,7 +283,7 @@ except Exception:
     TaskTimer = None
     TimerTask = None
     MainThreadExecutor = None
-    StartupWindow = None
+    TkinterStartupThread = None
     ColorPrintCapture = None
     launch_app_with_startup = None
     NATIVE_UI_AVAILABLE = False
@@ -390,10 +422,18 @@ __all__ = [
     'TaskTimer',
     'TimerTask',
     'MainThreadExecutor',
-    'StartupWindow',
+    'TkinterStartupThread',
     'ColorPrintCapture',
     'launch_app_with_startup',
     'NATIVE_UI_AVAILABLE',
+
+    # Field input
+    'type_into_field',
+    'fill_field_with_fallback',
+    'FieldInputSimulator',
+    'CLEAR_MODE_REPLACE',
+    'CLEAR_MODE_APPEND',
+    'CLEAR_MODE_NONE',
 ]
 
 __version__ = '2.0.0'

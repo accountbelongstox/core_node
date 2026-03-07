@@ -1,224 +1,59 @@
 <template>
-  <div class="max-w-6xl mx-auto space-y-8">
-    <!-- 全局任务控制中心 -->
-    <div class="bg-white rounded-lg border border-gray-200 p-6">
-      <div class="flex items-center justify-between mb-6">
-        <div class="flex items-center gap-4">
-          <div :class="[
-            'w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-300',
-            isTaskSystemRunning
-              ? 'bg-green-500 shadow-lg shadow-green-500/30 animate-pulse'
-              : 'bg-gray-300'
-          ]">
-            <span class="text-2xl">{{ isTaskSystemRunning ? '⚡' : '⏸️' }}</span>
-          </div>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900">Global Task System</h3>
-            <p class="text-sm text-gray-500">
-              {{ isTaskSystemRunning ? (isPaused ? 'Paused' : 'Running') : 'Stopped' }}
-              • {{ enabledExtensionsCount }} extensions enabled
-            </p>
-          </div>
-        </div>
+  <div class="flex flex-col gap-3 max-h-[400px]">
+    <!-- Global Task System (reference) -->
+    <div class="flex items-center justify-between p-2 bg-indigo-950/20 border border-indigo-500/30 rounded mb-1">
+      <span class="text-[10px] font-bold text-indigo-400 uppercase">Global Task System</span>
+      <button
+        @click="isTaskSystemRunning ? stopTaskSystem() : startTaskSystem()"
+        :class="['w-8 h-4 rounded-full relative transition-colors', isTaskSystemRunning ? 'bg-indigo-600' : 'bg-slate-600']"
+      >
+        <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', isTaskSystemRunning ? 'left-4.5' : 'left-0.5']" />
+      </button>
+    </div>
+    <div class="flex gap-2">
+      <button v-if="!isTaskSystemRunning" @click="startTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded transition-colors">▶ Start</button>
+      <template v-else>
+        <button v-if="!isPaused" @click="pauseTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded transition-colors">⏸ Pause</button>
+        <button v-else @click="resumeTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded transition-colors">▶ Resume</button>
+        <button @click="stopTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded transition-colors">⏹ Stop</button>
+      </template>
+    </div>
+    <div v-if="isTaskSystemRunning && !isPaused" class="p-2 bg-emerald-950/20 border border-emerald-500/30 rounded text-[10px] text-emerald-400">
+      {{ enabledExtensionsCount }} extensions enabled · {{ stats.completed }} completed<span v-if="stats.pending > 0"> · {{ stats.pending }} pending</span>
+    </div>
+    <div v-if="error" class="p-2 bg-rose-950/30 border border-rose-500/40 rounded text-[10px] text-rose-400">{{ error }}</div>
 
-        <!-- 实时统计信息 -->
-        <div v-if="isTaskSystemRunning" class="flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <div :class="[
-              'w-2 h-2 rounded-full bg-green-500 transition-all duration-300',
-              hasProcessingTasks ? 'scale-150 opacity-100' : 'scale-100 opacity-60'
-            ]"></div>
-            <span class="text-xs font-mono text-gray-500">
-              {{ stats.completed }} completed
-            </span>
-          </div>
-          <div v-if="stats.pending > 0" class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
-            <span class="text-xs font-mono text-gray-500">
-              {{ stats.pending }} pending
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 控制按钮组 -->
-      <div class="flex gap-3">
-        <button
-          v-if="!isTaskSystemRunning"
-          @click="startTaskSystem"
-          class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
-        >
-          <span class="text-lg">▶️</span>
-          <span>Start Task System</span>
-        </button>
-
-        <template v-else>
-          <button
-            v-if="!isPaused"
-            @click="pauseTaskSystem"
-            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors"
-          >
-            <span class="text-lg">⏸️</span>
-            <span>Pause</span>
+    <!-- Extensions list (reference) -->
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-[10px] font-bold text-slate-400 uppercase">Extensions</h2>
+      <button @click="toggleExpandAll" class="text-[10px] text-indigo-400 hover:underline">{{ isAllExpanded ? 'Collapse All' : 'Expand All' }}</button>
+    </div>
+    <div class="flex-1 overflow-y-auto space-y-1 pr-1 no-scrollbar">
+      <div
+        v-for="extension in extensions"
+        :key="extension.id"
+        @click="toggleExpanded(extension.id)"
+        :class="[
+          'p-2 rounded border cursor-pointer transition-all',
+          isExpanded(extension.id).value ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-slate-800/30 border-slate-700/50 hover:bg-slate-800'
+        ]"
+      >
+        <div class="flex justify-between items-center">
+          <span class="text-[11px] font-medium text-slate-200">{{ extension.name }}</span>
+          <button @click.stop="toggleExtension(extension.id)" class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors" :class="extension.enabled ? 'bg-indigo-600' : 'bg-slate-600'">
+            <span :class="['inline-block h-3 w-3 rounded-full bg-white transition-transform', extension.enabled ? 'translate-x-3.5' : 'translate-x-0.5']" />
           </button>
-
-          <button
-            v-else
-            @click="resumeTaskSystem"
-            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-          >
-            <span class="text-lg">▶️</span>
-            <span>Resume</span>
-          </button>
-
-          <button
-            @click="stopTaskSystem"
-            class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-          >
-            <span class="text-lg">⏹️</span>
-            <span>Stop</span>
-          </button>
-        </template>
-      </div>
-
-      <!-- 运行状态信息 -->
-      <div v-if="isTaskSystemRunning && !isPaused" class="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-        <div class="flex items-center gap-2 text-sm text-green-800">
-          <span class="font-mono">⚡</span>
-          <span>Task system is actively monitoring {{ enabledExtensionsCount }} enabled extensions...</span>
         </div>
-        <div v-if="stats.total > 0" class="mt-2 text-xs text-green-700 font-mono">
-          Total: {{ stats.total }} |
-          Processing: {{ stats.processing }} |
-          Failed: {{ stats.failed }}
-        </div>
-      </div>
-
-      <!-- 暂停状态信息 -->
-      <div v-if="isTaskSystemRunning && isPaused" class="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-        <div class="flex items-center gap-2 text-sm text-yellow-800">
-          <span class="font-mono">⏸️</span>
-          <span>Task system is paused. Click "Resume" to continue processing tasks.</span>
-        </div>
-        <div v-if="stats.pending > 0" class="mt-2 text-xs text-yellow-700 font-mono">
-          {{ stats.pending }} tasks waiting to be processed
-        </div>
-      </div>
-
-      <!-- 错误提示 -->
-      <div v-if="error" class="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-        <div class="flex items-center gap-2 text-sm text-red-800">
-          <span>⚠️</span>
-          <span>{{ error }}</span>
-        </div>
+        <p class="text-[9px] text-slate-500">{{ extension.description }}</p>
+        <span v-if="extension.enabled && isTaskSystemRunning" class="inline-flex items-center gap-1 mt-1">
+          <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
+          <span class="text-[9px] text-indigo-400">Running</span>
+        </span>
       </div>
     </div>
-
-    <!-- 扩展卡片网格 -->
-    <div>
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-gray-900">Extensions</h2>
-        <button
-          @click="toggleExpandAll"
-          class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
-        >
-          {{ isAllExpanded ? 'Collapse All' : 'Expand All' }}
-        </button>
-      </div>
-
-      <div class="grid grid-cols-2 gap-5">
-        <div
-          v-for="extension in extensions"
-          :key="extension.id"
-          :class="[
-            'bg-white rounded-lg border-2 transition-all cursor-pointer overflow-hidden',
-            extension.enabled
-              ? 'border-blue-200 shadow-sm hover:shadow-md hover:border-blue-300'
-              : 'border-gray-200 hover:border-gray-300',
-            isExpanded(extension.id).value ? 'ring-2 ring-blue-500 ring-opacity-20' : ''
-          ]"
-        >
-          <!-- 卡片头部 -->
-          <div
-            class="p-5 hover:bg-gray-50 transition-colors"
-            @click="toggleExpanded(extension.id)"
-          >
-            <div class="flex items-start gap-4 mb-4">
-              <!-- 扩展图标 -->
-              <div :class="[
-                'w-12 h-12 rounded-lg flex items-center justify-center text-2xl flex-shrink-0',
-                extension.enabled ? extension.iconBg : 'bg-gray-100'
-              ]">
-                {{ extension.icon }}
-              </div>
-
-              <div class="flex-1 min-w-0">
-                <h3 class="text-base font-semibold text-gray-900 mb-1">
-                  {{ extension.name }}
-                </h3>
-                <p class="text-sm text-gray-600 line-clamp-2">
-                  {{ extension.description }}
-                </p>
-              </div>
-            </div>
-
-            <!-- 状态和开关 -->
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <!-- 状态标签 -->
-                <span
-                  v-if="extension.status === 'active'"
-                  class="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full"
-                >
-                  ACTIVE
-                </span>
-                <span
-                  v-else-if="extension.status === 'todo'"
-                  class="px-2.5 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold rounded-full"
-                >
-                  COMING SOON
-                </span>
-
-                <!-- 运行指示器 -->
-                <span
-                  v-if="extension.enabled && isTaskSystemRunning"
-                  class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full"
-                >
-                  <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-                  Running
-                </span>
-              </div>
-
-              <!-- 启用开关 -->
-              <button
-                @click.stop="toggleExtension(extension.id)"
-                :class="[
-                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                  extension.enabled ? 'bg-blue-600' : 'bg-gray-300'
-                ]"
-              >
-                <span
-                  :class="[
-                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                    extension.enabled ? 'translate-x-6' : 'translate-x-1'
-                  ]"
-                ></span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 展开的详情 -->
-          <div
-            v-if="isExpanded(extension.id).value"
-            class="border-t border-gray-200 p-5 bg-gray-50"
-          >
-            <component v-if="extension.component" :is="extension.component" />
-            <div v-else class="text-sm text-gray-500">
-              No configuration available for this extension.
-            </div>
-          </div>
-        </div>
-      </div>
+    <div v-if="isExpanded(extensions.find(e => isExpanded(e.id).value)?.id).value" class="border-t border-slate-700 pt-3 mt-2">
+      <component v-if="extensions.find(e => isExpanded(e.id).value)?.component" :is="extensions.find(e => isExpanded(e.id).value)!.component" />
+      <div v-else class="text-[10px] text-slate-500">No configuration for this extension.</div>
     </div>
   </div>
 </template>

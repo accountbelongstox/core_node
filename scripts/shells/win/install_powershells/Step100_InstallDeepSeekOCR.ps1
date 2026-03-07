@@ -162,14 +162,14 @@ function Install-DeepSeekOCRDependencies {
 
     Write-Host "$SCRIPT_INDEX Installing Python dependencies..." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX Using Python command: $PythonCommand" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires cuda11.8+torch2.6.0" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires cuda12+torch (latest)" -ForegroundColor White
 
     try {
         Push-Location $InstallDirectory
 
-        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch 2.6.0 with CUDA 11.8..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch (latest) with CUDA 12.6..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+        & $PythonCommand -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Step 2: Installing core dependencies..." -ForegroundColor Cyan
@@ -177,9 +177,9 @@ function Install-DeepSeekOCRDependencies {
         & $PythonCommand -m pip install transformers accelerate pillow einops timm sentencepiece protobuf
         Write-Host ""
 
-        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn 2.7.3..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn (latest)..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install flash-attn==2.7.3 --no-build-isolation
+        & $PythonCommand -m pip install flash-attn --no-build-isolation
         Write-Host ""
 
         Pop-Location

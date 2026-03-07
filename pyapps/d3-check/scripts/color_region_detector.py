@@ -24,8 +24,6 @@ Algorithm:
 import os
 import sys
 import time
-import cv2
-import numpy as np
 from pathlib import Path
 from typing import List, Tuple, Set
 from collections import deque
@@ -33,8 +31,14 @@ from collections import deque
 # Add project paths
 current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
+from share.project_path import get_project_root
+sys.path.insert(0, str(get_project_root().parent.parent))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 
 # Target color group (BGR format)

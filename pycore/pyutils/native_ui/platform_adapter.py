@@ -59,9 +59,10 @@ class Platform(Enum):
 
 class TrayBackend(Enum):
     """Tray backend types"""
-    PYSTRAY = "pystray"      # Tkinter + pystray (cross-platform)
-    PYSIDE6 = "pyside6"      # Qt system tray
-    NONE = "none"            # No tray support
+    PYSTRAY = "pystray"         # Tkinter + pystray (cross-platform)
+    PYSIDE6 = "pyside6"        # Qt system tray
+    APPINDICATOR = "appindicator"  # AppIndicator3 (native Ubuntu/GNOME)
+    NONE = "none"              # No tray support
 
 
 # ============================================================
@@ -151,7 +152,15 @@ class PlatformAdapter:
             caps.has_x11 = self._detect_x11_display()
             caps.has_gui = caps.has_x11
             caps.can_use_tray = caps.has_x11
-            caps.recommended_tray_backend = TrayBackend.PYSTRAY if caps.has_x11 else TrayBackend.NONE
+            if caps.has_x11:
+                # Prefer AppIndicator on Ubuntu/GNOME desktop for native tray
+                desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
+                if 'ubuntu' in desktop or 'gnome' in desktop:
+                    caps.recommended_tray_backend = TrayBackend.APPINDICATOR
+                else:
+                    caps.recommended_tray_backend = TrayBackend.PYSTRAY
+            else:
+                caps.recommended_tray_backend = TrayBackend.NONE
 
             # Check if running as root (needs --no-sandbox for QtWebEngine)
             if self._is_running_as_root():
@@ -229,8 +238,9 @@ class PlatformAdapter:
         Get recommended tray backend for current platform
 
         Returns:
-            TrayBackend.PYSTRAY - For lightweight tray (Linux with X11)
-            TrayBackend.PYSIDE6 - For Qt-integrated tray (Windows/macOS)
+            TrayBackend.APPINDICATOR - Ubuntu/GNOME desktop (Linux + X11)
+            TrayBackend.PYSTRAY - Other Linux with X11
+            TrayBackend.PYSIDE6 - Windows/macOS
             TrayBackend.NONE - If tray not available
         """
         return self._capabilities.recommended_tray_backend
@@ -264,6 +274,11 @@ class PlatformAdapter:
             return TrayBackend.PYSTRAY
         elif preferred == "pyside6":
             return TrayBackend.PYSIDE6
+        elif preferred == "appindicator":
+            if not self.is_linux or not self.has_x11:
+                ColorPrint.yellow("[PlatformAdapter] appindicator is Linux/X11 only, falling back to recommended")
+                return self.get_recommended_tray_backend()
+            return TrayBackend.APPINDICATOR
         else:
             ColorPrint.yellow(f"[PlatformAdapter] Unknown backend '{preferred}', using recommended")
             return self.get_recommended_tray_backend()

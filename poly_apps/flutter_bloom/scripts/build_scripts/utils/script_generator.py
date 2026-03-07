@@ -175,7 +175,8 @@ Write-Host "WARNING: This operation cannot be undone!" -ForegroundColor Red
 Write-Host ""
 
 # Ask for confirmation
-$confirmation = Read-Host "Do you want to proceed with cleanup? (Y/N)"
+$confirmation = Read-Host "Do you want to proceed with cleanup? (Y/N) [N]"
+if ([string]::IsNullOrWhiteSpace($confirmation)) {{ $confirmation = 'N' }}
 
 if ($confirmation -eq 'Y' -or $confirmation -eq 'y') {{
     Write-Host ""
@@ -475,19 +476,27 @@ if ($exitCode -eq 0) {{
             Write-Host "[BUILD]   $apk" -ForegroundColor Gray
         }}
 
-        # Open the directory containing the first APK file
-        $firstApk = $foundApks[0]
-        $apkDirectory = Split-Path -Parent $firstApk
+        # Collect unique APK directories and open each in Explorer
+        $apkDirs = $foundApks | ForEach-Object {{ (Resolve-Path -LiteralPath (Split-Path -Parent $_)).Path }} | Sort-Object -Unique
         Write-Host ""
-        Write-Host "[BUILD] Opening APK directory in Explorer..." -ForegroundColor Cyan
-        Write-Host "[BUILD]   Directory: $apkDirectory" -ForegroundColor Gray
-
-        try {{
-            # Open Windows Explorer to the APK directory
-            Start-Process explorer.exe -ArgumentList $apkDirectory
-            Write-Host "[BUILD] Explorer opened successfully" -ForegroundColor Green
-        }} catch {{
-            Write-Host "[BUILD] Failed to open Explorer: $_" -ForegroundColor Yellow
+        Write-Host "[BUILD] Opening APK directory in Explorer... (count: $($apkDirs.Count))" -ForegroundColor Cyan
+        foreach ($apkDir in $apkDirs) {{
+            Write-Host "[BUILD]   Directory: $apkDir" -ForegroundColor Gray
+            try {{
+                $openCmd = "Invoke-Item -LiteralPath `"$apkDir`""
+                Write-Host "[BUILD] Open command: $openCmd" -ForegroundColor Gray
+                Invoke-Item -LiteralPath $apkDir
+                Write-Host "[BUILD] Explorer opened successfully" -ForegroundColor Green
+            }} catch {{
+                Write-Host "[BUILD] Failed to open Explorer: $_" -ForegroundColor Yellow
+            }}
+        }}
+        # Print adb install command for easy copy (use first release APK, else first found)
+        $apkForAdb = $foundApks | Where-Object {{ $_.ToString() -like '*release*.apk' }} | Select-Object -First 1
+        if (-not $apkForAdb) {{ $apkForAdb = $foundApks[0] }}
+        if ($apkForAdb) {{
+            Write-Host ""
+            Write-Host "[BUILD] ADB install (copy): adb install -r `"$apkForAdb`"" -ForegroundColor Cyan
         }}
     }} else {{
         Write-Host "[BUILD] No APK files found in expected locations" -ForegroundColor Yellow
@@ -564,7 +573,8 @@ while ($retryCount -le $maxRetries -and $exitCode -ne 0) {{
         # Ask for retry cleanup confirmation
         Write-Host ""
         Write-Host "[ORCHESTRATOR] Build failed. Do you want to clean and retry?" -ForegroundColor Yellow
-        $retryConfirmation = Read-Host "Clean build directories and retry? (Y/N)"
+        $retryConfirmation = Read-Host "Clean build directories and retry? (Y/N) [N]"
+        if ([string]::IsNullOrWhiteSpace($retryConfirmation)) {{ $retryConfirmation = 'N' }}
 
         if ($retryConfirmation -eq 'Y' -or $retryConfirmation -eq 'y') {{
             # Run retry cleanup (lighter cleanup for retries)

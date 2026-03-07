@@ -7,9 +7,13 @@ Uses 22x22 squares with 4 corner sampling points
 
 import json
 import math
-from PIL import Image, ImageDraw
 import os
 import colorsys
+
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
+
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
 def hex_to_rgb(hex_color):
     """Convert hex color to RGB tuple"""

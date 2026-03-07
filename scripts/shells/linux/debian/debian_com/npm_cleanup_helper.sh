@@ -102,6 +102,7 @@ remove_package_directory() {
     fi
 
     log_install "Removing package directory: $package_dir"
+    log_install "[SAFE_PATH] package_dir=$package_dir"
 
     # Try normal removal first
     if $USE_SUDO rm -rf "$package_dir" 2>/dev/null; then
@@ -110,9 +111,20 @@ remove_package_directory() {
     else
         log_warning "Normal removal failed, trying with permission fix..."
 
-        # Fix permissions and retry
-        $USE_SUDO chmod -R 777 "$package_dir" 2>/dev/null || true
-        $USE_SUDO chown -R root:root "$package_dir" 2>/dev/null || true
+        # Refuse chmod/chown on system or dangerous paths
+        _safe_pkg=false
+        if [ -n "$package_dir" ] && [[ "$package_dir" == /* ]]; then
+            case "$package_dir" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+                *) _safe_pkg=true ;;
+            esac
+        fi
+        if [ "$_safe_pkg" = true ]; then
+            $USE_SUDO chmod -R 777 "$package_dir" 2>/dev/null || true
+            $USE_SUDO chown -R root:root "$package_dir" 2>/dev/null || true
+        else
+            log_warning "Refusing chmod/chown on system or invalid path: $package_dir"
+        fi
 
         if $USE_SUDO rm -rf "$package_dir" 2>/dev/null; then
             log_success "Successfully removed package directory after permission fix"

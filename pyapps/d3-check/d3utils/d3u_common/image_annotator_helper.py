@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Image Annotator Helper
-Common methods for drawing template match results
+Common methods for drawing template match results.
+pycore ImageAnnotator: singleton via get_pycore_image_annotator(); do not instantiate elsewhere.
 """
 
 import os
@@ -10,24 +11,19 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint, ImageAnnotator
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyutils.image_annotator import ImageAnnotator
+from providor.constants.common import TMP_DIR
 
-PIL = get_third_package_PIL()
-from PIL import Image
-
-# Import TMP_DIR from providor_index (unified source)
-project_root_for_import = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root_for_import)
-from providor.providor_index import TMP_DIR
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+Image = get_third_package_PIL_Image()
 
 # Built-in color palette for annotations (BGR format for OpenCV)
 ANNOTATION_COLORS = {
@@ -103,6 +99,17 @@ def get_auto_color(index: int) -> Tuple[int, int, int]:
     color_name = COLOR_SEQUENCE[index % len(COLOR_SEQUENCE)]
     return get_annotation_color(color_name)
 
+_pycore_annotator_instance: Optional[ImageAnnotator] = None
+
+
+def get_pycore_image_annotator() -> ImageAnnotator:
+    """Single pycore ImageAnnotator instance for the project."""
+    global _pycore_annotator_instance
+    if _pycore_annotator_instance is None:
+        _pycore_annotator_instance = ImageAnnotator()
+    return _pycore_annotator_instance
+
+
 def get_tmp_dir() -> Path:
     """Get the temporary directory for saving annotated images"""
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -114,7 +121,7 @@ def generate_timestamp() -> str:
 
 def create_annotator(image_source) -> ImageAnnotator:
     """
-    Create ImageAnnotator from various image sources
+    Create ImageAnnotator from various image sources (uses shared pycore annotator instance).
 
     Args:
         image_source: Can be:
@@ -125,30 +132,22 @@ def create_annotator(image_source) -> ImageAnnotator:
     Returns:
         ImageAnnotator instance
     """
-    try:
-        if isinstance(image_source, (str, Path)):
-            # File path
-            return ImageAnnotator(str(image_source))
-        elif isinstance(image_source, np.ndarray):
-            # Numpy array
-            annotator = ImageAnnotator()
-            annotator.set_image(image_source)
-            return annotator
+    annotator = get_pycore_image_annotator()
+    if isinstance(image_source, (str, Path)):
+        annotator.load_image(str(image_source))
+        return annotator
+    elif isinstance(image_source, np.ndarray):
+        annotator.set_image(image_source)
+        return annotator
+    else:
+        if hasattr(image_source, 'mode'):
+            img_array = np.array(image_source)
+            if image_source.mode == 'RGB':
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            annotator.set_image(img_array)
         else:
-            # Assume PIL Image or compatible
-            annotator = ImageAnnotator()
-            # Convert PIL to numpy if needed
-            if hasattr(image_source, 'mode'):  # PIL Image
-                img_array = np.array(image_source)
-                if image_source.mode == 'RGB':
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                annotator.set_image(img_array)
-            else:
-                annotator.set_image(image_source)
-            return annotator
-    except Exception as e:
-        ColorPrint.red(f"[ImageAnnotatorHelper] Error creating annotator: {e}")
-        raise
+            annotator.set_image(image_source)
+        return annotator
 
 def get_image_pil(annotator: ImageAnnotator) -> Image.Image:
     """
@@ -266,8 +265,6 @@ def draw_grid_overlay(
             )
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing grid overlay: {e}")
-        import traceback
-        traceback.print_exc()
 
 def draw_match_result(
     annotator: ImageAnnotator,
@@ -364,7 +361,7 @@ def draw_match_result(
                 template_img = cv2.imread(str(template_path))
                 if template_img is not None:
                     # Use provided position or default to top-left
-                    pos = template_position if template_position else (10, 300)
+                    pos = template_position if template_position else (10, 184)  # was (10, 300) at 1826x1301
 
                     annotator.draw_image(
                         image=template_img,
@@ -386,8 +383,132 @@ def draw_match_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match result: {e}")
-        import traceback
-        traceback.print_exc()
+
+
+def save_match_debug_image(
+    image_source,
+    match: Dict,
+    label: str,
+    output_dir: Path,
+    template_path: Optional[str] = None,
+    color: Optional[Tuple[int, int, int]] = None,
+    filename_prefix: str = "match_debug",
+) -> Optional[Path]:
+    """
+    Draw match result on image and save to output_dir. Generic for any template match debug.
+    Returns saved path or None.
+    """
+    if image_source is None or not match:
+        return None
+    if color is None:
+        color = (0, 255, 0)
+    try:
+        annotator = create_annotator(image_source)
+        draw_match_result(
+            annotator,
+            match_result=match,
+            name=label,
+            color=color,
+            template_path=template_path,
+            draw_template=True,
+            template_position=(10, 10),
+        )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{label}_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Debug image save error: {e}")
+        return None
+
+
+def save_no_match_debug_image(
+    image_source,
+    method_name: str,
+    output_dir: Path,
+    template_path: Optional[str] = None,
+    filename_prefix: str = "no_match_debug",
+) -> Optional[Path]:
+    """
+    Draw template icon and "METHOD: no match" text, save to output_dir. Generic for feature-method failures.
+    Returns saved path or None.
+    """
+    if image_source is None:
+        return None
+    try:
+        annotator = create_annotator(image_source)
+        pos = (10, 10)
+        if template_path and Path(template_path).exists():
+            template_img = cv2.imread(str(template_path))
+            if template_img is not None:
+                annotator.draw_image(image=template_img, position=pos)
+                pos = (pos[0], pos[1] + template_img.shape[0] + 8)
+        annotator.draw_text(
+            text=f"{method_name}: no match",
+            position=pos,
+            color=(255, 255, 255),
+            font_scale=0.6,
+            thickness=2,
+            background_color=(0, 0, 255),
+        )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{method_name}_no_match_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Debug image save error: {e}")
+        return None
+
+
+def save_click_debug_image(
+    image_source,
+    click_points: List[Tuple],
+    output_dir: Path,
+    filename_prefix: str = "click_debug",
+    radius: int = 12,
+) -> Optional[Path]:
+    """
+    Draw click points on screenshot and save as debug image.
+    click_points: list of (x, y) in image coords, or (x, y, label_str). Labels drawn above point.
+    Returns saved path or None.
+    """
+    if image_source is None or not click_points:
+        return None
+    try:
+        annotator = create_annotator(image_source)
+        colors = [get_annotation_color(name) for name in COLOR_SEQUENCE[: len(click_points)]]
+        for i, pt in enumerate(click_points):
+            if len(pt) >= 3:
+                x, y, label = int(pt[0]), int(pt[1]), str(pt[2])
+            else:
+                x, y, label = int(pt[0]), int(pt[1]), str(i + 1)
+            color = colors[i] if i < len(colors) else get_annotation_color("green")
+            annotator.draw_circle((x, y), radius, color=color, thickness=2, filled=False)
+            annotator.draw_text(
+                text=label,
+                position=(max(0, x - 10), max(0, y - radius - 4)),
+                color=color,
+                font_scale=0.5,
+                thickness=1,
+                background_color=(0, 0, 0),
+            )
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        path = output_dir / f"{filename_prefix}_{ts}.png"
+        annotator.save(str(path))
+        ColorPrint.blue(f"[ImageAnnotatorHelper] Click debug image saved: {path}")
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[ImageAnnotatorHelper] Click debug save error: {e}")
+        return None
+
 
 def draw_match_results(
     annotator: ImageAnnotator,
@@ -447,8 +568,9 @@ def draw_match_results(
             else:
                 not_found_items.append((idx, result_info))
 
-        # Draw found items
-        template_y_offset = 300
+        # Draw found items (layout scaled from 300/100 at 1826x1301)
+        template_y_offset = 184   # was 300 at 1826x1301
+        template_row_step = 61   # was 100 at 1826x1301
         for list_idx, (original_idx, result_info) in enumerate(found_items):
             match_result = result_info.get("match_result")
             name = result_info.get("name", f"Match_{list_idx}")
@@ -469,7 +591,7 @@ def draw_match_results(
                 color = get_annotation_color("green")
 
             # Calculate template position
-            template_pos = (10, template_y_offset + list_idx * 100)
+            template_pos = (10, template_y_offset + list_idx * template_row_step)
 
             draw_match_result(
                 annotator=annotator,
@@ -518,8 +640,6 @@ def draw_match_results(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match results: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_anchor_detection_result(
     annotator: ImageAnnotator,
@@ -570,7 +690,7 @@ def save_anchor_detection_result(
         # Draw each anchor search attempt
         info_y = 60  # Start position for info text
         template_x_offset = 10  # X position for template images
-        template_y_offset = 300  # Y position to start drawing templates
+        template_y_offset = 184  # was 300 at 1826x1301
 
         for idx, anchor in enumerate(anchor_results):
             # Determine color based on found status
@@ -619,7 +739,7 @@ def save_anchor_detection_result(
                     template_img = cv2.imread(str(template_path))
                     if template_img is not None:
                         # Calculate position for this template
-                        current_y = template_y_offset + idx * 100
+                        current_y = template_y_offset + idx * 61  # was 100 at 1826x1301
 
                         # Draw template image on annotation
                         annotator.draw_image(
@@ -733,8 +853,6 @@ def save_anchor_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving anchor detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_bag_detection_result(
     annotator: ImageAnnotator,
@@ -766,7 +884,7 @@ def save_bag_detection_result(
             color=get_annotation_color("green"),
             template_path=template_path,
             draw_template=True,
-            template_position=(10, 300)
+            template_position=(10, 184)  # was (10, 300) at 1826x1301
         )
 
         # Draw final bag rectangle (after offset applied)
@@ -816,8 +934,6 @@ def save_bag_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving bag detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def _draw_bag_layout_grid(
     annotator: ImageAnnotator,
@@ -956,5 +1072,3 @@ def _draw_bag_layout_grid(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing bag layout grid: {e}")
-        import traceback
-        traceback.print_exc()

@@ -13,16 +13,21 @@ import math
 from typing import Tuple, Optional, Dict, Any, List, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_PIL_ImageEnhance,
+    get_third_package_PIL_ImageFilter,
+    get_third_package_PIL_ImageOps,
+)
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
-ImageDraw = PIL.ImageDraw
-ImageFont = PIL.ImageFont
-ImageEnhance = PIL.ImageEnhance
-ImageFilter = PIL.ImageFilter
-ImageOps = PIL.ImageOps
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
+ImageEnhance = get_third_package_PIL_ImageEnhance()
+ImageFilter = get_third_package_PIL_ImageFilter()
+ImageOps = get_third_package_PIL_ImageOps()
 
 logger = logging.getLogger(__name__)
 

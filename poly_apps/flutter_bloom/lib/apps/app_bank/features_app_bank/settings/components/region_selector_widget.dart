@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/china_regions.dart';
 import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
+import '../../../helpers/bank_region_utils.dart';
 
 class RegionSelectorWidget extends StatefulWidget {
   final String? initialProvince;
@@ -40,7 +41,6 @@ class RegionSelectorWidget extends StatefulWidget {
 }
 
 class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
-
   String? _selectedProvince;
   String? _selectedCity;
   String? _selectedCounty;
@@ -63,7 +63,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
     if (_selectedProvince != null) {
       _filteredCities.addAll(ChinaRegions.getCities(_selectedProvince!));
       if (_selectedCity != null) {
-        _filteredCounties.addAll(ChinaRegions.getCounties(_selectedProvince!, _selectedCity!));
+        _filteredCounties.addAll(
+            ChinaRegions.getCounties(_selectedProvince!, _selectedCity!));
       }
     }
   }
@@ -91,7 +92,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
       _selectedCity = city;
       _selectedCounty = null;
       _filteredCounties.clear();
-      _filteredCounties.addAll(ChinaRegions.getCounties(_selectedProvince!, city));
+      _filteredCounties
+          .addAll(ChinaRegions.getCounties(_selectedProvince!, city));
       _notifyRegionChanged();
     });
   }
@@ -109,7 +111,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
         province: _selectedProvince,
         city: _selectedCity,
         county: _selectedCounty,
-        customRegion: _useCustomRegion ? _customRegionController.text.trim() : null,
+        customRegion:
+            _useCustomRegion ? _customRegionController.text.trim() : null,
       ));
     }
   }
@@ -154,7 +157,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
             _selectedCity = matchedCity;
             _selectedCounty = null;
             _filteredCounties.clear();
-            _filteredCounties.addAll(ChinaRegions.getCounties(matchedProvince, matchedCity));
+            _filteredCounties
+                .addAll(ChinaRegions.getCounties(matchedProvince, matchedCity));
           });
         }
       }
@@ -180,7 +184,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BankConstants.borderRadius),
+                    borderRadius:
+                        BorderRadius.circular(BankConstants.borderRadius),
                   ),
                 ),
                 icon: const Icon(Icons.my_location, size: 20),
@@ -191,18 +196,25 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
         if (widget.showCustomRegionOption) ...[
           Row(
             children: [
-              Expanded(
-                child: Switch(
-                  value: _useCustomRegion,
-                  onChanged: (value) {
-                    setState(() {
-                      _useCustomRegion = value;
-                      _showRegionSelector = !value;
-                    });
-                  },
+              const Text(
+                '自定义地区',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
                 ),
               ),
-              const Text('自定义地区'),
+              const Spacer(),
+              Switch(
+                value: _useCustomRegion,
+                onChanged: (value) {
+                  setState(() {
+                    _useCustomRegion = value;
+                    _showRegionSelector = !value;
+                  });
+                  _notifyRegionChanged();
+                },
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -223,11 +235,13 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
-              prefixIcon: const Icon(Icons.location_on, color: Color(0xFF74B9FF)),
+              prefixIcon:
+                  const Icon(Icons.location_on, color: Color(0xFF74B9FF)),
             ),
           )
         else ...[
@@ -237,7 +251,8 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
                 : '未选择地区',
             style: TextStyle(
               fontSize: 14,
-              color: _selectedProvince != null ? Colors.black87 : Colors.grey[600],
+              color:
+                  _selectedProvince != null ? Colors.black87 : Colors.grey[600],
             ),
           ),
           const SizedBox(height: 8),
@@ -367,7 +382,34 @@ class RegionSelectorWidgetState extends State<RegionSelectorWidget> {
   }
 
   void updateFromLocation(String? province, String? city) {
+    _updateFromLocation(province: province, city: city, district: null);
+  }
+
+  void updateFromLocationInfo(
+      String? province, String? city, String? district) {
+    _updateFromLocation(province: province, city: city, district: district);
+  }
+
+  void _updateFromLocation({
+    required String? province,
+    required String? city,
+    required String? district,
+  }) {
     _updateRegionFromLocation(province, city);
+
+    final smallest = BankRegionUtils.pickSmallestRegion(
+      province: province,
+      city: city,
+      district: district,
+    );
+    if (smallest == null || smallest.isEmpty) return;
+
+    setState(() {
+      _useCustomRegion = true;
+      _showRegionSelector = false;
+      _customRegionController.text = smallest;
+    });
+    _notifyRegionChanged();
   }
 }
 

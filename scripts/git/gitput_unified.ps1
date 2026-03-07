@@ -40,6 +40,14 @@ $script:ForcePushChoice = $null
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
+$githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
+if (Test-Path $githubHostRefreshScript) {
+    . $githubHostRefreshScript
+}
+$giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
+if (Test-Path $giteeHostRefreshScript) {
+    . $giteeHostRefreshScript
+}
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {
@@ -354,17 +362,11 @@ function Create-WorkingBackup {
     }
 }
 
-# Function to determine default remote based on region setting
+# Function to determine default remote (GitHub first; used for execution order and restore)
 function Get-DefaultRemote {
     param([string]$ProjectName)
     
-    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
-    if ($selectedRegion -eq "Global") {
-        return "git@github.com:accountbelongstox/$ProjectName.git"
-    } else {
-        # Default to China/Gitee if no region is set or if set to China
-        return "git@gitee.com:accountbelongstox/$ProjectName.git"
-    }
+    return "git@github.com:accountbelongstox/$ProjectName.git"
 }
 
 # Load remote configurations from git_remotes.conf
@@ -940,12 +942,10 @@ function Invoke-GitOperations {
         } else {
             # Normal push mode - pull first to prevent conflicts
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
-            # Always pull to prevent push conflicts
             Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
             Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
             git pull origin $currentBranch --no-edit
 
-            # Push changes to remote
             Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
             Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
             git push --set-upstream origin $currentBranch
@@ -992,7 +992,7 @@ try {
     # Determine target remote
     if (-not $TargetRemote) {
         Write-ColorText "No target specified, using all remotes" -ForegroundColor Yellow
-        $targets = @("gitee", "github", "local")
+        $targets = @("github", "gitee", "local")
     } else {
         $targets = @($TargetRemote)
     }
@@ -1043,8 +1043,28 @@ try {
             Write-ColorText "✓ Normal push mode (with pull) for ALL targets" -ForegroundColor Green
         }
         Write-ColorText "" -ForegroundColor White
+
+        Write-ColorText "Refresh GitHub HOST (GitHub520)? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshHostChoice = Read-Host
+        if ($refreshHostChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GitHubHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GitHubHostRefresh -WriteColorText $refreshScriptBlock
+            }
+        }
+        Write-ColorText "" -ForegroundColor White
+
+        Write-ColorText "Refresh Gitee HOST? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshGiteeChoice = Read-Host
+        if ($refreshGiteeChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GiteeHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GiteeHostRefresh -WriteColorText $refreshScriptBlock
+            }
+        }
+        Write-ColorText "" -ForegroundColor White
     }
-    
+
     $allSuccess = $true
     
     foreach ($target in $targets) {

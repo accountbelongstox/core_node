@@ -9,15 +9,15 @@ Handles NPC finding and pathfinding logic using OCR and grid-based search
 import sys
 import os
 import time
-import traceback
 from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
 # Third-party imports
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw, ImageFont
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 # Add paths
 
@@ -28,11 +28,15 @@ controller_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, controller_path)
 
 # Project imports
-from providor.common_imports import ColorPrint, ImageAnnotator, ImageCrop, CnOCREngine
-from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_crop import ImageCrop
+from d3utils.cnocr_engine_registry import get_cnocr_engine_default
+from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector, get_grid_screenshot_collector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler
-from providor.providor_index import TMP_DIR, DIABLO_III_WINDOW_TITLES
-from config.grid_config import GRID_ROWS, GRID_COLS, TOTAL_GRID_CELLS
+from providor.constants.common import TMP_DIR
+from providor.providor_index import DIABLO_III_WINDOW_TITLES
+from config.grid_config import get_grid_config
 
 class PathfindingController:
     """
@@ -47,9 +51,9 @@ class PathfindingController:
 
     def __init__(self):
         """Initialize pathfinding controller"""
-        self.grid_collector = GridScreenshotCollector()
-        self.ocr_engine = CnOCREngine()
-        self.ocr_initialized = False
+        self.grid_collector = get_grid_screenshot_collector()
+        self.ocr_engine = get_cnocr_engine_default()
+        self.ocr_initialized = self.ocr_engine is not None
         self.click_handler = get_state_aware_click_handler()
 
         # Ensure TMP_DIR exists
@@ -59,23 +63,21 @@ class PathfindingController:
 
     def _ensure_ocr_initialized(self) -> bool:
         """
-        Ensure OCR is initialized
-
-        Returns:
-            bool: Success status
+        Ensure OCR is initialized (engine from registry, inited at app startup).
         """
-        if not self.ocr_initialized:
-            ColorPrint.blue("[PathfindingController] Initializing CnOCR Engine...")
-            if self.ocr_engine.init():
-                self.ocr_initialized = True
-                ColorPrint.green("[PathfindingController] CnOCR Engine initialized successfully")
-                return True
-            else:
-                ColorPrint.red("[PathfindingController] CnOCR Engine initialization failed")
-                return False
-        return True
+        if self.ocr_engine is None:
+            return False
+        if self.ocr_initialized:
+            return True
+        if self.ocr_engine._initialized:
+            self.ocr_initialized = True
+            return True
+        if self.ocr_engine.init():
+            self.ocr_initialized = True
+            return True
+        return False
 
-    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:
+    def find_enchanter_npc(self, target_text: str = "附魔") -> Dict[str, Any]:  # Enchanter NPC; default constant for CN client
         """
         Find enchanter NPC using grid-based OCR search with mouse movement
 
@@ -88,7 +90,7 @@ class PathfindingController:
         3. Compile results into annotated image
 
         Args:
-            target_text: Text to search for (default: "附魔")
+            target_text: Text to search for (constant per client locale)
 
         Returns:
             Dict containing search results:
@@ -98,8 +100,11 @@ class PathfindingController:
                 - coordinates: Screen coordinates (x, y)
                 - annotated_image_path: Path to result image
         """
+        grid_cfg = get_grid_config()
+        grid_rows, grid_cols = grid_cfg['rows'], grid_cfg['cols']
+        total_cells = grid_rows * grid_cols
         ColorPrint.blue(f"[PathfindingController] Starting grid-based search for: {target_text}")
-        ColorPrint.blue(f"[PathfindingController] Grid size: {GRID_ROWS} x {GRID_COLS} = {TOTAL_GRID_CELLS} cells")
+        ColorPrint.blue(f"[PathfindingController] Grid size: {grid_rows} x {grid_cols} = {total_cells} cells")
 
         # Initialize OCR
         if not self._ensure_ocr_initialized():
@@ -118,24 +123,24 @@ class PathfindingController:
         search_results = []  # Store all search results for visualization
 
         # Step two: Iterate through grid cells
-        ColorPrint.blue(f"[PathfindingController] Step two: Searching through {TOTAL_GRID_CELLS} cells...")
+        ColorPrint.blue(f"[PathfindingController] Step two: Searching through {total_cells} cells...")
         ColorPrint.yellow(f"[PathfindingController] Note: Mouse will move to each cell before capture")
 
         try:
-            for row in range(GRID_ROWS):
+            for row in range(grid_rows):
                 if found:
                     break
 
-                ColorPrint.blue(f"[PathfindingController] === Searching row {row + 1}/{GRID_ROWS} ===")
+                ColorPrint.blue(f"[PathfindingController] === Searching row {row + 1}/{grid_rows} ===")
 
-                for col in range(GRID_COLS):
+                for col in range(grid_cols):
                     if found:
                         break
 
                     # Progress indicator
-                    cell_index = row * GRID_COLS + col
-                    progress_pct = (cell_index / TOTAL_GRID_CELLS) * 100
-                    ColorPrint.gray(f"[Progress] Cell {cell_index + 1}/{TOTAL_GRID_CELLS} ({progress_pct:.1f}%) - ({row},{col})")
+                    cell_index = row * grid_cols + col
+                    progress_pct = (cell_index / total_cells) * 100
+                    ColorPrint.gray(f"[Progress] Cell {cell_index + 1}/{total_cells} ({progress_pct:.1f}%) - ({row},{col})")
 
                     # Step 2a: Get cell center position (uses config defaults)
                     cell_center = self.grid_collector.get_cell_center_position(
@@ -251,7 +256,6 @@ class PathfindingController:
 
         except Exception as e:
             ColorPrint.red(f"[PathfindingController] Search error: {e}")
-            traceback.print_exc()
             return {
                 'found': False,
                 'error': f'Search error: {e}'
@@ -314,7 +318,8 @@ class PathfindingController:
                 f.write(f"Target Text: {target_text}\n")
                 f.write(f"Search Status: {'FOUND' if found else 'NOT FOUND'}\n")
                 f.write(f"Total Cells Searched: {len(search_results)}\n")
-                f.write(f"Grid Size: {GRID_ROWS} x {GRID_COLS} = {TOTAL_GRID_CELLS} cells\n")
+                grid_cfg = get_grid_config()
+                f.write(f"Grid Size: {grid_cfg['rows']} x {grid_cfg['cols']} = {grid_cfg['rows'] * grid_cfg['cols']} cells\n")
                 f.write(f"Timestamp: {timestamp}\n")
                 f.write(f"{'=' * 70}\n\n")
 
@@ -342,8 +347,6 @@ class PathfindingController:
 
         except Exception as e:
             ColorPrint.red(f"[PathfindingController] Error saving result: {e}")
-            traceback.print_exc()
-            # Return a fallback path
             fallback_path = TMP_DIR / f"pathfinding_error_{timestamp}.txt"
             fallback_path.write_text(f"Error generating result: {e}", encoding='utf-8')
             return fallback_path

@@ -132,10 +132,11 @@ remove_chrome_repository() {
     echo "$script_tag Google Chrome repository removed successfully"
 }
 
-# Function to add PHP repository (Ondrej PPA)
+# Function to add PHP repository (Ondrej PPA / Sury)
+# Ubuntu: use ppa.launchpadcontent.net and Launchpad PPA key to avoid certificate verification errors
 add_php_repository() {
     local script_tag="${SCRIPT_INDEX:-[REPO_MGR]}"
-    echo "$script_tag Adding PHP repository (Ondrej PPA)..."
+    echo "$script_tag Adding PHP repository (Ondrej PPA / Sury)..."
 
     # Detect OS
     local os_id=$(lsb_release -si 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "unknown")
@@ -153,13 +154,19 @@ add_php_repository() {
 
     # Setup repository based on OS
     if [[ "$os_id" == "ubuntu" ]]; then
-        echo "$script_tag Setting up Ubuntu PPA repository..."
+        echo "$script_tag Setting up Ubuntu PPA repository (ppa.launchpadcontent.net + PPA key)..."
         if $USE_SUDO add-apt-repository ppa:ondrej/php -y 2>/dev/null; then
-            echo "$script_tag Ubuntu PPA added successfully"
+            echo "$script_tag Ubuntu PPA added successfully via add-apt-repository"
         else
-            echo "$script_tag PPA failed, trying manual method..."
-            $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
-            echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
+            echo "$script_tag PPA add-apt-repository failed, using manual method with PPA key and launchpadcontent.net..."
+            if curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xB8DC7E53946656EFBCE4C1DD71DAEAAB4AD4CAB6" | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg 2>/dev/null; then
+                echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
+                echo "$script_tag Ubuntu PPA added manually (ppa.launchpadcontent.net)"
+            else
+                echo "$script_tag Fallback: trying Sury key with launchpadcontent.net..."
+                $USE_SUDO wget -qO- https://packages.sury.org/php/apt.gpg | $USE_SUDO gpg --dearmor -o /usr/share/keyrings/php-archive-keyring.gpg
+                echo "deb [signed-by=/usr/share/keyrings/php-archive-keyring.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $os_codename main" | $USE_SUDO tee /etc/apt/sources.list.d/php.list
+            fi
         fi
     elif [[ "$os_id" == "debian" ]]; then
         echo "$script_tag Setting up Debian Sury repository..."

@@ -1,0 +1,44 @@
+# MCP Install Methods by Client (from official docs / context7.com)
+# Used by DD.CMD MCP menu and sync scripts. Do not edit manually unless updating from upstream.
+
+# ---- Context7 (and similar HTTP MCP) ----
+
+# Claude Code (claude CLI)
+# Local stdio:
+#   claude mcp add --scope user context7 -- npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
+# Remote HTTP:
+#   claude mcp add --scope user --header "CONTEXT7_API_KEY: YOUR_API_KEY" --transport http context7 https://mcp.context7.com/mcp
+# Scope: user (~/.claude.json) | project (.mcp.json) | local (default, project path in ~/.claude.json)
+
+# Codex CLI (OpenAI - codex)
+# List: codex mcp list
+# Add stdio: codex mcp add context7 -- npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
+# Add HTTP:  codex mcp add context7 --url https://mcp.context7.com/mcp (then set http_headers via config or env)
+# Config: ~/.codex/config.toml  [mcp_servers.context7] url = "..." http_headers = { "CONTEXT7_API_KEY" = "..." }
+# Or: codex mcp add context7 --url https://mcp.context7.com/mcp (headers may need config.toml edit)
+
+# Gemini CLI (gemini)
+# Add stdio: gemini mcp add context7 npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
+# Add HTTP:  gemini mcp add --transport http context7 https://mcp.context7.com/mcp -H "CONTEXT7_API_KEY: YOUR_API_KEY" -H "Accept: application/json, text/event-stream"
+# Config: ~/.gemini/settings.json or .gemini/settings.json  mcpServers.context7.httpUrl + headers
+
+# Factory Droid (droid CLI)
+# Remote: droid mcp add context7 https://mcp.context7.com/mcp --type http --header "CONTEXT7_API_KEY: YOUR_API_KEY"
+# Local:  droid mcp add context7 "npx -y @upstash/context7-mcp" --env CONTEXT7_API_KEY=YOUR_API_KEY
+
+# Cursor (no CLI for MCP)
+# Edit ~/.cursor/mcp.json or .cursor/mcp.json (project). Remote: "context7": { "url": "https://mcp.context7.com/mcp", "headers": { "CONTEXT7_API_KEY": "YOUR_API_KEY" } }
+# Local: "context7": { "command": "npx", "args": ["-y", "@upstash/context7-mcp", "--api-key", "YOUR_API_KEY"] }
+
+# GitHub Copilot Coding Agent (no CLI)
+# Repository -> Settings -> Copilot -> Coding agent -> MCP configuration (JSON in UI). type: "http" or "local", url/command, headers, tools.
+
+# Amp (amp CLI)
+# amp mcp add context7 https://mcp.context7.com/mcp
+# amp mcp add context7 --header "CONTEXT7_API_KEY=YOUR_API_KEY" https://mcp.context7.com/mcp
+
+# Qwen Code (qwen CLI)
+# Remote: qwen mcp add --transport http context7 https://mcp.context7.com/mcp --header "CONTEXT7_API_KEY: YOUR_API_KEY" --header "Accept: application/json, text/event-stream"
+# Local:  qwen mcp add context7 npx -y @upstash/context7-mcp --api-key YOUR_API_KEY
+
+# One-shot setup (Context7 official): npx ctx7 setup   (--cursor, --claude, --opencode to target agent)

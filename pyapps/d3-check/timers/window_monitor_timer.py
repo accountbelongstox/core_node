@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 Window Monitor Timer
-Monitors Diablo III window status every 10 seconds and updates game interface data
+Periodically calls window status providers, detects D3/Battle.net windows and updates game_interface_data; status UI receives updates via game_interface_data callbacks (independent of ROSBOT running).
 """
 
 import os
 import sys
-import tkinter as tk
+import threading
 from typing import Optional, List, Callable
 
 # Add project paths
@@ -15,20 +15,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
-# Add ncore to path for window_finder
-ncore_path = os.path.join(os.path.dirname(project_root), 'ncore', 'pytools')
-sys.path.insert(0, ncore_path)
+from share.game_interface_data import get_game_interface_data
+from d3utils.rosbot_task_processor import run_full_status_refresh
+from timers.timer_manager import register_task
+from d3utils.d3_status_provider import get_current_d3_window
+from d3utils.tick_driver import register_inactive_refresh
 
-from providor.common_imports import ColorPrint
-from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from share.game_interface_data import get_game_interface_data, get_screen_resolution
-from pyutils.common.window_finder import WindowFinder
+from providor.constants.common import DEFAULT_INTERVAL
 
 # Global window monitor state
-DEFAULT_INTERVAL = 10.0
 _callbacks: List[Callable] = []
 _last_window_found = False
-_game_data = get_game_interface_data()
+# When True, do not run full refresh again when flow inactive (startup already did one; flow-driven runs when flow active).
+_inactive_refresh_done = False
 
 
 
@@ -46,9 +45,6 @@ def add_callback(callback: Callable):
 
     if callback not in _callbacks:
         _callbacks.append(callback)
-        ColorPrint.blue(
-            f"[WindowMonitor] Added callback: {callback.__name__}"
-        )
 
 
 def remove_callback(callback: Callable):
@@ -62,148 +58,66 @@ def remove_callback(callback: Callable):
 
     if callback in _callbacks:
         _callbacks.remove(callback)
-        ColorPrint.blue(
-            f"[WindowMonitor] Removed callback: {callback.__name__}"
-        )
+
+
+def register_status_ui(callback: Callable):
+    """
+    Register status UI with timer-driven data: register callback on game_interface_data.
+    Timer calls d3_status_provider and battlenet_status_provider; when they update state, this callback(state) is invoked. D3/Battle.net state independent of rosbot.
+    First check is run by controller when UI is ready (start_timer_loop_after_ui_ready), not here, to avoid callbacks before status widgets exist.
+    Callback signature: callback(state: dict); state has battlenet_window_found, d3_running, rosbot_running, map_type, game_stage, and dynamic flags.
+    Called from controller (timer and UI are sibling modules; no cross-import).
+    """
+    get_game_interface_data().register_callback(callback)
 
 
 def _notify_callbacks(window_info: Optional[dict]):
-    """
-    Notify all registered callbacks with window information
-
-    Args:
-        window_info: Window information dictionary or None if not found
-    """
+    """Notify all registered callbacks with D3 window info (hwnd, rect, etc.)."""
     global _callbacks
-
     for callback in _callbacks:
         try:
             callback(window_info)
-        except Exception as e:
-            ColorPrint.red(
-                f"[WindowMonitor] Error in callback {callback.__name__}: {e}"
-            )
+        except Exception:
+            pass
 
 
-def check_window():
+def notify_window_callbacks(window_info: Optional[dict]) -> None:
+    """Public API: notify D3 window callbacks after a full refresh. Reusable from initial check or manual refresh."""
+    _notify_callbacks(window_info)
+
+
+def mark_inactive_refresh_done() -> None:
+    """Mark that the one-time inactive refresh has been done (startup). Timer will not run full refresh again when flow inactive."""
+    global _inactive_refresh_done
+    _inactive_refresh_done = True
+
+
+def refresh_window_status_if_inactive() -> None:
     """
-    Check Diablo III window status (called by timer)
-
-    This function is registered as the timer callback.
+    Run full refresh at most once (idempotent). When to call is driven by tick/flow; this module does not check flow state.
     """
-    global _last_window_found, _game_data
-
-    try:
-        # Use WindowFinder to search for Diablo III windows
-        windows = WindowFinder.find_windows_by_titles(
-            titles=DIABLO_III_WINDOW_TITLES,
-            match_mode="in",  # Match if title contains any of the strings
-            use_cache=True
-        )
-
-        if windows:
-            # Get first matched window
-            window_info = windows[0]
-
-            # Update game interface data
-            _update_game_data(window_info)
-
-            # Notify callbacks
-            _notify_callbacks(window_info)
-
-            # Log if status changed
-            if not _last_window_found:
-                ColorPrint.green(
-                    f"[WindowMonitor] Diablo III window found: "
-                    f"'{window_info['title']}' "
-                    f"({window_info['width']}x{window_info['height']})"
-                )
-                _last_window_found = True
-
-        else:
-            # Window not found
-            _update_game_data(None)
-            _notify_callbacks(None)
-
-            # Log if status changed
-            if _last_window_found:
-                ColorPrint.yellow(
-                    "[WindowMonitor] Diablo III window not found"
-                )
-                _last_window_found = False
-
-    except Exception as e:
-        ColorPrint.red(f"[WindowMonitor] Error checking window: {e}")
+    global _last_window_found, _inactive_refresh_done
+    if _inactive_refresh_done:
+        return
+    d3_info = run_full_status_refresh()
+    _notify_callbacks(d3_info)
+    _last_window_found = bool(d3_info)
+    _inactive_refresh_done = True
 
 
-def _update_game_data(window_info: Optional[dict]):
-    """
-    Update game interface data with window information
+register_inactive_refresh(refresh_window_status_if_inactive)
 
-    Args:
-        window_info: Window information dictionary or None
-    """
-    global _game_data
 
-    try:
-        if window_info:
-            # Extract window information
-            rect = window_info['rect']
-            width = window_info['width']
-            height = window_info['height']
-
-            # Update fullscreen size (get actual screen resolution)
-            screen_width, screen_height = get_screen_resolution()
-            _game_data.fullscreen_size = (screen_width, screen_height)
-
-            # Calculate window offset (left, top)
-            window_offset = (rect[0], rect[1])
-            _game_data.window_offset = window_offset
-
-            # Optional: Store additional window metadata
-            # (Not part of original D3InterfaceData, but could be useful)
-            if not hasattr(_game_data, '_window_hwnd'):
-                _game_data._window_hwnd = window_info['hwnd']
-                _game_data._window_title = window_info['title']
-
-        else:
-            # Window not found - reset window data
-            _game_data.fullscreen_size = (0, 0)
-            _game_data.window_offset = (0, 0)
-
-            if hasattr(_game_data, '_window_hwnd'):
-                _game_data._window_hwnd = None
-                _game_data._window_title = None
-
-    except Exception as e:
-        ColorPrint.red(
-            f"[WindowMonitor] Error updating game data: {e}"
-        )
+def check_window() -> None:
+    """Deprecated alias for refresh_window_status_if_inactive."""
+    refresh_window_status_if_inactive()
 
 
 def get_current_window_info() -> Optional[dict]:
-    """
-    Get current window information (immediate check, not from timer)
-
-    Returns:
-        Window information dictionary or None if not found
-    """
+    """Immediate check: return current D3 window info or None. Uses d3_status_provider."""
     try:
-        windows = WindowFinder.find_windows_by_titles(
-            titles=DIABLO_III_WINDOW_TITLES,
-            match_mode="in",
-            use_cache=True
-        )
-
-        if windows:
-            return windows[0]
-        else:
-            return None
-
+        return get_current_d3_window()
     except Exception as e:
-        ColorPrint.red(
-            f"[WindowMonitor] Error getting current window: {e}"
-        )
         return None
 
 
@@ -218,25 +132,11 @@ def initialize_and_register(interval: float = DEFAULT_INTERVAL, enabled: bool = 
     Returns:
         True if registered successfully, False otherwise
     """
-    # Import timer manager (static global)
-    from timers.timer_manager import register_task
-
-    # Register with timer manager
     success = register_task(
         name="window_monitor",
         interval=interval,
-        callback=check_window,
+        callback=refresh_window_status_if_inactive,
         enabled=enabled
     )
 
-    if success:
-        ColorPrint.green(
-            f"[WindowMonitor] Registered with timer manager "
-            f"(interval={interval}s, enabled={enabled})"
-        )
-
     return success
-
-
-# Initialize on module import
-ColorPrint.blue("[WindowMonitor] Module initialized (static global)")

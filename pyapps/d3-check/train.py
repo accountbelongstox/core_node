@@ -14,7 +14,7 @@ from pathlib import Path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 from controller.training import D3CheckTrainingController
 
 
@@ -37,8 +37,6 @@ def train_classification(**kwargs):
 
     except Exception as e:
         ColorPrint.red(f"\nERROR: Classification training failed: {e}")
-        import traceback
-        traceback.print_exc()
         return 1
 
 
@@ -61,8 +59,6 @@ def train_detection(**kwargs):
 
     except Exception as e:
         ColorPrint.red(f"\nERROR: Detection training failed: {e}")
-        import traceback
-        traceback.print_exc()
         return 1
 
 

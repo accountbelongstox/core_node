@@ -10,12 +10,12 @@ import sys
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
 numpy = get_third_package_numpy()
-PIL = get_third_package_PIL()
+np = numpy
 cv2 = get_third_package_cv2()
-PILImage = PIL.Image
+PILImage = get_third_package_PIL_Image()
 
 
 class ImageAnnotator:

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diablo 3 Macro Control</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div class="title-bar-drag">
+                <span class="app-title">Diablo 3 Macro Control</span>
+            </div>
+            <div class="title-bar-controls">
+                <select id="languageSelect" class="language-selector">
+                    <option value="en">English</option>
+                    <option value="zh">Chinese</option>
+                </select>
+                <button class="window-btn minimize-btn" id="minimizeBtn">_</button>
+                <button class="window-btn maximize-btn" id="maximizeBtn">□</button>
+                <button class="window-btn close-btn" id="closeBtn">✕</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="main">Main Functions</button>
+                <button class="tab-btn" data-tab="auxiliary">Auxiliary</button>
+                <button class="tab-btn" data-tab="logs">Logs</button>
+                <button class="tab-btn" data-tab="d4">Diablo 4</button>
+                <button class="tab-btn" data-tab="coordinate">Coordinates</button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content-wrapper">
+                <!-- Main Functions Panel -->
+                <div class="tab-content active" id="main-tab">
+                    <div class="panel-section">
+                        <h3>Macro Configuration</h3>
+                        <div class="config-group">
+                            <label>Configuration Preset:</label>
+                            <select id="configSelect" class="control-select">
+                                <option value="config1">Config 1</option>
+                                <option value="config2">Config 2</option>
+                                <option value="config3">Config 3</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="panel-section">
+                        <h3>Skill Sequence</h3>
+                        <div class="skill-list" id="skillList">
+                            <!-- Skills will be dynamically loaded -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Auxiliary Functions Panel -->
+                <div class="tab-content" id="auxiliary-tab">
+                    <div class="panel-section">
+                        <h3>Additional Tools</h3>
+                        <div class="tool-grid">
+                            <button class="tool-btn" id="salvageBtn">
+                                <span class="tool-icon">🔧</span>
+                                <span class="tool-label">Salvage Items</span>
+                            </button>
+                            <button class="tool-btn" id="kanaiBtn">
+                                <span class="tool-icon">📦</span>
+                                <span class="tool-label">Kanai Cube</span>
+                            </button>
+                            <button class="tool-btn" id="blacksmithBtn">
+                                <span class="tool-icon">⚒</span>
+                                <span class="tool-label">Blacksmith</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Panel -->
+                <div class="tab-content" id="logs-tab">
+                    <div class="panel-section full-height">
+                        <h3>Activity Logs</h3>
+                        <div class="log-container" id="logContainer">
+                            <div class="log-entry info">
+                                <span class="log-time">00:00:00</span>
+                                <span class="log-message">Application started</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- D4 Panel -->
+                <div class="tab-content" id="d4-tab">
+                    <div class="panel-section">
+                        <h3>Diablo 4 Functions</h3>
+                        <p class="info-text">D4 features coming soon...</p>
+                    </div>
+                </div>
+
+                <!-- Coordinate Calibration Panel -->
+                <div class="tab-content" id="coordinate-tab">
+                    <div class="panel-section">
+                        <h3>Coordinate Calibration</h3>
+                        <div class="calibration-grid">
+                            <div class="coord-item">
+                                <label>Bag Position X:</label>
+                                <input type="number" id="bagPosX" value="0">
+                            </div>
+                            <div class="coord-item">
+                                <label>Bag Position Y:</label>
+                                <input type="number" id="bagPosY" value="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Bar -->
+        <div class="bottom-bar">
+            <div class="status-section">
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span class="status-value" id="statusText">Ready</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Window:</span>
+                    <span class="status-value" id="windowStatus">Not Detected</span>
+                </div>
+            </div>
+            <div class="macro-controls">
+                <button class="control-btn start-btn" id="startBtn">
+                    <span class="btn-icon">▶</span>
+                    <span class="btn-text">Start</span>
+                </button>
+                <button class="control-btn stop-btn" id="stopBtn" disabled>
+                    <span class="btn-icon">■</span>
+                    <span class="btn-text">Stop</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

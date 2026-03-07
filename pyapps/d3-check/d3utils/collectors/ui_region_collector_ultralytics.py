@@ -2,38 +2,53 @@
 # -*- coding: utf-8 -*-
 """
 UI Region Collector - Ultralytics Version
-Uses YOLO object detection for AI-based window detection
+Uses YOLO object detection for AI-based window detection.
+Singleton per model path via get_yolo_model(path); do not instantiate YOLO elsewhere.
 """
 
 import os
 import sys
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from pathlib import Path
 from datetime import datetime
-import numpy as np
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_ultralytics
+np = get_third_package_numpy()
+from share.project_path import ensure_d3_check_in_sys_path, get_project_root
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint, ImageAnnotator
-from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
-from share import get_game_interface_data, UIRegion
+from share.game_interface_data import get_game_interface_data, UIRegion
 from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT
 )
 import tempfile
 
-try:
-    from ultralytics import YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    ULTRALYTICS_AVAILABLE = False
+_ultralytics = get_third_package_ultralytics()
+ULTRALYTICS_AVAILABLE = _ultralytics is not None
+YOLO = _ultralytics.YOLO if _ultralytics is not None else None
+if not ULTRALYTICS_AVAILABLE:
     ColorPrint.yellow("[UIRegionCollectorUltralytics] Ultralytics not installed")
+
+# Singleton per model_path; use get_yolo_model only
+_yolo_model_cache: Dict[str, Any] = {}
+
+
+def get_yolo_model(model_path: str):
+    """Return cached YOLO model for path (singleton per path)."""
+    if not ULTRALYTICS_AVAILABLE or YOLO is None:
+        return None
+    if model_path not in _yolo_model_cache:
+        try:
+            _yolo_model_cache[model_path] = YOLO(model_path)
+        except Exception as e:
+            ColorPrint.red(f"[YOLO] Failed to load model {model_path}: {e}")
+            return None
+    return _yolo_model_cache[model_path]
+
 
 class UIRegionCollectorUltralytics:
     """
@@ -75,17 +90,14 @@ class UIRegionCollectorUltralytics:
         # Set default model path if not provided
         if self._model_path is None:
             # Default path: config/models/d3_ui_detector.pt
-            config_dir = Path(project_root) / "config" / "models"
+            config_dir = get_project_root() / "config" / "models"
             self._model_path = config_dir / "d3_ui_detector.pt"
 
-        # Load model if exists
+        # Load model if exists (use central getter, singleton per path)
         if Path(self._model_path).exists():
-            try:
-                self._model = YOLO(str(self._model_path))
+            self._model = get_yolo_model(str(self._model_path))
+            if self._model is not None:
                 ColorPrint.green(f"[UIRegionCollectorUltralytics] Loaded model: {self._model_path}")
-            except Exception as e:
-                ColorPrint.red(f"[UIRegionCollectorUltralytics] Failed to load model: {e}")
-                self._model = None
         else:
             ColorPrint.yellow(f"[UIRegionCollectorUltralytics] Model not found: {self._model_path}")
             ColorPrint.yellow("[UIRegionCollectorUltralytics] Use train() method to train a new model")
@@ -221,8 +233,6 @@ class UIRegionCollectorUltralytics:
 
         except Exception as e:
             ColorPrint.red(f"[ERROR] Collection failed: {e}")
-            import traceback
-            traceback.print_exc()
             self._update_shared_data_error(str(e), timestamp)
             return None
 
@@ -316,7 +326,7 @@ class UIRegionCollectorUltralytics:
             screenshot_data.fullscreen_image.save(temp_screenshot_path)
 
             # Create annotator
-            annotator = ImageAnnotator(temp_screenshot_path)
+            annotator = create_annotator(temp_screenshot_path)
 
             # Draw all detections (lower confidence in gray)
             for detection in detections:
@@ -387,13 +397,11 @@ class UIRegionCollectorUltralytics:
             try:
                 if temp_screenshot_path.exists():
                     temp_screenshot_path.unlink()
-            except:
+            except OSError:
                 pass
 
         except Exception as e:
             ColorPrint.red(f"[Save] Error saving annotated screenshot: {e}")
-            import traceback
-            traceback.print_exc()
 
     def _update_shared_data_error(self, error_msg: str, timestamp: str) -> None:
         """Update shared data with error"""
@@ -440,8 +448,8 @@ class UIRegionCollectorUltralytics:
         ColorPrint.blue("=" * 60)
 
         try:
-            # Initialize model (YOLOv8n - nano version)
-            model = YOLO("yolov8n.pt")
+            # Initialize model (YOLOv8n - nano version, use central cache)
+            model = get_yolo_model("yolov8n.pt")
 
             # Train model
             ColorPrint.blue(f"[Train] Starting training...")
@@ -464,17 +472,16 @@ class UIRegionCollectorUltralytics:
             ColorPrint.green("[Train] Training complete!")
             ColorPrint.green(f"[Train] Model saved to: config/models/d3_ui_detector/weights/best.pt")
 
-            # Load trained model
+            # Load trained model (use central getter)
             best_model_path = Path("config/models/d3_ui_detector/weights/best.pt")
             if best_model_path.exists():
-                self._model = YOLO(str(best_model_path))
+                self._model = get_yolo_model(str(best_model_path))
                 self._model_path = best_model_path
-                ColorPrint.green(f"[Train] Loaded trained model")
+                if self._model is not None:
+                    ColorPrint.green(f"[Train] Loaded trained model")
 
         except Exception as e:
             ColorPrint.red(f"[Train] Training failed: {e}")
-            import traceback
-            traceback.print_exc()
 
     def validate(self, data_yaml_path: str) -> None:
         """

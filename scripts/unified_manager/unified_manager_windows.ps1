@@ -50,17 +50,17 @@ function Write-Header {
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "âœ?$Message" -ForegroundColor $Colors.Success
+    Write-Host "[OK] $Message" -ForegroundColor $Colors.Success
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-Host "âš?$Message" -ForegroundColor $Colors.Warning
+    Write-Host "[!!] $Message" -ForegroundColor $Colors.Warning
 }
 
 function Write-Error {
     param([string]$Message)
-    Write-Host "âœ?$Message" -ForegroundColor $Colors.Error
+    Write-Host "[X] $Message" -ForegroundColor $Colors.Error
 }
 
 function Write-Info {
@@ -190,12 +190,16 @@ function Start-ApplicationScan {
 # Show main menu
 function Show-Menu {
     Clear-Host
-    Write-Header "dd.sh Unified App Manager >16 (Python Core)"
+    Write-Header "Unified App Manager (Python Core)"
     Write-Info "Platform: Windows | Root: $RootDir"
     Write-Host ""
 
     if ($Script:AppsName.Count -eq 0) {
-        Write-Error "No applications found"
+        Write-Warning "No applications found."
+        Write-Info "Scanned: apps\, pyapps\, poly_apps\ under the root above."
+        Write-Info "Use R to rescan, Q to quit."
+        Write-Host ""
+        Write-Host "Enter command (R / Q): " -ForegroundColor $Colors.Header -NoNewline
         return
     }
 

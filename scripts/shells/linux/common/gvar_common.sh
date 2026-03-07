@@ -274,8 +274,85 @@ elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
     IS_PRODUCTION=true
 fi
 
+# Return largest NTFS device and its size (bytes), output "size device"
+get_largest_ntfs_with_size() {
+    local best_device=""
+    local best_size=0
+    local device size
+    while IFS= read -r device; do
+        [ -z "$device" ] && continue
+        size=$($USE_SUDO blockdev --getsize64 "$device" 2>/dev/null || echo 0)
+        if [ -n "$size" ] && [ "$size" -gt "$best_size" ] 2>/dev/null; then
+            best_size="$size"
+            best_device="$device"
+        fi
+    done < <($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | cut -d: -f1)
+    [ -n "$best_device" ] && echo "$best_size $best_device"
+}
+
+# Return largest data device (ext4/xfs/btrfs) and its size, excluding root and boot; output "size device"
+get_largest_data_with_size() {
+    local best_device=""
+    local best_size=0
+    local device mount_point size
+    while IFS= read -r device; do
+        [ -z "$device" ] && continue
+        mount_point=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
+        [ "$mount_point" = "/" ] && continue
+        [ "$mount_point" = "/boot" ] && continue
+        [ -n "$mount_point" ] && [ "$mount_point" = "/boot/efi" ] && continue
+        size=$($USE_SUDO blockdev --getsize64 "$device" 2>/dev/null || echo 0)
+        if [ -n "$size" ] && [ "$size" -gt "$best_size" ] 2>/dev/null; then
+            best_size="$size"
+            best_device="$device"
+        fi
+    done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
+    [ -n "$best_device" ] && echo "$best_size $best_device"
+}
+
+# Resolve usable mount path for a device. Prefer CURRENT mount so we use the path where data actually is
+# (e.g. /media/ubuntu/Soft); std path like /mnt/dev_nvme0n1p4 may exist but be empty until reboot.
+_resolve_device_mount_path() {
+    local device="$1"
+    local std_mount current_mount
+    std_mount=$(device_to_mount_point "$device")
+    current_mount=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
+    if [ -n "$current_mount" ] && [ -d "$current_mount" ] && ( [ -w "$current_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+        echo "$current_mount"
+        return 0
+    fi
+    if [ -d "$std_mount" ] && ( [ -w "$std_mount" ] || [ "$(id -u)" -eq 0 ] ); then
+        echo "$std_mount"
+        return 0
+    fi
+    echo ""
+    return 1
+}
+
+# Returns 0 if path is safe for recursive chown/chmod (not /, /usr, /etc, etc.). Prints path to stderr. Use before chown -R/chmod -R.
+safe_path_for_recursive_chown() {
+    local path="$1"
+    echo "[SAFE_PATH] path=$path" >&2
+    [ -z "$path" ] && return 1
+    case "$path" in
+        /) return 1;;
+        /usr|/usr/*) return 1;;
+        /etc|/etc/*) return 1;;
+        /bin|/bin/*) return 1;;
+        /sbin|/sbin/*) return 1;;
+        /lib|/lib/*) return 1;;
+        /var) return 1;;
+    esac
+    [[ "$path" != /* ]] && return 1
+    return 0
+}
+export -f safe_path_for_recursive_chown
+
+# Centralized path for persisted base data directory (used by bootstrap and project)
+BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
+
 # Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d -> NTFS mount -> Data disk mount -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir=""
 
@@ -286,34 +363,44 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: NTFS mount point (derived from device detection)
-    if has_ntfs_disk; then
-        # Get first NTFS device
-        local ntfs_device=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | head -n 1 | cut -d: -f1)
-        if [ -n "$ntfs_device" ]; then
-            # Derive standard mount point from device name
-            local ntfs_mount=$(device_to_mount_point "$ntfs_device")
-            if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
-                base_dir="$ntfs_mount"
-                echo "$base_dir"
-                return 0
-            fi
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
+    if [ -s "$BASE_DATA_DIR_FILE" ]; then
+        read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
+            echo "$read_base"
+            return 0
         fi
     fi
 
-    # Priority 3: Data disk mount point (derived from device detection)
-    local data_device=$($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | head -n 1 | cut -d: -f1)
-    if [ -n "$data_device" ]; then
-        # Check if it's not root or boot partition
-        local mount_point=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
-        if [ "$mount_point" != "/" ] && [ "$mount_point" != "/boot" ]; then
-            # Derive standard mount point from device name
-            local data_mount=$(device_to_mount_point "$data_device")
-            if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
-                base_dir="$data_mount"
-                echo "$base_dir"
-                return 0
-            fi
+    # Priority 3: Compare largest NTFS vs largest data disk; use the absolute largest
+    local ntfs_line data_line ntfs_size data_size ntfs_device data_device chosen_device path
+    ntfs_line=$(get_largest_ntfs_with_size)
+    data_line=$(get_largest_data_with_size)
+    ntfs_size=0
+    data_size=0
+    ntfs_device=""
+    data_device=""
+    [ -n "$ntfs_line" ] && ntfs_size=$(echo "$ntfs_line" | awk '{print $1}') && ntfs_device=$(echo "$ntfs_line" | awk '{print $2}')
+    [ -n "$data_line" ] && data_size=$(echo "$data_line" | awk '{print $1}') && data_device=$(echo "$data_line" | awk '{print $2}')
+    chosen_device=""
+    if [ -n "$ntfs_device" ] && [ -n "$data_device" ]; then
+        if [ "${ntfs_size:-0}" -ge "${data_size:-0}" ] 2>/dev/null; then
+            chosen_device="$ntfs_device"
+        else
+            chosen_device="$data_device"
+        fi
+    elif [ -n "$ntfs_device" ]; then
+        chosen_device="$ntfs_device"
+    elif [ -n "$data_device" ]; then
+        chosen_device="$data_device"
+    fi
+
+    if [ -n "$chosen_device" ]; then
+        path=$(_resolve_device_mount_path "$chosen_device")
+        if [ -n "$path" ]; then
+            base_dir="$path"
+            echo "$base_dir"
+            return 0
         fi
     fi
 
@@ -330,6 +417,18 @@ get_base_data_directory() {
     base_dir="/www"
     echo "$base_dir"
     return 0
+}
+
+# Persist base data directory to global var so all scripts (bootstrap, project dd.sh) use the same path
+persist_base_data_directory() {
+    local base_dir="${1:-$(get_base_data_directory)}"
+    local dir_file="${2:-$BASE_DATA_DIR_FILE}"
+    local parent_dir
+    parent_dir=$(dirname "$dir_file")
+    if [ ! -d "$parent_dir" ]; then
+        $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
+    fi
+    echo "$base_dir" | $USE_SUDO tee "$dir_file" >/dev/null 2>&1 || echo "$base_dir" > "$dir_file" 2>/dev/null || true
 }
 
 # Function to detect if system has NTFS disks
@@ -927,14 +1026,14 @@ mount_additional_disk() {
         # Set proper permissions
         $USE_SUDO chmod 755 "$mount_point"
         
-        # Add to fstab for persistent mounting
+        # Add to fstab for persistent mounting (single entry per UUID, no duplicates)
         local uuid=$(blkid -s UUID -o value "$disk_device")
         if [ -n "$uuid" ]; then
             local fstab_entry="UUID=$uuid $mount_point $filesystem_type defaults 0 2"
-            if ! grep -q "$mount_point" /etc/fstab; then
-                echo "Adding to /etc/fstab for persistent mounting..."
-                echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-            fi
+            echo "Adding to /etc/fstab for persistent mounting..."
+            $USE_SUDO cp /etc/fstab "/etc/fstab.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+            $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab 2>/dev/null || true
+            echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
         fi
         
         return 0
@@ -1165,10 +1264,20 @@ if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
     $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
 fi
 
-# Function to create script-specific temporary directory
+# Function to create script-specific temporary directory (restricted to /usr/tmp/<script_name>)
 create_script_temp_dir() {
     local script_name="$1"
+    # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
+    case "$script_name" in
+        */*|*..*) echo "[ERROR] create_script_temp_dir: invalid script_name (no / or ..): $script_name" >&2; return 1 ;;
+    esac
+    [ -z "$script_name" ] && echo "[ERROR] create_script_temp_dir: empty script_name" >&2 && return 1
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
+    # Ensure result is strictly under /usr/tmp (or configured GLOBAL_TEMP_DIR)
+    case "$script_temp_dir" in
+        /usr/tmp/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under /usr/tmp: $script_temp_dir" >&2; return 1 ;;
+    esac
 
     if [ ! -d "$script_temp_dir" ]; then
         $USE_SUDO mkdir -p "$script_temp_dir"

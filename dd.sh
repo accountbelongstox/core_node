@@ -10,21 +10,26 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+#
+# Linux one-click install: download dd.sh anywhere, then run. Single-file mode shows menu, downloads bootstrap, hands off.
+#   Gitee (wget):   wget -O dd.sh https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh && chmod +x dd.sh && bash dd.sh
+#   Gitee (curl):   curl -fL https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh -o dd.sh && chmod +x dd.sh && bash dd.sh
+#   GitHub (wget):  wget -O dd.sh https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh && chmod +x dd.sh && bash dd.sh
+#   GitHub (curl):  curl -fL https://raw.githubusercontent.com/accountbelongstox/core_node/main/dd.sh -o dd.sh && chmod +x dd.sh && bash dd.sh
 
 # =============================================================================
 # Variable Declarations
 # =============================================================================
 # All variables are declared at the beginning of the file for clarity
 
-# Get actual script path and directory
+# Get actual script path and directory (resolve symlinks: if dd.sh is a link, use real file location)
 SCRIPT_ACTUAL_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_ACTUAL_DIR="$(dirname "$SCRIPT_ACTUAL_PATH")"
 
-# Determine if running in installation mode
-# Initial installation may run from system temporary directories (/usr/tmp or /tmp)
-# Once installed, dd.sh runs from project directory
+# Installation mode: do not treat as installed just because some temporary libraries exist.
+# Check the resolved (real) path: correct location + project characteristics (scripts/, package.json, main.js).
 IS_INSTALLATION_MODE=false
-if [[ "$SCRIPT_ACTUAL_DIR" == /usr/tmp* ]] || [[ "$SCRIPT_ACTUAL_DIR" == /tmp* ]]; then
+if [ ! -d "$SCRIPT_ACTUAL_DIR/scripts" ] || [ ! -f "$SCRIPT_ACTUAL_DIR/package.json" ] || [ ! -f "$SCRIPT_ACTUAL_DIR/main.js" ]; then
     IS_INSTALLATION_MODE=true
 fi
 
@@ -64,6 +69,8 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
 SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
 PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+PROJECT_INIT_LIB_RELATIVE="scripts/shells/linux/project_init_lib.sh"
+BOOTSTRAP_RELATIVE="scripts/shells/linux/install_bootstrap.sh"
 
 # File Download Variables (absolute paths)
 GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
@@ -72,6 +79,64 @@ PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_valida
 
 # Temporary directory for core_node operations
 CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
+
+# Common download with progress (used in installation mode and can be reused by bootstrap)
+download_with_progress() {
+    local url="$1"
+    local dest="$2"
+    local dir_dest
+    dir_dest="$(dirname "$dest")"
+    mkdir -p "$dir_dest"
+    if command -v curl >/dev/null 2>&1; then
+        curl -# -f -L -o "$dest" "$url" && [ -s "$dest" ] && return 0
+    fi
+    if command -v wget >/dev/null 2>&1; then
+        wget --progress=bar:force -O "$dest" "$url" && [ -s "$dest" ] && return 0
+    fi
+    return 1
+}
+
+# Installation mode launcher: show menu, download bootstrap file, hand off to it. dd.sh does nothing else.
+run_installation_mode() {
+    echo ""
+    echo "=========================================="
+    echo "  Install and repair project"
+    echo "=========================================="
+    echo "  1) Install and repair project (download bootstrap, then hand off)"
+    echo "  2) Exit"
+    echo "=========================================="
+    echo -n "Choice (1 or 2): "
+    read -r choice
+    if [ "$choice" != "1" ]; then
+        echo "Exit."
+        exit 0
+    fi
+    echo ""
+    echo "Select download region:"
+    echo "  1) Global (GitHub)"
+    echo "  2) China (Gitee)"
+    echo -n "Choice (1 or 2) [1]: "
+    read -r region_choice
+    local base_url="$GITHUB_BASE_URL"
+    [ "$region_choice" = "2" ] && base_url="$GITEE_BASE_URL"
+    local bootstrap_dest="$SCRIPT_ACTUAL_DIR/install_bootstrap.sh"
+    local bootstrap_url="$base_url/$BOOTSTRAP_RELATIVE"
+    echo "Downloading bootstrap file..."
+    echo "  URL: $bootstrap_url"
+    if ! download_with_progress "$bootstrap_url" "$bootstrap_dest"; then
+        echo "[ERROR] Failed to download bootstrap file. Exiting."
+        exit 1
+    fi
+    chmod +x "$bootstrap_dest"
+    echo "Handing off to bootstrap; dd.sh is no longer responsible for the rest."
+    export REPO_BASE_URL="$base_url"
+    exec bash "$bootstrap_dest"
+}
+
+if [ "$IS_INSTALLATION_MODE" = true ]; then
+    run_installation_mode
+    exit $?
+fi
 
 # Menu script paths (called via bash from menu_functions.sh, NOT sourced)
 # These scripts are executed when user selects corresponding menu items
@@ -870,32 +935,11 @@ main() {
         fi
     fi
 
-    # After successful project validation, check if we need to switch to cloned version
-    if [ "$IS_INSTALLATION_MODE" = true ]; then
-        echo -e "\033[36m[INITIAL DEPLOYMENT] Running from temporary location: $CORE_NODE_ROOT_DIR\033[0m"
-        # File already sourced in SOURCE_FILES, just check if variable is set
-        if [ -n "$CORE_NODE_PROJECT_ROOT" ]; then
-            if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -s "$CORE_NODE_PROJECT_ROOT/dd.sh" ]; then
-                echo -e "\033[32m[INITIAL DEPLOYMENT] Project successfully cloned to: $CORE_NODE_PROJECT_ROOT\033[0m"
-                echo -e "\033[36m[INITIAL DEPLOYMENT] Switching to cloned version...\033[0m"
-                chmod +x "$CORE_NODE_PROJECT_ROOT/dd.sh"
-                echo -e "\033[32m[INITIAL DEPLOYMENT] Set execute permission on $CORE_NODE_PROJECT_ROOT/dd.sh\033[0m"
-                cd "$CORE_NODE_PROJECT_ROOT"
-                echo -e "\033[32m[INITIAL DEPLOYMENT] Switched to directory: $CORE_NODE_PROJECT_ROOT\033[0m"
-                echo -e "\033[36m[INITIAL DEPLOYMENT] Executing cloned dd.sh...\033[0m"
-                echo ""
-                exec bash "$CORE_NODE_PROJECT_ROOT/dd.sh"
-            else
-                echo -e "\033[33m[INITIAL DEPLOYMENT] Project not yet cloned to $CORE_NODE_PROJECT_ROOT, continuing with tmp version\033[0m"
-            fi
-        else
-            echo -e "\033[33m[INITIAL DEPLOYMENT] gvar_common.sh not found, continuing with tmp version\033[0m"
-        fi
-    fi
-
-    # Create symlink to /usr/local/bin/dd.sh if not in installation mode
+    # Create symlink to /usr/local/bin/dd.sh and sync linuxenvs; skip all /usr/local/bin links in installation mode
     echo ""
-    if [ "$IS_INSTALLATION_MODE" = false ]; then
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        echo "[INSTALLATION MODE] Skipping /usr/local/bin symlink - running from temporary location"
+    else
         local symlink_target="/usr/local/bin/dd.sh"
         if [ -L "$symlink_target" ]; then
             local current_target=$(readlink -f "$symlink_target")
@@ -909,28 +953,25 @@ main() {
             fi
         else
             if [ -e "$symlink_target" ]; then
-            echo "Warning: $symlink_target exists but is not a symlink"
-            echo "Removing and creating symlink..."
-            $sudo rm -f "$symlink_target"
-            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
-            echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
-        else
-            echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
-            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
-            if [ $? -eq 0 ]; then
-                echo "Symlink created successfully"
+                echo "Warning: $symlink_target exists but is not a symlink"
+                echo "Removing and creating symlink..."
+                $sudo rm -f "$symlink_target"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
             else
-                echo "Warning: Failed to create symlink (may need sudo privileges)"
+                echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                if [ $? -eq 0 ]; then
+                    echo "Symlink created successfully"
+                else
+                    echo "Warning: Failed to create symlink (may need sudo privileges)"
                 fi
             fi
         fi
-    else
-        echo "[INSTALLATION MODE] Skipping symlink creation - running from temporary location"
+        # Sync scripts from scripts/linuxenvs to /usr/local/bin using symlinks
+        echo ""
+        sync_linuxenvs_to_bin
     fi
-
-    # Sync scripts from scripts/linuxenvs to /usr/local/bin using symlinks
-    echo ""
-    sync_linuxenvs_to_bin
 
     # Step 5-4: Initialize and show interactive menu
     echo ""

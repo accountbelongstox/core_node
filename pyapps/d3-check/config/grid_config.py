@@ -8,20 +8,14 @@ This configuration is used across all grid-based operations in the application.
 Note: pyutils public library does not use this config to maintain its generality.
 """
 
-# Grid dimensions for pathfinding
-# Default: Eighteen by eighteen grid (three hundred twenty-four cells)
-GRID_ROWS = 18
-GRID_COLS = 18
-
-# Calculated total cells
-TOTAL_GRID_CELLS = GRID_ROWS * GRID_COLS
-
-# Grid type identifiers
-GRID_TYPE_NINE = '9grid'  # Three by three grid (nine cells)
-GRID_TYPE_CUSTOM = '18x18grid'  # Custom grid (default eighteen by eighteen)
-
-# Description
-GRID_DESCRIPTION = f"{GRID_ROWS} rows x {GRID_COLS} columns = {TOTAL_GRID_CELLS} cells"
+from providor.constants.common import (
+    GRID_ROWS,
+    GRID_COLS,
+    TOTAL_GRID_CELLS,
+    GRID_TYPE_NINE,
+    GRID_TYPE_CUSTOM,
+    GRID_DESCRIPTION,
+)
 
 
 def get_grid_config():
@@ -62,7 +56,7 @@ def update_grid_config(rows: int, cols: int):
 
 
 if __name__ == '__main__':
-    from providor.common_imports import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 
     # Display current configuration
     ColorPrint.blue("=== Grid Configuration ===")

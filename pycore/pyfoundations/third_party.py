@@ -9,6 +9,8 @@ with automatic dependency checking and installation.
 All third-party packages MUST be imported through this module.
 Usage: from pycore.pyfoundations.third_party import aiohttp, netifaces, etc.
 The module automatically checks and installs missing packages on first import.
+
+Rule: This module must NOT import or reference pycore.pyutils (all imports at top are pyfoundations only).
 """ 
 
 import os
@@ -16,52 +18,38 @@ import sys
 import importlib
 import importlib.util
 import platform
+from typing import Optional
 
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
+from pycore.pyfoundations.cuda_detector import CUDADetector
+from pycore.pyfoundations.cuda_initializer import CudaInitializer
+from pycore.pyfoundations.onnx_runtime_capability import last_ort_install_ran
+from pycore.pyfoundations.ocr_initializer import OcrInitializer
+from pycore.pyfoundations.safe_subprocess import subprocess
+from pycore.pyfoundations.pybasecommon.commander import Commander
 
-# Check if running in MCP mode - suppress output if true
-_IS_MCP_MODE = ColorPrint.is_mcp_mode()
-
-# Save original ColorPrint reference before wrapping
-_OriginalColorPrint = ColorPrint
-
-# Conditional ColorPrint wrapper - only outputs if not in MCP mode
-class _ColorPrintWrapper:
-    @staticmethod
-    def blue(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.blue(msg)
-    @staticmethod
-    def red(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.red(msg)
-    @staticmethod
-    def green(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.green(msg)
-    @staticmethod
-    def yellow(msg):
-        if not _IS_MCP_MODE: _OriginalColorPrint.yellow(msg)
-
-# Replace ColorPrint with wrapper for this module
-ColorPrint = _ColorPrintWrapper
+try:
+    import torch
+except ImportError:
+    torch = None
 
 # Dependency Map
 # Maps the required import name to the official PyPI package name.
 # All new third-party dependencies for any tool must be added here.
 #
 # Version constraints can be specified using pip syntax (e.g., "package<2.0,>=1.5")
-# Version constraints for dependency compatibility:
-#   - Pillow<11,>=10: required by tkhtmlview 0.3.1 (needs Pillow<11,>=10)
-#   - numpy<2.3.0,>=2: required by opencv-python (needs numpy<2.3.0,>=2)
+# Version constraints: removed per project policy (no version pinning in third_party; pip resolves dependencies automatically)
 #
 # IMPORTANT: DO NOT MODIFY platform-specific package filtering logic below
 # Windows-only packages are automatically skipped on Linux/Mac systems
 DEPENDENCY_MAP = {
-    # PIL is a common name for the Pillow package
-    # Version constraint: tkhtmlview 0.3.1 requires Pillow<11,>=10
-    "PIL": "Pillow<11,>=10",
+    # PIL is the import name for the Pillow package (PyPI: Pillow). No version pin; use latest.
+    # tkhtmlview 0.3.2 requires Pillow>=11,<13; pip resolves when both are installed.
+    "PIL": "Pillow",
 
-    # For computer vision tasks
+    # For computer vision tasks (use latest; 3.4→4.x has C API/constant changes)
     "cv2": "opencv-python",
 
     # For window automation and screenshots
@@ -75,26 +63,59 @@ DEPENDENCY_MAP = {
 
     # For YOLO training and deep learning
     "torch": "torch",
-    "ultralytics": "ultralytics",
-    # Version constraint: opencv-python requires numpy<2.3.0,>=2
-    "numpy": "numpy<2.3.0,>=2",
+    # ultralytics: YOLO (YOLOv8/YOLO26 etc.); latest 8.4.x, Predict/Export/Track/Benchmark
+    "ultralytics": "ultralytics>=8.0",
+    # numpy: no version constraint; use latest (pip resolves dependencies like opencv-python automatically)
+    "numpy": "numpy",
 
-    # For ADB communication (pyutils.device)
+    # For ADB communication
     "adb_shell": "adb-shell",
 
-    # For video processing (pyutils.stream)
+    # For video processing
     "av": "av",
 
-    # For FastAPI web framework (pyutils.api, pyutils.web)
+    # For FastAPI web framework
     "uvicorn": "uvicorn[standard]",
     "websockets": "websockets",
 
-    # For HTTP requests
-    "requests": "requests",
+    # For HTTP requests (2.x: timeout recommended, Session for pooling; GameAISDK uses via deps only)
+    "requests": "requests>=2.28,<3",
+    # urllib3 2.x: modern API (urllib3.request), connection pooling, TLS; requests depends on it
+    "urllib3": "urllib3>=2.0,<3",
+    # idna 3.x: Python 3-only, UTS 46, IDNA 2008; requests uses it for internationalized domains
+    "idna": "idna>=3.0,<4",
+    # chardet: universal encoding detector; requests uses it for response encoding
+    "chardet": "chardet>=5.0,<6",
+    # certifi: Mozilla CA bundle for TLS verification; requests uses it
+    "certifi": "certifi>=2024.2.0",
+    # zmq: import name "zmq", PyPI package "pyzmq"; ZeroMQ bindings for messaging
+    "zmq": "pyzmq>=25,<28",
+    # msgpack: binary serialization; 1.x uses use_bin_type=True by default, encoding option removed
+    "msgpack": "msgpack>=1.0,<2",
+    # werkzeug: WSGI library; tensorboard and others may depend on it; import name "werkzeug"
+    "werkzeug": "Werkzeug>=3.0,<4",
+    # h5py: HDF5 bindings; TF2/Keras often use 3.x; requires Python >=3.10 for 3.x
+    "h5py": "h5py>=3.0,<4",
+    # absl: Abseil Python; import name "absl", PyPI "absl-py"; TF and others may depend on it; 2.x requires Python >=3.10
+    "absl": "absl-py>=2.0,<3",
+    # protobuf: Protocol Buffers; import name "google.protobuf", PyPI "protobuf"; actual version constrained by tensorflow/grpcio
+    # Latest 6.33.5 requires Python >=3.9; TF 2.20 requires >=5.28.0; current TF 1.10.0 may constrain to lower versions
+    "google.protobuf": "protobuf>=3.7,<7",
+    # grpc: gRPC Python; import name "grpc", PyPI "grpcio"; no version pin, use latest (tensorflow may also pull it)
+    "grpc": "grpcio",
+    # six: Python 2 and 3 compatibility library; latest 1.17.0; used by tensorflow/protobuf and others
+    "six": "six>=1.17.0",
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
 
-    # For GUI and HTML rendering
+    # For GUI and HTML rendering (SDKTool uses PyQt5; pycore uses PySide6 for Qt6)
+    "PyQt5": "PyQt5>=5.15,<6",
+    # matplotlib: plotting; SDKTool uses pyplot/font_manager; do not limit version, use latest
+    "matplotlib": "matplotlib",
+    # labelme: image polygonal annotation (Qt GUI); SDKTool optional; no version pin, use latest
+    "labelme": "labelme",
+    # labelImg: VOC/YOLO bbox annotation (Qt GUI); TrainDetModel.md §3, yolo_label_lib; no version pin
+    "labelImg": "labelImg",
     "tkinterweb": "tkinterweb",
     "tkhtmlview": "tkhtmlview",
     "pystray": "pystray",
@@ -105,8 +126,9 @@ DEPENDENCY_MAP = {
     # For YAML configuration
     "yaml": "pyyaml",
 
-    # For OCR (Optical Character Recognition)
-    "cnocr": "cnocr[ort-cpu]",
+    # cnocr: do NOT add here. Load/install only via get_third_package_cnocr() (GPU/CPU by CUDADetector).
+    # For CnOCR/CnSTD model auto-download; CLI is built-in as entry point "hf" (official: https://hf.co/docs/huggingface_hub/installation)
+    "huggingface_hub": "huggingface_hub",
 
     # For document processing
     "pypdf": "pypdf",
@@ -167,6 +189,9 @@ DEPENDENCY_MAP = {
 
     # For phonetic transcription (IPA - International Phonetic Alphabet)
     "eng_to_ipa": "eng-to-ipa",
+
+    # For machine-bound password encryption (Fernet)
+    "cryptography": "cryptography",
 }
 
 # Optional packages - won't cause import failure if missing
@@ -176,6 +201,8 @@ OPTIONAL_PACKAGES = {
     "edge_tts": "edge-tts",
     # For Whisper STT (OpenAI Whisper Speech-to-Text - optional)
     "whisper": "openai-whisper",
+    # For filesystem/watch file change (log monitor - optional)
+    "watchdog": "watchdog",
 
     # For native Linux system tray (Ubuntu/GNOME) - optional
     # Note: Requires system packages: gir1.2-appindicator3-0.1, libgirepository1.0-dev
@@ -183,6 +210,15 @@ OPTIONAL_PACKAGES = {
     # Or: ./scripts/install_ubuntu_tray_support.sh
     "gi": "PyGObject",
 }
+
+# Windows-only optional: WinRT OCR (Windows.Media.Ocr). Multiple pip packages required; loaded via get_third_package_windows_ocr().
+WINDOWS_OCR_WINRT_PACKAGES = [
+    "winrt-Windows.Foundation",
+    "winrt-Windows.Media.Ocr",
+    "winrt-Windows.Graphics.Imaging",
+    "winrt-Windows.Storage.Streams",
+    "winrt-Windows.Globalization",
+]
 
 # Windows-only packages
 # IMPORTANT: DO NOT MODIFY - These packages are only available on Windows
@@ -214,16 +250,216 @@ WINDOWS_ONLY_PACKAGES = {
 # scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 # This file only handles Python packages installable via pip
 
+# PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
+PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu126"
 
-def build_pip_install_command(package_name: str) -> list:
+# ---------------------------------------------------------------------------
+# Pip / command execution: SINGLE COMMON PATH (per Python subprocess docs)
+# All third-party subprocess execution MUST go through run_third_party_command() only.
+# - Stream mode (capture_output=False): Popen with stdout=None, stderr=None so output and
+#   progress bar are real-time (docs: "With the default settings of None, no redirection will occur").
+# - Capture mode (capture_output=True): subprocess.run(capture_output=True) for pip show etc.
+# Ref: https://docs.python.org/3/library/subprocess.html
+# ---------------------------------------------------------------------------
+
+
+def run_third_party_command(
+    cmd: list,
+    description: str = "",
+    capture_output: bool = False,
+    timeout: Optional[int] = None,
+) -> Optional[subprocess.CompletedProcess]:
     """
-    Build pip install command with platform-specific flags.
+    THE SINGLE METHOD FOR ALL THIRD-PARTY SUBPROCESS EXECUTION IN THIS MODULE.
+    Delegates to Commander.run_command (base implementation in pyfoundations).
+    - capture_output=False (default): run with inherited stdout/stderr (real-time, progress bar).
+    - capture_output=True: returns CompletedProcess (e.g. pip show).
+    """
+    if not capture_output:
+        cmd_str = " ".join(str(x) for x in cmd)
+        if description:
+            print(f"[{description}] Executing: {cmd_str}")
+        else:
+            print(f"Executing command: {cmd_str}")
+        sys.stdout.flush()
+    return Commander.run_command(cmd, capture_output=capture_output, timeout=timeout)
 
-    Args:
-        package_name: The package name to install
 
-    Returns:
-        List of command arguments for exec_silent()
+def _is_pip_package_installed(package_name: str) -> bool:
+    """Return True if the package is installed (pip show succeeds). Used to skip uninstall/install when no switch needed."""
+    proc = run_third_party_command(
+        [sys.executable, "-m", "pip", "show", package_name],
+        capture_output=True,
+        timeout=10,
+    )
+    return proc.returncode == 0 if proc is not None else False
+
+
+def _run_pip_uninstall(package_name: str) -> None:
+    """
+    Run pip uninstall -y <package_name> with real-time output.
+    Used before OCR init to clear the other ONNX runtime (onnxruntime vs onnxruntime-gpu mutually exclusive).
+    Non-zero exit (e.g. package not installed) is ignored.
+    """
+    cmd = [sys.executable, "-m", "pip", "uninstall", "-y", package_name]
+    run_third_party_command(cmd, "pip uninstall")
+
+
+def _run_pip_install_for_ocr(package_name: str, index_url: Optional[str] = None) -> None:
+    """
+    Run pip install <package_name> with real-time output.
+    Used to install onnxruntime-gpu[cuda,cudnn], onnxruntime, or nvidia-cublas-cu12. index_url optional.
+    """
+    pip_cmd = build_pip_install_command(package_name, index_url=index_url)
+    run_pip_install_with_realtime_output(pip_cmd, package_name)
+
+
+def _run_pip_install_for_ocr_force(package_name: str) -> None:
+    """Run pip install <package_name> --force-reinstall. Used when ORT GPU is listed but import fails."""
+    pip_cmd = build_pip_install_command(package_name) + ["--force-reinstall"]
+    run_pip_install_with_realtime_output(pip_cmd, package_name)
+
+
+def _fix_ort_dependency_conflicts() -> None:
+    """
+    Run only when ORT GPU was just installed (last_ort_install_ran()). Pip may then report numba/osam conflicts.
+    Fix without version pinning: upgrade numba (may accept current numpy); reinstall osam --no-deps so it keeps using onnxruntime-gpu.
+    """
+    if not last_ort_install_ran():
+        return
+    if _is_pip_package_installed("numba"):
+        ColorPrint.blue("[HF] Reinstalling numba (no version pin) after ORT install...")
+        pip_cmd = build_pip_install_command("numba", upgrade=True)
+        run_pip_install_with_realtime_output(pip_cmd, "numba")
+    if _is_pip_package_installed("osam"):
+        ColorPrint.blue("[HF] Reinstalling osam with --no-deps (onnxruntime-gpu satisfies runtime)...")
+        pip_cmd = build_pip_install_command("osam", upgrade=True) + ["--no-deps"]
+        run_pip_install_with_realtime_output(pip_cmd, "osam")
+
+
+def _verify_onnx_import() -> bool:
+    """Return True if 'import onnxruntime as ort; ort.get_available_providers()' succeeds in a subprocess."""
+    proc = run_third_party_command(
+        [sys.executable, "-c", "import onnxruntime as ort; ort.get_available_providers()"],
+        capture_output=True,
+        timeout=30,
+    )
+    return proc is not None and proc.returncode == 0
+
+
+def _clear_cnocr_cache() -> None:
+    """Remove cnocr from package cache and sys.modules so next get_cnocr re-imports with new ONNX runtime."""
+    _PACKAGE_CACHE.pop("cnocr", None)
+    for key in list(sys.modules.keys()):
+        if key == "cnocr" or key.startswith("cnocr."):
+            del sys.modules[key]
+    importlib.invalidate_caches()
+
+
+def _print_cuda_support_prompt():
+    """
+    Print whether current system supports CUDA (using CUDADetector).
+    Official docs: https://pytorch.org/get-started/locally
+    """
+    info = CUDADetector.get_cuda_info()
+    available = info.get("available", False)
+    nvidia_smi_found = info.get("nvidia_smi_found", False)
+    gpu_count = info.get("gpu_count", 0)
+    driver_version = info.get("driver_version")
+    gpus = info.get("gpus", [])
+    cuda_env_vars = info.get("cuda_env_vars", {})
+
+    ColorPrint.blue("[CUDA] Current system CUDA support check (see https://pytorch.org/get-started/locally):")
+    if available:
+        ColorPrint.blue("[CUDA] System supports CUDA.")
+        if nvidia_smi_found:
+            ColorPrint.blue(f"[CUDA] nvidia-smi: found. GPU count: {gpu_count}. Driver: {driver_version or 'N/A'}")
+            for i, gpu in enumerate(gpus[:5], 1):
+                name = gpu.get("name", "N/A")
+                mem = gpu.get("memory_total", "")
+                ColorPrint.blue(f"[CUDA]   GPU {i}: {name}" + (f" ({mem})" if mem else ""))
+        if cuda_env_vars:
+            ColorPrint.blue("[CUDA] CUDA env: " + " ".join(f"{k}={v}" for k, v in list(cuda_env_vars.items())[:3]))
+    else:
+        ColorPrint.yellow("[CUDA] System does NOT support CUDA (no nvidia-smi and no CUDA env).")
+        if not nvidia_smi_found:
+            ColorPrint.yellow("[CUDA] nvidia-smi not available. Install NVIDIA driver or see https://pytorch.org/get-started/locally")
+        ColorPrint.yellow("[CUDA] Skipping PyTorch CUDA build; using CPU.")
+    ColorPrint.blue("[CUDA] ---")
+
+
+def _ensure_torch_cuda_build_first():
+    """
+    Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
+    System support: NVIDIA GPU + driver (nvidia-smi or CUDA env). Per PyTorch docs: is_available() for runtime.
+    """
+    _print_cuda_support_prompt()
+
+    # Only skip CUDA install when system does not support CUDA
+    if not CUDADetector.is_cuda_available():
+        return
+
+    if torch is not None and getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
+        return
+    if torch is not None:
+        if getattr(torch.version, "cuda", None) is None:
+            ColorPrint.blue(
+                "[INFO] Ensuring PyTorch CUDA build (current is CPU-only; system has NVIDIA GPU). "
+                "See https://pytorch.org/get-started/locally"
+            )
+        else:
+            if torch.cuda.is_available():
+                return
+            ColorPrint.blue("[INFO] Reinstalling PyTorch CUDA build (driver/runtime may need match)...")
+    else:
+        ColorPrint.blue("[INFO] Installing PyTorch with CUDA first (system has NVIDIA GPU)...")
+    current_platform = platform.system()
+    pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
+               "--index-url", PYTORCH_CUDA_INDEX_URL]
+    if current_platform != "Windows":
+        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    else:
+        pip_cmd.append("--no-user")
+    if torch is not None and getattr(torch.version, "cuda", None) is None:
+        pip_cmd.append("--force-reinstall")
+    run_pip_install_with_realtime_output(pip_cmd, "torch (CUDA)")
+    importlib.invalidate_caches()
+    if "torch" in sys.modules:
+        del sys.modules["torch"]
+
+    # Verify CUDA torch actually loads (e.g. avoid WinError 127 from torch_cuda.dll). If not, install CPU build so app runs.
+    proc = run_third_party_command(
+        [sys.executable, "-c", "import torch"],
+        capture_output=True,
+        timeout=60,
+    )
+    if proc is not None and proc.returncode != 0:
+        err = (proc.stderr or "").strip() or (proc.stdout or "").strip()
+        ColorPrint.yellow(
+            "[CUDA] PyTorch CUDA build failed to load (e.g. WinError 127 / missing DLL). Installing CPU build so the app can run."
+        )
+        if err:
+            ColorPrint.yellow("[CUDA] Error: " + err[:400])
+        pip_cpu = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--force-reinstall"]
+        if current_platform != "Windows":
+            pip_cpu.extend(["--break-system-packages", "--ignore-installed"])
+        else:
+            pip_cpu.append("--no-user")
+        run_pip_install_with_realtime_output(pip_cpu, "torch (CPU fallback)")
+        importlib.invalidate_caches()
+        if "torch" in sys.modules:
+            del sys.modules["torch"]
+
+
+def build_pip_install_command(
+    package_name: str,
+    upgrade: bool = False,
+    index_url: Optional[str] = None,
+) -> list:
+    """
+    Build pip install command (list of args) with platform-specific flags.
+    Callers must run it only via run_pip_install_with_realtime_output(pip_cmd, package_name).
+    If upgrade is True, adds --upgrade. If index_url is set (e.g. ORT CUDA 11 feed), adds --index-url.
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
@@ -233,63 +469,31 @@ def build_pip_install_command(package_name: str) -> list:
     if current_platform != 'Windows':
         pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
     else:
-        # On Windows, use --no-user to avoid installing to user directory
-        # This ensures packages are installed to the Python interpreter's site-packages
         pip_cmd.append("--no-user")
 
+    if upgrade:
+        pip_cmd.append("--upgrade")
+    if index_url:
+        pip_cmd.extend(["--index-url", index_url])
     pip_cmd.append(package_name)
     return pip_cmd
 
 
-def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> bool:
+def run_pip_install_with_realtime_output(pip_cmd: list, package_name: str) -> None:
     """
-    Run pip install command with real-time output.
-    
-    Args:
-        pip_cmd: List of command arguments
-        package_name: Name of package being installed (for display)
-    
-    Returns:
-        True if installation succeeded, False otherwise
-    
-    Note: Uses Commander.exec_realtime() which collects output.
-    Recommended to check output string instead of return code.
+    THE SINGLE PUBLIC METHOD FOR ALL PIP EXECUTION IN THIS MODULE.
+    Real-time output only, no ColorPrint; success/failure is entirely determined by pip.
+    Every pip install (torch, deps, pip upgrade, optional packages) must call this only.
     """
-    result = Commander.exec_realtime(pip_cmd, info=True, show_output=True)
-    
-    # Check output for success indicators (recommended approach)
-    output = result.get_output().lower()
-    if "successfully installed" in output or "already satisfied" in output or result.success:
-        return True
-    else:
-        ColorPrint.red(f"[ERROR] Installation failed. Output: {result.get_output()}")
-        return False
+    run_third_party_command(pip_cmd)
 
 
-def run_command_with_realtime_output(cmd: list, description: str = "") -> bool:
+def run_command_with_realtime_output(cmd: list, description: str = "") -> None:
     """
-    Run command with real-time output.
-    
-    Args:
-        cmd: List of command arguments
-        description: Description of what is being executed (for display)
-    
-    Returns:
-        True if command succeeded, False otherwise
-    
-    Note: Uses Commander.exec_realtime() which collects output.
-    Recommended to check output string instead of return code.
+    Run arbitrary command with same real-time behavior (inherited stdout/stderr, no ColorPrint).
+    For pip, use run_pip_install_with_realtime_output instead.
     """
-    result = Commander.exec_realtime(cmd, info=bool(description), show_output=True)
-    
-    # Check output for success (recommended approach)
-    if result.success and result.has_output():
-        return True
-    elif not result.success:
-        ColorPrint.red(f"[ERROR] Command failed. Output: {result.get_output()}")
-        return False
-    else:
-        return result.success
+    run_third_party_command(cmd, description)
 
 
 def install_and_reimport_azure():
@@ -311,11 +515,7 @@ def install_and_reimport_azure():
     # If import failed, install package directly
     ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
     pip_cmd = build_pip_install_command("azure-cognitiveservices-speech")
-    
-    # Run installation with real-time output
     run_pip_install_with_realtime_output(pip_cmd, "azure-cognitiveservices-speech")
-    
-    # Verify installation by trying to import (not by return code)
     importlib.invalidate_caches()
     try:
         import azure.cognitiveservices.speech
@@ -401,23 +601,18 @@ def install_and_reimport_edge_tts():
 def check_and_install_dependencies():
     """
     Checks if all required packages are installed and installs them if not.
-    Also performs GPU detection and setup.
-
-    This function iterates through the DEPENDENCY_MAP. It uses importlib to check
-    if a module can be found. If not, it calls pip to install the corresponding package.
-
-    Uses ENCYCLOPEDIA global cache to ensure only the first call does actual checking and prints output.
+    Also performs GPU detection and setup. torch is a required package; ensure CUDA build first.
     """
+    # Required package: ensure torch is CUDA build before any package list (not lazy)
+    _ensure_torch_cuda_build_first()
+
     ColorPrint.blue("[INFO] Checking for required Python packages...")
-    # Check if dependencies have already been checked using ENCYCLOPEDIA
     if ENCYCLOPEDIA.get("pycore_dependencies_checked", False):
         return
-    
-    # Prevent recursive invocation - if we're already checking, return immediately
+
     if ENCYCLOPEDIA.get("pycore_dependencies_checking", False):
         return
-    
-    # Mark as checking to prevent recursion
+
     ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
     # NOTE: System packages are now installed by shell scripts
@@ -439,11 +634,11 @@ def check_and_install_dependencies():
         ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
 
     # Optional packages are not checked/installed automatically
-    ColorPrint.blue(f"[INFO] Optional packages are not auto-installed")
+    ColorPrint.blue("[INFO] Optional packages are not auto-installed")
 
     # Use a set to avoid checking/installing the same package multiple times (e.g., pywin32)
     packages_to_check = set(all_dependencies.values())
-    
+
     # Check if any packages need installation/upgrade, and upgrade pip first if needed
     needs_installation = False
     for package_name in packages_to_check:
@@ -459,18 +654,12 @@ def check_and_install_dependencies():
     # Upgrade pip first if any packages need installation
     if needs_installation:
         ColorPrint.blue("[INFO] Upgrading pip to latest version...")
-        # Note: Don't use --target for pip itself, it's a special case
         pip_upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
         if current_platform != 'Windows':
             pip_upgrade_cmd.extend(["--break-system-packages", "--ignore-installed"])
         else:
-            # On Windows, use --no-user to avoid user directory issues
             pip_upgrade_cmd.append("--no-user")
-        if run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip"):
-            ColorPrint.green("[SUCCESS] pip upgraded successfully")
-        else:
-            ColorPrint.yellow("[WARNING] Failed to upgrade pip")
-            ColorPrint.yellow("[WARNING] Continuing with package installation anyway...")
+        run_pip_install_with_realtime_output(pip_upgrade_cmd, "pip")
 
     failed_packages = []
     
@@ -510,7 +699,7 @@ def check_and_install_dependencies():
                 module_spec = importlib.util.find_spec(import_name_to_check)
                 if module_spec is None:
                     ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
-                    ColorPrint.yellow(f"[WARNING] This may require a Python restart or the package may need different import name")
+                    ColorPrint.yellow("[WARNING] This may require a Python restart or the package may need different import name")
                     failed_packages.append((package_name, import_name_to_check))
                 else:
                     ColorPrint.green(f"[SUCCESS] Successfully installed {package_name}.")
@@ -582,6 +771,8 @@ def _lazy_import(package_name: str, import_statement: str):
     Returns:
         The imported module/package
     """
+    if package_name == 'cnocr':
+        return get_third_package_cnocr()
     if package_name not in _PACKAGE_CACHE:
         local_vars = {}
         try:
@@ -602,19 +793,13 @@ def _lazy_import(package_name: str, import_statement: str):
             if pip_package:
                 ColorPrint.yellow(f"[INSTALL] Package '{package_name}' not found. Installing '{pip_package}'...")
                 pip_cmd = build_pip_install_command(pip_package)
-                if run_pip_install_with_realtime_output(pip_cmd, pip_package):
-                    # Clear import caches and retry
-                    importlib.invalidate_caches()
-                    try:
-                        exec(import_statement, globals(), local_vars)
-                        _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
-                        ColorPrint.green(f"[SUCCESS] Successfully installed and imported '{package_name}'")
-                    except (ImportError, ModuleNotFoundError) as retry_e:
-                        ColorPrint.red(f"[ERROR] Package installed but import still failed: {retry_e}")
-                        raise retry_e
-                else:
-                    ColorPrint.red(f"[ERROR] Failed to install package '{pip_package}'")
-                    raise e
+                run_pip_install_with_realtime_output(pip_cmd, pip_package)
+                importlib.invalidate_caches()
+                try:
+                    exec(import_statement, globals(), local_vars)
+                    _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
+                except (ImportError, ModuleNotFoundError) as retry_e:
+                    raise retry_e
             else:
                 # Package not in any dependency map, re-raise original error
                 raise e
@@ -638,6 +823,11 @@ def get_third_package_aiohttp_web():
 def get_third_package_yaml():
     """Get yaml package (lazy load)"""
     return _lazy_import('yaml', 'import yaml')
+
+
+def get_third_package_cryptography():
+    """Get cryptography package (lazy load, for Fernet)"""
+    return _lazy_import('cryptography', 'import cryptography')
 
 
 # PIL/Pillow packages
@@ -678,6 +868,46 @@ def get_third_package_PIL_ImageTk():
     return _PACKAGE_CACHE['PIL_ImageTk']
 
 
+def get_third_package_PIL_ImageGrab():
+    """Get PIL.ImageGrab module (lazy load)"""
+    if 'PIL_ImageGrab' not in _PACKAGE_CACHE:
+        from PIL import ImageGrab as PIL_ImageGrab
+        _PACKAGE_CACHE['PIL_ImageGrab'] = PIL_ImageGrab
+    return _PACKAGE_CACHE['PIL_ImageGrab']
+
+
+def get_third_package_PIL_ImageEnhance():
+    """Get PIL.ImageEnhance module (lazy load)"""
+    if 'PIL_ImageEnhance' not in _PACKAGE_CACHE:
+        from PIL import ImageEnhance as PIL_ImageEnhance
+        _PACKAGE_CACHE['PIL_ImageEnhance'] = PIL_ImageEnhance
+    return _PACKAGE_CACHE['PIL_ImageEnhance']
+
+
+def get_third_package_PIL_ImageFilter():
+    """Get PIL.ImageFilter module (lazy load)"""
+    if 'PIL_ImageFilter' not in _PACKAGE_CACHE:
+        from PIL import ImageFilter as PIL_ImageFilter
+        _PACKAGE_CACHE['PIL_ImageFilter'] = PIL_ImageFilter
+    return _PACKAGE_CACHE['PIL_ImageFilter']
+
+
+def get_third_package_PIL_ImageOps():
+    """Get PIL.ImageOps module (lazy load)"""
+    if 'PIL_ImageOps' not in _PACKAGE_CACHE:
+        from PIL import ImageOps as PIL_ImageOps
+        _PACKAGE_CACHE['PIL_ImageOps'] = PIL_ImageOps
+    return _PACKAGE_CACHE['PIL_ImageOps']
+
+
+def get_third_package_PIL_ImageStat():
+    """Get PIL.ImageStat module (lazy load)"""
+    if 'PIL_ImageStat' not in _PACKAGE_CACHE:
+        from PIL import ImageStat as PIL_ImageStat
+        _PACKAGE_CACHE['PIL_ImageStat'] = PIL_ImageStat
+    return _PACKAGE_CACHE['PIL_ImageStat']
+
+
 # Computer vision and automation packages
 def get_third_package_cv2():
     """Get cv2 (OpenCV) package (lazy load)"""
@@ -715,6 +945,21 @@ def get_third_package_numpy():
     return _lazy_import('numpy', 'import numpy')
 
 
+def get_third_package_matplotlib():
+    """Get matplotlib package (lazy load). Used by SDKTool for pyplot/font_manager."""
+    return _lazy_import('matplotlib', 'import matplotlib')
+
+
+def get_third_package_labelme():
+    """Get labelme package (lazy load). Image polygonal annotation tool; used by SDKTool when run from core_node."""
+    return _lazy_import('labelme', 'import labelme')
+
+
+def get_third_package_labelImg():
+    """Get labelImg package (lazy load). VOC/YOLO bbox annotation; used by GameAISDK yolo_label_lib / d3-check step 3."""
+    return _lazy_import('labelImg', 'import labelImg')
+
+
 # Network and web packages
 def get_third_package_websockets():
     """Get websockets package (lazy load)"""
@@ -724,6 +969,71 @@ def get_third_package_websockets():
 def get_third_package_requests():
     """Get requests package (lazy load)"""
     return _lazy_import('requests', 'import requests')
+
+
+def get_third_package_urllib3():
+    """Get urllib3 package (lazy load). Used by requests; also available for direct use."""
+    return _lazy_import('urllib3', 'import urllib3')
+
+
+def get_third_package_idna():
+    """Get idna package (lazy load). Used by requests for internationalized domain names."""
+    return _lazy_import('idna', 'import idna')
+
+
+def get_third_package_chardet():
+    """Get chardet package (lazy load). Used by requests for response encoding detection."""
+    return _lazy_import('chardet', 'import chardet')
+
+
+def get_third_package_certifi():
+    """Get certifi package (lazy load). Used by requests for TLS CA bundle; certifi.where() returns path."""
+    return _lazy_import('certifi', 'import certifi')
+
+
+def get_third_package_zmq():
+    """Get zmq package (lazy load). PyZMQ bindings for ZeroMQ; import name is zmq."""
+    return _lazy_import('zmq', 'import zmq')
+
+
+def get_third_package_msgpack():
+    """Get msgpack package (lazy load). Binary serialization; packb/unpackb, use_bin_type in 1.x."""
+    return _lazy_import('msgpack', 'import msgpack')
+
+
+def get_third_package_werkzeug():
+    """Get werkzeug package (lazy load). WSGI utilities; tensorboard and others may depend on it."""
+    return _lazy_import('werkzeug', 'import werkzeug')
+
+
+def get_third_package_h5py():
+    """Get h5py package (lazy load). HDF5 bindings; TF2/Keras often use 3.x."""
+    return _lazy_import('h5py', 'import h5py')
+
+
+def get_third_package_absl():
+    """Get absl package (lazy load). Abseil Python common libraries; tensorflow and others may depend on it."""
+    return _lazy_import('absl', 'import absl')
+
+
+def get_third_package_google_protobuf():
+    """Get google.protobuf package (lazy load). Protocol Buffers; actual version constrained by tensorflow/grpcio."""
+    return _lazy_import('google.protobuf', 'from google import protobuf')
+
+
+def get_third_package_grpc():
+    """Get grpc package (lazy load). gRPC Python; used by tensorflow and others when run from core_node."""
+    return _lazy_import('grpc', 'import grpc')
+
+
+def get_third_package_six():
+    """Get six package (lazy load). Python 2 and 3 compatibility library; tensorflow/protobuf and others may depend on it."""
+    return _lazy_import('six', 'import six')
+
+
+def get_third_package_PyQt5():
+    """Get PyQt5 package (lazy load). Qt5 bindings for Python; GameAISDK SDKTool uses it for GUI. Version >=5.15."""
+    return _lazy_import('PyQt5', 'import PyQt5')
 
 
 def get_third_package_uvicorn():
@@ -757,6 +1067,15 @@ def get_third_package_loguru():
 def get_third_package_selenium():
     """Get selenium package (lazy load)"""
     return _lazy_import('selenium', 'import selenium')
+
+
+def get_third_package_selenium_by():
+    """Get selenium.webdriver.common.by.By (lazy load). Returns None on failure."""
+    try:
+        selenium = get_third_package_selenium()
+        return selenium.webdriver.common.by.By if selenium else None
+    except Exception:
+        return None
 
 
 def get_third_package_webdriver_manager():
@@ -796,8 +1115,8 @@ def get_third_package_pystray():
             error_msg = str(e)
             if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
                 ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
-                ColorPrint.yellow("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
-                ColorPrint.yellow("[INFO] System tray features will be disabled")
+                ColorPrint.blue("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
+                ColorPrint.blue("[INFO] System tray features will be disabled")
                 _PACKAGE_CACHE['pystray'] = None
                 return None
             else:
@@ -812,9 +1131,228 @@ def get_third_package_pystray():
     return _PACKAGE_CACHE['pystray']
 
 
+def get_third_package_pythoncom():
+    """
+    Get pythoncom module (Windows COM, optional). Returns None on non-Windows or import failure.
+    Same style as get_third_package_pystray(); callers must check for None.
+    """
+    if 'pythoncom' not in _PACKAGE_CACHE:
+        if platform.system() != 'Windows':
+            _PACKAGE_CACHE['pythoncom'] = None
+        else:
+            try:
+                import pythoncom as _pythoncom
+                _PACKAGE_CACHE['pythoncom'] = _pythoncom
+            except Exception:
+                _PACKAGE_CACHE['pythoncom'] = None
+    return _PACKAGE_CACHE['pythoncom']
+
+
+def get_third_package_runtime():
+    """
+    Get application runtime module (optional). Returns None when not available.
+    Used for trigger_window_show, trigger_app_exit, etc. Callers must check for None.
+    """
+    if 'runtime' not in _PACKAGE_CACHE:
+        try:
+            _PACKAGE_CACHE['runtime'] = importlib.import_module('runtime')
+        except Exception:
+            _PACKAGE_CACHE['runtime'] = None
+    return _PACKAGE_CACHE['runtime']
+
+
+def get_third_package_PIL_Image_optional():
+    """Get PIL.Image module or None on failure. For optional use (e.g. tray icon); callers must check for None."""
+    if 'PIL_Image_optional' not in _PACKAGE_CACHE:
+        try:
+            from PIL import Image as PIL_Image
+            _PACKAGE_CACHE['PIL_Image_optional'] = PIL_Image
+        except Exception:
+            _PACKAGE_CACHE['PIL_Image_optional'] = None
+    return _PACKAGE_CACHE['PIL_Image_optional']
+
+
+def get_third_package_PIL_ImageDraw_optional():
+    """Get PIL.ImageDraw module or None on failure. For optional use; callers must check for None."""
+    if 'PIL_ImageDraw_optional' not in _PACKAGE_CACHE:
+        try:
+            from PIL import ImageDraw as PIL_ImageDraw
+            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = PIL_ImageDraw
+        except Exception:
+            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = None
+    return _PACKAGE_CACHE['PIL_ImageDraw_optional']
+
+
+def get_third_package_huggingface_hub():
+    """
+    Get huggingface_hub package (lazy load). For CnOCR/CnSTD model auto-download from Hugging Face.
+    Package includes CLI as entry point 'hf'; use get_huggingface_cli_command() or ensure_huggingface_cli_prerequisite().
+    Returns None if still unavailable after install attempt.
+    """
+    if 'huggingface_hub' not in _PACKAGE_CACHE:
+        try:
+            import huggingface_hub
+            _PACKAGE_CACHE['huggingface_hub'] = huggingface_hub
+        except (ImportError, ModuleNotFoundError):
+            pip_package = DEPENDENCY_MAP.get('huggingface_hub', 'huggingface_hub')
+            ColorPrint.yellow(f"[INSTALL] Package 'huggingface_hub' not found. Installing '{pip_package}' (required for CnOCR/CnSTD model download)...")
+            pip_cmd = build_pip_install_command(pip_package)
+            run_pip_install_with_realtime_output(pip_cmd, pip_package)
+            importlib.invalidate_caches()
+            try:
+                import huggingface_hub
+                _PACKAGE_CACHE['huggingface_hub'] = huggingface_hub
+            except (ImportError, ModuleNotFoundError):
+                _PACKAGE_CACHE['huggingface_hub'] = None
+    return _PACKAGE_CACHE.get('huggingface_hub')
+
+
+# Official PyPI latest (for init log); see https://pypi.org/pypi/cnocr/json
+CNOCR_OFFICIAL_LATEST_VERSION = "2.3.2.3"
+
+
+def _print_cnocr_init_info(cnocr_module):
+    """Print GPU support and loaded versions at cnocr init (official: PyPI cnocr, ort-cpu/ort-gpu)."""
+    gpu_available = CUDADetector.is_cuda_available()
+    cnocr_ver = getattr(cnocr_module, '__version__', 'unknown')
+    onnx_ver = 'N/A'
+    try:
+        import onnxruntime
+        onnx_ver = getattr(onnxruntime, '__version__', 'unknown')
+    except Exception:
+        pass
+    ColorPrint.blue(
+        f"[CnOCR] GPU: {'yes' if gpu_available else 'no'} | cnocr: {cnocr_ver} | onnxruntime: {onnx_ver} | official latest: {CNOCR_OFFICIAL_LATEST_VERSION}"
+    )
+
+
 def get_third_package_cnocr():
-    """Get cnocr package (lazy load) - Heavy package"""
-    return _lazy_import('cnocr', 'import cnocr')
+    """
+    Get cnocr package (lazy load). Official: https://cnocr.readthedocs.io/zh-cn/stable/install/
+    GPU: pip install cnocr[ort-gpu], CPU: pip install cnocr[ort-cpu].
+    When installing: uses get_cnocr_pip_package() (CUDADetector); installs latest (--upgrade).
+    Returns None if still unavailable after install attempt. On first load prints GPU support and versions.
+    """
+    if 'cnocr' not in _PACKAGE_CACHE:
+        try:
+            import cnocr
+            _PACKAGE_CACHE['cnocr'] = cnocr
+            _print_cnocr_init_info(cnocr)
+        except (ImportError, ModuleNotFoundError):
+            pip_package = get_cnocr_pip_package()
+            if pip_package:
+                ColorPrint.yellow(f"[INSTALL] Package 'cnocr' not found. Installing latest '{pip_package}' (official)...")
+                pip_cmd = build_pip_install_command(pip_package, upgrade=True)
+                run_pip_install_with_realtime_output(pip_cmd, pip_package)
+                importlib.invalidate_caches()
+                try:
+                    import cnocr
+                    _PACKAGE_CACHE['cnocr'] = cnocr
+                    _print_cnocr_init_info(cnocr)
+                except (ImportError, ModuleNotFoundError):
+                    _PACKAGE_CACHE['cnocr'] = None
+            else:
+                _PACKAGE_CACHE['cnocr'] = None
+    return _PACKAGE_CACHE['cnocr']
+
+
+def get_huggingface_cli_command():
+    """
+    Return command list to run Hugging Face CLI (for subprocess). Works without PATH.
+    Official: pip install huggingface_hub; entry point is 'hf' (since 1.x). Use this instead of 'huggingface-cli'.
+    """
+    return [sys.executable, "-m", "huggingface_hub.cli.hf"]
+
+
+def ensure_huggingface_cli_prerequisite() -> bool:
+    """
+    Prerequisite for CnOCR/CnSTD model download. Ensures huggingface_hub is installed and CLI is usable.
+    - Installs huggingface_hub if missing.
+    - Prepends Python Scripts to PATH so 'hf' is findable (Windows).
+    - CLI is invoked as 'hf' or via python -m huggingface_hub.cli.hf (see get_huggingface_cli_command()).
+    Official: https://hf.co/docs/huggingface_hub/installation  Windows standalone: powershell -ExecutionPolicy ByPass -c "irm https://hf.co/cli/install.ps1 | iex"
+    Returns True if hub is importable (CLI can always be run via get_huggingface_cli_command()).
+    """
+    hub = get_third_package_huggingface_hub()
+    if hub is None:
+        return False
+    try:
+        import shutil
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        scripts = os.path.join(exe_dir, "Scripts")
+        if os.path.isdir(scripts):
+            path_env = os.environ.get("PATH", "")
+            if scripts not in path_env:
+                os.environ["PATH"] = scripts + os.pathsep + path_env
+                ColorPrint.gray(f"[HF] PATH prepended with {scripts} for 'hf' CLI")
+        if shutil.which("hf"):
+            ColorPrint.gray("[HF] CLI available as: hf")
+            return True
+        ColorPrint.gray("[HF] CLI not on PATH. Use: python -m huggingface_hub.cli.hf  or  get_huggingface_cli_command()")
+        return True
+    except Exception:
+        pass
+    return True
+
+
+def _ensure_huggingface_cli_on_path():
+    """
+    Prepend Scripts to PATH and ensure hub is loaded. Prefer ensure_huggingface_cli_prerequisite() for explicit setup.
+    CLI command name is 'hf' (not huggingface-cli); use get_huggingface_cli_command() for subprocess.
+    """
+    ensure_huggingface_cli_prerequisite()
+
+
+# Official: if model file missing, manual download from https://huggingface.co/breezedeus/cnstd-cnocr-models or Baidu pan (pwd: nocr), put in ~/.cnocr/2.3 (Win: %APPDATA%\cnocr\2.3)
+CNOCR_MODEL_DOWNLOAD_HINT = (
+    "CnOCR model missing. Install: pip install huggingface_hub. CLI: python -m huggingface_hub.cli.hf  or  hf (Scripts on PATH). "
+    "Or download from https://huggingface.co/breezedeus/cnstd-cnocr-models (or Baidu pan pwd nocr), put zip in ~/.cnocr/2.3 (Win: %APPDATA%\\cnocr\\2.3)."
+)
+
+
+# CUDA init: single entry for whole project (system GPU info + ORT version switch + ensure ORT CUDA). Runs before OCR init.
+def _run_ort_version_switch_for_cuda() -> None:
+    """Run ONNX runtime switch once: uninstall the other (cpu/gpu), install target (gpu uses PyPI CUDA 12 with [cuda,cudnn])."""
+    _ocr_initializer._ensure_onnx_runtime_switch()
+
+_cuda_initializer = CudaInitializer(
+    print_cuda_prompt=_print_cuda_support_prompt,
+    run_pip_install=_run_pip_install_for_ocr,
+    log=lambda msg: ColorPrint.blue(msg),
+    run_ort_version_switch=_run_ort_version_switch_for_cuda,
+    is_pip_package_installed=_is_pip_package_installed,
+)
+
+# OCR init: single entry via OcrInitializer (uninstall other / install target only when needed; skip when no switch). Requires CudaInitializer.run() as predecessor.
+_ocr_initializer = OcrInitializer(
+    get_cnocr=get_third_package_cnocr,
+    run_pip_uninstall=_run_pip_uninstall,
+    run_pip_install=_run_pip_install_for_ocr,
+    clear_cnocr_cache=_clear_cnocr_cache,
+    is_pip_package_installed=_is_pip_package_installed,
+    verify_onnx_import=_verify_onnx_import,
+    run_pip_install_force=_run_pip_install_for_ocr_force,
+)
+
+
+def get_cnocr_prewarmed(lang: str):
+    """Return prewarmed CnOcr for lang: 'zh', 'en', 'cht'. None if not available."""
+    return _ocr_initializer.get_prewarmed(lang)
+
+
+def init_third_party_cnocr() -> bool:
+    """
+    Ensure huggingface_hub then run CUDA init once (ONNX switch + system GPU + ensure_onnx_cuda_usable), then OCR init once:
+    download from HF -> load cnocr -> prewarm zh/en/cht. Whole project has only this path for CUDA/ORT init.
+    Official: det default ch_PP-OCRv5_det; zh v5/server, en en_PP-OCRv4/v3, cht chinese_cht_PP-OCRv3.
+    """
+    hub = get_third_package_huggingface_hub()
+    if hub is not None:
+        _ensure_huggingface_cli_on_path()
+    _cuda_initializer.run()
+    if last_ort_install_ran():
+        _fix_ort_dependency_conflicts()
+    return _ocr_initializer.run()
 
 
 def get_third_package_pynput():
@@ -979,6 +1517,40 @@ def get_third_package_whisper():
     return _PACKAGE_CACHE['whisper']
 
 
+def _ensure_watchdog_submodules():
+    """Load watchdog.observers and watchdog.events so callers can use Observer/FileSystemEventHandler.
+    Official API: from watchdog.observers import Observer; from watchdog.events import FileSystemEventHandler."""
+    import watchdog.observers  # noqa: F401
+    import watchdog.events  # noqa: F401
+
+
+def get_third_package_watchdog():
+    """Get watchdog package (lazy load, optional). For file-change driven log monitor.
+    On first use: try import; if missing, install via pip (OPTIONAL_PACKAGES) then retry; still fail -> cache None.
+    Ensures observers/events submodules are loaded so .observers.Observer and .events.FileSystemEventHandler exist."""
+    if 'watchdog' not in _PACKAGE_CACHE:
+        try:
+            import watchdog
+            _PACKAGE_CACHE['watchdog'] = watchdog
+            _ensure_watchdog_submodules()
+        except ImportError:
+            pip_package = OPTIONAL_PACKAGES.get('watchdog')
+            if pip_package:
+                ColorPrint.yellow(f"[INSTALL] watchdog not found. Installing '{pip_package}' for file-change driven log monitor...")
+                pip_cmd = build_pip_install_command(pip_package)
+                run_pip_install_with_realtime_output(pip_cmd, pip_package)
+                importlib.invalidate_caches()
+                try:
+                    import watchdog
+                    _PACKAGE_CACHE['watchdog'] = watchdog
+                    _ensure_watchdog_submodules()
+                except ImportError:
+                    _PACKAGE_CACHE['watchdog'] = None
+            else:
+                _PACKAGE_CACHE['watchdog'] = None
+    return _PACKAGE_CACHE['watchdog']
+
+
 # Audio packages
 def get_third_package_pygame():
     """Get pygame package (lazy load)"""
@@ -1083,6 +1655,18 @@ def get_third_package_win32api():
     return _PACKAGE_CACHE['win32api']
 
 
+def get_third_package_win32process():
+    """Get win32process package (lazy load, Windows only)"""
+    if 'win32process' not in _PACKAGE_CACHE:
+        current_platform = platform.system()
+        if current_platform == 'Windows':
+            import win32process
+            _PACKAGE_CACHE['win32process'] = win32process
+        else:
+            _PACKAGE_CACHE['win32process'] = None
+    return _PACKAGE_CACHE['win32process']
+
+
 def get_third_package_win32ui():
     """Get win32ui package (lazy load, Windows only)"""
     if 'win32ui' not in _PACKAGE_CACHE:
@@ -1093,6 +1677,75 @@ def get_third_package_win32ui():
         else:
             _PACKAGE_CACHE['win32ui'] = None
     return _PACKAGE_CACHE['win32ui']
+
+
+def get_third_package_windows_ocr():
+    """
+    Get Windows native OCR (WinRT Windows.Media.Ocr) types. Windows only; optional.
+    Returns a namespace-like object with: OcrEngine, SoftwareBitmap, BitmapPixelFormat,
+    Buffer, Language, BitmapAlphaMode. None if not Windows or import/install fails.
+    Ref: https://learn.microsoft.com/en-us/uwp/api/windows.media.ocr
+    """
+    if platform.system() != 'Windows':
+        return None
+    cache_key = 'windows_ocr'
+    if cache_key not in _PACKAGE_CACHE:
+        try:
+            from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
+            from winrt.windows.graphics.imaging import (
+                SoftwareBitmap,
+                BitmapPixelFormat,
+                BitmapAlphaMode,
+            )
+            from winrt.windows.storage.streams import Buffer
+            from winrt.windows.globalization import Language
+            from winrt.windows.foundation import IAsyncOperation
+            _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
+                'OcrEngine': OcrEngine,
+                'OcrResult': OcrResult,
+                'OcrLine': OcrLine,
+                'OcrWord': OcrWord,
+                'SoftwareBitmap': SoftwareBitmap,
+                'BitmapPixelFormat': BitmapPixelFormat,
+                'BitmapAlphaMode': BitmapAlphaMode,
+                'Buffer': Buffer,
+                'Language': Language,
+                'IAsyncOperation': IAsyncOperation,
+            })()
+        except (ImportError, ModuleNotFoundError):
+            for pkg in WINDOWS_OCR_WINRT_PACKAGES:
+                if not _is_pip_package_installed(pkg):
+                    ColorPrint.yellow(
+                        "[INSTALL] Windows OCR (WinRT) not found. Installing '%s'..." % pkg
+                    )
+                    pip_cmd = build_pip_install_command(pkg)
+                    run_pip_install_with_realtime_output(pip_cmd, pkg)
+            importlib.invalidate_caches()
+            try:
+                from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
+                from winrt.windows.graphics.imaging import (
+                    SoftwareBitmap,
+                    BitmapPixelFormat,
+                    BitmapAlphaMode,
+                )
+                from winrt.windows.storage.streams import Buffer
+                from winrt.windows.globalization import Language
+                from winrt.windows.foundation import IAsyncOperation
+                _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
+                    'OcrEngine': OcrEngine,
+                    'OcrResult': OcrResult,
+                    'OcrLine': OcrLine,
+                    'OcrWord': OcrWord,
+                    'SoftwareBitmap': SoftwareBitmap,
+                    'BitmapPixelFormat': BitmapPixelFormat,
+                    'BitmapAlphaMode': BitmapAlphaMode,
+                    'Buffer': Buffer,
+                    'Language': Language,
+                    'IAsyncOperation': IAsyncOperation,
+                })()
+            except (ImportError, ModuleNotFoundError):
+                _PACKAGE_CACHE[cache_key] = None
+    return _PACKAGE_CACHE[cache_key]
 
 
 def get_third_package_pywinauto():
@@ -1178,6 +1831,18 @@ __all__ = [
     'get_third_package_aiohttp_web',
     'get_third_package_websockets',
     'get_third_package_requests',
+    'get_third_package_urllib3',
+    'get_third_package_idna',
+    'get_third_package_chardet',
+    'get_third_package_certifi',
+    'get_third_package_zmq',
+    'get_third_package_msgpack',
+    'get_third_package_grpc',
+    'get_third_package_werkzeug',
+    'get_third_package_h5py',
+    'get_third_package_absl',
+    'get_third_package_six',
+    'get_third_package_PyQt5',
     'get_third_package_uvicorn',
     'get_third_package_fastapi',
     'get_third_package_PIL',
@@ -1185,6 +1850,11 @@ __all__ = [
     'get_third_package_PIL_ImageDraw',
     'get_third_package_PIL_ImageFont',
     'get_third_package_PIL_ImageTk',
+    'get_third_package_PIL_ImageGrab',
+    'get_third_package_PIL_ImageEnhance',
+    'get_third_package_PIL_ImageFilter',
+    'get_third_package_PIL_ImageOps',
+    'get_third_package_PIL_ImageStat',
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',
@@ -1192,6 +1862,9 @@ __all__ = [
     'get_third_package_torch',
     'get_third_package_ultralytics',
     'get_third_package_numpy',
+    'get_third_package_matplotlib',
+    'get_third_package_labelme',
+    'get_third_package_labelImg',
     'get_third_package_adb_shell',
     'get_third_package_av',
     'get_third_package_loguru',
@@ -1200,7 +1873,11 @@ __all__ = [
     'get_third_package_tkinterweb',
     'get_third_package_tkhtmlview',
     'get_third_package_pystray',
+    'get_third_package_huggingface_hub',
     'get_third_package_cnocr',
+    'get_cnocr_prewarmed',
+    'get_huggingface_cli_command',
+    'ensure_huggingface_cli_prerequisite',
     'get_third_package_pynput',
     'get_third_package_pyperclip',
     # Google Translate API
@@ -1228,6 +1905,7 @@ __all__ = [
     'get_third_package_edge_tts',
     'get_third_package_vosk',
     'get_third_package_whisper',
+    'get_third_package_watchdog',
     # Audio packages
     'get_third_package_pygame',
     'get_third_package_eng_to_ipa',
@@ -1239,7 +1917,9 @@ __all__ = [
     'get_third_package_win32gui',
     'get_third_package_win32con',
     'get_third_package_win32api',
+    'get_third_package_win32process',
     'get_third_package_win32ui',
+    'get_third_package_windows_ocr',
     'get_third_package_pywinauto',
     'get_third_package_pygetwindow',
     'get_third_package_uiautomation',
@@ -1251,3 +1931,5 @@ __all__ = [
     # Google Gemini API
     'get_third_package_google_genai',
 ]
+
+# OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from cnocr_engine_registry) to download HF models and prewarm zh/en/cht.

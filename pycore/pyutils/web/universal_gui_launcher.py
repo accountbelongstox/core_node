@@ -138,15 +138,17 @@ class SystemTrayManager:
 
     def _build_menu(self, pystray):
         """
-        Build tray menu from menu items
+        Build tray menu from menu items.
 
-        Args:
-            pystray: pystray module reference
-
-        Returns:
-            pystray.Menu: Menu object
+        pystray.MenuItem(action) only accepts callables with 0, 1, or 2 args (icon, item).
         """
         menu_entries = []
+
+        def make_action(cb):
+            def on_activate(icon, item):
+                if cb:
+                    cb()
+            return on_activate
 
         for item in self.menu_items:
             key = item.get('key')
@@ -155,7 +157,7 @@ class SystemTrayManager:
 
             if callback:
                 menu_entries.append(
-                    pystray.MenuItem(label, lambda icon, item, cb=callback: cb())
+                    pystray.MenuItem(label, make_action(callback))
                 )
 
         return pystray.Menu(*menu_entries)

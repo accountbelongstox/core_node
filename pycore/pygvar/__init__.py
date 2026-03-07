@@ -26,7 +26,7 @@ Usage:
     value = gvm.get("my_key")
 """
 
-# Import all constants
+# Import all constants (includes MACHINE_ID, get_machine_id)
 from pycore.pygvar.constants import *  # noqa: F401,F403
 from pycore.pygvar.constants import __all__ as _CONSTANTS_ALL
 

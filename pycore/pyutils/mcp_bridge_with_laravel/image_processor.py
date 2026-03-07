@@ -13,13 +13,15 @@ import math
 from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageEnhance,
+    get_third_package_PIL_ImageFilter,
+)
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
-ImageEnhance = PIL.ImageEnhance
-ImageFilter = PIL.ImageFilter
+Image = get_third_package_PIL_Image()
+ImageEnhance = get_third_package_PIL_ImageEnhance()
+ImageFilter = get_third_package_PIL_ImageFilter()
 
 from ocr_config import OCRLimits, ProcessingConfig
 

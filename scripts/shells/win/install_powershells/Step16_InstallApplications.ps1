@@ -34,7 +34,8 @@
 param(
     [string]$Region = "Global", # This parameter is now largely superseded by Get-GlobalVar
     [string]$PackageName = "", # Filter packages by name (supports partial matching with wildcards)
-    [string]$PackageGroup = "" # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages - supports partial matching)
+    [string]$PackageGroup = "", # Filter by package group (BasePackages, ApplicationsPackages, CommonSoftwarePackages, McpServicesPackages, DevSoftwarePackages - supports partial matching)
+    [string]$ExactPackageName = "" # When set, only the package whose key equals this value is installed (used by APP Install menu)
 )
 
 <#
@@ -92,12 +93,18 @@ if ([string]::IsNullOrWhiteSpace($installType)) { $installType = "base" }
 # Store filters at script level
 $script:PackageNameFilter = $PackageName
 $script:PackageGroupFilter = $PackageGroup
+$script:ExactPackageNameFilter = $ExactPackageName
 
 # Track installed packages' desktop categories for final organization
 $script:InstalledDesktopCategories = @()
 
 # Check if filters are provided
-if (-not [string]::IsNullOrWhiteSpace($PackageName)) {
+if (-not [string]::IsNullOrWhiteSpace($ExactPackageName)) {
+    Write-Host "$SCRIPT_INDEX Exact package name specified: $ExactPackageName (single package)" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Overriding install type to 'full' due to exact package filter" -ForegroundColor Yellow
+    $installType = "full"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PackageName)) {
     Write-Host "$SCRIPT_INDEX Package name filter specified: $PackageName (partial matching)" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX Overriding install type to 'full' due to package name filter" -ForegroundColor Yellow
     $installType = "full"
@@ -117,6 +124,11 @@ function Test-PackageFilter {
         [string]$PackageName,
         [hashtable]$PackageMeta
     )
+
+    # Exact package name takes precedence (used by APP Install menu)
+    if (-not [string]::IsNullOrWhiteSpace($script:ExactPackageNameFilter)) {
+        return ($PackageName -eq $script:ExactPackageNameFilter)
+    }
 
     # If no filter is specified, install all packages
     if ([string]::IsNullOrWhiteSpace($script:PackageNameFilter)) {
@@ -742,9 +754,37 @@ function Install-BasePackage {
             $executable = Invoke-WebDownloadCommand -PackageName $PackageName -InstallDir $InstallDir -DownloadUrl $DownloadUrl -ExecutableName $ExecutableName -Keyword $EXEC_NAME -AdditionalKeywords @($PackageName.ToLower()) -OnlyCheckFlag $false -ForceInstall $false -IsArchive $IsArchive -ArchiveType $ArchiveType
             $installed = $null -ne $executable
         }
+        "postscript" {
+            $InstallScript = if ($PackageMeta.ContainsKey("InstallScript")) { $PackageMeta.InstallScript } else { "" }
+            if ([string]::IsNullOrWhiteSpace($InstallScript)) {
+                Write-Host "$SCRIPT_INDEX Error: postscript InstallType requires InstallScript in PackageMeta for $PackageName" -ForegroundColor Red
+                $installed = $false
+            } else {
+                $postinstallDir = Join-Path $PSScriptRoot "postinstall"
+                $scriptPath = Join-Path $postinstallDir $InstallScript
+                if (-not (Test-Path $scriptPath)) {
+                    Write-Host "$SCRIPT_INDEX Error: Install script not found: $scriptPath" -ForegroundColor Red
+                    $installed = $false
+                } else {
+                    Write-Host "$SCRIPT_INDEX Running postscript installer: $InstallScript" -ForegroundColor Cyan
+                    & $scriptPath
+                    $installed = $?
+                    if (-not $installed) {
+                        Write-Host "$SCRIPT_INDEX Postscript installer reported failure" -ForegroundColor Red
+                    }
+                    if ($installed -and $EXEC_NAME) {
+                        $searchPaths = @()
+                        if ($PackageMeta.ContainsKey("InstallSearchPaths") -and $PackageMeta.InstallSearchPaths) {
+                            $searchPaths = $PackageMeta.InstallSearchPaths | Where-Object { $_ -and (Test-Path $_ -ErrorAction SilentlyContinue) }
+                        }
+                        $executable = Find-ExecutableByKeyword -Keywords $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -AdditionalScanPaths $searchPaths -IncludeSystemPaths $true -Recursive $true
+                    }
+                }
+            }
+        }
         default {
             Write-Host "$SCRIPT_INDEX Unknown installation type '$InstallType' for $PackageName" -ForegroundColor Red
-            Write-Host "$SCRIPT_INDEX Supported types: winget, npm, pip, pipx, uv, uvx, poetry, choco, scoop, cargo, go, gem, brew, web" -ForegroundColor Yellow
+            Write-Host "$SCRIPT_INDEX Supported types: winget, npm, pip, pipx, uv, uvx, poetry, choco, scoop, cargo, go, gem, brew, web, postscript" -ForegroundColor Yellow
             $installed = $false
         }
     }

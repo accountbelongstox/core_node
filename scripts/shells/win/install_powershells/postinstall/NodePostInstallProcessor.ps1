@@ -62,6 +62,31 @@ function Install-PnpmAndYarn {
         Write-Host "$LogPrefix Running pnpm setup..." -ForegroundColor Yellow
         Write-Host "Y" | & $pnpmPath setup
         Write-Host "$LogPrefix pnpm setup completed" -ForegroundColor Green
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        # Add-Path function handles duplicate checking internally
+        try {
+            $pnpmGlobalBinDir = & $pnpmPath config get global-bin-dir 2>&1 | Select-Object -First 1
+            if (-not [string]::IsNullOrEmpty($pnpmGlobalBinDir) -and $pnpmGlobalBinDir -ne "undefined") {
+                if (Test-Path $pnpmGlobalBinDir) {
+                    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+                    $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+                    if (Test-Path $windowsPathFunctionPath) {
+                        . $windowsPathFunctionPath
+                        Write-Host "$LogPrefix Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -ForegroundColor Yellow
+                        Add-Path -newPath $pnpmGlobalBinDir
+                        Write-Host "$LogPrefix pnpm global bin directory PATH check completed" -ForegroundColor Green
+                    } else {
+                        Write-Host "$LogPrefix Warning: WindowsPathFunction.ps1 not found, cannot add pnpm bin to PATH" -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "$LogPrefix Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -ForegroundColor Yellow
+                    Write-Host "$LogPrefix Will be added to PATH when directory is created" -ForegroundColor Cyan
+                }
+            }
+        } catch {
+            Write-Host "$LogPrefix Warning: Failed to ensure pnpm bin in PATH: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
     }
 
     # Install yarn
