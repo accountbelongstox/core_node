@@ -145,13 +145,25 @@ detect_and_fix_previous_issues() {
 
     # 4. Fix npm global directory permissions and clean up conflicting npmrc files
     if [ -d "$COMPILE_DIR/npm-global" ]; then
-        echo "Fixing npm global directory permissions..."
-        if [ "$(id -u)" -eq 0 ]; then
-            chown -R root:root "$COMPILE_DIR/npm-global" 2>/dev/null || true
-            chmod -R 755 "$COMPILE_DIR/npm-global"
+        echo "[SAFE_PATH] COMPILE_DIR=$COMPILE_DIR COMPILE_DIR/npm-global=$COMPILE_DIR/npm-global"
+        _safe_compile=false
+        if [ -n "$COMPILE_DIR" ] && [[ "$COMPILE_DIR" == /* ]]; then
+            case "$COMPILE_DIR" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+                *) _safe_compile=true ;;
+            esac
+        fi
+        if [ "$_safe_compile" = true ]; then
+            echo "Fixing npm global directory permissions..."
+            if [ "$(id -u)" -eq 0 ]; then
+                chown -R root:root "$COMPILE_DIR/npm-global" 2>/dev/null || true
+                chmod -R 755 "$COMPILE_DIR/npm-global"
+            else
+                $USE_SUDO chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
+                $USE_SUDO chmod -R 755 "$COMPILE_DIR/npm-global"
+            fi
         else
-            $USE_SUDO chown -R $(whoami):$(whoami) "$COMPILE_DIR/npm-global" 2>/dev/null || true
-            $USE_SUDO chmod -R 755 "$COMPILE_DIR/npm-global"
+            echo "[SKIP] Refusing chown/chmod on system or invalid path: $COMPILE_DIR/npm-global"
         fi
     fi
 
@@ -345,9 +357,21 @@ install_node() {
         return 1
     fi
 
-    # Set proper permissions
-    $USE_SUDO chown -R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    $USE_SUDO chmod -R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+    # Set proper permissions (validate path to avoid touching system dirs)
+    echo "[SAFE_PATH] NODE_INSTALL_DIR=$NODE_INSTALL_DIR"
+    _safe_node_install=false
+    if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
+        case "$NODE_INSTALL_DIR" in
+            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+            *) _safe_node_install=true ;;
+        esac
+    fi
+    if [ "$_safe_node_install" = true ]; then
+        $USE_SUDO chown -R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+        $USE_SUDO chmod -R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+    else
+        echo "[SKIP] Refusing chown/chmod on system or invalid path: $NODE_INSTALL_DIR"
+    fi
 
     cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
     return 0

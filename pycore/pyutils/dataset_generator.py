@@ -27,6 +27,7 @@ from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_pa
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
+np = numpy
 
 
 @dataclass

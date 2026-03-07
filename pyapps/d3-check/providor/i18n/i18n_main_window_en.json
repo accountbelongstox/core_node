@@ -13,11 +13,14 @@
         "exit": "Exit"
       }
     },
+    "button_area": {
+      "start_d3": "Start D3"
+    },
     "tabs": {
-      "main_functions": "Main Functions",
-      "auxiliary_functions": "Auxiliary Functions",
+      "main_functions": "D3 Main Functions",
+      "auxiliary_functions": "D3 Auxiliary Functions",
       "log": "Log",
-      "rosbot_extension": "Rosbot Extension",
+      "rosbot_extension": "D3 Rosbot Extension",
       "d4_functions": "D4 Functions",
       "coordinate_calibration": "Coordinate Calibration"
     },
@@ -26,6 +29,14 @@
       "stop_macro": "Stop Macro",
       "running": "Running",
       "stopped": "Stopped"
+    },
+    "bottom_bar": {
+      "tab_main": "Skill config & macro options",
+      "tab_auxiliary": "Auxiliary functions",
+      "tab_rosbot": "ROSBOT extension",
+      "tab_d4": "D4 functions",
+      "tab_calibration": "Coordinate calibration",
+      "tab_log": "Main log"
     },
     "status_bar": {
       "game_status": "Game Status",
@@ -72,6 +83,8 @@
     },
     "system_tray": {
       "show_software": "Show Software",
+      "maximize": "Maximize",
+      "restart": "Restart",
       "exit": "Exit"
     }
   }

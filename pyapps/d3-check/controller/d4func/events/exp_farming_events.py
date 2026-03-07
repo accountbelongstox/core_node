@@ -15,7 +15,7 @@ from pathlib import Path
 current_dir = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import get_d4_interface_data
 
@@ -26,14 +26,9 @@ def on_exp_farming_started():
     
     Uses shared data from D4State and D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        ColorPrint.green("[EXP Farming Event] EXP farming started")
-        ColorPrint.blue(f"[EXP Farming Event] Current state: {d4_data.is_exp_farming_running()}")
-        
-    except Exception as e:
-        ColorPrint.red(f"[EXP Farming Event] Error in on_exp_farming_started: {e}")
+    d4_data = get_d4_interface_data()
+    ColorPrint.green("[EXP Farming Event] EXP farming started")
+    ColorPrint.blue(f"[EXP Farming Event] Current state: {d4_data.is_exp_farming_running()}")
 
 
 def on_exp_farming_stopped():
@@ -42,14 +37,9 @@ def on_exp_farming_stopped():
     
     Uses shared data from D4State and D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        ColorPrint.yellow("[EXP Farming Event] EXP farming stopped")
-        ColorPrint.blue(f"[EXP Farming Event] Current state: {d4_data.is_exp_farming_running()}")
-        
-    except Exception as e:
-        ColorPrint.red(f"[EXP Farming Event] Error in on_exp_farming_stopped: {e}")
+    d4_data = get_d4_interface_data()
+    ColorPrint.yellow("[EXP Farming Event] EXP farming stopped")
+    ColorPrint.blue(f"[EXP Farming Event] Current state: {d4_data.is_exp_farming_running()}")
 
 
 def on_exp_farming_tick_completed():
@@ -58,11 +48,6 @@ def on_exp_farming_tick_completed():
     
     Uses shared data from D4State and D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        ColorPrint.blue("[EXP Farming Event] EXP farming tick completed")
-        ColorPrint.blue(f"[EXP Farming Event] Screenshot timestamp: {d4_data.timestamp}")
-        
-    except Exception as e:
-        ColorPrint.red(f"[EXP Farming Event] Error in on_exp_farming_tick_completed: {e}")
+    d4_data = get_d4_interface_data()
+    ColorPrint.blue("[EXP Farming Event] EXP farming tick completed")
+    ColorPrint.blue(f"[EXP Farming Event] Screenshot timestamp: {d4_data.timestamp}")

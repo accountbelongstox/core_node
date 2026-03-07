@@ -32,8 +32,8 @@ pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
 
-from pyfoundations.color_print import ColorPrint
-from pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
 
 
 class PaddleOCREngine:
@@ -189,11 +189,11 @@ class PaddleOCREngine:
 
             process.wait()
 
-            if process.return_code == 0:
+            if process.returncode == 0:
                 ColorPrint.green(f"[SUCCESS] {package_name} installed successfully")
                 return True
             else:
-                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.return_code}")
+                ColorPrint.red(f"[ERROR] {package_name} installation failed with code {process.returncode}")
                 return False
 
         except Exception as e:

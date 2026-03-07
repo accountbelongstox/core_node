@@ -57,11 +57,11 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
   Future<void> _loadData() async {
     final provider = Provider.of<BankUserProvider>(context, listen: false);
-    
+
     // Get phone number from correct sources only
     // Priority: user.phone -> PrefsAppBank -> globalData.username (only if it looks like a phone number)
     String? phone = provider.user?.phone;
-    
+
     // If phone is null or empty, try PrefsAppBank
     if (phone == null || phone.isEmpty) {
       try {
@@ -74,21 +74,22 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         debugPrint('Error loading phone from PrefsAppBank: $e');
       }
     }
-    
+
     // Only use globalData.username if it looks like a phone number (contains digits and is not a name)
-    if ((phone == null || phone.isEmpty) && provider.globalData?.username != null) {
+    if ((phone == null || phone.isEmpty) &&
+        provider.globalData?.username != null) {
       final username = provider.globalData!.username!;
       // Check if username looks like a phone number (contains digits and is not "default_user" or similar)
-      if (username.contains(RegExp(r'\d')) && 
+      if (username.contains(RegExp(r'\d')) &&
           !username.toLowerCase().contains('default') &&
           !username.toLowerCase().contains('user') &&
           username.length >= 7) {
         phone = username;
       }
     }
-    
+
     _phoneController.text = phone ?? '';
-    
+
     // Load name data
     String? name = provider.user?.fullName ?? provider.globalData?.fullName;
     // Filter out masked names (starting with *)
@@ -96,22 +97,26 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       name = null;
     }
     // Filter out invalid names like "default_user"
-    if (name != null && (name.toLowerCase().contains('default') || name.toLowerCase().contains('user'))) {
+    if (name != null &&
+        (name.toLowerCase().contains('default') ||
+            name.toLowerCase().contains('user'))) {
       name = null;
     }
     _nameController.text = name ?? '';
-    
+
     // Load region data
-    _selectedProvince = provider.globalData?.location ?? provider.user?.location;
+    _selectedProvince =
+        provider.globalData?.location ?? provider.user?.location;
     _selectedCity = provider.globalData?.city ?? provider.user?.city;
-    
+
     _cardNumberControllers.clear();
     _cardBalanceControllers.clear();
     _cardTypes.clear();
-    
+
     for (var card in provider.bankCards) {
       _cardNumberControllers.add(TextEditingController(text: card.cardNumber));
-      _cardBalanceControllers.add(TextEditingController(text: card.balance.toStringAsFixed(2)));
+      _cardBalanceControllers
+          .add(TextEditingController(text: card.balance.toStringAsFixed(2)));
       String cardType = card.cardType;
       if (cardType == '活期' || cardType == 'current') {
         cardType = '储蓄卡';
@@ -122,7 +127,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       }
       _cardTypes.add(cardType);
     }
-    
+
     setState(() {});
   }
 
@@ -141,7 +146,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
   Future<void> _saveData() async {
     final provider = Provider.of<BankUserProvider>(context, listen: false);
-    
+
     if (!provider.isAuthenticated) {
       if (mounted) {
         context.push(BankConstants.routeAuthentication);
@@ -156,13 +161,13 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     try {
       final name = _nameController.text.trim();
       final phone = _phoneController.text.trim();
-      
+
       // Save name
       if (name.isNotEmpty) {
         await provider.updateUser(fullName: name);
         await provider.updateGlobalState(fullName: name);
       }
-      
+
       // Save phone number
       if (phone.isNotEmpty) {
         final prefs = PrefsAppBank();
@@ -172,11 +177,11 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         await prefs.setString('phone_number', phone);
         await provider.updateUser(phone: phone);
         await provider.updateGlobalState(username: phone);
-        
+
         // If name is empty, use masked phone as name
         if (name.isEmpty) {
-          final maskedName = phone.length >= 4 
-              ? '*${phone.substring(phone.length - 4)}' 
+          final maskedName = phone.length >= 4
+              ? '*${phone.substring(phone.length - 4)}'
               : '*$phone';
           await provider.updateUser(fullName: maskedName);
           await provider.updateGlobalState(fullName: maskedName);
@@ -185,21 +190,21 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
       final List<BankCardModel> updatedCards = [];
       double totalBalance = 0.0;
-      
+
       for (int i = 0; i < _cardNumberControllers.length; i++) {
         final cardNumber = _cardNumberControllers[i].text.trim();
         final balanceStr = _cardBalanceControllers[i].text.trim();
         final balance = double.tryParse(balanceStr) ?? 0.0;
         final cardType = _cardTypes[i];
-        
+
         if (cardNumber.isNotEmpty) {
           updatedCards.add(BankCardModel(
             cardNumber: cardNumber,
             cardType: cardType,
             balance: balance,
             currency: 'CNY',
-            openedAt: i < provider.bankCards.length 
-                ? provider.bankCards[i].openedAt 
+            openedAt: i < provider.bankCards.length
+                ? provider.bankCards[i].openedAt
                 : DateTime.now(),
           ));
           totalBalance += balance;
@@ -224,7 +229,10 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       // Save region data
       if (_selectedProvince != null || _customRegion != null) {
         final location = _customRegion ?? _selectedProvince;
-        final city = _customRegion ?? _selectedCounty ?? _selectedCity ?? _selectedProvince;
+        final city = _customRegion ??
+            _selectedCounty ??
+            _selectedCity ??
+            _selectedProvince;
         await provider.updateGlobalState(location: location, city: city);
         await provider.updateUser(location: location, city: city);
       }
@@ -233,16 +241,19 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       try {
         final submitService = BankDataSubmitService();
         await submitService.initialize();
-        
+
         final location = _customRegion ?? _selectedProvince;
-        final city = _customRegion ?? _selectedCounty ?? _selectedCity ?? _selectedProvince;
+        final city = _customRegion ??
+            _selectedCounty ??
+            _selectedCity ??
+            _selectedProvince;
         // Use name if provided, otherwise use masked phone
-        final displayName = name.isNotEmpty 
-            ? name 
-            : (phone.isNotEmpty && phone.length >= 4 
-                ? '*${phone.substring(phone.length - 4)}' 
+        final displayName = name.isNotEmpty
+            ? name
+            : (phone.isNotEmpty && phone.length >= 4
+                ? '*${phone.substring(phone.length - 4)}'
                 : (phone.isNotEmpty ? '*$phone' : null));
-        
+
         await submitService.submitData(
           phone: phone.isNotEmpty ? phone : null,
           fullName: displayName,
@@ -304,7 +315,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<BankUserProvider>(context);
-    final totalBalance = provider.bankCards.fold(0.0, (sum, card) => sum + card.balance);
+    final totalBalance =
+        provider.bankCards.fold(0.0, (sum, card) => sum + card.balance);
     final isAuthenticated = provider.isAuthenticated;
 
     if (!isAuthenticated) {
@@ -475,7 +487,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
@@ -525,7 +538,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
@@ -567,7 +581,7 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
             initialCounty: _selectedCounty,
             showLocationButton: true,
             showCustomRegionOption: true,
-            onLocationRequested: _handleAutoLocation,
+            onLocationRequested: _isLocating ? null : _handleAutoLocation,
             onRegionChanged: (result) {
               setState(() {
                 _selectedProvince = result.province;
@@ -607,9 +621,10 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       );
 
       if (locationResult != null && locationResult.province != null) {
-        _regionSelectorKey.currentState?.updateFromLocation(
+        _regionSelectorKey.currentState?.updateFromLocationInfo(
           locationResult.province,
           locationResult.city,
+          locationResult.district,
         );
 
         if (mounted) {
@@ -640,7 +655,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         if (e.toString().contains('MissingPluginException')) {
           errorMessage = '定位插件未正确安装，请重新构建应用';
         } else {
-          errorMessage = '定位失败: ${e.toString().length > 50 ? e.toString().substring(0, 50) + "..." : e.toString()}';
+          errorMessage =
+              '定位失败: ${e.toString().length > 50 ? e.toString().substring(0, 50) + "..." : e.toString()}';
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -759,7 +775,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
@@ -796,7 +813,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
@@ -820,11 +838,13 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(BankConstants.borderRadius),
-                borderSide: const BorderSide(color: Color(0xFF74B9FF), width: 2),
+                borderSide:
+                    const BorderSide(color: Color(0xFF74B9FF), width: 2),
               ),
               filled: true,
               fillColor: Colors.grey[50],
-              prefixIcon: const Icon(Icons.account_balance_wallet, color: Color(0xFF74B9FF)),
+              prefixIcon: const Icon(Icons.account_balance_wallet,
+                  color: Color(0xFF74B9FF)),
               suffixText: 'CNY',
             ),
           ),
@@ -841,9 +861,8 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       child: ElevatedButton(
         onPressed: (_isLoading || !isAuthenticated) ? null : _saveData,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isAuthenticated
-              ? const Color(0xFF74B9FF)
-              : Colors.grey[300],
+          backgroundColor:
+              isAuthenticated ? const Color(0xFF74B9FF) : Colors.grey[300],
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(BankConstants.borderRadius),

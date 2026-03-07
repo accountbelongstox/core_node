@@ -137,8 +137,8 @@ function Wait-ForUninstallProcesses {
     
     Write-CategoryLog -Message "Checking for hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Yellow"
     
-    # Find all processes with "uninstall" in their name
-    $uninstallProcesses = Get-UninstallProcesses
+    # Find all processes with "uninstall" in their name (force array for single-object return)
+    $uninstallProcesses = @(Get-UninstallProcesses)
     
     # Ensure we have an array and safe count access
     if (-not $uninstallProcesses -or $uninstallProcesses.Count -eq 0) {
@@ -159,8 +159,8 @@ function Wait-ForUninstallProcesses {
         Start-Sleep -Seconds $checkInterval
         $waitTime += $checkInterval
         
-        # Check current uninstall processes
-        $currentProcesses = Get-UninstallProcesses
+        # Check current uninstall processes (force array for single-object return)
+        $currentProcesses = @(Get-UninstallProcesses)
         
         # Safe count access
         $currentCount = if ($currentProcesses) { $currentProcesses.Count } else { 0 }
@@ -176,7 +176,7 @@ function Wait-ForUninstallProcesses {
     # If we reach here, processes are still hanging
     Write-CategoryLog -Message "Timeout reached, attempting to kill hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Red"
     
-    $remainingProcesses = Get-UninstallProcesses
+    $remainingProcesses = @(Get-UninstallProcesses)
     
     foreach ($proc in $remainingProcesses) {
         try {

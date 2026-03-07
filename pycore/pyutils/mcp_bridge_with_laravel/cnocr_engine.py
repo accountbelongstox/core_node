@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
 
 # Get logger
 logger = logging.getLogger(__name__)
@@ -261,14 +262,13 @@ class CnOCREngine:
 
     @staticmethod
     def install_dependencies():
-        """Install CnOCR dependencies"""
+        """Install CnOCR dependencies via get_cnocr_pip_package() (GPU/CPU per CUDADetector); install latest (--upgrade)."""
         try:
             logger.info("Installing CnOCR dependencies...")
-
-            # Install CnOCR
+            pip_pkg = get_cnocr_pip_package()
             result = exec_silent([
-                sys.executable, "-m", "pip", "install",
-                "cnocr[ort-cpu]",
+                sys.executable, "-m", "pip", "install", "--upgrade",
+                pip_pkg,
                 "-i", "https://mirrors.aliyun.com/pypi/simple"
             ], capture_output=True, text=True, timeout=300)
 

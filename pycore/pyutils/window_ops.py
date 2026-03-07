@@ -11,14 +11,19 @@ from typing import Optional, List, Tuple, Dict, Any, Union
 from pathlib import Path
 from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
 
+# Use wintypes.POINT so user32 GetCursorPos/ScreenToClient match other libs (e.g. pyautogui) and avoid "expected LP_POINT instead of pointer to POINT"
+wintypes = ctypes.wintypes
+POINT = wintypes.POINT
+
 from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
-import subprocess
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 win32api = get_third_package_win32api()
 import win32process
 import win32clipboard
+
+PROCESS_TERMINATE = 0x0001
 from pycore.pyfoundations.color_print import ColorPrint
 
 SW_HIDE = 0
@@ -37,9 +42,9 @@ WM_LBUTTONDOWN = 0x0201
 WM_LBUTTONUP = 0x0202
 WM_RBUTTONDOWN = 0x0204
 WM_RBUTTONUP = 0x0205
+MK_LBUTTON = 0x0001
+MK_RBUTTON = 0x0002
 
-class POINT(Structure):
-    _fields_ = [("x", c_long), ("y", c_long)]
 
 class RECT(Structure):
     _fields_ = [("left", c_long), ("top", c_long), ("right", c_long), ("bottom", c_long)]
@@ -83,6 +88,10 @@ class WindowOps:
         self.user32.GetWindowRect.restype = c_bool
         self.user32.GetWindowThreadProcessId.argtypes = [c_void_p, POINTER(c_ulong)]
         self.user32.GetWindowThreadProcessId.restype = c_ulong
+        self.user32.GetCursorPos.argtypes = [POINTER(POINT)]
+        self.user32.GetCursorPos.restype = c_bool
+        self.user32.ScreenToClient.argtypes = [c_void_p, POINTER(POINT)]
+        self.user32.ScreenToClient.restype = c_bool
     
     def find_window(self, class_name: Optional[str] = None, window_title: Optional[str] = None) -> Optional[int]:
         try:
@@ -161,6 +170,76 @@ class WindowOps:
             return None
         except:
             return None
+
+    def is_cursor_in_window(self, hwnd: int) -> bool:
+        """True if current cursor position (screen coords) is inside the window's client area."""
+        try:
+            point = POINT()
+            if not self.user32.GetCursorPos(byref(point)):
+                return False
+            rect = self.get_window_client_rect(hwnd)
+            if not rect:
+                return False
+            return self._point_in_rect(point, rect)
+        except Exception:
+            return False
+
+    def _point_in_rect(self, point: POINT, rect: Tuple[int, int, int, int]) -> bool:
+        """True if point (screen coords) is inside rect (left, top, right, bottom) screen coords."""
+        left, top, right, bottom = rect
+        return left <= point.x < right and top <= point.y < bottom
+
+    def is_cursor_in_rect(self, rect: Tuple[int, int, int, int]) -> bool:
+        """True if current cursor position (screen coords) is inside rect (left, top, right, bottom)."""
+        try:
+            point = POINT()
+            if not self.user32.GetCursorPos(byref(point)):
+                return False
+            return self._point_in_rect(point, rect)
+        except Exception:
+            return False
+
+    def send_mouse_click(self, hwnd: int, button: str = "left") -> bool:
+        """Send one mouse click (down+up) to window at client-area center. button: 'left' or 'right'."""
+        try:
+            rect = self.get_window_client_rect(hwnd)
+            if not rect:
+                return False
+            cx = (rect[2] - rect[0]) // 2
+            cy = (rect[3] - rect[1]) // 2
+            lparam = (cy << 16) | (cx & 0xFFFF)
+            if button == "right":
+                self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
+                time.sleep(0.02)
+                self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
+            else:
+                self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+                time.sleep(0.02)
+                self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+            return True
+        except Exception:
+            return False
+
+    def send_mouse_click_at_cursor(self, hwnd: int, button: str = "left") -> bool:
+        """Send one mouse click (down+up) at current cursor position in window client coords. button: 'left' or 'right'."""
+        try:
+            point = POINT()
+            if not self.user32.GetCursorPos(byref(point)):
+                return False
+            if not self.user32.ScreenToClient(hwnd, byref(point)):
+                return False
+            lparam = (point.y << 16) | (point.x & 0xFFFF)
+            if button == "right":
+                self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
+                time.sleep(0.02)
+                self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
+            else:
+                self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+                time.sleep(0.02)
+                self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+            return True
+        except Exception:
+            return False
     
     def get_window_thread_process_id(self, hwnd: int) -> Optional[Tuple[int, int]]:
         try:
@@ -198,16 +277,20 @@ class WindowOps:
             enum_func = ctypes.WINFUNCTYPE(c_bool, c_void_p, c_void_p)(enum_proc)
             self.user32.EnumWindows(enum_func, 0)
             return windows
-        except:
+        except OSError:
             return []
     
     def _kill_process_by_pid(self, pid: int, window_title: str):
-        """Kill process by PID using non-blocking subprocess"""
+        """Kill process by PID using win32api (in-process)."""
+        if win32api is None:
+            print(f"[PROCESS] win32api not available, cannot kill PID {pid}")
+            return
         try:
-            subprocess.Popen(['taskkill', '/PID', str(pid), '/F'], 
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            handle = win32api.OpenProcess(PROCESS_TERMINATE, False, pid)
+            win32api.TerminateProcess(handle, 0)
+            win32api.CloseHandle(handle)
             print(f"[PROCESS] Killing duplicate process PID {pid}: {window_title}")
-        except Exception as e:
+        except OSError as e:
             print(f"[PROCESS] Failed to kill PID {pid}: {e}")
 
     def find_windows_by_title(self, title_pattern: str) -> List[Tuple[int, str]]:
@@ -223,11 +306,8 @@ class WindowOps:
             
             # Kill other processes in background threads
             for hwnd, window_title in matched_windows[:-1]:
-                try:
-                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                    self._kill_process_by_pid(pid, window_title)
-                except Exception as e:
-                    print(f"[PROCESS] Failed to get PID for window {window_title}: {e}")
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                self._kill_process_by_pid(pid, window_title)
             
             return [target_window]
         
@@ -364,4 +444,23 @@ def activate_and_send_key(titles: Union[str, List[str]], key: Union[str, int],ra
     return _window_ops.activate_and_send_key(titles, key,random_interval)
 
 def focus_and_send_key(hwnd: int, key: Union[str, int], press_count: int = 1, interval: float = 0.1) -> bool:
-    return _window_ops.focus_and_send_key(hwnd, key, press_count, interval) 
+    return _window_ops.focus_and_send_key(hwnd, key, press_count, interval)
+
+def send_mouse_click(hwnd: int, button: str = "left") -> bool:
+    """Send one mouse click to window at client-area center. button: 'left' or 'right'."""
+    return _window_ops.send_mouse_click(hwnd, button)
+
+
+def send_mouse_click_at_cursor(hwnd: int, button: str = "left") -> bool:
+    """Send one mouse click at current cursor position (in window client coords). button: 'left' or 'right'."""
+    return _window_ops.send_mouse_click_at_cursor(hwnd, button)
+
+
+def is_cursor_in_window(hwnd: int) -> bool:
+    """True if current cursor is inside the window's client area."""
+    return _window_ops.is_cursor_in_window(hwnd)
+
+
+def is_cursor_in_rect(rect: Tuple[int, int, int, int]) -> bool:
+    """True if current cursor (screen coords) is inside rect (left, top, right, bottom)."""
+    return _window_ops.is_cursor_in_rect(rect) 

@@ -2,24 +2,23 @@
 # -*- coding: utf-8 -*-
 """
 Game Window Detector
-Detects game window position by finding anchor points in full screen screenshot
+Detects game window position by finding anchor points in full screen screenshot.
+Singleton via get_game_window_detector(); do not instantiate elsewhere.
 """
 
 import os
 import sys
 from typing import Optional, Tuple, Dict
 from pathlib import Path
-import cv2
-import numpy as np
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from providor.providor_index import (
     get_template_path,
     get_template_threshold,
@@ -111,8 +110,6 @@ class GameWindowDetector:
 
         except Exception as e:
             ColorPrint.red(f"[Detector] Error detecting game window: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _find_bottom_left_anchor(self, screenshot_path: str) -> Optional[Dict]:
@@ -237,12 +234,12 @@ class GameWindowDetector:
         ColorPrint.blue(f"[Calc] Bottom-left anchor: pos=({bl_x}, {bl_y}), size=({bl_w}x{bl_h})")
         ColorPrint.blue(f"[Calc] Bottom-right anchor: pos=({br_x}, {br_y}), size=({br_w}x{br_h})")
 
-        # Calculate offset positions (向左下偏移 / 向右下偏移)
-        # 左下角：向左偏移 bl_w，向下偏移 bl_h
+        # Calculate offset positions (bottom-left / bottom-right)
+        # Bottom-left: offset left by bl_w, down by bl_h
         left_bottom_x = int(bl_x - bl_w)
         left_bottom_y = int(bl_y + bl_h)
 
-        # 右下角：向右偏移 br_w，向下偏移 br_h
+        # Bottom-right: offset right by br_w, down by br_h
         right_bottom_x = int(br_x + br_w)
         right_bottom_y = int(br_y + br_h)
 
@@ -281,3 +278,14 @@ if __name__ == "__main__":
         print(f"  Bottom-right anchor: {result['bottom_right_anchor']['name']}")
     else:
         print("\nGame window not detected")
+
+# Single GameWindowDetector instance; use get_game_window_detector only
+_game_window_detector_instance: Optional[GameWindowDetector] = None
+
+
+def get_game_window_detector() -> GameWindowDetector:
+    """Return the global GameWindowDetector instance (singleton)."""
+    global _game_window_detector_instance
+    if _game_window_detector_instance is None:
+        _game_window_detector_instance = GameWindowDetector()
+    return _game_window_detector_instance

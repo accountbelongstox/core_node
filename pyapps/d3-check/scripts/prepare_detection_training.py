@@ -8,20 +8,24 @@ Generates YOLO format annotations for object detection training
 
 import os
 import sys
-import cv2
-import numpy as np
 import argparse
 import random
+import json
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
-import json
 
 # Add project paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
+from share.project_path import get_project_root
+sys.path.insert(0, str(get_project_root().parent.parent))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 
 class DetectionDataGenerator:

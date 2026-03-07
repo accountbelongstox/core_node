@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Grid Screenshot Collector
-Captures grid-based screenshots from game window
-Supports nine-grid (three by three) and eighteen by eighteen grid modes
+Captures grid-based screenshots from game window. Supports nine-grid and eighteen by eighteen grid modes.
+Singleton via get_grid_screenshot_collector(); do not instantiate elsewhere.
 """
 
 # Standard library imports
@@ -11,23 +11,21 @@ import os
 import sys
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
 
-PIL = get_third_package_PIL()
-from PIL import Image
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+Image = get_third_package_PIL_Image()
 
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from providor.common_imports import ColorPrint, WindowScreenshot
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.screenshot_provider import get_window_screenshot
 
 # Local imports
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
-from config.grid_config import GRID_ROWS, GRID_COLS
+from providor.constants.common import GRID_ROWS, GRID_COLS
 
 class GridScreenshotCollector:
     """
@@ -44,8 +42,8 @@ class GridScreenshotCollector:
     """
 
     def __init__(self):
-        """Initialize grid screenshot collector"""
-        self.screenshot_manager = WindowScreenshot()
+        """Initialize grid screenshot collector (uses shared singleton)"""
+        self.screenshot_manager = get_window_screenshot()
         ColorPrint.green("[GridScreenshotCollector] Initialized")
 
     def capture_grid_region(
@@ -178,4 +176,15 @@ class GridScreenshotCollector:
 
         ColorPrint.gray(f"[GridCollector] Cell ({cell_row},{cell_col}) center: ({center_x},{center_y})")
         return (center_x, center_y)
+
+
+_grid_screenshot_collector_instance: Optional[GridScreenshotCollector] = None
+
+
+def get_grid_screenshot_collector() -> GridScreenshotCollector:
+    """Return the global GridScreenshotCollector instance (singleton)."""
+    global _grid_screenshot_collector_instance
+    if _grid_screenshot_collector_instance is None:
+        _grid_screenshot_collector_instance = GridScreenshotCollector()
+    return _grid_screenshot_collector_instance
 

@@ -20,6 +20,7 @@ import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import '../../../managers_app_bank/license_registration_manager.dart';
 import 'data_management_screen.dart';
 import 'settings_dialogs.dart';
+import '../../../widgets_app_bank/bank_user_masked_name_text.dart';
 
 class SettingsWidgets {
   static Widget buildUserSection(BuildContext context) {
@@ -66,10 +67,9 @@ class SettingsWidgets {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            provider.globalData?.fullName ??
-                                user?.maskedName ??
-                                BankLocalizationKeys.bankUnknownUser.tr(context),
+                          child: BankUserMaskedNameText(
+                            fallbackText: BankLocalizationKeys.bankUnknownUser
+                                .tr(context),
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -171,8 +171,8 @@ class SettingsWidgets {
               icon: Icons.star_outline,
               title:
                   BankLocalizationKeys.bankDebugMyExclusiveCustomer.tr(context),
-              subtitle:
-                  BankLocalizationKeys.bankDebugExclusiveServiceDesc.tr(context),
+              subtitle: BankLocalizationKeys.bankDebugExclusiveServiceDesc
+                  .tr(context),
               onTap: () {
                 GoRouter.of(context).push(BankConstants.routeExclusiveCustomer);
               },
@@ -423,7 +423,8 @@ class SettingsWidgets {
                     () async {
                       await provider.clearUserStorageData();
                       if (context.mounted) {
-                        GoRouter.of(context).go(BankConstants.routeAuthentication);
+                        GoRouter.of(context)
+                            .go(BankConstants.routeAuthentication);
                       }
                     },
                   );

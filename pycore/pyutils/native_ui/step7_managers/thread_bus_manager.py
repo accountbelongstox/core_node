@@ -115,6 +115,9 @@ class BusSignals:
     STARTUP_READY = "ui.startup.ready"
     STARTUP_CLOSED = "ui.startup.closed"
     STARTUP_STOPPED = "ui.startup.stopped"
+    # Request tk debug window to close (singleton/shutdown). TkinterStartupThread (single tk build) listens;
+    # shutdown handler(s) trigger it so the window exits with process.
+    STARTUP_REQUEST_CLOSE = "ui.startup.request_close"
 
     # UI i18n signals
     I18N_SET_LANGUAGE = "ui.i18n.set_language"  # Request to change language (via bus)

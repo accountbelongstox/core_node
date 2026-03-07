@@ -2,43 +2,36 @@
 # -*- coding: utf-8 -*-
 """
 Macro Controls Component
-Start/Stop buttons and status indicator for macro control
+Macro start/stop by hotkey only; no UI buttons.
 """
 
-import tkinter as tk
 from typing import Optional, Callable
-from ..theme import UITheme
-from ..widgets import ThemedFrame, ThemedButton, ThemedLabel
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
+from ..widgets import ThemedFrame
 
 
 class MacroControls:
-    """Macro control buttons with status indicator"""
+    """Macro control: start/stop by hotkey only; no UI buttons."""
 
     def __init__(self, parent, on_start: Optional[Callable] = None,
                  on_stop: Optional[Callable] = None):
         """
-        Create macro controls component
+        Create macro controls component (hotkey-only; no buttons).
 
         Args:
             parent: Parent widget
-            on_start: Callback for start button
-            on_stop: Callback for stop button
+            on_start: Callback for start (used by hotkey)
+            on_stop: Callback for stop (used by hotkey)
         """
         self.parent = parent
         self.on_start = on_start
         self.on_stop = on_stop
         self.is_running = False
 
-        # Create control frame
         self.frame = ThemedFrame.create(parent, bg_color='bg_primary')
-
         self._create_controls()
 
     def _create_controls(self):
-        """Create control buttons and status - removed stop button and status display"""
-        # Stop button and status indicators removed as per user request
+        """No buttons: macro start/stop is via hotkey only."""
         pass
 
     def _on_start_clicked(self):
@@ -54,14 +47,8 @@ class MacroControls:
         self.set_running(False)
 
     def set_running(self, running: bool):
-        """
-        Set macro running state - removed UI updates since controls are hidden
-
-        Args:
-            running: True if macro is running
-        """
+        """Set macro running state (hotkey-only; no UI to update)."""
         self.is_running = running
-        # No UI elements to update since stop button and status are removed
 
     def pack(self, **kwargs):
         """Pack the controls"""
@@ -72,7 +59,6 @@ class MacroControls:
         self.frame.grid(**kwargs)
 
     def update_text(self):
-        """Update button and status text after language change - no UI to update"""
-        # No UI elements to update since stop button and status are removed
+        """No UI elements (hotkey-only)."""
         pass
 

@@ -272,6 +272,7 @@ EOF
     read
 }
 
+<<<<<<< HEAD
 # Function to show RustDesk Server install info (Key, ports, IPs)
 show_rustdesk_install_info() {
     echo "RustDesk Server Install Info"
@@ -284,6 +285,20 @@ show_rustdesk_install_info() {
     echo ""
     echo "Press Enter to continue..."
     read
+=======
+# Function to show APP Install menu (single-package install from 120 list)
+show_app_install_menu() {
+    local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
+    echo "APP Install Menu"
+    echo ""
+    if [ -s "$app_install_script" ]; then
+        bash "$app_install_script"
+    else
+        echo "Error: app_install_menu.sh not found at $app_install_script"
+    fi
+    echo ""
+    read -r -p "Press Enter to continue..."
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
 }
 
 # Function to show Linux management submenu
@@ -301,7 +316,11 @@ show_linux_management_submenu() {
         "Restart GNOME Remote Desktop (Fix RDP Connection)"
         "Clear and Re-decrypt Secret Keys"
         "Show System Information"
+<<<<<<< HEAD
         "RustDesk Server Install Info (Key & Ports)"
+=======
+        "APP Install"
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
         "Back to Main Menu"
     )
     
@@ -363,7 +382,11 @@ show_linux_management_submenu() {
                         show_system_information
                         ;;
                     6)
+<<<<<<< HEAD
                         show_rustdesk_install_info
+=======
+                        show_app_install_menu
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
                         ;;
                     7)
                         return 0

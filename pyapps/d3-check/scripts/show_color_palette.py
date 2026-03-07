@@ -5,14 +5,18 @@ Color Palette Viewer
 Display all target colors with their tolerance ranges
 """
 
-import cv2
-import numpy as np
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add project paths
 current_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(current_dir))
+from share.project_path import get_project_root
+sys.path.insert(0, str(get_project_root().parent.parent))
+
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 from scripts.color_region_detector import TARGET_COLORS, COLOR_TOLERANCE, calculate_color_range
 

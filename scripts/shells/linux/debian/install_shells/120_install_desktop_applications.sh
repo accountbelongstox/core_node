@@ -1395,6 +1395,7 @@ show_help() {
     echo "  $0 code                  # Test install apps containing 'code' in name (lowercase = app)"
     echo "  $0 DEV firefox           # Test install 'firefox' apps from DEV group"
     echo "  $0 --cleanup <name>      # Force cleanup package by executable name"
+    echo "  $0 --exact-app <key>     # Install single app by key (e.g. chrome, firefox)"
     echo "  $0 --help                # Show this help message"
     echo ""
     echo "Parameter Rules:"
@@ -1485,6 +1486,66 @@ handle_cleanup() {
     return 0
 }
 
+# Find which package group contains the given app key
+find_group_for_app() {
+    local app_key="$1"
+    local group
+    for group in BASE DEV APP AI MCP; do
+        local apps_in_group
+        mapfile -t apps_in_group < <(get_apps_by_package_group "$group")
+        local a
+        for a in "${apps_in_group[@]}"; do
+            if [ "$a" = "$app_key" ]; then
+                echo "$group"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+
+# Function to install exactly one app by key (used by APP Install menu)
+handle_exact_app() {
+    local app_key="$1"
+
+    if [ -z "$app_key" ]; then
+        log_message "Error: No app key provided"
+        echo "Usage: $0 --exact-app <app_key>"
+        return 1
+    fi
+
+    local app_group
+    app_group=$(find_group_for_app "$app_key")
+    if [ -z "$app_group" ]; then
+        log_message "Error: App key not found in any group: $app_key"
+        return 1
+    fi
+
+    log_message "=========================================="
+    log_message "Exact App Install: $app_key (group: $app_group)"
+    log_message "=========================================="
+
+    migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
+        log_message "$line"
+    done
+
+    log_message "Checking and fixing npm global binary permissions..."
+    fix_npm_permissions
+
+    log_message "Updating package lists with timeout..."
+    timeout 300 $USE_SUDO apt update 2>/dev/null || true
+
+    log_message "Installing essential system packages with timeout..."
+    timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release 2>/dev/null || true
+
+    if install_application "$app_key" "$app_group"; then
+        log_message "Installation completed for: $app_key"
+    else
+        log_message "Installation finished for: $app_key (check log for details)"
+    fi
+    return 0
+}
+
 # Main installation logic
 main() {
     local param1="$1"
@@ -1525,6 +1586,12 @@ main() {
     # Check for cleanup request
     if [ "$param1" = "--cleanup" ]; then
         handle_cleanup "$param2"
+        return $?
+    fi
+
+    # Check for exact app install (APP Install menu)
+    if [ "$param1" = "--exact-app" ]; then
+        handle_exact_app "$param2"
         return $?
     fi
 

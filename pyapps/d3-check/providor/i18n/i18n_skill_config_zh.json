@@ -22,6 +22,7 @@
         "continuous": "连续",
         "single": "单次",
         "hold": "按住",
+        "ignore": "忽略",
         "drag": "拖拽",
         "disabled": "禁用",
         "buff": "保持Buff"
@@ -32,7 +33,7 @@
       "quick_switch": "快速切换",
       "movement": "移动",
       "potion": "药水",
-      "potion_interval": "药水间隔(ms)",
+      "water": "约水",
       "quick_switch_title": "快速切换至本配置",
       "auto_start": "切换后自动启动宏",
       "macro_start_title": "宏启动方式",
@@ -58,6 +59,16 @@
       "config3": "配置3",
       "config4": "配置4"
     },
+    "main_functions_sub_tabs": {
+      "function_1": "功能一",
+      "function_2": "待扩展",
+      "function_3": "待扩展"
+    },
+    "main_functions_sub_tabs": {
+      "function_1": "功能一",
+      "function_2": "待扩展",
+      "function_3": "待扩展"
+    },
     "main_functions_panel": {
       "current_config": "当前配置",
       "config_file_path": "配置文件路径",
@@ -70,11 +81,13 @@
       "quick_switch": "快速切换",
       "movement_key": "移动键",
       "potion_key": "药水键",
+      "water_key": "约水键",
       "status": "状态",
       "config_loaded": "配置已加载"
     },
     "basic_info": {
       "title": "基本信息",
+      "auxiliary_function_area": "辅助功能区",
       "current_config_info": "当前配置信息",
       "config_file": "配置文件",
       "file_exists": "文件存在",
@@ -99,8 +112,11 @@
         "skill3": "技能三",
         "skill4": "技能四",
         "left_click": "左键技能",
-        "right_click": "右键技能"
+        "right_click": "右键技能",
+        "potion": "药水"
       },
+      "key_left_click": "左键",
+      "key_right_click": "右键",
       "strategies": {
         "disabled": "禁用",
         "hold": "按住不放",
@@ -123,7 +139,7 @@
       "quick_switch": "快速切换",
       "movement": "移动",
       "potion": "药水",
-      "potion_interval": "药水间隔(ms)",
+      "water": "约水",
       "strategy_options": {
         "continuous": "连续",
         "single": "单次",

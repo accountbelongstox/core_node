@@ -45,19 +45,19 @@ class WindowLauncher:
     def __init__(self, grid_columns=None, grid_rows=None,
                  measured_columns=None, measured_rows=None,
                  measured_width_px=None, measured_height_px=None,
-                 calibration_actual_height=None, calibration_term_rows=None):
+                 calibration_actual_height=None, calibration_term_rows=None,
+                 window_chrome_title_bar_px=None, window_chrome_horizontal_px=None,
+            window_chrome_content_scale=None):
         """
-        Initialize window launcher
-        
+        Initialize window launcher.
+
         Args:
-            grid_columns: Number of columns in grid (default: from config)
-            grid_rows: Number of rows in grid (default: from config)
-            measured_columns: Measured columns for ratio (default: from config)
-            measured_rows: Measured rows for ratio (default: from config)
-            measured_width_px: Measured width in pixels (default: from config)
-            measured_height_px: Measured height in pixels (default: from config)
-            calibration_actual_height: Actual measured height for calibration (optional, from config)
-            calibration_term_rows: Term rows used when measuring calibration height (optional, from config)
+            grid_columns, grid_rows: Grid size.
+            measured_columns, measured_rows, measured_width_px, measured_height_px: Ratio calibration.
+            calibration_actual_height, calibration_term_rows: Height calibration.
+            window_chrome_title_bar_px: Reserve px for title bar (default 56).
+            window_chrome_horizontal_px: Reserve px for horizontal chrome (default 24).
+            window_chrome_content_scale: Scale content so window fits in cell, 0-1 (default 0.78). See WT_LAYOUT_REFERENCE.md.
         """
         # Use provided values or defaults (3x2 grid, standard measurements)
         self.grid_columns = grid_columns or 3
@@ -66,6 +66,10 @@ class WindowLauncher:
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
         self.calibration_term_rows = calibration_term_rows or 270
+        # WT --size is content only; full window has title bar + padding. Reserve + scale so each window fits in cell.
+        self.window_chrome_title_bar_px = window_chrome_title_bar_px if window_chrome_title_bar_px is not None else 56
+        self.window_chrome_horizontal_px = window_chrome_horizontal_px if window_chrome_horizontal_px is not None else 24
+        self.window_chrome_content_scale = window_chrome_content_scale if window_chrome_content_scale is not None else 0.78
         
         # If calibration provided, adjust measured values dynamically
         if self.calibration_actual_height and self.calibration_term_rows:
@@ -94,50 +98,56 @@ class WindowLauncher:
     
     def calculate_window_layout(self, screen_x, screen_y, screen_width, screen_height):
         """
-        Calculate window positions and sizes for grid layout
-        
-        Args:
-            screen_x: Screen X position
-            screen_y: Screen Y position
-            screen_width: Screen width
-            screen_height: Screen height
-        
+        Calculate window positions and sizes for grid layout.
+
+        WT semantics (Microsoft Learn - command-line arguments):
+        - Screen and --pos: PIXELS. Screen is pixel size (e.g. 3840x2160). --pos x,y is window
+          top-left position in pixels.
+        - --size c,r: CHARACTER CELLS (columns c, rows r), NOT pixels. Content area in pixels
+          = c * px_per_column + r * px_per_row (depends on profile font). Full window = content
+          + title bar + padding. So we reserve window_chrome pixels and compute c,r from
+          (cell_px - chrome) to avoid overlap.
+
         Returns:
             list: List of tuples (x, y, term_cols, term_rows, actual_width, actual_height)
         """
         columns = self.grid_columns
         rows = self.grid_rows
         
-        # Step 1: Calculate target window pixel size based on screen division
+        # Step 1: Cell size from screen division (pixels per grid cell)
         target_window_width = screen_width // columns
         target_window_height = screen_height // rows
+        # Step 1b: Reserve chrome then scale content so full window stays inside cell (avoids overlap).
+        content_width = max(80, int((target_window_width - self.window_chrome_horizontal_px) * self.window_chrome_content_scale))
+        content_height = max(40, int((target_window_height - self.window_chrome_title_bar_px) * self.window_chrome_content_scale))
         
-        # Step 2: Calculate terminal columns and rows needed for target window size
-        # Use calibration if provided
+        # Step 2: Compute columns and rows so (content_px + chrome) fits in cell -> no overlap
         calibration_height = None
         if hasattr(self, 'calibration_actual_height') and self.calibration_actual_height:
             calibration_height = self.calibration_actual_height
         
         term_columns, term_rows, actual_width, actual_height = \
             self.ratio_calc.calculate_term_size(
-                target_window_width, 
-                target_window_height,
+                content_width,
+                content_height,
                 actual_height_px=calibration_height
             )
         
-        # Step 3: Print calculation details
+        # Step 3: Print calculation and WT/screen correspondence
         ratio_info = self.ratio_calc.get_info()
         print(f"\nCalculation steps:")
+        print(f"  WT/screen: --pos = pixels (window top-left); --size = character cells (cols.rows); content px = cols*px_per_col + rows*px_per_row.")
         print(f"  Column pixel ratio: {ratio_info['column_ratio']}")
         print(f"  Row pixel ratio: {ratio_info['row_ratio']}")
-        print(f"  Step 1 - Target window size: Screen {screen_width}x{screen_height} / Grid {columns}x{rows} = {target_window_width}x{target_window_height}px")
-        print(f"  Step 2 - Terminal size calculation:")
-        print(f"    Columns: {target_window_width}px / {self.ratio_calc.char_width:.4f}px-per-column = {term_columns} columns")
-        print(f"    Rows: {target_window_height}px / {self.ratio_calc.char_height:.4f}px-per-row = {term_rows} rows")
-        print(f"  Step 3 - Actual window size:")
-        print(f"    Width: {term_columns} columns * {self.ratio_calc.char_width:.4f}px-per-column = {actual_width:.1f}px")
-        print(f"    Height: {term_rows} rows * {self.ratio_calc.char_height:.4f}px-per-row = {actual_height:.1f}px")
-        print(f"  Result: Terminal size = {term_columns}.{term_rows}, Window size = {actual_width:.1f}x{actual_height:.1f}px\n")
+        print(f"  Step 1 - Cell size (px): Screen {screen_width}x{screen_height} / Grid {columns}x{rows} = {target_window_width}x{target_window_height}px")
+        print(f"  Step 1b - Content target (chrome {self.window_chrome_horizontal_px}px H, {self.window_chrome_title_bar_px}px V; scale {self.window_chrome_content_scale}): {content_width}x{content_height}px")
+        print(f"  Step 2 - Terminal size (character cells):")
+        print(f"    Columns: {content_width}px / {self.ratio_calc.char_width:.4f}px-per-column = {term_columns} columns")
+        print(f"    Rows: {content_height}px / {self.ratio_calc.char_height:.4f}px-per-row = {term_rows} rows")
+        print(f"  Step 3 - Content size (px):")
+        print(f"    Width: {term_columns} cols * {self.ratio_calc.char_width:.4f} px/col = {actual_width:.1f}px")
+        print(f"    Height: {term_rows} rows * {self.ratio_calc.char_height:.4f} px/row = {actual_height:.1f}px")
+        print(f"  Result: --size \"{term_columns}.{term_rows}\" (character cells) -> content {actual_width:.1f}x{actual_height:.1f}px; add chrome so window fits in {target_window_width}x{target_window_height}px cell.\n")
         
         windows = []
         for row in range(rows):
@@ -357,6 +367,9 @@ def launch_device_sync():
     - Windows: Uses pythonw.exe with DETACHED_PROCESS flags
     - Linux: Uses start_new_session for proper process detachment
     """
+    # DISABLED: Device Sync - code kept below, uncomment return to re-enable
+    return
+    # --- Device Sync implementation (disabled) ---
     print("[Launcher] Starting Device Sync in background...")
 
     # Get project root directory
@@ -425,6 +438,66 @@ def launch_device_sync():
         print(f"[Launcher]   python -m pycore.pyutils.launcher.device_sync")
 
 
+def launch_pycore_module():
+    """
+    Launch Pycore Module Caller in background (subprocess).
+
+    Runs pycore_module_caller.py with pythonw on Windows for no console window.
+    Process is detached so it continues after launcher exits.
+    """
+    print("[Launcher] Starting Pycore Module in background...")
+
+    project_root = Path(__file__).parent.parent.parent.parent
+    caller_script = project_root / 'pycore_module_caller.py'
+
+    if not caller_script.exists():
+        print(f"[Launcher] Failed: pycore_module_caller.py not found at {caller_script}")
+        return
+
+    try:
+        log_dir = Path(tempfile.gettempdir()) / 'pycore_module'
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / 'pycore_module_launcher.log'
+        print(f"[Launcher] Pycore Module log dir: {log_dir}")
+
+        python_exe = sys.executable
+        if platform.system() == 'Windows':
+            python_dir = Path(sys.executable).parent
+            pythonw_exe = python_dir / 'pythonw.exe'
+            if pythonw_exe.exists():
+                python_exe = str(pythonw_exe)
+                print("[Launcher] Using pythonw.exe for no console window")
+            else:
+                print("[Launcher] WARNING: pythonw.exe not found, using python.exe")
+
+        cmd = [python_exe, str(caller_script)]
+        env = os.environ.copy()
+        pythonpath = str(project_root)
+        if 'PYTHONPATH' in env:
+            sep = ';' if platform.system() == 'Windows' else ':'
+            pythonpath = f"{pythonpath}{sep}{env['PYTHONPATH']}"
+        env['PYTHONPATH'] = pythonpath
+
+        print(f"[Launcher] Command: {' '.join(cmd)}")
+
+        proc = run_background(
+            cmd,
+            cwd=str(project_root),
+            env=env,
+            log_file=str(log_file),
+            detached=True
+        )
+
+        print(f"[Launcher] Pycore Module started with PID: {proc.pid}")
+        print("[Launcher] RPC v2 will be available after startup (default port 59000)")
+
+        import time
+        time.sleep(0.5)
+    except Exception as e:
+        print(f"[Launcher] Failed to start Pycore Module: {e}")
+        print("[Launcher] You can start manually: python pycore_module_caller.py")
+
+
 def main():
     """Main entry point"""
     # Check and create desktop shortcut if needed
@@ -473,56 +546,49 @@ def main():
     print("=" * 60)
     print("Options:")
     print("  [1] - Launch Window Layout Only")
-    print("  [2] - Launch Device Sync Only")
-    print("  [3] - Launch Both (Window Layout + Device Sync)")
+    print("  [2] - Launch Pycore Module Only (background)")
+    print("  [3] - Launch Both (Window Layout + Pycore Module)")
     print("  [M] - Configuration Menu")
     print("  [Enter] - Default (Launch Both)")
+    print("=" * 60)
+    print("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
     print("=" * 60)
     user_input = input("Select option: ").strip().upper()
 
     launch_windows = True
-    launch_sync = False
+    launch_module = False
 
     if user_input == '1':
-        # Launch windows only
         launch_windows = True
-        launch_sync = False
+        launch_module = False
         print("\n[Launcher] Mode: Window Layout Only")
     elif user_input == '2':
-        # Launch device sync only
         launch_windows = False
-        launch_sync = True
-        print("\n[Launcher] Mode: Device Sync Only")
+        launch_module = True
+        print("\n[Launcher] Mode: Pycore Module Only")
     elif user_input == '3' or user_input == '':
-        # Launch both
         launch_windows = True
-        launch_sync = True
-        print("\n[Launcher] Mode: Both (Window Layout + Device Sync)")
+        launch_module = True
+        print("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
     elif user_input == 'M':
-        # Show interactive menu
         menu = InteractiveMenu(config_manager, app_finder)
         menu.run()
         print("\nContinuing with launcher...")
-        # Default to launch both after menu
         launch_windows = True
-        launch_sync = True
+        launch_module = True
     else:
-        # Unknown option, default to both
         print("\n[Launcher] Unknown option, using default (Both)")
         launch_windows = True
-        launch_sync = True
+        launch_module = True
 
-    # Launch device sync if requested
-    if launch_sync:
-        launch_device_sync()
-        print("[Launcher] Device Sync started in background")
+    if launch_module:
+        launch_pycore_module()
         import time
-        time.sleep(0.5)  # Give it time to start
-    
-    # Skip window layout if not requested
+        time.sleep(0.5)
+
     if not launch_windows:
-        print("\n[Launcher] Skipping window layout (Device Sync only mode)")
-        print("[Launcher] Check system tray for Device Sync icon")
+        print("\n[Launcher] Skipping window layout (Pycore Module only mode)")
+        print("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
         print("\n" + "=" * 60)
         input("Press Enter to exit...")
         return
@@ -553,6 +619,9 @@ def main():
         
         calibration_height = calibration_config.get('actual_height_px', 485)
         calibration_rows = calibration_config.get('term_rows', 270)
+        window_chrome = config_manager.get('window_chrome') or {}
+        if not isinstance(window_chrome, dict):
+            window_chrome = {}
         
         print(f"\nCharacter size measurement:")
         print(f"  Column ratio: {measured_columns} columns = {measured_width_px}px")
@@ -582,7 +651,10 @@ def main():
             measured_width_px=measured_width_px,
             measured_height_px=measured_height_px,
             calibration_actual_height=calibration_height,
-            calibration_term_rows=calibration_rows
+            calibration_term_rows=calibration_rows,
+            window_chrome_title_bar_px=window_chrome.get('title_bar_plus_padding_px', 56),
+            window_chrome_horizontal_px=window_chrome.get('horizontal_padding_px', 24),
+            window_chrome_content_scale=window_chrome.get('content_scale', 0.78)
         )
         
         # Launch windows

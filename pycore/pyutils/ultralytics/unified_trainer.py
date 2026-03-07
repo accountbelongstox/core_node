@@ -10,26 +10,23 @@ import shutil
 import time
 import traceback
 import platform
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
+
+from pycore.pyutils.system_launcher import open_dir
 from typing import List, Dict, Optional, Any
 from datetime import datetime
-import subprocess
 
-try:
-    import cv2
-except ImportError:
-    cv2 = None
+from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.third_party import (
+    get_third_package_cv2,
+    get_third_package_numpy,
+    get_third_package_ultralytics,
+)
 
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-try:
-    from ultralytics import YOLO
-except ImportError:
-    YOLO = None
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+_ultralytics = get_third_package_ultralytics()
+YOLO = getattr(_ultralytics, "YOLO", None)
 
 from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
 from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
@@ -582,30 +579,12 @@ class UnifiedClassificationTrainer:
         print(f"\n{'='*80}\n")
 
     def _open_in_explorer(self, directory: Path):
-        """Open directory in file explorer (cross-platform)"""
-
-        try:
-            system = platform.system()
-            directory_str = str(directory.absolute())
-
-            if system == "Windows":
-                # Windows: use explorer
-                subprocess.Popen(['explorer', directory_str])
-                print(f"📂 Opened in Explorer: {directory_str}")
-            elif system == "Darwin":
-                # macOS: use open
-                subprocess.Popen(['open', directory_str])
-                print(f"📂 Opened in Finder: {directory_str}")
-            elif system == "Linux":
-                # Linux: try xdg-open (most common)
-                subprocess.Popen(['xdg-open', directory_str])
-                print(f"📂 Opened in File Manager: {directory_str}")
-            else:
-                print(f"📂 Dataset directory: {directory_str}")
-                print(f"   (Auto-open not supported on {system})")
-        except Exception as e:
+        """Open directory in file explorer via pycore system_launcher."""
+        directory_str = str(directory.absolute())
+        if open_dir(directory):
+            print(f"📂 Opened: {directory_str}")
+        else:
             print(f"📂 Dataset directory: {directory_str}")
-            print(f"   (Could not auto-open: {e})")
 
 
 class UnifiedDetectionTrainer:
@@ -1238,30 +1217,12 @@ class UnifiedDetectionTrainer:
                     f.write(f"{key}: {value}\n")
 
     def _open_in_explorer(self, directory: Path):
-        """Open directory in file explorer (cross-platform)"""
-
-        try:
-            system = platform.system()
-            directory_str = str(directory.absolute())
-
-            if system == "Windows":
-                # Windows: use explorer
-                subprocess.Popen(['explorer', directory_str])
-                print(f"📂 Opened in Explorer: {directory_str}")
-            elif system == "Darwin":
-                # macOS: use open
-                subprocess.Popen(['open', directory_str])
-                print(f"📂 Opened in Finder: {directory_str}")
-            elif system == "Linux":
-                # Linux: try xdg-open (most common)
-                subprocess.Popen(['xdg-open', directory_str])
-                print(f"📂 Opened in File Manager: {directory_str}")
-            else:
-                print(f"📂 Dataset directory: {directory_str}")
-                print(f"   (Auto-open not supported on {system})")
-        except Exception as e:
+        """Open directory in file explorer via pycore system_launcher."""
+        directory_str = str(directory.absolute())
+        if open_dir(directory):
+            print(f"📂 Opened: {directory_str}")
+        else:
             print(f"📂 Dataset directory: {directory_str}")
-            print(f"   (Could not auto-open: {e})")
 
     def train(
         self,

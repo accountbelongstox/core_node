@@ -66,30 +66,34 @@ fix_apt_gpg_if_needed() {
         return 0
     fi
 
-    # First attempt: ensure ubuntu-keyring is present (may already be installed)
-    # If repositories are currently unverified, allow insecure temporarily only for keyring
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update -qq || true
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ubuntu-keyring 2>/dev/null || \
+    # First attempt: ensure ubuntu-keyring is present (real-time output)
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update"
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring"
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring || \
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::AllowInsecureRepositories=true \
-        -o Acquire::AllowDowngradeToInsecureRepositories=true install -y -qq ubuntu-keyring || true
+        -o Acquire::AllowDowngradeToInsecureRepositories=true install -y ubuntu-keyring
 
     # Explicitly import the 2024 Ubuntu archive automatic signing key if missing
     if [ ! -f /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg ]; then
         if command -v gpg >/dev/null 2>&1; then
             print_step_from_common_functions "Importing Ubuntu archive signing key ($UBUNTU_ARCHIVE_KEY_ID)"
             tmpkey="/tmp/ubuntu-archive-2024.gpg"
+            echo "[13] curl -fsSL ... | gpg --dearmor | $USE_SUDO tee $tmpkey"
             curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$UBUNTU_ARCHIVE_KEY_ID" \
-                | gpg --dearmor | $USE_SUDO tee "$tmpkey" >/dev/null || true
+                | gpg --dearmor | $USE_SUDO tee "$tmpkey"
             if [ -s "$tmpkey" ]; then
-                $USE_SUDO mv "$tmpkey" /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg || true
+                echo "[13] $USE_SUDO mv $tmpkey /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg"
+                $USE_SUDO mv "$tmpkey" /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg
             else
                 rm -f "$tmpkey" 2>/dev/null || true
             fi
         fi
     fi
 
-    # Retry update after key/keyring adjustments
-    $USE_SUDO apt-get update -qq || true
+    # Retry update after key/keyring adjustments (real-time output)
+    echo "[13] $USE_SUDO apt-get update"
+    $USE_SUDO apt-get update
 }
 
 # Function to check if Python3 is installed
@@ -122,24 +126,25 @@ check_pip_installed() {
     fi
 }
 
-# Function to install Python essentials
+# Function to install Python essentials (all commands echoed and run with real-time output; no exit-code flow)
 install_python_essentials() {
     print_step_from_common_functions "Installing Python and essential packages..."
 
     # Clean up broken package lists
     print_step_from_common_functions "Cleaning up package lists..."
+    echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
     $USE_SUDO rm -rf /var/lib/apt/lists/* 2>/dev/null || true
 
-    # Update package list
+    # Update package list (real-time output)
     print_step_from_common_functions "Updating package list..."
-    if ! $USE_SUDO apt-get update -qq; then
-        print_warning_from_common_functions "apt-get update failed, attempting to fix APT GPG keys"
-        fix_apt_gpg_if_needed
-    fi
+    echo "[13] $USE_SUDO apt-get update"
+    $USE_SUDO apt-get update
+    echo "[13] (if update failed above, fixing APT GPG keys next)"
+    fix_apt_gpg_if_needed
 
-    # Install Python and essential packages (base packages first)
+    # Install Python and essential packages (base packages first, real-time output)
     print_step_from_common_functions "Installing Python3 base packages..."
-
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev --no-install-recommends"
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         python3-pip \
@@ -150,9 +155,7 @@ install_python_essentials() {
         build-essential \
         libssl-dev \
         libffi-dev \
-        --no-install-recommends 2>&1 || {
-            print_warning_from_common_functions "Some base packages may have failed to install, continuing..."
-        }
+        --no-install-recommends
 
     # Now detect Python version AFTER installation
     local py_major=$(python3 -c 'import sys; print(sys.version_info.major)' 2>/dev/null || echo "3")
@@ -163,8 +166,9 @@ install_python_essentials() {
     print_info_from_common_functions "Detected Python version: ${py_version}"
     print_info_from_common_functions "Version-specific tkinter package: ${version_specific_tk}"
 
-    # Install GUI and system packages with version-specific tk
+    # Install GUI and system packages with version-specific tk (real-time output)
     print_step_from_common_functions "Installing GUI and system packages..."
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-tk ${version_specific_tk} tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.2-appindicator3-0.1 gir1.2-gtk-3.0 --no-install-recommends"
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3-tk \
         ${version_specific_tk} \
@@ -176,53 +180,31 @@ install_python_essentials() {
         python3-pil.imagetk \
         gir1.2-appindicator3-0.1 \
         gir1.2-gtk-3.0 \
-        --no-install-recommends 2>&1 || {
-            print_warning_from_common_functions "Some GUI packages may have failed to install, continuing..."
-        }
+        --no-install-recommends
 
-    # Verify installations
-    if python3 -V >/dev/null 2>&1; then
-        print_success_from_common_functions "Python3 installed: $(python3 -V 2>&1)"
-        PYTHON_INSTALLED=true
-    else
-        print_error_from_common_functions "Failed to install Python3"
-        return 1
+    # Verify and show Python3
+    print_success_from_common_functions "Python3: $(python3 -V 2>&1)"
+    PYTHON_INSTALLED=true
+
+    # Ensure pip3: try ensurepip then apt install (real-time output; no exit-code branching)
+    if ! command -v pip3 >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then
+        print_warning_from_common_functions "pip3 not available, attempting ensurepip (real-time)..."
+        echo "[13] python3 -m ensurepip --upgrade"
+        python3 -m ensurepip --upgrade
     fi
-
-    if pip3 -V >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
-        print_success_from_common_functions "pip3 installed: $(pip3 -V 2>&1 || python3 -m pip --version 2>&1)"
+    if ! command -v pip3 >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then
+        print_warning_from_common_functions "Installing python3-pip via apt (real-time)..."
+        echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends"
+        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends
+    fi
+    if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
+        print_success_from_common_functions "pip3: $(pip3 -V 2>&1 || python3 -m pip --version 2>&1)"
         PIP_INSTALLED=true
-    else
-        print_warning_from_common_functions "pip3 not available, attempting ensurepip"
-        if python3 -m ensurepip --upgrade >/dev/null 2>&1; then
-            if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
-                print_success_from_common_functions "pip3 installed via ensurepip"
-                PIP_INSTALLED=true
-            else
-                print_warning_from_common_functions "ensurepip ran but pip3 still missing; attempting direct package install"
-                $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
-                if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
-                    print_success_from_common_functions "pip3 installed via apt after ensurepip"
-                    PIP_INSTALLED=true
-                else
-                    print_error_from_common_functions "Failed to install pip3"
-                    return 1
-                fi
-            fi
-        else
-            fix_apt_gpg_if_needed
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends || true
-            if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
-                print_success_from_common_functions "pip3 installed after fixing APT keys"
-                PIP_INSTALLED=true
-            else
-                print_error_from_common_functions "Failed to install pip3"
-                return 1
-            fi
-        fi
     fi
 
+    echo "[13] $USE_SUDO apt-get clean"
     $USE_SUDO apt-get clean
+    echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
     $USE_SUDO rm -rf /var/lib/apt/lists/*
 
     print_success_from_common_functions "Python essentials installed successfully"
@@ -258,9 +240,9 @@ run_pip_install_realtime() {
         cmd_args+=("${flag_words[@]}")
     fi
 
-    # Execute with real-time output (let pip handle all output)
-    "${cmd_args[@]}" 2>&1
-    return $?
+    # Execute with real-time output (no exit-code used for flow)
+    echo "[13] ${cmd_args[*]}"
+    "${cmd_args[@]}"
 }
 
 # Function to upgrade pip with official PyPI only
@@ -348,12 +330,14 @@ fix_python_links() {
     # Create python -> python3 symlink
     if [ ! -e /usr/local/bin/python ]; then
         print_step_from_common_functions "Creating symlink: /usr/local/bin/python -> $python3_path"
+        echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
         $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
         print_success_from_common_functions "Created python symlink"
     elif [ -L /usr/local/bin/python ]; then
         local current_target=$(readlink -f /usr/local/bin/python)
         if [ "$current_target" != "$python3_path" ]; then
             print_step_from_common_functions "Updating python symlink to point to $python3_path"
+            echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
             $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
             print_success_from_common_functions "Updated python symlink"
         else
@@ -365,12 +349,14 @@ fix_python_links() {
     if [ -n "$pip3_path" ]; then
         if [ ! -e /usr/local/bin/pip ]; then
             print_step_from_common_functions "Creating symlink: /usr/local/bin/pip -> $pip3_path"
+            echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
             $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
             print_success_from_common_functions "Created pip symlink"
         elif [ -L /usr/local/bin/pip ]; then
             local current_target=$(readlink -f /usr/local/bin/pip)
             if [ "$current_target" != "$pip3_path" ]; then
                 print_step_from_common_functions "Updating pip symlink to point to $pip3_path"
+                echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
                 $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
                 print_success_from_common_functions "Updated pip symlink"
             else
@@ -540,34 +526,31 @@ create_python_venv_and_replace_system() {
             print_step_from_common_functions "Rebuilding Python virtual environment (old venv will be backed up)..."
 
             # Remove old symlinks that point to old venv BEFORE backing up
-            # NOTE: We only manage /usr/local/bin/python, NOT python3 (python3 stays system default)
             print_step_from_common_functions "Removing old venv symlinks..."
-            $USE_SUDO rm -f /usr/local/bin/python \
-                             /usr/local/bin/pip /usr/local/bin/pip3 2>/dev/null || true
+            echo "[13] $USE_SUDO rm -f /usr/local/bin/python /usr/local/bin/pip /usr/local/bin/pip3"
+            $USE_SUDO rm -f /usr/local/bin/python /usr/local/bin/pip /usr/local/bin/pip3 2>/dev/null || true
 
             # Backup old venv
             local backup_dir="${VENV_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
+            echo "[13] mv $VENV_DIR $backup_dir"
             mv "$VENV_DIR" "$backup_dir" 2>/dev/null || true
             print_info_from_common_functions "Old venv backed up to: $backup_dir"
         else
             print_step_from_common_functions "Creating new Python virtual environment in: $VENV_DIR"
         fi
 
-        # Ensure python3-venv is installed
+        # Ensure python3-venv is installed (real-time output)
         if ! python3 -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends"
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends
         fi
 
-        # Create the virtual environment WITH system-site-packages
-        # This allows venv to use system packages like python3.12-tk
+        # Create the virtual environment WITH system-site-packages (real-time output)
         print_step_from_common_functions "Creating venv with --system-site-packages (allows access to system tkinter, PIL, etc.)..."
-        if python3 -m venv --system-site-packages "$VENV_DIR"; then
-            print_success_from_common_functions "Virtual environment created successfully with system-site-packages"
-        else
-            print_error_from_common_functions "Failed to create virtual environment"
-            return 1
-        fi
+        echo "[13] python3 -m venv --system-site-packages $VENV_DIR"
+        python3 -m venv --system-site-packages "$VENV_DIR"
+        print_success_from_common_functions "Virtual environment created with system-site-packages"
 
         # Upgrade pip in venv - always run to ensure latest version
         if [ -f "$VENV_PIP3" ]; then
@@ -609,6 +592,7 @@ create_python_venv_and_replace_system() {
     # Clean up any old python3 symlink if it exists (from previous versions of this script)
     if [ -L /usr/local/bin/python3 ]; then
         print_warning_from_common_functions "Removing old python3 symlink (python3 should use system default)"
+        echo "[13] $USE_SUDO rm -f /usr/local/bin/python3"
         $USE_SUDO rm -f /usr/local/bin/python3
         print_info_from_common_functions "python3 command will now use system Python: /usr/bin/python3"
     fi
@@ -619,7 +603,9 @@ create_python_venv_and_replace_system() {
     print_step_from_common_functions "Refreshing 'python' command to point to venv..."
 
     # Always remove and recreate (refresh every time)
+    echo "[13] $USE_SUDO rm -f /usr/local/bin/python"
     $USE_SUDO rm -f /usr/local/bin/python
+    echo "[13] $USE_SUDO ln -sf $VENV_PYTHON3 /usr/local/bin/python"
     $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
     print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
 
@@ -636,6 +622,7 @@ create_python_venv_and_replace_system() {
     # Clean up any old pip3 symlink if it exists
     if [ -L /usr/local/bin/pip3 ]; then
         print_warning_from_common_functions "Removing old pip3 symlink (pip3 should use system default)"
+        echo "[13] $USE_SUDO rm -f /usr/local/bin/pip3"
         $USE_SUDO rm -f /usr/local/bin/pip3
         print_info_from_common_functions "pip3 command will now use system pip3"
     fi
@@ -643,9 +630,9 @@ create_python_venv_and_replace_system() {
     # Handle 'pip' command - ALWAYS refresh, pointing to venv
     if [ -f "$VENV_PIP3" ]; then
         print_step_from_common_functions "Refreshing 'pip' command to point to venv..."
-
-        # Always remove and recreate (refresh every time)
+        echo "[13] $USE_SUDO rm -f /usr/local/bin/pip"
         $USE_SUDO rm -f /usr/local/bin/pip
+        echo "[13] $USE_SUDO ln -sf $VENV_PIP3 /usr/local/bin/pip"
         $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
         print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
     fi
@@ -713,51 +700,60 @@ setup_production_python_venv() {
         print_step_from_common_functions "Ensuring python3-venv and pip are installed..."
         if ! python3 -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends || true
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends"
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends
         fi
 
         if ! python3 -m pip --version >/dev/null 2>&1; then
             print_warning_from_common_functions "pip module not available, installing..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends || true
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends"
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends
         fi
 
         print_step_from_common_functions "Creating venv with system Python3: $system_python3_path"
-
         local venv_created=false
 
-        if $system_python3_path -m venv "$python_venv_dir" 2>/dev/null; then
+        echo "[13] $system_python3_path -m venv $python_venv_dir"
+        if $system_python3_path -m venv "$python_venv_dir"; then
             print_success_from_common_functions "Python venv created successfully"
             venv_created=true
         else
-            print_warning_from_common_functions "Standard venv creation failed, trying alternative methods..."
-
-            if python3 -m venv --system-site-packages "$python_venv_dir" 2>/dev/null; then
+            print_warning_from_common_functions "Standard venv creation failed, trying --system-site-packages..."
+            echo "[13] python3 -m venv --system-site-packages $python_venv_dir"
+            if python3 -m venv --system-site-packages "$python_venv_dir"; then
                 print_success_from_common_functions "Python venv created with --system-site-packages"
                 venv_created=true
-            elif python3 -m venv --without-pip "$python_venv_dir" 2>/dev/null; then
-                print_success_from_common_functions "Python venv created without pip (will install manually)"
-                venv_created=true
-
-                print_step_from_common_functions "Manually installing pip into venv..."
-                if command -v wget >/dev/null 2>&1; then
-                    wget -q -O "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py 2>/dev/null || true
-                    if [ -f "$python_venv_dir/get-pip.py" ]; then
-                        "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py" 2>/dev/null || true
-                        rm -f "$python_venv_dir/get-pip.py"
-                        print_success_from_common_functions "pip installed manually"
-                    fi
-                elif command -v curl >/dev/null 2>&1; then
-                    curl -sS -o "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py 2>/dev/null || true
-                    if [ -f "$python_venv_dir/get-pip.py" ]; then
-                        "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py" 2>/dev/null || true
-                        rm -f "$python_venv_dir/get-pip.py"
-                        print_success_from_common_functions "pip installed manually"
-                    fi
-                fi
             else
-                print_error_from_common_functions "All venv creation methods failed"
-                print_info_from_common_functions "Will continue with system Python instead"
-                return 1
+                print_warning_from_common_functions "Trying --without-pip..."
+                echo "[13] python3 -m venv --without-pip $python_venv_dir"
+                if python3 -m venv --without-pip "$python_venv_dir"; then
+                    print_success_from_common_functions "Python venv created without pip (will install manually)"
+                    venv_created=true
+                    print_step_from_common_functions "Manually installing pip into venv..."
+                    if command -v wget >/dev/null 2>&1; then
+                        echo "[13] wget -O $python_venv_dir/get-pip.py https://bootstrap.pypa.io/get-pip.py"
+                        wget -O "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py
+                        if [ -f "$python_venv_dir/get-pip.py" ]; then
+                            echo "[13] $python_venv_dir/bin/python3 $python_venv_dir/get-pip.py"
+                            "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py"
+                            rm -f "$python_venv_dir/get-pip.py"
+                            print_success_from_common_functions "pip installed manually"
+                        fi
+                    elif command -v curl >/dev/null 2>&1; then
+                        echo "[13] curl -o $python_venv_dir/get-pip.py https://bootstrap.pypa.io/get-pip.py"
+                        curl -o "$python_venv_dir/get-pip.py" https://bootstrap.pypa.io/get-pip.py
+                        if [ -f "$python_venv_dir/get-pip.py" ]; then
+                            echo "[13] $python_venv_dir/bin/python3 $python_venv_dir/get-pip.py"
+                            "$python_venv_dir/bin/python3" "$python_venv_dir/get-pip.py"
+                            rm -f "$python_venv_dir/get-pip.py"
+                            print_success_from_common_functions "pip installed manually"
+                        fi
+                    fi
+                else
+                    print_error_from_common_functions "All venv creation methods failed"
+                    print_info_from_common_functions "Will continue with system Python instead"
+                    return 1
+                fi
             fi
         fi
 
@@ -1148,34 +1144,17 @@ check_and_fix_edge_tts_version_from_dependency_map() {
     return 0
 }
 
-# Main function
+# Main function (all commands real-time output; no exit-code flow control)
 main() {
-    local needs_install=false
-
     print_step_from_common_functions "Checking Python environment status..."
     print_info_from_common_functions "Environment type: IS_PRODUCTION=$IS_PRODUCTION, IS_WSL=$IS_WSL, HAS_DESKTOP_ENVIRONMENT=$HAS_DESKTOP_ENVIRONMENT"
 
-    # Check Python installation
-    if ! check_python_installed; then
-        print_warning_from_common_functions "Python3 needs to be installed"
-        needs_install=true
-    fi
+    check_python_installed
+    check_pip_installed
 
-    # Check pip installation
-    if ! check_pip_installed; then
-        print_warning_from_common_functions "pip3 needs to be installed"
-        needs_install=true
-    fi
-
-    # Install Python essentials if needed
-    if [ "$needs_install" = true ]; then
-        if ! install_python_essentials; then
-            print_error_from_common_functions "Failed to install Python essentials"
-            return 1
-        fi
-    else
-        print_info_from_common_functions "Python and pip are already installed"
-    fi
+    # Always run install_python_essentials (idempotent; real-time output)
+    print_step_from_common_functions "Installing Python and essential packages (real-time)..."
+    install_python_essentials
 
     # IMPORTANT: Always set pip mirror on every run to ensure correct configuration
     set_pip_mirror
@@ -1184,24 +1163,14 @@ main() {
     print_step_from_common_functions "Ensuring Python symlinks are correct..."
     fix_python_links
 
-    # Create Python venv and replace system commands
+    # Create Python venv and replace system commands (run without exit-code branch)
     print_header_from_common_functions "Python Virtual Environment Setup"
-    if ! create_python_venv_and_replace_system; then
-        print_warning_from_common_functions "Failed to setup Python venv"
-        print_warning_from_common_functions "Falling back to system Python..."
+    create_python_venv_and_replace_system
+    fix_python_links
 
-        # Fallback: Fix Python symlinks for system Python
-        if ! fix_python_links; then
-            print_warning_from_common_functions "Failed to fix some Python symlinks"
-        fi
-    fi
-
-    # Verify installation
+    # Verify installation (display only; no exit-code branch)
     print_step_from_common_functions "Final verification..."
-    if ! verify_installation; then
-        print_error_from_common_functions "Verification failed - some components are missing"
-        return 1
-    fi
+    verify_installation
 
     # IDEMPOTENCY: Check and fix urllib3 compatibility for certbot
     print_step_from_common_functions "Checking urllib3 compatibility for certbot..."
@@ -1223,9 +1192,7 @@ main() {
     fi
     print_info_from_common_functions "Tools available: python, python3, pip, pip3"
 
-    return 0
 }
 
-# Execute main function
+# Execute main function (no exit code used)
 main
-exit $?

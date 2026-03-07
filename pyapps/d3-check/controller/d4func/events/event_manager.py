@@ -16,7 +16,7 @@ from typing import Dict, Callable, Any
 current_dir = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import get_d4_interface_data, D4_EVENT_KEYS
 
@@ -89,39 +89,24 @@ class D4EventManager:
         Args:
             event_key: Event key from D4_EVENT_KEYS
         """
-        try:
-            if event_key in self.event_functions:
-                event_function = self.event_functions[event_key]
-                event_function()
-                ColorPrint.blue(f"[D4EventManager] Event triggered: {event_key}")
-            else:
-                ColorPrint.yellow(f"[D4EventManager] Unknown event key: {event_key}")
-                
-        except Exception as e:
-            ColorPrint.red(f"[D4EventManager] Error triggering event {event_key}: {e}")
-    
+        if event_key in self.event_functions:
+            event_function = self.event_functions[event_key]
+            event_function()
+            ColorPrint.blue(f"[D4EventManager] Event triggered: {event_key}")
+        else:
+            ColorPrint.yellow(f"[D4EventManager] Unknown event key: {event_key}")
+
     def check_state_changes(self):
         """
         Check for state changes and trigger corresponding events
         
         Uses shared data from D4InterfaceData and D4State
         """
-        try:
-            # Check EXP farming state changes
-            self._check_exp_farming_changes()
-            
-            # Check team health changes
-            self._check_team_health_changes()
-            
-            # Check screen changes
-            self._check_screen_changes()
-            
-            # Check game state changes
-            self._check_game_state_changes()
-            
-        except Exception as e:
-            ColorPrint.red(f"[D4EventManager] Error checking state changes: {e}")
-    
+        self._check_exp_farming_changes()
+        self._check_team_health_changes()
+        self._check_screen_changes()
+        self._check_game_state_changes()
+
     def _check_exp_farming_changes(self):
         """Check EXP farming state changes"""
         current_running = self.d4_data.is_exp_farming_running()

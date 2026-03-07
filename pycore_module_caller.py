@@ -4,6 +4,8 @@
 Pycore Module Caller - Entry Point
 
 Launches Pycore Module Caller with platform-aware configuration.
+Singleton (app_id=pycore_module_caller, port 59100) is shared with
+callmodule_main/launch_native_app so only one instance runs.
 
 Architecture:
 - callmodule/: Builds configuration and registers event handlers
@@ -23,7 +25,7 @@ from pathlib import Path
 
 PYCORE_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PYCORE_ROOT))
-
+ 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import ServiceLauncher
 from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
@@ -64,6 +66,7 @@ def main(host='0.0.0.0', port=59000, debug=False):
 
     # 4. Update tray menu with singleton port (callmodule layer - config update)
     if singleton_port:
+        time.sleep(0.5)  # wait for tray to register tray.update_menu handler
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)

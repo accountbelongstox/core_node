@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Local overrides. Main theme from DotCore.UITheme.
+    Fluent 2 placeholder: typography (Segoe UI Variable when available), light/dark, Mica/Acrylic deferred to theme or Win11.
+  -->
+  <!-- Optional: default font toward Fluent 2 (Segoe UI Variable on Win11; fallback Segoe UI) -->
+  <FontFamily x:Key="Fluent2PrimaryFont">Segoe UI</FontFamily>
+</ResourceDictionary>

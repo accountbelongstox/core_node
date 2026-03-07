@@ -4,11 +4,37 @@
 NLLB-200 Model Tester
 Reusable testing script for Facebook's No Language Left Behind translation model
 Supports 196 languages
+
+Requires: PyTorch (torch) must be installed in the same Python environment.
+  - Transformers docs: https://huggingface.co/docs/transformers/installation
+  - PyTorch install: https://pytorch.org/get-started/locally/
+  - CPU only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+  - With CUDA: use the command from pytorch.org for your CUDA version.
 """
 
 import os
 import sys
 from pathlib import Path
+
+
+def _require_pytorch():
+    """Ensure PyTorch is importable; exit with clear message if not. See pytorch.org/get-started/locally/"""
+    try:
+        import torch
+        return
+    except ImportError:
+        pass
+    print('[ERROR] PyTorch (torch) is not installed in this Python environment.')
+    print('        AutoModelForSeq2SeqLM requires PyTorch. Install it first, then run this script again.')
+    print()
+    print('  Official install: https://pytorch.org/get-started/locally/')
+    print('  Transformers:     https://huggingface.co/docs/transformers/installation')
+    print()
+    print('  CPU only (same Python as this script):')
+    print('    pip install torch --index-url https://download.pytorch.org/whl/cpu')
+    print('  With CUDA: use the command from the PyTorch site for your CUDA version.')
+    print()
+    sys.exit(1)
 
 
 COMMON_LANGUAGES = {
@@ -216,6 +242,8 @@ def interactive_translator(model_name='facebook/nllb-200-distilled-600M'):
 
 def main():
     """Main entry point"""
+    _require_pytorch()
+
     import argparse
 
     parser = argparse.ArgumentParser(description='NLLB-200 Model Tester and Translator')

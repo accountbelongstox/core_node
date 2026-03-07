@@ -5,6 +5,7 @@ Game Interface Controller
 Handles initialization and management of game interface functionality
 """
 
+import ctypes
 import os
 import sys
 import time
@@ -12,15 +13,46 @@ import threading
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
 
-# Add project root directory to Python path
-current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, current_dir)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
-from providor.providor_index import CONFIG
-from controller.game_assistant_controller import GameAssistantController
+from d3utils.macro_config_provider import get_current_skill_config
+from d3utils.macro_config_ops import run_one_skill_tick
+from providor.providor_index import get_config_section
+from share.game_interface_data import get_game_interface_data
+from controller.game_assistant_controller import GameAssistantController, get_game_assistant_controller
+from runtime import get_thread_registry
+
+
+class GameInterfaceMacroThread(threading.Thread):
+    """Game interface macro loop thread (native run() logic; no wrapper). Created via controller.create_macro_thread()."""
+
+    def __init__(self, controller: "GameInterfaceController", skill_config: Dict):
+        threading.Thread.__init__(self, daemon=True, name="GameInterfaceMacro")
+        self._controller = controller
+        self._skill_config = skill_config
+
+    def run(self) -> None:
+        c = self._controller
+        cfg = self._skill_config
+        try:
+            ColorPrint.blue("[MACRO] Macro loop started")
+            while c.macro_running:
+                if not c._is_diablo_running():
+                    ColorPrint.yellow("[MACRO] Diablo III not running, pausing...")
+                    time.sleep(1.0)
+                    continue
+                c._execute_skill_sequence(cfg)
+                time.sleep(0.1)
+            ColorPrint.blue("[MACRO] Macro loop ended")
+        except Exception as e:
+            ColorPrint.red(f"[ERROR] Macro loop error: {e}")
+        finally:
+            c.macro_running = False
+
 
 class GameInterfaceController:
     """
@@ -30,12 +62,13 @@ class GameInterfaceController:
     def __init__(self):
         """Initialize game interface controller"""
         self.hotkey_manager = get_global_hotkey_manager()
-        self.registered_hotkeys: Dict[str, str] = {}  # hotkey -> description mapping
+        self.registered_hotkeys: Dict[str, str] = {}
         self.initialized = False
         self.macro_running = False
-        self.macro_thread: Optional[threading.Thread] = None
+        self._last_skill_times: Optional[Dict[str, float]] = None
+        # Macro thread owned by ThreadRegistry; no self.macro_thread
 
-        # Initialize game assistant controller
+        # Initialize game assistant controller (lazy)
         self.assistant_controller: Optional[GameAssistantController] = None
 
         # Load hotkey configuration
@@ -43,11 +76,20 @@ class GameInterfaceController:
 
         ColorPrint.green("[INIT] GameInterfaceController initialized")
     
+    def run_assistant_auto_use(self) -> None:
+        """Run assistant auto-use interface function (used by hotkey callback from d3utils)."""
+        if self.assistant_controller is None:
+            self.assistant_controller = get_game_assistant_controller()
+        self.assistant_controller.auto_use_interface_function()
+
     def _load_hotkey_config(self):
         """Load hotkey configuration from CONFIG"""
         try:
             # Get current configuration
-            auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+            macro_configs = get_config_section('macro_configs')
+            auxiliary_config = macro_configs.get('auxiliary_config', {})
+            if not isinstance(auxiliary_config, dict):
+                auxiliary_config = {}
 
             # Extract hotkey settings
             self.macro_start_hotkey = auxiliary_config.get('macro_start_hotkey', 'F9')
@@ -156,13 +198,20 @@ class GameInterfaceController:
             ColorPrint.red(f"[ERROR] Macro pause/resume error: {e}")
     
     def _on_combat_trigger(self):
-        """Handle combat functions hotkey"""
+        """Handle combat functions hotkey (e.g. from alternate binding). Main combat hotkey is wired to D3MacroController._toggle_combat_macro."""
         try:
             ColorPrint.blue("[HOTKEY] Combat functions triggered")
-            # TODO: Implement combat functions
             self._execute_combat_functions()
         except Exception as e:
             ColorPrint.red(f"[ERROR] Combat functions error: {e}")
+
+    def _execute_combat_functions(self):
+        """Execute one combat/macro tick or trigger combat UI. Override or extend for custom combat behavior."""
+        hwnd = get_game_interface_data()._window_hwnd
+        if hwnd and self._is_diablo_running():
+            self._execute_skill_sequence(get_current_skill_config())
+        else:
+            ColorPrint.yellow("[HOTKEY] Combat: D3 window not available, skipping")
     
     def start_macro(self) -> bool:
         """
@@ -177,20 +226,11 @@ class GameInterfaceController:
         
         try:
             ColorPrint.blue("[MACRO] Starting macro execution...")
-            
-            # Get current skill configuration
-            current_config_name = 'config1'  # Default config
-            skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(current_config_name, {})
-            
-            # Start macro thread
-            self.macro_thread = threading.Thread(
-                target=self._macro_loop,
-                args=(skill_config,),
-                daemon=True
-            )
+            # Use active config from macro_config_provider (loads current_skill_config; updates when config changes)
+            skill_config = get_current_skill_config()
             self.macro_running = True
-            self.macro_thread.start()
-            
+            get_thread_registry().start_game_interface_macro(self, skill_config)
+
             ColorPrint.green("[SUCCESS] Macro started")
             return True
             
@@ -213,10 +253,7 @@ class GameInterfaceController:
             ColorPrint.blue("[MACRO] Stopping macro execution...")
             
             self.macro_running = False
-            
-            # Wait for macro thread to finish
-            if self.macro_thread and self.macro_thread.is_alive():
-                self.macro_thread.join(timeout=2.0)
+            get_thread_registry().stop_game_interface_macro()
             
             ColorPrint.green("[SUCCESS] Macro stopped")
             return True
@@ -224,66 +261,40 @@ class GameInterfaceController:
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to stop macro: {e}")
             return False
-    
-    def _macro_loop(self, skill_config: Dict):
-        """
-        Main macro execution loop
-        
-        Args:
-            skill_config: Skill configuration dictionary
-        """
-        try:
-            ColorPrint.blue("[MACRO] Macro loop started")
-            
-            while self.macro_running:
-                # TODO: Implement actual macro logic
-                # This is a placeholder implementation
-                
-                # Check if Diablo III is running
-                if not self._is_diablo_running():
-                    ColorPrint.yellow("[MACRO] Diablo III not running, pausing...")
-                    time.sleep(1.0)
-                    continue
-                
-                # Execute skill sequence
-                self._execute_skill_sequence(skill_config)
-                
-                # Wait before next iteration
-                time.sleep(0.1)
-            
-            ColorPrint.blue("[MACRO] Macro loop ended")
-            
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Macro loop error: {e}")
-        finally:
-            self.macro_running = False
+
+    def create_macro_thread(self, skill_config: Dict) -> GameInterfaceMacroThread:
+        """Create the macro thread instance. ThreadRegistry calls this."""
+        return GameInterfaceMacroThread(self, skill_config)
     
     def _is_diablo_running(self) -> bool:
         """
-        Check if Diablo III is running
-        
-        Returns:
-            True if Diablo III is running, False otherwise
+        Check if Diablo III window is available (handle set by d3_status_provider and still valid).
+        Returns True if _window_hwnd is set and the window exists; False otherwise.
         """
         try:
-            # TODO: Implement Diablo III process check
-            # This is a placeholder implementation
-            return True
+            hwnd = get_game_interface_data()._window_hwnd
+            if not hwnd:
+                return False
+            if sys.platform != "win32":
+                return True
+            user32 = ctypes.windll.user32
+            return bool(user32.IsWindow(int(hwnd)))
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to check Diablo III status: {e}")
             return False
     
     def _execute_skill_sequence(self, skill_config: Dict):
         """
-        Execute skill sequence based on configuration
-        
-        Args:
-            skill_config: Skill configuration dictionary
+        Execute one macro tick: send skill keys to D3 window per current config (interval/delay/strategy).
+        Config is re-read each tick via get_current_skill_config so config switch takes effect immediately.
         """
         try:
-            # TODO: Implement skill execution logic
-            # This is a placeholder implementation
-            pass
+            hwnd = get_game_interface_data()._window_hwnd
+            if not hwnd:
+                return
+            cfg = get_current_skill_config()
+            last = self._last_skill_times
+            self._last_skill_times = run_one_skill_tick(hwnd, cfg, last)
         except Exception as e:
             ColorPrint.red(f"[ERROR] Skill sequence execution error: {e}")
     
@@ -305,8 +316,7 @@ def main():
     """Main function for testing"""
     ColorPrint.blue("=== Game Interface Controller Test ===")
     
-    # Create controller
-    controller = GameInterfaceController()
+    controller = get_game_interface_controller()
     
     # Initialize
     if controller.initialize_game_interface():
@@ -331,6 +341,18 @@ def main():
             ColorPrint.green("[TEST] Test completed")
     else:
         ColorPrint.red("[TEST] Failed to initialize game interface")
+
+
+_game_interface_controller_instance: Optional[GameInterfaceController] = None
+
+
+def get_game_interface_controller() -> GameInterfaceController:
+    """Return the global GameInterfaceController instance (singleton). Instantiated before export."""
+    global _game_interface_controller_instance
+    if _game_interface_controller_instance is None:
+        _game_interface_controller_instance = GameInterfaceController()
+    return _game_interface_controller_instance
+
 
 if __name__ == "__main__":
     main()

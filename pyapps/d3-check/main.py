@@ -5,210 +5,138 @@ D3Check - Diablo III Bot Auto Control System
 Main entry point for the application
 
 Usage:
-    python main.py              # Start UI mode
-    python main.py --train      # Start training mode
-    python main.py --help       # Show help
+    python main.py                    # Start TK GUI + HTTP bridge (default)
+    python main.py --http-bridge-only # Start only HTTP bridge (no GUI), for DOT client
+    python main.py --http-bridge-only --port 8766  # Custom port
+
+When imported as a library, nothing runs automatically; use HTTPBridgeController
+or d3utils.yolo_record functions directly.
 """
 
-import sys
-import os
 import argparse
+import ctypes
+import os
 import signal
-import time
-import traceback
+import sys
 
-# Add project root to path for imports
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+# Ignore Ctrl+C: set SIGINT/SIGBREAK before importing Fortran/numpy to avoid forrtl control-C abort
+try:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+except OSError:
+    pass
 
-# Import application modules
+# Add repo root and app root to path so pycore and d3-check imports resolve
+_project_dir = os.path.dirname(os.path.abspath(__file__))
+_repo_root = os.path.dirname(os.path.dirname(_project_dir))
+sys.path.insert(0, _project_dir)
+sys.path.insert(0, _repo_root)
+
+# Lifecycle: registers thread-shutdown runner with shutdown_manager. Only main (and event bus) may import lifecycle.
+import lifecycle  # noqa: E402
+
+from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
-from d3utils.system_initializer import get_system_initializer
-from d3utils.shutdown_manager import is_shutdown_requested, execute_shutdown
-from d3utils.i18n_manager import i18n_manager
-from providor.common_imports import ColorPrint, UniversalGUILauncher, set_menu_labels
+from runtime import get_system_initializer
+from providor.i18n_manager import i18n_manager
+from pycore.pyfoundations.color_print import ColorPrint
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="D3Check - GUI or HTTP bridge only. Use --http-bridge-only for DOT client."
+    )
+    parser.add_argument(
+        "--http-bridge-only",
+        action="store_true",
+        help="Start only HTTP bridge (no TK GUI). DOT app connects to this for YOLO record/export.",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP bridge host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8765, help="HTTP bridge port (default: 8765)")
+    return parser.parse_args()
+
+
+def _run_gui_and_bridge():
+    """Original behavior: TK GUI + HTTP bridge. No CLI args required."""
+    if sys.platform == "win32":
+        try:
+            kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
+            hwnd = kernel32.GetConsoleWindow()
+            if hwnd:
+                user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        except Exception:
+            pass
+
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("D3Check - GUI Mode (TK + HTTP Bridge)")
+    ColorPrint.blue("=" * 80)
+
+    try:
+        sys_init = get_system_initializer()
+        if not sys_init.initialize_system(gui_mode=True):
+            ColorPrint.red("[MAIN] System initialization failed, exiting...")
+            return 1
+
+        i18n_manager.load_language_from_config()
+
+        controller = D3MacroController()
+        bridge_controller = HTTPBridgeController(host="127.0.0.1", port=8765, macro_controller=controller)
+        bridge_controller.start()
+        ColorPrint.green("[MAIN] HTTP bridge started on http://127.0.0.1:8765")
+
+        controller.run()
+        return 0
+
+    except KeyboardInterrupt:
+        ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
+        if "bridge_controller" in locals():
+            bridge_controller.stop()
+        return 0
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
+        if "bridge_controller" in locals():
+            bridge_controller.stop()
+        return 1
+
+
+def _run_bridge_only(host: str, port: int):
+    """Start only HTTP bridge; no TK GUI. For DOT calibration panel (Record/Export)."""
+    ColorPrint.blue("\n" + "=" * 80)
+    ColorPrint.blue("D3Check - HTTP Bridge Only (no GUI)")
+    ColorPrint.blue("=" * 80)
+
+    sys_init = get_system_initializer()
+    if not sys_init.initialize_system(gui_mode=False):
+        ColorPrint.red("[MAIN] System initialization failed, exiting...")
+        return 1
+
+    controller = D3MacroController()
+    bridge_controller = HTTPBridgeController(host=host, port=port, macro_controller=controller)
+    bridge_controller.start()
+    ColorPrint.green(f"[MAIN] HTTP bridge started on http://{host}:{port} (DOT client can connect)")
+
+    try:
+        import time
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        ColorPrint.yellow("\n[MAIN] Shutting down bridge...")
+    finally:
+        bridge_controller.stop()
+    return 0
 
 
 def main():
-    """Main application entry point"""
+    """Entry point. Parses CLI; runs GUI+bridge or bridge-only. When imported as library, main() is not called."""
+    args = _parse_args()
 
-    parser = argparse.ArgumentParser(
-        description="D3Check - Diablo III Bot Auto Control System",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python main.py                      # Start UI mode (default)
-  python main.py --train              # Train YOLO model
-  python main.py --train --help       # Show training options
-"""
-    )
+    if args.http_bridge_only:
+        return _run_bridge_only(args.host, args.port)
 
-    # Mode selection
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--train", action="store_true",
-                            help="Run in training mode")
-    mode_group.add_argument("--validate", action="store_true",
-                            help="Validate trained model")
-    mode_group.add_argument("--export", action="store_true",
-                            help="Export trained model")
-    mode_group.add_argument("--bridge", action="store_true",
-                            help="Run HTTP bridge mode (for web GUI)")
-
-    # Bridge mode options
-    parser.add_argument("--host", default="127.0.0.1",
-                        help="HTTP bridge host address (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8765,
-                        help="HTTP bridge port number (default: 8765)")
-
-    # Parse only known args to avoid conflicts with training args
-    args, unknown = parser.parse_known_args()
-
-    # Route to appropriate mode
-    if args.bridge:
-        # HTTP Bridge mode - for web-based GUI
-        ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("D3Check - HTTP Bridge Mode (Web GUI)")
-        ColorPrint.blue("=" * 80)
-
-        try:
-            # Get system initializer
-            sys_init = get_system_initializer()
-
-            # Initialize the system
-            if not sys_init.initialize_system():
-                ColorPrint.red("[MAIN] System initialization failed, exiting...")
-                return 1
-
-            # Create HTTP bridge controller
-            bridge_controller = HTTPBridgeController(host=args.host, port=args.port)
-
-            # Start bridge server
-            ColorPrint.green(f"[MAIN] Starting HTTP bridge on http://{args.host}:{args.port}")
-            bridge_controller.start()
-
-            ColorPrint.green("[MAIN] HTTP bridge started. Press Ctrl+C to stop.")
-
-            # Keep running until interrupted
-            def signal_handler(sig, frame):
-                ColorPrint.yellow("\n[MAIN] Shutdown signal received...")
-                bridge_controller.stop()
-                sys.exit(0)
-
-            signal.signal(signal.SIGINT, signal_handler)
-
-            # Keep main thread alive
-            while bridge_controller.is_running():
-                time.sleep(1)
-
-            return 0
-
-        except KeyboardInterrupt:
-            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
-            if 'bridge_controller' in locals():
-                bridge_controller.stop()
-            return 0
-
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Fatal error in HTTP bridge mode: {e}")
-            traceback.print_exc()
-            return 1
-
-    elif args.train or args.validate or args.export:
-        # Training/validation/export mode - delegate to train module
-        from train import main as train_main
-        # Reconstruct argv for train module
-        sys.argv = [sys.argv[0]] + unknown
-        if args.validate:
-            sys.argv.insert(1, "--action=validate")
-        elif args.export:
-            sys.argv.insert(1, "--action=export")
-        else:
-            sys.argv.insert(1, "--action=train")
-        return train_main()
-    else:
-        # Default: Universal GUI mode (Tray + HTTP Bridge + optional web frontend)
-        ColorPrint.blue("\n" + "=" * 80)
-        ColorPrint.blue("D3Check - Universal GUI Mode")
-        ColorPrint.blue("=" * 80)
-
-        try:
-            # Get system initializer
-            sys_init = get_system_initializer()
-
-            # Initialize the system
-            if not sys_init.initialize_system():
-                ColorPrint.red("[MAIN] System initialization failed, exiting...")
-                return 1
-
-            # Load i18n settings
-            i18n_manager.load_language_from_config()
-
-            # Set menu labels for i18n support
-            menu_labels = {
-                'open_web': i18n_manager.get_ui_text("gui_menu.open_web", "Open Web UI"),
-                'restart': i18n_manager.get_ui_text("gui_menu.restart", "Restart"),
-                'exit': i18n_manager.get_ui_text("gui_menu.exit", "Exit")
-            }
-            set_menu_labels(menu_labels)
-
-            # Create HTTP bridge controller
-            bridge_controller = HTTPBridgeController(host='127.0.0.1', port=8765)
-
-            # Create custom menu items with callbacks
-            menu_items = [
-                {
-                    'key': 'open_web',
-                    'label': menu_labels['open_web'],
-                    'callback': lambda: None  # Will use default _open_web_ui
-                },
-                {
-                    'key': 'restart',
-                    'label': menu_labels['restart'],
-                    'callback': lambda: None  # Will use default _restart_application
-                },
-                {
-                    'key': 'exit',
-                    'label': menu_labels['exit'],
-                    'callback': lambda: None  # Will use default _exit_application
-                }
-            ]
-
-            # Create universal GUI launcher
-            gui_launcher = UniversalGUILauncher(
-                app_name='D3Check',
-                bridge_host='127.0.0.1',
-                bridge_port=8765,
-                menu_items=menu_items
-            )
-
-            # Register bridge handlers via bridge controller
-            # Bridge controller already registers handlers in __init__
-
-            # Start GUI launcher (tray + bridge)
-            ColorPrint.green("[MAIN] Starting universal GUI launcher...")
-            gui_launcher.start()
-
-            ColorPrint.green("[MAIN] D3Check started successfully")
-            ColorPrint.green("[MAIN] Access web UI at: http://127.0.0.1:8765")
-            ColorPrint.green("[MAIN] Press Ctrl+C to stop")
-
-            # Run forever (blocks until interrupted)
-            gui_launcher.run_forever()
-
-            return 0
-
-        except KeyboardInterrupt:
-            ColorPrint.yellow("\n[MAIN] Keyboard interrupt received, shutting down...")
-            if 'gui_launcher' in locals():
-                gui_launcher.stop()
-            return 0
-
-        except Exception as e:
-            ColorPrint.red(f"[ERROR] Fatal error in main: {e}")
-            traceback.print_exc()
-            return 1
+    return _run_gui_and_bridge()
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

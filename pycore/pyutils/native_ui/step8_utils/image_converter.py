@@ -26,11 +26,9 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
+Image = get_third_package_PIL_Image()
 
 from pycore import ColorPrint
 from pycore.pyfoundations import APP_CACHE_DIR

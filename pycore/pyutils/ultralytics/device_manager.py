@@ -213,15 +213,15 @@ class DeviceManager:
             self._print("     nvidia-smi")
             self._print()
             self._print("  2. Install PyTorch with CUDA support:")
-            self._print("     # For CUDA 12.4 (recommended for CUDA 13.0 drivers)")
             self._print("     pip uninstall torch torchvision -y")
+            self._print("     # For CUDA 12.6 (recommended; matches onnxruntime-gpu)")
+            self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126")
+            self._print()
+            self._print("     # For CUDA 12.4")
             self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
             self._print()
             self._print("     # For CUDA 12.1")
             self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121")
-            self._print()
-            self._print("     # For CUDA 11.8")
-            self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118")
             self._print()
         elif not nvidia_info["driver_available"]:
             self._print(f"{doc} No NVIDIA GPU driver detected")
@@ -234,7 +234,7 @@ class DeviceManager:
             self._print("     nvidia-smi")
             self._print()
             self._print("  3. Install PyTorch with CUDA support:")
-            self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124")
+            self._print("     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126")
             self._print()
 
         if amd_info["rocm_available"] and not amd_info["pytorch_rocm"]:

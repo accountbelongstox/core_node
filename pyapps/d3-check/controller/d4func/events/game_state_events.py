@@ -15,7 +15,7 @@ from pathlib import Path
 current_dir = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from providor.common_imports import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import get_d4_interface_data
 
@@ -26,14 +26,9 @@ def on_game_state_changed():
     
     Uses shared data from D4State
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        state = "Running" if d4_data.is_exp_farming_running() else "Stopped"
-        ColorPrint.green(f"[Game State Event] Game state changed: {state}")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Game State Event] Error in on_game_state_changed: {e}")
+    d4_data = get_d4_interface_data()
+    state = "Running" if d4_data.is_exp_farming_running() else "Stopped"
+    ColorPrint.green(f"[Game State Event] Game state changed: {state}")
 
 
 def on_current_map_changed():
@@ -42,17 +37,12 @@ def on_current_map_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.detected_regions and 'map_name' in d4_data.detected_regions:
-            map_name = d4_data.detected_regions['map_name']
-            ColorPrint.green(f"[Game State Event] Current map changed: {map_name}")
-        else:
-            ColorPrint.blue("[Game State Event] Current map changed: Unknown")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Game State Event] Error in on_current_map_changed: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.detected_regions and 'map_name' in d4_data.detected_regions:
+        map_name = d4_data.detected_regions['map_name']
+        ColorPrint.green(f"[Game State Event] Current map changed: {map_name}")
+    else:
+        ColorPrint.blue("[Game State Event] Current map changed: Unknown")
 
 
 def on_dungeon_progress_changed():
@@ -61,14 +51,9 @@ def on_dungeon_progress_changed():
     
     Uses shared data from D4InterfaceData
     """
-    try:
-        d4_data = get_d4_interface_data()
-        
-        if d4_data.detected_regions and 'dungeon_progress' in d4_data.detected_regions:
-            progress = d4_data.detected_regions['dungeon_progress']
-            ColorPrint.green(f"[Game State Event] Dungeon progress changed: {progress}")
-        else:
-            ColorPrint.blue("[Game State Event] Dungeon progress changed: Unknown")
-        
-    except Exception as e:
-        ColorPrint.red(f"[Game State Event] Error in on_dungeon_progress_changed: {e}")
+    d4_data = get_d4_interface_data()
+    if d4_data.detected_regions and 'dungeon_progress' in d4_data.detected_regions:
+        progress = d4_data.detected_regions['dungeon_progress']
+        ColorPrint.green(f"[Game State Event] Dungeon progress changed: {progress}")
+    else:
+        ColorPrint.blue("[Game State Event] Dungeon progress changed: Unknown")

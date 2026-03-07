@@ -140,42 +140,6 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_verify_command"]=""
     ["android_studio_super"]="true"
 
-    # IntelliJ IDEA Community
-    ["intellij_name"]="IntelliJ IDEA Community"
-    ["intellij_exec"]="intellij-idea-community"
-    ["intellij_package_id"]="intellij-idea-community"
-    ["intellij_install_method"]="$METHOD_SNAP"
-    ["intellij_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["intellij_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["intellij_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["intellij_description"]="Java IDE by JetBrains"
-    ["intellij_verify_command"]=""
-    ["intellij_super"]="true"
-    
-    # PyCharm Community
-    ["pycharm_name"]="PyCharm Community"
-    ["pycharm_exec"]="pycharm-community"
-    ["pycharm_package_id"]="pycharm-community"
-    ["pycharm_install_method"]="$METHOD_SNAP"
-    ["pycharm_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["pycharm_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["pycharm_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["pycharm_description"]="Python IDE by JetBrains"
-    ["pycharm_verify_command"]=""
-    ["pycharm_super"]="true"
-
-    # CLion C++ IDE
-    ["clion_name"]="CLion"
-    ["clion_exec"]="clion"
-    ["clion_package_id"]="clion"
-    ["clion_install_method"]="$METHOD_SNAP"
-    ["clion_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["clion_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["clion_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["clion_description"]="C/C++ IDE by JetBrains"
-    ["clion_verify_command"]=""
-    ["clion_super"]="true"
-
     # Sublime Text
     ["sublime_name"]="Sublime Text"
     ["sublime_exec"]="subl"
@@ -373,7 +337,7 @@ BASE_PACKAGE_LIST=(
 
 DEV_PACKAGE_LIST=(
     "powershell" "postman" "termius" "android_studio"
-    "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
+    "sublime" "insomnia" "beekeeper"
     "text_editor"
 )
 

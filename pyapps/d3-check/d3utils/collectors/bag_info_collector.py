@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Bag Information Collector
-Collects bag coordinates and layout information
-Updates shared game interface data
+Bag Information Collector. Collects bag coordinates and layout. Updates shared game interface data.
+Singleton via get_bag_info_collector(); do not instantiate elsewhere.
 """
 
 # Standard library imports
@@ -17,22 +16,38 @@ from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_pa
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
+np = numpy
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 # Project imports
-from providor.common_imports import ColorPrint, ImageAnnotator
-from share import get_game_interface_data, BagCoordinates, BagLayout, DetectionResult, get_scaled_bag_region, get_global_scale
-from d3utils.collectors.collect_tools.bag_layout_detector import BagLayoutDetector
+from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.image_annotator import ImageAnnotator
+from share.game_interface_data import (
+    get_game_interface_data,
+    BagCoordinates,
+    BagLayout,
+    DetectionResult,
+    get_scaled_bag_region,
+    get_global_scale,
+    scale_standard_value_to_actual,
+    WINDOW_BORDER_LEFT,
+    WINDOW_BORDER_RIGHT,
+    TITLE_BAR_HEIGHT,
+    WINDOW_BORDER_BOTTOM,
+)
+from d3utils.collectors.collect_tools.bag_layout_detector import get_bag_layout_detector
 from d3utils.d3u_common import draw_match_result
-from d3utils.d3u_common.image_annotator_helper import get_tmp_dir, generate_timestamp
-from d3utils.scaled_template_matcher import get_scaled_template_matcher
-from providor.providor_index import (
-    CONFIG,
-    get_template_path
+from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp, get_image_pil
+from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
+from share.scaled_template_matcher_base import is_match_center_in_left_region
+from providor.providor_index import CONFIG, get_template_path
+from d3utils.interface_detection import detect_interface_type_from_full_window
+from providor.constants.d3 import (
+    BAG_OPENED_INDICATOR_TEMPLATE_NAME,
+    KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME,
+    KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME,
 )
 
 
@@ -53,7 +68,7 @@ class BagInfoCollector:
         """Initialize bag info collector"""
         # Use ScaledTemplateMatcher for automatic template scaling
         self.scaled_matcher = get_scaled_template_matcher()
-        self.bag_layout_detector = BagLayoutDetector(rows=6, cols=10)
+        self.bag_layout_detector = get_bag_layout_detector()
 
         ColorPrint.green("[BagInfoCollector] Initialized with ScaledTemplateMatcher")
 
@@ -125,10 +140,11 @@ class BagInfoCollector:
                 # Save partial detection results to share
                 shared_data.bag_buttom_match = bag_buttom_match
                 shared_data.bag_left_match = bag_left_match
-                # Still save detection result showing what was found/not found
+                # Optionally save detection result (in-memory only when save_screenshot=False)
                 self._save_comprehensive_detection_result(
                     screenshot_image=screenshot_image,
-                    detection_success=False
+                    detection_success=False,
+                    save_to_disk=save_screenshot
                 )
                 return None
 
@@ -155,24 +171,22 @@ class BagInfoCollector:
             ColorPrint.green(f"[BagInfoCollector] Bag detected: {bag_coords.top_left} -> {bag_coords.bottom_right}")
             ColorPrint.green(f"[BagInfoCollector] Grid: {bag_coords.rows}x{bag_coords.cols} ({bag_coords.total_slots} slots)")
 
-            # Always save annotated screenshot with complete detection results
-            # All data is now in shared_data, no need to pass as parameters
+            # Draw annotation in memory; save to disk only when save_screenshot=True
             self._save_comprehensive_detection_result(
                 screenshot_image=screenshot_image,
-                detection_success=True
+                detection_success=True,
+                save_to_disk=save_screenshot
             )
 
             return bag_coords
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error in collect: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _check_bag_opened(self, game_window_image) -> bool:
         """
-        Check if bag is opened using bag_opened_indicator template
+        Check if bag is opened using BAG_OPENED_INDICATOR template.
 
         Args:
             game_window_image: PIL Image of game window
@@ -181,32 +195,28 @@ class BagInfoCollector:
             True if bag is opened, False otherwise
         """
         try:
-            ColorPrint.blue("[BagInfoCollector] Detecting bag_opened_indicator...")
-
-            # Get template path
-            template_path = get_template_path("bag_opened_indicator")
+            ColorPrint.blue(f"[BagInfoCollector] Detecting {BAG_OPENED_INDICATOR_TEMPLATE_NAME}...")
+            template_path = get_template_path(BAG_OPENED_INDICATOR_TEMPLATE_NAME)
             if not template_path or not Path(template_path).exists():
-                ColorPrint.gray("[BagInfoCollector] bag_opened_indicator template not found")
+                ColorPrint.gray(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} template not found")
                 return False
 
             # Match template using scaled_matcher
             result = self.scaled_matcher.match_template(
                 target_image=game_window_image,  # PIL Image directly
-                template_name="bag_opened_indicator",
+                template_name=BAG_OPENED_INDICATOR_TEMPLATE_NAME,
                 output_dir=None
             )
 
             if result["total_matches"] > 0:
-                ColorPrint.green("[BagInfoCollector] bag_opened_indicator FOUND - Bag is opened")
+                ColorPrint.green(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} FOUND - Bag is opened")
                 return True
             else:
-                ColorPrint.yellow("[BagInfoCollector] bag_opened_indicator NOT FOUND - Bag is closed")
+                ColorPrint.yellow(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} NOT FOUND - Bag is closed")
                 return False
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error checking bag opened: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
     def _detect_bag_border(
@@ -218,8 +228,8 @@ class BagInfoCollector:
         """
         Get bag region using standard coordinates with resolution scaling
 
-        Uses fixed standard coordinates (1209, 680) to (1801, 1036) at base resolution
-        and scales them based on actual game window size.
+        Uses fixed standard coordinates (864, 422) to (1286, 637) at base 1300x800;
+        was (1209, 680)-(1801, 1036) at 1826x1301. Scales by actual game window size.
 
         Args:
             game_window_image: PIL Image (not used, kept for compatibility)
@@ -258,8 +268,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error getting bag coordinates: {e}")
-            import traceback
-            traceback.print_exc()
             return None, None, None, None
 
     def _calculate_bag_coordinates(self, bag_match: Dict) -> Optional[BagCoordinates]:
@@ -282,47 +290,36 @@ class BagInfoCollector:
             border_right = int(bag_match["polygon"][2][0])  # Bottom-right X
             border_bottom = int(bag_match["polygon"][2][1]) # Bottom-right Y
 
-            # Check if using standard coordinates (no offset needed)
-            is_standard_coords = bag_match.get("template_name") == "standard_coordinates"
-
-            if is_standard_coords:
-                # Standard coordinates are already accurate, no offset needed
-                bag_left = border_left
-                bag_top = border_top
-                bag_right = border_right
-                bag_bottom = border_bottom
-
-                ColorPrint.blue(f"[BagInfoCollector] Using standard coordinates (no offset):")
-                ColorPrint.blue(f"  Bag region: ({bag_left}, {bag_top}) -> ({bag_right}, {bag_bottom})")
-                ColorPrint.blue(f"  Dimensions: {bag_right - bag_left}x{bag_bottom - bag_top}")
+            # Apply crop offset only when UI "use offset in calculation" is checked; otherwise skip (same as 0,0,0,0)
+            use_offset = bool(CONFIG.get("ui_analysis", {}).get("bag_offset", {}).get("use_in_calculation", False))
+            bag_offset = CONFIG.get("ui_analysis", {}).get("bag_offset", {}) or CONFIG.get("system_settings", {}).get("bag_offset", {})
+            if use_offset:
+                bag_offset_left = bag_offset.get("left", 0)
+                bag_offset_right = bag_offset.get("right", 0)
+                bag_offset_top = bag_offset.get("top", 0)
+                bag_offset_bottom = bag_offset.get("bottom", 0)
             else:
-                # Template matching coordinates need offset adjustment
-                scale_x, scale_y = get_global_scale()
+                bag_offset_left = bag_offset_right = bag_offset_top = bag_offset_bottom = 0
 
-                # Get bag offset from CONFIG
-                bag_offset = CONFIG.get('system_settings', {}).get('bag_offset', {})
-                bag_offset_left = bag_offset.get('left', 9)
-                bag_offset_right = bag_offset.get('right', 22)
-                bag_offset_top = bag_offset.get('top', 0)
-                bag_offset_bottom = bag_offset.get('bottom', 0)
+            scale_x, scale_y = get_global_scale()
+            # Offset in standard outer space: subtract border -> scale -> add border (see COORDINATE_SCALE_SPEC.md)
+            scaled_offset_left = scale_standard_value_to_actual(bag_offset_left, scale_x, WINDOW_BORDER_LEFT)
+            scaled_offset_right = scale_standard_value_to_actual(bag_offset_right, scale_x, WINDOW_BORDER_RIGHT)
+            scaled_offset_top = scale_standard_value_to_actual(bag_offset_top, scale_y, TITLE_BAR_HEIGHT)
+            scaled_offset_bottom = scale_standard_value_to_actual(bag_offset_bottom, scale_y, WINDOW_BORDER_BOTTOM)
 
-                # Scale offsets based on actual resolution
-                scaled_offset_left = int(bag_offset_left * scale_x)
-                scaled_offset_right = int(bag_offset_right * scale_x)
-                scaled_offset_top = int(bag_offset_top * scale_y)
-                scaled_offset_bottom = int(bag_offset_bottom * scale_y)
+            bag_left = int(border_left + scaled_offset_left)
+            bag_top = int(border_top + scaled_offset_top)
+            bag_right = int(border_right - scaled_offset_right)
+            bag_bottom = int(border_bottom - scaled_offset_bottom)
 
-                # Apply scaled offset from config
-                bag_left = int(border_left + scaled_offset_left)
-                bag_top = int(border_top + scaled_offset_top)
-                bag_right = int(border_right - scaled_offset_right)
-                bag_bottom = int(border_bottom - scaled_offset_bottom)
-
-                ColorPrint.blue(f"[BagInfoCollector] Template matching with offset:")
-                ColorPrint.blue(f"  Border: ({border_left}, {border_top}) -> ({border_right}, {border_bottom})")
-                ColorPrint.blue(f"  Offset: left={scaled_offset_left}, right={scaled_offset_right}, top={scaled_offset_top}, bottom={scaled_offset_bottom}")
-                ColorPrint.blue(f"  Final bag: ({bag_left}, {bag_top}) -> ({bag_right}, {bag_bottom})")
-                ColorPrint.blue(f"  Dimensions: {bag_right - bag_left}x{bag_bottom - bag_top}")
+            is_standard_coords = bag_match.get("template_name") == "standard_coordinates"
+            if is_standard_coords:
+                ColorPrint.blue(f"[BagInfoCollector] Standard coordinates" + (" with offset" if use_offset else " (offset skipped):"))
+            else:
+                ColorPrint.blue(f"[BagInfoCollector] Template matching" + (" with offset" if use_offset else " (offset skipped):"))
+            ColorPrint.blue(f"  Bag region: ({bag_left}, {bag_top}) -> ({bag_right}, {bag_bottom})")
+            ColorPrint.blue(f"  Dimensions: {bag_right - bag_left}x{bag_bottom - bag_top}")
 
             # Create BagCoordinates
             bag_coords = BagCoordinates(
@@ -345,8 +342,6 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error calculating bag coordinates: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _detect_bag_layout(self, screenshot_image: np.ndarray, bag_coords: BagCoordinates) -> Optional[BagLayout]:
@@ -396,406 +391,382 @@ class BagInfoCollector:
 
         except Exception as e:
             ColorPrint.red(f"[BagInfoCollector] Error detecting bag layout: {e}")
-            import traceback
-            traceback.print_exc()
             return None
 
     def _save_comprehensive_detection_result(
         self,
         screenshot_image: np.ndarray,
+        detection_success: bool,
+        save_to_disk: bool = False
+    ) -> None:
+        """
+        Draw comprehensive detection result in memory; optionally save to tmp dir.
+        Screenshot is only ever used in memory. When save_to_disk=False, nothing is written to disk.
+        """
+        if screenshot_image is None:
+            return
+        try:
+            annotator = create_annotator(screenshot_image)
+            self._draw_comprehensive_detection_annotation(annotator, detection_success)
+            if save_to_disk:
+                timestamp = generate_timestamp()
+                tmp_dir = get_tmp_dir()
+                annotated_path = tmp_dir / f"bag_comprehensive_{timestamp}.png"
+                annotated_path.parent.mkdir(parents=True, exist_ok=True)
+                annotator.save(annotated_path)
+                ColorPrint.green(f"[BagInfoCollector] Saved comprehensive result: {annotated_path}")
+        except Exception as e:
+            ColorPrint.red(f"[BagInfoCollector] Error in comprehensive detection result: {e}")
+
+    def get_annotated_detection_image(
+        self,
+        screenshot_image: np.ndarray,
+        detection_success: bool
+    ):
+        """
+        Draw comprehensive detection result in memory and return as PIL Image (RGB).
+        Same content as _save_comprehensive_detection_result: status, offset,
+        bag_buttom/bag_left, bag rectangle, _draw_bag_layout_grid, button legend.
+        No file is written.
+
+        Args:
+            screenshot_image: BGR numpy array (game window image)
+            detection_success: Whether bag was detected
+
+        Returns:
+            PIL.Image or None on error
+        """
+        if screenshot_image is None:
+            return None
+        try:
+            annotator = create_annotator(screenshot_image)
+            self._draw_comprehensive_detection_annotation(annotator, detection_success)
+            return get_image_pil(annotator)
+        except Exception as e:
+            ColorPrint.red(f"[BagInfoCollector] get_annotated_detection_image: {e}")
+            return None
+
+    def _draw_comprehensive_detection_annotation(
+        self,
+        annotator: ImageAnnotator,
         detection_success: bool
     ) -> None:
         """
-        Save comprehensive detection result image showing all detection steps
-
-        This method creates a single result image showing:
-        1. bag_buttom and bag_left template matching results
-        2. Bag grid lines (if detected)
-        3. Offset configuration values
-        4. Dynamic resolution scale factors
-        5. Interface indicators and buttons
-
-        All data is read from shared_data.
-
-        Args:
-            screenshot_image: numpy array (BGR format) from memory
-            detection_success: Whether detection was successful
+        Draw comprehensive bag detection annotation on the given annotator.
+        Reads shared_data and draws status, offsets, bag_buttom/bag_left, grid, legend.
         """
-        try:
-            ColorPrint.blue("[BagInfoCollector] Saving comprehensive detection result...")
+        shared_data = get_game_interface_data()
+        bag_buttom_match = shared_data.bag_buttom_match
+        bag_left_match = shared_data.bag_left_match
+        bag_coords = shared_data.bag_coordinates
+        bag_layout = shared_data.bag_layout
+        button_detections = shared_data.button_detections
 
-            # Get all data from share
-            shared_data = get_game_interface_data()
+        scale_x, scale_y = get_global_scale()
 
-            bag_buttom_match = shared_data.bag_buttom_match
-            bag_left_match = shared_data.bag_left_match
-            bag_coords = shared_data.bag_coordinates
-            bag_layout = shared_data.bag_layout
-            button_detections = shared_data.button_detections
+        # Define color palette for different detections
+        COLORS = {
+            'bag_detection': (0, 255, 0) if detection_success else (0, 0, 255),  # Green/Red
+            'resolution': (128, 128, 128),  # Gray
+            'offset': (64, 64, 64),  # Dark gray
+            'interface_type': (0, 128, 255),  # Orange
+            'bag_buttom': (255, 0, 255),  # Magenta
+            'bag_left': (255, 255, 0),  # Cyan
+            'conversion_enabled': (0, 255, 0),  # Green
+            'conversion_disabled': (0, 0, 255),  # Red
+            'material_button': (255, 0, 255),  # Magenta
+            'interface_indicator': (255, 128, 0),  # Blue-ish
+        }
 
-            # Use screenshot_image directly (already in memory as numpy array)
-            if screenshot_image is None:
-                ColorPrint.yellow("[BagInfoCollector] No screenshot image available for annotation")
-                return
+        # Text positions (y-coordinate, line by line)
+        text_y = 30
+        line_height = 40
 
-            # Create annotator (accepts numpy array directly)
-            annotator = ImageAnnotator(screenshot_image)
+        # Draw summary status
+        if detection_success:
+            summary_text = "Bag Detection: SUCCESS"
+        else:
+            summary_text = "Bag Detection: FAILED"
 
-            # Get global scale factors
-            scale_x, scale_y = get_global_scale()
+        annotator.draw_text(
+            text=summary_text,
+            position=(10, text_y),
+            color=(255, 255, 255),
+            font_scale=0.8,
+            thickness=2,
+            background_color=COLORS['bag_detection']
+        )
+        text_y += line_height
 
-            # Define color palette for different detections
-            COLORS = {
-                'bag_detection': (0, 255, 0) if detection_success else (0, 0, 255),  # Green/Red
-                'resolution': (128, 128, 128),  # Gray
-                'offset': (64, 64, 64),  # Dark gray
-                'interface_type': (0, 128, 255),  # Orange
-                'bag_buttom': (255, 0, 255),  # Magenta
-                'bag_left': (255, 255, 0),  # Cyan
-                'conversion_enabled': (0, 255, 0),  # Green
-                'conversion_disabled': (0, 0, 255),  # Red
-                'material_button': (255, 0, 255),  # Magenta
-                'interface_indicator': (255, 128, 0),  # Blue-ish
-            }
+        # Draw resolution scale info
+        scale_text = f"Resolution Scale: {scale_x:.2%} x {scale_y:.2%}"
+        annotator.draw_text(
+            text=scale_text,
+            position=(10, text_y),
+            color=(255, 255, 255),
+            font_scale=0.6,
+            thickness=2,
+            background_color=COLORS['resolution']
+        )
+        text_y += line_height
 
-            # Text positions (y-coordinate, line by line)
-            text_y = 30
-            line_height = 40
+        # Get bag offset from CONFIG
+        bag_offset = CONFIG.get('system_settings', {}).get('bag_offset', {})
+        bag_offset_left = bag_offset.get('left', 9)
+        bag_offset_right = bag_offset.get('right', 22)
+        bag_offset_top = bag_offset.get('top', 0)
+        bag_offset_bottom = bag_offset.get('bottom', 0)
 
-            # Draw summary status
-            if detection_success:
-                summary_text = "Bag Detection: SUCCESS"
-            else:
-                summary_text = "Bag Detection: FAILED"
+        # Draw offset configuration
+        offset_text = f"Offset Config: L={bag_offset_left}, R={bag_offset_right}, T={bag_offset_top}, B={bag_offset_bottom}"
+        annotator.draw_text(
+            text=offset_text,
+            position=(10, text_y),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=COLORS['offset']
+        )
+        text_y += line_height
 
+        # Scaled offset display
+        scaled_offset_left = int(bag_offset_left * scale_x)
+        scaled_offset_right = int(bag_offset_right * scale_x)
+        scaled_offset_top = int(bag_offset_top * scale_y)
+        scaled_offset_bottom = int(bag_offset_bottom * scale_y)
+
+        scaled_offset_text = f"Scaled Offset: L={scaled_offset_left}, R={scaled_offset_right}, T={scaled_offset_top}, B={scaled_offset_bottom}"
+        annotator.draw_text(
+            text=scaled_offset_text,
+            position=(10, 135),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=(64, 64, 64)
+        )
+
+        # Calculate and display offset percentages if bag was detected
+        if detection_success and bag_coords:
+            # Calculate border dimensions (before offset applied)
+            border_width = bag_coords.width + scaled_offset_left + scaled_offset_right
+            border_height = bag_coords.height + scaled_offset_top + scaled_offset_bottom
+
+            # Calculate offset percentages
+            offset_left_pct = (scaled_offset_left / border_width * 100) if border_width > 0 else 0
+            offset_right_pct = (scaled_offset_right / border_width * 100) if border_width > 0 else 0
+            offset_top_pct = (scaled_offset_top / border_height * 100) if border_height > 0 else 0
+            offset_bottom_pct = (scaled_offset_bottom / border_height * 100) if border_height > 0 else 0
+
+            offset_pct_text = f"Offset %: L={offset_left_pct:.1f}% R={offset_right_pct:.1f}% T={offset_top_pct:.1f}% B={offset_bottom_pct:.1f}%"
             annotator.draw_text(
-                text=summary_text,
-                position=(10, text_y),
+                text=offset_pct_text,
+                position=(10, 165),
                 color=(255, 255, 255),
-                font_scale=0.8,
-                thickness=2,
-                background_color=COLORS['bag_detection']
+                font_scale=0.5,
+                thickness=1,
+                background_color=(64, 128, 64)
             )
-            text_y += line_height
 
-            # Draw resolution scale info
-            scale_text = f"Resolution Scale: {scale_x:.2%} x {scale_y:.2%}"
+            # Display final bag dimensions
+            bag_dims_text = f"Bag Size: {bag_coords.width}x{bag_coords.height}px ({bag_coords.rows}x{bag_coords.cols} grid)"
             annotator.draw_text(
-                text=scale_text,
-                position=(10, text_y),
+                text=bag_dims_text,
+                position=(10, 195),
+                color=(255, 255, 255),
+                font_scale=0.5,
+                thickness=1,
+                background_color=(128, 64, 128)
+            )
+
+        # Draw bag_buttom match result (annotation layout: scaled from 300 at 1826x1301)
+        template_x_offset = 10
+        template_y_offset = 184   # was 300 at 1826x1301
+        if bag_buttom_match:
+            bag_buttom_path = get_template_path("bag_buttom")
+            draw_match_result(
+                annotator=annotator,
+                match_result=bag_buttom_match,
+                name="bag_buttom",
+                color=(0, 255, 0),  # Green
+                template_path=bag_buttom_path,
+                draw_template=True,
+                template_position=(template_x_offset, template_y_offset)
+            )
+            template_x_offset += 213  # was 300 at 1826x1301
+        else:
+            # Draw "NOT FOUND" text
+            annotator.draw_text(
+                text="bag_buttom: NOT FOUND",
+                position=(10, 200),
                 color=(255, 255, 255),
                 font_scale=0.6,
                 thickness=2,
-                background_color=COLORS['resolution']
-            )
-            text_y += line_height
-
-            # Get bag offset from CONFIG
-            bag_offset = CONFIG.get('system_settings', {}).get('bag_offset', {})
-            bag_offset_left = bag_offset.get('left', 9)
-            bag_offset_right = bag_offset.get('right', 22)
-            bag_offset_top = bag_offset.get('top', 0)
-            bag_offset_bottom = bag_offset.get('bottom', 0)
-
-            # Draw offset configuration
-            offset_text = f"Offset Config: L={bag_offset_left}, R={bag_offset_right}, T={bag_offset_top}, B={bag_offset_bottom}"
-            annotator.draw_text(
-                text=offset_text,
-                position=(10, text_y),
-                color=(255, 255, 255),
-                font_scale=0.5,
-                thickness=1,
-                background_color=COLORS['offset']
-            )
-            text_y += line_height
-
-            # Scaled offset display
-            scaled_offset_left = int(bag_offset_left * scale_x)
-            scaled_offset_right = int(bag_offset_right * scale_x)
-            scaled_offset_top = int(bag_offset_top * scale_y)
-            scaled_offset_bottom = int(bag_offset_bottom * scale_y)
-
-            scaled_offset_text = f"Scaled Offset: L={scaled_offset_left}, R={scaled_offset_right}, T={scaled_offset_top}, B={scaled_offset_bottom}"
-            annotator.draw_text(
-                text=scaled_offset_text,
-                position=(10, 135),
-                color=(255, 255, 255),
-                font_scale=0.5,
-                thickness=1,
-                background_color=(64, 64, 64)
+                background_color=(0, 0, 255)
             )
 
-            # Calculate and display offset percentages if bag was detected
-            if detection_success and bag_coords:
-                # Calculate border dimensions (before offset applied)
-                border_width = bag_coords.width + scaled_offset_left + scaled_offset_right
-                border_height = bag_coords.height + scaled_offset_top + scaled_offset_bottom
+        # Draw bag_left match result
+        if bag_left_match:
+            bag_left_path = get_template_path("bag_left")
+            draw_match_result(
+                annotator=annotator,
+                match_result=bag_left_match,
+                name="bag_left",
+                color=(255, 165, 0),  # Orange
+                template_path=bag_left_path,
+                draw_template=True,
+                template_position=(template_x_offset, template_y_offset)
+            )
 
-                # Calculate offset percentages
-                offset_left_pct = (scaled_offset_left / border_width * 100) if border_width > 0 else 0
-                offset_right_pct = (scaled_offset_right / border_width * 100) if border_width > 0 else 0
-                offset_top_pct = (scaled_offset_top / border_height * 100) if border_height > 0 else 0
-                offset_bottom_pct = (scaled_offset_bottom / border_height * 100) if border_height > 0 else 0
-
-                offset_pct_text = f"Offset %: L={offset_left_pct:.1f}% R={offset_right_pct:.1f}% T={offset_top_pct:.1f}% B={offset_bottom_pct:.1f}%"
+            # Also draw bag_left bottom edge line (which is bag's top edge)
+            polygon = bag_left_match.get("polygon")
+            if polygon is not None and (not isinstance(polygon, np.ndarray) or polygon.size > 0):
+                bottom_left = (int(polygon[3][0]), int(polygon[3][1]))
+                bottom_right = (int(polygon[2][0]), int(polygon[2][1]))
+                annotator.draw_line(
+                    start=bottom_left,
+                    end=bottom_right,
+                    color=(255, 255, 0),  # Cyan - highlights the important edge
+                    thickness=3
+                )
                 annotator.draw_text(
-                    text=offset_pct_text,
-                    position=(10, 165),
-                    color=(255, 255, 255),
+                    text="bag_left BOTTOM = bag TOP",
+                    position=(bottom_left[0], bottom_left[1] + 20),
+                    color=(255, 255, 0),
                     font_scale=0.5,
-                    thickness=1,
-                    background_color=(64, 128, 64)
-                )
-
-                # Display final bag dimensions
-                bag_dims_text = f"Bag Size: {bag_coords.width}x{bag_coords.height}px ({bag_coords.rows}x{bag_coords.cols} grid)"
-                annotator.draw_text(
-                    text=bag_dims_text,
-                    position=(10, 195),
-                    color=(255, 255, 255),
-                    font_scale=0.5,
-                    thickness=1,
-                    background_color=(128, 64, 128)
-                )
-
-            # Draw bag_buttom match result
-            template_x_offset = 10
-            template_y_offset = 300
-            if bag_buttom_match:
-                bag_buttom_path = get_template_path("bag_buttom")
-                draw_match_result(
-                    annotator=annotator,
-                    match_result=bag_buttom_match,
-                    name="bag_buttom",
-                    color=(0, 255, 0),  # Green
-                    template_path=bag_buttom_path,
-                    draw_template=True,
-                    template_position=(template_x_offset, template_y_offset)
-                )
-                template_x_offset += 300  # Move to right for next template
-            else:
-                # Draw "NOT FOUND" text
-                annotator.draw_text(
-                    text="bag_buttom: NOT FOUND",
-                    position=(10, 200),
-                    color=(255, 255, 255),
-                    font_scale=0.6,
                     thickness=2,
-                    background_color=(0, 0, 255)
+                    background_color=(0, 0, 0)
                 )
-
-            # Draw bag_left match result
-            if bag_left_match:
-                bag_left_path = get_template_path("bag_left")
-                draw_match_result(
-                    annotator=annotator,
-                    match_result=bag_left_match,
-                    name="bag_left",
-                    color=(255, 165, 0),  # Orange
-                    template_path=bag_left_path,
-                    draw_template=True,
-                    template_position=(template_x_offset, template_y_offset)
-                )
-
-                # Also draw bag_left bottom edge line (which is bag's top edge)
-                # This helps visualize the relationship between bag_left and bag boundary
-                polygon = bag_left_match.get("polygon")
-                if polygon is not None and (not isinstance(polygon, np.ndarray) or polygon.size > 0):
-                    # Draw bottom edge line (from bottom-left to bottom-right)
-                    bottom_left = (int(polygon[3][0]), int(polygon[3][1]))
-                    bottom_right = (int(polygon[2][0]), int(polygon[2][1]))
-                    annotator.draw_line(
-                        start=bottom_left,
-                        end=bottom_right,
-                        color=(255, 255, 0),  # Cyan - highlights the important edge
-                        thickness=3
-                    )
-                    # Add label
-                    annotator.draw_text(
-                        text="bag_left BOTTOM = bag TOP",
-                        position=(bottom_left[0], bottom_left[1] + 20),
-                        color=(255, 255, 0),
-                        font_scale=0.5,
-                        thickness=2,
-                        background_color=(0, 0, 0)
-                    )
-            else:
-                # Draw "NOT FOUND" text
-                annotator.draw_text(
-                    text="bag_left: NOT FOUND",
-                    position=(10, 240),
-                    color=(255, 255, 255),
-                    font_scale=0.6,
-                    thickness=2,
-                    background_color=(0, 0, 255)
-                )
-
-            # Draw bag area and grid if detection succeeded
-            if detection_success and bag_coords:
-                # Draw final bag rectangle
-                annotator.draw_rectangle(
-                    top_left=bag_coords.top_left,
-                    bottom_right=bag_coords.bottom_right,
-                    color=(255, 0, 255),  # Magenta
-                    thickness=3,
-                    label=f"Bag: {bag_coords.width}x{bag_coords.height}"
-                )
-
-                # Draw bag layout grid if available
-                if bag_layout is not None:
-                    ColorPrint.blue("[BagInfoCollector] Drawing bag layout grid...")
-                    from d3utils.d3u_common.image_annotator_helper import _draw_bag_layout_grid
-                    _draw_bag_layout_grid(
-                        annotator=annotator,
-                        bag_coords=bag_coords,
-                        bag_layout=bag_layout
-                    )
-
-            # Draw ALL detection results with appropriate colors
-            self._draw_all_detection_results(annotator, button_detections, COLORS)
-
-            # Draw legend and detection results summary in top-left corner
-            legend_x = 10
-            legend_y = 230  # Start below existing info (resolution, offset, etc.)
-            legend_line_height = 35
-
-            # Draw legend title
+        else:
             annotator.draw_text(
-                text="Detection Results:",
-                position=(legend_x, legend_y),
+                text="bag_left: NOT FOUND",
+                position=(10, 240),
                 color=(255, 255, 255),
-                font_scale=0.7,
+                font_scale=0.6,
                 thickness=2,
-                background_color=(50, 50, 50)
+                background_color=(0, 0, 255)
             )
-            legend_y += legend_line_height
 
-            # Detect all interface types and show results
-            interface_indicators = [
-                ("blacksmith_indicator_1", "blacksmith", COLORS['interface_indicator']),
-                ("blacksmith_indicator_2", "blacksmith", (255, 200, 0))
-            ]
+        # Draw bag area and grid if detection succeeded
+        if detection_success and bag_coords:
+            annotator.draw_rectangle(
+                top_left=bag_coords.top_left,
+                bottom_right=bag_coords.bottom_right,
+                color=(255, 0, 255),  # Magenta
+                thickness=3,
+                label=f"Bag: {bag_coords.width}x{bag_coords.height}"
+            )
 
-            for indicator_name, type_name, color in interface_indicators:
-                # Check if this indicator was found in button_detections (DetectionResult format)
-                found = False
-                indicator_match = None
-
-                if button_detections and indicator_name in button_detections:
-                    indicator_detection = button_detections[indicator_name]
-                    if indicator_detection and hasattr(indicator_detection, 'match'):
-                        found = True
-                        indicator_match = indicator_detection.match
-
-                # Draw legend entry with coordinates if found
-                status_color = (0, 255, 0) if found else (128, 128, 128)
-
-                # Get status text with coordinates if found
-                if found and indicator_name in button_detections:
-                    detection_result = button_detections[indicator_name]
-                    status_text = self._get_status_text_with_coordinates(detection_result, indicator_name)
-                else:
-                    status_text = "NOT FOUND"
-
-                # Draw color indicator box
-                annotator.draw_rectangle(
-                    top_left=(legend_x, legend_y - 20),
-                    bottom_right=(legend_x + 25, legend_y - 5),
-                    color=color,
-                    thickness=-1  # filled
+            if bag_layout is not None:
+                ColorPrint.blue("[BagInfoCollector] Drawing bag layout grid...")
+                from d3utils.d3u_common.image_annotator_helper import _draw_bag_layout_grid
+                _draw_bag_layout_grid(
+                    annotator=annotator,
+                    bag_coords=bag_coords,
+                    bag_layout=bag_layout
                 )
 
-                # Draw status text with coordinates if available
-                annotator.draw_text(
-                    text=f"{type_name}: {status_text}",
-                    position=(legend_x + 35, legend_y),
-                    color=(255, 255, 255),
-                    font_scale=0.5,
-                    thickness=1,
-                    background_color=status_color
-                )
+        # Draw ALL detection results with appropriate colors
+        self._draw_all_detection_results(annotator, button_detections, COLORS)
 
-                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
+        # Draw legend and detection results summary in top-left corner
+        legend_x = 10
+        legend_y = 230
+        legend_line_height = 35
 
-                legend_y += legend_line_height
+        annotator.draw_text(
+            text="Detection Results:",
+            position=(legend_x, legend_y),
+            color=(255, 255, 255),
+            font_scale=0.7,
+            thickness=2,
+            background_color=(50, 50, 50)
+        )
+        legend_y += legend_line_height
 
-            # Draw button detection results in legend
-            # Conversion button
-            conv_found = button_detections and button_detections.get('conversion_button') is not None
-            conv_status = "NOT FOUND"
-            conv_color = (128, 128, 128)
+        # Blacksmith has a single identifier: bag_opened_indicator only.
+        interface_indicators = [
+            (BAG_OPENED_INDICATOR_TEMPLATE_NAME, "blacksmith", COLORS["interface_indicator"]),
+        ]
 
-            if conv_found:
-                conv_data = button_detections['conversion_button']
-                state = conv_data.state  # Access as attribute, not dict
-                conv_color = COLORS['conversion_enabled'] if state == 'enabled' else COLORS['conversion_disabled']
+        for indicator_name, type_name, color in interface_indicators:
+            found = False
+            if button_detections and indicator_name in button_detections:
+                indicator_detection = button_detections[indicator_name]
+                if indicator_detection and hasattr(indicator_detection, 'match'):
+                    found = True
 
-                # Get status text with coordinates using helper method
-                default_status = f"FOUND ({state.upper()})" if state else "FOUND"
-                conv_status = self._get_status_text_with_coordinates(conv_data, 'conversion_button', default_status)
+            status_color = (0, 255, 0) if found else (128, 128, 128)
+            if found and indicator_name in button_detections:
+                detection_result = button_detections[indicator_name]
+                status_text = self._get_status_text_with_coordinates(detection_result, indicator_name)
+            else:
+                status_text = "NOT FOUND"
 
-                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
-
-            # Draw conversion button legend
             annotator.draw_rectangle(
                 top_left=(legend_x, legend_y - 20),
                 bottom_right=(legend_x + 25, legend_y - 5),
-                color=conv_color,
+                color=color,
                 thickness=-1
             )
             annotator.draw_text(
-                text=f"Conversion Button: {conv_status}",
+                text=f"{type_name}: {status_text}",
                 position=(legend_x + 35, legend_y),
                 color=(255, 255, 255),
                 font_scale=0.5,
                 thickness=1,
-                background_color=conv_color
+                background_color=status_color
             )
             legend_y += legend_line_height
 
-            # Material button
-            mat_found = button_detections and button_detections.get('material_button') is not None
-            mat_status = "FOUND" if mat_found else "NOT FOUND"
-            mat_color = COLORS['material_button'] if mat_found else (128, 128, 128)
+        # Conversion button
+        conv_found = button_detections and button_detections.get('conversion_button') is not None
+        conv_status = "NOT FOUND"
+        conv_color = (128, 128, 128)
+        if conv_found:
+            conv_data = button_detections['conversion_button']
+            state = conv_data.state
+            conv_color = COLORS['conversion_enabled'] if state == 'enabled' else COLORS['conversion_disabled']
+            default_status = f"FOUND ({state.upper()})" if state else "FOUND"
+            conv_status = self._get_status_text_with_coordinates(conv_data, 'conversion_button', default_status)
 
-            if mat_found:
-                mat_data = button_detections['material_button']
+        annotator.draw_rectangle(
+            top_left=(legend_x, legend_y - 20),
+            bottom_right=(legend_x + 25, legend_y - 5),
+            color=conv_color,
+            thickness=-1
+        )
+        annotator.draw_text(
+            text=f"Conversion Button: {conv_status}",
+            position=(legend_x + 35, legend_y),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=conv_color
+        )
+        legend_y += legend_line_height
 
-                # Get status text with coordinates using helper method
-                mat_status = self._get_status_text_with_coordinates(mat_data, 'material_button')
+        # Material button
+        mat_found = button_detections and button_detections.get('material_button') is not None
+        mat_status = "FOUND" if mat_found else "NOT FOUND"
+        mat_color = COLORS['material_button'] if mat_found else (128, 128, 128)
+        if mat_found:
+            mat_data = button_detections['material_button']
+            mat_status = self._get_status_text_with_coordinates(mat_data, 'material_button')
 
-                # Note: Detection boxes are now drawn by _draw_all_detection_results() method above
-
-            # Draw material button legend
-            annotator.draw_rectangle(
-                top_left=(legend_x, legend_y - 20),
-                bottom_right=(legend_x + 25, legend_y - 5),
-                color=mat_color,
-                thickness=-1
-            )
-            annotator.draw_text(
-                text=f"Material Button: {mat_status}",
-                position=(legend_x + 35, legend_y),
-                color=(255, 255, 255),
-                font_scale=0.5,
-                thickness=1,
-                background_color=mat_color
-            )
-
-            # Save annotated image
-            timestamp = generate_timestamp()
-            tmp_dir = get_tmp_dir()
-            annotated_filename = f"bag_comprehensive_{timestamp}.png"
-            annotated_path = tmp_dir / annotated_filename
-
-            annotated_path.parent.mkdir(parents=True, exist_ok=True)
-            annotator.save(annotated_path)
-            ColorPrint.green(f"[BagInfoCollector] Saved comprehensive result: {annotated_path}")
-
-        except Exception as e:
-            ColorPrint.red(f"[BagInfoCollector] Error saving comprehensive detection result: {e}")
-            import traceback
-            traceback.print_exc()
+        annotator.draw_rectangle(
+            top_left=(legend_x, legend_y - 20),
+            bottom_right=(legend_x + 25, legend_y - 5),
+            color=mat_color,
+            thickness=-1
+        )
+        annotator.draw_text(
+            text=f"Material Button: {mat_status}",
+            position=(legend_x + 35, legend_y),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=mat_color
+        )
 
     def _safe_extract_coordinates(self, center, template_name="unknown"):
         """
@@ -891,11 +862,10 @@ class BagInfoCollector:
 
         # Template type to color mapping (extended)
         template_color_map = {
-            # Interface indicators
-            'blacksmith_indicator_1': (255, 200, 0),  # Orange-yellow
-            'blacksmith_indicator_2': (255, 165, 0),  # Orange
-            'kanai_cube_left_panel_indicator': (128, 0, 128),  # Purple
-            'kanai_right_page_indicator': (0, 128, 255),  # Orange-blue
+            # Interface indicators (blacksmith = bag_opened_indicator only)
+            BAG_OPENED_INDICATOR_TEMPLATE_NAME: (255, 200, 0),  # Orange-yellow for blacksmith
+            KANAI_CUBE_LEFT_PANEL_INDICATOR_TEMPLATE_NAME: (128, 0, 128),  # Purple
+            KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME: (0, 128, 255),  # Orange-blue
 
             # Functional buttons
             'conversion_button': (0, 255, 0),  # Green when enabled, Red when disabled
@@ -1018,11 +988,10 @@ class BagInfoCollector:
         Detect interface type and functional buttons
 
         Detection logic (simplified):
-        1. Check blacksmith indicators (blacksmith_indicator_1 or blacksmith_indicator_2):
-           - If found → interface_type = "blacksmith"
+        1. Blacksmith: same template bag_opened_indicator — left 30% width = blacksmith, right = bag only (not blacksmith). Accept only when match center is in the left 30% of game window (is_match_center_in_left_region). If found in left 30% → interface_type = "blacksmith".
 
-        2. Check Kanai's Cube left panel indicator (kanai_cube_left_panel_indicator):
-           - If found → interface_type = "kanai_cube"
+        2. Kanai cube unique icon kanai_cube_left_panel_indicator, match center must be in left 30%:
+           - If found in left 30% → interface_type = "kanai_cube"
 
         3. If neither found → No functional interface opened
 
@@ -1030,7 +999,7 @@ class BagInfoCollector:
         - interface_type: "blacksmith", "kanai_cube", or None
         - button_detections: Dict[str, DetectionResult]
 
-        Note: Conversion button now uses fixed coordinate system (290, 1005) via get_scaled_conversion_button()
+        Note: Conversion button uses get_scaled_conversion_button() (standard (207,618); was (290,1005) at 1826x1301)
 
         Args:
             game_window_image: PIL Image for template matching
@@ -1041,97 +1010,29 @@ class BagInfoCollector:
         """
         ColorPrint.blue("\n[BagInfoCollector] Detecting interface type...")
 
-        # Store detection results using DetectionResult structure
         button_detections: Dict[str, DetectionResult] = {}
-
-        # Legacy detection_results for visualization compatibility
         detection_results = {
             'interface_indicators': {},
             'conversion_button': None,
             'material_button': None
         }
 
-        interface_type = None
+        interface_type, match_details = detect_interface_type_from_full_window(
+            game_window_image, want_blacksmith=True, matcher=self.scaled_matcher
+        )
+        shared_data.interface_type = interface_type
+        for name, match in match_details.items():
+            if match:
+                button_detections[name] = DetectionResult(match=match, reliable=True, state=None)
+        if interface_type == "blacksmith":
+            ColorPrint.green(f"[BagInfoCollector] {BAG_OPENED_INDICATOR_TEMPLATE_NAME} FOUND in left 30% -> Blacksmith interface detected")
+        elif interface_type == "kanai_cube":
+            ColorPrint.green("[BagInfoCollector] kanai_cube_left_panel_indicator FOUND in left 30% -> Kanai Cube interface detected")
+        if interface_type:
+            ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
 
         # ============================================================
-        # Step 1: Check if in Blacksmith (check indicators 1 or 2)
-        # ============================================================
-        ColorPrint.blue("[BagInfoCollector] Step 1: Checking blacksmith indicators...")
-
-        blacksmith_indicators = [
-            ("blacksmith_indicator_1", "blacksmith"),
-            ("blacksmith_indicator_2", "blacksmith")
-        ]
-
-        for indicator_name, type_name in blacksmith_indicators:
-            template_path = get_template_path(indicator_name)
-            if not template_path or not Path(template_path).exists():
-                ColorPrint.gray(f"[BagInfoCollector] Template not found: {indicator_name}")
-                continue
-
-            ColorPrint.blue(f"[BagInfoCollector] Detecting {indicator_name}...")
-            result = self.scaled_matcher.match_template(
-                target_image=game_window_image,  # PIL Image directly
-                template_name=indicator_name,
-                output_dir=None
-            )
-
-            if result["total_matches"] > 0:
-                ColorPrint.green(f"[BagInfoCollector] {indicator_name} FOUND → Blacksmith interface detected")
-
-                # Store in button_detections
-                button_detections[indicator_name] = DetectionResult(
-                    match=result["matches"][0],
-                    reliable=True,
-                    state=None
-                )
-
-                # Set interface type
-                interface_type = "blacksmith"
-                shared_data.interface_type = interface_type
-                ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-
-                # Found blacksmith, no need to check conversion button
-                break
-            else:
-                ColorPrint.gray(f"[BagInfoCollector] {indicator_name} not found")
-
-        # ============================================================
-        # Step 2: If not blacksmith, check Kanai's Cube left panel indicator
-        # ============================================================
-        if not interface_type:
-            ColorPrint.blue("[BagInfoCollector] Step 2: Checking Kanai's Cube left panel indicator...")
-
-            # Detect kanai_cube_left_panel_indicator
-            indicator_path = get_template_path("kanai_cube_left_panel_indicator")
-            if indicator_path and Path(indicator_path).exists():
-                indicator_result = self.scaled_matcher.match_template(
-                    target_image=game_window_image,  # PIL Image directly
-                    template_name="kanai_cube_left_panel_indicator",
-                    output_dir=None
-                )
-
-                if indicator_result["total_matches"] > 0:
-                    ColorPrint.green("[BagInfoCollector] kanai_cube_left_panel_indicator FOUND → Kanai Cube interface detected")
-
-                    # Store in button_detections
-                    button_detections['kanai_cube_left_panel_indicator'] = DetectionResult(
-                        match=indicator_result["matches"][0],
-                        reliable=True,
-                        state=None
-                    )
-
-                    # Set interface type
-                    interface_type = "kanai_cube"
-                    shared_data.interface_type = interface_type
-                    ColorPrint.green(f"[BagInfoCollector] Interface type: {interface_type}")
-                else:
-                    ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator not found")
-            else:
-                ColorPrint.gray("[BagInfoCollector] kanai_cube_left_panel_indicator template not found")
-
-        # ============================================================
-        # Step 3: Final result
+        # Final result / no interface
         # ============================================================
         if not interface_type:
             ColorPrint.yellow("[BagInfoCollector] No functional interface detected")
@@ -1147,14 +1048,13 @@ class BagInfoCollector:
             # Note: interface_type == "kanai_cube" already means left panel is opened
             # No need to detect kanai_panel_opened separately
 
-            # Detect if Kanai's Cube right page is opened
             ColorPrint.blue("[BagInfoCollector] Detecting if Kanai's Cube right page is opened...")
-            right_page_path = get_template_path("kanai_right_page_indicator")
+            right_page_path = get_template_path(KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME)
             if right_page_path and Path(right_page_path).exists():
                 right_page_result = self.scaled_matcher.match_template(
-                    target_image=game_window_image,  # PIL Image directly
-                    template_name="kanai_right_page_indicator",
-                    output_dir=None
+                    target_image=game_window_image,
+                    template_name=KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME,
+                    output_dir=None,
                 )
 
                 if right_page_result["total_matches"] > 0:
@@ -1164,7 +1064,7 @@ class BagInfoCollector:
                     shared_data.kanai_right_page_opened = False
                     ColorPrint.yellow("[BagInfoCollector] Kanai's Cube right page is CLOSED")
             else:
-                ColorPrint.gray("[BagInfoCollector] kanai_right_page_indicator template not found")
+                ColorPrint.gray(f"[BagInfoCollector] {KANAI_RIGHT_PAGE_INDICATOR_TEMPLATE_NAME} template not found")
                 shared_data.kanai_right_page_opened = None
 
         # Update shared_data with button_detections
@@ -1173,9 +1073,20 @@ class BagInfoCollector:
         return detection_results
 
 
+_bag_info_collector_instance: Optional[BagInfoCollector] = None
+
+
+def get_bag_info_collector() -> BagInfoCollector:
+    """Return the global BagInfoCollector instance (singleton)."""
+    global _bag_info_collector_instance
+    if _bag_info_collector_instance is None:
+        _bag_info_collector_instance = BagInfoCollector()
+    return _bag_info_collector_instance
+
+
 # Example usage
 if __name__ == "__main__":
-    collector = BagInfoCollector()
+    collector = get_bag_info_collector()
     bag_coords = collector.collect()
 
     if bag_coords:

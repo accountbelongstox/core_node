@@ -1,0 +1,71 @@
+App Bank - BankDataInitializer 初始化设计说明（账号/姓名/地区/银行卡对齐）
+
+范围
+- 本说明仅描述 `managers_app_bank/bank_data_initializer.dart` 的初始化行为，以及它与“数据管理中心/设置页”里可编辑字段的对齐关系。
+
+核心目标
+- 初始化后的数据，能在“数据管理中心”中被正确读出/修改，并在 Provider + UnifiedStorage 中保持一致。
+
+字段对齐规则
+
+1) 账号（用户名）= 手机号
+- 对齐字段：
+  - `BankUserModel.phone`：手机号
+  - `BankGlobalData.username`：作为账号展示/全局用户名（与手机号一致）
+  - `PrefsAppBank` 的 `phone_number`：作为手机号的持久化来源之一
+- 初始化策略（当手机号不存在时）：
+  - 生成 11 位手机号（以 13/14/15/16/17/18/19 开头）
+  - 写入 `PrefsAppBank.phone_number`
+  - 调用：
+    - `provider.updateUser(phone: phone)`
+    - `provider.updateGlobalState(username: phone)`
+
+2) 姓名 = 固定姓氏/名字列表随机组合
+- 对齐字段：
+  - `BankUserModel.fullName`
+  - `BankGlobalData.fullName`
+- 初始化策略（当姓名无效时）：
+  - 当 `fullName` 为空、为默认值、或为脱敏值（以 `*` 开头）时，生成姓名
+  - 调用：
+    - `provider.updateUser(fullName: fullName)`
+    - `provider.updateGlobalState(fullName: fullName)`
+
+3) 地区默认值
+- 对齐字段：
+  - `BankUserModel.location` / `BankUserModel.city`
+  - `BankGlobalData.location` / `BankGlobalData.city`
+- 初始化策略：
+  - 当 `location` 为空时，默认写入：
+    - `location = 北京`
+    - `city = 北京`
+  - 调用：
+    - `provider.updateUser(location: 北京, city: 北京)`
+    - `provider.updateGlobalState(location: 北京, city: 北京)`
+
+4) 银行卡与余额（保持既有生成策略）
+- 目标：保证“卡列表 + 总余额”稳定可用，并与 Provider/全局余额对齐。
+- 初始化策略：
+  - 清空已有卡后重新初始化两张卡
+  - 卡号：`6228` 前缀 + 随机数字，组成 19 位
+  - 总余额：在 10,000,000 ~ 30,000,000 区间随机
+  - 两张卡余额分配：60% / 40%
+  - 卡名：主账户 / 备用账户
+  - 余额对齐：
+    - `provider.updateUser(balance: totalBalance)`
+    - `provider.updateGlobalState(balance: totalBalance)`
+
+5) 持仓总额
+- 初始化策略：
+  - 当 `holdingsTotal <= 0` 时，在 5,000,000 ~ 10,000,000 区间随机并写入 Provider
+
+与“数据管理中心”的一致性说明
+- 数据管理中心读取/保存字段包含：
+  - 账号：手机号（来源优先级：user.phone -> PrefsAppBank.phone_number -> globalData.username）
+  - 姓名：fullName（过滤脱敏值 `*xxxx`）
+  - 地区：location/city
+  - 银行卡：cardNumber/cardType/balance
+- 本初始化设计保证上述字段在初始化后都有一致的落点与同步路径。
+
+与“设置项”的一致性说明
+- `BankGlobalData.settings`（主题、语言、通知、生物识别等）不在初始化逻辑中覆盖。
+- 初始化仅写入与展示/编辑强相关的全局字段：username/fullName/location/city/balance。

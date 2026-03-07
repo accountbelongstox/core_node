@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DotApps.d3check</RootNamespace>
+    <AssemblyName>d3check</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="D3CheckCore\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="I18n\i18n_config.json" Link="i18n_config.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.UITheme\DotCore.UITheme.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Infrastructure\DotCore.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.YoloRecord\DotCore.YoloRecord.csproj" />
+    <ProjectReference Include="D3CheckCore\D3CheckCore.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.UIInspect\DotCore.UIInspect.csproj" />
+  </ItemGroup>
+</Project>

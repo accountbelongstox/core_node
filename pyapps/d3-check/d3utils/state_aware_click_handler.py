@@ -9,13 +9,11 @@ import os
 import sys
 from typing import Optional, Tuple
 
-# Add project paths
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
-sys.path.insert(0, project_root)
-
-from providor.common_imports import ColorPrint, ClickHandler
+from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.click_handler_singleton import get_click_handler
 from providor.providor_index import should_stop_assistant
 
 class StateAwareClickHandler:
@@ -30,7 +28,7 @@ class StateAwareClickHandler:
 
     def __init__(self):
         """Initialize state-aware click handler"""
-        self.click_handler = ClickHandler()
+        self.click_handler = get_click_handler()
 
     def _check_state(self, action_name: str) -> bool:
         """
@@ -47,57 +45,63 @@ class StateAwareClickHandler:
             return False
         return True
 
-    def click(self, x: int, y: int, button: str = 'left', duration: float = 0.1) -> bool:
-        """
-        Click at position with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            button: Mouse button ('left' or 'right')
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def click(
+        self,
+        x: int,
+        y: int,
+        button: str = 'left',
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Click at position with state check. Pass return_to_original/direct_click/pause_after_move to inner ClickHandler."""
         if not self._check_state(f"click at ({x}, {y})"):
             return False
+        return self.click_handler.click(
+            x, y, button=button, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
-        return self.click_handler.click(x, y, button, duration)
-
-    def left_click(self, x: int, y: int, duration: float = 0.1) -> bool:
-        """
-        Left click with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def left_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Left click with state check."""
         if not self._check_state(f"left click at ({x}, {y})"):
             return False
+        return self.click_handler.left_click(
+            x, y, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
-        return self.click_handler.left_click(x, y, duration)
-
-    def right_click(self, x: int, y: int, duration: float = 0.1) -> bool:
-        """
-        Right click with state check
-
-        Args:
-            x: X coordinate
-            y: Y coordinate
-            duration: Click duration
-
-        Returns:
-            True if clicked successfully, False if interrupted or failed
-        """
+    def right_click(
+        self,
+        x: int,
+        y: int,
+        duration: float = 0.1,
+        return_to_original: bool = False,
+        direct_click: bool = False,
+        pause_after_move: Optional[float] = None,
+    ) -> bool:
+        """Right click with state check."""
         if not self._check_state(f"right click at ({x}, {y})"):
             return False
-
-        return self.click_handler.right_click(x, y, duration)
+        return self.click_handler.right_click(
+            x, y, duration=duration,
+            return_to_original=return_to_original,
+            direct_click=direct_click,
+            pause_after_move=pause_after_move,
+        )
 
     def double_click(self, x: int, y: int, duration: float = 0.1) -> bool:
         """
@@ -131,7 +135,7 @@ class StateAwareClickHandler:
         if not self._check_state(f"move mouse to ({x}, {y})"):
             return False
 
-        return self.click_handler.move_mouse(x, y, duration)
+        return self.click_handler.move_mouse_to(x, y, duration)
 
     def move_mouse_curve(self, x: int, y: int, curve_type: str = 'bezier', duration: Optional[float] = None) -> bool:
         """

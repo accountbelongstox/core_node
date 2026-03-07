@@ -34,7 +34,9 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 
 from pycore import THREAD_BUS, ColorPrint
-from pycore.pyutils.native_ui.step4_startup.startup_window import StartupWindow, ColorPrintCapture
+from pycore.pyutils.native_ui.step4_startup.startup_window import ColorPrintCapture
+from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 
 # Import PySide6 components
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType
@@ -91,11 +93,17 @@ class TickTimer(QObject):
     def _run(self):
         """Tick timer thread main loop."""
         while self._running:
-            # Emit tick signal
-            self.tick.emit()
-
-            # Sleep
-            time.sleep(self.interval)
+            try:
+                self.tick.emit()
+            except RuntimeError as e:
+                if "Signal source has been deleted" in str(e) or "wrapped C/C++ object" in str(e):
+                    break
+                raise
+            # Sleep in small steps so we can exit promptly when _running becomes False
+            for _ in range(int(self.interval / 0.1) or 1):
+                if not self._running:
+                    return
+                time.sleep(0.1)
 
 
 class PySide6Framework(QObject):
@@ -152,7 +160,8 @@ class PySide6Framework(QObject):
     def __init__(
         self,
         config: Optional[PySide6UIConfig] = None,
-        startup_config: Optional[StartupWindowConfig] = None
+        startup_config: Optional[StartupWindowConfig] = None,
+        existing_startup_thread: Optional[TkinterStartupThread] = None
     ):
         """
         Initialize framework.
@@ -160,6 +169,7 @@ class PySide6Framework(QObject):
         Args:
             config: Main UI configuration
             startup_config: Startup window configuration
+            existing_startup_thread: If set, use this tk bootstrap window (already shown by ui_thread); do not create another
         """
         super().__init__()
 
@@ -175,8 +185,8 @@ class PySide6Framework(QObject):
         # Qt Application
         self.qt_app: Optional[QApplication] = None
 
-        # Components
-        self.startup_window: Optional[StartupWindow] = None
+        # Components (existing_startup_thread = tk shown first in ui_thread before PySide6 load)
+        self.startup_thread: Optional[TkinterStartupThread] = existing_startup_thread
         self.main_window: Optional[PySide6MainWindow] = None
         self.title_bar: Optional[PySide6TitleBar] = None
         self.webview: Optional[PySide6WebView] = None
@@ -197,11 +207,11 @@ class PySide6Framework(QObject):
         def handle_packages_loaded(event_data):
             """Handle system.third_party_packages_loaded event"""
             # Set signal to mark initialization complete (thread-safe via THREAD_BUS)
-            # StartupWindow will check this signal when user tries to close
+            # Mark initialization complete (legacy signal; tk window uses THREAD_BUS for close)
             THREAD_BUS.signal('startup_window.initialization_complete', True)
             ColorPrint.green("[PySide6Framework] Set startup_window.initialization_complete signal")
 
-            if self.startup_config.auto_close and self.startup_window:
+            if self.startup_config.auto_close and self.startup_thread:
                 ColorPrint.blue("[PySide6Framework] Third-party packages loaded, auto-closing startup window...")
                 self.close_startup()
                 ColorPrint.green("[PySide6Framework] Startup window auto-closed")
@@ -212,27 +222,34 @@ class PySide6Framework(QObject):
         THREAD_BUS.register_event_handler('system.third_party_packages_loaded', handle_packages_loaded, priority=50)
 
     def show_startup(self):
-        """Show startup window (tkinter) for dependency installation."""
+        """Show startup window (tkinter) for dependency installation. Uses TkinterStartupThread (single tk build)."""
         if not self.startup_config.show_startup:
             return
 
-        if not self.startup_window:
-            self.startup_window = StartupWindow(
+        if not self.startup_thread:
+            self.startup_thread = TkinterStartupThread(
                 app_name=self.startup_config.app_name,
                 width=self.startup_config.width,
                 height=self.startup_config.height,
                 icon_path=self.startup_config.icon_path,
-                on_complete=self.startup_config.on_complete,
-                daemon=self.startup_config.daemon
+                logo_path=None,
+                enable_language_selector=True,
+                enable_tray=False
             )
+            self.startup_thread.start()
+            ColorPrint.register_callback(self.startup_thread._colorprint_callback)
 
-        self.startup_window.show()
+        # No .show() - thread already running
 
     def close_startup(self):
-        """Close startup window."""
-        if self.startup_window:
-            self.startup_window.close()
-            self.startup_window = None
+        """Close startup window via THREAD_BUS (TkinterStartupThread listens)."""
+        if self.startup_thread:
+            try:
+                ColorPrint.unregister_callback(self.startup_thread._colorprint_callback)
+            except Exception:
+                pass
+            THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'framework'}, async_mode=False)
+            self.startup_thread = None
 
     def log_startup(self, message: str, level: str = "info"):
         """
@@ -242,8 +259,8 @@ class PySide6Framework(QObject):
             message: Log message
             level: Log level (info, success, warning, error, debug)
         """
-        if self.startup_window:
-            self.startup_window.log(message, level)
+        if self.startup_thread:
+            self.startup_thread.log(message, level)
 
     # ========== Main Application ==========
 
@@ -263,18 +280,23 @@ class PySide6Framework(QObject):
             ColorPrint.yellow("[PySide6Framework] Already started, skipping")
             return
 
-        # Show startup window if configured (for debug/log output)
-        if self.startup_config.show_startup and not self.startup_window:
-            ColorPrint.blue("[PySide6Framework] Step 0: Showing tk startup/debug window...")
+        # Step 0: Tk bootstrap window first (no PySide6 needed). Use existing if ui_thread already showed it.
+        if self.startup_thread:
+            ColorPrint.green("[PySide6Framework] Using existing tk bootstrap window (shown before PySide6 load)")
+        elif self.startup_config.show_startup:
+            ColorPrint.blue("[PySide6Framework] Step 0: Showing tk bootstrap/debug window...")
             self.show_startup()
-            ColorPrint.green("[PySide6Framework] Tk startup window is now visible (will capture ColorPrint output)")
+            # Wait for tk window to be visible before creating Qt/main window (correct order: tk first, then big window)
+            if THREAD_BUS.wait_signal("TkinterStartup_ready", timeout=10.0):
+                ColorPrint.green("[PySide6Framework] Tk bootstrap window ready (will capture ColorPrint output)")
+            else:
+                ColorPrint.yellow("[PySide6Framework] Tk bootstrap window ready timeout, continuing...")
 
         # Note: Startup window will auto-close when 'system.third_party_packages_loaded' event is received
-        # This event is triggered by launcher after all services start (i.e., when next step begins)
         ColorPrint.blue("[PySide6Framework] Step 1: Startup window will auto-close after third-party packages loaded")
         ColorPrint.blue(f"[PySide6Framework] auto_close={self.startup_config.auto_close}")
 
-        # Create Qt application if not exists
+        # Step 2: Create Qt application and main window (after tk bootstrap is visible)
         ColorPrint.blue("[PySide6Framework] Step 2: Creating Qt application...")
 
         # CRITICAL: Configure QtWebEngine BEFORE QApplication creation
@@ -367,28 +389,21 @@ class PySide6Framework(QObject):
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
 
-            # Install signal handler for Ctrl+C (SIGINT)
-            # This allows KeyboardInterrupt to properly close the application
-            def signal_handler(signum, frame):
-                """Handle Ctrl+C - trigger app.close event and quit Qt"""
-                ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
-                # Trigger app.close event for cleanup
-                THREAD_BUS.trigger_event('app.close', {
-                    'source': 'signal_interrupt',
-                    'signal': signum
-                }, async_mode=False)
-                # Quit Qt application
-                self.qt_app.quit()
-
-            signal.signal(signal.SIGINT, signal_handler)
-
-            # Use a timer to allow Python signal handlers to run periodically
-            # Qt event loop needs to yield control for Python signal handling
-            timer = QTimer()
-            timer.timeout.connect(lambda: None)  # Empty slot to process signals
-            timer.start(500)  # Check every 500ms
-
-            ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
+            # Install signal handler for Ctrl+C (SIGINT) only in main thread
+            # signal.signal() raises ValueError if called from a non-main thread (e.g. PySide6UIThread)
+            if threading.current_thread() is threading.main_thread():
+                def signal_handler(signum, frame):
+                    """Handle Ctrl+C - trigger app.close event and quit Qt"""
+                    ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
+                    THREAD_BUS.trigger_event('app.close', {
+                        'source': 'signal_interrupt',
+                        'signal': signum
+                    }, async_mode=False)
+                    self.qt_app.quit()
+                signal.signal(signal.SIGINT, signal_handler)
+                ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
+            else:
+                ColorPrint.blue("[PySide6Framework] Running in worker thread, SIGINT handled by main process")
 
             sys.exit(self.qt_app.exec())
 

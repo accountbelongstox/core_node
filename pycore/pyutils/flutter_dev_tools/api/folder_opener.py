@@ -1,78 +1,33 @@
-"""Folder opener for different operating systems"""
+"""Folder opener for different operating systems. Delegates to pycore.system_launcher for open."""
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-import sys
 from pathlib import Path
-from typing import Dict, Any
-import subprocess
+from typing import Dict, Any, Union
+
+from pycore.pyutils.system_launcher import open_dir, open_file_with_notepad as _open_file_with_notepad
 
 
 def open_folder(folder_path: Path) -> Dict[str, Any]:
     """
-    Open folder in system file explorer.
-
-    Args:
-        folder_path: Path to folder to open
-
-    Returns:
-        Result dictionary
+    Open folder in system file explorer (explorer / xdg-open / open). Uses pycore.system_launcher.open_path.
     """
     if not folder_path.exists() or not folder_path.is_dir():
-        return {
-            "success": False,
-            "error": "Folder not found or not a directory"
-        }
+        return {"success": False, "error": "Folder not found or not a directory"}
+    if open_dir(folder_path):
+        return {"success": True, "message": f"Opened folder: {folder_path.name}"}
+    return {"success": False, "error": "Failed to open folder"}
 
-    try:
-        if sys.platform == "win32":
-            # Windows: use explorer
-            subprocess.Popen(["explorer", str(folder_path)])
-            return {
-                "success": True,
-                "message": f"Opened folder in Explorer: {folder_path.name}"
-            }
 
-        elif sys.platform == "darwin":
-            # macOS: use open
-            subprocess.Popen(["open", str(folder_path)])
-            return {
-                "success": True,
-                "message": f"Opened folder in Finder: {folder_path.name}"
-            }
+def open_file_with_notepad(file_path: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Open a file with system Notepad (Windows) or default text editor (macOS/Linux).
+    Delegates to pycore.pyutils.system_launcher.open_file_with_notepad.
+    Accepts str or Path.
 
-        elif sys.platform.startswith("linux"):
-            # Linux: try xdg-open
-            try:
-                subprocess.Popen(["xdg-open", str(folder_path)])
-                return {
-                    "success": True,
-                    "message": f"Opened folder: {folder_path.name}"
-                }
-            except FileNotFoundError:
-                # Fallback to nautilus or other file managers
-                for cmd in ["nautilus", "dolphin", "thunar", "pcmanfm"]:
-                    try:
-                        subprocess.Popen([cmd, str(folder_path)])
-                        return {
-                            "success": True,
-                            "message": f"Opened folder with {cmd}: {folder_path.name}"
-                        }
-                    except FileNotFoundError:
-                        continue
-
-                return {
-                    "success": False,
-                    "error": "No suitable file manager found on Linux"
-                }
-
-        else:
-            return {
-                "success": False,
-                "error": f"Unsupported platform: {sys.platform}"
-            }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to open folder: {str(e)}"
-        }
+    Returns:
+        Result dictionary with success/error.
+    """
+    ok = _open_file_with_notepad(file_path)
+    if ok:
+        p = Path(file_path).resolve()
+        return {"success": True, "message": f"Opened: {p.name}"}
+    return {"success": False, "error": "File not found or could not open"}

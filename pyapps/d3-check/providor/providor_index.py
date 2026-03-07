@@ -1,65 +1,48 @@
 import json
 import os
+import queue
 import sys
+import threading
 from datetime import datetime, time as dt_time
 from typing import Optional, List, Tuple, Dict, Any
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+# Config worker: single thread owns CONFIG read/write (main thread + D3 extension thread use queue)
+CONFIG_QUEUE = queue.Queue()
+# Save requests: actual file write runs in dedicated thread so config worker and main thread never block on I/O
+SAVE_QUEUE = queue.Queue()
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageDraw, ImageFont
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
-# Import from common_imports (unified public library imports)
-from providor.common_imports import ColorPrint
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
-# Root directory (../../ from current file)
-ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
-
-# Template directory
-TEMPLATE_DIR = os.path.join(ROOT_DIR, "images")
-
-# Temporary directory for screenshots and processing (pytools tmp)
-TMP_DIR = Path.home() / ".core_node" / "pytools" / "tmp"
-
-# Scaled templates cache directory
-SCALED_TEMPLATES_CACHE_DIR = TMP_DIR / "scaled_templates"
-
-# ============================================================================
-# DEBUG MODE - Controls temporary file saving for debugging
-# ============================================================================
-# When DEBUG = True:
-#   - All screenshots (fullscreen, game window, UI region) will be saved as temporary files
-#   - Useful for debugging and verifying data flow
-# When DEBUG = False:
-#   - Only necessary files are saved (template matching input, final annotated results)
-#   - All intermediate data is passed in memory (PIL Image objects)
-DEBUG = True
-
-# ============================================================================
-# KANAI CUBE BUTTON OFFSET CONSTANTS
-# ============================================================================
-# Next page button position relative to material button
-# The next page button is located at the right edge of the material button
-# This ratio defines how far right from the button's right edge (0.0 = left edge, 1.0 = right edge)
-KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO = 0.20  # 20% from right edge (adjustable)
-
-# ============================================================================
-# STANDARD RESOLUTION - Reference resolution for template matching
-# ============================================================================
-# D3 Standard Resolution
-STANDARD_RESOLUTION_WIDTH = 1826
-STANDARD_RESOLUTION_HEIGHT = 1301
-
-# D4 Standard Resolution
-D4_STANDARD_RESOLUTION_WIDTH = 1763
-D4_STANDARD_RESOLUTION_HEIGHT = 1126
-
-# ============================================================================
-# GLOBAL RESOLUTION SCALE - Moved to d3utils.share.game_interface_data
-# ============================================================================
-# These values are now managed in game_interface_data.py to avoid circular imports
-
+# Direct pycore imports (no secondary encapsulation)
+from pycore.pyfoundations.color_print import ColorPrint
+from providor.constants.common import (
+    ROOT_DIR,
+    TMP_DIR,
+    TEMPLATE_DIR,
+    SCALED_TEMPLATES_CACHE_DIR,
+    DEBUG,
+)
+from providor.constants.d3 import (
+    D3_KANAI_NEXT_PAGE_BUTTON_RIGHT_RATIO,
+    D3_STANDARD_RESOLUTION_WIDTH,
+    D3_STANDARD_RESOLUTION_HEIGHT,
+    D3_BATTLENET_STANDARD_RESOLUTION_WIDTH,
+    D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT,
+    START_GAME_AUTOMATION_IDS,
+    D3_TAB_AUTOMATION_IDS,
+    D3_START_GAME_BUTTON_TEMPLATE_NAME,
+    D3_GAME_TOOL_TEMPLATE_NAME,
+    D3_BOUNTY_PROGRESS_TEMPLATE_NAME,
+    D3_DISCONNECTED_TEMPLATE_NAME,
+    D3_CONNECTING_TEMPLATE_NAME,
+    D3_CONNECTING_ALT_TEMPLATE_NAME,
+)
+from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
 
 # ============================================================================
 # ASSISTANT EXECUTION STATE - Controls auto_use_interface_function execution
@@ -70,9 +53,9 @@ D4_STANDARD_RESOLUTION_HEIGHT = 1126
 #   should_stop: True if execution should stop, False otherwise
 #   enabled: True if execution is allowed, False if disabled
 ASSISTANT_EXECUTION_STATE = {
-    "is_running": False,   # 程序运行中
-    "should_stop": False,  # 请求中断
-    "enabled": True        # 允许启动
+    "is_running": False,   # App running
+    "should_stop": False,  # Request stop
+    "enabled": True        # Allow start
 }
 
 def get_assistant_state():
@@ -119,7 +102,7 @@ D3_TEMPLATE_CONFIGS = {
         "threshold": 0.80,  # SIFT matching threshold for bag opened indicator
         "category": "bag",
         "use_alpha": False,
-        "match_method": "ORB",
+        "match_method": "SIFT",
         "note": "Bag opened indicator - detects if bag is open"
     },
     "bag_left": {
@@ -208,10 +191,10 @@ D3_TEMPLATE_CONFIGS = {
         "threshold": 0.80,  # SIFT matching threshold for Kanai Cube indicator
         "category": "interface_indicator",
         "use_alpha": False,
-        "match_method": "ORB",
+        "match_method": "SIFT",
         "note": "Detects if Kanai's Cube left panel is opened - indicates kanai_cube interface is active"
     },
-    # DEPRECATED: kanai_right_panel_toggle_icon - Now using coordinate system (514, 997) in game_interface_data.py
+    # DEPRECATED: kanai_right_panel_toggle_icon - Now using (366, 613) in game_interface_data.py; was (514, 997) at 1826x1301
     # Use get_scaled_kanai_right_panel_toggle() instead of image detection
     "kanai_right_panel_toggle_icon": {
         "path": os.path.join(TEMPLATE_DIR, "kanai_right_panel_toggle_icon.png"),
@@ -227,6 +210,62 @@ D3_TEMPLATE_CONFIGS = {
         "category": "icon",
         "use_alpha": False,
         "match_method": "ORB"  # Use SIFT for accurate icon detection
+    },
+
+    # D3 in-game "Start Game" button (after Battle.net Play + D3 resize); poll then SIFT match, click, wait 2s then start ROSBOT
+    D3_START_GAME_BUTTON_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_START_GAME_BUTTON_TEMPLATE_NAME + ".png"),
+        "threshold": 0.75,
+        "category": "button",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Start Game button inside D3 client; match every 2s after resize, click then wait 2s before starting ROSBOT"
+    },
+
+    # D3 in-game "Game tool" indicator (after Start Game); wait every 2s until found, then send M key and click (602,94) scaled
+    D3_GAME_TOOL_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_GAME_TOOL_TEMPLATE_NAME + ".png"),
+        "threshold": 0.75,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Game tool UI; after found send M key to D3 window then click D3_GAME_TOOL_CLICK_STANDARD (602,94) scaled by base 1300x800"
+    },
+
+    # D3 in-game bounty progress UI; Fragment2: after M twice, two screenshots; both missing = timeout.
+    D3_BOUNTY_PROGRESS_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_BOUNTY_PROGRESS_TEMPLATE_NAME + ".png"),
+        "threshold": 0.75,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "Bounty progress UI (d3_bounty_progress.png); Fragment2 checks after press M twice; if both of two captures lack this, timeout"
+    },
+
+    # D3 status: disconnected overlay; SIFT match in D3 window; found => d3_disconnected (d3_status_provider)
+    D3_DISCONNECTED_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_DISCONNECTED_TEMPLATE_NAME + ".png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "D3 disconnected overlay; SIFT match in D3 window during refresh_d3_status; found => set d3_disconnected for status UI"
+    },
+    D3_CONNECTING_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_CONNECTING_TEMPLATE_NAME + ".png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "[C3C4] one-step state: continue wait (C3C4w)"
+    },
+    D3_CONNECTING_ALT_TEMPLATE_NAME: {
+        "path": os.path.join(TEMPLATE_DIR, D3_CONNECTING_ALT_TEMPLATE_NAME + ".png"),
+        "threshold": 0.70,
+        "category": "interface_indicator",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "[C3C4] one-step state: continue wait (C3C4w)"
     },
 
     # Item quality templates
@@ -485,6 +524,16 @@ CACHE_DIR = os.path.join(CURRENT_USER_DATA_PATH, ".cache")
 
 # Global configuration object
 CONFIG = {}
+# Single control for first load: avoid dual "if not CONFIG" in load_config vs initialize_config
+_config_initialized = False
+
+
+def get_config_section(key: str, default: Optional[dict] = None) -> dict:
+    """Return CONFIG[key] only if it is a dict; otherwise return default or {}. Avoids 'str' object has no attribute 'get' when config value is wrong type."""
+    if default is None:
+        default = {}
+    val = CONFIG.get(key, default)
+    return val if isinstance(val, dict) else default
 
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
@@ -513,12 +562,13 @@ VALID_CLIENT_TYPES = [
     CLIENT_TYPE_D4_GAME
 ]
 
-# Game tab auto_id constants
-DIABLO_III_TAB_AUTO_ID = "game-nav-btn-D3"
+# Game tab auto_id (single source: app_constants.D3_TAB_AUTOMATION_IDS)
+DIABLO_III_TAB_AUTO_ID = D3_TAB_AUTOMATION_IDS[1]  # "game-nav-btn-D3"
 
 # Battle.net Launcher window title constants
 BATTLE_NET_WINDOW_TITLES = [
     "Battle.net",                    # EN standard
+    "Battle.net Login",              # EN login window
     "Battle.net Launcher",           # EN with Launcher suffix
     "Blizzard Launcher",             # Alternative EN name
     "战网",                          # CN short form
@@ -693,47 +743,121 @@ def sync_config():
             else:
                 ColorPrint.debug("[DEBUG] User config file is up to date")
                 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error syncing config: {e}")
         ColorPrint.red(f"Error syncing config: {e}")
 
 def fix_config_with_template():
     """Fix current CONFIG with template before saving"""
     try:
-        ColorPrint.debug("[DEBUG] Fixing CONFIG with template...")
-        
         # Load template config
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             template_config = json.load(f)
-        
         # Merge missing keys from template (template as source, CONFIG as target)
         # Only add missing keys, preserve existing user values
         modified = merge_template_to_config(template_config, CONFIG)
-        
         if modified:
             ColorPrint.debug("[DEBUG] CONFIG fixed with missing keys from template")
-        else:
-            ColorPrint.debug("[DEBUG] CONFIG is already complete")
-            
         return modified
-        
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
+
+
+def _config_get_by_path(key_path: str, default: Any = None) -> Any:
+    """Get CONFIG value by dot path. Only called from config worker."""
+    keys = key_path.split(".")
+    value = CONFIG
+    for key in keys:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            return default
+    return value
+
+
+def _config_set_by_path(key_path: str, value: Any) -> None:
+    """Set CONFIG value by dot path. Only called from config worker."""
+    keys = key_path.split(".")
+    config_ref = CONFIG
+    for key in keys[:-1]:
+        if key not in config_ref:
+            config_ref[key] = {}
+        config_ref = config_ref[key]
+    config_ref[keys[-1]] = value
+
+
+def _save_worker() -> None:
+    """Dedicated thread for writing CONFIG to file. Prevents main thread and config worker from blocking on I/O."""
+    while True:
+        SAVE_QUEUE.get()
+        while not SAVE_QUEUE.empty():
+            try:
+                SAVE_QUEUE.get_nowait()
+            except queue.Empty:
+                break
+        save_config()
+
+
+def _config_worker() -> None:
+    """Single thread that owns CONFIG read/write; get/set via queue. File save is delegated to save worker."""
+    while True:
+        item = CONFIG_QUEUE.get()
+        if item is None:
+            break
+        op, key_path, val, result_q = item
+        if op == "get":
+            result_q.put(_config_get_by_path(key_path, val))
+        elif op == "set":
+            _config_set_by_path(key_path, val)
+            if result_q is not None:
+                result_q.put(True)
+            try:
+                SAVE_QUEUE.put_nowait(None)
+            except queue.Full:
+                pass
+
+
+def set_config_value_async(key_path: str, value: Any) -> None:
+    """Queue config update and save without blocking. Use from UI so main thread never waits on config worker or file I/O."""
+    CONFIG_QUEUE.put(("set", key_path, value, None))
+
+
+def queue_config_save() -> None:
+    """Request one save in background. Use from UI after direct CONFIG update so main thread never blocks on file I/O."""
+    try:
+        SAVE_QUEUE.put_nowait(None)
+    except queue.Full:
+        pass
+
+
+def get_config_value_safe(key_path: str, default: Any = None) -> Any:
+    """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
+    result_q: queue.Queue = queue.Queue()
+    CONFIG_QUEUE.put(("get", key_path, default, result_q))
+    return result_q.get()
+
+
+def set_config_value_safe(key_path: str, value: Any) -> bool:
+    """Thread-safe set CONFIG value by dot path and save. Blocks until in-memory update is done. Prefer set_config_value_async from UI."""
+    result_q: queue.Queue = queue.Queue()
+    CONFIG_QUEUE.put(("set", key_path, value, result_q))
+    return result_q.get()
+
 
 def save_config():
     """Save current CONFIG to user config file after fixing with template"""
     try:
-        ColorPrint.debug("[DEBUG] Saving current CONFIG to file...")
+        ColorPrint.gray("[DEBUG] Saving current CONFIG to file...")
 
         # Create user data directory if it doesn't exist
         if not os.path.exists(CURRENT_USER_DATA_PATH):
             os.makedirs(CURRENT_USER_DATA_PATH)
-            ColorPrint.debug(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
+            ColorPrint.gray(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
 
         # Clean up incorrect skill_configs at root level (legacy bug fix)
         if "skill_configs" in CONFIG and "macro_configs" in CONFIG:
-            ColorPrint.debug("[DEBUG] Removing incorrect root-level skill_configs")
+            ColorPrint.gray("[DEBUG] Removing incorrect root-level skill_configs")
             del CONFIG["skill_configs"]
 
         # Fix CONFIG with template before saving
@@ -743,70 +867,80 @@ def save_config():
         with open(CONFIG_USER_PATH, 'w', encoding='utf-8') as f:
             json.dump(CONFIG, f, indent=2, ensure_ascii=False)
 
-        ColorPrint.debug(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
+        ColorPrint.gray(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
 
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
         ColorPrint.red(f"Error saving config: {e}")
 
+def _do_initial_load():
+    """Single implementation for first-time config load: sync template then load file. Called by load_config and initialize_config."""
+    global CONFIG, _config_initialized
+    if _config_initialized:
+        return
+    ColorPrint.debug("[DEBUG] Initializing configuration (single entry)...")
+    sync_config()
+    try:
+        ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
+        with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+            CONFIG.update(json.load(f))
+        fix_config_with_template()
+        ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
+        ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
+        _config_initialized = True
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
+        ColorPrint.red(f"Error loading config: {e}")
+        CONFIG = {}
+
+
 def initialize_config():
-    """Initialize configuration with one-time fix on startup"""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Initializing configuration...")
-        
-        # Force sync on first load to ensure template fixes are applied
-        sync_config()
-        
-        try:
-            # Load from user config path
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
-            with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
-                CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
+    """Initialize configuration with one-time fix on startup. Single entry: delegates to _do_initial_load."""
+    _do_initial_load()
+
 
 def load_config(force_sync: bool = False):
-    """Load configuration from JSON file if CONFIG is empty."""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Starting config load...")
-        
-        # Only sync if explicitly requested or if user config doesn't exist
-        if force_sync or not os.path.exists(CONFIG_USER_PATH):
-            sync_config()
-        
+    """Load configuration: first load via _do_initial_load(); later force_sync only runs sync_config and reload from file."""
+    global CONFIG, _config_initialized
+    if not _config_initialized:
+        _do_initial_load()
+        return
+    if force_sync:
+        sync_config()
         try:
-            # Always load from user config path
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+                CONFIG.clear()
                 CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except Exception as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
-    else:
-        ColorPrint.debug("[DEBUG] Config file already loaded, skipping reload")
+            ColorPrint.debug(f"[DEBUG] Config reloaded after sync: {CONFIG_USER_PATH}")
+        except (OSError, json.JSONDecodeError) as e:
+            ColorPrint.debug(f"[DEBUG] Failed to reload config: {e}")
+
+# Fixed file paths under Documents (not configurable; log file vs history file are two distinct files)
+LOGS_FILE_RELATIVE = "RoS-BoT/Logs/logs.txt"
+HISTORY_FILE_RELATIVE = "RoS-BoT/Logs/history.txt"
+
 
 def get_dynamic_paths():
-    """Get paths that depend on DOCUMENTS_PATH"""
+    """Get paths that depend on DOCUMENTS_PATH."""
+    paths = get_config_section("paths")
     return {
-        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_relative", "RoS-BoT")),
-        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_logs_relative", "RoS-BoT/Logs")),
-        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("d3check_temp_relative", ".d3check")),
-        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
-        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("logs_file_relative", "RoS-BoT/Logs/logs.txt")),
-        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("history_file_relative", "RoS-BoT/Logs/history.txt"))
+        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_relative", "RoS-BoT")),
+        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_logs_relative", "RoS-BoT/Logs")),
+        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, paths.get("d3check_temp_relative", ".d3check")),
+        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
+        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, LOGS_FILE_RELATIVE),
+        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, HISTORY_FILE_RELATIVE),
     }
 
 # Load configuration on import
 load_config()
+
+# Start config worker (single thread owns CONFIG; get/set via CONFIG_QUEUE)
+_config_worker_thread = threading.Thread(target=_config_worker, daemon=True)
+_config_worker_thread.start()
+# Start save worker (file I/O off config worker so main thread never blocks on save)
+_save_worker_thread = threading.Thread(target=_save_worker, daemon=True)
+_save_worker_thread.start()
 
 # Export dynamic paths
 _dynamic_paths = get_dynamic_paths()
@@ -819,28 +953,40 @@ HISTORY_FILE_PATH = _dynamic_paths['HISTORY_FILE_PATH']
 
 # Static values available through CONFIG object
 
-# Play button automation IDs
-PLAY_BUTTON_AUTO_ID = "play-btn"
-PLAY_BUTTON_MAIN_AUTO_ID = "play-btn-main"
-
-# Play button automation IDs array for iteration
-PLAY_BUTTON_AUTOMATION_IDS = [
-    "play-btn",
-    "play-btn-main",
-    "play-button",
-    "playButton",
-    "start-game-btn",
-    "launch-game-btn",
-    "game-launch-btn"
-]
+# Play button automation IDs (single source: app_constants.START_GAME_AUTOMATION_IDS)
+PLAY_BUTTON_AUTOMATION_IDS = list(START_GAME_AUTOMATION_IDS)
+PLAY_BUTTON_MAIN_AUTO_ID = START_GAME_AUTOMATION_IDS[0]  # "play-btn-main"
+PLAY_BUTTON_AUTO_ID = START_GAME_AUTOMATION_IDS[1]        # "play-btn"
 
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
+# D3 small map: copy from images/logo.png (or login_try dir) to images/battlenet/d3_small_map.png when missing
 BATTLENET_TEMPLATE_CONFIGS = {
-    # Placeholder for Battle.net-specific templates
-    # Will contain templates specific to the Battle.net client UI
-    # Add templates here as needed for Battle.net screenshot analysis
+    "battlenet_d3_small_map": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "d3_small_map.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "SIFT",
+        "note": "D3 small map icon on Battle.net - SIFT feature match; found means login success"
+    },
+    "battlenet_play_button_zh": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_zh.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "TM_CCOEFF_NORMED",
+        "note": "Play button (Chinese locale) on Battle.net - from ScreenShot_2026-01-29_231157_269.png"
+    },
+    "battlenet_play_button_en": {
+        "path": os.path.join(TEMPLATE_DIR, "battlenet", "play_button_en.png"),
+        "threshold": 0.75,
+        "category": "battlenet_login",
+        "use_alpha": False,
+        "match_method": "TM_CCOEFF_NORMED",
+        "note": "Play button (English) on Battle.net - from ScreenShot_2026-01-29_231236_887.png"
+    },
 }
 
 # ============================================================================

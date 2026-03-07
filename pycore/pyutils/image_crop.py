@@ -11,15 +11,15 @@ from typing import Tuple, Union, Optional, Dict
 from pathlib import Path
 from collections import OrderedDict
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL, get_third_package_cv2
+from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
 numpy = get_third_package_numpy()
-PIL = get_third_package_PIL()
+np = numpy
 cv2 = get_third_package_cv2()
-PILImage = PIL.Image
+PILImage = get_third_package_PIL_Image()
 
 # Import ColorPrint for logging
-from pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.color_print import ColorPrint
 
 
 # Constants
@@ -639,7 +639,7 @@ class ImageCrop:
 
 # Example usage
 if __name__ == "__main__":
-    from pyfoundations.color_print import ColorPrint
+    from pycore.pyfoundations.color_print import ColorPrint
 
     # Example: Load and crop image
     try:

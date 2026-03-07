@@ -1356,6 +1356,33 @@ function Invoke-PostInstallCallbacks {
                         Write-Host "$LogPrefix Context menu callback failed" -ForegroundColor Red
                     }
                 }
+                "command" {
+                    $command = if ($callback.ContainsKey("Command")) { $callback.Command } else { "" }
+                    $workingDirectory = if ($callback.ContainsKey("WorkingDirectory")) { $callback.WorkingDirectory } else { $null }
+                    $description = if ($callback.ContainsKey("Description")) { $callback.Description } else { "Run post-install command" }
+                    if (-not $command) {
+                        Write-Host "$LogPrefix Error: Command callback missing Command" -ForegroundColor Red
+                        continue
+                    }
+                    Write-Host "$LogPrefix $description" -ForegroundColor Cyan
+                    try {
+                        if ($workingDirectory -and (Test-Path $workingDirectory)) {
+                            Push-Location $workingDirectory
+                        }
+                        try {
+                            Invoke-Expression -Command $command
+                            Write-Host "$LogPrefix Command completed" -ForegroundColor Green
+                        }
+                        finally {
+                            if ($workingDirectory -and (Test-Path $workingDirectory)) {
+                                Pop-Location
+                            }
+                        }
+                    }
+                    catch {
+                        Write-Host "$LogPrefix Command failed: $($_.Exception.Message)" -ForegroundColor Red
+                    }
+                }
                 "pnpm_config_separator" {
                     Write-Host "$LogPrefix Processing pnpm config separator callback for $PackageName" -ForegroundColor Cyan
                     $description = if ($callback.ContainsKey("Description")) { $callback.Description } else { "Create .pnpmrc to separate pnpm from npm configuration" }

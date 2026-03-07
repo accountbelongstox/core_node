@@ -360,15 +360,27 @@ robust_remove_directory() {
             fi
         fi
         
-        # If still fails, try to change permissions and retry
+        # If still fails, try to change permissions and retry (only if path is safe for recursive chown/chmod)
         log_warning "Removal failed, attempting to fix permissions..."
-        if command -v sudo >/dev/null 2>&1; then
-            sudo chmod -R 755 "$dir_path" 2>/dev/null
-            sudo chown -R "$(whoami)" "$dir_path" 2>/dev/null
-        else
-            chmod -R 755 "$dir_path" 2>/dev/null
+        log_info "[SAFE_PATH] dir_path=$dir_path"
+        _safe_for_recursive_chown=false
+        if [ -n "$dir_path" ] && [[ "$dir_path" == /* ]]; then
+            case "$dir_path" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+                *) _safe_for_recursive_chown=true ;;
+            esac
         fi
-        
+        if [ "$_safe_for_recursive_chown" = true ]; then
+            if command -v sudo >/dev/null 2>&1; then
+                sudo chmod -R 755 "$dir_path" 2>/dev/null
+                sudo chown -R "$(whoami)" "$dir_path" 2>/dev/null
+            else
+                chmod -R 755 "$dir_path" 2>/dev/null
+            fi
+        else
+            log_warning "Refusing chmod/chown on system or invalid path: $dir_path"
+        fi
+
         sleep 2
         attempt=$((attempt + 1))
     done

@@ -33,6 +33,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source gvar_common.sh (trust-based coding)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+# Mount library: single fstab entry per UUID, real-time remount
+source "$PARENT_DIR_LEVEL_2/common/mount_common.sh"
+MOUNT_LOG_PREFIX="[2]"
 
 # Default mount base directory
 DEFAULT_MOUNT_BASE="/mnt"
@@ -258,15 +261,8 @@ update_fstab() {
     local mount_point="$2"
     local fstype="$3"
     local options="$4"
-
-    $USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
-
-    $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
-
-    local fstab_entry="UUID=$uuid $mount_point $fstype $options 0 2"
-    echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-
-    log "Added fstab entry: $fstab_entry"
+    mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$fstype" "${options:-defaults}"
+    log "Added fstab entry: UUID=$uuid $mount_point $fstype ${options:-defaults} 0 2"
 }
 
 mount_disk() {
@@ -275,6 +271,7 @@ mount_disk() {
     local fstype="$3"
 
     if [ ! -d "$mount_point" ]; then
+        echo "[2] $USE_SUDO mkdir -p $mount_point"
         $USE_SUDO mkdir -p "$mount_point"
         log "Created mount point: $mount_point"
     fi
@@ -283,7 +280,9 @@ mount_disk() {
     if [ "$fstype" = "ntfs" ]; then
         if ! command -v ntfs-3g >/dev/null 2>&1; then
             warning "ntfs-3g not installed, installing..."
+            echo "[2] $USE_SUDO apt-get update -qq"
             $USE_SUDO apt-get update -qq
+            echo "[2] $USE_SUDO apt-get install -y ntfs-3g"
             $USE_SUDO apt-get install -y ntfs-3g
         fi
         mount_options="defaults,nofail,x-systemd.device-timeout=10,uid=1000,gid=1000,umask=0022"
@@ -295,8 +294,10 @@ mount_disk() {
 
     update_fstab "$uuid" "$mount_point" "$fstype" "$mount_options"
 
+    echo "[2] $USE_SUDO mount $mount_point"
     if $USE_SUDO mount "$mount_point" 2>/dev/null; then
         log "Successfully mounted $device to $mount_point"
+        echo "[2] $USE_SUDO chmod 755 $mount_point"
         $USE_SUDO chmod 755 "$mount_point"
         return 0
     else
@@ -365,7 +366,9 @@ handle_ntfs_disk() {
 
         # Save to global variables
         if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
             echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+            echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_DEVICE"
             echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
         fi
 
@@ -428,45 +431,63 @@ handle_ntfs_disk() {
 
     # Create mount point directory
     if [ ! -d "$mount_point" ]; then
+        echo "[2] $USE_SUDO mkdir -p $mount_point"
         $USE_SUDO mkdir -p "$mount_point"
         log "Created mount point: $mount_point"
     fi
 
-    # Update fstab
+    # Update fstab (single entry per UUID, no duplicates)
     local mount_options="defaults,nofail,x-systemd.device-timeout=10,uid=1000,gid=1000,umask=0022"
+    mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$fstype" "$mount_options"
+    log "Added fstab entry: UUID=$uuid $mount_point $fstype $mount_options 0 2"
 
-    $USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
-    $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
-
-    local fstab_entry="UUID=$uuid $mount_point $fstype $mount_options 0 2"
-    echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-
-    log "Added fstab entry: $fstab_entry"
-
-    # Save to global variables
-    if [ -n "$GLOBAL_VAR_DIR" ]; then
-        echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
-        echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
-    fi
-
-    # Try to mount immediately if not already mounted
+    # Real-time mount: not mounted -> mount at target; mounted elsewhere -> remount to target
     if [ "$is_mounted" = false ]; then
+        echo "[2] $USE_SUDO mount -t $fstype -o $mount_options $device $mount_point"
         if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
             log "Successfully mounted $device to $mount_point"
+            echo "[2] $USE_SUDO chmod 755 $mount_point"
             $USE_SUDO chmod 755 "$mount_point"
+            if [ -n "$GLOBAL_VAR_DIR" ]; then
+                echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
+                echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+                echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_DEVICE"
+                echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+            fi
             return 0
         else
             error "Failed to mount $device to $mount_point"
             warning "The fstab has been updated. Please reboot to apply changes."
             return 1
         fi
-    else
-        warning "Device is currently mounted at: $current_mount"
-        warning "The fstab has been updated to mount at: $mount_point"
-        warning "Please reboot the system to apply the new mount point"
-        log "After reboot, the device will be mounted at: $mount_point"
+    fi
+    if [ "$current_mount" != "$mount_point" ]; then
+        if mount_remount_to_target "$device" "$current_mount" "$mount_point" "$fstype" "$mount_options"; then
+            log "Remounted $device to $mount_point (effective immediately)"
+            if [ -n "$GLOBAL_VAR_DIR" ]; then
+                echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
+                echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+                echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_DEVICE"
+                echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+            fi
+            return 0
+        fi
+        warning "Could not unmount $current_mount (e.g. in use). Using current path until reboot."
+        if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "[2] echo \"\$current_mount\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
+            echo "$current_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+            echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_DEVICE"
+            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+        fi
         return 0
     fi
+    if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
+        echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
+        echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_DEVICE"
+        echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
+    fi
+    return 0
 }
 
 handle_data_disk() {
@@ -596,37 +617,62 @@ handle_data_disk() {
 
     # Create mount point directory
     if [ ! -d "$mount_point" ]; then
+        echo "[2] $USE_SUDO mkdir -p $mount_point"
         $USE_SUDO mkdir -p "$mount_point"
         log "Created mount point: $mount_point"
     fi
 
-    # Update fstab
+    # Update fstab (single entry per UUID, no duplicates)
     local mount_options="defaults,nofail,x-systemd.device-timeout=10"
+    mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$fstype" "$mount_options"
+    log "Added fstab entry: UUID=$uuid $mount_point $fstype $mount_options 0 2"
 
-    $USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)
-    $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
-
-    local fstab_entry="UUID=$uuid $mount_point $fstype $mount_options 0 2"
-    echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-
-    log "Added fstab entry: $fstab_entry"
-
-    # Save to global variables
-    if [ -n "$GLOBAL_VAR_DIR" ]; then
-        echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
-        echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
-    fi
-
-    # Try to mount immediately
-    if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
-        log "Data disk successfully mounted"
-        $USE_SUDO chmod 755 "$mount_point"
+    # Real-time mount: already at target -> save only; elsewhere -> remount to target; not mounted -> mount
+    if [ "$is_mounted" = true ] && [ "$current_mount" = "$mount_point" ]; then
+        if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_MOUNT_POINT"
+            echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
+            echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_DEVICE"
+            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
+        fi
         return 0
-    else
-        error "Failed to mount data disk"
-        warning "The fstab has been updated. Please reboot to apply changes."
-        return 1
     fi
+    if [ "$is_mounted" = true ] && [ -n "$current_mount" ] && [ "$current_mount" != "$mount_point" ]; then
+        if mount_remount_to_target "$device" "$current_mount" "$mount_point" "$fstype" "$mount_options"; then
+            log "Remounted data disk to $mount_point (effective immediately)"
+            if [ -n "$GLOBAL_VAR_DIR" ]; then
+                echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_MOUNT_POINT"
+                echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
+                echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_DEVICE"
+                echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
+            fi
+            return 0
+        fi
+        warning "Could not unmount $current_mount (e.g. in use). Using current path until reboot."
+        if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "[2] echo \"\$current_mount\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_MOUNT_POINT"
+            echo "$current_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
+            echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_DEVICE"
+            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
+        fi
+        return 0
+    fi
+    echo "[2] $USE_SUDO mount -t $fstype -o $mount_options $device $mount_point"
+    if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
+        log "Data disk successfully mounted at $mount_point"
+        echo "[2] $USE_SUDO chmod 755 $mount_point"
+        $USE_SUDO chmod 755 "$mount_point"
+        if [ -n "$GLOBAL_VAR_DIR" ]; then
+            echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_MOUNT_POINT"
+            echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_MOUNT_POINT" >/dev/null
+            echo "[2] echo \"\$device\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DATA_DEVICE"
+            echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DATA_DEVICE" >/dev/null
+        fi
+        return 0
+    fi
+    error "Failed to mount data disk"
+    warning "The fstab has been updated. Please reboot to apply changes."
+    return 1
 }
 
 # =============================================================================
@@ -781,7 +827,9 @@ configure_kde_desktop() {
     local screensaver_config="$kde_config_dir/kscreensaverrc"
     
     if [ ! -d "$kde_config_dir" ]; then
+        echo "[2] $USE_SUDO mkdir -p $kde_config_dir"
         $USE_SUDO mkdir -p "$kde_config_dir"
+        echo "[2] $USE_SUDO chown $desktop_user:$desktop_user $kde_config_dir"
         $USE_SUDO chown "$desktop_user:$desktop_user" "$kde_config_dir"
     fi
     
@@ -812,6 +860,7 @@ configure_kde_desktop() {
     $USE_SUDO -u "$desktop_user" sed -i 's/^Timeout=.*/Timeout=36000060/' "$screensaver_config" 2>/dev/null || true
     
     # Set ownership
+    echo "[2] $USE_SUDO chown $desktop_user:$desktop_user $screensaver_config"
     $USE_SUDO chown "$desktop_user:$desktop_user" "$screensaver_config" 2>/dev/null || true
     
     # Configure power management (Power Devil)
@@ -923,6 +972,11 @@ main() {
 
     log "Disk setup completed!"
 
+    # Persist base data directory so project and all scripts use the same path (center)
+    if command -v persist_base_data_directory >/dev/null 2>&1; then
+        persist_base_data_directory "$(get_base_data_directory)"
+    fi
+
     echo ""
     log "Current mount points:"
     df -h | grep -E "^/dev/(sd|nvme|vd)" | awk '{printf "  %-20s %-15s %-10s %s\n", $1, $6, $3, $5}'
@@ -941,6 +995,7 @@ main() {
 
     # Mark disk setup as completed
     if [ -n "$GLOBAL_VAR_DIR" ]; then
+        echo "[2] echo \"\$(date +%Y%m%d_%H%M%S)\" | $USE_SUDO tee $GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED"
         echo "$(date +%Y%m%d_%H%M%S)" | $USE_SUDO tee "$GLOBAL_VAR_DIR/DISK_SETUP_COMPLETED" >/dev/null
         log "Disk setup completion flag saved"
     fi
