@@ -123,11 +123,7 @@ function Show-GitManagementMenu {
             return
         }
         try {
-            if ($pythonExe -eq "py") {
-                & py -3 $gitManagementPy
-            } else {
-                & $pythonExe $gitManagementPy
-            }
+            & $pythonExe $gitManagementPy
         } catch {
             Write-ColorMessage -Message "Error calling Python: $_" -Type "Error"
             Read-Host "Press Enter to continue"
