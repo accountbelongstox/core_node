@@ -90,13 +90,12 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         print('[TEST] Loading tokenizer...')
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            src_lang=source_lang,
-            resume_download=True
+            src_lang=source_lang
         )
         print('[OK] Tokenizer loaded successfully')
 
         print('[TEST] Loading model...')
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name, resume_download=True)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         print('[OK] Model loaded successfully')
 
         if test_text is None:
