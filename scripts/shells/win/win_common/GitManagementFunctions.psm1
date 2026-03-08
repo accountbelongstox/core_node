@@ -76,6 +76,22 @@ function Clear-GitVars {
     }
 }
 
+function Get-GitManagementPythonCommand {
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
+        return $Global:PYTHON_EXE_PATH
+    }
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -and $cmd.Source -notmatch "WindowsApps") {
+        return $cmd.Source
+    }
+    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCmd) {
+        & py -3 -c "import sys; sys.exit(0)" 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { return "py" }
+    }
+    return $null
+}
+
 function Show-GitManagementMenu {
     <#
     .SYNOPSIS
@@ -100,8 +116,18 @@ function Show-GitManagementMenu {
         }
 
         # Call Python to show menu and handle user input
+        $pythonExe = Get-GitManagementPythonCommand
+        if (-not $pythonExe) {
+            Write-ColorMessage -Message "Python was not found. Use Step9 to install Python, or disable the 'python' App Execution Alias in Settings > Apps > Advanced app settings > App execution aliases." -Type "Error"
+            Read-Host "Press Enter to continue"
+            return
+        }
         try {
-            python $gitManagementPy
+            if ($pythonExe -eq "py") {
+                & py -3 $gitManagementPy
+            } else {
+                & $pythonExe $gitManagementPy
+            }
         } catch {
             Write-ColorMessage -Message "Error calling Python: $_" -Type "Error"
             Read-Host "Press Enter to continue"
