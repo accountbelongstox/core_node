@@ -21,6 +21,7 @@ source "$DD_HELPER_DIR/constants.sh"
 # Build full paths from constants
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
+RUSTDESK_INSTALL_INFO_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/server_manager/rustdesk_install_info.sh"
 
 # Function to disable Ubuntu automatic updates
 disable_ubuntu_auto_updates() {
@@ -271,6 +272,20 @@ EOF
     read
 }
 
+<<<<<<< HEAD
+# Function to show RustDesk Server install info (Key, ports, IPs)
+show_rustdesk_install_info() {
+    echo "RustDesk Server Install Info"
+    echo ""
+    if [ -s "$RUSTDESK_INSTALL_INFO_SCRIPT" ]; then
+        bash "$RUSTDESK_INSTALL_INFO_SCRIPT"
+    else
+        echo "Error: Script not found at: $RUSTDESK_INSTALL_INFO_SCRIPT"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+=======
 # Function to show APP Install menu (single-package install from 120 list)
 show_app_install_menu() {
     local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
@@ -283,6 +298,7 @@ show_app_install_menu() {
     fi
     echo ""
     read -r -p "Press Enter to continue..."
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
 }
 
 # Function to show Linux management submenu
@@ -300,7 +316,11 @@ show_linux_management_submenu() {
         "Restart GNOME Remote Desktop (Fix RDP Connection)"
         "Clear and Re-decrypt Secret Keys"
         "Show System Information"
+<<<<<<< HEAD
+        "RustDesk Server Install Info (Key & Ports)"
+=======
         "APP Install"
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
         "Back to Main Menu"
     )
     
@@ -362,7 +382,11 @@ show_linux_management_submenu() {
                         show_system_information
                         ;;
                     6)
+<<<<<<< HEAD
+                        show_rustdesk_install_info
+=======
                         show_app_install_menu
+>>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
                         ;;
                     7)
                         return 0

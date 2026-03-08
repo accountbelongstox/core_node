@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RustDesk OSS Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>RustDesk OSS Dashboard</h1>
+    <div class="actions">
+      <button type="button" class="btn" id="btnRefresh">Refresh IDs</button>
+      <button type="button" class="btn btn-primary" id="btnSettings">Settings</button>
+      <button type="button" class="btn" id="btnLogout">Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card" id="serverStatusCard">
+      <h2>Server status</h2>
+      <div id="serverStatusContent">
+        <p class="muted">Loading…</p>
+      </div>
+    </div>
+    <div class="card" id="clientConfigCard">
+      <h2>Client configuration (RustDesk Settings &gt; Network)</h2>
+      <p class="muted small">Use these values in the client. Do not add port to ID Server.</p>
+      <div id="clientConfigContent">
+        <p class="muted">Loading…</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Client IDs (connected / seen)</h2>
+      <ul id="clientList"></ul>
+      <p class="updated" id="updated"></p>
+    </div>
+  </main>
+
+  <div class="modal hidden" id="settingsModal">
+    <div class="modal-content">
+      <h3>Change password</h3>
+      <div id="settingsMsg" class="msg hidden"></div>
+      <input type="password" id="currentPassword" placeholder="Current password" autocomplete="current-password">
+      <input type="password" id="newPassword" placeholder="New password" autocomplete="new-password">
+      <input type="password" id="newPassword2" placeholder="Confirm new password" autocomplete="new-password">
+      <button type="button" class="btn btn-primary" id="btnSavePassword">Save</button>
+      <button type="button" class="btn" id="btnCloseSettings">Close</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

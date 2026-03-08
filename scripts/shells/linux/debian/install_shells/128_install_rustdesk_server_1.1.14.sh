@@ -4,8 +4,11 @@
 # Usage:
 #   ./128_install_rustdesk_server_1.1.14.sh
 #
-# This script installs RustDesk Server (hbbs and hbbr) for self-hosting
-# Recommended for server systems
+# This script installs RustDesk Server OSS (hbbs and hbbr) for self-hosting.
+# OSS has NO Web Console, NO user accounts, NO client login/register; only ID + permanent password.
+# For Web Console (port 21114), user management, and client account login use RustDesk Server Pro:
+#   https://rustdesk.com/docs/en/self-host/rustdesk-server-pro/installscript/
+#   wget -qO- https://raw.githubusercontent.com/rustdesk/rustdesk-server-pro/main/install.sh | bash
 #
 # Official Documentation: https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/install/
 #
@@ -73,13 +76,18 @@ RUSTDESK_CLIENT_WINDOWS_URL="https://github.com/rustdesk/rustdesk/releases/downl
 APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
 RUSTDESK_SERVER_INSTALLED_FLAG="$APP_VERSIONS_DIR/rustdesk_server.version"
 
-# Service ports (RustDesk default ports)
+# Service ports (RustDesk OSS default; Pro uses 21114 for Web Console - not used by OSS)
 # Reference: https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/install/
-HBBS_PORT="21115"          # hbbs TCP port (ID/Rendezvous Server)
-HBBS_NAT_PORT="21116"      # hbbs TCP/UDP port (NAT Type Test)
-HBBS_WEB_PORT="21118"      # hbbs TCP port (Web Admin)
-HBBR_PORT="21117"          # hbbr TCP port (Relay Server)
-RELAY_PORT="21119"         # hbbr TCP port (Relay)
+HBBS_PORT="21115"          # hbbs TCP (ID/Rendezvous)
+HBBS_NAT_PORT="21116"      # hbbs TCP/UDP (NAT type test)
+HBBS_WEB_PORT="21118"      # hbbs TCP/websocket (do not use for our dashboard - port conflict)
+HBBR_PORT="21117"          # hbbr TCP (Relay)
+RELAY_PORT="21119"         # hbbr TCP (Relay)
+RUSTDESK_DASHBOARD_PORT="21120"   # Python dashboard (must differ from 21118 so hbbs can bind)
+
+# Dashboard (Python) under scripts/shells/linux/pytools/rustdesk_dashboard
+RUSTDESK_DASHBOARD_APP="$PARENT_DIR_LEVEL_2/pytools/rustdesk_dashboard/app.py"
+RUSTDESK_DASHBOARD_SERVICE_NAME="ncore-rustdesk-dashboard"
 
 # Ensure sudo is available
 if command -v sudo >/dev/null 2>&1; then
@@ -396,19 +404,29 @@ EOF
     return 0
 }
 
-# Configure firewall
+# Configure firewall via common firewall_manager.sh (UFW/firewalld/iptables)
 configure_firewall() {
-    print_step_from_common_functions "Configuring firewall for RustDesk Server..."
+    print_step_from_common_functions "Configuring firewall for RustDesk Server (using common firewall_manager)..."
 
     firewall_allow_port "$HBBS_PORT" "tcp" "RustDesk ID/Rendezvous Server (TCP)" || true
     firewall_allow_port "$HBBS_NAT_PORT" "tcp" "RustDesk NAT Type Test (TCP)" || true
     firewall_allow_port "$HBBS_NAT_PORT" "udp" "RustDesk NAT Type Test (UDP)" || true
-    firewall_allow_port "$HBBS_WEB_PORT" "tcp" "RustDesk Web Admin (TCP)" || true
+    firewall_allow_port "$HBBS_WEB_PORT" "tcp" "RustDesk hbbs websocket (TCP)" || true
     firewall_allow_port "$HBBR_PORT" "tcp" "RustDesk Relay Server (TCP)" || true
     firewall_allow_port "$RELAY_PORT" "tcp" "RustDesk Relay Port (TCP)" || true
+    firewall_allow_port "21114" "tcp" "RustDesk Pro Web Console (OSS does not use)" || true
+
+    if command -v ufw >/dev/null 2>&1; then
+        print_info_from_common_functions "Ensuring RustDesk ports in UFW (official: 21114:21119/tcp, 21116/udp)..."
+        $USE_SUDO ufw allow 21114:21119/tcp 2>/dev/null || true
+        $USE_SUDO ufw allow 21116/udp 2>/dev/null || true
+    else
+        print_warning_from_common_functions "UFW not installed. Install with: apt install ufw, then re-run this script; or open 21114:21119/tcp and 21116/udp in cloud security group."
+    fi
 
     print_success_from_common_functions "Firewall configured for RustDesk Server"
-    print_info_from_common_functions "Opened ports: $HBBS_PORT, $HBBS_NAT_PORT (TCP/UDP), $HBBS_WEB_PORT, $HBBR_PORT, $RELAY_PORT"
+    print_info_from_common_functions "Opened ports: $HBBS_PORT, $HBBS_NAT_PORT (TCP/UDP), $HBBS_WEB_PORT, $HBBR_PORT, $RELAY_PORT, 21114 (Pro only)"
+    print_info_from_common_functions "If client still fails to connect (e.g. to $HBBS_NAT_PORT), open 21114:21119/tcp and 21116/udp in cloud security group (e.g. Aliyun/AWS)."
     return 0
 }
 
@@ -529,9 +547,9 @@ wait_for_key_generation() {
 # Display connection info
 display_connection_info() {
     echo ""
-    echo "══════════════════════════════════════════════════════════════════════════════�?
+    echo "=============================================================================="
     echo "                    RUSTDESK SERVER CONFIGURATION"
-    echo "══════════════════════════════════════════════════════════════════════════════�?
+    echo "=============================================================================="
     echo ""
     print_success_from_common_functions "RustDesk Server is now running!"
     echo ""
@@ -543,9 +561,9 @@ display_connection_info() {
     local public_key=$(get_public_key)
     local key_file="$RUSTDESK_DATA_DIR/id_ed25519.pub"
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?ENCRYPTION KEY (REQUIRED FOR CLIENT CONNECTION)                            �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| ENCRYPTION KEY (REQUIRED FOR CLIENT CONNECTION)                            |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     if [[ -n "$public_key" ]] && [[ "$public_key" != *"not found"* ]]; then
         echo -e "  Public Key: ${GREEN}$public_key${NC}"
@@ -558,126 +576,130 @@ display_connection_info() {
     fi
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?NETWORK CONFIGURATION                                                       �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| NETWORK CONFIGURATION                                                       |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
 
     print_info_from_common_functions "Server Listening Ports:"
-    echo -e "  �?ID/Rendezvous Server (hbbs):   ${GREEN}$HBBS_PORT${NC} (TCP)"
-    echo -e "  �?NAT Type Test:                  ${GREEN}$HBBS_NAT_PORT${NC} (TCP/UDP)"
-    echo -e "  �?Web Admin Interface:            ${GREEN}$HBBS_WEB_PORT${NC} (TCP)"
-    echo -e "  �?Relay Server (hbbr):            ${GREEN}$HBBR_PORT${NC} (TCP)"
-    echo -e "  �?Relay Port:                     ${GREEN}$RELAY_PORT${NC} (TCP)"
+    echo -e "  * ID/Rendezvous Server (hbbs):   ${GREEN}$HBBS_PORT${NC} (TCP)"
+    echo -e "  * NAT Type Test:                  ${GREEN}$HBBS_NAT_PORT${NC} (TCP/UDP)"
+    echo -e "  * Web Admin Interface:            ${GREEN}$HBBS_WEB_PORT${NC} (TCP, hbbs websocket)"
+    echo -e "  * Dashboard (client IDs):         ${GREEN}$RUSTDESK_DASHBOARD_PORT${NC} (TCP)"
+    echo -e "  * Relay Server (hbbr):            ${GREEN}$HBBR_PORT${NC} (TCP)"
+    echo -e "  * Relay Port:                     ${GREEN}$RELAY_PORT${NC} (TCP)"
     echo ""
 
+    print_warning_from_common_functions "This is OSS (open source) server: no port 21114, no Web Console, no user accounts. Client has no register button; use ID + permanent password only. For Web Console and user login use RustDesk Server Pro."
+    echo ""
     print_info_from_common_functions "Local IP Addresses (Private Network):"
     local all_local_ips=$(get_all_ips)
     if [[ -n "$all_local_ips" ]]; then
         echo "$all_local_ips" | while read -r ip; do
             if [[ -n "$ip" ]]; then
-                echo "  �?$ip"
+                echo "  * $ip"
             fi
         done
     else
-        echo "  �?No local IPs detected"
+        echo "  * No local IPs detected"
     fi
     echo ""
 
     print_info_from_common_functions "Public IP Address (Internet):"
     local public_ip=$(get_public_ip)
     if [[ -n "$public_ip" ]]; then
-        echo -e "  �?${GREEN}$public_ip${NC} (Use this for remote access)"
+        echo -e "  * ${GREEN}$public_ip${NC} (Use this for remote access)"
     else
-        echo "  �?Unable to detect public IP"
-        echo "  �?Try: curl https://api.ipify.org"
+        echo "  * Unable to detect public IP"
+        echo "  * Try: curl https://api.ipify.org"
     fi
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?CLIENT CONFIGURATION GUIDE                                                  �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| CLIENT CONFIGURATION GUIDE                                                  |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     print_info_from_common_functions "For RustDesk Client Configuration:"
     echo ""
     echo -e "  ${BLUE}Step 1:${NC} Open RustDesk client application"
-    echo -e "  ${BLUE}Step 2:${NC} Click the menu icon (�?three dots) �?${GREEN}Settings${NC}"
+    echo -e "  ${BLUE}Step 2:${NC} Click the menu icon (three dots) * ${GREEN}Settings${NC}"
     echo -e "  ${BLUE}Step 3:${NC} Navigate to the ${GREEN}Network${NC} tab"
     echo -e "  ${BLUE}Step 4:${NC} Enter the following configuration:"
     echo ""
-    echo "    ┌──────────────────────────────────────────────────────────────�?
+    echo "    +--------------------------------------------------------------+"
     if [[ -n "$public_ip" ]]; then
-        echo -e "    �?ID Server:    ${GREEN}$public_ip${NC}                                  �?
+        echo -e "    | ID Server:    ${GREEN}$public_ip${NC}                                  |"
     else
-        echo -e "    �?ID Server:    ${YELLOW}<your_server_ip>${NC}                           �?
+        echo -e "    | ID Server:    ${YELLOW}<your_server_ip>${NC}                           |"
     fi
-    echo -e "    �?Relay Server: ${GREEN}<leave empty>${NC}                            �?
-    echo -e "    �?API Server:   ${GREEN}<leave empty>${NC}                            �?
+    echo -e "    | Relay Server: ${GREEN}<leave empty>${NC}                            |"
+    echo -e "    | API Server:   ${GREEN}<leave empty>${NC}                            |"
     if [[ -n "$public_key" ]] && [[ "$public_key" != *"not found"* ]]; then
-        echo -e "    �?Key:          ${GREEN}$public_key${NC}"
+        echo -e "    | Key:          ${GREEN}$public_key${NC}"
     else
-        echo -e "    �?Key:          ${YELLOW}<see key above>${NC}                           �?
+        echo -e "    | Key:          ${YELLOW}<see key above>${NC}                           |"
     fi
-    echo "    └──────────────────────────────────────────────────────────────�?
+    echo "    +--------------------------------------------------------------+"
     echo ""
     print_warning_from_common_functions "Important Notes:"
-    echo -e "  �?${RED}DO NOT${NC} add port numbers to ID Server (use IP only)"
-    echo -e "  �?For ${GREEN}local network${NC} access, use local IP (e.g., 192.168.x.x)"
-    echo -e "  �?For ${GREEN}internet${NC} access, use public IP"
-    echo -e "  �?${YELLOW}Port forwarding${NC} required for internet access (forward ports to this server)"
-    echo -e "  �?The ${GREEN}Key${NC} field is ${RED}REQUIRED${NC} for secure connection"
+    echo -e "  * ${RED}DO NOT${NC} add port numbers to ID Server (use IP only)"
+    echo -e "  * For ${GREEN}local network${NC} access, use local IP (e.g., 192.168.x.x)"
+    echo -e "  * For ${GREEN}internet${NC} access, use public IP"
+    echo -e "  * ${YELLOW}Port forwarding${NC} required for internet access (forward ports to this server)"
+    echo -e "  * The ${GREEN}Key${NC} field is ${RED}REQUIRED${NC} for secure connection"
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?FIREWALL & PORT FORWARDING                                                  �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| FIREWALL & PORT FORWARDING                                                  |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     print_info_from_common_functions "Required Firewall Rules (already configured):"
-    echo "  �?TCP  $HBBS_PORT      - ID/Rendezvous Server"
-    echo "  �?TCP  $HBBS_NAT_PORT  - NAT Type Test"
-    echo "  �?UDP  $HBBS_NAT_PORT  - NAT Type Test"
-    echo "  �?TCP  $HBBS_WEB_PORT  - Web Admin (optional)"
-    echo "  �?TCP  $HBBR_PORT      - Relay Server"
-    echo "  �?TCP  $RELAY_PORT     - Relay Port"
+    echo "  * TCP  $HBBS_PORT      - ID/Rendezvous Server"
+    echo "  * TCP  $HBBS_NAT_PORT  - NAT Type Test"
+    echo "  * UDP  $HBBS_NAT_PORT  - NAT Type Test"
+    echo "  * TCP  $HBBS_WEB_PORT  - Web Admin / hbbs websocket"
+    echo "  * TCP  $RUSTDESK_DASHBOARD_PORT  - Dashboard (client IDs)"
+    echo "  * TCP  $HBBR_PORT      - Relay Server"
+    echo "  * TCP  $RELAY_PORT     - Relay Port"
     echo ""
     print_warning_from_common_functions "For Internet Access, Configure Router Port Forwarding:"
     if [[ -n "$public_ip" ]]; then
-        echo "  External: $public_ip:$HBBS_PORT �?Internal: <this_server>:$HBBS_PORT"
-        echo "  External: $public_ip:$HBBR_PORT �?Internal: <this_server>:$HBBR_PORT"
-        echo "  External: $public_ip:$HBBS_NAT_PORT �?Internal: <this_server>:$HBBS_NAT_PORT (TCP/UDP)"
+        echo "  External: $public_ip:$HBBS_PORT -> Internal: <this_server>:$HBBS_PORT"
+        echo "  External: $public_ip:$HBBR_PORT -> Internal: <this_server>:$HBBR_PORT"
+        echo "  External: $public_ip:$HBBS_NAT_PORT -> Internal: <this_server>:$HBBS_NAT_PORT (TCP/UDP)"
     else
-        echo "  External: <public_ip>:$HBBS_PORT �?Internal: <this_server>:$HBBS_PORT"
-        echo "  External: <public_ip>:$HBBR_PORT �?Internal: <this_server>:$HBBR_PORT"
-        echo "  External: <public_ip>:$HBBS_NAT_PORT �?Internal: <this_server>:$HBBS_NAT_PORT (TCP/UDP)"
+        echo "  External: <public_ip>:$HBBS_PORT -> Internal: <this_server>:$HBBS_PORT"
+        echo "  External: <public_ip>:$HBBR_PORT -> Internal: <this_server>:$HBBR_PORT"
+        echo "  External: <public_ip>:$HBBS_NAT_PORT -> Internal: <this_server>:$HBBS_NAT_PORT (TCP/UDP)"
     fi
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?SERVICE MANAGEMENT                                                          �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| SERVICE MANAGEMENT                                                          |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     print_info_from_common_functions "System Service Commands:"
-    echo -e "  �?Check status:  ${GREEN}systemctl status rustdesk-hbbs rustdesk-hbbr${NC}"
-    echo -e "  �?View logs:     ${GREEN}journalctl -u rustdesk-hbbs -u rustdesk-hbbr -f${NC}"
-    echo -e "  �?Restart:       ${GREEN}systemctl restart rustdesk-hbbs rustdesk-hbbr${NC}"
-    echo -e "  �?Stop:          ${GREEN}systemctl stop rustdesk-hbbs rustdesk-hbbr${NC}"
-    echo -e "  �?Start:         ${GREEN}systemctl start rustdesk-hbbs rustdesk-hbbr${NC}"
+    echo -e "  * Check status:  ${GREEN}systemctl status rustdesk-hbbs rustdesk-hbbr${NC}"
+    echo -e "  * View logs:     ${GREEN}journalctl -u rustdesk-hbbs -u rustdesk-hbbr -f${NC}"
+    echo -e "  * Restart:       ${GREEN}systemctl restart rustdesk-hbbs rustdesk-hbbr${NC}"
+    echo -e "  * Stop:          ${GREEN}systemctl stop rustdesk-hbbs rustdesk-hbbr${NC}"
+    echo -e "  * Start:         ${GREEN}systemctl start rustdesk-hbbs rustdesk-hbbr${NC}"
     echo ""
     print_info_from_common_functions "Installation Paths:"
-    echo "  �?Applications Base:  $APPLICATIONS_DIR"
-    echo "  �?Install Directory:  $RUSTDESK_BASE_DIR"
-    echo "  �?Data Directory:     $RUSTDESK_DATA_DIR"
-    echo "  �?Log Directory:      $RUSTDESK_LOG_DIR"
-    echo "  �?Binary Directory:   $RUSTDESK_BIN_DIR"
+    echo "  * Applications Base:  $APPLICATIONS_DIR"
+    echo "  * Install Directory:  $RUSTDESK_BASE_DIR"
+    echo "  * Data Directory:     $RUSTDESK_DATA_DIR"
+    echo "  * Log Directory:      $RUSTDESK_LOG_DIR"
+    echo "  * Binary Directory:   $RUSTDESK_BIN_DIR"
     echo ""
     print_info_from_common_functions "Key Files:"
-    echo "  �?Public Key File:    $key_file"
-    echo "  �?Private Key File:   $RUSTDESK_DATA_DIR/id_ed25519"
+    echo "  * Public Key File:    $key_file"
+    echo "  * Private Key File:   $RUSTDESK_DATA_DIR/id_ed25519"
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?SECURITY RECOMMENDATIONS                                                    �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| SECURITY RECOMMENDATIONS                                                    |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     print_warning_from_common_functions "Security Best Practices:"
     echo -e "  ${RED}[CRITICAL]${NC} Keep your encryption key (id_ed25519) ${RED}PRIVATE${NC}"
@@ -690,9 +712,9 @@ display_connection_info() {
     echo -e "  ${GREEN}[RECOMMENDED]${NC} Monitor server logs regularly"
     echo ""
 
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?DOCUMENTATION & SUPPORT                                                     �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| DOCUMENTATION & SUPPORT                                                     |"
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     echo -e "  Official Documentation: ${BLUE}https://rustdesk.com/docs${NC}"
     echo -e "  Installation Guide:     ${BLUE}https://rustdesk.com/docs/en/self-host/rustdesk-server-oss/install/${NC}"
@@ -700,7 +722,7 @@ display_connection_info() {
     echo -e "  GitHub Repository:      ${BLUE}https://github.com/rustdesk/rustdesk-server${NC}"
     echo -e "  Latest Release:         ${BLUE}https://github.com/rustdesk/rustdesk-server/releases/tag/${RUSTDESK_SERVER_VERSION}${NC}"
     echo ""
-    echo "══════════════════════════════════════════════════════════════════════════════�?
+    echo "=============================================================================="
     echo ""
 }
 
@@ -806,24 +828,24 @@ download_and_configure_clients() {
     # Create configuration readme
     local readme_file="$RUSTDESK_CLIENTS_DIR/CONFIGURATION.txt"
     cat <<EOF | $USE_SUDO tee "$readme_file" > /dev/null
-══════════════════════════════════════════════════════════════════════════════�?
+==============================================================================
                    RUSTDESK CLIENT CONFIGURATION GUIDE
-══════════════════════════════════════════════════════════════════════════════�?
+==============================================================================
 
 Generated: $(date '+%Y-%m-%d %H:%M:%S')
 Server Version: $RUSTDESK_SERVER_VERSION
 Client Version: $RUSTDESK_CLIENT_VERSION
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 IMPORTANT: Configuration Required After Installation
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 
-�? RustDesk clients require manual configuration to connect to your server.
-�? Follow the steps below carefully after installing the client.
+* RustDesk clients require manual configuration to connect to your server.
+* Follow the steps below carefully after installing the client.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 SERVER CONNECTION DETAILS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 
 ID Server:    $public_ip
 Relay Server: (leave empty for auto-detect)
@@ -831,29 +853,29 @@ Public Key:   $public_key
 
 IMPORTANT: Enter ONLY the IP address in ID Server field (no port number).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 CONFIGURATION STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 
 Step 1: Install the Client
-──────────────────────────
-  �?Linux:   sudo dpkg -i rustdesk-${RUSTDESK_CLIENT_VERSION}-linux-x86_64.deb
-  �?Windows: Run rustdesk-${RUSTDESK_CLIENT_VERSION}-windows-x86_64.exe
+--------------------------
+  * Linux:   sudo dpkg -i rustdesk-${RUSTDESK_CLIENT_VERSION}-linux-x86_64.deb
+  * Windows: Run rustdesk-${RUSTDESK_CLIENT_VERSION}-windows-x86_64.exe
 
 Step 2: Open Client Settings
-────────────────────────────
+----------------------------
   1. Launch RustDesk application
-  2. Click the menu icon (�?three dots)
+  2. Click the menu icon (three dots)
   3. Select "Settings"
   4. Navigate to "Network" tab
 
 Step 3: Unlock Settings (IMPORTANT)
-──────────────────────────────────
-  �?Click the padlock icon to unlock settings
-  �?This may require administrator/root privileges
+----------------------------------
+  * Click the padlock icon to unlock settings
+  * This may require administrator/root privileges
 
 Step 4: Enter Server Configuration
-─────────────────────────────────
+---------------------------------
 
   Field: ID Server
   Value: $public_ip
@@ -866,66 +888,67 @@ Step 4: Enter Server Configuration
   Value: $public_key
 
 Step 5: Save and Test
-────────────────────
+--------------------
   1. Click "OK" to save settings
   2. Restart RustDesk client
   3. Your device ID should appear in the main window
   4. Test connection with another device
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 FIREWALL REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 
 Ensure these ports are open on your server firewall:
-  �?TCP $HBBS_PORT      (ID/Rendezvous Server)
-  �?TCP/UDP $HBBS_NAT_PORT (NAT Type Test)
-  �?TCP $HBBR_PORT      (Relay Server)
-  �?TCP $RELAY_PORT      (Relay)
+  * TCP $HBBS_PORT      (ID/Rendezvous Server)
+  * TCP/UDP $HBBS_NAT_PORT (NAT Type Test)
+  * TCP $HBBR_PORT      (Relay Server)
+  * TCP $RELAY_PORT      (Relay)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 TROUBLESHOOTING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━�?
+------------------------------------------------------------
 
 Cannot Connect:
-  �?Verify firewall ports are open
-  �?Check server is running: systemctl status rustdesk-hbbs rustdesk-hbbr
-  �?Ensure public key is entered correctly (no extra spaces)
-  �?Try using server's public IP address
+  * Verify firewall ports are open (script uses common firewall_manager.sh)
+  * Check server is running: systemctl status rustdesk-hbbs rustdesk-hbbr
+  * Restart services: sudo systemctl restart rustdesk-hbbs rustdesk-hbbr ncore-rustdesk-dashboard
+  * Ensure public key is entered correctly (no extra spaces)
+  * Try using server's public IP address
 
 Settings Won't Save:
-  �?Ensure you unlocked settings with padlock icon
-  �?Run client with administrator/root privileges
+  * Ensure you unlocked settings with padlock icon
+  * Run client with administrator/root privileges
 
 For More Help:
-  �?Official Documentation: https://rustdesk.com/docs/
-  �?GitHub Issues: https://github.com/rustdesk/rustdesk/issues
+  * Official Documentation: https://rustdesk.com/docs/
+  * GitHub Issues: https://github.com/rustdesk/rustdesk/issues
 
-══════════════════════════════════════════════════════════════════════════════�?
+==============================================================================
 EOF
 
     print_success_from_common_functions "Client configuration guide created: $readme_file"
 
     # Display download location
     echo ""
-    echo "┌─────────────────────────────────────────────────────────────────────────────�?
-    echo "�?CONFIGURED CLIENTS AVAILABLE                                                �?
-    echo "└─────────────────────────────────────────────────────────────────────────────�?
+    echo "+-----------------------------------------------------------------------------+"
+    echo "| CONFIGURED CLIENTS AVAILABLE                                                |" 
+    echo "+-----------------------------------------------------------------------------+"
     echo ""
     print_success_from_common_functions "Clients downloaded and ready for distribution:"
     echo ""
-    echo "  📁 Location: $RUSTDESK_CLIENTS_DIR"
+    echo "  [dir] Location: $RUSTDESK_CLIENTS_DIR"
     echo ""
 
     # Show file listing
     if [[ -d "$RUSTDESK_CLIENTS_DIR" ]]; then
         echo "  Available files:"
-        ls -lh "$RUSTDESK_CLIENTS_DIR" | grep -v "^total" | awk '{printf "    �?%-40s %8s\n", $9, $5}'
+        ls -lh "$RUSTDESK_CLIENTS_DIR" | grep -v "^total" | awk '{printf "    * %-40s %8s\n", $9, $5}'
     fi
 
     echo ""
     print_info_from_common_functions "Configuration Instructions:"
-    echo "  �?See: $readme_file"
-    echo "  �?Or run: cat $readme_file"
+    echo "  * See: $readme_file"
+    echo "  * Or run: cat $readme_file"
     echo ""
 
     # Check if directory is web-accessible
@@ -933,7 +956,7 @@ EOF
     if [[ "$RUSTDESK_CLIENTS_DIR" == "$web_base"* ]]; then
         local web_path="${RUSTDESK_CLIENTS_DIR#$web_base}"
         print_info_from_common_functions "Web Download (if web server configured):"
-        echo "  �?http://your-server$web_path/"
+        echo "  * http://your-server$web_path/"
     fi
 
     return 0
@@ -981,6 +1004,10 @@ install_rustdesk_server() {
     echo ""
     download_and_configure_clients
 
+    if prompt_ensure_service; then
+        ensure_dashboard_service
+    fi
+
     return 0
 }
 
@@ -1003,6 +1030,9 @@ repair_installation() {
     print_info_from_common_functions "Step 4/5: Restarting services..."
     $USE_SUDO systemctl daemon-reload
     $USE_SUDO systemctl restart rustdesk-hbbs rustdesk-hbbr
+    if systemctl list-unit-files --type=service 2>/dev/null | grep -q "ncore-rustdesk-dashboard"; then
+        $USE_SUDO systemctl restart "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
+    fi
     sleep 3
 
     local hbbs_status=$($USE_SUDO systemctl is-active rustdesk-hbbs)
@@ -1027,6 +1057,49 @@ repair_installation() {
     display_connection_info
 }
 
+# Ensure dashboard is registered as ncore service (optional, run every time when user confirms)
+ensure_dashboard_service() {
+    if [[ ! -f "$RUSTDESK_DASHBOARD_APP" ]]; then
+        print_warning_from_common_functions "Dashboard app not found: $RUSTDESK_DASHBOARD_APP, skip service registration"
+        return 0
+    fi
+    print_step_from_common_functions "Ensuring RustDesk dashboard service (ncore-rustdesk-dashboard)..."
+    local dashboard_config_dir="/var/_core_node/rustdesk_dashboard"
+    local dashboard_config_file="$dashboard_config_dir/config.json"
+    $USE_SUDO systemctl stop "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
+    if [[ -f "$dashboard_config_file" ]]; then
+        $USE_SUDO python3 -c "
+import json
+p = '''$dashboard_config_file'''
+try:
+    with open(p) as f: d = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError): d = {}
+d['port'] = $RUSTDESK_DASHBOARD_PORT
+with open(p, 'w') as f: json.dump(d, f, indent=2)
+" 2>/dev/null || true
+    fi
+    source "$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
+    if create_ncore_service "$RUSTDESK_DASHBOARD_APP" "rustdesk-dashboard" "RustDesk OSS Dashboard (client IDs)" "20%" "128M"; then
+        $USE_SUDO systemctl enable "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
+        $USE_SUDO systemctl start "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
+        firewall_allow_port "$RUSTDESK_DASHBOARD_PORT" "tcp" "RustDesk Dashboard (TCP)" || true
+        print_success_from_common_functions "Dashboard service enabled: http://<server>:$RUSTDESK_DASHBOARD_PORT (default password: rustdesk)"
+    else
+        print_warning_from_common_functions "Dashboard service creation failed or skipped"
+    fi
+}
+
+# Ask whether to ensure installation as service (dashboard); default Y
+prompt_ensure_service() {
+    echo ""
+    echo -n "Ensure installation to service (RustDesk dashboard)? (Y/n): "
+    read -r response
+    case "$response" in
+        [nN]|[nN][oO]) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
 # Interactive prompt
 prompt_installation() {
     if is_rustdesk_server_installed; then
@@ -1044,20 +1117,12 @@ prompt_installation() {
         repair_installation
 
         echo ""
-        echo "───────────────────────────────────────────────────────────────"
-        echo -n "Do you want to reinstall/upgrade? (y/N): "
-        read -r response
-
-        case "$response" in
-            [yY]|[yY][eE][sS])
-                print_info_from_common_functions "Proceeding with full reinstallation/upgrade..."
-                return 0
-                ;;
-            *)
-                print_info_from_common_functions "Installation kept as is"
-                return 1
-                ;;
-        esac
+        echo "---------------------------------------------------------------"
+        if prompt_ensure_service; then
+            ensure_dashboard_service
+        fi
+        print_info_from_common_functions "Done. Run script again anytime to re-apply all steps."
+        return 1
     fi
 
     # Different prompt based on system type
