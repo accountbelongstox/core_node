@@ -81,15 +81,12 @@ function Get-GitManagementPythonCommand {
         return $Global:PYTHON_EXE_PATH
     }
     $cmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.Source -and $cmd.Source -notmatch "WindowsApps") {
-        return $cmd.Source
+    if (-not $cmd -or -not $cmd.Source) { return $null }
+    $src = $cmd.Source.TrimEnd('\')
+    if ($src -match "WindowsApps|Microsoft\\WindowsApps|AppExecutionAliases") {
+        return $null
     }
-    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
-    if ($pyCmd) {
-        & py -3 -c "import sys; sys.exit(0)" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { return "py" }
-    }
-    return $null
+    return $cmd.Source
 }
 
 function Show-GitManagementMenu {
