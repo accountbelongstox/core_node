@@ -92,7 +92,20 @@ function Show-WindowsManagementSubMenu {
             Action = {
                 Write-Host ""
                 Write-ColorMessage -Message "Detailed System Information:" -Type "Info"
-                systeminfo | Select-String -Pattern "OS Name|OS Version|System Type|Total Physical Memory|Available Physical Memory"
+                try {
+                    $os = Get-CimInstance Win32_OperatingSystem
+                    $cs = Get-CimInstance Win32_ComputerSystem
+                    Write-Host "OS Name:           $($os.Caption)"
+                    Write-Host "OS Version:        $($os.Version) Build $($os.BuildNumber)"
+                    Write-Host "System Type:       $($os.OSArchitecture)"
+                    Write-Host "Computer Name:     $($cs.Name)"
+                    $totalMB = [math]::Round($cs.TotalPhysicalMemory / 1MB, 2)
+                    $freeMB = [math]::Round(($os.FreePhysicalMemory) / 1KB, 2)
+                    Write-Host "Total Physical Memory:    $totalMB MB"
+                    Write-Host "Available Physical Memory: $freeMB MB"
+                } catch {
+                    Write-ColorMessage -Message "Failed to get system info: $_" -Type "Error"
+                }
                 Write-Host ""
                 Read-Host "Press Enter to continue"
             }
