@@ -85,11 +85,11 @@ function Invoke-PythonCore {
         return $false
     }
 
-    # Check for Python 3
+    # Check for Python 3 (version may go to stderr on Windows)
     $PythonCmd = $null
     foreach ($cmd in @("python", "python3", "py")) {
         try {
-            $version = & $cmd --version 2>$null
+            $version = & $cmd --version 2>&1
             if ($version -match "Python 3") {
                 $PythonCmd = $cmd
                 break
