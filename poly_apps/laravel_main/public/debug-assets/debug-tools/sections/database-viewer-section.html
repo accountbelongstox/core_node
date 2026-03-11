@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Viewer</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+</head>
+<!--
+  Simple HTML fallback for Database Viewer (login required).
+  For full Laravel management UI (menu, auth, components), use poly_apps/laravel_dashboard.
+-->
+<body class="min-h-screen bg-gray-50">
+    <div id="db-viewer-auth-required" class="hidden p-6 max-w-xl mx-auto mt-8">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+            <p class="text-amber-800 font-medium mb-2">Login required</p>
+            <p class="text-gray-600 text-sm mb-4">Database Viewer requires authentication. Please log in via API Debug Center (e.g. SSO or login) and return here.</p>
+            <a href="#" onclick="window.parent.postMessage({ type: 'db-viewer-goto', section: 'sso' }, '*'); return false;" class="inline-block px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700">Go to SSO</a>
+        </div>
+    </div>
+    <div id="db-viewer-app" class="hidden">
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden m-4">
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+                <h2 class="text-2xl font-bold text-white">Database Viewer</h2>
+                <p class="mt-1 text-sm text-indigo-100">Laravel tables, structure and data</p>
+            </div>
+            <div class="flex h-[calc(100vh-180px)]">
+                <div class="db-viewer-sidebar w-64 border-r border-gray-200 bg-gray-50 flex flex-col overflow-hidden">
+                    <div class="px-4 py-3 bg-gray-100 border-b border-gray-200 font-semibold text-gray-700">Tables</div>
+                    <div id="db-viewer-table-list" class="flex-1 overflow-auto"></div>
+                </div>
+                <div class="db-viewer-main flex-1 flex flex-col overflow-hidden bg-white">
+                    <div id="db-viewer-table-name" class="px-4 py-2 border-b border-gray-200 bg-gray-50 text-gray-700 font-medium"></div>
+                    <div class="flex-1 overflow-auto p-4">
+                        <div id="db-viewer-schema-section" class="mb-6">
+                            <h3 class="text-sm font-semibold text-gray-700 mb-2">Structure</h3>
+                            <div id="db-viewer-schema-table-wrap" class="overflow-x-auto rounded-lg border border-gray-200"></div>
+                        </div>
+                        <div id="db-viewer-data-section">
+                            <h3 class="text-sm font-semibold text-gray-700 mb-2">Data</h3>
+                            <div id="db-viewer-data-table-wrap" class="overflow-x-auto rounded-lg border border-gray-200 mb-4"></div>
+                            <div id="db-viewer-pagination" class="flex items-center justify-between text-sm text-gray-600"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/debug-assets/js/api-client.js"></script>
+    <script src="/debug-assets/js/db-viewer.js"></script>
+</body>
+</html>

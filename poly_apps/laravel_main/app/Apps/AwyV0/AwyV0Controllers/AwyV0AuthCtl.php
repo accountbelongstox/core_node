@@ -55,7 +55,7 @@ class AwyV0AuthCtl extends Controller
         $password = $request->input('password');
         $name = $request->input('name', '');
 
-        $userData = CommonUserGen::createUser($username, $password, $email, '', $name, 'awyv0');
+        $userData = CommonUserGen::createUser($username, $password, $email, '', $name, AppKeys::AWYV0);
         
         if (!$userData) {
             return response()->json([
@@ -104,7 +104,7 @@ class AwyV0AuthCtl extends Controller
         $username = $request->input('username');
         $password = $request->input('password');
 
-        $authResult = UnifiedAuthService::login($username, $password, 'awyv0');
+        $authResult = UnifiedAuthService::login($username, $password, AppKeys::AWYV0);
         
         if (!$authResult['success']) {
             return response()->json([
@@ -414,7 +414,7 @@ class AwyV0AuthCtl extends Controller
 
         $phone = $request->input('phone');
 
-        $verificationService = new VerificationCodeService('awyv0', 'awy_v0_verification_codes');
+        $verificationService = new VerificationCodeService(AppKeys::AWYV0, 'awy_v0_verification_codes');
         $result = $verificationService->sendCode($phone);
 
         if ($result['success']) {
@@ -472,7 +472,7 @@ class AwyV0AuthCtl extends Controller
             ], 404);
         }
 
-        $verificationService = new VerificationCodeService('awyv0', 'awy_v0_verification_codes');
+        $verificationService = new VerificationCodeService(AppKeys::AWYV0, 'awy_v0_verification_codes');
         $verifyResult = $verificationService->verifyCode($phone, $verificationCode);
 
         if (!$verifyResult['success']) {

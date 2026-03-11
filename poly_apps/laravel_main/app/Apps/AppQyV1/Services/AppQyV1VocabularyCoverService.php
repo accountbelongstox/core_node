@@ -54,7 +54,10 @@ class AppQyV1VocabularyCoverService
         $record->save();
 
         $url = $this->buildCoverUrl($record->cover_filename);
-        $logEntry = $this->getLatestLog($record->id);
+        $logEntry = null;
+        if ($record->id !== null) {
+            $logEntry = $this->getLatestLog((int) $record->id);
+        }
 
         if ($this->hasCoverFile($record->cover_filename)) {
             if ($record->status !== 'ready') {
@@ -149,8 +152,12 @@ class AppQyV1VocabularyCoverService
         return 'Create a minimalistic 16:9 cover art for a vocabulary learning library platform. Use soft gradients, abstract bookshelves, light textures, and inspirational tones. No text.';
     }
 
-    private function getLatestLog(int $coverId): ?array
+    private function getLatestLog(?int $coverId): ?array
     {
+        if ($coverId === null) {
+            return null;
+        }
+        
         $cover = AppQyV1VocabularyCoverModel::query()->find($coverId);
 
         if (!$cover) {

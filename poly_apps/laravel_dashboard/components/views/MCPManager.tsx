@@ -11,6 +11,7 @@ import {
   VoiceQueueItem
 } from '../../types';
 import { api } from '../../core/api';
+import { useTranslation } from 'react-i18next';
 import { TRANSLATIONS } from '../../constants';
 import { useToast } from '../admin/Toast';
 import {
@@ -233,6 +234,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   });
 
   const t = TRANSLATIONS[lang].mcp;
+  const { t: tCommon } = useTranslation();
 
   // Copy to clipboard helper function
   const copyToClipboard = async (text: string): Promise<void> => {
@@ -3659,7 +3661,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 <button
                   onClick={() => setShowImageModal(false)}
                   className="p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-all hover:scale-110 active:scale-95"
-                  title={lang === 'zh' ? '关闭' : 'Close'}
+                  title={tCommon('common.close')}
                 >
                   <X className="w-5 h-5" />
                 </button>

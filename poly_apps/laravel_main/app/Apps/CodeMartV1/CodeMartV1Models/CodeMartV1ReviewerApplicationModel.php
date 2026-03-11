@@ -5,7 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CodeMartV1ReviewerApplicationModel extends Model
 {
-    protected $connection = 'codemartv1';
+    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_reviewer_applications';
 
     protected $fillable = [

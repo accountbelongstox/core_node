@@ -24,14 +24,22 @@ INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 # NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR, NODE_DOWNLOAD_URL are already defined in gvar_common.sh
-# Use official Node.js download URL only
+# Detect architecture for correct Node binary (idempotent: reinstall if wrong arch was installed)
+NODE_ARCH_SUFFIX="linux-x64"
+case "$(uname -m)" in
+    x86_64|amd64) NODE_ARCH_SUFFIX="linux-x64" ;;
+    aarch64|arm64) NODE_ARCH_SUFFIX="linux-arm64" ;;
+    armv7l|armhf) NODE_ARCH_SUFFIX="linux-armv7l" ;;
+    *) echo "Unsupported architecture $(uname -m), using linux-x64"; NODE_ARCH_SUFFIX="linux-x64" ;;
+esac
+# Use official Node.js download URL for detected arch
 NODE_DOWNLOAD_URLS=(
-    "$NODE_DOWNLOAD_URL"
+    "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
 )
 # Use global temporary directory structure
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "14_install_node_24")
-TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64.tar.xz"
-EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-linux-x64"
+TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
+EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX"
 NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"
 
 if [ "$INSTALL_NODE" = "false" ]; then
@@ -42,6 +50,7 @@ fi
 echo "COMPILE_DIR: $COMPILE_DIR"
 echo "SELECTED_REGION: $SELECTED_REGION"
 echo "NODE_VERSION: $NODE_VERSION"
+echo "NODE_ARCH_SUFFIX: $NODE_ARCH_SUFFIX"
 echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
 
 # Function to migrate from old directory structure
@@ -122,6 +131,22 @@ detect_and_fix_previous_issues() {
             $USE_SUDO rm -f "$link_path"
         fi
     done
+
+    # 2b. Fix wrong-architecture Node binary (Exec format error): remove so idempotent reinstall uses correct arch
+    if [ -e /usr/local/bin/node ]; then
+        local node_run_err
+        node_run_err=$(/usr/local/bin/node --version 2>&1) || true
+        if echo "$node_run_err" | grep -q "Exec format error"; then
+            echo "Found wrong-architecture Node binary (Exec format error), removing for reinstall..."
+            for binary in node npm npx; do
+                $USE_SUDO rm -f "/usr/local/bin/$binary"
+            done
+            if [ -d "$NODE_INSTALL_DIR/node-$NODE_VERSION" ]; then
+                echo "Removing wrong-arch installation: $NODE_INSTALL_DIR/node-$NODE_VERSION"
+                $USE_SUDO rm -rf "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+            fi
+        fi
+    fi
 
     # 3. Clean up old Node.js installations in wrong locations
     echo "Checking for Node.js installations in wrong locations..."
@@ -221,8 +246,14 @@ check_node_installation() {
 
     # Check version in target directory
     local current_version
-    current_version=$("$node_bin" -v 2>/dev/null | sed 's/^v//')
+    local run_stderr
+    run_stderr=$("$node_bin" -v 2>&1) || true
+    current_version=$(echo "$run_stderr" | sed -n 's/^v//p')
     if [ -z "$current_version" ]; then
+        if echo "$run_stderr" | grep -q "Exec format error"; then
+            echo "Node binary at $node_bin is wrong architecture (Exec format error), will reinstall for $(uname -m)."
+            return 4
+        fi
         echo "Failed to get Node.js version from $node_bin"
         return 1
     fi
@@ -503,11 +534,19 @@ verify_installation() {
         return 1
     fi
 
-    echo "Node.js version: $($node_bin -v)"
+    echo "Node.js version (from install dir): $($node_bin -v)"
     echo "npm version: $($npm_bin -v)"
     if [ -f "$NODE_BIN_DIR/npx" ]; then
         echo "npx version: $($NODE_BIN_DIR/npx -v)"
     fi
+
+    # Require /usr/local/bin/node --version to work (catches Exec format error after symlink)
+    local node_version_out
+    if ! node_version_out=$(/usr/local/bin/node --version 2>&1); then
+        echo "Error: /usr/local/bin/node --version failed: $node_version_out"
+        return 1
+    fi
+    echo "node --version (from PATH/symlink): $node_version_out"
 
     # Show pnpm configuration if available
     if command -v pnpm >/dev/null 2>&1; then
@@ -547,17 +586,25 @@ case $installation_result in
         echo "Will configure symlinks and environment for existing installation."
         echo ""
         ;;
-    3)
+    3|4)
         echo "=================================================="
-        echo "Old Node.js version found"
+        echo "Old or wrong-architecture Node.js found"
         echo "=================================================="
         echo ""
-        if ! remove_old_node_installation; then
-            echo "Installation cancelled"
-            exit 0
+        if [ "$installation_result" -eq 4 ]; then
+            echo "Removing wrong-architecture installation (idempotent repair)..."
+            for binary in node npm npx; do
+                $USE_SUDO rm -f "/usr/local/bin/$binary"
+            done
+            $USE_SUDO rm -rf "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+        else
+            if ! remove_old_node_installation; then
+                echo "Installation cancelled"
+                exit 0
+            fi
         fi
         echo ""
-        echo "Installing Node.js $NODE_VERSION..."
+        echo "Installing Node.js $NODE_VERSION ($NODE_ARCH_SUFFIX)..."
         if ! install_node; then
             echo "Node.js installation failed"
             exit 1

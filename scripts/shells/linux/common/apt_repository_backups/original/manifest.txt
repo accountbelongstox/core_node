@@ -1,0 +1,10 @@
+Original APT Repository Backup
+Backup Time: Wed Mar 11 09:50:01 CST 2026
+Backup Path: /www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original
+
+This is the original backup created on first use of the repository manager.
+Files backed up:
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list.d/mariadb.list
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/mariadb-keyring-2025.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/microsoft-edge.gpg

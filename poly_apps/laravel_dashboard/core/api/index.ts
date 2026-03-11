@@ -7,6 +7,7 @@ import { InviteCodeAPI } from './modules/InviteCodeAPI';
 import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { BankV1API } from './modules/BankV1';
 import { AuthAPI } from './modules/AuthAPI';
+import { DashboardDbViewerAPI } from './modules/DashboardDbViewerAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
 /**
@@ -33,6 +34,7 @@ class APIService {
   public systemConfig: SystemConfigAPI;
   public bankV1: BankV1API;
   public auth: AuthAPI;
+  public dashboardDbViewer: DashboardDbViewerAPI;
 
   private constructor() {
     // 初始化所有API模块
@@ -89,6 +91,12 @@ class APIService {
       prefix: '/api',
       timeout: API_CONFIG.timeout
     });
+
+    this.dashboardDbViewer = new DashboardDbViewerAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/dashboard/db-viewer',
+      timeout: API_CONFIG.timeout
+    });
   }
 
   /**
@@ -114,6 +122,7 @@ class APIService {
     this.inviteCode.setHeader('Authorization', bearerToken);
     this.bankV1.setHeader('Authorization', bearerToken);
     this.auth.setHeader('Authorization', bearerToken);
+    this.dashboardDbViewer.setHeader('Authorization', bearerToken);
   }
 
   /**
@@ -128,6 +137,7 @@ class APIService {
     this.inviteCode.removeHeader('Authorization');
     this.bankV1.removeHeader('Authorization');
     this.auth.removeHeader('Authorization');
+    this.dashboardDbViewer.removeHeader('Authorization');
   }
 
   /**
@@ -142,6 +152,7 @@ class APIService {
     this.inviteCode.setHeader(key, value);
     this.bankV1.setHeader(key, value);
     this.auth.setHeader(key, value);
+    this.dashboardDbViewer.setHeader(key, value);
   }
 
   /**
@@ -188,6 +199,12 @@ class APIService {
     this.auth = new AuthAPI({
       baseURL,
       prefix: '/api',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.dashboardDbViewer = new DashboardDbViewerAPI({
+      baseURL,
+      prefix: '/api/dashboard/db-viewer',
       timeout: API_CONFIG.timeout
     });
   }

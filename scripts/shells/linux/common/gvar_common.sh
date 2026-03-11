@@ -672,17 +672,20 @@ DISK_MOUNT_INFO=""
 
 # Function to detect multiple hard drives
 detect_multiple_disks() {
-    # Get list of all block devices (excluding loop devices and partitions)
-    local disks=$(lsblk -d -n -o NAME,TYPE | grep -E "disk|nvme" | awk '{print $1}' | sort)
-    
+    # Skip when sysfs is not available (containers, chroot, restricted env)
+    if [ ! -d /sys/dev/block ] 2>/dev/null; then
+        DISK_COUNT=0
+        DISK_LIST=""
+        HAS_MULTIPLE_DISKS=false
+        return 0
+    fi
+    local disks
+    disks=$(lsblk -d -n -o NAME,TYPE 2>/dev/null | grep -E "disk|nvme" | awk '{print $1}' | sort)
     # Count disks
     DISK_COUNT=$(echo "$disks" | wc -l)
     DISK_LIST="$disks"
-    
-    # Check if we have multiple disks
     if [ "$DISK_COUNT" -gt 1 ]; then
         HAS_MULTIPLE_DISKS=true
-        # Get detailed mount information for each disk
         get_disk_mount_info
     else
         HAS_MULTIPLE_DISKS=false
@@ -692,37 +695,20 @@ detect_multiple_disks() {
 # Function to get mount information for all disks
 get_disk_mount_info() {
     DISK_MOUNT_INFO=""
-    
-    # Process each disk
+    [ ! -d /sys/dev/block ] 2>/dev/null && return 0
     while IFS= read -r disk; do
         if [ -n "$disk" ]; then
             local disk_path="/dev/$disk"
             local disk_info=""
-            
-            # Get disk size
-            local disk_size=$(lsblk -d -n -o SIZE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get mount points for this disk
-            local mount_points=$(lsblk -n -o MOUNTPOINT "$disk_path" 2>/dev/null | grep -v "^$" | tr '\n' ',' | sed 's/,$//')
-            
-            # Get filesystem type
-            local fs_type=$(lsblk -d -n -o FSTYPE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get disk model/vendor
-            local disk_model=$(lsblk -d -n -o MODEL "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Check if disk is mounted
+            local disk_size mount_points fs_type disk_model
+            disk_size=$(lsblk -d -n -o SIZE "$disk_path" 2>/dev/null || echo "Unknown")
+            mount_points=$(lsblk -n -o MOUNTPOINT "$disk_path" 2>/dev/null | grep -v "^$" | tr '\n' ',' | sed 's/,$//')
+            fs_type=$(lsblk -d -n -o FSTYPE "$disk_path" 2>/dev/null || echo "Unknown")
+            disk_model=$(lsblk -d -n -o MODEL "$disk_path" 2>/dev/null || echo "Unknown")
             local is_mounted="No"
-            if [ -n "$mount_points" ]; then
-                is_mounted="Yes"
-            fi
-            
-            # Build disk information string
+            [ -n "$mount_points" ] && is_mounted="Yes"
             disk_info="Disk: $disk_path | Size: $disk_size | Model: $disk_model | FS: $fs_type | Mounted: $is_mounted"
-            if [ -n "$mount_points" ]; then
-                disk_info="$disk_info | Mount Points: $mount_points"
-            fi
-            
+            [ -n "$mount_points" ] && disk_info="$disk_info | Mount Points: $mount_points"
             DISK_MOUNT_INFO="$DISK_MOUNT_INFO$disk_info\n"
         fi
     done <<< "$DISK_LIST"
