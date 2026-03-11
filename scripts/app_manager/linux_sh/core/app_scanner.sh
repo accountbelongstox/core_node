@@ -66,10 +66,10 @@ scan_applications() {
     local dir type
     for dir in "$root_dir/apps" "$root_dir/pyapps" "$root_dir/poly_apps"; do
         case "$dir" in
-            *apps) type="ncoreApp" ;;
-            *pyapps) type="pycoreApp" ;;
             *poly_apps) type="polyApp" ;;
-            *) type="polyApp" ;;
+            *pyapps)    type="pycoreApp" ;;
+            *apps)      type="ncoreApp" ;;
+            *)          type="polyApp" ;;
         esac
         [[ ! -d "$dir" ]] && continue
         local name

@@ -83,12 +83,12 @@ get_all_packages_flat_list() {
     for e in "${SCRIPT_INSTALL_ENTRIES[@]}"; do
         list+=("$e")
     done
-    printf '%s\n' "${list[@]}"
+    printf '%s\n' "${list[@]}" | sort -t'|' -k2
 }
 
 show_app_install_menu() {
     local flat_list
-    flat_list=($(get_all_packages_flat_list))
+    mapfile -t flat_list < <(get_all_packages_flat_list)
     local count=${#flat_list[@]}
 
     while true; do
