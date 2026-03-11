@@ -24,6 +24,8 @@ INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 # NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR, NODE_DOWNLOAD_URL are already defined in gvar_common.sh
+# Defensive default so integer comparisons never see empty (avoids "integer expression expected")
+NODE_SHORT_VERSION="${NODE_SHORT_VERSION:-24}"
 # Detect architecture for correct Node binary (idempotent: reinstall if wrong arch was installed)
 NODE_ARCH_SUFFIX="linux-x64"
 case "$(uname -m)" in
@@ -230,8 +232,8 @@ check_node_installation() {
             echo "Found system Node.js at: $system_node"
             local system_version=$("$system_node" -v 2>/dev/null | sed 's/^v//')
             local system_major=$(echo "$system_version" | cut -d. -f1)
-
-            if [ "$system_major" -ge "$NODE_SHORT_VERSION" ]; then
+            # Guard: wrong-arch or broken node -v can leave system_major empty; avoid "integer expression expected"
+            if [ -n "$system_major" ] && [ -n "$NODE_SHORT_VERSION" ] && [ "$system_major" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
                 echo "System Node.js version $system_version is >= $NODE_SHORT_VERSION (required)"
                 echo "Will create proper symlinks and configuration..."
                 return 2  # Special return code for system installation found
@@ -260,8 +262,12 @@ check_node_installation() {
 
     local major_version
     major_version=$(echo "$current_version" | cut -d. -f1)
-
-    if [ "$major_version" -ge "$NODE_SHORT_VERSION" ]; then
+    # Guard: ensure both sides are non-empty and numeric to avoid "integer expression expected"
+    if [ -z "$major_version" ] || [ -z "$NODE_SHORT_VERSION" ]; then
+        echo "Failed to parse Node version (current_version=$current_version, major=$major_version)"
+        return 1
+    fi
+    if [ "$major_version" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
         echo "Found Node.js $current_version in $NODE_INSTALL_DIR (>= required version $NODE_SHORT_VERSION)"
         return 0
     else
@@ -453,7 +459,27 @@ install_node() {
     return 0
 }
 
-create_symlinks() {
+# After install_node: if node binary fails with Exec format error (wrong arch), retry with alternate arch once.
+ensure_node_correct_arch() {
+    local node_bin="$NODE_BIN_DIR/node"
+    [ ! -f "$node_bin" ] && return 0
+    local out
+    out=$("$node_bin" -v 2>&1) || true
+    if echo "$out" | grep -q "Exec format error"; then
+        echo "Wrong architecture detected (Exec format error). Retrying with alternate arch..."
+        if [ "$NODE_ARCH_SUFFIX" = "linux-x64" ]; then
+            NODE_ARCH_SUFFIX="linux-arm64"
+        else
+            NODE_ARCH_SUFFIX="linux-x64"
+        fi
+        NODE_DOWNLOAD_URLS=("https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz")
+        TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
+        EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX"
+        force_clean_for_node_install
+        install_node
+    fi
+    return 0
+}
     echo "Creating and verifying symlinks..."
 
     local node_path="$NODE_BIN_DIR/node"
@@ -655,6 +681,7 @@ case $installation_result in
             echo "Node.js installation failed"
             exit 1
         fi
+        ensure_node_correct_arch
         ;;
     1)
         echo "=================================================="
@@ -667,6 +694,7 @@ case $installation_result in
             echo "Node.js installation failed"
             exit 1
         fi
+        ensure_node_correct_arch
         ;;
 esac
 
