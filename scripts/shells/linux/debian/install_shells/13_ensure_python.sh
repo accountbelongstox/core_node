@@ -79,9 +79,9 @@ fix_apt_gpg_if_needed() {
         if command -v gpg >/dev/null 2>&1; then
             print_step_from_common_functions "Importing Ubuntu archive signing key ($UBUNTU_ARCHIVE_KEY_ID)"
             tmpkey="/tmp/ubuntu-archive-2024.gpg"
-            echo "[13] curl -fsSL ... | gpg --dearmor | $USE_SUDO tee $tmpkey"
+            echo "[13] curl -fsSL ... | gpg --dearmor | $USE_SUDO tee $tmpkey (binary output suppressed)"
             curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$UBUNTU_ARCHIVE_KEY_ID" \
-                | gpg --dearmor | $USE_SUDO tee "$tmpkey"
+                | gpg --dearmor -o - 2>/dev/null | $USE_SUDO tee "$tmpkey" >/dev/null
             if [ -s "$tmpkey" ]; then
                 echo "[13] $USE_SUDO mv $tmpkey /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg"
                 $USE_SUDO mv "$tmpkey" /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg
@@ -130,17 +130,16 @@ check_pip_installed() {
 install_python_essentials() {
     print_step_from_common_functions "Installing Python and essential packages..."
 
-    # Clean up broken package lists
-    print_step_from_common_functions "Cleaning up package lists..."
-    echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
-    $USE_SUDO rm -rf /var/lib/apt/lists/* 2>/dev/null || true
-
-    # Update package list (real-time output)
+    # Try apt-get update first; only clean /var/lib/apt/lists when update fails (avoids unnecessary full refresh every run)
     print_step_from_common_functions "Updating package list..."
     echo "[13] $USE_SUDO apt-get update"
-    $USE_SUDO apt-get update
-    echo "[13] (if update failed above, fixing APT GPG keys next)"
-    fix_apt_gpg_if_needed
+    if ! $USE_SUDO apt-get update; then
+        print_step_from_common_functions "Cleaning up package lists (update failed, retrying with fresh lists)..."
+        echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
+        $USE_SUDO rm -rf /var/lib/apt/lists/* 2>/dev/null || true
+        echo "[13] Fixing APT GPG keys and retrying update..."
+        fix_apt_gpg_if_needed
+    fi
 
     # Install Python and essential packages (base packages first, real-time output)
     print_step_from_common_functions "Installing Python3 base packages..."
@@ -204,6 +203,7 @@ install_python_essentials() {
 
     echo "[13] $USE_SUDO apt-get clean"
     $USE_SUDO apt-get clean
+    # Post-install cleanup: remove cached lists to free space (safe; next apt-get update will refetch)
     echo "[13] $USE_SUDO rm -rf /var/lib/apt/lists/*"
     $USE_SUDO rm -rf /var/lib/apt/lists/*
 

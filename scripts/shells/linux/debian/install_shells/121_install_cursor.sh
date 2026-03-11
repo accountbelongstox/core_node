@@ -990,9 +990,10 @@ cleanup_cursor() {
     return 0
 }
 
-# Ensure Cursor Agent is installed (pre-check before main installation)
+# Ensure Cursor Agent (CLI) is installed. Idempotent: runs every time; skips only when `agent` is already in PATH.
+# Must run regardless of Cursor IDE install state (desktop and headless). See https://cursor.com/cli
 ensure_cursor_agent_installed() {
-    # Check if agent command exists
+    # Check if agent command exists (any user's PATH or common locations)
     if command -v agent >/dev/null 2>&1; then
         local agent_path=$(command -v agent)
         print_info_from_common_functions "Cursor Agent already installed: $agent_path"
@@ -1012,7 +1013,6 @@ ensure_cursor_agent_installed() {
     # Detect actual user for agent installation (works in root mode)
     local agent_user="${SUDO_USER:-$USER}"
     if [[ "$agent_user" == "root" ]] || [[ -z "$agent_user" ]]; then
-        # Find first non-root user
         agent_user=$(detect_system_user)
     fi
     local agent_home=$(getent passwd "$agent_user" 2>/dev/null | cut -d: -f6)
@@ -1023,8 +1023,19 @@ ensure_cursor_agent_installed() {
 
     print_info_from_common_functions "Installing Cursor Agent for user: $agent_user ($agent_home)"
 
-    # Install agent using official installer
-    if curl -fsS https://cursor.com/install | bash; then
+    # Official install: https://cursor.com/cli — run as target user when we are root so agent goes to ~/.local/bin
+    local install_ok=0
+    if [[ "$(id -u)" -eq 0 ]] && [[ "$agent_user" != "root" ]]; then
+        if $USE_SUDO -u "$agent_user" env HOME="$agent_home" bash -c 'curl -fsS https://cursor.com/install | bash'; then
+            install_ok=1
+        fi
+    else
+        if curl -fsS https://cursor.com/install | bash; then
+            install_ok=1
+        fi
+    fi
+
+    if [[ "$install_ok" -eq 1 ]]; then
         print_success_from_common_functions "Cursor Agent installed successfully"
     else
         print_warning_from_common_functions "Cursor Agent installation may have failed"
@@ -1081,15 +1092,15 @@ ensure_cursor_agent_installed() {
     fi
 }
 
-# Main installation function
+# Main installation function. Cursor Agent (CLI) is always ensured first and is idempotent; skipping IDE install does not skip CLI.
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
-    # Pre-check: Ensure Cursor Agent is installed (independent of main installation)
-    print_step_from_common_functions "Pre-check: Ensuring Cursor Agent is installed..."
+    # Ensure Cursor Agent (CLI) every run — idempotent; required for both desktop and headless Linux.
+    print_step_from_common_functions "Ensuring Cursor Agent (CLI) is installed..."
     local agent_path=$(ensure_cursor_agent_installed)
     if [[ -n "$agent_path" ]]; then
-        print_info_from_common_functions "Cursor Agent absolute path: $agent_path"
+        print_info_from_common_functions "Cursor Agent: $agent_path"
     fi
     echo ""
 
@@ -1404,10 +1415,11 @@ main() {
     esac
 
     # Check if we have a desktop environment (Cursor is a GUI application)
-    # Only skip if we're on a pure server without any desktop environment
+    # Only skip IDE when pure server without desktop; always install Cursor Agent (CLI) on Linux.
     if [[ "$HAS_DESKTOP_ENVIRONMENT" != true ]] && [[ "$IS_WSL" != true ]] && [[ "$IS_PRODUCTION" == true ]]; then
-        print_info_from_common_functions "[$SCRIPT_INDEX] Skipping Cursor installation (production server without desktop environment)"
-        print_info_from_common_functions "[$SCRIPT_INDEX] Cursor requires a desktop environment to run"
+        print_info_from_common_functions "[$SCRIPT_INDEX] Skipping Cursor IDE (production server without desktop environment)"
+        print_info_from_common_functions "[$SCRIPT_INDEX] Installing Cursor Agent (CLI) only - required for both desktop and headless."
+        ensure_cursor_agent_installed
         exit 0
     fi
 

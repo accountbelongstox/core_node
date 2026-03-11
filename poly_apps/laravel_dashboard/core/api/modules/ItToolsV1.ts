@@ -515,10 +515,6 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/hmac', data);
   }
 
-  async temperature(data: { value: number; from: string; to: string }): Promise<APIResponse> {
-    return this.post('/converter/temperature', data);
-  }
-
   async mimeTypes(data: { extension?: string; mimeType?: string }): Promise<APIResponse> {
     return this.post('/web/mime-types', data);
   }
