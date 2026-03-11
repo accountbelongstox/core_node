@@ -7,8 +7,9 @@ import { ROUTE_REGISTRY, RouteCenter } from './router/RouteCenter';
 import { BottomTabNav } from './components/BottomTabNav';
 import { GlobalInitializer } from './services/GlobalInitializer';
 import { DialogManager } from './components/Dialog';
+import './index.css';
 
-// Router Component with URL-based navigation
+// Router Component
 const AppRouter = () => {
   const { user } = useContext(AppContext);
   const location = useLocation();

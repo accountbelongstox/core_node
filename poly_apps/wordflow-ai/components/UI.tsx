@@ -28,12 +28,23 @@ export const Icons = {
   Sun: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
 };
 
+/** Dot-matrix arrow (5×5 grid, retro tech). Use with ds-btn-bento. */
+export const IconsDotMatrix = {
+  ArrowRight: () => (
+    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <rect x="8" y="4" width="2" height="2" /><rect x="10" y="6" width="2" height="2" />
+      <rect x="12" y="8" width="2" height="2" /><rect x="14" y="6" width="2" height="2" />
+      <rect x="16" y="4" width="2" height="2" /><rect x="14" y="10" width="2" height="2" />
+      <rect x="16" y="12" width="2" height="2" />
+    </svg>
+  ),
+};
+
 export const Card = ({ children, className = '', onClick }: any) => (
-  <div 
-    onClick={onClick} 
-    className={`holo-card rounded-[2rem] p-6 relative overflow-hidden group ${onClick ? 'cursor-pointer' : ''} ${className}`}
+  <div
+    onClick={onClick}
+    className={`ds-card rounded-[var(--radius-card)] p-6 relative overflow-hidden group ${onClick ? 'cursor-pointer' : ''} ${className}`}
   >
-    {/* Shine effect handled by CSS, but we add a subtle gradient overlay for extra depth */}
     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
     <div className="relative z-10">
       {children}
@@ -41,23 +52,52 @@ export const Card = ({ children, className = '', onClick }: any) => (
   </div>
 );
 
-export const Button = ({ children, variant = 'primary', className = '', onClick, disabled }: any) => {
-  const base = "w-full py-4 rounded-2xl font-bold tracking-wide transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
+export const Button = ({ children, variant = 'primary', className = '', onClick, disabled, showSparkles = false, showPlay = false }: any) => {
+  const base = "font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
+  const fullWidth = "w-full";
+  const py = "py-4";
+  const radiusClass = variant === 'pill' ? 'rounded-full' : variant === 'bento' ? '' : 'rounded-[var(--radius-button)]';
 
-  // Refined variants with glowing effects
   const styles: any = {
-    primary: "bg-blue-600 text-white border border-blue-400/30 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] hover:bg-blue-500 disabled:hover:shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:hover:bg-blue-600",
-    secondary: "bg-white/10 dark:bg-white/5 backdrop-blur-md text-slate-700 dark:text-white hover:bg-white/20 border border-white/20 dark:border-white/10",
-    outline: "bg-transparent border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
-    danger: "bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]",
-    ghost: "bg-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+    primary: "ds-btn w-full py-4 rounded-[var(--radius-button)] bg-blue-600 text-white border border-blue-400/30 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] hover:bg-blue-500 disabled:hover:shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:hover:bg-blue-600",
+    pill: "ds-btn-pill w-full py-4 text-white",
+    bento: "ds-btn-bento w-full min-h-[3.25rem]",
+    fluid: "ds-btn-fluid w-full py-4 text-white",
+    secondary: "ds-btn ds-glass-edge w-full py-4 backdrop-blur-[var(--blur-md)] text-slate-700 dark:text-white hover:bg-white/20 border border-white/20 dark:border-white/10 rounded-[var(--radius-button)]",
+    outline: "bg-transparent w-full py-4 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-[var(--radius-button)]",
+    danger: "ds-btn w-full py-4 bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)] rounded-[var(--radius-button)]",
+    ghost: "bg-transparent w-full py-4 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-[var(--radius-button)]"
   };
 
+  if (variant === 'bento') {
+    return (
+      <button onClick={onClick} disabled={disabled} className={`${styles.bento} ${className}`}>
+        <span className="ds-btn-bento-accent">
+          <IconsDotMatrix.ArrowRight />
+        </span>
+        <span className="ds-btn-bento-label">
+          {children}
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <button onClick={onClick} disabled={disabled} className={`${base} ${styles[variant]} ${className}`}>
+    <button onClick={onClick} disabled={disabled} className={`${base} ${radiusClass} ${styles[variant] || styles.primary} ${className}`}>
+      {showSparkles && variant === 'pill' && (
+        <span className="relative z-10 flex-shrink-0 text-white/95">
+          <Icons.Sparkles />
+        </span>
+      )}
+      {showPlay && variant === 'fluid' && (
+        <span className="relative z-10 flex-shrink-0">
+          <Icons.Play />
+        </span>
+      )}
       <span className="relative z-10">{children}</span>
-      {/* Light sweep effect */}
-      {variant === 'primary' && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>}
+      {variant === 'primary' && !showSparkles && (
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none"></div>
+      )}
     </button>
   );
 };

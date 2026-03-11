@@ -1,3 +1,7 @@
+# DEPRECATED: This Windows PowerShell layer (Python core) is deprecated.
+# New implementation (no Python): scripts/app_manager/windows_ps1/app_manager.ps1
+# dd.ps1 already launches the new script; this file is kept for backward compatibility.
+#
 # Unified App Manager - Windows PowerShell Layer
 # Execution layer that communicates with Python core through global variables
 # PowerShell implementation with Windows-specific features
