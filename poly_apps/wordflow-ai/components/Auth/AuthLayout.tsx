@@ -53,7 +53,9 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
           )}
         </>
       )}
-      {children}
+      <div className="w-full max-w-sm ds-glass ds-glass-edge rounded-[var(--radius-card)] p-6 sm:p-8">
+        {children}
+      </div>
     </div>
   );
 };

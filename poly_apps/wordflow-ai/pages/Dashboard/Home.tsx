@@ -205,16 +205,15 @@ const DashboardPage = () => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-[#f8fafc] dark:bg-slate-950">
+    <div className="h-full flex flex-col bg-transparent">
       <Header />
 
       {/* Scrollable Content Container */}
       <div className="flex-1 overflow-y-auto custom-scrollbar pt-24 pb-32 animate-slide-up">
-        {/* Mobile-only Container - 100% width, no max-width restrictions */}
-        <div className="w-full px-5">
+        <div className="ds-page ds-stack">
         {/* Welcome Section */}
-        <div className="mb-6">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
+        <div className="mb-2">
+            <span className="ds-section-label pl-1">
                  {user ? t('home.startLearning') : t('home.guestMode')}
             </span>
             <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400">
@@ -222,8 +221,8 @@ const DashboardPage = () => {
             </h1>
         </div>
 
-        {/* Language Selection Bar */}
-        <div className="flex items-center justify-between bg-white/50 dark:bg-slate-800/50 p-3 rounded-2xl border border-white/40 backdrop-blur-sm mb-8 shadow-sm">
+        {/* Language Selection Bar — base: glass + edge */}
+        <div className="ds-glass ds-glass-edge flex items-center justify-between p-3 rounded-[var(--radius-card)]">
              <div className="flex items-center gap-3 flex-1 min-w-0">
                  {/* Multiple Language Flags */}
                  <div className="flex items-center gap-1.5">
@@ -253,7 +252,7 @@ const DashboardPage = () => {
 
              <button
                 onClick={() => navigate('settings_lang')}
-                className="p-2 rounded-xl bg-white/60 dark:bg-slate-700/60 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border border-white/20 shadow-sm flex-shrink-0"
+                className="ds-glass ds-glass-sm p-2 rounded-xl border border-white/20 shadow-sm flex-shrink-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors"
              >
                  <Icons.Settings />
              </button>
@@ -261,33 +260,30 @@ const DashboardPage = () => {
 
         {/* Daily Words Section */}
         {user && (
-          <div className="mb-8">
+          <div>
             <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              <h2 className="ds-section-label">
                 {t('home.dailyWords') || 'Daily Words'}
               </h2>
-              <button
-                onClick={() => navigate('dictionary')}
-                className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
-              >
+              <Button variant="bento" onClick={() => navigate('dictionary')} className="w-auto ds-btn-bento-compact py-2 px-3">
                 {t('home.viewMore') || 'More'}
-              </button>
+              </Button>
             </div>
 
             {loadingDaily ? (
-              <div className="flex items-center justify-center p-6 rounded-[2rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md">
+              <div className="ds-card flex items-center justify-center p-6">
                 <div className="flex items-center gap-2 text-slate-400">
                   <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
                 </div>
               </div>
             ) : dailyWords.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="ds-grid-breathing grid grid-cols-1">
                 {dailyWords.map((word, index) => (
                   <div
                     key={word.id || index}
                     onClick={() => navigate('word_detail', { wordId: word.id })}
-                    className="flex items-center justify-between p-4 rounded-[1.5rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                    className="ds-row flex items-center justify-between p-4 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
@@ -316,14 +312,14 @@ const DashboardPage = () => {
                 ))}
               </div>
             ) : (
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2">
+              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
                 <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
                   📝
                 </div>
-                <span className="font-bold text-slate-500 text-center text-sm">
+                <span className="font-bold text-center text-sm">
                   {t('home.noDailyWords') || 'No daily words available'}
                 </span>
-                <span className="text-xs text-slate-400 text-center">
+                <span className="text-xs text-center">
                   {t('home.checkBackLater') || 'Check back later for new words'}
                 </span>
               </div>
@@ -333,9 +329,9 @@ const DashboardPage = () => {
 
         {/* Review Queue Section */}
         {user && (
-          <div className="mb-8">
+          <div>
             <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              <h2 className="ds-section-label">
                 {t('home.reviewQueue') || 'Review Queue'}
               </h2>
               <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
@@ -344,19 +340,19 @@ const DashboardPage = () => {
             </div>
 
             {loadingReview ? (
-              <div className="flex items-center justify-center p-6 rounded-[2rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md">
+              <div className="ds-card flex items-center justify-center p-6">
                 <div className="flex items-center gap-2 text-slate-400">
                   <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
                 </div>
               </div>
             ) : reviewQueue.length > 0 ? (
-              <div className="space-y-3">
+              <div className="ds-stack ds-stack-tight">
                 {reviewQueue.map((word, index) => (
                   <div
                     key={word.id}
                     onClick={() => navigate('word_detail', { wordId: word.id })}
-                    className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-orange-50/80 to-red-50/80 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200/50 dark:border-orange-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                    className="ds-row flex items-center justify-between p-4 cursor-pointer group bg-gradient-to-r from-orange-50/80 to-red-50/80 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-700/50"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/40 dark:to-red-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
@@ -384,23 +380,24 @@ const DashboardPage = () => {
                   </div>
                 ))}
                 {reviewQueue.length >= 5 && (
-                  <button
+                  <Button
+                    variant="fluid"
+                    showPlay
                     onClick={() => navigate('review')}
-                    className="w-full p-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-colors shadow-md"
                   >
                     {t('home.reviewAll') || 'Start Review Session'}
-                  </button>
+                  </Button>
                 )}
               </div>
             ) : (
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2">
+              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
                 <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-2xl">
                   ✅
                 </div>
-                <span className="font-bold text-slate-500 text-center text-sm">
+                <span className="font-bold text-center text-sm">
                   {t('home.noReviewNeeded') || 'All caught up!'}
                 </span>
-                <span className="text-xs text-slate-400 text-center">
+                <span className="text-xs text-center">
                   {t('home.noReviewDescription') || 'No words need review right now'}
                 </span>
               </div>
@@ -409,27 +406,24 @@ const DashboardPage = () => {
         )}
 
         {/* Recommended Vocabulary Libraries Section */}
-        <div className="mb-8">
+        <div>
           <div className="flex justify-between items-center mb-3 px-1">
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+            <h2 className="ds-section-label">
               {t('home.recommendedLibraries') || 'RECOMMENDED VOCABULARY'}
             </h2>
             {recommendedLibraries.length > 0 && (
-              <button
-                onClick={() => navigate('courses')}
-                className="text-xs font-bold text-purple-500 bg-purple-50 px-2 py-1 rounded-lg"
-              >
+              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
                 {t('home.viewMore') || 'More'}
-              </button>
+              </Button>
             )}
           </div>
 
           {loadingLibraries ? (
-            <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-center">
+            <div className="ds-card p-6 text-center">
               <span className="text-slate-500">Loading vocabulary libraries...</span>
             </div>
           ) : recommendedLibraries.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="ds-grid-breathing grid grid-cols-2">
               {recommendedLibraries.map((library, index) => {
                 const gradients = [
                   'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
@@ -445,7 +439,7 @@ const DashboardPage = () => {
                 return (
                   <div
                     key={library.id}
-                    className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradientClass} border border-white/40 dark:border-white/10 shadow-sm hover:shadow-lg transition-all duration-300 group`}
+                    className={`ds-card relative overflow-hidden bg-gradient-to-br ${gradientClass} border border-white/40 dark:border-white/10 group`}
                   >
                     <div
                       onClick={() => navigate(`vocabulary_library/${library.id}`)}
@@ -496,7 +490,7 @@ const DashboardPage = () => {
                           setShowAddToGroupModal(true);
                         }
                       }}
-                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md flex items-center justify-center text-purple-600 dark:text-purple-400 hover:bg-purple-500 hover:text-white transition-all hover:scale-110 active:scale-95"
+                      className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-purple-600 dark:text-purple-400 hover:bg-purple-500 hover:text-white transition-all hover:scale-110 active:scale-95"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -507,7 +501,7 @@ const DashboardPage = () => {
               })}
             </div>
           ) : (
-            <div className="p-6 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-center">
+            <div className="ds-card p-6 text-center">
               <span className="text-slate-500">No recommended libraries available</span>
             </div>
           )}
@@ -515,25 +509,22 @@ const DashboardPage = () => {
 
         {/* My Selected Libraries Section */}
         {user && selectedLibraries.length > 0 && (
-          <div className="mb-8">
+          <div>
             <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+              <h2 className="ds-section-label">
                 {t('home.myVocabulary') || 'My Vocabulary'}
               </h2>
-              <button
-                onClick={() => navigate('courses')}
-                className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
-              >
+              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
                 {t('home.viewAll') || 'View All'}
-              </button>
+              </Button>
             </div>
 
-            <div className="space-y-3">
+            <div className="ds-stack ds-stack-tight">
               {selectedLibraries.map((library) => (
                 <div
                   key={library.id}
                   onClick={() => navigate('courses')}
-                  className="flex items-center justify-between p-4 rounded-[1.5rem] bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200/50 dark:border-blue-700/50 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                  className="ds-row flex items-center justify-between p-4 cursor-pointer group bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-700/50"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
@@ -570,10 +561,10 @@ const DashboardPage = () => {
         {/* Filtered Word Groups Section */}
         {/* [GLOBAL SETTING] Show filtered courses based on global settings */}
         {user && settings.language.learningLanguages && settings.language.learningLanguages.length > 0 && (
-          <div className="mb-8">
+          <div>
             <div className="flex justify-between items-center mb-3 px-1">
               <div>
-                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                <h2 className="ds-section-label">
                   {t('home.availableCourses')}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -582,21 +573,18 @@ const DashboardPage = () => {
                   ).join(', ')}
                 </p>
               </div>
-              <button
-                onClick={() => navigate('courses')}
-                className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
-              >
+              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
                 {t('home.viewAll')}
-              </button>
+              </Button>
             </div>
 
             {filteredGroups.length > 0 ? (
-              <div className="space-y-3">
+              <div className="ds-stack ds-stack-tight">
                 {filteredGroups.slice(0, 3).map(group => (
                   <div
                     key={group.id}
                     onClick={() => navigate('course_detail', { groupId: group.id })}
-                    className="flex items-center justify-between p-4 rounded-[1.5rem] bg-white/60 dark:bg-slate-800/60 border border-white/40 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-sm group"
+                    className="ds-row flex items-center justify-between p-4 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-2xl shadow-inner border border-white/40 flex-shrink-0">
@@ -623,45 +611,39 @@ const DashboardPage = () => {
                 ))}
               </div>
             ) : (
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2">
+              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
                 <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
                   <Icons.Book />
                 </div>
-                <span className="font-bold text-slate-500 text-center">
+                <span className="font-bold text-center">
                   {t('home.noCoursesForLanguages')}
                 </span>
-                <span className="text-xs text-slate-400 text-center">
+                <span className="text-xs text-center">
                   {t('home.tryDifferentLanguages')}
                 </span>
-                <button
-                  onClick={() => navigate('settings_lang')}
-                  className="mt-2 text-xs font-bold text-blue-500 bg-blue-50 px-3 py-1.5 rounded-lg"
-                >
+                <Button variant="bento" onClick={() => navigate('settings_lang')} className="w-auto ds-btn-bento-compact py-2 px-3 mt-2">
                   {t('home.changeLanguages')}
-                </button>
+                </Button>
               </div>
             )}
           </div>
         )}
 
         {/* Library / Active Course Section */}
-        <div className="mb-8">
+        <div>
             <div className="flex justify-between items-center mb-2 px-1">
-                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                <h2 className="ds-section-label">
                     {user ? t('home.activeCourse') : t('home.library')}
                 </h2>
-                <button
-                    onClick={() => handleProtectedAction(() => navigate('courses'))}
-                    className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg"
-                >
-                    {t('home.add')}
-                </button>
+                <Button variant="bento" onClick={() => handleProtectedAction(() => navigate('courses'))} className="w-auto ds-btn-bento-compact py-2 px-3">
+                  {t('home.add')}
+                </Button>
             </div>
 
             {user ? (
                 <div
                     onClick={() => navigate('course_detail', { groupId: activeGroupId })}
-                    className="flex items-center justify-between p-5 rounded-[2rem] bg-gradient-to-br from-white/60 to-white/30 dark:from-slate-800/60 dark:to-slate-900/40 border border-white/40 backdrop-blur-md cursor-pointer hover:scale-[1.01] transition-all shadow-lg shadow-blue-500/5 group"
+                    className="ds-card ds-card-elevated flex items-center justify-between p-5 cursor-pointer group"
                 >
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-3xl shadow-inner border border-white/40">
@@ -686,7 +668,7 @@ const DashboardPage = () => {
             ) : (
                 <div
                     onClick={() => handleProtectedAction(() => {})}
-                    className="border-2 border-dashed border-slate-300 dark:border-slate-700 p-6 rounded-[2rem] flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/30 transition-colors group"
+                    className="ds-empty p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/30 transition-colors group"
                 >
                     <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-colors">
                         <Icons.Book />
@@ -698,15 +680,15 @@ const DashboardPage = () => {
         </div>
 
         {/* Study Modes Grid */}
-        <div className="grid grid-cols-2 gap-4 auto-rows-min mb-8">
+        <div className="ds-grid-breathing grid grid-cols-2 auto-rows-min">
             <div className="col-span-2 flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-1">{t('home.studyCenter')}</h2>
+                <h2 className="ds-section-label pl-1">{t('home.studyCenter')}</h2>
             </div>
 
-            {/* Playlist Mode */}
+            {/* Playlist Mode — base Card + personalized CTA gradient */}
             <Card
                 onClick={() => handleProtectedAction(() => navigate('playlist', { groupId: activeGroupId }))}
-                className="col-span-2 !p-5 bg-gradient-to-r from-blue-500 to-indigo-600 !border-none text-white shadow-xl shadow-blue-500/20 group relative overflow-hidden cursor-pointer"
+                className="col-span-2 !p-5 !rounded-[var(--radius-card)] bg-gradient-to-r from-blue-500 to-indigo-600 !border-none text-white shadow-xl shadow-blue-500/20 group relative overflow-hidden cursor-pointer"
             >
                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
                <div className="relative z-10 flex items-center justify-between">
@@ -786,10 +768,10 @@ const DashboardPage = () => {
 
         {/* Progress Section */}
         <div>
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-1 mb-2">{t('home.myProgress')}</h2>
+            <h2 className="ds-section-label pl-1 mb-2">{t('home.myProgress')}</h2>
 
             {user ? (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="ds-grid-breathing grid grid-cols-2">
                    <Card onClick={() => navigate('stats')} className="flex flex-col gap-2 cursor-pointer">
                       <div className="text-3xl mb-1">🔥</div>
                       <div className="font-bold dark:text-white text-xl">{user.streak || 0} {t('home.days')}</div>
@@ -818,14 +800,12 @@ const DashboardPage = () => {
       {/* Add to Group Modal */}
       {showAddToGroupModal && selectedLibraryForGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="ds-modal-backdrop absolute inset-0"
             onClick={() => setShowAddToGroupModal(false)}
           ></div>
 
-          {/* Modal */}
-          <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden animate-slide-up">
+          <div className="ds-modal-panel relative max-w-md w-full max-h-[80vh] overflow-hidden animate-slide-up">
             {/* Header */}
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-start justify-between">
@@ -937,18 +917,17 @@ const DashboardPage = () => {
 
             {/* Footer - Create New Group */}
             <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-              <button
+              <Button
+                variant="fluid"
+                showPlay
                 onClick={() => {
                   setShowAddToGroupModal(false);
                   navigate('group_management');
                 }}
-                className="w-full flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/20 hover:shadow-xl hover:scale-[1.02] active:scale-95"
+                className="shadow-lg hover:shadow-xl transition-shadow"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>{t('home.createNewGroup') || 'Create New Group'}</span>
-              </button>
+                {t('home.createNewGroup') || 'Create New Group'}
+              </Button>
             </div>
           </div>
         </div>
