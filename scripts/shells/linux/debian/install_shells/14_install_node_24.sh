@@ -358,6 +358,35 @@ remove_old_node_installation() {
     fi
 }
 
+# Idempotent: when a fresh install is required, force-clean target, extract dir, and download
+# so install always has a clean state (avoids inter-device mv and leftover dirs).
+force_clean_for_node_install() {
+    echo "Force-cleaning old Node install target and temp files for idempotent install..."
+
+    local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
+
+    for binary in node npm npx; do
+        $USE_SUDO rm -f "/usr/local/bin/$binary"
+    done
+
+    if [ -d "$target_dir" ]; then
+        echo "Removing existing target: $target_dir"
+        $USE_SUDO rm -rf "$target_dir"
+    fi
+
+    if [ -d "$EXTRACT_DIR" ]; then
+        echo "Removing extract dir: $EXTRACT_DIR"
+        $USE_SUDO rm -rf "$EXTRACT_DIR"
+    fi
+
+    if [ -f "$TAR_FILE" ]; then
+        echo "Removing cached download: $TAR_FILE"
+        rm -f "$TAR_FILE"
+    fi
+
+    echo "Force-clean completed."
+}
+
 
 install_node() {
     echo "Installing Node.js $NODE_VERSION..."
@@ -383,9 +412,25 @@ install_node() {
 
     echo "Installing Node.js to $NODE_INSTALL_DIR..."
     $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
-    if ! $USE_SUDO mv "$EXTRACT_DIR" "$NODE_INSTALL_DIR/node-$NODE_VERSION"; then
-        echo "Failed to install Node.js"
-        return 1
+    local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
+    $USE_SUDO rm -rf "$target_dir"
+
+    local src_dev target_dev
+    src_dev=$(stat -c %d "$EXTRACT_DIR" 2>/dev/null || echo "")
+    target_dev=$(stat -c %d "$NODE_INSTALL_DIR" 2>/dev/null || echo "")
+    if [ -n "$src_dev" ] && [ -n "$target_dev" ] && [ "$src_dev" != "$target_dev" ]; then
+        echo "Cross-device install: copying then removing extract dir..."
+        $USE_SUDO cp -a "$EXTRACT_DIR" "$target_dir"
+        if [ $? -ne 0 ]; then
+            echo "Failed to install Node.js (cp failed)"
+            return 1
+        fi
+        $USE_SUDO rm -rf "$EXTRACT_DIR"
+    else
+        if ! $USE_SUDO mv "$EXTRACT_DIR" "$target_dir"; then
+            echo "Failed to install Node.js"
+            return 1
+        fi
     fi
 
     # Set proper permissions (validate path to avoid touching system dirs)
@@ -604,6 +649,7 @@ case $installation_result in
             fi
         fi
         echo ""
+        force_clean_for_node_install
         echo "Installing Node.js $NODE_VERSION ($NODE_ARCH_SUFFIX)..."
         if ! install_node; then
             echo "Node.js installation failed"
@@ -616,6 +662,7 @@ case $installation_result in
         echo "=================================================="
         echo "Installing Node.js $NODE_VERSION..."
         echo ""
+        force_clean_for_node_install
         if ! install_node; then
             echo "Node.js installation failed"
             exit 1

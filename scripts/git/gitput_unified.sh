@@ -1490,7 +1490,8 @@ main() {
     # Determine target remote
     if [ -z "$TARGET_REMOTE" ]; then
         write_color_text "No target specified, using all remotes" "Yellow"
-        targets=("github" "gitee" "local")
+        # local temporarily disabled (not reachable or not in use); restore with: targets=("github" "gitee" "local")
+        targets=("github" "gitee")
     else
         targets=("$TARGET_REMOTE")
     fi
