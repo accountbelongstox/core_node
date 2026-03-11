@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewType, NavItem, Language } from '../types';
-import { TRANSLATIONS } from '../constants';
+import { useTranslation } from 'react-i18next';
 import { useUserRole } from '../hooks/useUserRole';
 import {
   Film,
@@ -15,7 +15,8 @@ import {
   Network,
   Sparkles,
   KeyRound,
-  CreditCard
+  CreditCard,
+  Database
 } from "lucide-react";
 
 interface SidebarProps {
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
   { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
   { id: ViewType.BANK_MANAGER, icon: CreditCard, labelKey: 'bankManager' },
+  { id: ViewType.DATABASE_VIEWER, icon: Database, labelKey: 'dbViewer' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 
@@ -43,7 +45,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => {
-  const t = TRANSLATIONS[lang].nav;
+  const { t } = useTranslation();
   const { canManageInviteCodes } = useUserRole();
 
   const visibleNavItems = [
@@ -52,7 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
   ];
 
   return (
-    <aside className="w-14 md:w-16 h-screen flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
+    <aside className="fixed left-0 top-0 w-14 md:w-16 h-screen flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">
       {/* Brand Logo / Rocket */}
       <div className="mb-4 p-2 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 dark:border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] dark:shadow-[0_0_15px_rgba(99,102,241,0.3)]">
         <Rocket size={20} />
@@ -62,8 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => 
       <nav className="flex-1 flex flex-col gap-2 w-full px-1.5">
         {visibleNavItems.map((item) => {
           const isActive = activeView === item.id;
-          // Dynamically fetch label
-          const label = t[item.labelKey as keyof typeof t] || item.labelKey;
+          const label = t(`nav.${item.labelKey}`);
 
           return (
             <button

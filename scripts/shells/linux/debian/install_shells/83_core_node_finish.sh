@@ -32,26 +32,31 @@ NPM_ABS_PATH="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin/npm"
 
 # Function to check package manager availability
 check_package_manager() {
+    local version_out
     # Check for pnpm using absolute path first (prevents "command not found" on first install)
     if [ -f "$PNPM_ABS_PATH" ]; then
         echo "pnpm found at: $PNPM_ABS_PATH"
-        echo "pnpm version: $($PNPM_ABS_PATH --version)"
+        version_out=$("$PNPM_ABS_PATH" --version 2>/dev/null) || version_out=$($USE_SUDO "$PNPM_ABS_PATH" --version 2>/dev/null)
+        echo "pnpm version: ${version_out:-unknown}"
         echo "Will use pnpm for installation"
         return 0
     elif command -v pnpm >/dev/null 2>&1; then
         echo "pnpm found in PATH: $(which pnpm)"
-        echo "pnpm version: $(pnpm --version)"
+        version_out=$(pnpm --version 2>/dev/null) || version_out=$($USE_SUDO pnpm --version 2>/dev/null)
+        echo "pnpm version: ${version_out:-unknown}"
         echo "Will use pnpm for installation"
         PNPM_ABS_PATH="$(which pnpm)"
         return 0
     elif [ -f "$NPM_ABS_PATH" ]; then
         echo "pnpm not found, using npm at: $NPM_ABS_PATH"
-        echo "npm version: $($NPM_ABS_PATH --version)"
+        version_out=$("$NPM_ABS_PATH" --version 2>/dev/null) || version_out=$($USE_SUDO "$NPM_ABS_PATH" --version 2>/dev/null)
+        echo "npm version: ${version_out:-unknown}"
         echo "Will use npm for installation"
         return 1
     elif command -v npm >/dev/null 2>&1; then
         echo "pnpm not found, using npm in PATH: $(which npm)"
-        echo "npm version: $(npm --version)"
+        version_out=$(npm --version 2>/dev/null) || version_out=$($USE_SUDO npm --version 2>/dev/null)
+        echo "npm version: ${version_out:-unknown}"
         echo "Will use npm for installation"
         NPM_ABS_PATH="$(which npm)"
         return 1

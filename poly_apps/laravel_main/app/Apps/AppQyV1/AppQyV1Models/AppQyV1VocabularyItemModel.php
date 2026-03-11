@@ -58,21 +58,31 @@ class AppQyV1VocabularyItemModel extends Model
 
     public static function createBatch(int $collectionId, string $langCode, array $words)
     {
-        $items = [];
         $timestamp = now();
+        $chunkSize = 1000;
+        $index = 0;
+        $inserted = 0;
 
-        foreach ($words as $index => $word) {
-            $items[] = [
-                'collection_id' => $collectionId,
-                'lang_code' => $langCode,
-                'word_content' => $word,
-                'word_md5' => md5($word),
-                'word_index' => $index,
-                'created_at' => $timestamp,
-                'updated_at' => $timestamp,
-            ];
+        foreach (array_chunk($words, $chunkSize) as $chunk) {
+            $items = [];
+            foreach ($chunk as $word) {
+                $items[] = [
+                    'collection_id' => $collectionId,
+                    'lang_code' => $langCode,
+                    'word_content' => $word,
+                    'word_md5' => md5($word),
+                    'word_index' => $index++,
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
+
+            if (!empty($items)) {
+                self::insert($items);
+                $inserted += count($items);
+            }
         }
 
-        return self::insert($items);
+        return $inserted;
     }
 }

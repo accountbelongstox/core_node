@@ -1,6 +1,8 @@
 /**
  * Debug Interface Core JavaScript
- * Main framework: Sidebar toggle and iframe section switching
+ * Main framework: Sidebar toggle and iframe section switching.
+ * Only API Testing Dashboard and SSO Authentication are available here.
+ * All other management features and actual code are developed in poly_apps/laravel_dashboard/.
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -116,37 +118,34 @@ function showSection(sectionType) {
     });
 
     const targetLink = document.querySelector(`[data-section="${sectionType}"]`);
-    targetLink.classList.add('active');
+    if (targetLink) targetLink.classList.add('active');
 
     const sectionFileMap = {
         'api-testing': '/debug-assets/debug-tools/sections/api-testing-section.html',
-        'dev-tools': '/debug-assets/debug-tools/sections/dev-tools-section.html',
-        'system-info': '/debug-assets/debug-tools/sections/system-info-section.html',
-        'code-browser': '/debug-assets/debug-tools/sections/code-browser-section.html',
-        'static-resources': '/debug-assets/debug-tools/sections/static-resources-section.html',
-        'mcp-manager': '/debug-assets/debug-tools/sections/mcp-manager-section.html',
-        'learning': '/debug-assets/debug-tools/sections/learning-section.html',
-        'octane-tasks': '/debug-assets/debug-tools/sections/octane-tasks-section.html',
         'sso': '/sso'
     };
 
     const sectionTitles = {
-        'system-info': { title: 'System Information', desc: 'View comprehensive system and application information' },
-        'dev-tools': { title: 'Development Tools', desc: 'Professional developer utilities and tools' },
         'api-testing': { title: 'API Testing Dashboard', desc: 'Test and debug your Laravel API endpoints' },
-        'code-browser': { title: 'Code Browser', desc: 'Browse, edit files, manage tasks and prompt mappings' },
-        'static-resources': { title: 'Static Resources', desc: 'Browse and manage static media files' },
-        'mcp-manager': { title: 'MCP Manager', desc: 'Manage MCP features including screenshots, task dispatch, and prompt mappings' },
-        'learning': { title: 'Vocabulary Learning', desc: 'Learn and practice vocabulary with interactive tools' },
-        'octane-tasks': { title: 'Octane Timer Tasks', desc: 'Monitor and manage Octane timer tasks status' },
         'sso': { title: 'SSO Authentication', desc: 'Single Sign-On authentication with WorkOS AuthKit' }
     };
 
-    const iframe = document.getElementById('section-iframe');
     const filePath = sectionFileMap[sectionType];
 
-    if (filePath) {
-        iframe.src = filePath;
+    if (!filePath) {
+        sectionType = 'api-testing';
+        const fallbackLink = document.querySelector(`[data-section="api-testing"]`);
+        if (fallbackLink) {
+            fallbackLink.classList.add('active');
+            if (targetLink) targetLink.classList.remove('active');
+        }
+    }
+
+    const iframe = document.getElementById('section-iframe');
+    const finalPath = sectionFileMap[sectionType];
+
+    if (finalPath) {
+        iframe.src = finalPath;
         iframe.style.display = 'block';
     } else {
         iframe.style.display = 'none';

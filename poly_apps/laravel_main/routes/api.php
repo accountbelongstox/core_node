@@ -57,6 +57,9 @@ require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
 require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
 
+// Dashboard DB Viewer (auth required)
+require_once __DIR__ . '/DashboardRouter/DatabaseViewer.php';
+
 // InviteCode Controller
 use App\Http\Controllers\InviteCodeController;
 

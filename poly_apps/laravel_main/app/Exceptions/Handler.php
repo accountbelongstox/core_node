@@ -57,6 +57,29 @@ class Handler extends ExceptionHandler
     {
         // Remove framework-specific headers
         header_remove('X-Powered-By');
+
+        // Unified JSON error wrapper for API requests (including debug mode)
+        if ($request->expectsJson()) {
+            $status = $this->isHttpException($e) ? $e->getStatusCode() : 500;
+            $debug = (bool) config('app.debug');
+
+            $payload = [
+                'success' => false,
+                'data' => null,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ];
+
+            if ($debug) {
+                $payload['trace'] = $e->getTrace();
+                $payload['traceText'] = $e->getTraceAsString();
+            }
+
+            return response()->json($payload, $status)
+                ->header('Content-Type', 'application/json');
+        }
         
         if (!config('app.debug')) {
             $status = 500;
