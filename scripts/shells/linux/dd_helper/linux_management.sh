@@ -301,6 +301,34 @@ show_app_install_menu() {
 >>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
 }
 
+# Function to show RustDesk Server install info (Key, ports, IPs)
+show_rustdesk_install_info() {
+    echo "RustDesk Server Install Info"
+    echo ""
+    if [ -s "$RUSTDESK_INSTALL_INFO_SCRIPT" ]; then
+        bash "$RUSTDESK_INSTALL_INFO_SCRIPT"
+    else
+        echo "Error: Script not found at: $RUSTDESK_INSTALL_INFO_SCRIPT"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+# Function to show APP Install menu (single-package install from 120 list)
+show_app_install_menu() {
+    local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
+    echo "APP Install Menu"
+    echo ""
+    if [ -s "$app_install_script" ]; then
+        bash "$app_install_script"
+    else
+        echo "Error: app_install_menu.sh not found at $app_install_script"
+    fi
+    echo ""
+    read -r -p "Press Enter to continue..."
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
