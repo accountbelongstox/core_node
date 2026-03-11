@@ -272,7 +272,6 @@ EOF
     read
 }
 
-<<<<<<< HEAD
 # Function to show RustDesk Server install info (Key, ports, IPs)
 show_rustdesk_install_info() {
     echo "RustDesk Server Install Info"
@@ -285,7 +284,8 @@ show_rustdesk_install_info() {
     echo ""
     echo "Press Enter to continue..."
     read
-=======
+}
+
 # Function to show APP Install menu (single-package install from 120 list)
 show_app_install_menu() {
     local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
@@ -298,13 +298,12 @@ show_app_install_menu() {
     fi
     echo ""
     read -r -p "Press Enter to continue..."
->>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
 }
 
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=8
+    local total=9
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -316,11 +315,8 @@ show_linux_management_submenu() {
         "Restart GNOME Remote Desktop (Fix RDP Connection)"
         "Clear and Re-decrypt Secret Keys"
         "Show System Information"
-<<<<<<< HEAD
         "RustDesk Server Install Info (Key & Ports)"
-=======
         "APP Install"
->>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
         "Back to Main Menu"
     )
     
@@ -382,13 +378,12 @@ show_linux_management_submenu() {
                         show_system_information
                         ;;
                     6)
-<<<<<<< HEAD
                         show_rustdesk_install_info
-=======
-                        show_app_install_menu
->>>>>>> 42c701c770f5748f75523723d9a9eb155535a072
                         ;;
                     7)
+                        show_app_install_menu
+                        ;;
+                    8)
                         return 0
                         ;;
                 esac
