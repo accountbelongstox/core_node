@@ -11,6 +11,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# DEPRECATED: This entry and the Python-based Unified App Manager are deprecated.
+# Use the native multi-file implementations instead:
+#   Linux:  scripts/app_manager/linux_sh/app_manager.sh
+#   Windows: scripts/app_manager/windows_ps1/app_manager.ps1
+# dd.sh and dd.ps1 already point to the new scripts; this file is kept for backward compatibility.
+
 # Unified App Manager - Cross-Platform Entry Point
 # Detects platform and launches appropriate implementation
 

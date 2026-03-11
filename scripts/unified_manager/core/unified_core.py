@@ -3,6 +3,12 @@
 Unified App Manager Core
 Cross-platform application management system
 
+DEPRECATED: This Python core is deprecated.
+New implementations (no Python dependency):
+  Windows: scripts/app_manager/windows_ps1/app_manager.ps1
+  Linux:   scripts/app_manager/linux_sh/app_manager.sh
+dd.ps1 and dd.sh launch the new scripts; this module is kept for backward compatibility.
+
 This module provides the main logic for the unified app manager,
 communicating with shell/PowerShell through global variables.
 """
