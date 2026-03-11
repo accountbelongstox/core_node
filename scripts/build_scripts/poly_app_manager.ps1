@@ -105,9 +105,9 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
+                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
@@ -117,7 +117,7 @@ switch ($PROJECT_TYPE) {
                     Write-Host "  ────────────────────────────────────────────────────────────────────────"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode
@@ -238,9 +238,9 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
+                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
@@ -250,7 +250,7 @@ switch ($PROJECT_TYPE) {
                     Write-Host "  ────────────────────────────────────────────────────────────────────────"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode
