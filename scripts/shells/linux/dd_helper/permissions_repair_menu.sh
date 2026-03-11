@@ -22,8 +22,13 @@ fix_core_node_permissions_full() {
     local real_user="${user_info%%:*}"
 
     echo "[INFO] Fixing Core Node full permissions..."
-    echo "[INFO] Project root: $project_root"
+    echo "[SAFE_PATH] project_root=$project_root"
     echo "[INFO] Real user: $real_user"
+
+    if ! safe_path_for_recursive_chown "$project_root"; then
+        echo "[ERROR] project_root unsafe; refusing chown/chmod"
+        return 1
+    fi
 
     # Calculate build directory path dynamically (no hardcoding)
     local parent_dir="$(dirname "$project_root")"
@@ -87,9 +92,14 @@ fix_python_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    
+
     echo "[INFO] Fixing Python-specific permissions..."
-    
+    echo "[SAFE_PATH] project_root=$project_root"
+    if ! safe_path_for_recursive_chown "$project_root"; then
+        echo "[ERROR] project_root unsafe; skipping Python permissions"
+        return 1
+    fi
+
     local python_dirs=(
         "$project_root/pycore"
         "$project_root/pyapps"
@@ -116,9 +126,14 @@ fix_node_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    
+
     echo "[INFO] Fixing Node.js-specific permissions..."
-    
+    echo "[SAFE_PATH] project_root=$project_root"
+    if ! safe_path_for_recursive_chown "$project_root"; then
+        echo "[ERROR] project_root unsafe; skipping Node permissions"
+        return 1
+    fi
+
     local node_dirs=(
         "$project_root/ncore"
         "$project_root/apps"

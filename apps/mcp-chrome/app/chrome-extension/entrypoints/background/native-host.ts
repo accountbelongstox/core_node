@@ -165,6 +165,28 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
     nativePort.onDisconnect.addListener(async () => {
       const errorMsg = chrome.runtime.lastError?.message || 'Unknown error';
       console.error(ERROR_MESSAGES.NATIVE_DISCONNECTED, errorMsg);
+      
+      // Check if it's a permission/forbidden error
+      const isForbiddenError = errorMsg.includes('forbidden') || 
+                               errorMsg.includes('Access to the specified native messaging host is forbidden');
+      
+      if (isForbiddenError) {
+        const currentExtensionId = chrome.runtime.id;
+        console.error('Native messaging host access forbidden. This usually means:');
+        console.error('1. The extension ID in the native host manifest does not match the current extension ID');
+        console.error('2. Current extension ID:', currentExtensionId);
+        console.error('3. Solution: Re-run the build script to automatically update the native host manifest');
+        console.error('   Command: .\\scripts\\start.ps1');
+        console.error('4. Or manually update the manifest file:');
+        const manifestPath = process.platform === 'win32'
+          ? `${process.env.USERPROFILE}\\AppData\\Roaming\\Google\\Chrome\\NativeMessagingHosts\\com.chromemcp.nativehost.json`
+          : process.platform === 'darwin'
+          ? `${process.env.HOME}/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.chromemcp.nativehost.json`
+          : `${process.env.HOME}/.config/google-chrome/NativeMessagingHosts/com.chromemcp.nativehost.json`;
+        console.error(`   Location: ${manifestPath}`);
+        console.error(`   Update "allowed_origins" to: ["chrome-extension://${currentExtensionId}/"]`);
+      }
+      
       nativePort = null;
 
       // Update connection status but keep server status if it was running

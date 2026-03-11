@@ -66,6 +66,9 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise
         """
+        if x <= 5 and y <= 5:
+            ColorPrint.gray("[ClickHandler] Skip moveTo (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
+            return False
         try:
             pyautogui.moveTo(x, y, duration=duration)
             return True
@@ -94,6 +97,9 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise
         """
+        if x <= 5 and y <= 5:
+            ColorPrint.gray("[ClickHandler] Skip move_mouse_visible (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
+            return False
         try:
             pyautogui.moveTo(x, y, duration=duration)
             return True
@@ -114,6 +120,9 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise
         """
+        if target_x <= 5 and target_y <= 5:
+            ColorPrint.gray("[ClickHandler] Skip move_mouse_curve to (%s,%s) to avoid PyAutoGUI fail-safe" % (target_x, target_y))
+            return False
         try:
             start_x, start_y = pyautogui.position()
 
@@ -279,6 +288,10 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise.
         """
+        # PyAutoGUI fail-safe: 鼠标移到屏幕左上角会触发 FailSafeException，不执行 (0,0) 或角落坐标的点击
+        if x <= 5 and y <= 5:
+            ColorPrint.gray("[ClickHandler] Skip click at (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
+            return False
         try:
             move_duration = 0.0 if direct_click else duration
             pause = pause_after_move if pause_after_move is not None else (0.05 if direct_click else 0.1)

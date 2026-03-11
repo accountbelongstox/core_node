@@ -1487,24 +1487,6 @@
           }
         }
       },
-      "WeChat": {
-        "PackageId": "Tencent.WeChat",
-        "Exec": "WeChat.exe",
-        "Name": "WeChat",
-        "DesktopCategory": "SocialMedia",
-        "Description": "Popular instant messaging and social media app",
-        "InstallType": "winget",
-        "ForceToInstallDir": true,
-        "VerifySuffix": "",
-        "AdditionalKeywords": {
-          "Keyword": ["WeChat", "Weixin"]
-        },
-        "DesktopShortcuts": {
-          "Shortcut": {
-            "CreateDesktopShortcut": true
-          }
-        }
-      },
       "OneTwoThreePan": {
         "PackageId": "123.123pan",
         "Exec": "123pan.exe",

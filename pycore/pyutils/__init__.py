@@ -108,6 +108,15 @@ except Exception:
     CLEAR_MODE_NONE = "none"
 
 # ============================================================================
+# Tkinter taskbar (Windows: show overrideredirect window in taskbar)
+# ============================================================================
+try:
+    from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+except Exception:
+    ensure_tk_root_in_taskbar = None
+    set_windows_app_user_model_id = None
+
+# ============================================================================
 # Video Stream Utilities
 # ============================================================================
 try:

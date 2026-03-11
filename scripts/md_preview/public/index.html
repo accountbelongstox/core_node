@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -37,11 +37,17 @@
     .content-area .mermaid { background: #2d2d2d; padding: 1rem; border-radius: 6px; margin: 1rem 0; overflow: visible; min-width: min-content; }
     .content-area .mermaid svg { overflow: visible; max-width: none; }
     .content-area .mermaid .cluster { overflow: visible !important; clip-path: none !important; }
-    .content-area .mermaid .cluster rect { overflow: visible !important; }
-    .content-area .mermaid .cluster .cluster-label, .content-area .mermaid .cluster .label { overflow: visible !important; }
+    .content-area .mermaid .cluster rect { overflow: visible !important; fill: #252526 !important; stroke: #505050 !important; }
+    .content-area .mermaid .cluster .cluster-label, .content-area .mermaid .cluster .label, .content-area .mermaid .cluster [class*="clusterLabel"] { overflow: visible !important; fill: #e0e0e0 !important; }
+    /* Mermaid 11.x frequently sets fill on <text>/<tspan> directly (often inline). Target them explicitly. */
+    .content-area .mermaid .cluster text,
+    .content-area .mermaid .cluster tspan,
+    .content-area .mermaid .cluster .label text,
+    .content-area .mermaid .cluster .label tspan { fill: #e0e0e0 !important; }
     .content-area .mermaid .cluster foreignObject { overflow: visible !important; }
-    .content-area .mermaid .cluster foreignObject div { overflow: visible !important; white-space: nowrap; }
-    .content-area .mermaid .cluster-label-top { pointer-events: none; }
+    .content-area .mermaid .cluster foreignObject div { overflow: visible !important; white-space: normal !important; word-break: break-word; color: #e0e0e0; background: transparent !important; }
+    .content-area .mermaid .cluster-label-top { pointer-events: none; fill: #e0e0e0 !important; }
+    .content-area .mermaid .cluster-label-top foreignObject div { color: #e0e0e0 !important; }
     .content-area .mermaid .node rect, .content-area .mermaid .node polygon, .content-area .mermaid .node circle { overflow: visible; fill: #252526 !important; stroke: #505050 !important; stroke-width: 1.5px !important; }
     .content-area .mermaid .node foreignObject { overflow: visible !important; }
     .content-area .mermaid .node foreignObject div { padding: 6px 10px; box-sizing: border-box; white-space: normal !important; word-break: break-word; min-height: 1.2em; line-height: 1.3; background: #252526 !important; }
@@ -223,6 +229,31 @@
       return md.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
+    function wrapMermaidBlocksWithTitle(container) {
+      container.querySelectorAll('pre code.language-mermaid, pre code.mermaid').forEach(function (code) {
+        var pre = code.parentElement;
+        if (!pre || pre.closest('.mermaid-block')) return;
+        var title = '';
+        var prev = pre.previousElementSibling;
+        while (prev) {
+          if (/^H[1-6]$/i.test(prev.tagName)) {
+            title = prev.textContent.trim();
+            break;
+          }
+          prev = prev.previousElementSibling;
+        }
+        if (!title) title = 'Mermaid';
+        var wrap = document.createElement('div');
+        wrap.className = 'mermaid-block';
+        var titleDiv = document.createElement('div');
+        titleDiv.className = 'mermaid-block-title';
+        titleDiv.textContent = title;
+        wrap.appendChild(titleDiv);
+        pre.parentNode.insertBefore(wrap, pre);
+        wrap.appendChild(pre);
+      });
+    }
+
     async function renderMermaid(container) {
       if (typeof mermaid === 'undefined') return;
       const blocks = container.querySelectorAll('pre code.language-mermaid, pre code.mermaid');
@@ -239,63 +270,71 @@
           mermaid.initialize({
             startOnLoad: false,
             securityLevel: 'loose',
-            flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 30, rankSpacing: 40, diagramPadding: 12 },
+            /* Ensure themeVariables apply (Mermaid official: only `base` is user-modifiable). */
+            theme: 'base',
+            darkMode: true,
+            // Mermaid v11: subgraph titles ("区块标题") can be clipped/covered when fonts are large
+            // or when renderer computes tight cluster bounds. Prefer using official layout knobs first.
+            // - subGraphTitleMargin: reserve vertical space for the title inside cluster
+            // - diagramPadding: extra breathing room around the whole SVG (prevents top/title clipping)
+            flowchart: {
+              useMaxWidth: false,
+              htmlLabels: true,
+              nodeSpacing: 30,
+              rankSpacing: 40,
+              subGraphTitleMargin: { top: 18, bottom: 6 },
+              diagramPadding: 28
+            },
             useMaxWidth: false,
             themeVariables: {
               nodeBorder: '#505050',
               nodeTextColor: '#fff',
+              /* Official theme vars for flowchart/subgraph title visibility */
+              titleColor: '#e0e0e0',
+              textColor: '#e0e0e0',
               mainBkg: '#252526',
+              clusterBkg: '#252526',
+              clusterBorder: '#505050',
               lineColor: '#9e9e9e',
               secondaryBorder: '#555',
               tertiaryBorder: '#444',
               tertiaryColor: '#252526',
               edgeLabelBackground: '#1a2a3a',
             },
-            themeCSS: '.cluster { overflow: visible !important; clip-path: none !important; } .cluster rect { overflow: visible !important; } .cluster .cluster-label, .cluster .label { overflow: visible !important; } .cluster foreignObject { overflow: visible !important; } .cluster foreignObject div { overflow: visible !important; } .edgePath path { stroke-width: 2.8px !important; } .arrowheadPath { stroke-width: 2.8px !important; } .node rect, .node polygon, .node circle { fill: #252526 !important; stroke: #505050 !important; } .node foreignObject { overflow: visible !important; } .node foreignObject div { white-space: normal !important; word-break: break-word; padding: 6px 10px; background: #252526 !important; } .edgeLabel rect, .edgeLabel .labelBkg, .edgeLabel .labelBkg rect { fill: #1a2a3a !important; stroke: #2d4a5c !important; stroke-width: 1px !important; opacity: 1 !important; } .edgeLabel .labelBkg, .edgeLabel foreignObject, .edgeLabel foreignObject body, .edgeLabel foreignObject div { background-color: #1a2a3a !important; border: 1px solid #2d4a5c !important; outline: none !important; box-shadow: none !important; }',
+            themeCSS: '.cluster { overflow: visible !important; clip-path: none !important; } .cluster rect { overflow: visible !important; fill: #252526 !important; stroke: #505050 !important; } .cluster .cluster-label, .cluster .label, .cluster [class*="clusterLabel"] { overflow: visible !important; fill: #e0e0e0 !important; } .cluster foreignObject { overflow: visible !important; } .cluster foreignObject div { overflow: visible !important; color: #e0e0e0; } .edgePath path { stroke-width: 2.8px !important; } .arrowheadPath { stroke-width: 2.8px !important; } .node rect, .node polygon, .node circle { fill: #252526 !important; stroke: #505050 !important; } .node foreignObject { overflow: visible !important; } .node foreignObject div { white-space: normal !important; word-break: break-word; padding: 6px 10px; background: #252526 !important; } .edgeLabel rect, .edgeLabel .labelBkg, .edgeLabel .labelBkg rect { fill: #1a2a3a !important; stroke: #2d4a5c !important; stroke-width: 1px !important; opacity: 1 !important; } .edgeLabel .labelBkg, .edgeLabel foreignObject, .edgeLabel foreignObject body, .edgeLabel foreignObject div { background-color: #1a2a3a !important; border: 1px solid #2d4a5c !important; outline: none !important; box-shadow: none !important; }',
           });
         }
         if (typeof mermaid.run === 'function') await mermaid.run({ nodes });
         nodes.forEach(function (el) {
-          function findClusterLabel(c) {
-            var label = c.querySelector('.cluster-label, .clusterLabel, [class*="cluster-label"], [class*="clusterLabel"]');
-            if (label) return label;
-            var list = Array.from(c.children);
-            for (var i = 0; i < list.length; i++) {
-              var g = list[i];
-              if (g.classList && g.classList.contains('node')) continue;
-              if (g.tagName !== 'g' && g.tagName !== 'foreignObject') continue;
-              if (g.querySelector('text, foreignObject') || (g.textContent && g.textContent.trim())) return g;
+          // Mermaid 11.x flowchart "subgraph" titles are rendered inside `.cluster`.
+          // The common failure mode: the cluster `<rect>` is appended after the label and covers it
+          // (SVG paints in DOM order). Fix: remove clipping and reorder children so label is last.
+          function findClusterLabelRoot(c) {
+            // Prefer direct children first (most stable across Mermaid versions).
+            var direct = c.querySelector(':scope > .cluster-label, :scope > .clusterLabel, :scope > .label');
+            if (direct) return direct;
+
+            // Fallback: locate a plausible label node, then lift it to the direct child under cluster.
+            var deep = c.querySelector('.cluster-label, .clusterLabel, .label, text, foreignObject');
+            if (!deep) return null;
+            var cur = deep;
+            while (cur && cur.parentNode && cur.parentNode !== c) cur = cur.parentNode;
+            return cur && cur.parentNode === c ? cur : null;
+          }
+          function bringClusterTitleToFront(c) {
+            var rect = c.querySelector(':scope > rect');
+            if (rect && c.firstChild !== rect) c.insertBefore(rect, c.firstChild);
+            var labelRoot = findClusterLabelRoot(c);
+            if (labelRoot && labelRoot !== rect) {
+              labelRoot.style.pointerEvents = 'none';
+              c.appendChild(labelRoot);
             }
-            return list.length > 1 ? list[1] : null;
           }
-          function matrixToStr(m) {
-            if (!m) return '';
-            return 'matrix(' + [m.a, m.b, m.c, m.d, m.e, m.f].join(',') + ')';
-          }
-          var svg = el.querySelector('svg');
-          var labelsToTop = [];
           el.querySelectorAll('.cluster').forEach(function (c) {
             c.removeAttribute('clip-path');
             c.style.overflow = 'visible';
             c.querySelectorAll('[clip-path]').forEach(function (child) { child.removeAttribute('clip-path'); });
-            var label = findClusterLabel(c);
-            if (label && label.parentNode === c) labelsToTop.push({ cluster: c, label: label });
-          });
-          labelsToTop.forEach(function (o) {
-            if (!svg) {
-              if (o.label.parentNode === o.cluster) o.cluster.appendChild(o.label);
-              return;
-            }
-            try {
-              var ctm = o.label.getCTM();
-              if (!ctm) { o.cluster.appendChild(o.label); return; }
-              o.label.setAttribute('transform', matrixToStr(ctm));
-              o.label.setAttribute('class', (o.label.getAttribute('class') || '') + ' cluster-label-top');
-              o.cluster.removeChild(o.label);
-              svg.appendChild(o.label);
-            } catch (e) {
-              if (o.label.parentNode !== o.cluster) o.cluster.appendChild(o.label);
-            }
+            bringClusterTitleToFront(c);
           });
           var labelBg = '#1a2a3a';
           var labelBorder = '#2d4a5c';
@@ -324,6 +363,7 @@
         if (!r.ok) throw new Error(r.statusText);
         const md = await r.text();
         contentEl.innerHTML = renderMarkdown(md);
+        wrapMermaidBlocksWithTitle(contentEl);
         await renderMermaid(contentEl);
         localStorage.setItem(LAST_PATH_STORAGE_KEY, path);
         fetch('/api/watch?path=' + encodeURIComponent(path)).catch(() => {});
@@ -405,3 +445,4 @@
   </script>
 </body>
 </html>
+

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotApps.CallModule</RootNamespace>
+    <AssemblyName>CallModule</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />
+  </ItemGroup>
+</Project>

@@ -18,6 +18,10 @@ Usage:
 import argparse
 from pathlib import Path
 
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+
+Image = get_third_package_PIL_Image()
+
 # Resolve images dir relative to this script: scripts/ -> pyapps/d3-check -> images
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _D3_CHECK_ROOT = _SCRIPT_DIR.parent
@@ -35,9 +39,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
 
 
 def scale_images(dry_run: bool = False) -> None:
-    try:
-        from PIL import Image
-    except ImportError:
+    if Image is None:
         print("PIL/Pillow required. pip install Pillow")
         return
 
@@ -49,11 +51,7 @@ def scale_images(dry_run: bool = False) -> None:
     for path in sorted(IMAGES_DIR.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS:
             continue
-        try:
-            img = Image.open(path).convert("RGBA" if path.suffix.lower() == ".png" else "RGB")
-        except Exception as e:
-            print(f"Skip (open error) {path}: {e}")
-            continue
+        img = Image.open(path).convert("RGBA" if path.suffix.lower() == ".png" else "RGB")
         w, h = img.size
         new_w = max(1, round(w * SCALE_X))
         new_h = max(1, round(h * SCALE_Y))

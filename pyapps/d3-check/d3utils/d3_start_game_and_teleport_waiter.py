@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 D3 start game and teleport flow. ROSBOT_FLOW_MERMAID.md.
-C branch: C6 -> C10_Check (screenshot, M, screenshot, similarity) -> C10_Result -> C7a (M again) -> C7w (2s) -> C7b (minimize 751,413 + teleport 610,126) -> C8.
+C branch: C6 -> C10_Check -> C10_Result -> C7a (M again) -> C7w (2s) -> C7b (minimize + teleport1 large/small map + teleport2 secret camp minimap, 0.5s between clicks) -> C8.
 Fragment1 (start): C5/C5w then C10+C7a/C7w/C7b. Fragment2 (game_tool): C10 done in run_c4_branch_result, then C7a/C7w/C7b.
 """
 import time
@@ -9,6 +9,7 @@ from typing import Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.window_activator import WindowActivator
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
@@ -34,6 +35,9 @@ from providor.constants.d3 import (
     D3_CONNECTING_ALT_TEMPLATE_NAME,
     D3_MAP_MINIMIZE_CLICK,
     D3_TELEPORT_CLICK,
+    D3_TELEPORT_CLICK_2,
+    C7B_AFTER_BOUNTY_STABLE_SEC,
+    C7B_TELEPORT_CLICK_INTERVAL_SEC,
     D3_GAME_TOOL_AFTER_M_DELAY_SEC,
     D3_START_GAME_WAIT_INTERVAL_SEC,
     D3_START_GAME_MAX_ATTEMPTS,
@@ -46,6 +50,9 @@ from providor.constants.d3 import (
 from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
 from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
 
+np_mod = get_third_package_numpy()
+cv2_mod = get_third_package_cv2()
+
 
 def step_c7b_minimize_only(
     provider,
@@ -56,7 +63,7 @@ def step_c7b_minimize_only(
 ) -> bool:
     """[C7b] One tick: minimize map click (751,413) only. Call step_c7b_teleport_only on next tick. No sleep."""
     standard_resolution = (D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT)
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     scaled1 = calculate_unified_scaled_coordinate(
         D3_MAP_MINIMIZE_CLICK, game_window_size, standard_resolution, is_windowed,
     )
@@ -85,11 +92,34 @@ def step_c7b_teleport_only(
     game_window_size: Tuple[int, int],
     is_windowed: bool,
 ) -> bool:
-    """[C7b] One tick: teleport click (610,126) only. Call after step_c7b_minimize_only and one tick wait. No sleep."""
+    """[C7b] Teleport: 1) large/small map D3_TELEPORT_CLICK, 2) secret camp minimap D3_TELEPORT_CLICK_2, interval C7B_TELEPORT_CLICK_INTERVAL_SEC between clicks."""
     standard_resolution = (D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT)
-    clicker = ClickHandler()
-    scaled2 = calculate_unified_scaled_coordinate(
+    clicker = get_click_handler()
+
+    # 1) Large/small map
+    scaled1 = calculate_unified_scaled_coordinate(
         D3_TELEPORT_CLICK, game_window_size, standard_resolution, is_windowed,
+    )
+    sx1, sy1 = int(scaled1[0]), int(scaled1[1])
+    screen_x1 = window_offset[0] + sx1
+    screen_y1 = window_offset[1] + sy1
+    sd1 = provider.gen(use_optimized_capture=True, window_titles=list(titles))
+    if sd1 and sd1.game_window_image:
+        save_click_debug_image(
+            sd1.game_window_image,
+            [(sx1, sy1, "teleport1_big_small_map")],
+            MATCH_DEBUG_DIR,
+            filename_prefix="start_game_teleport_click",
+        )
+    ColorPrint.green(
+        f"[D3StartGameWaiter][C7b] Teleport 1 large/small map {D3_TELEPORT_CLICK} -> ({sx1},{sy1}) screen ({screen_x1},{screen_y1})"
+    )
+    clicker.click(screen_x1, screen_y1, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
+    time.sleep(C7B_TELEPORT_CLICK_INTERVAL_SEC)
+
+    # 2) Secret camp minimap
+    scaled2 = calculate_unified_scaled_coordinate(
+        D3_TELEPORT_CLICK_2, game_window_size, standard_resolution, is_windowed,
     )
     sx2, sy2 = int(scaled2[0]), int(scaled2[1])
     screen_x2 = window_offset[0] + sx2
@@ -98,14 +128,15 @@ def step_c7b_teleport_only(
     if sd2 and sd2.game_window_image:
         save_click_debug_image(
             sd2.game_window_image,
-            [(sx2, sy2, "teleport")],
+            [(sx2, sy2, "teleport2_camp_small_map")],
             MATCH_DEBUG_DIR,
-            filename_prefix="start_game_teleport_click",
+            filename_prefix="start_game_teleport_click_2",
         )
     ColorPrint.green(
-        f"[D3StartGameWaiter][C7b] Teleport click {D3_TELEPORT_CLICK} -> ({sx2},{sy2}) screen ({screen_x2},{screen_y2})"
+        f"[D3StartGameWaiter][C7b] Teleport 2 secret camp minimap {D3_TELEPORT_CLICK_2} -> ({sx2},{sy2}) screen ({screen_x2},{screen_y2})"
     )
     clicker.click(screen_x2, screen_y2, direct_click=True, return_to_original=True, duration=CLICK_MOVE_DURATION_SEC, pause_after_move=CLICK_PAUSE_AFTER_MOVE_SEC)
+    time.sleep(C7B_TELEPORT_CLICK_INTERVAL_SEC)
     ColorPrint.green("[D3StartGameWaiter][C7b] Teleport done, starting ROSBOT flow")
     return True
 
@@ -170,7 +201,7 @@ def click_start_game_button_if_found(window_titles: Optional[Tuple[str, ...]] = 
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
     if center is None:
         return False
@@ -248,7 +279,7 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
     """
     [C3] Screenshot and template match in one step (ROSBOT_FLOW_MERMAID.md).
     One capture -> match all templates (reuse match_all_d3_states): disconnected/start/game_tool/connecting.
-    Priority: disconnected -> start -> game_tool -> connecting -> None.
+    Priority: disconnected -> game_tool -> start -> connecting -> None.
     Returns: "disconnect"(->F1d) | "start"(->C5) | "game_tool"(->C6) | "wait"(->C3w_Wait) | None (no-match).
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
@@ -257,10 +288,10 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
         return None
     if states.get("disconnected"):
         return "disconnect"
-    if states.get("start_game_button"):
-        return "start"
     if states.get("game_tool"):
         return "game_tool"
+    if states.get("start_game_button"):
+        return "start"
     if states.get("connecting"):
         return "wait"
     return None
@@ -268,21 +299,14 @@ def detect_d3_already_running_state(window_titles: Optional[Tuple[str, ...]] = N
 
 def _image_similarity_0_1(img_a, img_b) -> float:
     """Compare two PIL/numpy images: resize to D3_ONLINE_SIMILARITY_RESIZE, grayscale, return 1 - mean_abs_diff/255 (1 = identical)."""
-    np_mod = get_third_package_numpy()
-    if np_mod is None:
+    if np_mod is None or cv2_mod is None:
         return 0.0
-    try:
-        bgr_a = normalize_image_to_bgr(img_a)
-        bgr_b = normalize_image_to_bgr(img_b)
-        cv2 = get_third_package_cv2()
-        if cv2 is None:
-            return 0.0
-        gray_a = cv2.cvtColor(cv2.resize(bgr_a, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
-        gray_b = cv2.cvtColor(cv2.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2.COLOR_BGR2GRAY)
-        diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
-        return 1.0 - min(diff / 255.0, 1.0)
-    except (TypeError, ValueError, AttributeError):
-        return 0.0
+    bgr_a = normalize_image_to_bgr(img_a)
+    bgr_b = normalize_image_to_bgr(img_b)
+    gray_a = cv2_mod.cvtColor(cv2_mod.resize(bgr_a, D3_ONLINE_SIMILARITY_RESIZE), cv2_mod.COLOR_BGR2GRAY)
+    gray_b = cv2_mod.cvtColor(cv2_mod.resize(bgr_b, D3_ONLINE_SIMILARITY_RESIZE), cv2_mod.COLOR_BGR2GRAY)
+    diff = np_mod.mean(np_mod.abs(gray_a.astype(np_mod.float32) - gray_b.astype(np_mod.float32)))
+    return 1.0 - min(diff / 255.0, 1.0)
 
 
 # For tick-driven C10: step_c10_send_m stores img_a here; step_c10_compare reads it (no thread, same flow)
@@ -290,7 +314,7 @@ _c10_img_a = None
 
 
 def step_c10_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C10a] One tick: capture before, send M (down+up). No wait; call step_c10_compare on next tick. Returns True if img_a stored."""
+    """[C10a] One tick: capture (before) -> send M -> next tick step_c10_compare capture (after) and compare. C10 only tests map response for disconnect; unrelated to C7 map/teleport. Returns True if img_a stored."""
     global _c10_img_a
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
@@ -310,7 +334,7 @@ def step_c10_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
 
 
 def step_c10_compare(window_titles: Optional[Tuple[str, ...]] = None) -> Optional[bool]:
-    """[C10b] One tick: capture after M, compare with img_a from step_c10_send_m. Returns True=online, False=disconnect, None=error."""
+    """[C10b] One tick: compare capture (after) with C10a capture (before). High similarity = M no response = disconnect; low = M response = online. Unrelated to C7 teleport. Returns True=online, False=disconnect, None=error."""
     global _c10_img_a
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     if _c10_img_a is None:
@@ -321,18 +345,22 @@ def step_c10_compare(window_titles: Optional[Tuple[str, ...]] = None) -> Optiona
         return None
     img_b = sd_b.game_window_image
     sim = _image_similarity_0_1(_c10_img_a, img_b)
+    thresh = D3_ONLINE_SIMILARITY_THRESHOLD
     _c10_img_a = None
-    if sim >= D3_ONLINE_SIMILARITY_THRESHOLD:
-        ColorPrint.yellow(f"[D3StartGameWaiter][C10b] Similarity={sim:.3f} >= threshold, M no effect, disconnected")
+    if sim >= thresh:
+        ColorPrint.yellow(
+            f"[D3StartGameWaiter][C10b] Disconnect check: similarity={sim:.3f} >= {thresh} -> before/after M almost same -> M no response -> disconnect"
+        )
         return False
-    ColorPrint.green(f"[D3StartGameWaiter][C10b] Similarity={sim:.3f}, online")
+    ColorPrint.green(
+        f"[D3StartGameWaiter][C10b] Disconnect check: similarity={sim:.3f} < {thresh} -> M response -> online (separate from C7 map/teleport)"
+    )
     return True
 
 
 def check_d3_online_by_m_similarity(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
     """
-    [C10a] Screenshot (before) -> Send M -> Screenshot (after) -> Compare similarity. [C10b] High similarity = M no effect = disconnect.
-    ROSBOT_FLOW_MERMAID.md. Returns True if online, False if disconnected. (Blocking; for tick-driven flow use step_c10_send_m then next tick step_c10_compare.)
+    [C10] M key for test only: screenshot before -> send M -> screenshot after -> compare. High similarity = disconnect. Separate from C7 map/teleport. Blocking; tick uses step_c10_send_m then step_c10_compare.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     if not step_c10_send_m(window_titles=titles):
@@ -343,7 +371,7 @@ def check_d3_online_by_m_similarity(window_titles: Optional[Tuple[str, ...]] = N
 
 
 def step_c7a_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C7a] One tick: press M again to reset map. No wait; next tick do C7b. Returns True if M sent."""
+    """[C7a] One tick: send M key to game (toggle map). Next tick: bounty progress check or C7b. Separate from C10 disconnect check. Returns True if M sent."""
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     windows = WindowFinder.find_windows_by_titles(titles=list(titles), match_mode="in", use_cache=False)
     if not windows or not windows[0].get("hwnd"):
@@ -355,21 +383,74 @@ def step_c7a_send_m(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
     return True
 
 
-def _run_c7a_c7w_c7b(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
-    """[C7a] Press M again to reset map. [C7w] Wait 2s. [C7b] Minimize map (751,413), teleport (610,126). ROSBOT_FLOW_MERMAID.md. (Blocking; for tick-driven flow use step_c7a_send_m then next tick step_c7b_*.)"""
+def step_c7a_verify_bounty_progress(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
+    """[C7a verify] Whether bounty progress UI is visible (map open). Used before teleport; if not found can press M again. Returns True if bounty progress found."""
     titles = window_titles or DIABLO_III_WINDOW_TITLES
-    if not step_c7a_send_m(window_titles=titles):
-        return False
-    time.sleep(D3_GAME_TOOL_AFTER_M_DELAY_SEC)
     provider = get_screenshot_provider()
-    sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
-    if not sd or not sd.game_window_image:
-        return False
-    window_offset = sd.window_offset or (0, 0)
-    game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
-    shared_data = get_game_interface_data()
-    is_windowed = shared_data.is_windowed_mode()
+    matcher = get_scaled_template_matcher()
+    _, found = _capture_and_match_bounty_progress(provider, matcher, titles)
+    return found
+
+
+def _ensure_map_open_then_c7b_teleport(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
+    """
+    [C7] Ensure map is open before teleport: at most two M rounds. Each: press M -> wait 2s -> check bounty progress.
+    If any round finds bounty then map is open, wait stable then C7b; if neither finds still try C7b (detection may miss).
+    No C7a-to-C12 branch; do not kill D3 for missing bounty.
+    """
+    titles = window_titles or DIABLO_III_WINDOW_TITLES
+    provider = get_screenshot_provider()
+    matcher = get_scaled_template_matcher()
+    last_sd = None
+
+    # Pre-check: if map already open (bounty visible), do not press M, go to stable wait then C7b.
+    # Avoid pressing M when map is already open (would close it and require second round).
+    sd0, bounty0 = _capture_and_match_bounty_progress(provider, matcher, titles)
+    if sd0:
+        last_sd = sd0
+    if bounty0:
+        ColorPrint.green(
+            f"[D3StartGameWaiter][C7] Pre-check found bounty, map open -> wait {C7B_AFTER_BOUNTY_STABLE_SEC}s stable then zoom+teleport"
+        )
+        if not sd0 or not sd0.game_window_image:
+            return False
+        time.sleep(C7B_AFTER_BOUNTY_STABLE_SEC)
+        window_offset = sd0.window_offset or (0, 0)
+        game_window_size = sd0.game_window_size or (sd0.game_window_image.width, sd0.game_window_image.height)
+        is_windowed = get_game_interface_data().is_windowed_mode()
+        return _do_c7b_teleport(provider, titles, window_offset, game_window_size, is_windowed)
+
+    for round_no in (1, 2):
+        ColorPrint.gray(f"[D3StartGameWaiter][C7] Round {round_no}: map not confirmed open -> press M, wait, check bounty")
+        _send_m_once_then_wait_for_capture(titles)
+        sd, bounty_found = _capture_and_match_bounty_progress(provider, matcher, titles)
+        if sd:
+            last_sd = sd
+        if bounty_found:
+            ColorPrint.green(f"[D3StartGameWaiter][C7] Round {round_no} found bounty, map open -> wait {C7B_AFTER_BOUNTY_STABLE_SEC}s stable then zoom+teleport")
+            if not sd or not sd.game_window_image:
+                return False
+            time.sleep(C7B_AFTER_BOUNTY_STABLE_SEC)
+            window_offset = sd.window_offset or (0, 0)
+            game_window_size = sd.game_window_size or (sd.game_window_image.width, sd.game_window_image.height)
+            is_windowed = get_game_interface_data().is_windowed_mode()
+            return _do_c7b_teleport(provider, titles, window_offset, game_window_size, is_windowed)
+        ColorPrint.gray(f"[D3StartGameWaiter][C7] Round {round_no} no bounty" + (", try second M" if round_no == 1 else ", still run C7b"))
+    ColorPrint.yellow("[D3StartGameWaiter][C7] No bounty after two M rounds; per doc do not kill D3, still run C7b")
+    if not last_sd or not last_sd.game_window_image:
+        sd = provider.gen(use_optimized_capture=True, window_titles=list(titles))
+        if not sd or not sd.game_window_image:
+            return False
+        last_sd = sd
+    window_offset = last_sd.window_offset or (0, 0)
+    game_window_size = last_sd.game_window_size or (last_sd.game_window_image.width, last_sd.game_window_image.height)
+    is_windowed = get_game_interface_data().is_windowed_mode()
     return _do_c7b_teleport(provider, titles, window_offset, game_window_size, is_windowed)
+
+
+def _run_c7a_c7w_c7b(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
+    """[C7] Ensure map open (at most two M rounds + bounty check) then [C7b] zoom+teleport. Blocking; tick: step_c7a_send_m -> verify_bounty -> step_c7b_*."""
+    return _ensure_map_open_then_c7b_teleport(window_titles=window_titles)
 
 
 def send_m_then_teleport_three_clicks(window_titles: Optional[Tuple[str, ...]] = None) -> bool:
@@ -430,7 +511,7 @@ def try_fragment1_click_start_game_wait_game_tool(
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     screenshot_data, center = _capture_and_match_start_game_button(provider, matcher, titles)
     if center is None:
         return None
@@ -458,23 +539,6 @@ def try_fragment1_click_start_game_wait_game_tool(
     return False
 
 
-def _send_m_twice(titles: Tuple[str, ...]) -> None:
-    """Send M key twice to D3 window. Reused by Fragment2 only."""
-    windows = WindowFinder.find_windows_by_titles(
-        titles=list(titles),
-        match_mode="in",
-        use_cache=False,
-    )
-    if not windows or not windows[0].get("hwnd"):
-        return
-    hwnd = windows[0]["hwnd"]
-    for _ in range(2):
-        window_send_key(hwnd, VK_M, press=True)
-        time.sleep(0.05)
-        window_send_key(hwnd, VK_M, press=False)
-        time.sleep(0.2)
-
-
 def _send_m_once_then_wait_for_capture(titles: Tuple[str, ...]) -> None:
     """Send M key once to D3 window, then wait D3_GAME_TOOL_AFTER_M_DELAY_SEC so map opens before screenshot. Before each capture: press M once, wait 2s, then capture."""
     windows = WindowFinder.find_windows_by_titles(
@@ -496,22 +560,36 @@ def open_map_verify_bounty_then_teleport_three_clicks(
 ) -> bool:
     """
     Common final step for all 3 flows (independent of what came before).
-    M opens the map. Two rounds: press M once, wait 2s, detect bounty progress.
-    If either round finds bounty progress = map toggle is open, then three clicks.
+    Ensure map is open before teleport. Pre-check bounty progress first; if already visible, do not press M.
+    Otherwise do up to two rounds: press M once, wait 2s, detect bounty progress.
+    If any check finds bounty progress = map is open, then three clicks.
     Returns True if bounty found and three clicks done; False otherwise.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    ColorPrint.green("[D3StartGameWaiter] Common final step: open map (M), two rounds verify bounty progress, then three clicks")
-    _send_m_once_then_wait_for_capture(titles)
-    sd1, bounty1 = _capture_and_match_bounty_progress(provider, matcher, titles)
-    _send_m_once_then_wait_for_capture(titles)
-    sd2, bounty2 = _capture_and_match_bounty_progress(provider, matcher, titles)
-    if not (bounty1 or bounty2):
+    ColorPrint.green(
+        "[D3StartGameWaiter] Common final step: ensure map open (pre-check bounty), up to two rounds M+verify, then three clicks"
+    )
+
+    bounty1 = False
+    bounty2 = False
+    sd0, bounty0 = _capture_and_match_bounty_progress(provider, matcher, titles)
+    sd1 = None
+    sd2 = None
+    if not bounty0:
+        _send_m_once_then_wait_for_capture(titles)
+        sd1, bounty1 = _capture_and_match_bounty_progress(provider, matcher, titles)
+        if not bounty1:
+            _send_m_once_then_wait_for_capture(titles)
+            sd2, bounty2 = _capture_and_match_bounty_progress(provider, matcher, titles)
+
+    # No bounty: this helper semantics differ from C7 (return value drives follow-up); keep strict failure here.
+    if not (bounty0 or bounty1 or bounty2):
         ColorPrint.yellow("[D3StartGameWaiter] Common final step: bounty progress not found in both rounds; map may not be open")
         return False
-    sd = sd1 if sd1 else sd2
+
+    sd = sd0 if bounty0 else (sd1 if bounty1 else sd2)
     if not sd or not sd.game_window_image:
         return False
     # [C7/C11] After M wait 2s, then run teleport three clicks (ROSBOT_FLOW_MERMAID.md)
@@ -530,15 +608,14 @@ def try_fragment2_game_tool_press_m_then_clicks(
     window_titles: Optional[Tuple[str, ...]] = None,
 ) -> bool:
     """
-    [C6] game_tool path. One screenshot, full state (same as C3); if game_tool then C10 already done in run_c4_branch_result,
-    [C7a] Press M, [C7w] wait 2s, [C7b] minimize (751,413) + teleport (610,126). Returns False if game_tool not found.
+    [C6] game_tool path: C10 done in run_c4_branch_result (disconnect only). [C7] Ensure map open (two M rounds + bounty) then [C7b] zoom+teleport.
     """
     titles = window_titles or DIABLO_III_WINDOW_TITLES
     state = detect_d3_already_running_state(window_titles=titles)
     if state != "game_tool":
         return False
-    ColorPrint.green("[D3StartGameWaiter][Fragment2] d3_game_tool found; C7a/C7w/C7b (C10 already done)")
-    return _run_c7a_c7w_c7b(window_titles=titles)
+    ColorPrint.green("[D3StartGameWaiter][Fragment2] d3_game_tool visible; C7 ensure map open (precheck+two M rounds+bounty) then C7b teleport")
+    return _ensure_map_open_then_c7b_teleport(window_titles=titles)
 
 
 def wait_for_and_click_start_game(
@@ -567,7 +644,7 @@ def wait_for_and_click_start_game(
     timeout_start = n_start * interval_sec
     provider = get_screenshot_provider()
     matcher = get_scaled_template_matcher()
-    clicker = ClickHandler()
+    clicker = get_click_handler()
     deadline = time.monotonic() + timeout_start
     attempt = 0
 

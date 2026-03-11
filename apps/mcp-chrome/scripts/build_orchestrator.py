@@ -25,16 +25,13 @@ class BuildOrchestrator:
         self.vm = get_var_manager()
         self.platform = self.vm.platform
 
-        # Path configuration
-        # project_root: /www/programing/core_node/apps/mcp-chrome
-        # project_root.parent: /www/programing/core_node/apps
-        # project_root.parent.parent: /www/programing/core_node
-        # project_root.parent.parent.parent: /www/programing
-        self.build_output_dir = self.project_root.parent.parent.parent / "_build_dir"
-        # WXT automatically creates chrome-mv3 subdirectory
+        # Path configuration: build in current directory (no _build_dir)
+        # project_root: e.g. D:\programing\core_node\apps\mcp-chrome
+        # Extension output: app/chrome-extension/.output/chrome-mv3 (WXT default)
+        self.build_output_dir = self.project_root / "app" / "chrome-extension" / ".output"
         self.extension_path = self.build_output_dir / "chrome-mv3"
         self.native_path = self.project_root / "app" / "native-server" / "dist"
-        self.shared_path = self.project_root / "packages" / "chrome-mcp-shared" / "dist"
+        self.shared_path = self.project_root / "packages" / "shared" / "dist"
 
     def detect_environment(self):
         """Detect environment and save to variables"""

@@ -20,14 +20,21 @@ export default function ToolsIndex() {
   const [recentTools, setRecentTools] = useState<string[]>([]);
 
   useEffect(() => {
-    // Load recent tools from StorageCenter
-    const recent = StorageCenter.get<string[]>(StorageKey.RECENT_TOOLS, []);
-    setRecentTools(recent);
+    let cancelled = false;
+    StorageCenter.get<string[]>(StorageKey.RECENT_TOOLS, [])
+      .then((recent) => {
+        if (cancelled) return;
+        setRecentTools(Array.isArray(recent) ? recent : []);
+      })
+      .catch(() => {
+        if (!cancelled) setRecentTools([]);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const handleToolClick = (tool: Tool) => {
-    // Save to recent tools
-    const updated = [tool.id, ...recentTools.filter(id => id !== tool.id)].slice(0, 3);
+    const current = Array.isArray(recentTools) ? recentTools : [];
+    const updated = [tool.id, ...current.filter(id => id !== tool.id)].slice(0, 3);
     setRecentTools(updated);
     StorageCenter.set(StorageKey.RECENT_TOOLS, updated);
 
@@ -146,7 +153,7 @@ export default function ToolsIndex() {
   ];
 
   const featuredTools = tools.filter(t => t.featured);
-  const recentToolsData = tools.filter(t => recentTools.includes(t.id));
+  const recentToolsData = tools.filter(t => Array.isArray(recentTools) && recentTools.includes(t.id));
 
   const categories = [
     { id: 'dictionary', name: 'Dictionary Tools', icon: '📖', color: 'text-blue-600 dark:text-blue-400' },

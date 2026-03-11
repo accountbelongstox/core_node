@@ -31,19 +31,16 @@ $PipxExePath = $Global:PIPX_EXE_PATH
 $PoetryExePath = $Global:POETRY_EXE_PATH
 $PythonFlagFile = $Global:PYTHON_FLAG_FILE
 
-# Common Python packages to install
+# Common Python packages to install (basic only)
 $CommonPythonPackages = @(
     "requests",
     "urllib3",
-    "certifi",
-    "charset-normalizer",
-    "idna",
     "setuptools",
     "wheel",
     "pip-tools"
 )
 
-# Required packages from pycore/pyfoundations/third_party.py DEPENDENCY_MAP
+# Required packages from pycore/pyfoundations/third_party.py DEPENDENCY_MAP (not installed in Step 9)
 # Version constraints for dependency compatibility:
 #   - Pillow<11: required by tkhtmlview 0.3.1 (needs Pillow<11,>=10)
 #   - numpy<2.3.0: required by opencv-python (needs numpy<2.3.0,>=2)
@@ -507,21 +504,15 @@ if ($installSuccess) {
     # Configure mirror if in China region
     Configure-PipMirror
 
-    # Install/update pip and tools (each independently)
+    # Install/update pip and tools (basic only: pip, uv, pipx, poetry)
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing Python package managers..." -Type "Info"
     Install-PipTools
     Install-UV
     Install-Pipx
     Install-Poetry
 
-    # Install common packages
+    # Install common packages (requests, urllib3 only)
     Install-CommonPackages
-
-    # Install required packages from third_party.py
-    Install-RequiredPythonPackages
-
-    # Install optional packages
-    Install-OptionalPythonPackages
 
     # Test installation
     $testSuccess = Test-PythonInstallation

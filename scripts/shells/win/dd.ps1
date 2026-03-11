@@ -187,7 +187,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager_windows.ps1"
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "app_manager\windows_ps1\app_manager.ps1"
             $shellCandidates = @('pwsh', 'powershell')
             $shellExecutable = $null
 
@@ -199,7 +199,7 @@ $script:MenuItems = @(
             }
 
             if ($null -eq $shellExecutable) {
-                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager_windows.ps1" -Type "Error"
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run app_manager.ps1" -Type "Error"
                 Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
                 return
@@ -272,6 +272,17 @@ $script:MenuItems = @(
             $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
             Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
             & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+        }
+    },
+    @{
+        Text              = "MCP Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $mcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching MCP Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $mcpMenuScript
         }
     },
     @{

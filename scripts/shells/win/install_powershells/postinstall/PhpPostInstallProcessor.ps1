@@ -266,22 +266,24 @@ function Install-PECL {
             return $null
         }
         
-        # Run go-pear.phar installer
+        # Run go-pear.phar installer (must run with CWD = InstallDir so default $prefix is PHP dir)
         if (Test-Path $goPearPath) {
             Write-Host "$LogPrefix Running go-pear.phar installer..." -ForegroundColor Yellow
             Write-Host "$LogPrefix This will install PEAR and PECL to: $InstallDir" -ForegroundColor Cyan
-            
+            if (-not (Test-Path $InstallDir)) {
+                Write-Host "$LogPrefix InstallDir does not exist: $InstallDir" -ForegroundColor Red
+                return $null
+            }
+            Push-Location -LiteralPath $InstallDir
             try {
-                # Try normal installation first
+                # Try normal installation first; go-pear.phar uses current directory as default $prefix
                 $installOutput = & $PhpPath $goPearPath 2>&1
-                
                 # If signature error, try with phar.require_hash=0
                 if ($installOutput -match "signature|hash" -or $LASTEXITCODE -ne 0) {
                     Write-Host "$LogPrefix Retrying with phar.require_hash=0 flag..." -ForegroundColor Yellow
                     $installOutput = & $PhpPath -d phar.require_hash=0 $goPearPath 2>&1
                 }
-                
-                # Check if installation was successful
+                # Check if installation was successful (pecl.bat under InstallDir or InstallDir\bin)
                 if (Test-Path $peclBatPath) {
                     Write-Host "$LogPrefix PECL installed successfully at: $peclBatPath" -ForegroundColor Green
                     $peclPath = $peclBatPath
@@ -305,7 +307,7 @@ function Install-PECL {
                 return $null
             }
             finally {
-                # Clean up temporary file
+                Pop-Location -ErrorAction SilentlyContinue
                 if (Test-Path $goPearTempPath) {
                     Remove-Item $goPearTempPath -Force -ErrorAction SilentlyContinue
                 }

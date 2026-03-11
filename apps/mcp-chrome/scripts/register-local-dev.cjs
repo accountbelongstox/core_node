@@ -9,9 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
+const { getExtensionIdFromManifest } = require('./extension-id-calculator.cjs');
 
 const HOST_NAME = 'com.chromemcp.nativehost';
-const EXTENSION_ID = 'lmngnnnghipjfcbbhpaknlnbjcbabblm';
 const DESCRIPTION = 'Node.js Host for Browser Bridge Extension (Local Development)';
 
 // Project root directory (this script is in apps/mcp-chrome/scripts/)
@@ -19,57 +19,77 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const NATIVE_SERVER_DIST = path.join(PROJECT_ROOT, 'app', 'native-server', 'dist');
 
 /**
- * Get system-level manifest file path (accessible by all users)
+ * Get user-level manifest file path (for development, allows any extension ID)
  */
 function getManifestPath() {
+  const homeDir = os.homedir();
   if (os.platform() === 'win32') {
-    // Windows: C:\Program Files\Google\Chrome\NativeMessagingHosts\
-    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    // Windows: %USERPROFILE%\AppData\Roaming\Google\Chrome\NativeMessagingHosts\
     return path.join(
-      programFiles,
+      homeDir,
+      'AppData',
+      'Roaming',
       'Google',
       'Chrome',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else if (os.platform() === 'darwin') {
-    // macOS: /Library/Google/Chrome/NativeMessagingHosts/
+    // macOS: ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
     return path.join(
-      '/Library',
+      homeDir,
+      'Library',
+      'Application Support',
       'Google',
       'Chrome',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else {
-    // Linux: /etc/opt/chrome/native-messaging-hosts/
+    // Linux: ~/.config/google-chrome/NativeMessagingHosts/
     return path.join(
-      '/etc',
-      'opt',
-      'chrome',
-      'native-messaging-hosts',
+      homeDir,
+      '.config',
+      'google-chrome',
+      'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   }
 }
 
 /**
- * Get Chromium system-level manifest path
+ * Get Chromium user-level manifest path
  */
 function getChromiumManifestPath() {
+  const homeDir = os.homedir();
   if (os.platform() === 'win32') {
-    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
     return path.join(
-      programFiles,
+      homeDir,
+      'AppData',
+      'Local',
       'Chromium',
+      'User Data',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
   } else if (os.platform() === 'darwin') {
-    return `/Library/Application Support/Chromium/NativeMessagingHosts/${HOST_NAME}.json`;
+    return path.join(
+      homeDir,
+      'Library',
+      'Application Support',
+      'Chromium',
+      'NativeMessagingHosts',
+      `${HOST_NAME}.json`
+    );
   } else {
-    // Linux: /etc/chromium/native-messaging-hosts/
-    return `/etc/chromium/native-messaging-hosts/${HOST_NAME}.json`;
+    // Linux: ~/.config/chromium/NativeMessagingHosts/
+    return path.join(
+      homeDir,
+      '.config',
+      'chromium',
+      'NativeMessagingHosts',
+      `${HOST_NAME}.json`
+    );
   }
 }
 
@@ -82,17 +102,47 @@ function getMainPath() {
 }
 
 /**
- * Create manifest content
+ * Create manifest content with extension ID from built manifest.json
+ * @param {string} extensionId - Required extension ID (must be provided)
  */
-function createManifestContent() {
+function createManifestContent(extensionId) {
+  if (!extensionId || typeof extensionId !== 'string' || extensionId.length !== 32) {
+    throw new Error(`Invalid extension ID: ${extensionId}. Extension ID must be 32 characters.`);
+  }
+
   const mainPath = getMainPath();
+  const manifestPath = getManifestPath();
+  
+  // Read existing manifest to preserve other extension IDs if any
+  let existingOrigins = [];
+  
+  if (fs.existsSync(manifestPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (existing.allowed_origins && Array.isArray(existing.allowed_origins)) {
+        // Keep existing origins that are not from this extension
+        existingOrigins = existing.allowed_origins.filter(
+          origin => !origin.includes('chrome-extension://')
+        );
+      }
+    } catch (err) {
+      // If existing manifest is corrupted, we'll overwrite it
+      console.log(`[WARN] Could not read existing manifest: ${err.message}`);
+    }
+  }
+
+  // Add the calculated extension ID
+  const newOrigin = `chrome-extension://${extensionId}/`;
+  if (!existingOrigins.includes(newOrigin)) {
+    existingOrigins.push(newOrigin);
+  }
 
   return {
     name: HOST_NAME,
     description: DESCRIPTION,
     path: mainPath,
     type: 'stdio',
-    allowed_origins: [`chrome-extension://${EXTENSION_ID}/`]
+    allowed_origins: existingOrigins
   };
 }
 
@@ -153,20 +203,26 @@ function fixSystemPermissions(dirPath) {
 /**
  * Register for a browser
  */
-function registerForBrowser(manifestPath, browserName, registryKey = null) {
+function registerForBrowser(manifestPath, browserName, registryKey = null, extensionId = null) {
   try {
     // Ensure directory exists
     ensureDir(path.dirname(manifestPath));
 
-    // Create manifest
-    const manifest = createManifestContent();
+    // Create manifest with extension ID (extensionId is required)
+    if (!extensionId) {
+      throw new Error(`Extension ID is required for ${browserName} registration`);
+    }
+    
+    const manifest = createManifestContent(extensionId);
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`[OK] Manifest written: ${manifestPath}`);
+    console.log(`[OK] Configured extension ID: ${extensionId}`);
 
     // Fix permissions for system directory
     fixSystemPermissions(path.dirname(manifestPath));
 
-    // Windows registry entry
+    // Windows registry entry (only for system-level registration)
+    // User-level registration doesn't need registry entry
     if (os.platform() === 'win32' && registryKey) {
       try {
         const escapedPath = manifestPath.replace(/\\/g, '\\\\');
@@ -175,6 +231,7 @@ function registerForBrowser(manifestPath, browserName, registryKey = null) {
         console.log(`[OK] Registry entry created for ${browserName}`);
       } catch (err) {
         console.warn(`[WARN] Registry entry failed for ${browserName}: ${err.message}`);
+        console.warn(`[INFO] This is normal for user-level registration`);
       }
     }
 
@@ -217,23 +274,59 @@ function main() {
   // Set execution permissions
   setExecutionPermissions();
 
-  console.log('Registering local development version...\n');
+  console.log('Registering local development version (user-level)...\n');
 
-  // Register for Chrome (system-level)
+  // Try to get extension ID from built manifest.json
+  // Support both .output/chrome-mv3 and direct paths
+  const possibleManifestPaths = [
+    path.join(PROJECT_ROOT, 'app', 'chrome-extension', '.output', 'chrome-mv3', 'manifest.json'),
+    path.join(PROJECT_ROOT, 'app', 'chrome-extension', 'manifest.json'),
+  ];
+  
+  let extensionId = null;
+  let manifestPathFound = null;
+  
+  for (const manifestPath of possibleManifestPaths) {
+    if (fs.existsSync(manifestPath)) {
+      manifestPathFound = manifestPath;
+      extensionId = getExtensionIdFromManifest(manifestPath);
+      if (extensionId) {
+        console.log(`[OK] Detected extension ID from manifest: ${extensionId}`);
+        console.log(`[OK] Manifest location: ${manifestPath}\n`);
+        break;
+      } else {
+        console.log(`[WARN] Could not calculate extension ID from: ${manifestPath}`);
+        console.log('[INFO] Make sure manifest.json contains a "key" field\n');
+      }
+    }
+  }
+  
+  if (!manifestPathFound) {
+    console.error('[ERROR] Built manifest.json not found in any expected location.');
+    console.error('[ERROR] The extension must be built before registering the native host.');
+    console.error('[INFO] Searched paths:');
+    possibleManifestPaths.forEach(p => console.error(`  - ${p}`));
+    console.error('[INFO] Please run the build script first: .\\scripts\\start.ps1\n');
+    process.exit(1);
+  }
+  
+  if (!extensionId) {
+    console.error('[ERROR] Extension ID could not be calculated from manifest.json.');
+    console.error('[ERROR] The manifest.json must contain a "key" field for automatic ID calculation.');
+    console.error(`[INFO] Manifest location: ${manifestPathFound}`);
+    console.error('[INFO] Ensure wxt.config.ts includes the key field in manifest configuration.');
+    console.error('[INFO] The key should be defined in config.cjs as CHROME_EXTENSION_KEY.\n');
+    process.exit(1);
+  }
+
+  // Register for Chrome (user-level for development)
   const chromeManifestPath = getManifestPath();
-  const chromeRegistryKey = os.platform() === 'win32'
-    ? `HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`
-    : null;
+  // User-level registration doesn't need registry key on Windows
+  const chromeSuccess = registerForBrowser(chromeManifestPath, 'Chrome', null, extensionId);
 
-  const chromeSuccess = registerForBrowser(chromeManifestPath, 'Chrome', chromeRegistryKey);
-
-  // Register for Chromium (system-level)
+  // Register for Chromium (user-level for development)
   const chromiumManifestPath = getChromiumManifestPath();
-  const chromiumRegistryKey = os.platform() === 'win32'
-    ? `HKLM\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`
-    : null;
-
-  const chromiumSuccess = registerForBrowser(chromiumManifestPath, 'Chromium', chromiumRegistryKey);
+  const chromiumSuccess = registerForBrowser(chromiumManifestPath, 'Chromium', null, extensionId);
 
   // Summary
   console.log('=================================================');
@@ -255,7 +348,10 @@ function main() {
   console.log('\n=================================================');
   console.log('  Next Steps');
   console.log('=================================================\n');
-  console.log('1. Restart Chrome/Chromium');
+  
+  console.log(`Extension ID: ${extensionId}`);
+  console.log('The native host manifest has been automatically configured with this ID.\n');
+  console.log('1. Restart Chrome/Chromium (required for native host changes to take effect)');
   console.log('2. Reload the extension (chrome://extensions)');
   console.log('3. Click "Connect" in the extension popup');
   console.log('4. The local development version should now be running\n');

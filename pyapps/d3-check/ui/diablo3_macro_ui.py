@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Diablo 3 Skill Macro UI Library
-Main UI coordinator using modular components
+Main UI coordinator using modular components.
+Single creator for main window subcomponents (TitleBar, BottomBar, panels); each type instantiated only here.
 """
 
 import tkinter as tk
@@ -10,38 +11,83 @@ from tkinter import ttk, messagebox
 import sys
 import os
 import time
+import ctypes
 from typing import Optional, Callable
 from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config, CONFIG_USER_PATH
-from providor.constants.common import UI_SETTINGS_WINDOW_GEOMETRY, DEFAULT_WINDOW_GEOMETRY
+from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe, get_config_section
+from providor.constants.common import (
+    ROOT_DIR,
+    UI_SETTINGS_WINDOW_GEOMETRY,
+    UI_SETTINGS_APP_ICON,
+    DEFAULT_WINDOW_GEOMETRY,
+    DEFAULT_APP_ICON_PATH,
+    DEFAULT_APP_LOGO_PATH,
+    DEFAULT_APP_ICON_PNG_PATH,
+)
 
 # Import UI components
 from .components import TitleBar, MenuBar, BottomBar, MacroControls, SystemTray
 
 # Import panels
 from .panels.main_functions_panel import MainFunctionsPanel
-from .panels.auxiliary_functions_panel import AuxiliaryFunctionsPanel
 from .panels.log_panel import LogPanel
 from .panels.rosbot_extension_panel import RosbotExtensionPanel
 from .panels.d4_panel import D4Panel
 from .panels.coordinate_calibration_panel import CoordinateCalibrationPanel
 
-# Import theme
+# Import theme and unified styles (single style application before any ttk; see docs/ui2)
 from .theme import UITheme
+from .unified_styles import UnifiedStyles
+from ui.utils.config_binding import ConfigBinding
 
 # Import i18n manager (global singleton instance)
-from d3utils.i18n_manager import i18n_manager
+from providor.i18n_manager import i18n_manager
+from providor.constants.ui import (
+    TAB_INDEX_MAIN,
+    TAB_INDEX_ROSBOT,
+    TAB_INDEX_D4,
+    TAB_INDEX_CALIBRATION,
+    TAB_INDEX_LOG,
+    TAB_COUNT,
+    PANEL_KEY_MAIN,
+    PANEL_KEY_ROSBOT,
+    PANEL_KEY_D4,
+    PANEL_KEY_CALIBRATION,
+    PANEL_KEY_LOG,
+)
+from share.ui_registry import register_ui
 
 # Lifecycle/event via runtime (THREAD_BUS -> main thread)
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
+from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+from pycore.pyutils.icon_utils import get_icon_path_for_windows
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
+
+_PIL_Image = get_third_package_PIL_Image()
+_PIL_ImageDraw = get_third_package_PIL_ImageDraw()
+_PIL_ImageTk = get_third_package_PIL_ImageTk()
+
+
+# Panel key -> instance attribute name (single place for panel table; see DESIGN_ISSUES_MAJOR §3)
+_PANEL_KEY_TO_ATTR = {
+    PANEL_KEY_MAIN: "main_functions_panel",
+    PANEL_KEY_ROSBOT: "rosbot_extension_panel",
+    PANEL_KEY_D4: "d4_panel",
+    PANEL_KEY_CALIBRATION: "coordinate_calibration_panel",
+    PANEL_KEY_LOG: "log_panel",
+}
+
 
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
     
+    def get_panel(self, key: str):
+        """Return panel by key. Keys: providor.constants.ui.PANEL_KEY_*. Panel table maintained here only."""
+        return self._panel_by_key.get(key)
+
     def __init__(self, initial_config='config1'):
         """
         Initialize the main UI
@@ -49,7 +95,12 @@ class Diablo3MacroUI:
         Args:
             initial_config: Initial configuration name
         """
+        set_windows_app_user_model_id("pycore.d3check.1.0")
         self.root = tk.Tk()
+        self._app_icon_photo = None
+        self.resize_direction = None
+        self._is_maximized = False
+        self.system_tray = None
 
         # Load language settings
         i18n_manager.load_language_from_config()
@@ -61,13 +112,18 @@ class Diablo3MacroUI:
 
         # Set window title and initial geometry (saved position/size or default) so window never flashes at 0,0
         self.root.title(i18n_manager.get_ui_text("main_window.title"))
+        self._set_window_icon()
         initial_geos = CONFIG.get("ui_settings", {}).get(UI_SETTINGS_WINDOW_GEOMETRY) or DEFAULT_WINDOW_GEOMETRY
         self.root.geometry(initial_geos)
         self.root.minsize(670, 400)
         self.root.resizable(True, True)
         self.root.configure(bg=UITheme.get_color('bg_dark'))
+        # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build; tkdocs wm_withdraw/deiconify)
+        self.root.withdraw()
+        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2)
+        self.root.overrideredirect(True)
 
-        # Apply theme
+        # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 single style entry)
         UITheme.apply_to_root(self.root)
 
         # Window geometry: debounced save on move/resize (id cleared after save)
@@ -77,8 +133,8 @@ class Diablo3MacroUI:
         # Current configuration
         self.current_config = initial_config
 
-        # Register language change listener
-        i18n_manager.add_language_change_listener(self._on_language_changed)
+        # Language: main UI rebuild is driven only by Controller (single chain); see DESIGN_ISSUES_MAJOR §1
+        # Controller registers _on_language_changed and calls self.ui._on_language_changed(new_language)
 
         # Callbacks
         self.on_macro_start: Optional[Callable] = None
@@ -86,12 +142,28 @@ class Diablo3MacroUI:
         self.on_config_change: Optional[Callable] = None
         self.on_skill_config_switch: Optional[Callable] = None
 
-        # Store UI instance in ENCYCLOPEDIA for global access
-        ENCYCLOPEDIA['ui'] = self
-        ColorPrint.blue("[UI] UI instance stored in ENCYCLOPEDIA")
-
-        # Create UI
+        # Init flag before _create_ui so _apply_tab_style (if ever called during init) skips main_notebook.update(); see docs/ui2 §6.3
+        self._initialization_complete = False
+        self._panel_by_key = {}
+        # Taskbar: apply once at 350ms; do NOT run again at 800ms (second SetWindowLong/SetWindowPos makes window unresponsive)
+        self._taskbar_fix_logged = False
+        self._taskbar_style_applied = False  # ensure_tk_root_in_taskbar only once
+        # Create UI (register_ui(self) called in _create_main_tabs / _recreate_ui_for_language_change → share.ui_registry)
         self._create_ui()
+        self._map_event_processed = False  # prevent duplicate Map event focus handling when SetWindowPos triggers Map again
+        self.root.after(350, self._apply_taskbar_fix)
+        def _on_map(_e):
+            # Only process Map event once during init. SetWindowPos at 350ms will trigger another Map event,
+            # but we should not re-run the full focus sequence to avoid focus instability from overlapping calls.
+            if self._map_event_processed:
+                return
+            self._map_event_processed = True
+            self.root.after(1, lambda: self.root.focus_force())
+            self.root.after(0, _deferred_after_map)
+        def _deferred_after_map():
+            # Single focus on first map; avoid many focus_force calls (report §2: reduce init-stage focus fights with system)
+            self.root.focus_force()
+        self.root.bind("<Map>", _on_map)
 
         # First run only: bring window to top (geometry already set at init)
         self._apply_first_run_topmost()
@@ -105,6 +177,13 @@ class Diablo3MacroUI:
 
         # Create system tray
         self._create_system_tray()
+
+        # If restored tab is ROSBOT, build its content synchronously before first map so first paint is not blank (docs/ui2 REPEATED_PAINT)
+        if self.last_selected_tab == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content_sync()
+        # Single flush after deiconify only (in after(1) _flush_after_first_build); no update_idletasks here to avoid painting intermediate state (docs/ui2 REPEATED_PAINT)
+        # Show window only after full build + theme + overrideredirect (docs/ui2)
+        self.root.deiconify()
 
         # Event center: exit/restart/show/minimize/maximize dispatched to main thread via THREAD_BUS
         register_main_thread_handlers(self)
@@ -181,7 +260,7 @@ class Diablo3MacroUI:
 
     def _on_resize(self, direction, event):
         """Handle window resizing"""
-        if not hasattr(self, 'resize_direction'):
+        if self.resize_direction is None:
             return
             
         current_x = self.root.winfo_pointerx()
@@ -211,10 +290,7 @@ class Diablo3MacroUI:
 
     def _create_ui(self):
         """Create the main UI using components"""
-        # Remove OS title bar and make window frameless
-        self.root.overrideredirect(True)
-        
-        # Add resize borders for frameless window
+        # Add resize borders first (content needed before frameless)
         self._add_resize_borders()
         
         # Title bar with language switch and window controls (no outer margin)
@@ -245,6 +321,8 @@ class Diablo3MacroUI:
         )
         self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
+        # overrideredirect already set after withdraw() before theme/build (docs/ui2); single update only at end of _create_main_tabs to avoid intermediate layout/paint
+
     def get_window_status_callback(self):
         """
         Get window status update callback for system_initializer to register
@@ -268,8 +346,6 @@ class Diablo3MacroUI:
 
     def start_system_tray_if_needed(self):
         """Start system tray if not already running. Call when UI is ready (e.g. before mainloop)."""
-        if not getattr(self, "system_tray", None):
-            return
         if self.system_tray.start():
             ColorPrint.green("[UI] System tray started successfully")
         else:
@@ -298,36 +374,101 @@ class Diablo3MacroUI:
         ColorPrint.blue("[UI] Window close button clicked - sending shutdown request")
         trigger_app_exit()
 
+    def _set_window_icon(self):
+        """Set window/taskbar icon: config app_icon path, else default .ico / logo.png / app_icon.png (Windows may auto-generate .ico from logo), else generated (same as tray)."""
+        ui_settings = get_config_section("ui_settings")
+        path_cfg = ui_settings.get(UI_SETTINGS_APP_ICON) or ""
+        if path_cfg:
+            p = Path(path_cfg)
+            path = (Path(ROOT_DIR) / path_cfg).resolve() if not p.is_absolute() else p.resolve()
+        else:
+            path = None
+        if not path or not path.exists():
+            path = DEFAULT_APP_ICON_PATH if DEFAULT_APP_ICON_PATH.exists() else None
+        if not path and DEFAULT_APP_LOGO_PATH.exists():
+            path = DEFAULT_APP_LOGO_PATH
+        if not path and DEFAULT_APP_ICON_PNG_PATH.exists():
+            path = DEFAULT_APP_ICON_PNG_PATH
+        if path and path.exists() and self.root.winfo_exists():
+            if sys.platform == "win32":
+                use_path = get_icon_path_for_windows(path)
+                if str(use_path).lower().endswith(".ico"):
+                    self.root.iconbitmap(str(use_path))
+                    return
+                path = use_path
+            if _PIL_Image and _PIL_ImageTk:
+                img = _PIL_Image.open(path).convert("RGBA")
+                self._app_icon_photo = _PIL_ImageTk.PhotoImage(img)
+                self.root.iconphoto(True, self._app_icon_photo)
+                return
+        if _PIL_Image and _PIL_ImageDraw and _PIL_ImageTk and self.root.winfo_exists():
+            w, h = 64, 64
+            image = _PIL_Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            draw = _PIL_ImageDraw.Draw(image)
+            draw.ellipse([8, 8, w - 8, h - 8], fill=(200, 0, 0, 255), outline=(255, 255, 255, 255), width=2)
+            draw.rectangle([20, 20, 24, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([20, 20, 32, 24], fill=(255, 255, 255, 255))
+            draw.rectangle([20, 40, 32, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([30, 24, 32, 40], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 20, 40, 44], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 20, 44, 24], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 32, 44, 36], fill=(255, 255, 255, 255))
+            draw.rectangle([36, 40, 44, 44], fill=(255, 255, 255, 255))
+            self._app_icon_photo = _PIL_ImageTk.PhotoImage(image)
+            self.root.iconphoto(True, self._app_icon_photo)
+
+    def _apply_taskbar_fix(self):
+        """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls.
+        When ui_settings.skip_taskbar_win32_fix is True, skip Win32 calls to verify if they cause unresponsive UI (report §1)."""
+        skip_win32 = get_config_value_safe("ui_settings.skip_taskbar_win32_fix", True)
+        if not self._taskbar_style_applied and not skip_win32:
+            self.root.update_idletasks()  # One pass so geometry is current for Win32 (docs/ui2 UI_REPEATED_PAINT: no second update_idletasks after Win32).
+            if ensure_tk_root_in_taskbar(self.root):
+                self._taskbar_style_applied = True
+                if not self._taskbar_fix_logged:
+                    self._taskbar_fix_logged = True
+                    ColorPrint.blue("[UI] Main window set to taskbar (Win32)")
+        if sys.platform == "win32":
+            self._set_window_icon()
+        self.root.focus_force()
+        # Deferred focus one frame later (report §5: avoid same-frame competition with SetWindowPos message handling)
+        self.root.after(10, lambda: self.root.focus_force() if self.root.winfo_exists() else None)
+
+    def _win32_set_foreground(self):
+        """Set this window as foreground on Windows (user32) so it receives input. Overrideredirect windows may not get focus from WM."""
+        if sys.platform != "win32":
+            return
+        self.root.update_idletasks()
+        hwnd = self.root.winfo_id()
+        if hwnd:
+            ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(hwnd))
+
     def _apply_first_run_topmost(self):
-        """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash)."""
+        """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash). Restore focus after topmost attr change."""
         self.root.lift()
         self.root.attributes("-topmost", True)
-        self.root.after(500, lambda: self.root.attributes("-topmost", False))
+        self.root.after(500, lambda: (
+            self.root.attributes("-topmost", False),
+            self.root.focus_force()  # Immediately restore focus after -topmost change to prevent input loss
+        ))
 
     def restore_window_to_preset(self):
         """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
         self.root.geometry(DEFAULT_WINDOW_GEOMETRY)
         self._is_maximized = False
-        if hasattr(self, "title_bar") and hasattr(self.title_bar, "maximize_btn"):
-            self.title_bar.maximize_btn.configure(text="□")
+        self.title_bar.maximize_btn.configure(text="□")
 
     def _save_window_geometry(self):
-        """Persist current window position and size to config (skip when maximized to avoid saving fullscreen)."""
-        try:
-            if getattr(self, "_is_maximized", False):
-                return
-            w = self.root.winfo_width()
-            h = self.root.winfo_height()
-            x = self.root.winfo_rootx()
-            y = self.root.winfo_rooty()
-            if w > 1 and h > 1:
-                geos = f"{w}x{h}+{x}+{y}"
-                if "ui_settings" not in CONFIG:
-                    CONFIG["ui_settings"] = {}
-                CONFIG["ui_settings"][UI_SETTINGS_WINDOW_GEOMETRY] = geos
-                save_config()
-        except tk.TclError:
-            pass
+        """Persist current window position and size to config (skip when maximized to avoid saving fullscreen). Call only when root exists."""
+        if not self.root.winfo_exists() or self._is_maximized:
+            return
+        w = self.root.winfo_width()
+        h = self.root.winfo_height()
+        x = self.root.winfo_rootx()
+        y = self.root.winfo_rooty()
+        if w > 1 and h > 1:
+            geos = f"{w}x{h}+{x}+{y}"
+            set_config_value_async("ui_settings.window_geometry", geos)
 
     def _on_window_configure(self, event=None):
         """Debounce geometry save on move/resize (Configure fires for root and children)."""
@@ -343,248 +484,95 @@ class Diablo3MacroUI:
         self._save_window_geometry()
 
     def _create_main_tabs(self):
-        """Create main tabbed interface"""
-        # Create notebook for main tabs (takeFocus=0 to avoid dotted focus ring on selected tab)
-        self.main_notebook = ttk.Notebook(self.root, height=370)
+        """Create main tabbed interface. Notebook and tab frames use Dark.* style at creation so first build is already themed (docs/ui2)."""
+        # Create notebook with theme from start (style= at construction avoids second layout/redraw)
+        self.main_notebook = ttk.Notebook(self.root, style='Dark.TNotebook', height=370)
         self.main_notebook.configure(takefocus=0)
         self.main_notebook.pack(fill=tk.X, padx=0, pady=0)
-        
-        # Apply dark theme to notebook
-        self._apply_notebook_theme()
+        self.main_notebook.enable_traversal()
 
         # Load last selected tab
         self._load_last_tab()
-        
-        # Create tab frames
-        self._create_table1_tab()  # Main functions
-        self._create_table2_tab()  # Auxiliary functions
-        self._create_rosbot_tab()  # ROSBOT extension
-        self._create_d4_tab()  # D4 functions
-        self._create_coordinate_calibration_tab()  # Coordinate calibration
-        self._create_table3_tab()  # Test and logs
+
+        # Config change hub: controller subscribes in run() and defers sync to timer thread to avoid main-thread block
+
+        # Create tab frames (all UI built at startup). Theme already in DB from apply_to_root; no refresh_dark_notebook during init so first build is themed (docs/ui2).
+        self._create_table1_tab()
+        self._create_rosbot_tab()
+        self._create_d4_tab()
+        self._create_coordinate_calibration_tab()
+        self._create_table3_tab()
+
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
+
+        ColorPrint.green("[UI] Notebook style updated")
+        ConfigBinding.log_registration_summary()
         
         # Bind tab change event
         self.main_notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
-        
-        # Set initial tab
-        self.main_notebook.select(self.last_selected_tab)
-        self.bottom_bar.show_tab_content(self.last_selected_tab)
+
+        tab_ids = self.main_notebook.tabs()
+        n = len(tab_ids)
+        for tid in tab_ids:
+            self.main_notebook.tab(tid, state="normal")
+        idx = max(0, min(self.last_selected_tab, n - 1)) if n else TAB_INDEX_MAIN
+        self.last_selected_tab = idx
+        if n > 0:
+            self.main_notebook.select(tab_ids[idx])
+            self.main_notebook.update_idletasks()
+        self.bottom_bar.show_tab_content(idx)
+        # Defer full update to after(1) so any after(0) (e.g. ensure_content) runs first; single paint with complete tree (docs/ui2 UI_REPEATED_PAINT)
+        self.root.after(1, self._flush_after_first_build)
 
         # Only the current tab's panel receives ColorPrint (D3/ROSBOT -> ROSBOT tab log, D4 -> D4 tab log)
         self._reregister_log_callback()
     
     def _apply_notebook_theme(self):
-        """Apply dark theme to notebook with multiple methods"""
-        style = ttk.Style()
-
-        # CRITICAL: Must avoid Windows native themes (vista/xpnative) which ignore custom colors
-        # Use 'clam' theme - it's fully customizable and cross-platform
-        current_theme = style.theme_use()
-        ColorPrint.blue(f"[UI] Current theme: {current_theme}, available: {style.theme_names()}")
-
-        # Force use clam theme to enable custom colors
-        if current_theme in ('vista', 'xpnative', 'winnative'):
-            ColorPrint.yellow(f"[UI] Switching from native theme '{current_theme}' to 'clam' for custom styling")
-        style.theme_use('clam')
-
-        # Tab layout: no Notebook.focus wrapper. Clam default adds focus for selected only -> shrinks selected height.
-        self._apply_tab_layout(style)
-
-        # tabmargins [L,T,R,B]: bottom=0 so no gap under tab bar (avoids white line).
-        style.configure('Dark.TNotebook',
-                       background=UITheme.get_color('bg_primary'),
-                       borderwidth=0,
-                       tabmargins=[1, 3, 1, 0])
-
-        # Configure frame style for tab content
-        style.configure('Dark.TFrame',
-                       background=UITheme.get_color('bg_primary'),
-                       borderwidth=0)
-
-        # Tab style: padding [L,T,R,B] equal top/bottom; focusthickness=0 / shiftrelief=0 / relief=flat
-        style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),
-                       foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 8, 12, 8],
-                       borderwidth=0,
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       bordercolor=UITheme.get_color('tab_unselected_bg'),
-                       focusthickness=0,
-                       focuscolor=UITheme.get_color('tab_unselected_bg'),
-                       shiftrelief=0,
-                       relief='flat')
-
-        # map(): same padding for selected/!selected (no extra wrap); selected expand [0,0,0,2] so height matches unselected.
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
-        
-        # Apply style to notebook
+        """Set notebook style to Dark.TNotebook. Style DB already populated by apply_to_root before any ttk widget; first build is themed (docs/ui2)."""
         self.main_notebook.configure(style='Dark.TNotebook')
 
-        # Force style update after a short delay to ensure it takes effect
-        self.root.after(100, self._force_style_update)
-
-    def _apply_tab_layout(self, style):
-        """Apply Tab layout without Notebook.focus so selected and unselected have same structure (no extra wrapper)."""
-        style.layout(
-            'Dark.TNotebook.Tab',
-            [
-                (
-                    'Notebook.tab',
-                    {
-                        'sticky': 'nswe',
-                        'children': [
-                            (
-                                'Notebook.padding',
-                                {
-                                    'side': 'top',
-                                    'sticky': 'nswe',
-                                    'children': [
-                                        ('Notebook.label', {'side': 'top', 'sticky': ''}),
-                                    ],
-                                },
-                            ),
-                        ],
-                    },
-                ),
-            ],
-        )
-
     def _force_style_update(self):
-        """Force style update: re-apply Tab layout (no focus wrapper) and same padding/expand for selected and !selected."""
+        """Re-apply Dark.TNotebook styles via theme module (single source)."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        style.configure('Dark.TNotebook.Tab',
-                       background=UITheme.get_color('tab_unselected_bg'),
-                       foreground=UITheme.get_color('tab_unselected_fg'),
-                       padding=[12, 8, 12, 8],
-                       borderwidth=0,
-                       lightcolor=UITheme.get_color('tab_unselected_bg'),
-                       darkcolor=UITheme.get_color('tab_unselected_bg'),
-                       bordercolor=UITheme.get_color('tab_unselected_bg'),
-                       focusthickness=0,
-                       focuscolor=UITheme.get_color('tab_unselected_bg'),
-                       shiftrelief=0,
-                       relief='flat')
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
-        ColorPrint.green("[UI] Forced notebook style update")
 
     def _apply_all_tab_styles(self):
-        """Apply styles to all tabs (same line height and underline)"""
+        """Apply Dark.TNotebook styles via theme module."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-            style.configure(style_name,
-                           background=UITheme.get_color('tab_unselected_bg'),
-                           foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 8, 12, 8],
-                           borderwidth=0,
-                           lightcolor=UITheme.get_color('tab_unselected_bg'),
-                           darkcolor=UITheme.get_color('tab_unselected_bg'),
-                           bordercolor=UITheme.get_color('tab_unselected_bg'),
-                           focusthickness=0,
-                           focuscolor=UITheme.get_color('tab_unselected_bg'),
-                           shiftrelief=0,
-                           relief='flat')
-        style.map('Dark.TNotebook.Tab',
-                 background=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('active', UITheme.get_color('state_hover')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                           ('active', UITheme.get_color('text_primary')),
-                           ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                 lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                           ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                          ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                             ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                 padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                 expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
-        ColorPrint.green("[UI] Applied styles to all tabs")
+
+    def _flush_after_first_build(self):
+        """Run after(1) from _create_main_tabs: flush layout so first display is complete (after any after(0) content creation)."""
+        if self.root.winfo_exists():
+            self.root.update_idletasks()
+            self.root.update()
 
     def _apply_tab_style(self, tab_id):
-        """Apply style to a specific tab (same line height and underline)"""
+        """Re-apply Dark.TNotebook styles for tab (theme single source). During init skip full update() to avoid 6 redraws; single root.update at end of _create_main_tabs suffices."""
         style = ttk.Style()
-        self._apply_tab_layout(style)
-        style.configure('Dark.TNotebook', tabmargins=[1, 3, 1, 0])
-        for style_name in ['Dark.TNotebook.Tab', 'TNotebook.Tab', 'Tab']:
-            style.configure(style_name,
-                           background=UITheme.get_color('tab_unselected_bg'),
-                           foreground=UITheme.get_color('tab_unselected_fg'),
-                           padding=[12, 8, 12, 8],
-                           borderwidth=0,
-                           lightcolor=UITheme.get_color('tab_unselected_bg'),
-                           darkcolor=UITheme.get_color('tab_unselected_bg'),
-                           bordercolor=UITheme.get_color('tab_unselected_bg'),
-                           focusthickness=0,
-                           focuscolor=UITheme.get_color('tab_unselected_bg'),
-                           shiftrelief=0,
-                           relief='flat')
-            style.map(style_name,
-                     background=[('selected', UITheme.get_color('tab_selected_bg')),
-                               ('active', UITheme.get_color('state_hover')),
-                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     foreground=[('selected', UITheme.get_color('tab_selected_fg')),
-                               ('active', UITheme.get_color('text_primary')),
-                               ('!selected', UITheme.get_color('tab_unselected_fg'))],
-                     lightcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                               ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     darkcolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                              ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     bordercolor=[('selected', UITheme.get_color('tab_selected_bg')),
-                                 ('!selected', UITheme.get_color('tab_unselected_bg'))],
-                     padding=[('selected', [12, 8, 12, 8]), ('!selected', [12, 8, 12, 8])],
-                     expand=[('selected', [0, 0, 0, 2]), ('!selected', [0, 0, 0, 0])])
+        UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
-        self.main_notebook.update()
-        ColorPrint.green(f"[UI] Applied style to tab: {tab_id}")
-    
+        if self._initialization_complete:
+            self.main_notebook.update()
+
     def _create_table1_tab(self):
-        """Create TABLE1 - Main functions tab"""
-        self.table1_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table1_frame.configure(style='Dark.TFrame')
+        """Create TABLE1 - Main functions tab (frame uses Dark.TFrame at creation)."""
+        self.table1_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.table1_frame,
             text=i18n_manager.get_ui_text("tabs.main_functions")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
         # Create main functions panel
         self.main_functions_panel = MainFunctionsPanel(
             self.table1_frame,
@@ -592,100 +580,45 @@ class Diablo3MacroUI:
             self.bottom_bar  # Pass bottom bar for config display
         )
         
-        # Set callbacks
-        if hasattr(self.main_functions_panel, 'set_config_change_callback'):
-            self.main_functions_panel.set_config_change_callback(self._on_config_change)
-        if hasattr(self.main_functions_panel, 'set_skill_config_switch_callback'):
-            self.main_functions_panel.set_skill_config_switch_callback(self._on_skill_config_switch)
-    
-    def _create_table2_tab(self):
-        """Create TABLE2 - Auxiliary functions tab"""
-        self.table2_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table2_frame.configure(style='Dark.TFrame')
-        tab_id = self.main_notebook.add(
-            self.table2_frame,
-            text=i18n_manager.get_ui_text("tabs.auxiliary_functions")
-        )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
-        # Create auxiliary functions panel
-        self.auxiliary_functions_panel = AuxiliaryFunctionsPanel(self.table2_frame)
-        
-        # Set callbacks
-        if hasattr(self.auxiliary_functions_panel, 'set_config_change_callback'):
-            self.auxiliary_functions_panel.set_config_change_callback(self._on_config_change)
-    
+        self.main_functions_panel.set_skill_config_switch_callback(self._on_skill_config_switch)
+
     def _create_rosbot_tab(self):
-        """Create ROSBOT Extension tab"""
-        self.rosbot_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.rosbot_frame.configure(style='Dark.TFrame')
+        """Create ROSBOT Extension tab (frame uses Dark.TFrame at creation)."""
+        self.rosbot_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.rosbot_frame,
             text=i18n_manager.get_ui_text("tabs.rosbot_extension")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create ROSBOT extension panel (status merged into bottom bar Game Status row)
         self.rosbot_extension_panel = RosbotExtensionPanel(self.rosbot_frame, bottom_bar=self.bottom_bar)
 
-        # Set callbacks
-        if hasattr(self.rosbot_extension_panel, 'set_config_change_callback'):
-            self.rosbot_extension_panel.set_config_change_callback(self._on_config_change)
-
     def _create_d4_tab(self):
-        """Create D4 Functions tab"""
-        self.d4_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.d4_frame.configure(style='Dark.TFrame')
+        """Create D4 Functions tab (frame uses Dark.TFrame at creation)."""
+        self.d4_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.d4_frame,
             text=i18n_manager.get_ui_text("tabs.d4_functions")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create D4 panel
         self.d4_panel = D4Panel(self.d4_frame)
 
-        # Set callbacks
-        if hasattr(self.d4_panel, 'set_config_change_callback'):
-            self.d4_panel.set_config_change_callback(self._on_config_change)
-
     def _create_coordinate_calibration_tab(self):
-        """Create Coordinate Calibration tab"""
-        self.calibration_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.calibration_frame.configure(style='Dark.TFrame')
+        """Create Coordinate Calibration tab (frame uses Dark.TFrame at creation)."""
+        self.calibration_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.calibration_frame,
             text=i18n_manager.get_ui_text("tabs.coordinate_calibration")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-
         # Create coordinate calibration panel
         self.coordinate_calibration_panel = CoordinateCalibrationPanel(self.calibration_frame)
 
-        # Set callbacks
-        if hasattr(self.coordinate_calibration_panel, 'set_config_change_callback'):
-            self.coordinate_calibration_panel.set_config_change_callback(self._on_config_change)
-
     def _create_table3_tab(self):
-        """Create TABLE3 - Test and logs tab"""
-        self.table3_frame = ttk.Frame(self.main_notebook)
-        # Set theme background color for the frame
-        self.table3_frame.configure(style='Dark.TFrame')
+        """Create TABLE3 - Test and logs tab (frame uses Dark.TFrame at creation)."""
+        self.table3_frame = ttk.Frame(self.main_notebook, style='Dark.TFrame')
         tab_id = self.main_notebook.add(
             self.table3_frame,
             text=i18n_manager.get_ui_text("tabs.log")
         )
-        # Force apply style to this tab
-        self._apply_tab_style(tab_id)
-        
         # Create log panel
         self.log_panel = LogPanel(self.table3_frame)
 
@@ -717,23 +650,23 @@ class Diablo3MacroUI:
             widget.destroy()
 
         self._create_table1_tab()
-        self._create_table2_tab()
         self._create_rosbot_tab()
         self._create_d4_tab()
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
-        if not hasattr(self, 'macro_controls') or not self.macro_controls:
-            self.macro_controls = MacroControls(
-                self.bottom_bar.frame,
-                on_start=self._on_start_macro,
-                on_stop=self._on_stop_macro
-            )
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
 
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
         self._register_panel_language_listeners()
-
-        if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
     def _recreate_ui_for_language_change(self):
         """Recreate UI specifically for language change - no panel listeners"""
@@ -741,78 +674,142 @@ class Diablo3MacroUI:
             widget.destroy()
 
         self._create_table1_tab()
-        self._create_table2_tab()
         self._create_rosbot_tab()
         self._create_d4_tab()
         self._create_coordinate_calibration_tab()
         self._create_table3_tab()
 
-        if not hasattr(self, 'macro_controls') or not self.macro_controls:
-            self.macro_controls = MacroControls(
-                self.bottom_bar.frame,
-                on_start=self._on_start_macro,
-                on_stop=self._on_stop_macro
-            )
+        self._panel_by_key = {
+            PANEL_KEY_MAIN: self.main_functions_panel,
+            PANEL_KEY_ROSBOT: self.rosbot_extension_panel,
+            PANEL_KEY_D4: self.d4_panel,
+            PANEL_KEY_CALIBRATION: self.coordinate_calibration_panel,
+            PANEL_KEY_LOG: self.log_panel,
+        }
+        register_ui(self)
+        self.rosbot_extension_panel.ensure_content()
 
-        if hasattr(self, 'macro_controls') and self.macro_controls:
-            self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
+        self.macro_controls.grid(row=0, column=0, sticky="w", padx=0, pady=0)
 
-        try:
-            self.main_notebook.select(self.last_selected_tab)
-        except tk.TclError:
-            pass
-        self._reregister_log_callback()
+        if self.main_notebook.winfo_exists():
+            tab_ids = self.main_notebook.tabs()
+            n = len(tab_ids)
+            # Explicitly update tab labels for current language (tkdocs: notebook.tab(tab_id, text=...) sets tab option)
+            _TAB_I18N_KEYS = [
+                "tabs.main_functions",
+                "tabs.rosbot_extension",
+                "tabs.d4_functions",
+                "tabs.coordinate_calibration",
+                "tabs.log",
+            ]
+            for i, tid in enumerate(tab_ids):
+                if i < len(_TAB_I18N_KEYS):
+                    self.main_notebook.tab(tid, text=i18n_manager.get_ui_text(_TAB_I18N_KEYS[i]))
+            if n > 0:
+                idx = max(0, min(self.last_selected_tab, n - 1))
+                self.main_notebook.select(tab_ids[idx])
+                self.last_selected_tab = idx
+                self.bottom_bar.show_tab_content(idx)
+                if idx == TAB_INDEX_ROSBOT:
+                    self.rosbot_extension_panel.ensure_content_sync()
+            self._reregister_log_callback()
+            self.root.update_idletasks()
+            self.root.update()
 
     def _reregister_log_callback(self):
-        """Register only the current tab's panel as ColorPrint callback. Tab order: 0=table1, 1=table2, 2=rosbot, 3=d4, 4=calibration, 5=log."""
+        """Register only the current tab's panel as ColorPrint callback."""
         ColorPrint.clear_all_callbacks()
-        try:
+        if not self.main_notebook.winfo_exists():
+            idx = TAB_INDEX_MAIN
+        else:
             sel = self.main_notebook.select()
             idx = self.main_notebook.index(sel)
-        except tk.TclError:
-            idx = 0
-        # Panels live on self; tab frame's winfo_children() are container Frames, not panel objects
-        panel = None
-        if idx == 2 and hasattr(self, 'rosbot_extension_panel'):
-            panel = self.rosbot_extension_panel
-        elif idx == 3 and hasattr(self, 'd4_panel'):
-            panel = self.d4_panel
-        elif idx == 5 and hasattr(self, 'log_panel'):
-            panel = self.log_panel
-        if panel is not None and hasattr(panel, 'add_log_message'):
-            ColorPrint.register_callback(panel.add_log_message)
+        if idx == TAB_INDEX_ROSBOT:
+            ColorPrint.register_callback(self.rosbot_extension_panel.add_log_message)
+        elif idx == TAB_INDEX_D4:
+            ColorPrint.register_callback(self.d4_panel.add_log_message)
+        elif idx == TAB_INDEX_LOG:
+            ColorPrint.register_callback(self.log_panel.add_log_message)
 
     def _register_panel_language_listeners(self):
-        """Register language change listeners for all panels"""
-        panels_to_register = []
-
-        for i in range(self.main_notebook.index("end")):
-            tab_frame = self.main_notebook.nametowidget(self.main_notebook.tabs()[i])
-            for child in tab_frame.winfo_children():
-                if hasattr(child, '_on_language_changed'):
-                    panels_to_register.append(child)
-
-        for panel in panels_to_register:
+        """Register language change listeners. Panels with _on_language_changed listed explicitly (code-level)."""
+        panels_with_language_listener = []
+        for panel in panels_with_language_listener:
             i18n_manager.add_language_change_listener(panel._on_language_changed)
             ColorPrint.blue(f"[UI] Registered language listener for: {panel.__class__.__name__}")
 
     def _load_last_tab(self):
-        """Load last selected tab from configuration"""
+        """Load last selected tab from configuration. Migrate from 6-tab (auxiliary at 1) to 5-tab; never restore to calibration on startup."""
         last_tab = CONFIG.get('ui_settings', {}).get('last_selected_tab', 0)
+        # Migrate: old index 1 (auxiliary, removed) -> 0; old 2..5 -> 1..4
+        if last_tab >= 1:
+            last_tab = last_tab - 1
+        last_tab = min(max(0, last_tab), TAB_COUNT - 1)
+        if last_tab == TAB_INDEX_CALIBRATION:
+            last_tab = TAB_INDEX_MAIN
         self.last_selected_tab = last_tab
-    
+
+    def switch_to_tab(self, index: int) -> None:
+        """Single entry: switch to tab by index (0-based). Used by tray Debug menu. Unbinds tab event during switch to avoid duplicate save/block, then forces redraw."""
+        nb = self.main_notebook
+        tab_ids = nb.tabs()
+        n = len(tab_ids)
+        if n == 0:
+            return
+        idx = max(0, min(index, n - 1))
+        nb.unbind("<<NotebookTabChanged>>")
+        nb.select(tab_ids[idx])
+        self.last_selected_tab = idx
+        self.bottom_bar.show_tab_content(idx)
+        set_config_value_async("ui_settings.last_selected_tab", idx)
+        self._reregister_log_callback()
+        if idx == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+        nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        nb.focus_set()
+        # No update_idletasks/update here (docs/ui2 UI_REPEATED_PAINT): let event loop redraw naturally.
+        ColorPrint.blue(f"[UI] Switched to tab {idx}")
+
     def _on_tab_changed(self, event=None):
-        """Handle tab change event"""
+        """Handle tab change event. Defer work to next idle so binding returns immediately and UI stays responsive."""
+        self.root.after(0, self._deferred_after_tab_changed)
+
+    def ensure_current_tab_content_if_needed(self):
+        """Called after timer is started (e.g. from controller via root.after(0, ...)). If current tab is ROSBOT, ensure_content so the panel is created (docs/ui_5 §7.1)."""
+        if not self.main_notebook.winfo_exists():
+            return
+        try:
+            idx = self.main_notebook.index(self.main_notebook.select())
+        except Exception:
+            return
+        if idx == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+
+    def _deferred_after_tab_changed(self):
+        """Run after tab change: update state, bottom bar, config, log callback, then force redraw so tab content is drawn (same as switch_to_tab from tray)."""
+        if not self.main_notebook.winfo_exists():
+            return
         selected_tab = self.main_notebook.index(self.main_notebook.select())
         self.last_selected_tab = selected_tab
-
-        if 'ui_settings' not in CONFIG:
-            CONFIG['ui_settings'] = {}
-        CONFIG['ui_settings']['last_selected_tab'] = selected_tab
-        save_config()
-
+        # During init, still run essential updates (bottom bar, log callback, ROSBOT ensure_content) so restored tab 2 is not blank; skip only update_idletasks/update (docs/ui_5 §6.2).
+        if not self._initialization_complete:
+            set_config_value_async("ui_settings.last_selected_tab", selected_tab)
+            self.bottom_bar.show_tab_content(selected_tab)
+            self._reregister_log_callback()
+            if selected_tab == TAB_INDEX_ROSBOT:
+                self.rosbot_extension_panel.ensure_content()
+            self._initialization_complete = True
+            ColorPrint.blue(f"[UI] Tab changed to: {selected_tab} (init)")
+            return
+        set_config_value_async("ui_settings.last_selected_tab", selected_tab)
         self.bottom_bar.show_tab_content(selected_tab)
         self._reregister_log_callback()
+        if selected_tab == TAB_INDEX_ROSBOT:
+            self.rosbot_extension_panel.ensure_content()
+        # No update_idletasks/update here (docs/ui2 UI_REPEATED_PAINT): let event loop redraw naturally to avoid nested event loop and repeated draw/blank.
         ColorPrint.blue(f"[UI] Tab changed to: {selected_tab}")
     
     def _on_start_macro(self):
@@ -847,33 +844,20 @@ class Diablo3MacroUI:
     # Public API methods for external control
 
     def set_bag_correction_image(self, image_input, display_size=(200, 150)):
-        """Set bag correction image with flexible input support"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'set_bag_correction_image'):
-                return self.auxiliary_functions_panel.set_bag_correction_image(image_input, display_size)
-        ColorPrint.yellow("[UI] Auxiliary functions panel not available")
-        return False
+        """Legacy API; D3 auxiliary tab removed, no-op."""
+        return None
 
     def get_bag_correction_image(self):
-        """Get current bag correction image"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'get_bag_correction_image'):
-                return self.auxiliary_functions_panel.get_bag_correction_image()
+        """Legacy API; D3 auxiliary tab removed, no-op."""
         return None
 
     def capture_bag_correction_image(self, screenshot_callback=None):
-        """Capture bag correction image from game"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, 'capture_bag_correction_image'):
-                return self.auxiliary_functions_panel.capture_bag_correction_image(screenshot_callback)
-        return False
+        """Legacy API; D3 auxiliary tab removed, no-op."""
+        return None
 
     def generate_bag_correction_image(self):
-        """Generate bag correction image using GameAssistantController"""
-        if hasattr(self, 'auxiliary_functions_panel'):
-            if hasattr(self.auxiliary_functions_panel, '_generate_bag_correction_image'):
-                return self.auxiliary_functions_panel._generate_bag_correction_image()
-        return False
+        """Legacy API; D3 auxiliary tab removed, no-op."""
+        return None
 
     # Callback setters
     
@@ -911,26 +895,67 @@ class Diablo3MacroUI:
             'last_selected_tab': self.last_selected_tab
         }
 
+    def get_skill_config(self, config_name: str):
+        """Get skill config dict for controller sync. Reads from CONFIG (thread-safe)."""
+        skill_configs = get_config_value_safe("macro_configs.skill_configs", {})
+        if not isinstance(skill_configs, dict):
+            return {}
+        return skill_configs.get(config_name, {})
+
+    def get_auxiliary_config(self):
+        """Get auxiliary config dict for controller sync. Reads from CONFIG (thread-safe)."""
+        aux = get_config_value_safe("macro_configs.auxiliary_config", {})
+        return dict(aux) if isinstance(aux, dict) else {}
+
     def run(self):
-        """Run the UI"""
+        """Run the UI. Release any stray grab (report §4: log if grab was present); do not focus_force before mainloop. No update_idletasks before mainloop (docs/ui2 UI_REPEATED_PAINT: single flush already in _flush_after_first_build)."""
+        if self._release_any_grab():
+            ColorPrint.yellow("[UI] Grab was held before mainloop; released.")
         self.root.mainloop()
+
+    def _release_any_grab(self) -> bool:
+        """Release grab on any widget that holds it (docs/ui_analyzer §C: grab_current may return str or list). Returns True if a grab was released."""
+        try:
+            current = self.root.grab_current()
+            if not current:
+                return False
+            paths = current if isinstance(current, (list, tuple)) else [current]
+            released = False
+            for path in paths:
+                w = None
+                if isinstance(path, str):
+                    try:
+                        w = self.root.nametowidget(path)
+                        if not w.winfo_exists():
+                            continue
+                    except (tk.TclError, KeyError):
+                        continue
+                elif hasattr(path, "grab_release") and callable(path.grab_release):
+                    w = path
+                if w is None:
+                    continue
+                try:
+                    w.grab_release()
+                    released = True
+                    ColorPrint.yellow(f"[UI] Released grab on widget: {path!r}")
+                except tk.TclError:
+                    pass
+            return released
+        except (tk.TclError, KeyError):
+            return False
     
     def destroy(self):
         """Destroy the UI completely - called by shutdown manager"""
-        if self._geometry_save_after_id:
-            try:
-                self.root.after_cancel(self._geometry_save_after_id)
-            except (tk.TclError, Exception):
-                pass
-            self._geometry_save_after_id = None
+        if self._geometry_save_after_id and self.root.winfo_exists():
+            self.root.after_cancel(self._geometry_save_after_id)
+        self._geometry_save_after_id = None
         self._save_window_geometry()
         ColorPrint.blue("[UI] Starting UI destruction...")
 
-        if hasattr(self, 'system_tray') and self.system_tray:
-            ColorPrint.blue("[UI] Stopping system tray...")
-            self.system_tray.stop()
-            time.sleep(0.2)
-            ColorPrint.blue("[UI] System tray stopped")
+        ColorPrint.blue("[UI] Stopping system tray...")
+        self.system_tray.stop()
+        time.sleep(0.2)
+        ColorPrint.blue("[UI] System tray stopped")
 
         self.root.quit()
 

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Event signals - shared event names and triggers used by shutdown_manager, event_center, d3_extension_thread.
-Extracted to break circular imports: event_center <-> shutdown_manager, event_center <-> d3_extension_thread.
 """
 
 from typing import Optional

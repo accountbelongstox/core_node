@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.YoloRecord</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
+  </ItemGroup>
+</Project>

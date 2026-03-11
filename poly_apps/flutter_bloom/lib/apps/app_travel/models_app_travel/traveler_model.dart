@@ -15,14 +15,14 @@ class TravelerModel {
   });
 
   /// 获取脱敏后的手机号（中间4位*号）
-  /// 例如：17785451996 -> 177****1996
+  /// 例如：18984121454 -> 189****1454
   String get maskedPhone {
     if (phone.length < 11) return phone;
     return '${phone.substring(0, 3)}****${phone.substring(7)}';
   }
 
   /// 获取脱敏后的邮箱（只显示前3位和后3位及邮箱后缀）
-  /// 例如：2862198276@qq.com -> 286****276@qq.com
+  /// 例如：cy00000000x@gmail.com -> cy0****00x@gmail.com
   String get maskedEmail {
     if (!email.contains('@')) return email;
 

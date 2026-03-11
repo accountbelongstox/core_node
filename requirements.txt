@@ -57,6 +57,9 @@ watchdog>=3.0.0
 # ============================================================
 # OCR (optional, used by d3-check CnOCR engine)
 # ============================================================
+# CnOCR official install: https://github.com/breezedeus/cnocr
+#   CPU: pip install cnocr[ort-cpu]
+#   GPU: pip uninstall onnxruntime; pip install cnocr[ort-gpu]
 cnocr[ort-cpu]>=2.3.0
 
 # ============================================================

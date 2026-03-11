@@ -37,8 +37,10 @@ import threading
 
 # FastMCP framework
 from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_pypdf
+from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
 import subprocess
 
+_cnocr_pip = get_cnocr_pip_package()
 FastMCP = get_third_package_FastMCP()
 pypdf_lib = get_third_package_pypdf()
 
@@ -92,7 +94,7 @@ class PackageManager:
         'conversion': ['pandoc', 'weasyprint', 'pdfkit'],
         'html': ['beautifulsoup4', 'html2text', 'markdownify'],
         'paddle_ocr': ['paddlepaddle', 'paddleocr'],
-        'cnocr': ['cnocr[ort-cpu]']
+        'cnocr': [_cnocr_pip]
     }
 
     _installation_status = {}

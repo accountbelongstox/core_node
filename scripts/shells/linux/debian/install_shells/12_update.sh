@@ -49,14 +49,30 @@ initialize_core_node_directories() {
     local CORE_NODE_BASE="${CORE_NODE_DATA_DIR}"
     local SHARED_DOWNLOADS="${CORE_NODE_SHARED_DOWNLOADS}"
 
-    if $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
+    echo "[SAFE_PATH] CORE_NODE_BASE=$CORE_NODE_BASE SHARED_DOWNLOADS=$SHARED_DOWNLOADS"
+    _safe_dir() {
+        local d="$1"
+        [ -z "$d" ] && return 1
+        [[ "$d" != /* ]] && return 1
+        case "$d" in
+            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*) return 1 ;;
+            /var) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+
+    if _safe_dir "$CORE_NODE_BASE" && $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
         $USE_SUDO chmod 777 "$CORE_NODE_BASE" 2>/dev/null || true
         echo "Created base directory: $CORE_NODE_BASE"
+    else
+        echo "[SKIP] Refusing chmod on system or invalid path: $CORE_NODE_BASE"
     fi
 
-    if $USE_SUDO mkdir -p "$SHARED_DOWNLOADS" 2>/dev/null; then
+    if _safe_dir "$SHARED_DOWNLOADS" && $USE_SUDO mkdir -p "$SHARED_DOWNLOADS" 2>/dev/null; then
         $USE_SUDO chmod 777 "$SHARED_DOWNLOADS" 2>/dev/null || true
         echo "Created shared downloads directory: $SHARED_DOWNLOADS"
+    else
+        echo "[SKIP] Refusing chmod on system or invalid path: $SHARED_DOWNLOADS"
     fi
 }
 

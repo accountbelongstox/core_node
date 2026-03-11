@@ -75,4 +75,4 @@ def get_fixed_drive_roots_for_scan(use_cache: bool = True) -> List[str]:
         key=lambda letter: (1 if letter == "C" else 0, letter),
     )
     _cached_fixed_roots = [f"{letter}:\\" for letter in ordered]
-    return ordered
+    return _cached_fixed_roots

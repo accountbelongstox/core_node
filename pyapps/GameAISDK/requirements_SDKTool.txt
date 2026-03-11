@@ -1,0 +1,45 @@
+# When run from core_node, psutil is provided by pycore.pyfoundations.third_party (get_third_package_psutil).
+# certifi: provided by pycore third_party (get_third_package_certifi) when run from core_node
+# certifi==2019.11.28
+# chardet: provided by pycore third_party (get_third_package_chardet)
+cycler==0.10.0
+decorator==4.4.2
+# idna: provided by pycore third_party (get_third_package_idna)
+imgviz==0.12.1
+kiwisolver==1.1.0
+# labelme: provided by pycore third_party (get_third_package_labelme) when run from core_node
+# labelme==3.16.7
+# matplotlib: provided by pycore third_party (get_third_package_matplotlib) when run from core_node
+# matplotlib==3.0.3
+networkx==2.4
+# numpy: provided by pycore third_party (get_third_package_numpy) when run from core_node
+# numpy==1.14.5
+# opencv-python: provided by pycore third_party (get_third_package_cv2) when run from core_node
+# opencv-python==3.4.2.17
+# Pillow: provided by pycore third_party (get_third_package_PIL / get_third_package_PIL_Image) when run from core_node
+# Pillow==6.2.2
+# protobuf: provided by pycore third_party (get_third_package_google_protobuf) when run from core_node; tensorflow/grpcio may also pull it
+# protobuf==3.7.0
+pyparsing==2.4.6
+# PyQt5: provided by pycore third_party (get_third_package_PyQt5) when run from core_node; for standalone install use line below
+PyQt5>=5.15,<6
+# PyQt5==5.12.2
+# PyQt5-sip: pulled by PyQt5 (>=12.15,<13)
+# PyQt5-sip==12.7.1
+python-dateutil==2.8.1
+PyYAML==5.3
+# pyzmq: provided by pycore third_party (get_third_package_zmq) when run from core_node
+# pyzmq==18.0.1
+QtPy==1.7.1
+# requests: provided by pycore third_party (get_third_package_requests) when run from core_node
+# requests==2.23.0
+# six: provided by pycore third_party (get_third_package_six) when run from core_node; tensorflow/protobuf and others may also pull it
+# six==1.14.0
+termcolor==1.1.0
+tqdm==4.32.1
+# urllib3: provided by pycore third_party (get_third_package_urllib3)
+# zmq: meta-package; use pyzmq via third_party (get_third_package_zmq)
+# zmq==0.0.0
+future==0.18.2
+pywinauto==0.6.8
+mss==6.0.0

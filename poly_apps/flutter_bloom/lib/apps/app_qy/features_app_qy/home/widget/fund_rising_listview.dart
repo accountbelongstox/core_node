@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/urgent_funding_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/sources/urgent_funding_data.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'urgentfunding_widget.dart';
 

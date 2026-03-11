@@ -972,6 +972,11 @@ main() {
 
     log "Disk setup completed!"
 
+    # Persist base data directory so project and all scripts use the same path (center)
+    if command -v persist_base_data_directory >/dev/null 2>&1; then
+        persist_base_data_directory "$(get_base_data_directory)"
+    fi
+
     echo ""
     log "Current mount points:"
     df -h | grep -E "^/dev/(sd|nvme|vd)" | awk '{printf "  %-20s %-15s %-10s %s\n", $1, $6, $3, $5}'

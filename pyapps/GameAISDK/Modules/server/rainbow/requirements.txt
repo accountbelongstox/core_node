@@ -1,0 +1,4 @@
+# numpy: provided by pycore third_party (get_third_package_numpy) when run from core_node
+# numpy==1.14.5
+torch==1.3.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+torchvision==0.4.1+cpu -f https://download.pytorch.org/whl/torch_stable.html

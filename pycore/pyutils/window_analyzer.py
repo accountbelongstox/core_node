@@ -455,35 +455,80 @@ class WindowAnalyzer:
             ColorPrint.red(f"❌ Error creating output directory: {e}")
             return self.debug_dir
     
+    def _window_from_handle(self, hwnd: int, window_title: str):
+        """Build a minimal window-like object from hwnd for analyze_window_by_handle."""
+        try:
+            rect = win32gui.GetWindowRect(hwnd)
+            left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+            width = right - left
+            height = bottom - top
+
+            class SimpleWindowFromHandle:
+                def __init__(self, hwnd, title, left, top, width, height):
+                    self._hWnd = int(hwnd)
+                    self.title = title
+                    self.left = left
+                    self.top = top
+                    self.width = width
+                    self.height = height
+                    self.isActive = False
+                    self.isMaximized = False
+                    self.isMinimized = False
+
+                def activate(self):
+                    try:
+                        win32gui.SetForegroundWindow(self._hWnd)
+                        win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
+                        return True
+                    except Exception:
+                        return False
+
+            return SimpleWindowFromHandle(hwnd, window_title, left, top, width, height)
+        except Exception as e:
+            ColorPrint.red(f"❌ Error building window from handle: {e}")
+            return None
+
+    def analyze_window_by_handle(self, hwnd: int, window_title: str, program_name: str = "Unknown") -> Dict:
+        """Analyze window by handle (e.g. ROSBOT found by PID, not by title). Same output as analyze_window."""
+        ColorPrint.yellow(f"🔍 Analyzing window: {program_name} (by handle)")
+        window = self._window_from_handle(hwnd, window_title or "Unknown")
+        if not window:
+            return {"success": False, "error": "Invalid window handle"}
+        return self._analyze_window_impl(window, program_name)
+
     def analyze_window(self, window_titles: List[str], program_name: str = "Unknown") -> Dict:
         """Analyze window and generate screenshots, position info, and JSON"""
         ColorPrint.yellow(f"🔍 Analyzing window: {program_name}")
-        
+
         # Get window
         window = self.get_window_by_titles(window_titles)
         if not window:
             ColorPrint.red("❌ Window not found")
             return {"success": False, "error": "Window not found"}
-        
+
+        return self._analyze_window_impl(window, program_name)
+
+    def _analyze_window_impl(self, window, program_name: str) -> Dict:
+        """Shared implementation: output_dir, screenshot, controls, JSON."""
         # Create output directory
         output_dir = self.create_timestamp_dir()
-        
+
         # Get window info
         window_info = self.get_window_info(window)
-        
+
         # Take screenshot
         screenshot_path = os.path.join(output_dir, f"{program_name}_screenshot.png")
         if not self.take_screenshot(window, screenshot_path):
             ColorPrint.red("❌ Failed to take screenshot")
             return {"success": False, "error": "Failed to take screenshot"}
-        
+
         # Enumerate controls
         controls = self.enumerate_controls_ui_automation(window)
-        
+
         # Draw element numbers on screenshot
         annotated_path = os.path.join(output_dir, f"{program_name}_annotated.png")
         self.draw_element_numbers(screenshot_path, controls, annotated_path, window)
-        
+
         # Generate JSON data
         analysis_data = {
             "timestamp": datetime.now().isoformat(),
@@ -495,7 +540,7 @@ class WindowAnalyzer:
                 "annotated_screenshot": annotated_path
             }
         }
-        
+
         # Save JSON
         json_path = os.path.join(output_dir, f"{program_name}_analysis.json")
         try:
@@ -505,10 +550,10 @@ class WindowAnalyzer:
         except Exception as e:
             ColorPrint.red(f"❌ Error saving JSON: {e}")
             return {"success": False, "error": f"Failed to save JSON: {e}"}
-        
+
         analysis_data["files"]["json"] = json_path
         analysis_data["success"] = True
-        
+
         ColorPrint.green(f"✅ Window analysis completed for {program_name}")
         return analysis_data
 

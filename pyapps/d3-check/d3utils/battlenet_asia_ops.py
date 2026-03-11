@@ -25,7 +25,7 @@ _FIELD_INPUT_INTERVAL_MIN = 0.05
 _FIELD_INPUT_INTERVAL_MAX = 0.15
 
 if TYPE_CHECKING:
-    from d3utils.battlenet_operation import BattlenetOperation
+    from d3utils.battlenet_operation_base import BattlenetOperationBase
 
 UIA_VALUE_PATTERN_ID = 10002
 
@@ -61,7 +61,7 @@ def _find_submit_button(controls: List[Dict[str, Any]]) -> Optional[Dict[str, An
 
 
 def _find_continue_button(controls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Find button whose name is Continue (繼續, etc.); same control may have automation_id submit."""
+    """Find button whose name is Continue (Asia locale); same control may have automation_id submit."""
     ctrl = _find_by_name(controls, ASIA_LOGIN_CONTINUE_NAME_KEYWORDS)
     if ctrl:
         return ctrl
@@ -74,7 +74,7 @@ def _find_continue_button(controls: List[Dict[str, Any]]) -> Optional[Dict[str, 
 
 
 def _find_log_in_button(controls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Find button whose name is Log in (登入, etc.); same control may have automation_id submit."""
+    """Find button whose name is Log in (Asia locale); same control may have automation_id submit."""
     ctrl = _find_by_name(controls, ASIA_LOGIN_SUBMIT_NAME_KEYWORDS)
     if ctrl:
         return ctrl
@@ -95,7 +95,7 @@ def _find_account_control(controls: List[Dict[str, Any]]) -> Optional[Dict[str, 
 
 
 def _submit_is_log_in(controls: List[Dict[str, Any]]) -> bool:
-    """True if the visible submit button is Log in (登入) not Continue."""
+    """True if the visible submit button is Log in not Continue."""
     ctrl = _find_by_automation_id(controls, ASIA_LOGIN_SUBMIT_AUTOMATION_IDS)
     if not ctrl:
         return False
@@ -150,7 +150,7 @@ class BattlenetAsiaOps:
     Asia Battle.net diff: perform email step and password step; predicates delegated to BattlenetRegionJudge.
     """
 
-    def __init__(self, battlenet_op: "BattlenetOperation"):
+    def __init__(self, battlenet_op: "BattlenetOperationBase"):
         self._op = battlenet_op
 
     def _judge(self, controls: Optional[List[Dict[str, Any]]] = None) -> BattlenetRegionJudge:
@@ -185,7 +185,7 @@ class BattlenetAsiaOps:
         if ASIA_LOGIN_DEBUG_INPUT:
             if is_password:
                 ColorPrint.gray(
-                    "[BattlenetAsiaOps] input field=password 密文= N/A(填充层无) | 解密后= 凭据层已解密传入 | 实际要输入 actual_to_input= *** len=%d (masked)"
+                    "[BattlenetAsiaOps] input field=password masked= *** len=%d"
                     % len(text)
                 )
             else:
@@ -302,7 +302,7 @@ class BattlenetAsiaOps:
     ) -> bool:
         """
         Fill whatever fields are present (account and/or password), then click BOTH buttons when present:
-        first Continue (繼續), then Log in (登入). Both must be clicked when both exist.
+        first Continue, then Log in. Both must be clicked when both exist.
         """
         self._op.activate_window()
         time.sleep(0.2)

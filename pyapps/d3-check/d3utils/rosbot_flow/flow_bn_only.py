@@ -9,7 +9,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import get_bn_only_enabled
-from d3utils.battlenet_status_provider import refresh_battlenet_status
+from d3utils.battlenet_status_provider import _refresh_battlenet_status_internal
 from d3utils.rosbot_flow.flow_bn_only_state import BnOnlyTickStep, set_last_bn_result
 from d3utils.rosbot_flow.flow_bn_block_state import reset_confirmed_to_poll
 _BN_ONLY = True  # BN-only flow uses for_bn_only=True
@@ -24,9 +24,10 @@ def tick_bn_only_flow() -> None:
     # Step: REFRESH_NOTIFY
     try:
         ColorPrint.gray(f"[BNOnly] step={BnOnlyTickStep.REFRESH_NOTIFY.value}: refresh_battlenet_status...")
-        refresh_battlenet_status()
+        _, bn_changed = _refresh_battlenet_status_internal()
         g = get_game_interface_data()
-        g.notify_state_sync()
+        if bn_changed:
+            g.notify_state_sync()
     except Exception as e:
         ColorPrint.red(f"[BNOnly] step={BnOnlyTickStep.REFRESH_NOTIFY.value} error: {e}")
         return

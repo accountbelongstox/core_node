@@ -6,13 +6,11 @@ Enumerate controls, find by automation_id/name, click at rect or Invoke. No D3/D
 import time
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_uiautomation
+from pycore.pyfoundations.third_party import get_third_package_pythoncom, get_third_package_uiautomation
 from pycore.pyutils.click_handler import ClickHandler
 
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
+pythoncom = get_third_package_pythoncom()
+uiautomation = get_third_package_uiautomation()
 
 UIA_IS_OFFSCREEN_PROPERTY_ID = 10022
 
@@ -20,20 +18,16 @@ UIA_IS_OFFSCREEN_PROPERTY_ID = 10022
 def ensure_com() -> None:
     """Ensure COM is initialized in current thread for UI Automation."""
     if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except OSError:
-            pass
+        pythoncom.CoInitialize()
 
 
 def get_root_control(hwnd: int):
     """Get root UI Automation control for given hwnd, or None."""
     ensure_com()
-    auto = get_third_package_uiautomation()
-    if not auto:
+    if not uiautomation:
         return None
     try:
-        root = auto.ControlFromHandle(hwnd)
+        root = uiautomation.ControlFromHandle(hwnd)
         return root if root.Exists() else None
     except Exception:
         return None
@@ -56,9 +50,7 @@ def safe_control_dict(control) -> Optional[Dict[str, Any]]:
         except Exception:
             is_enabled = None
         try:
-            is_offscreen = getattr(control, "IsOffscreen", None)
-            if is_offscreen is None and hasattr(control, "GetCurrentPropertyValue"):
-                is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
+            is_offscreen = control.GetCurrentPropertyValue(UIA_IS_OFFSCREEN_PROPERTY_ID)
         except Exception:
             is_offscreen = None
         has_valid_rect = (w is not None and h is not None and w > 0 and h > 0)
@@ -103,11 +95,8 @@ def enumerate_controls(hwnd: int) -> List[Dict[str, Any]]:
         if info:
             info["level"] = depth
             collected.append(info)
-        try:
-            for child in control.GetChildren():
-                walk(child, depth + 1)
-        except Exception:
-            pass
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(root)
     return collected
@@ -154,21 +143,18 @@ def find_raw_control_matching(root, control_dict: Dict[str, Any]):
     found = [None]
 
     def walk(control, depth: int = 0):
-        if depth > 25 or found[0] is not None:
+        if depth > 25 or found[0] is not None or control is None:
             return
-        try:
-            aid = (control.AutomationId or "").strip()
-            name = (control.Name or "").strip()
-            if want_aid and aid == want_aid and (not want_name or want_name in name):
-                found[0] = control
-                return
-            if not want_aid and want_name and want_name in name:
-                found[0] = control
-                return
-            for child in control.GetChildren():
-                walk(child, depth + 1)
-        except Exception:
-            pass
+        aid = (control.AutomationId or "").strip()
+        name = (control.Name or "").strip()
+        if want_aid and aid == want_aid and (not want_name or want_name in name):
+            found[0] = control
+            return
+        if not want_aid and want_name and want_name in name:
+            found[0] = control
+            return
+        for child in control.GetChildren():
+            walk(child, depth + 1)
 
     walk(root)
     return found[0]
@@ -177,13 +163,9 @@ def find_raw_control_matching(root, control_dict: Dict[str, Any]):
 def try_invoke(control) -> bool:
     """Invoke control via InvokePattern. Returns True if succeeded."""
     try:
-        auto = get_third_package_uiautomation()
-        if auto is None:
+        if uiautomation is None:
             return False
-        get_invoke = getattr(control, "GetInvokePattern", None)
-        if get_invoke is None:
-            return False
-        pattern = get_invoke()
+        pattern = control.GetInvokePattern()
         if pattern is None:
             return False
         pattern.Invoke()

@@ -9,8 +9,9 @@ from __future__ import annotations
 import os
 import re
 import sys
-import subprocess
 import asyncio
+
+from pycore.pyutils.system_launcher import open_file
 
 try:
     from mermaid_cli import render_mermaid
@@ -47,9 +48,4 @@ async def run():
 
 asyncio.run(run())
 
-if sys.platform == "win32":
-    os.startfile(out_svg)
-elif sys.platform == "darwin":
-    subprocess.run(["open", out_svg], check=False)
-else:
-    subprocess.run(["xdg-open", out_svg], check=False)
+open_file(out_svg)

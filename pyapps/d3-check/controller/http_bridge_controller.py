@@ -2,24 +2,51 @@
 # -*- coding: utf-8 -*-
 """
 HTTP Bridge Controller for D3Check
-Provides HTTP API endpoints for web-based GUI communication
+Provides HTTP API endpoints for web-based GUI communication.
+Singleton per (host, port) via get_http_bridge_server(host, port); do not instantiate elsewhere.
 """
 
-import sys
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Dict, Any
-
-current_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(current_dir))
+from typing import Dict, Any, Tuple, Optional
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config, load_config
+from providor.providor_index import CONFIG, queue_config_save, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
+
+try:
+    from d3utils.yolo_record import (
+        run_gameaisdk_start_record,
+        stop_record as yolo_stop_record,
+        is_recording as yolo_is_recording,
+        list_segments as yolo_list_segments,
+        segment_info as yolo_segment_info,
+        compose_segment_to_frames as yolo_compose_segment_to_frames,
+        delete_segment as yolo_delete_segment,
+    )
+except ImportError:
+    run_gameaisdk_start_record = None
+    yolo_stop_record = None
+    yolo_is_recording = None
+    yolo_list_segments = None
+    yolo_segment_info = None
+    yolo_compose_segment_to_frames = None
+    yolo_delete_segment = None
+
+# Singleton per (host, port); instantiate via get_http_bridge_server only
+_http_bridge_cache: Dict[Tuple[str, int], HTTPBridgeServer] = {}
+
+
+def get_http_bridge_server(host: str, port: int) -> HTTPBridgeServer:
+    """Return cached HTTPBridgeServer for (host, port). Instantiate before use."""
+    key = (host, port)
+    if key not in _http_bridge_cache:
+        _http_bridge_cache[key] = HTTPBridgeServer(host, port)
+    return _http_bridge_cache[key]
 
 
 class HTTPBridgeController:
@@ -40,7 +67,7 @@ class HTTPBridgeController:
 
         self.macro_controller = macro_controller if macro_controller is not None else D3MacroController()
 
-        self.bridge = HTTPBridgeServer(host, port)
+        self.bridge = get_http_bridge_server(host, port)
 
         self._register_handlers()
 
@@ -64,6 +91,16 @@ class HTTPBridgeController:
         self.bridge.register_get_handler('/api/login-try/oauth-done', self._handle_login_try_oauth_done_get)
         self.bridge.register_get_handler('/api/login-try/oauth-ping', self._handle_login_try_oauth_ping)
         self.bridge.register_get_handler('/api/login-try/oauth-step1-received', self._handle_login_try_oauth_step1_received)
+
+        # YOLO recording (DOT client calls Python to run GameAISDK video recording)
+        self.bridge.register_get_handler('/api/yolo/record/status', self._handle_yolo_record_status)
+        self.bridge.register_post_handler('/api/yolo/record/start', self._handle_yolo_record_start)
+        self.bridge.register_post_handler('/api/yolo/record/stop', self._handle_yolo_record_stop)
+        self.bridge.register_get_handler('/api/yolo/segments', self._handle_yolo_segments_get)
+        self.bridge.register_post_handler('/api/yolo/segments', self._handle_yolo_segments)
+        self.bridge.register_post_handler('/api/yolo/segment/info', self._handle_yolo_segment_info)
+        self.bridge.register_post_handler('/api/yolo/segment/export', self._handle_yolo_segment_export)
+        self.bridge.register_post_handler('/api/yolo/segment/delete', self._handle_yolo_segment_delete)
 
         ColorPrint.green("[HTTPBridgeController] All handlers registered")
 
@@ -176,7 +213,7 @@ class HTTPBridgeController:
     def _handle_config_save(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle POST /api/config/save"""
         try:
-            save_config()
+            queue_config_save()
             return {
                 'success': True,
                 'message': 'Configuration saved successfully'
@@ -218,6 +255,119 @@ class HTTPBridgeController:
             if received and at is not None:
                 return {'success': True, 'received': True, 'at': at}
             return {'success': True, 'received': False}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_yolo_record_status(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GET /api/yolo/record/status: whether Python is currently recording (GameAISDK)."""
+        if yolo_is_recording is None:
+            return {'success': False, 'error': 'yolo_record not available', 'data': {'recording': False}}
+        try:
+            recording = yolo_is_recording()
+            return {'success': True, 'data': {'recording': recording}}
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'data': {'recording': False}}
+
+    def _handle_yolo_record_start(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/record/start: project_path (required), serial (window hwnd as int, required for Windows)."""
+        if run_gameaisdk_start_record is None:
+            return {'success': False, 'error': 'yolo_record not available'}
+        project_path = (request_data.get('project_path') or '').strip()
+        serial = request_data.get('serial')
+        if not project_path or not os.path.isdir(project_path):
+            return {'success': False, 'error': 'project_path required and must be an existing directory'}
+        try:
+            hwnd = int(serial) if serial is not None else 0
+        except (TypeError, ValueError):
+            return {'success': False, 'error': 'serial (window handle) required as integer'}
+        if hwnd == 0:
+            return {'success': False, 'error': 'serial (window handle) required for Windows recording'}
+        try:
+            ok, msg, out_project = run_gameaisdk_start_record(project=project_path, serial=hwnd)
+            if ok:
+                return {'success': True, 'message': msg or 'recording started', 'project_path': out_project}
+            return {'success': False, 'error': msg or 'start failed'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_yolo_record_stop(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/record/stop: stop current recording."""
+        if yolo_stop_record is None:
+            return {'success': False, 'error': 'yolo_record not available'}
+        try:
+            yolo_stop_record()
+            return {'success': True, 'message': 'recording stopped'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_yolo_segments_get(self, query_params: Dict[str, Any]) -> Dict[str, Any]:
+        """GET /api/yolo/segments?project_path=... -> list of {segment_id, segment_path}."""
+        project_path = (query_params.get('project_path') or [None])[0] or ''
+        return self._yolo_segments_impl(project_path.strip())
+
+    def _handle_yolo_segments(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/segments: project_path -> list of {segment_id, segment_path}."""
+        project_path = (request_data.get('project_path') or '').strip()
+        return self._yolo_segments_impl(project_path)
+
+    def _yolo_segments_impl(self, project_path: str) -> Dict[str, Any]:
+        if yolo_list_segments is None:
+            return {'success': False, 'error': 'yolo_record not available', 'data': []}
+        if not project_path:
+            return {'success': True, 'data': []}
+        try:
+            pairs = yolo_list_segments(project_path)
+            data = [{'segment_id': seg_id, 'segment_path': seg_path} for seg_id, seg_path in pairs]
+            return {'success': True, 'data': data}
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'data': []}
+
+    def _handle_yolo_segment_info(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/segment/info: segment_path -> frames_count, has_video, status, size_mb."""
+        if yolo_segment_info is None:
+            return {'success': False, 'error': 'yolo_record not available'}
+        segment_path = (request_data.get('segment_path') or '').strip()
+        if not segment_path or not os.path.isdir(segment_path):
+            return {'success': False, 'error': 'segment_path required and must be an existing directory'}
+        try:
+            info = yolo_segment_info(segment_path)
+            return {'success': True, 'data': info}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_yolo_segment_export(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/segment/export: segment_path, output_subdir (default frames), skip_frames (default 1)."""
+        if yolo_compose_segment_to_frames is None:
+            return {'success': False, 'error': 'yolo_record not available'}
+        segment_path = (request_data.get('segment_path') or '').strip()
+        if not segment_path or not os.path.isdir(segment_path):
+            return {'success': False, 'error': 'segment_path required and must be an existing directory'}
+        output_subdir = request_data.get('output_subdir') or 'frames'
+        skip_frames = int(request_data.get('skip_frames', 1))
+        if skip_frames < 1:
+            skip_frames = 1
+        try:
+            ok, msg, frames_dir = yolo_compose_segment_to_frames(
+                segment_path, output_subdir=output_subdir, skip_frames=skip_frames
+            )
+            if ok:
+                return {'success': True, 'message': msg, 'frames_dir': frames_dir}
+            return {'success': False, 'error': msg or 'export failed'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+    def _handle_yolo_segment_delete(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /api/yolo/segment/delete: segment_path -> delete segment directory."""
+        if yolo_delete_segment is None:
+            return {'success': False, 'error': 'yolo_record not available'}
+        segment_path = (request_data.get('segment_path') or '').strip()
+        if not segment_path or not os.path.isdir(segment_path):
+            return {'success': False, 'error': 'segment_path required and must be an existing directory'}
+        try:
+            ok, msg = yolo_delete_segment(segment_path)
+            if ok:
+                return {'success': True, 'message': msg or 'deleted'}
+            return {'success': False, 'error': msg or 'delete failed'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

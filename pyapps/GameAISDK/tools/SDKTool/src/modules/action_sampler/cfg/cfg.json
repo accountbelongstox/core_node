@@ -1,0 +1,11 @@
+{
+    "GameName": "output",
+    "SavePath": "D:\\programing\\core_node\\pyapps\\d3-check\\data\\yolo_record\\d3_game\\",
+    "FrameFPS": 10,
+    "FrameHeight": 360,
+    "FrameWidth": 540,
+    "ActionCfgFile": "cfg/action.json",
+    "Debug": true,
+    "OutputAsVideo": false,
+    "LogTimestamp": false
+}

@@ -935,9 +935,11 @@ main() {
         fi
     fi
 
-    # Create symlink to /usr/local/bin/dd.sh
+    # Create symlink to /usr/local/bin/dd.sh and sync linuxenvs; skip all /usr/local/bin links in installation mode
     echo ""
-    if [ "$IS_INSTALLATION_MODE" = false ]; then
+    if [ "$IS_INSTALLATION_MODE" = true ]; then
+        echo "[INSTALLATION MODE] Skipping /usr/local/bin symlink - running from temporary location"
+    else
         local symlink_target="/usr/local/bin/dd.sh"
         if [ -L "$symlink_target" ]; then
             local current_target=$(readlink -f "$symlink_target")
@@ -951,28 +953,25 @@ main() {
             fi
         else
             if [ -e "$symlink_target" ]; then
-            echo "Warning: $symlink_target exists but is not a symlink"
-            echo "Removing and creating symlink..."
-            $sudo rm -f "$symlink_target"
-            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
-            echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
-        else
-            echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
-            $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
-            if [ $? -eq 0 ]; then
-                echo "Symlink created successfully"
+                echo "Warning: $symlink_target exists but is not a symlink"
+                echo "Removing and creating symlink..."
+                $sudo rm -f "$symlink_target"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                echo "Symlink created: $symlink_target -> $SCRIPT_ACTUAL_PATH"
             else
-                echo "Warning: Failed to create symlink (may need sudo privileges)"
+                echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
+                $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
+                if [ $? -eq 0 ]; then
+                    echo "Symlink created successfully"
+                else
+                    echo "Warning: Failed to create symlink (may need sudo privileges)"
                 fi
             fi
         fi
-    else
-        echo "[INSTALLATION MODE] Skipping symlink creation - running from temporary location"
+        # Sync scripts from scripts/linuxenvs to /usr/local/bin using symlinks
+        echo ""
+        sync_linuxenvs_to_bin
     fi
-
-    # Sync scripts from scripts/linuxenvs to /usr/local/bin using symlinks
-    echo ""
-    sync_linuxenvs_to_bin
 
     # Step 5-4: Initialize and show interactive menu
     echo ""

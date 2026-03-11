@@ -200,7 +200,7 @@ function Install-DeepSeekDependencies {
 
         Write-Host "$SCRIPT_INDEX Installing core dependencies..." -ForegroundColor White
         Write-Host ""
-        & $PythonCommand -m pip install torch transformers pillow numpy einops timm accelerate
+        & $PythonCommand -m pip install torch transformers pillow numpy einops timm accelerate attrdict
         Write-Host ""
 
         Pop-Location
@@ -361,7 +361,7 @@ print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
 print('[INFO] Download timeout: 3600s (1 hour)')
 
-vl_chat_processor = VLChatProcessor.from_pretrained(model_path, resume_download=True)
+vl_chat_processor = VLChatProcessor.from_pretrained(model_path)
 print('[OK] VLChatProcessor loaded successfully')
 
 tokenizer = vl_chat_processor.tokenizer

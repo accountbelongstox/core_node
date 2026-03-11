@@ -33,8 +33,13 @@ VALIDATION_DIR = TMP_DIR / "validation"
 ROSBOT_UI_DEBUG_DIR = TMP_DIR / "debug"
 
 BN_FLOW_SNAPSHOTS_DIR = _ROOT_PATH / ".cache" / "bn_flow_snapshots"
+# When False, save_ui_elements_snapshot skips file write and _enumerate_controls to avoid extra I/O and UI read each step.
+DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS = False
 
-YOLO_DATASET_BASE_DIR = Path(r"D:\applications\GameTools\Yolo")
+# Unified YOLO root (env YOLO_DATA_ROOT or default). Generated datasets go under _generated/{client_type}/.
+YOLO_DATA_ROOT = Path(os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data"))
+# Legacy: fallback when pycore yolo_data_layout not used (e.g. collect session list).
+YOLO_DATASET_BASE_DIR = YOLO_DATA_ROOT / "_generated" / "d3_game"
 YOLO_COLLECT_HUE_MIN = 0.0
 YOLO_COLLECT_HUE_MAX = 360.0
 YOLO_COLLECT_HUE_STEP = 17.0
@@ -62,6 +67,27 @@ DEFAULT_CLEANUP_MAX_AGE_SECONDS = 60
 # Debug
 # ---------------------------------------------------------------------------
 DEBUG = True
+
+# When True, the assistant/bag flow keeps all images in memory and does not write any to disk.
+FLOW_IMAGES_IN_MEMORY_ONLY = True
+
+# ---------------------------------------------------------------------------
+# UI Automation – common AutomationIds (WinForms / WPF / generic dialogs)
+# Used by ROSBOT, Battle.net, and other UI automation; single source for compatibility.
+# ---------------------------------------------------------------------------
+UI_AUTOMATION_ID_OK_BUTTON = "OKButton"
+UI_AUTOMATION_ID_TEXT_BOX = "TextBox"
+UI_AUTOMATION_ID_CANCEL_BUTTON = "MyCancelButton"
+# Optional: tuple for “any OK-style button” when multiple IDs exist across apps
+UI_AUTOMATION_IDS_OK_BUTTON = (UI_AUTOMATION_ID_OK_BUTTON,)
+
+# ---------------------------------------------------------------------------
+# UI name keywords (minimal, when no AutomationId); each tuple CN/EN.
+# Minimal keyword rule: keep only necessary keywords; match when control name contains any one.
+# ---------------------------------------------------------------------------
+UI_NAME_KEYWORDS_OK = ("OK", "确定")
+UI_NAME_KEYWORDS_CLOSE = ("Close", "关闭")
+UI_NAME_KEYWORDS_NO_ITEMS = ("No items", "无物品")
 
 # ---------------------------------------------------------------------------
 # Window / UI (generic)
@@ -99,8 +125,19 @@ BATTLE_NET_LOGIN_FAILED_SECONDARY_AUTOMATION_IDS = ()
 BATTLE_NET_LOGIN_FAILED_KEYWORDS = ("Continue Offline", "继续离线", "Cancel", "取消")
 BATTLE_NET_CONNECTING_AUTOMATION_IDS = ()
 BATTLE_NET_CONNECTING_KEYWORDS = ("Connecting", "连接中")
+# Battle.net "loading" UI: TextControl with name containing one of these (EN/CN). Wait until gone before D3 tab/Play.
+BATTLE_NET_LOADING_INDICATOR_CONTROL_TYPE = "TextControl"
+BATTLE_NET_LOADING_INDICATOR_NAME_SUBSTRINGS = (
+    "Update Agent",
+    "wake it up",
+    "Attempting to wake",
+    "战网",
+    "载入",
+    "正在启动",
+    "正在载入",
+)
 BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS = ("winCloseButton",)
-BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS = ("Close", "关闭")
+BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS = UI_NAME_KEYWORDS_CLOSE
 BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS = ("topLayerContainer.TopLayer.buttonContainer",)
 BATTLE_NET_DISCONNECT_AUTOMATION_IDS = ()
 BATTLE_NET_DISCONNECT_KEYWORDS = ("Retry", "重试")
@@ -142,6 +179,11 @@ BATTLE_NET_EXE_NAME = "Battle.net.exe"
 BATTLE_NET_BUTTON_HEX = "#0074E0"
 BATTLE_NET_BUTTON_RGB = (0, 116, 224)
 
+# Battle.net config file keys
+BATTLE_NET_CONFIG_SERVICES_KEY = "Services"
+BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY = "LastLoginRegion"
+BATTLE_NET_CONFIG_REGION_CN = "CN"
+
 BN_FLOW_WAIT_AFTER_START_SEC = 3.0
 BN_FLOW_POLL_TIMEOUT_SEC = 120.0
 BN_FLOW_OAUTH_WAIT_SEC = 120.0
@@ -178,6 +220,10 @@ DRIVE_CDROM = 5
 # OAuth / Tampermonkey
 # ---------------------------------------------------------------------------
 OAUTH_SCRIPT_PING_TIMEOUT_SEC = 30.0
+# Browser login fallback (CN, when Tampermonkey not connected): wait for browser by title, OCR every 2s, click EULA/Login.
+BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC = 300.0
+# Titles at different stages (match if window title contains any; constants)
+BROWSER_LOGIN_WINDOW_TITLE_SUBSTRS = ("战网登录", "Loading", "Login", "网易账号登录")
 
 # ---------------------------------------------------------------------------
 # Thread / event command names
@@ -199,6 +245,10 @@ EXTENSION_ROSBOT_STOP = "extension.rosbot.stop"
 EXTENSION_SHUTDOWN = "extension.shutdown"
 EXTENSION_ROSBOT_STARTED = "extension.rosbot.started"
 EXTENSION_ROSBOT_STOPPED = "extension.rosbot.stopped"
+# Log monitor → event bus: one event per new log line (payload = line: str). Handlers run in monitor thread; bridge queues for task thread.
+LOG_LINE = "log.line"
+# Log monitor init: payload = single str (path, last_modified, is_timeout). Print on handler.
+LOG_MONITOR_INIT = "log.monitor.init"
 
 # ---------------------------------------------------------------------------
 # Timers / intervals (generic)
@@ -219,7 +269,12 @@ COMMON_STRATEGY_OPTIONS = ["continuous", "single", "hold"]
 MAIN_FUNCTIONS_SUB_TABS_KEY = "main_functions_sub_tabs"
 
 UI_SETTINGS_WINDOW_GEOMETRY = "window_geometry"
+UI_SETTINGS_APP_ICON = "app_icon"
 DEFAULT_WINDOW_GEOMETRY = "670x550"
+# App icon: .ico (Windows taskbar) or .png (cross-platform iconphoto). Logo is the default image; .ico can be auto-generated on Windows.
+DEFAULT_APP_ICON_PATH = _ROOT_PATH / "images" / "app_icon.ico"
+DEFAULT_APP_LOGO_PATH = _ROOT_PATH / "images" / "logo.png"
+DEFAULT_APP_ICON_PNG_PATH = _ROOT_PATH / "images" / "app_icon.png"
 SMART_ECHO_OCR_TICK_MAX_SEC = 60.0
 
 # ---------------------------------------------------------------------------
