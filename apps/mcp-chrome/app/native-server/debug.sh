@@ -1,13 +1,13 @@
 #!/bin/bash
 # 获取脚本所在的绝对目录
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_DIR="/Users/hang/code/tencent/ai/chrome-mcp-server/app/native-server/dist/logs" # 或者你选择的、确定有写入权限的目�?
+LOG_DIR="/Users/hang/code/tencent/ai/chrome-mcp-server/app/native-server/dist/logs" # 或者你选择的、确定有写入权限的目�?
 
-# 获取当前时间戳用于日志文件名，避免覆�?
+# 获取当前时间戳用于日志文件名，避免覆�?
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 WRAPPER_LOG="${LOG_DIR}/native_host_wrapper_${TIMESTAMP}.log"
 
-# Node.js 脚本的实际路�?
+# Node.js 脚本的实际路�?
 NODE_SCRIPT="${SCRIPT_DIR}/index.js"
 
 # 确保日志目录存在
@@ -20,15 +20,15 @@ echo "LOG_DIR: ${LOG_DIR}" >> "${WRAPPER_LOG}"
 echo "NODE_SCRIPT: ${NODE_SCRIPT}" >> "${WRAPPER_LOG}"
 echo "Initial PATH: ${PATH}" >> "${WRAPPER_LOG}"
 
-# 动态查�?Node.js 可执行文�?
+# 动态查�?Node.js 可执行文�?
 NODE_EXEC=""
-# 1. 尝试�?which (它会使用当前环境�?PATH, �?Chrome �?PATH 可能不完�?
+# 1. 尝试�?which (它会使用当前环境�?PATH, �?Chrome �?PATH 可能不完�?
 if command -v node &>/dev/null; then
     NODE_EXEC=$(command -v node)
     echo "Found node using 'command -v node': ${NODE_EXEC}" >> "${WRAPPER_LOG}"
 fi
 
-# 2. 如果 which 找不到，尝试一�?macOS 上常见的 Node.js 安装路径
+# 2. 如果 which 找不到，尝试一�?macOS 上常见的 Node.js 安装路径
 if [ -z "${NODE_EXEC}" ]; then
     COMMON_NODE_PATHS=(
         "/usr/local/bin/node"            # Homebrew on Intel Macs / direct install
@@ -45,15 +45,15 @@ if [ -z "${NODE_EXEC}" ]; then
     done
 fi
 
-# 3. 如果还是找不到，记录错误并退�?
+# 3. 如果还是找不到，记录错误并退�?
 if [ -z "${NODE_EXEC}" ]; then
     echo "ERROR: Node.js executable not found!" >> "${WRAPPER_LOG}"
     echo "Please ensure Node.js is installed and its path is accessible or configured in this script." >> "${WRAPPER_LOG}"
-    # 对于 Native Host，它需要保持运行以接收消息，直接退出可能不是最�?
+    # 对于 Native Host，它需要保持运行以接收消息，直接退出可能不是最�?
     # 但如果node都找不到，也无法执行目标脚本
-    # 这里可以考虑输出一个符�?Native Messaging 协议的错误消息给扩展（如果可以的话）
-    # 或者就让它失败，Chrome会报�?Native Host Exited.
-    exit 1 # 必须退出，否则下面�?exec 会失�?
+    # 这里可以考虑输出一个符�?Native Messaging 协议的错误消息给扩展（如果可以的话）
+    # 或者就让它失败，Chrome会报�?Native Host Exited.
+    exit 1 # 必须退出，否则下面�?exec 会失�?
 fi
 
 echo "Using Node executable: ${NODE_EXEC}" >> "${WRAPPER_LOG}"

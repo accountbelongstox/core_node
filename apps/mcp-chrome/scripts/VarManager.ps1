@@ -1,5 +1,5 @@
 # VarManager.ps1
-# PowerShell 变量管理�?
+# PowerShell 变量管理�?
 # 负责读写文件变量
 
 # 获取变量存储目录
@@ -103,7 +103,7 @@ function Remove-Var {
     }
 }
 
-# 清除所有变�?
+# 清除所有变�?
 function Clear-AllVars {
     $varsDir = Get-VarsDir
 
@@ -119,7 +119,7 @@ function Clear-AllVars {
     }
 }
 
-# 列出所有变�?
+# 列出所有变�?
 function Get-AllVars {
     $varsDir = Get-VarsDir
     $result = @{}
@@ -139,7 +139,7 @@ function Get-AllVars {
     return $result
 }
 
-# 检查变量是否存�?
+# 检查变量是否存�?
 function Test-Var {
     param(
         [Parameter(Mandatory=$true)]
