@@ -15,7 +15,7 @@ library;
 
 import '../model/word_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
-import '../../data/word_book_data_service.dart';
+import '../../sources/word_book_data_service.dart';
 
 class WordService {
   final ApiServiceAppQy _apiService;

@@ -11,6 +11,10 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# DEPRECATED: This Linux shell layer (Python core) is deprecated.
+# New implementation (no Python): scripts/app_manager/linux_sh/app_manager.sh
+# dd.sh already launches the new script; this file is kept for backward compatibility.
+#
 # Unified App Manager - Linux Shell Layer (Simplified)
 # Execution layer that calls Python for menu and executes final commands
 

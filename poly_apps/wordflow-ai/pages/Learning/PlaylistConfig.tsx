@@ -46,7 +46,9 @@ const PlaylistConfigPage = () => {
        <SettingItem label="Daily Word Goal" value={playlistSettings.dailyGoal} onClick={() => updatePlaylistSettings({ dailyGoal: playlistSettings.dailyGoal + 100 })} />
 
        <div className="px-5 mt-8">
-         <Button onClick={() => navigate('playlist')}>Start Playing</Button>
+         <Button variant="fluid" showPlay onClick={() => navigate('playlist')}>
+           Start Playing
+         </Button>
        </div>
     </SettingsLayout>
   );

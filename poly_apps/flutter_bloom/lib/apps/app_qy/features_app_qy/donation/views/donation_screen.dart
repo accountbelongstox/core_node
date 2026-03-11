@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/custom_app_bar.dart';
 import 'package:qyflutter/common/widgets/custom_button.dart';
 import 'package:qyflutter/common/widgets/outelineborder.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/donation/data/donation_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/donation/sources/donation_data.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
 import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 import 'package:go_router/go_router.dart';

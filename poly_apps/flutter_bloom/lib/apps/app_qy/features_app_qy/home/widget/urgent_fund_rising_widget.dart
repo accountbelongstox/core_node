@@ -13,8 +13,8 @@
 import 'package:flutter/material.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/fund_rising_model.dart';
 import 'package:qyflutter/apps/app_qy/features_app_qy/home/domain/model/urgetnt_fundrasing_model.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/urgent_funding_data.dart';
-import 'package:qyflutter/apps/app_qy/features_app_qy/home/data/fund_rising_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/sources/urgent_funding_data.dart';
+import 'package:qyflutter/apps/app_qy/features_app_qy/home/sources/fund_rising_data.dart';
 import 'package:qyflutter/apps/app_qy/localization_app_qy/localization_keys_app_qy.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'package:qyflutter/common/theme/base/theme_dimensions.dart';
