@@ -1,4 +1,8 @@
-# Ensure Battle.net Only / Tick 驱动流程重构方案
+# [历史记录] Ensure Battle.net Only / Tick 驱动流程重构方案
+
+> **说明（2026 更新）**：本文件为早期「只在 `rosbot_task_processor.process_task()` 内做二次读」的重构方案，当时结论是「不单独创建 tick 驱动流程类库」。  
+> 目前架构已按 `FLOW_STATE_OWNERSHIP_DESIGN.md` 与 `FLOW_ARCHITECTURE_DIRECTORY.md` 演进为**单一流程类库 `d3utils.rosbot_flow`（内部含 BN-only / Flow-master 两个 flow）持有全部流程状态，Tick 入口只调用 flow 的 tick 入口**。  
+> 因此，**本文件仅保留作历史参考，不再作为新增代码或重构的设计依据**；与上述两份文档冲突之处一律以 `FLOW_STATE_OWNERSHIP_DESIGN.md` / `FLOW_ARCHITECTURE_DIRECTORY.md` 为准。
 
 依据 `ENSURE_BATTLENET_ONLY_TICK_FLOW.md` 规范，先做逻辑问题梳理与是否引入 tick 流程类库的结论，再给出具体改动项。
 
@@ -23,26 +27,31 @@
 
 ---
 
-## 2. 是否创建 tick 驱动的流程类库
+## 2. 关于 tick 驱动的流程类库（已被新架构取代）
 
-### 2.1 文档与现状
+### 2.1 当时的现状（历史）
 
-- 文档 §2 结论：「无需改结构，仅需保持『状态 → 任务开关 → process_task 分支』这条线不变即可」；§4 的改动的仅是「在 process_task 内增加二次状态判断」。
-- 当前实现：单文件 `rosbot_task_processor.py` 内一条 `process_task()`，约 80 行，结构清晰；状态来源明确（D3State + TaskThread），分支顺序与文档流程图一致。
+- 写本方案时，BN-only / Flow-master 仍全部实现在单文件 `rosbot_task_processor.py` 的 `process_task()` 内，文档也尚未拆成「两流程库 + 单一流程状态持有者」。
 
-### 2.2 不建独立 tick 流程类库的理由
+### 2.2 现状：已存在单一流程类库 `d3utils.rosbot_flow`
 
-1. **改动范围小**：仅 1 处变量替换（`flow_master` → `flow_master2`）即可满足规范，无需抽象新类型。
-2. **文档未要求**：规范没有要求抽成「tick 驱动流程类库」，只要求状态读两次、分支用再读状态。
-3. **复用边界清晰**：当前只有一条 2s flow（process_task）；若未来出现第二条 tick 流，再考虑抽取公共「入口读 → 刷新 → 再读 → 分支」模式更合适。
-4. **与 d3-check 规则一致**：Reuse before adding；无重复逻辑、无第二处实现同一行为，不必为「可能复用」提前建库。
+- 现有设计见：
+  - [`FLOW_STATE_OWNERSHIP_DESIGN.md`](FLOW_STATE_OWNERSHIP_DESIGN.md)：**流程开关与步骤状态仅由流程类库持有，tick 只驱动流程类库**。
+  - [`FLOW_ARCHITECTURE_DIRECTORY.md`](FLOW_ARCHITECTURE_DIRECTORY.md)：定义了**两条 flow（BN-only / Flow-master）都归属于单一流程类库 `d3utils/rosbot_flow`**：
+    - BN-only：`d3utils/rosbot_flow/flow_bn_only_state.py` + `flow_bn_only.py`
+    - Flow-master：`d3utils/rosbot_flow/flow_master_driver.py` + `extension_flow_state.py`
+  - [`FLOW_IMPLEMENTATION_PROGRESS.md`](FLOW_IMPLEMENTATION_PROGRESS.md)：按「两个流程库 + 统一 Tick 入口」记录实现进度。
+- Tick 入口 `rosbot_task_processor.process_task()` 的职责已收敛为：**只读 flow_state + 2s gate + 分支到 `tick_bn_only_flow()` / `tick_flow_master()`**，流程状态全部在 `d3utils.rosbot_flow*` 内部维护。
 
-### 2.3 建议
+### 2.3 本节的新结论
 
-- **不创建**独立的 tick 驱动流程类库。
-- 保持「D3State + TaskThread 两状态类库」与「process_task 内二次读 + 分支」的现有形态；仅做上述 1 处代码修正，并在注释中明确「二次读之后一律用 flow_master2/bn_only2」。
+- 本文件原先的「**不创建独立 tick 驱动流程类库**」结论已被上述三份文档与现有代码结构取代。  
+- **当前唯一合法的流程类库**是 `d3utils.rosbot_flow`（目录下的 flow_* 文件）；任何新的流程状态/步骤只能加在该目录内由 flow 层持有。  
+- `rosbot_task_processor.process_task()` 以及 controller / timers / UI（包括 `login_try_screenshot_controller`）一律视为**第三方调用方**：  
+  - 只能调用 flow 层暴露的 tick/辅助 API（如 `tick_bn_only_flow` / `tick_flow_master` / 各 F 步），  
+  - **不得自建流程状态或在流程外直接读写 flow_master / bn_only / BN 步骤状态**。
 
-若后续出现多个类似 process_task 的 tick 流（例如 10s 步的独立流程也需「再读后分支」），再考虑在 `d3utils` 下增加小型辅助（例如「在指定步骤后重新取 D3State 并判断是否继续」），而不是现在就上「流程类库」。
+本节及后续对「是否创建流程类库」的讨论仅供历史参考；如与 `FLOW_STATE_OWNERSHIP_DESIGN.md`、`FLOW_ARCHITECTURE_DIRECTORY.md`、`FLOW_IMPLEMENTATION_PROGRESS.md` 有任何不一致，一律以后者为准。
 
 ---
 

@@ -44,12 +44,12 @@ class WindowsTerminalLauncher:
         ubuntu_windows = windows_config[-ubuntu_count:] if ubuntu_count > 0 else []
         
         print("\nCreating batch files:")
-        
-        # Create Windows Terminal batch files
+        # One .bat per window: launch_terminal_1.bat .. launch_terminal_N.bat (each runs wt.exe -w new --pos ... --size ...)
         for i, (x, y, term_cols, term_rows) in enumerate(wt_windows, 1):
             bat_path = self.script_generator.create_wt_bat(i, x, y, term_cols, term_rows)
             bat_files.append(bat_path)
             print(f"  Windows Terminal {i}: {bat_path}")
+        print(f"  -> Created {len(wt_windows)} batch files (one per window).")
         
         # Create Ubuntu batch files
         ubuntu_shortcut = self.ubuntu_finder.get_first_ubuntu_shortcut()
@@ -70,7 +70,7 @@ class WindowsTerminalLauncher:
         # Launch Windows Terminal windows
         for i, bat_path in enumerate(bat_files[:len(wt_windows)], 1):
             x, y, term_cols, term_rows = wt_windows[i-1]
-            cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
+            cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
             print(f"  Windows Terminal {i}: {cmd}")
             self.executor.execute_bat_file_with_cmd(bat_path, independent=True)
             time.sleep(delay)

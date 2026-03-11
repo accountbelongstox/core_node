@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 Global Command Executor (Commander)
-Provides unified command execution with real-time output and result collection
+Provides unified command execution with real-time output and result collection.
+
+Base API for external commands: Commander.run_command(cmd, capture_output=..., timeout=..., cwd=...).
+- Stream mode (capture_output=False): inherited stdout/stderr, real-time progress bar.
+- Capture mode (capture_output=True): subprocess.run(capture_output=True), returns CompletedProcess.
+third_party.run_third_party_command delegates here for all pip/third-party subprocess execution.
 """
 
 import os
@@ -68,6 +73,40 @@ class Commander:
             except UnicodeDecodeError:
                 return str(data)
     
+    @staticmethod
+    def run_command(
+        cmd: List,
+        capture_output: bool = False,
+        timeout: Optional[int] = None,
+        cwd: Optional[str] = None,
+    ) -> Optional[subprocess.CompletedProcess]:
+        """
+        Base command execution for pycore. All subprocess runs that need stream or capture
+        should go through this or third_party.run_third_party_command (which delegates here).
+        - capture_output=False: Popen(cmd, stdout=None, stderr=None) so output and progress bar
+          are real-time (inherited streams). wait(); returns None.
+        - capture_output=True: subprocess.run(cmd, capture_output=True, timeout=..., encoding=utf-8);
+          returns CompletedProcess. Use for pip show etc.
+        cmd must be a list (no shell). Ref: https://docs.python.org/3/library/subprocess.html
+        """
+        if capture_output:
+            return subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout if timeout is not None else 10,
+                encoding="utf-8",
+                errors="replace",
+                cwd=cwd,
+            )
+        proc = subprocess.Popen(
+            cmd,
+            stdout=None,
+            stderr=None,
+            cwd=cwd,
+        )
+        proc.wait()
+        return None
+
     @staticmethod
     def _get_executable(command: Union[str, List]) -> Optional[str]:
         """Get executable path from command"""

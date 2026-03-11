@@ -111,12 +111,12 @@ C5w 超时：文档仅写「wait 直到出现 d3_game_tool **或超时**」，�
 | **C3w_Wait** | [C3w] wait | controller `_run_c3_loop_and_handle_branch` 内 `time.sleep(C3W_WAIT_SEC)` |
 | **C5_StartGame** | [C5] 点击开始游戏按钮 | `d3_start_game_and_teleport_waiter.try_fragment1_click_start_game_wait_game_tool` 内匹配到 d3_start_game_button 后 `clicker.click(...)` |
 | **C5w_Wait** | [C5w] wait 直到出现 d3_game_tool 或超时 | 同上函数内 while 循环 + `detect_d3_already_running_state()`，game_tool→return True，超时→return False |
-| **C6_GameTool** | [C6] 继续 d3_game_tool 流程 | `d3_start_game_and_teleport_waiter.try_fragment2_game_tool_press_m_then_clicks()`（内先 C10 已在 run_c4_branch_result 中做过，此处 C7a/C7w/C7b） |
-| **C10_Check** | [C10a] 截图→发送 M→截图→对比相似度 | `d3_start_game_and_teleport_waiter.check_d3_online_by_m_similarity()`；C6 路径在 run_c4_branch_result(state==game_tool) 时已调用 |
-| **C10_Result** | [C10b] 发送前后截图高度相似？ | 同上函数返回值；相似→视为掉线（return "disconnect"）；否→C7a |
-| **C7a_PressM** | [C7a] 再按 M 复位地图 | `d3_start_game_and_teleport_waiter._run_c7a_c7w_c7b` 内第一次 M |
-| **C7w_Wait** | [C7w] 等待 2 秒 | 同上函数内 `time.sleep(D3_GAME_TOOL_AFTER_M_DELAY_SEC)` |
-| **C7b_Teleport** | [C7b] 传送：(751,413)+(610,126) | 同上函数内 `_do_c7b_teleport(...)` |
+| **C6_GameTool** | [C6] 继续 d3_game_tool 流程 | `d3_start_game_and_teleport_waiter.try_fragment2_game_tool_press_m_then_clicks()`（C10 已在 run_c4_branch_result 中做；此处 C7 确保地图打开后 C7b） |
+| **C10_Check** | [C10a] 仅判掉线：截图(前)→发 M→截图(后)→对比 | `step_c10_send_m` / `step_c10_compare`；与 C7 打开地图传送为两套逻辑 |
+| **C10_Result** | [C10b] 相似=掉线；不相似=在线→C7a | 相似→C12；否→C7a（传送前确保地图打开） |
+| **C7a_PressM** | [C7a] 传送前确保地图打开：最多两轮 M，每轮按 M→等 2s→检测悬赏进度 | `_ensure_map_open_then_c7b_teleport()`（两轮 M+悬赏检测）；tick 流为 step_c7a_send_m→C_C7a_VERIFY_BOUNTY |
+| **C7w_Wait** | [C7w] 等待 2 秒 | 每轮 M 后 `D3_GAME_TOOL_AFTER_M_DELAY_SEC`；tick 流 C_C7a_WAIT |
+| **C7b_Teleport** | [C7b] 传送：(751,413)+(610,126) | `_ensure_map_open_then_c7b_teleport` 内找到悬赏进度后 `_do_c7b_teleport(...)` |
 | **C8_Result** | [C8] 传送结果（流程步骤，无否分支） | C7b 成功后即 C8 完成，controller 返回 "success" → A8 |
 | **C12_EndD3** | [C12] 结束 D3 进程，进入 D 流程 | `flow_c_d3_direct.run_c12_end_d3()`；controller 中 C3_Result 未识别/超时、C5w 超时、C6 失败均调用此函数后 fallthrough 进 D |
 
@@ -133,4 +133,4 @@ C5w 超时：文档仅写「wait 直到出现 d3_game_tool **或超时**」，�
 - C1、C2、C3、C3_Result 各出边、C5、C5w 两条出边（超时→C12、出现 game_tool→C6）、C12 均与文档一致。
 - 文档中「若识别到 d3_connecting 或 d3_connecting_alt 则继续 wait」仅出现在 **C3**，不适用于 C5w；C5w 文档仅规定「wait 直到出现 d3_game_tool 或超时」，未规定 connecting 时延长等待。
 - 若需「C5w 内识别到连接中不杀 D3」，需在文档中补充 C5w 的对应条款后再改代码。
-- 每个节点均对应唯一实现：C1=run_c1_entry，C2=run_c2_resize，C12=run_c12_end_d3，C3 一步=run_c3_screenshot_state + run_c4_branch_result，C5/C5w=try_fragment1_*，C6/C7a-C8=try_fragment2_* 与 send_m_then_teleport_three_clicks。
+- 每个节点均对应唯一实现：C1=run_c1_entry，C2=run_c2_resize，C12=run_c12_end_d3，C3 一步=run_c3_screenshot_state + run_c4_branch_result，C5/C5w=try_fragment1_*，C6/C7=try_fragment2_* 与 _ensure_map_open_then_c7b_teleport。C10 仅判掉线（M 前后截图对比）；C7 为传送前确保地图打开（两轮 M+悬赏进度检测），两套逻辑分离。

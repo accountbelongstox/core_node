@@ -14,7 +14,7 @@ D3-Check is a Diablo III / Diablo IV automation control sub-application, providi
 
 ### 2.1 Trigger
 
-- **Log trigger**: Configured trigger string appears in ROSBOT log file (default `Documents\RoS-BoT\Logs\logs.txt`).
+- **Log trigger**: Configured trigger string appears in ROSBOT log file (default `Documents\RoS-BoT\Logs\history.txt`).
 - **Config**: `log_detection.login_try`, default `"Login try"`.
 - **Constant**: When not configured, uses `config.constants.LOGIN_TRY_TRIGGER_DEFAULT` (`"Login try"`).
 

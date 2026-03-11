@@ -6,60 +6,109 @@ Used by thread registry and panels. Long-lived thread classes live in controller
 """
 
 import json
+import os
 import re
 import shutil
 import time
+import threading
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
-from pycore.pyutils.window_analyzer import WindowAnalyzer
+from d3utils.window_analyzer_singleton import get_window_analyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
-from providor.providor_index import CACHE_DIR
+from providor.providor_index import CACHE_DIR, get_config_section, get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.path_scanner import scan_for_paths
 from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.rosbot_operation import get_rosbot_operation
 from d3utils.rosbot_status_provider import refresh_rosbot_status
 from d3utils.key_send import send_f7_to_system
+from d3utils.rosbot_flow_rosbot_exit_state import set_f7_sent_for_rosbot
 from d3utils.rosbot_flow.flow_e_rosbot_run import (
     run_e1_kill,
     run_e2_sleep,
     run_e3_config_check,
+    run_e3_update_flow,
     run_e4_start,
     run_e5_init,
     run_e5a_wait_win_srv_poll_click,
     run_e6_done,
 )
 from d3utils.rosbot_task_processor import run_full_status_refresh, start_rosbot_task
-from d3utils.rosbot_ui_automation import run_after_rosbot_start
+from d3utils.rosbot_ui_automation import run_after_rosbot_start, try_close_d3_must_be_launched_dialog
+from d3utils.rosbot_update_check import ask_yes_no_on_main_thread
+from d3utils.rosbot_update_manager import get_rosbot_update_manager
+import d3utils.rosbot_manager as rosbot_manager_module
+from providor.providor_index import set_config_value_safe
+from providor.constants.d3 import (
+    ROSBOT_REGION_DISPLAY_ASIA,
+    ROSBOT_REGION_DISPLAY_CN,
+)
+from ui.components.rosbot_update_info_panel import RosbotUpdateInfoPanel
+from ui.utils.config_binding import ConfigBinding
 from d3utils.smart_echo import do_smart_echo_pause_after_complete
 import timers.timer_manager as timer_manager
 import timers.window_monitor_timer as window_monitor
 from share.game_interface_data import get_game_interface_data
-from controller.login_try_screenshot_controller import get_login_try_screenshot_controller
+from runtime import is_shutdown_requested
 
-try:
-    import pythoncom
-except ImportError:
-    pythoncom = None
+# Injected by controller; timers must not import controller.
+_ensure_bn_started_fn: Optional[Callable[[], bool]] = None
+_ensure_d3_no_rosbot_fn: Optional[Callable[[], None]] = None
+_ensure_bn_only_fn: Optional[Callable[[], bool]] = None
 
-_ROSDEBUG_F7_DEBOUNCE_SEC = 3.0
-_last_rosdebug_f7_at: Optional[float] = None
+
+def register_login_controller_actions(
+    ensure_bn_started: Callable[[], bool],
+    ensure_d3_no_rosbot: Callable[[], None],
+    ensure_bn_only: Callable[[], bool],
+) -> None:
+    """Register callbacks for D3/BN one-shot tasks. Called from controller layer."""
+    global _ensure_bn_started_fn, _ensure_d3_no_rosbot_fn, _ensure_bn_only_fn
+    _ensure_bn_started_fn = ensure_bn_started
+    _ensure_d3_no_rosbot_fn = ensure_d3_no_rosbot
+    _ensure_bn_only_fn = ensure_bn_only
+
+
+from pycore.pyfoundations.third_party import get_third_package_pythoncom
+pythoncom = get_third_package_pythoncom()
+
 _rosdebug_running_busy = False
 
 
-def do_path_scan(panel: Any, include_rosbot: bool = True) -> None:
+def _schedule_on_main(container: Any, callback: Callable[[], None]) -> None:
+    """Schedule callback on main thread. No-op if shutdown requested or widget gone (avoids RuntimeError: main thread is not in main loop)."""
+    if is_shutdown_requested():
+        return
+    try:
+        winfo_exists = getattr(container, "winfo_exists", None)
+        if not callable(winfo_exists) or not winfo_exists():
+            return
+        container.after(0, callback)
+    except RuntimeError:
+        pass
+
+
+def do_path_scan(panel: Any, include_rosbot: bool = True, force_scan_rosbot: bool = False) -> None:
     """Path scan work. Run in timer thread via submit_one_shot; schedules UI update on main.
-    When include_rosbot is False, only Battle.net and D3 are scanned; panel._apply_scan_results receives empty ros list."""
+    After scan, triggers ROSBOT update check and applies update without dialog if found.
+    When include_rosbot is False, only Battle.net and D3 are scanned; panel._apply_scan_results receives empty ros list.
+    When force_scan_rosbot is True, scan drives for all ROSBOT dirs (Asia/CN) even if one is configured, for region/version matching."""
     def progress_cb(current_dir: str) -> None:
-        if getattr(panel, "_scan_status", None) is not None:
+        if panel._scan_status is not None:
             panel._scan_status[0] = current_dir
 
-    bn, ros, d3 = scan_for_paths(progress_callback=progress_cb, include_rosbot=include_rosbot)
-    panel.container.after(0, lambda: panel._apply_scan_results(bn, ros, d3))
+    bn, ros, d3 = scan_for_paths(
+        progress_callback=progress_cb,
+        include_rosbot=include_rosbot,
+        force_scan_rosbot=force_scan_rosbot,
+    )
+    if include_rosbot:
+        do_rosbot_update(panel, silent=True)
+    _schedule_on_main(panel.container, lambda: panel._apply_scan_results(bn, ros, d3))
 
 
 def do_login_check(
@@ -67,7 +116,15 @@ def do_login_check(
     login_check_fn: Callable[[], Tuple[bool, Optional[Exception]]],
     generation: Optional[int] = None,
 ) -> None:
-    """Login check work. Run in timer thread via submit_one_shot; schedules UI update on main. generation lets panel ignore stale callbacks to avoid flicker."""
+    """Login check work. Before starting ROSBOT: only when BN region detected (Asia/CN) check Downloads for update zip; confirm via dialog. Only called by flow via extension thread, UI does not submit directly (FLOW_STATE_ARCHITECTURE)."""
+    zip_path, is_newer, version_str, region = run_rosbot_update_check()
+    if is_newer and zip_path and region:
+        auto = get_config_section("ros_settings").get("auto_enable_latest_ros", True)
+        if auto:
+            apply_rosbot_update(zip_path, region, version_str)
+        else:
+            if ask_yes_no_on_main_thread(panel, "ROSBOT", "Update found. Update ROSBOT?"):
+                apply_rosbot_update(zip_path, region, version_str)
     result = False
     err = None
     try:
@@ -75,12 +132,15 @@ def do_login_check(
     except Exception as e:
         err = e
     gen = generation
-    panel.container.after(0, lambda: panel._on_login_check_done(result, err, generation=gen))
+    _schedule_on_main(panel.container, lambda: panel._on_login_check_done(result, err, generation=gen))
 
 
 def do_start_d3() -> None:
     """Start D3 (Battle.net + start game flow). Run in timer thread via submit_one_shot. No UI callback."""
-    get_login_try_screenshot_controller().ensure_battlenet_started_and_login_check()
+    if _ensure_bn_started_fn:
+        _ensure_bn_started_fn()
+    else:
+        ColorPrint.yellow("[OneShot] do_start_d3: callback not set")
 
 
 def do_ensure_d3_running_from_battlenet_no_rosbot() -> None:
@@ -90,7 +150,10 @@ def do_ensure_d3_running_from_battlenet_no_rosbot() -> None:
     If D3 online and not disconnected: no op.
     Run in timer thread via submit_one_shot. No UI callback.
     """
-    get_login_try_screenshot_controller().ensure_d3_running_from_battlenet_no_rosbot()
+    if _ensure_d3_no_rosbot_fn:
+        _ensure_d3_no_rosbot_fn()
+    else:
+        ColorPrint.yellow("[OneShot] do_ensure_d3_running_from_battlenet_no_rosbot: callback not set")
 
 
 def do_battlenet_only_check(panel: Any) -> None:
@@ -98,10 +161,13 @@ def do_battlenet_only_check(panel: Any) -> None:
     result = False
     err = None
     try:
-        result = get_login_try_screenshot_controller().ensure_battlenet_only()
+        if _ensure_bn_only_fn:
+            result = _ensure_bn_only_fn()
+        else:
+            ColorPrint.yellow("[OneShot] do_battlenet_only_check: callback not set")
     except Exception as e:
         err = e
-    panel.container.after(0, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
+    _schedule_on_main(panel.container, lambda r=result, e=err: panel._on_battlenet_only_done(r, e))
 
 
 def do_refresh_status(refresh_fn: Callable[[], None]) -> None:
@@ -179,13 +245,10 @@ def _do_window_ui_analyze(
 ) -> None:
     """CoInitialize, mkdir, WindowAnalyzer.analyze_window, copy to docs, open folder. Schedules UI updates on main."""
     if pythoncom is not None:
-        try:
-            pythoncom.CoInitialize()
-        except OSError:
-            pass
+        pythoncom.CoInitialize()
     output_dir = Path(CACHE_DIR) / cache_subdir
     output_dir.mkdir(parents=True, exist_ok=True)
-    analyzer = WindowAnalyzer()
+    analyzer = get_window_analyzer()
     analyzer.debug_dir = str(output_dir)
     result = analyzer.analyze_window(window_titles=window_titles, program_name=program_name)
     if result and result.get("success"):
@@ -211,6 +274,8 @@ def _do_window_ui_analyze(
                     docs_json_path = docs_dir / docs_json_filename
                     shutil.copy2(json_path, docs_json_path)
                     ColorPrint.green(f"[RosbotPanel] Copied JSON to docs: {docs_json_path}")
+            except Exception as copy_err:
+                ColorPrint.yellow(f"[RosbotPanel] Copy to docs failed: {copy_err}")
 
         def _on_done():
             ColorPrint.blue(f"[RosbotPanel] {log_label}: {jp}")
@@ -221,89 +286,155 @@ def _do_window_ui_analyze(
                 ColorPrint.blue(f"[RosbotPanel] {copy_message}")
             open_folder(Path(out_dir))
 
-        panel.container.after(0, _on_done)
+        _schedule_on_main(panel.container, _on_done)
     else:
         err = result.get("error", error_not_found) if result else error_not_found
-        panel.container.after(0, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
+        _schedule_on_main(panel.container, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
+
+
+def _do_window_ui_analyze_by_hwnd(
+    panel: Any,
+    winfo: Dict[str, Any],
+    program_name: str,
+    cache_subdir: str,
+    docs_json_filename: str,
+    log_label: str,
+    error_not_found: str,
+    docs_json_basename: Optional[str] = None,
+    use_indexed_docs_copy: bool = False,
+) -> None:
+    """Same as _do_window_ui_analyze but find window by hwnd (ROSBOT: same-dir exe / PID, not by title)."""
+    if pythoncom is not None:
+        pythoncom.CoInitialize()
+    output_dir = Path(CACHE_DIR) / cache_subdir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    analyzer = get_window_analyzer()
+    analyzer.debug_dir = str(output_dir)
+    hwnd = winfo.get("hwnd")
+    title = (winfo.get("title") or "").strip() or "ROSBOT"
+    if not hwnd:
+        _schedule_on_main(panel.container, lambda: ColorPrint.red(f"[RosbotPanel] {log_label}: {error_not_found}"))
+        return
+    result = analyzer.analyze_window_by_handle(hwnd, title, program_name)
+    if result and result.get("success"):
+        json_path = result.get("files", {}).get("json")
+        controls = result.get("controls", [])
+        out_dir = Path(json_path).parent if json_path else output_dir
+        jp = str(json_path) if json_path else ""
+        n = len(controls)
+        docs_json_path = None
+        copy_message = None
+        if json_path:
+            try:
+                docs_dir = Path(__file__).resolve().parent.parent / "docs"
+                docs_dir.mkdir(parents=True, exist_ok=True)
+                if use_indexed_docs_copy and docs_json_basename:
+                    docs_json_path, copy_message = _compute_docs_battlenet_json_path(
+                        docs_dir, Path(json_path), docs_json_basename
+                    )
+                    shutil.copy2(json_path, docs_json_path)
+                    ColorPrint.green(f"[RosbotPanel] {copy_message}")
+                    ColorPrint.green(f"[RosbotPanel] Docs: {docs_json_path}")
+                else:
+                    docs_json_path = docs_dir / docs_json_filename
+                    shutil.copy2(json_path, docs_json_path)
+                    ColorPrint.green(f"[RosbotPanel] Copied JSON to docs: {docs_json_path}")
+            except Exception as copy_err:
+                ColorPrint.yellow(f"[RosbotPanel] Copy to docs failed: {copy_err}")
+
+        def _on_done():
+            ColorPrint.blue(f"[RosbotPanel] {log_label}: {jp}")
+            ColorPrint.blue(f"[RosbotPanel] {n} controls")
+            if docs_json_path:
+                ColorPrint.blue(f"[RosbotPanel] Docs copy: {docs_json_path}")
+            if copy_message:
+                ColorPrint.blue(f"[RosbotPanel] {copy_message}")
+            open_folder(Path(out_dir))
+
+        _schedule_on_main(panel.container, _on_done)
+    else:
+        err = result.get("error", error_not_found) if result else error_not_found
+        _schedule_on_main(panel.container, lambda e=err: ColorPrint.red(f"[RosbotPanel] {log_label}: {e}"))
 
 
 def do_rosbot_debug(panel: Any) -> None:
-    """Debug ROSBOT: if paused run window analysis; if running send F7 then wait for visible window and run analysis."""
-    global _last_rosdebug_f7_at, _rosdebug_running_busy
+    """Debug ROSBOT: export UI JSON. Compatible flow: (1) any window visible -> debug directly;
+    (2) process exists but all windows invisible -> send F7 to system, wait for pause, then debug;
+    (3) not started -> E1/E2/E4/E5/E5a start, then debug. All by flow (E block), no timers in third-party."""
+    global _rosdebug_running_busy
+    # Refresh status first so get_rosbot_manager has up-to-date view
     refresh_rosbot_status()
-    g = get_game_interface_data()
-    status = g.rosbot_extended_status
     mgr = get_rosbot_manager()
-    if status == "paused":
-        winfo = mgr.get_rosbot_window()
-        if not winfo or not winfo.get("hwnd"):
-            panel.container.after(0, lambda: ColorPrint.red("[RosbotPanel] Debug ROSBOT: paused but no window"))
-            return
-        title = (winfo.get("title") or "").strip() or "ROSBOT"
-        _do_window_ui_analyze(
-            panel,
-            window_titles=[title],
-            program_name="rosbot",
-            cache_subdir="rosbot_ui_analyze",
-            docs_json_filename="rosbot_ui_elements_1.json",
-            log_label="ROSBOT UI JSON",
-            error_not_found="Window not found",
-            docs_json_basename="rosbot_ui_elements",
-            use_indexed_docs_copy=True,
-        )
-        return
-    if status == "running":
-        if _rosdebug_running_busy:
-            ColorPrint.gray("[RosbotPanel] Debug ROSBOT (running) already in progress, skip")
-            return
-        now = time.time()
-        if _last_rosdebug_f7_at is not None and (now - _last_rosdebug_f7_at) < _ROSDEBUG_F7_DEBOUNCE_SEC:
-            ColorPrint.gray("[RosbotPanel] F7 debounced (sent recently), skip send")
-            return
-        _rosdebug_running_busy = True
-        try:
-            sent = send_f7_to_system()
-            if sent:
-                _last_rosdebug_f7_at = time.time()
-                ColorPrint.green("[RosbotPanel] F7 sent to system (pause)")
-            else:
-                ColorPrint.yellow("[RosbotPanel] F7 send failed")
-            time.sleep(1.0)
-            poll_interval = 2.0
-            poll_timeout = 15.0
-            deadline = time.time() + poll_timeout
-            while time.time() < deadline:
-                time.sleep(poll_interval)
+
+    # When debugging ROSBOT UI, try to close "Diablo III must be launched!" popup first
+    closed = try_close_d3_must_be_launched_dialog()
+    if closed:
+        ColorPrint.gray("[RosbotPanel] Auto-closed 'D3 must be launched' dialog before debug")
+
+    winfo_visible = mgr.get_any_visible_rosbot_window()
+    if winfo_visible and winfo_visible.get("hwnd"):
+        winfo = winfo_visible
+    else:
+        winfo_any = mgr.get_any_rosbot_window_for_debug()
+        if winfo_any and winfo_any.get("hwnd"):
+            if _rosdebug_running_busy:
+                ColorPrint.gray("[RosbotPanel] Debug ROSBOT (F7 wait) already in progress, skip")
+                return
+            _rosdebug_running_busy = True
+            try:
+                ColorPrint.blue("[RosbotPanel] ROSBOT UI JSON: process running, all windows invisible, send F7 then debug")
+                sent = send_f7_to_system()
+                if sent:
+                    set_f7_sent_for_rosbot()
+                    ColorPrint.green("[RosbotPanel] F7 sent to system (pause)")
+                else:
+                    ColorPrint.yellow("[RosbotPanel] F7 send failed")
+                time.sleep(1.0)
                 refresh_rosbot_status()
-                g2 = get_game_interface_data()
-                ColorPrint.gray(f"[RosbotPanel] After F7 poll: status={g2.rosbot_extended_status!r}")
-                if g2.rosbot_extended_status == "paused":
-                    winfo = mgr.get_rosbot_window()
-                    if winfo and winfo.get("hwnd"):
-                        title = (winfo.get("title") or "").strip() or "ROSBOT"
-                        _do_window_ui_analyze(
-                            panel,
-                            window_titles=[title],
-                            program_name="rosbot",
-                            cache_subdir="rosbot_ui_analyze",
-                            docs_json_filename="rosbot_ui_elements_1.json",
-                            log_label="ROSBOT UI JSON",
-                            error_not_found="Window not found",
-                            docs_json_basename="rosbot_ui_elements",
-                            use_indexed_docs_copy=True,
-                        )
-                        return
-            ColorPrint.yellow("[RosbotPanel] After F7: no visible window within timeout, skip analysis")
-        finally:
-            _rosdebug_running_busy = False
+                winfo = mgr.get_any_visible_rosbot_window() or mgr.get_any_rosbot_window_for_debug()
+            finally:
+                _rosdebug_running_busy = False
+        else:
+            ColorPrint.blue("[RosbotPanel] ROSBOT UI JSON: not started, starting ROSBOT (E1/E2/E4/E5/E5a)...")
+            run_e1_kill()
+            run_e2_sleep(1.0)
+            if not run_e4_start():
+                _schedule_on_main(panel.container, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: start failed"))
+                return
+            run_e5_init(start_rosbot_task)
+            run_e5a_wait_win_srv_poll_click(
+                run_after_rosbot_start,
+                wait_sec=30,
+                do_debug=True,
+                do_tab=True,
+                do_start_botting=True,
+            )
+            refresh_rosbot_status()
+            winfo = mgr.get_any_rosbot_window_for_debug()
+
+    if not winfo or not winfo.get("hwnd"):
+        _schedule_on_main(panel.container, lambda: ColorPrint.red("[RosbotPanel] ROSBOT UI JSON: Window not found"))
         return
-    panel.container.after(0, lambda: ColorPrint.yellow("[RosbotPanel] Debug ROSBOT: not found"))
+    _do_window_ui_analyze_by_hwnd(
+        panel,
+        winfo,
+        program_name="rosbot",
+        cache_subdir="rosbot_ui_analyze",
+        docs_json_filename="rosbot_ui_elements_1.json",
+        log_label="ROSBOT UI JSON",
+        error_not_found="Window not found",
+        docs_json_basename="rosbot_ui_elements",
+        use_indexed_docs_copy=True,
+    )
 
 
 def _send_f7_for_status(mgr: Any, status: str) -> bool:
     """Send F7: pause = to system only; resume = to visible window. Returns True if sent."""
     if status == "running":
-        return send_f7_to_system()
+        ok = send_f7_to_system()
+        if ok:
+            set_f7_sent_for_rosbot()
+        return ok
     if status == "paused":
         winfo = mgr.get_rosbot_window()
         if winfo and winfo.get("hwnd"):
@@ -312,50 +443,180 @@ def _send_f7_for_status(mgr: Any, status: str) -> bool:
     return False
 
 
-def do_rosbot_update(panel: Any) -> None:
-    """Update ROSBOT: [E1] kill existing -> [E2] sleep 1s -> [E3] config -> [E4] start -> [E5] init -> [E5a] wait win/srv/poll/click -> [E6] main thread wrap-up, log (ROSBOT_FLOW_MERMAID.md E block)."""
+def do_rosbot_update(panel: Any, silent: bool = False) -> None:
+    """
+    Update ROSBOT only: E1 kill -> E2 sleep -> [E3] E3a-E3f (find zip, confirm, extract/copy/update path).
+    Does NOT start ROSBOT (no E4/E5/E5a). When silent=True (e.g. from scan): no dialogs, apply directly if update found.
+    """
     ColorPrint.blue("[RosbotPanel] Update ROSBOT: E1 kill existing")
     run_e1_kill()
     ColorPrint.blue("[RosbotPanel] E2 wait 1s")
     run_e2_sleep(1.0)
-    if not run_e3_config_check():
-        ColorPrint.gray("[RosbotPanel] E3 auto_start_rosbot off, skip E4-E5a")
+
+    update_manager = get_rosbot_update_manager()
+    current_region = update_manager.get_battlenet_region()
+    check_both = get_config_section("ros_settings").get("check_both_regions_for_update", True)
+    
+    # Prefer Asia region (Asia package may contain both region keywords); international = Asia
+    regions_to_check = []
+    if current_region in ("asia", "cn"):
+        # Fixed order: asia then cn
+        regions_to_check.append("asia" if current_region == "asia" else "cn")
+        ColorPrint.blue(f"[RosbotPanel] Current region detected: {current_region}")
+        if check_both:
+            other = "cn" if current_region == "asia" else "asia"
+            regions_to_check.append(other)
+            ColorPrint.blue(f"[RosbotPanel] Also checking: {other}")
+        if len(regions_to_check) == 2 and regions_to_check[0] != "asia":
+            regions_to_check = ["asia", "cn"]  # Asia first
+    else:
+        ColorPrint.gray("[RosbotPanel] No region detected, checking both Asia and CN (Asia first)")
+        regions_to_check = ["asia", "cn"]
+    
+    # Current ROS dir/version and downloads dir (for no-update detection display)
+    cur_dir, _ct, cur_ver = update_manager.get_current_ros_dir_info()
+    cur_ver_str = update_manager.version_to_str(cur_ver) if cur_ver else "unknown"
+    downloads_dir = update_manager.get_downloads_dir()
+
+    # Check for updates in each region
+    best_update = None
+    best_region = None
+    detection_per_region: List[Dict[str, Any]] = []
+    for region in regions_to_check:
+        region_display = ROSBOT_REGION_DISPLAY_ASIA if region == "asia" else ROSBOT_REGION_DISPLAY_CN
+        zip_path, is_newer, version_str = update_manager.get_best_newer_zip(region)
+        if is_newer and zip_path:
+            if best_update is None or (version_str and best_update[2] and version_str > best_update[2]):
+                best_update = (zip_path, is_newer, version_str)
+                best_region = region
+                ColorPrint.blue(f"[RosbotPanel] Found update for {region}: {version_str} at {zip_path}")
+        else:
+            candidates = update_manager.find_rosbot_zips_in_downloads(region)
+            if not candidates:
+                ColorPrint.gray(f"[RosbotPanel] No zip in Downloads for region={region} (need 20-50MB, filename contains region keyword)")
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [],
+                })
+            else:
+                ColorPrint.gray(f"[RosbotPanel] region={region}: found {len(candidates)} zip(s), none newer than current {cur_ver_str} (current path: {cur_dir or 'none'})")
+                detection_per_region.append({
+                    "region": region,
+                    "region_display": region_display,
+                    "candidates": [
+                        {"path": p, "version_str": update_manager.version_to_str(v) if v else "?", "size_mb": round(s / (1024 * 1024), 1)}
+                        for p, s, v in candidates
+                    ],
+                })
+
+    if not best_update:
+        ColorPrint.gray("[RosbotPanel] No update found in Downloads")
+        if not silent:
+            detection_data = {
+                "current_ros_dir": cur_dir or "",
+                "current_version": cur_ver_str,
+                "downloads_dir": downloads_dir,
+                "regions": detection_per_region,
+            }
+
+            def show_info_panel():
+                try:
+                    info_panel = RosbotUpdateInfoPanel(panel.container)
+                    info_panel.show_no_update_info(detection_data)
+                except Exception as e:
+                    ColorPrint.red(f"[RosbotPanel] Info panel error: {e}")
+            if panel.container.winfo_exists():
+                _schedule_on_main(panel.container, show_info_panel)
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    ColorPrint.blue("[RosbotPanel] E4 start ROSBOT process")
-    if not run_e4_start():
-        ColorPrint.yellow("[RosbotPanel] E4 start failed")
+
+    zip_path, is_newer, version_str = best_update
+    region_display_name = ROSBOT_REGION_DISPLAY_ASIA if best_region == "asia" else ROSBOT_REGION_DISPLAY_CN
+
+    if not silent:
+        confirmed = [None]
+        done_event = threading.Event()
+
+        def show_update_dialog():
+            try:
+                info_panel = RosbotUpdateInfoPanel(panel.container)
+                confirmed[0] = info_panel.show_update_available(
+                    region_display=region_display_name,
+                    version_str=version_str or "?",
+                    zip_path=zip_path
+                )
+            except Exception as e:
+                ColorPrint.red(f"[RosbotPanel] Update dialog error: {e}")
+                confirmed[0] = False
+            finally:
+                done_event.set()
+
+        if panel.container.winfo_exists():
+            _schedule_on_main(panel.container, show_update_dialog)
+            done_event.wait(timeout=120)
+        else:
+            confirmed[0] = False
+
+        if confirmed[0] is None:
+            ColorPrint.yellow("[RosbotPanel] Update dialog timeout or error")
+            confirmed[0] = False
+
+        if not confirmed[0]:
+            ColorPrint.gray("[RosbotPanel] User cancelled update")
+            run_e6_done()
+            _rosbot_update_done(panel)
+            return
+    else:
+        ColorPrint.gray("[RosbotPanel] Scan-triggered update: applying without dialog")
+
+    # Already have this version on disk (target dir has main exe) -> skip extract, ensure CONFIG and UI
+    if update_manager.target_already_has_version(best_region, version_str, zip_path):
+        ColorPrint.gray(
+            f"[RosbotPanel] Already up to date: target directory has main exe for {best_region} {version_str}, skipping extract"
+        )
+        final_dir = update_manager.get_target_final_dir(best_region, version_str, zip_path)
+        if final_dir:
+            set_config_value_safe("ros_settings.ros_directory", os.path.normpath(final_dir))
+            rosbot_manager_module._rosbot_manager = None
         run_e6_done()
         _rosbot_update_done(panel)
         return
-    ColorPrint.blue("[RosbotPanel] E5 task init")
-    run_e5_init(start_rosbot_task)
-    ColorPrint.blue("[RosbotPanel] E5a wait window, server, poll UI, click profile & Start botting!")
-    run_e5a_wait_win_srv_poll_click(
-        run_after_rosbot_start,
-        wait_sec=30,
-        do_debug=True,
-        do_tab=True,
-        do_start_botting=True,
-    )
+
+    # Apply update
+    ColorPrint.blue(f"[RosbotPanel] E3c-E3e apply update: extract, copy RoS-BoT.ini, update ros_directory for {best_region}")
+    if not update_manager.apply_update(zip_path, best_region, version_str):
+        ColorPrint.yellow("[RosbotPanel] apply_update failed")
+        run_e6_done()
+        _rosbot_update_done(panel)
+        return
+
+    ColorPrint.green(f"[RosbotPanel] E3f update applied for {best_region}, ros_directory refreshed")
     run_e6_done()
-    ColorPrint.green("[RosbotPanel] E6 done, update ROSBOT completed")
+    ColorPrint.green("[RosbotPanel] Update ROSBOT completed (ROSBOT not started)")
     _rosbot_update_done(panel)
 
 
 def _rosbot_update_done(panel: Any) -> None:
-    """Main-thread wrap-up after update: refresh status, update panel button."""
+    """Main-thread wrap-up after update: refresh status, update panel button, update UI bindings."""
     refresh_rosbot_status()
     get_game_interface_data().notify_state_sync()
-    if hasattr(panel, "container") and panel.container.winfo_exists():
-        panel.container.after(0, lambda: _update_rosbot_button_if_exists(panel))
+    # Update UI bindings for ros_directory config change
+    try:
+        updated_path = get_config_value_safe("ros_settings.ros_directory", "")
+        if updated_path:
+            ConfigBinding._update_bindings("ros_settings.ros_directory", updated_path)
+            ColorPrint.gray(f"[RosbotPanel] Updated UI binding for ros_directory: {updated_path}")
+    except Exception as e:
+        ColorPrint.yellow(f"[RosbotPanel] Failed to update UI binding: {e}")
+    _schedule_on_main(panel.container, lambda: _update_rosbot_button_if_exists(panel))
+    _schedule_on_main(panel.container, lambda: panel._refresh_path_icons())
 
 
 def _update_rosbot_button_if_exists(panel: Any) -> None:
     """Refresh control button state on main thread."""
-    if hasattr(panel, "_update_control_button") and callable(panel._update_control_button):
-        panel._update_control_button()
+    panel._update_control_button()
 
 
 def do_rosbot_test_pause_resume(panel: Any) -> None:
@@ -463,20 +724,9 @@ def do_battlenet_ui_analyze(panel: Any) -> None:
     )
 
 
-_WINDOW_MONITOR_INITIAL_LAST_RUN: float = 0.0
-_WINDOW_MONITOR_INITIAL_DEBOUNCE_SEC: float = 3.0
-
-
 def do_window_monitor_initial_check() -> None:
-    """Status refresh used by: (1) startup one-shot, (2) manual Refresh, (3) after flow/ensure_bn toggle. Scope = run_full_status_refresh (BN-only when only Ensure Battle.net, else BN+D3+ROSBOT). Debounced."""
-    global _WINDOW_MONITOR_INITIAL_LAST_RUN
-    now = time.time()
-    if now - _WINDOW_MONITOR_INITIAL_LAST_RUN < _WINDOW_MONITOR_INITIAL_DEBOUNCE_SEC:
-        ColorPrint.gray("[Refresh] Skipped (debounce)")
-        return
-    _WINDOW_MONITOR_INITIAL_LAST_RUN = now
-    ColorPrint.blue("[Refresh] Refreshing status (Battle.net + D3 + ROSBOT)...")
+    """Status refresh used by: (1) startup one-shot, (2) manual Refresh, (3) after flow/ensure_bn toggle. Scope = run_full_status_refresh. No time-based debounce; caller (tick/flow) controls when to run."""
     d3_info = run_full_status_refresh()
     window_monitor.notify_window_callbacks(d3_info)
     window_monitor.mark_inactive_refresh_done()
-    ColorPrint.gray("[Refresh] Done")
+    ColorPrint.blue("[Refresh] Done (Battle.net + D3 + ROSBOT)")

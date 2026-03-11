@@ -9,32 +9,29 @@ Flow: same-dir exe list (other exes first, then main) -> find_process_by_exe_nam
 import os
 import glob
 import time
-import subprocess
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple, Callable
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 
+from pycore.pyfoundations.third_party import (
+    get_third_package_psutil,
+    get_third_package_win32api,
+    get_third_package_win32con,
+    get_third_package_win32gui,
+    get_third_package_win32process,
+)
 from providor.constants.d3 import ROSBOT_EXE_PATTERNS
+from d3utils.f3_refresh_line import is_f3_refresh_silent
 from d3utils.process_helper import kill_process_by_pid
+from pycore.pyutils.system_launcher import start_program
 
-try:
-    import psutil
-except ImportError:
-    psutil = None
-try:
-    import win32gui
-    import win32process
-except ImportError:
-    win32gui = None
-    win32process = None
-try:
-    import win32api
-    import win32con
-except ImportError:
-    win32api = None
-    win32con = None
+psutil = get_third_package_psutil()
+win32gui = get_third_package_win32gui()
+win32api = get_third_package_win32api()
+win32con = get_third_package_win32con()
+win32process = get_third_package_win32process()
 
 # Default exclude for same-dir other exe (main launcher + installers)
 _DEFAULT_EXCLUDE = ("RoS-BoT.exe", "Uninstall", "setup", "install")
@@ -42,14 +39,26 @@ _DEFAULT_EXCLUDE = ("RoS-BoT.exe", "Uninstall", "setup", "install")
 # docs/rosbot_ui_elements.json: No items popup window title. Exclude when resolving main window (judge by title).
 _POPUP_NO_ITEMS_TITLE = "The Vault"
 
-# When result is (None, process_found=True) (process but no main window), reuse for this many seconds to avoid repeated lookup and log spam. Module-level so all callers share.
+# When result is (None, process_found=True) (process but no main window) or (winfo, ...) (window found), reuse for this many seconds to avoid repeated lookup and log spam.
+# Cache shape: (winfo, process_found, exe_name, pids). Both "no window" and "has window" use same TTL; "has window" is validated with IsWindow before returning.
 _ROSBOT_LOOKUP_CACHE_TTL_SEC = 15.0
-_rosbot_lookup_cache: Tuple[Optional[Dict[str, Any]], bool] = (None, False)
+_rosbot_lookup_cache: Tuple[Optional[Dict[str, Any]], bool, str, List[int], bool] = (None, False, "", [], False)
 _rosbot_lookup_cache_at: float = 0.0
 
 
 def _normpath(path: str) -> str:
     return os.path.normpath(os.path.abspath(path)).lower()
+
+
+def _is_garbled_filename(name: str) -> bool:
+    """True if basename looks like mojibake (wrong encoding). Such exes are excluded from same-dir list."""
+    if not name:
+        return False
+    for ch in name:
+        cp = ord(ch)
+        if 0x2500 <= cp <= 0x259F:  # Box drawing, block elements (common mojibake)
+            return True
+    return False
 
 
 class ROSBOTManager:
@@ -60,7 +69,7 @@ class ROSBOTManager:
     """
 
     def __init__(self, ros_directory: Optional[str] = None):
-        ros_settings = CONFIG.get("ros_settings", {})
+        ros_settings = get_config_section("ros_settings")
         self._ros_directory = (ros_directory or ros_settings.get("ros_directory", "")).strip()
         self._ros_dir_norm: Optional[str] = None
         if self._ros_directory:
@@ -74,6 +83,7 @@ class ROSBOTManager:
         self.startup_delay = ros_settings.get("startup_delay_seconds", 3)
         self.detection_timeout = ros_settings.get("process_detection_timeout", 30)
         self._main_window_content_validator: Optional[Callable[[int], bool]] = None
+        self._last_logged_find_rosbot_exe: Optional[str] = None
 
     def get_ros_directory(self) -> Optional[str]:
         """Return configured ROS directory path (directory of exe if config is exe path), or None if empty."""
@@ -96,20 +106,27 @@ class ROSBOTManager:
         return True
 
     def find_rosbot_exe(self) -> Optional[str]:
-        """Find main ROSBOT exe: first try exact rosbot_exe_name in directory, then ROSBOT_EXE_PATTERNS."""
+        """Find main ROSBOT exe: first try exact rosbot_exe_name in directory, then ROSBOT_EXE_PATTERNS.
+        Logs 'Found main exe' only when the result path changes (avoids log spam on every poll)."""
         base = self.get_ros_directory()
         if not base:
+            self._last_logged_find_rosbot_exe = None
             return None
         exact = os.path.join(base, self.rosbot_exe_name)
         if os.path.isfile(exact):
-            ColorPrint.gray(f"[ROSBOTManager] Found main exe: {exact}")
+            if self._last_logged_find_rosbot_exe != exact:
+                ColorPrint.gray(f"[ROSBOTManager] Found main exe: {exact}")
+                self._last_logged_find_rosbot_exe = exact
             return exact
         for pattern in ROSBOT_EXE_PATTERNS:
             search = os.path.join(base, pattern)
             for path in glob.glob(search):
                 if os.path.isfile(path):
-                    ColorPrint.gray(f"[ROSBOTManager] Found main exe: {path}")
+                    if self._last_logged_find_rosbot_exe != path:
+                        ColorPrint.gray(f"[ROSBOTManager] Found main exe: {path}")
+                        self._last_logged_find_rosbot_exe = path
                     return path
+        self._last_logged_find_rosbot_exe = None
         return None
 
     def find_other_exe_files(self) -> List[str]:
@@ -125,6 +142,8 @@ class ROSBOTManager:
                     if not os.path.isfile(file_path):
                         continue
                     file_name = os.path.basename(file_path)
+                    if _is_garbled_filename(file_name):
+                        continue
                     should_exclude = False
                     for exclude_pattern in self.exclude_patterns:
                         stub = exclude_pattern.replace("*", "")
@@ -319,119 +338,178 @@ class ROSBOTManager:
             pass
         return None
 
-    def _get_rosbot_window_and_process(self) -> Tuple[Optional[Dict[str, Any]], bool]:
+    def _get_rosbot_window_and_process(self) -> Tuple[Optional[Dict[str, Any]], bool, str, List[int], bool]:
         """
         Single ROSBOT lookup: same-dir exe list only (other exes first, then main exe). Process by find_process_by_exe_name.
         Window: when content validator is set, pick the visible window that has main UI content (profileTab/btnStart); otherwise find_window_by_pid (one window by PID). No title filtering; exe is unique.
-        When result is (None, True) (process found but no main window), result is cached at module level for _ROSBOT_LOOKUP_CACHE_TTL_SEC to skip repeated lookup and log spam.
+        Returns (winfo, process_found, exe_name, pids, is_main_ui). is_main_ui True only when paused and content-validated main window; else False. Result is cached for _ROSBOT_LOOKUP_CACHE_TTL_SEC; "has window" cache is validated with IsWindow before return.
         """
         global _rosbot_lookup_cache, _rosbot_lookup_cache_at
+        _log = (lambda m: None) if is_f3_refresh_silent() else ColorPrint.gray
         now = time.time()
-        if _rosbot_lookup_cache[0] is None and _rosbot_lookup_cache[1] is True and (now - _rosbot_lookup_cache_at) <= _ROSBOT_LOOKUP_CACHE_TTL_SEC:
-            ColorPrint.gray("[ROSBOTManager] get_rosbot_window cache hit (no main window), skip lookup")
-            return _rosbot_lookup_cache
+        cached_winfo, cached_proc_found, cached_exe, cached_pids, cached_is_main = _rosbot_lookup_cache
+        within_ttl = (now - _rosbot_lookup_cache_at) <= _ROSBOT_LOOKUP_CACHE_TTL_SEC
+        if within_ttl:
+            if cached_winfo is not None:
+                try:
+                    hwnd = cached_winfo.get("hwnd")
+                    if hwnd is not None and win32gui.IsWindow(int(hwnd)):
+                        return _rosbot_lookup_cache
+                except Exception:
+                    pass
+                _rosbot_lookup_cache = (None, True, cached_exe or "", cached_pids or [], False)
+                _rosbot_lookup_cache_at = now
+            elif cached_proc_found:
+                _log("[ROSBOTManager] get_rosbot_window cache hit (no main window), skip lookup")
+                return _rosbot_lookup_cache
         ros_dir = self.get_ros_directory()
         other_files = self.find_other_exe_files()
-        ColorPrint.gray(
+        _log(
             f"[ROSBOTManager] get_rosbot_window Step 1: same-dir exe list -> ros_directory={ros_dir!r}, count={len(other_files)}, list={[os.path.basename(p) for p in other_files]}"
         )
         any_process_found = False
+        collected_pids: List[int] = []
+        resolved_exe_name = ""
         validator = self._main_window_content_validator
 
-        def _resolve_window(pid: int, exe_name: str) -> Tuple[Optional[Dict[str, Any]], int]:
-            """Return (main window or None, visible_window_count). When validator set: get visible list, exclude by title (popup = The Vault per JSON), then pick by content."""
+        def _resolve_window(pid: int, exe_name: str) -> Tuple[Optional[Dict[str, Any]], int, bool]:
+            """Return (window to use, visible_window_count, is_main). running = 0 visible; paused = any visible. When validator set: prefer main (content-validated), else any visible."""
             if validator:
                 candidates = self.find_windows_by_pid(pid, visible_only=True)
                 n = len(candidates)
-                # Exclude popup window: title "The Vault" = No items dialog (docs/rosbot_ui_elements.json)
+                if n == 0:
+                    return (None, 0, False)
                 main_candidates = [w for w in candidates if (w.get("title") or "").strip() != _POPUP_NO_ITEMS_TITLE]
                 for w in main_candidates:
                     try:
                         if validator(int(w["hwnd"])):
-                            return (w, n)
+                            return (w, n, True)
                     except Exception:
                         continue
-                return (None, n)
+                any_visible = main_candidates[0] if main_candidates else candidates[0]
+                return (any_visible, n, False)
             w = self.find_window_by_pid(pid, visible_only=True)
-            return (w, 1 if w else 0)
+            return (w, 1 if w else 0, w is not None)
 
         for exe_path in other_files:
             exe_name = os.path.basename(exe_path)
             proc_info = self.find_process_by_exe_name(exe_name)
             if not proc_info or not proc_info.get("pid"):
                 continue
+            pid = proc_info["pid"]
             any_process_found = True
-            winfo, visible_count = _resolve_window(proc_info["pid"], exe_name)
+            collected_pids.append(pid)
+            if not resolved_exe_name:
+                resolved_exe_name = exe_name
+            winfo, visible_count, is_main = _resolve_window(pid, exe_name)
             if winfo:
-                if validator:
-                    ColorPrint.gray(
+                if validator and is_main:
+                    _log(
                         f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} {visible_count} visible window(s), content-matched main window"
                     )
+                elif validator:
+                    _log(
+                        f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} {visible_count} visible window(s) -> paused (any visible)"
+                    )
                 else:
-                    ColorPrint.gray(
+                    _log(
                         f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} visible window, title={winfo.get('title')!r}"
                     )
-                _rosbot_lookup_cache = (winfo, True)
+                _rosbot_lookup_cache = (winfo, True, exe_name, collected_pids, is_main)
                 _rosbot_lookup_cache_at = time.time()
-                return (winfo, True)
-            if validator and visible_count > 0:
-                ColorPrint.gray(
-                    f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} {visible_count} visible window(s) but none with main UI content (e.g. only popup)"
-                )
-            else:
-                ColorPrint.gray(
-                    f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} process (PID={proc_info.get('pid')}) 0 visible windows"
-                )
+                return (winfo, True, exe_name, collected_pids, is_main)
+            _log(
+                f"[ROSBOTManager] get_rosbot_window Step 2: same-dir {exe_name!r} process (PID={pid}) 0 visible windows -> running"
+            )
         proc_info = self.find_process_by_exe_name(self.rosbot_exe_name)
         if proc_info and proc_info.get("pid"):
+            pid = proc_info["pid"]
             any_process_found = True
-            winfo, visible_count = _resolve_window(proc_info["pid"], self.rosbot_exe_name)
+            collected_pids.append(pid)
+            if not resolved_exe_name:
+                resolved_exe_name = self.rosbot_exe_name
+            winfo, visible_count, is_main = _resolve_window(pid, self.rosbot_exe_name)
             if winfo:
-                if validator:
-                    ColorPrint.gray(
+                if validator and is_main:
+                    _log(
                         f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} {visible_count} visible window(s), content-matched main window"
                     )
+                elif validator:
+                    _log(
+                        f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} {visible_count} visible window(s) -> paused (any visible)"
+                    )
                 else:
-                    ColorPrint.gray(
+                    _log(
                         f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} visible window, title={winfo.get('title')!r}"
                     )
-                _rosbot_lookup_cache = (winfo, True)
+                _rosbot_lookup_cache = (winfo, True, self.rosbot_exe_name, collected_pids, is_main)
                 _rosbot_lookup_cache_at = time.time()
-                return (winfo, True)
-            if validator and visible_count > 0:
-                ColorPrint.gray(
-                    f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} {visible_count} visible window(s) but none with main UI content (e.g. only popup)"
-                )
-            else:
-                ColorPrint.gray(
-                    f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} process (PID={proc_info.get('pid')}) 0 visible windows"
-                )
+                return (winfo, True, self.rosbot_exe_name, collected_pids, is_main)
+            _log(
+                f"[ROSBOTManager] get_rosbot_window Step 2: main exe {self.rosbot_exe_name!r} process (PID={pid}) 0 visible windows -> running"
+            )
         if any_process_found:
-            ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: process(es) found but no visible main window")
-            _rosbot_lookup_cache = (None, True)
+            _log("[ROSBOTManager] get_rosbot_window Step 2: process(es) found but no visible window -> running")
+            _rosbot_lookup_cache = (None, True, resolved_exe_name, collected_pids, False)
             _rosbot_lookup_cache_at = time.time()
         else:
-            ColorPrint.gray("[ROSBOTManager] get_rosbot_window Step 2: no process/window for same-dir exe")
-            _rosbot_lookup_cache = (None, False)
+            _log("[ROSBOTManager] get_rosbot_window Step 2: no process/window for same-dir exe")
+            _rosbot_lookup_cache = (None, False, "", [], False)
             _rosbot_lookup_cache_at = time.time()
-        return (None, any_process_found)
+        return (None, any_process_found, resolved_exe_name, collected_pids, False)
+
+    def invalidate_lookup_cache(self) -> None:
+        """Clear lookup cache so next get_rosbot_window/get_rosbot_detection does full lookup. Call after F4 or when ROSBOT is closed."""
+        global _rosbot_lookup_cache, _rosbot_lookup_cache_at
+        _rosbot_lookup_cache = (None, False, "", [], False)
+        _rosbot_lookup_cache_at = 0.0
 
     def get_rosbot_window(self) -> Optional[Dict[str, Any]]:
-        """Return ROSBOT window only when visible (paused). Delegates to _get_rosbot_window_and_process()."""
-        winfo, _ = self._get_rosbot_window_and_process()
+        """Return ROSBOT window when any visible (paused: main UI or popup). When running (no visible window) returns None."""
+        winfo, _, _, _, _ = self._get_rosbot_window_and_process()
         return winfo
+
+    def get_any_visible_rosbot_window(self) -> Optional[Dict[str, Any]]:
+        """Return any visible window of the same-dir ROSBOT process (by PID). No content validator, no cache. For UI debug/export only."""
+        return self._get_any_rosbot_window_impl(visible_only=True)
+
+    def get_any_rosbot_window_for_debug(self) -> Optional[Dict[str, Any]]:
+        """Return any window of the same-dir ROSBOT process (by PID), including minimized. No cache. For debug/export only; does not affect get_rosbot_window/get_rosbot_detection."""
+        return self._get_any_rosbot_window_impl(visible_only=False)
+
+    def _get_any_rosbot_window_impl(self, visible_only: bool) -> Optional[Dict[str, Any]]:
+        """Same-dir exe order; exclude popup title; optional visible_only."""
+        for exe_path in self.find_other_exe_files():
+            exe_name = os.path.basename(exe_path)
+            proc_info = self.find_process_by_exe_name(exe_name)
+            if not proc_info or not proc_info.get("pid"):
+                continue
+            candidates = self.find_windows_by_pid(proc_info["pid"], visible_only=visible_only)
+            for w in candidates:
+                if (w.get("title") or "").strip() == _POPUP_NO_ITEMS_TITLE:
+                    continue
+                return w
+        proc_info = self.find_process_by_exe_name(self.rosbot_exe_name)
+        if proc_info and proc_info.get("pid"):
+            candidates = self.find_windows_by_pid(proc_info["pid"], visible_only=visible_only)
+            for w in candidates:
+                if (w.get("title") or "").strip() == _POPUP_NO_ITEMS_TITLE:
+                    continue
+                return w
+        return None
 
     def get_rosbot_detection(self) -> Dict[str, Any]:
         """
-        Extended status: not_found (no process), running (process, no visible window), paused (has visible window).
-        Single pass via _get_rosbot_window_and_process(); no redundant is_running() call.
+        Extended status: not_found (no process), running (process exists, zero visible windows), paused (any visible window: main UI or popup dialog).
+        Any visible UI = paused; no visible window = running.
+        Single pass via _get_rosbot_window_and_process(); also returns exe_name, pids, is_main_ui (True when content-validated main window; else False for paused with e.g. popup only).
         """
-        winfo, process_found = self._get_rosbot_window_and_process()
+        winfo, process_found, exe_name, pids, is_main_ui = self._get_rosbot_window_and_process()
         if winfo:
-            return {"status": "paused", "window_info": winfo}
+            return {"status": "paused", "window_info": winfo, "exe_name": exe_name, "pids": pids, "is_main_ui": is_main_ui}
         if process_found:
-            return {"status": "running", "window_info": None}
-        return {"status": "not_found", "window_info": None}
+            return {"status": "running", "window_info": None, "exe_name": exe_name, "pids": pids, "is_main_ui": False}
+        return {"status": "not_found", "window_info": None, "exe_name": "", "pids": [], "is_main_ui": False}
 
     def get_running_rosbot_processes(self) -> List[Dict[str, Any]]:
         """Same-dir exe only: other exes first then main; find_process_by_exe_name + find_window_by_pid(pid). No title filter."""
@@ -473,23 +551,14 @@ class ROSBOTManager:
         return ok
 
     def start_executable(self, exe_path: str) -> bool:
-        """Start an executable (Popen, cwd=dir). Original _obsolete_rosbot_manager used Popen; Battle.net uses explorer."""
+        """Start an executable via pycore system_launcher.start_program."""
         if not exe_path or not os.path.isfile(exe_path):
             return False
-        try:
-            cwd = os.path.dirname(exe_path)
-            subprocess.Popen(
-                exe_path,
-                cwd=cwd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-            )
+        if start_program(exe_path):
             ColorPrint.green(f"[ROSBOTManager] Started: {exe_path}")
             return True
-        except Exception as e:
-            ColorPrint.red(f"[ROSBOTManager] Start error: {e}")
-            return False
+        ColorPrint.red("[ROSBOTManager] Start failed")
+        return False
 
     def start(self) -> bool:
         """Start main ROSBOT exe (find_rosbot_exe + start_executable)."""

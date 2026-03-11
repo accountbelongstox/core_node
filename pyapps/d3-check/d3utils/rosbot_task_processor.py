@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ROSBOT Task Processor – tick entry only (FLOW_STATE_ARCHITECTURE Approach 3).
+ROSBOT Task Processor – single tick entry (FLOW_STATE_ARCHITECTURE Approach 3).
 
-Tick does not call third-party libs; it only invokes the flow library. Flow libraries
-call refresh/notify and all other providers.
+Task thread calls process_rosbot_task() every 1s:
+  - First tick_driver.on_tick(): global tick+1, dispatch by % to sigint_guard / smart_echo / inactive_refresh (log_monitor not in tick; driven only by watchdog).
+  - When tick % 2 == 0 run process_task(): flow_state gate, tick_bn_only_flow / tick_flow_master.
+All periods simulated by tick + %; no separate timers.
 
-Chain:
-  - TaskThreadManager 1s: process_rosbot_task() -> process_task() when rosbot_task ENABLED.
-  - process_task(): read flow_state; 2s gate; re-read flow_state; if bn_only run tick_bn_only_flow();
-    if flow_master run tick_flow_master(). When both enabled, both run in same tick (BN-only first).
-  - flow_bn_only / flow_master_driver each do refresh, notify, re-read, then their steps.
-  - When flow inactive, window_monitor runs BN+D3 refresh (not by tick).
+Architecture boundary: This module is the 1s periodic task entry only. Log lines from LogMonitorThread via BUS -> log_line_bridge queue; this task drains and prints+analyzes.
 """
 import os
 import sys
@@ -19,33 +16,39 @@ import time
 from typing import Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import LOGS_FILE_PATH
-from d3utils.log_monitor import set_log_file, set_rosbot_running
+from d3utils.log_monitor_api import set_log_file, set_rosbot_running
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import (
     get_flow_master_enabled,
     get_bn_only_enabled,
     is_flow_active,
 )
-from d3utils.task_thread_manager import TaskStatus
+from share.values import TaskStatus
+from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
+from d3utils.rosbot_flow_rosbot_exit_state import get_total_restart_count
 from d3utils.rosbot_flow.flow_bn_only import tick_bn_only_flow
 from d3utils.rosbot_flow.flow_master_driver import tick_flow_master
+from d3utils.rosbot_task_registry import register_start_rosbot_task, register_stop_rosbot_task
 from d3utils.battlenet_status_provider import refresh_battlenet_status
 from d3utils.d3_status_provider import refresh_d3_status
 from d3utils.rosbot_status_provider import refresh_rosbot_status
 from share.asia_credentials import is_asia_credentials_dialog_pending
+from d3utils.tick_driver import on_tick as tick_driver_on_tick, get_global_tick
+from d3utils import log_line_bridge
+from d3utils.log_analyzer import analyze_log_line
 
 class RosbotTaskProcessor:
-    """ROSBOT task processor for background operations"""
+    """ROSBOT task processor for background operations (1s tick + flow)."""
 
     def __init__(self):
         self.game_state = get_game_interface_data()
         self.log_file_path: Optional[str] = None
         self.initialized = False
-        
+
         ColorPrint.blue("[RosbotTaskProcessor] Initialized")
-    
+
     def initialize(self):
-        """Initialize ROSBOT task processor"""
+        """Initialize ROSBOT task processor."""
         if not self.initialized:
             self.log_file_path = LOGS_FILE_PATH
             set_log_file(self.log_file_path)
@@ -64,16 +67,33 @@ class RosbotTaskProcessor:
         """Stop ROSBOT monitoring"""
         set_rosbot_running(False)
         self.game_state.set_rosbot_status(False)
+        self.game_state.rosbot_test_mode_display = None
+        # Update total restart count from config
+        total_count = get_total_restart_count()
+        self.game_state.set_rosbot_total_restart_count(total_count)
         ColorPrint.yellow("[RosbotTaskProcessor] ROSBOT monitoring stopped")
     
     def process_task(self):
-        """Tick entry only: read flow state, 2s gate, re-read; then call flow library. No third-party calls here (Approach 3)."""
+        """Single tick: drain LOG_LINE queue (from LogMonitorThread via BUS), print+analyze; then on_tick and flow."""
+        for line in log_line_bridge.drain():
+            if line and line.strip():
+                ColorPrint.info(f"[ROSBOT] {line}")
+                try:
+                    analyze_log_line(line)
+                except Exception:
+                    pass
+        self.game_state.rosbot_test_mode_display = get_test_mode_display_string()
+        # Update total restart count from config
+        total_count = get_total_restart_count()
+        self.game_state.set_rosbot_total_restart_count(total_count)
+        tick_driver_on_tick()
+        t = get_global_tick()
+        if t % 2 != 0:
+            return
         global _flow_last_run_time
         if not is_flow_active():
             return
-        _flow_tick_count[0] += 1
-        if _flow_tick_count[0] % 2 != 0:
-            return
+        _flow_tick_count[0] = t // 2
         if is_asia_credentials_dialog_pending():
             return
         now = time.time()
@@ -81,27 +101,27 @@ class RosbotTaskProcessor:
         _flow_last_run_time = now
         bn_only = get_bn_only_enabled()
         flow_master = get_flow_master_enabled()
-        ColorPrint.gray(
-            f"[A2/A3] Tick #{_flow_tick_count[0]} (2s step) flow_master={flow_master} bn_only={bn_only} | "
-            f"time since previous: {time_since_previous:.2f} s"
-        )
+        status_prefix = f"[A2/A3] Tick #{_flow_tick_count[0]} dt={time_since_previous:.2f}s | "
+        if not flow_master:
+            ColorPrint.gray(
+                f"[A2/A3] Tick #{_flow_tick_count[0]} (2s step) flow_master={flow_master} bn_only={bn_only} | "
+                f"time since previous: {time_since_previous:.2f} s"
+            )
         bn_only2 = get_bn_only_enabled()
         flow_master2 = get_flow_master_enabled()
         if not flow_master2 and not bn_only2:
             return
-        # Both flows can run in the same tick when both switches are on (simultaneous).
-        # Order: BN-only first (ensure Battle.net), then flow-master (F0/extension/F3/F4).
         if bn_only2:
             tick_bn_only_flow()
         if flow_master2:
-            tick_flow_master(_flow_tick_count[0], start_rosbot_task)
+            tick_flow_master(_flow_tick_count[0], start_rosbot_task, status_prefix=status_prefix)
 
 
 # Global instance
 _rosbot_processor = None
-# 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0, ROSBOT_FLOW.md)
+# 2s flow tick counter (task runs every 1s; flow step only when count % 2 == 0; see ROSBOT_FLOW.md)
 _flow_tick_count = [0]
-# Time of last flow step run (for "time since previous" log)
+# Time of last flow step run (for "time since previous" in gray output)
 _flow_last_run_time = 0.0
 
 
@@ -111,7 +131,7 @@ def get_flow_tick_count() -> int:
 
 
 def get_rosbot_processor() -> RosbotTaskProcessor:
-    """Get global ROSBOT task processor instance"""
+    """Global ROSBOT task processor instance (1s tick + flow entry). Singleton."""
     global _rosbot_processor
     if _rosbot_processor is None:
         _rosbot_processor = RosbotTaskProcessor()
@@ -119,19 +139,19 @@ def get_rosbot_processor() -> RosbotTaskProcessor:
 
 
 def start_rosbot_task():
-    """Start ROSBOT task"""
+    """Enable ROSBOT monitoring: ensure initialize (set_log_file), set_rosbot_running(True), game_state.rosbot_status. Does not start the 1s task loop (that is always running; flow_state controls flow)."""
     processor = get_rosbot_processor()
     processor.start_rosbot()
 
 
 def stop_rosbot_task():
-    """Stop ROSBOT task"""
+    """Disable ROSBOT monitoring: set_rosbot_running(False), clear game_state rosbot status and test display. Task loop keeps running; flow_state controls flow."""
     processor = get_rosbot_processor()
     processor.stop_rosbot()
 
 
 def process_rosbot_task():
-    """Process ROSBOT task (called by task thread)."""
+    """One 1s tick: called by task thread every 1s. Runs tick_driver.on_tick(), then when tick % 2 == 0 runs flow (tick_bn_only_flow / tick_flow_master). Entry point registered in system_initializer as rosbot_task."""
     processor = get_rosbot_processor()
     processor.process_task()
 
@@ -159,3 +179,7 @@ def run_full_status_refresh() -> Optional[dict]:
     refresh_rosbot_status()
     get_game_interface_data().notify_state_sync()
     return d3_info
+
+
+register_start_rosbot_task(start_rosbot_task)
+register_stop_rosbot_task(stop_rosbot_task)

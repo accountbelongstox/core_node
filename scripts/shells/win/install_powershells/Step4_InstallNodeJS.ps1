@@ -251,6 +251,16 @@ function Install-PackageManagers {
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
+        if (Test-Path $pnpmGlobalBinDir) {
+            Add-Path -newPath $pnpmGlobalBinDir
+            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
+        }
     }
 
     # Install yarn
@@ -374,6 +384,16 @@ function Verify-AndFix-AllConfigs {
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
         Write-Host "Y" | & $PnpmExePath setup
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
+        if (Test-Path $pnpmGlobalBinDir) {
+            Add-Path -newPath $pnpmGlobalBinDir
+            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
+        }
 
         Configure-PnpmRegistry
 

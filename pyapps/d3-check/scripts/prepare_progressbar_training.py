@@ -7,8 +7,6 @@ Specialized preprocessing for progress bar detection with specific constraints
 
 import os
 import sys
-import cv2
-import numpy as np
 import json
 from pathlib import Path
 
@@ -16,8 +14,14 @@ from pathlib import Path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 d3_check_dir = Path(current_dir).parent
 sys.path.insert(0, str(d3_check_dir))
+from share.project_path import get_project_root
+sys.path.insert(0, str(get_project_root().parent.parent))
 
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 from pycore.pyfoundations.color_print import ColorPrint
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
 
 
 class ProgressBarDataPreparator:

@@ -25,7 +25,7 @@ ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.constants.common import DEBUG, TMP_DIR
-from d3utils.i18n_manager import I18nManager
+from providor.i18n_manager import i18n_manager
 from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
 from d3utils.d3u_common.image_annotator_helper import (
     create_annotator,
@@ -54,7 +54,7 @@ class D4TeamHealthDetector:
     def __init__(self):
         """Initialize team health detector"""
         self.d4_data = get_d4_interface_data()
-        self.i18n = I18nManager()
+        self.i18n = i18n_manager
         # D4State functionality now integrated into D4InterfaceData
         
         # Team health color groups (BGR format for OpenCV)
@@ -95,83 +95,52 @@ class D4TeamHealthDetector:
         Returns:
             Dictionary with team health detection results
         """
-        try:
-            ColorPrint.print_min_interval("[D4TeamHealthDetector] Starting team health detection...")
+        ColorPrint.blue("[D4TeamHealthDetector] Starting team health detection...")
+        image_bgr = self._normalize_input_to_bgr(image_input)
             
-            # Normalize input to BGR numpy array
-            image_bgr = self._normalize_input_to_bgr(image_input)
-            
-            # Get current screen dimensions
-            current_height, current_width = image_bgr.shape[:2]
-            game_window_size = (current_width, current_height)
-            
-            # Calculate scaled team count region coordinates
-            team_count_start = calculate_unified_scaled_coordinate(
+        current_height, current_width = image_bgr.shape[:2]
+        game_window_size = (current_width, current_height)
+        team_count_start = calculate_unified_scaled_coordinate(
                 D4_STANDARD_COORDS.team_count_region_start,
                 game_window_size,
                 (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
                 self.d4_data.is_windowed_mode()
+        )
+        team_count_end = calculate_unified_scaled_coordinate(
+            D4_STANDARD_COORDS.team_count_region_end,
+            game_window_size,
+            (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
+            self.d4_data.is_windowed_mode()
+        )
+        ColorPrint.green(f"[D4TeamHealthDetector] Team count region: {team_count_start} -> {team_count_end}")
+        x1, y1 = team_count_start
+        x2, y2 = team_count_end
+        x1 = max(0, min(x1, current_width))
+        y1 = max(0, min(y1, current_height))
+        x2 = max(0, min(x2, current_width))
+        y2 = max(0, min(y2, current_height))
+        if x1 >= x2 or y1 >= y2:
+            ColorPrint.yellow("[D4TeamHealthDetector] Invalid region coordinates")
+            return {"error": "Invalid region coordinates"}
+        team_region = image_bgr[y1:y2, x1:x2]
+        ColorPrint.green(f"[D4TeamHealthDetector] Extracted region size: {team_region.shape}")
+        health_detection_result = self._scan_health_bars(team_region, (x1, y1))
+        annotated_image = None
+        if DEBUG:
+            annotated_image = self._create_annotated_image(
+                team_region, health_detection_result, (x1, y1)
             )
-            team_count_end = calculate_unified_scaled_coordinate(
-                D4_STANDARD_COORDS.team_count_region_end,
-                game_window_size,
-                (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT),
-                self.d4_data.is_windowed_mode()
-            )
-            
-            ColorPrint.green(f"[D4TeamHealthDetector] Team count region: {team_count_start} -> {team_count_end}")
-            
-            # Extract team count region from image
-            x1, y1 = team_count_start
-            x2, y2 = team_count_end
-            
-            # Ensure coordinates are within image bounds
-            x1 = max(0, min(x1, current_width))
-            y1 = max(0, min(y1, current_height))
-            x2 = max(0, min(x2, current_width))
-            y2 = max(0, min(y2, current_height))
-            
-            if x1 >= x2 or y1 >= y2:
-                ColorPrint.yellow("[D4TeamHealthDetector] Invalid region coordinates")
-                return {"error": "Invalid region coordinates"}
-            
-            # Extract region (in memory operation)
-            team_region = image_bgr[y1:y2, x1:x2]
-            ColorPrint.green(f"[D4TeamHealthDetector] Extracted region size: {team_region.shape}")
-            
-            # Scan region for health bars
-            health_detection_result = self._scan_health_bars(team_region, (x1, y1))
-            
-            # Create annotated image if DEBUG mode is enabled
-            annotated_image = None
-            if DEBUG:
-                annotated_image = self._create_annotated_image(
-                    team_region, health_detection_result, (x1, y1)
-                )
-
-                # Save annotated image to unified D4_ANNOTATED_DIR
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-                annotated_filename = f"team_health_detection_{timestamp}.png"
-                annotated_path = D4_ANNOTATED_DIR / annotated_filename
-                annotated_path.parent.mkdir(parents=True, exist_ok=True)
-
-                if annotated_image:
-                    annotated_image.save(annotated_path)
-                    ColorPrint.green(f"[D4TeamHealthDetector] Annotated image saved: {annotated_path}")
-            
-            # Update D4 interface data
-            self.d4_data.team_health_info = health_detection_result
-            self.d4_data.team_health_detection_timestamp = datetime.now().isoformat()
-            
-            ColorPrint.green("[D4TeamHealthDetector] Team health detection completed")
-            
-            return health_detection_result
-            
-        except Exception as e:
-            ColorPrint.red(f"[D4TeamHealthDetector] Error in team health detection: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"error": str(e)}
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            annotated_filename = f"team_health_detection_{timestamp}.png"
+            annotated_path = D4_ANNOTATED_DIR / annotated_filename
+            annotated_path.parent.mkdir(parents=True, exist_ok=True)
+            if annotated_image:
+                annotated_image.save(annotated_path)
+                ColorPrint.green(f"[D4TeamHealthDetector] Annotated image saved: {annotated_path}")
+        self.d4_data.team_health_info = health_detection_result
+        self.d4_data.team_health_detection_timestamp = datetime.now().isoformat()
+        ColorPrint.green("[D4TeamHealthDetector] Team health detection completed")
+        return health_detection_result
 
     def _normalize_input_to_bgr(self, image_input: Union[str, Image.Image, np.ndarray]) -> np.ndarray:
         """
@@ -469,161 +438,116 @@ class D4TeamHealthDetector:
         Returns:
             Annotated PIL Image or None
         """
-        try:
-            # Create annotator from BGR numpy array
-            annotator = create_annotator(region)
-
-            # Extract data
-            team_members = detection_result.get("team_members", [])
-            height, width = region.shape[:2]
-
-            # Create a set of detected row indices for quick lookup
-            detected_rows = {member["row_index"] for member in team_members}
-
-            # Draw pixel count information for ALL rows (not just detected ones)
-            for row_idx in range(height):
-                row = region[row_idx, :]  # Get entire row
-
-                # Count matching pixels in this row
-                matching_pixels = self._count_matching_pixels_in_row(row)
-                total_pixels = width
-                match_percentage = (matching_pixels / total_pixels) * 100
-
-                # Choose color based on whether this row was detected as a health bar
-                if row_idx in detected_rows:
-                    # This row was detected as a health bar
-                    if matching_pixels >= self.min_pixels_per_row:
-                        color = get_annotation_color("green")  # Green for valid health bar
-                    else:
-                        color = get_annotation_color("yellow")  # Yellow for detected but below threshold
+        annotator = create_annotator(region)
+        team_members = detection_result.get("team_members", [])
+        height, width = region.shape[:2]
+        detected_rows = {member["row_index"] for member in team_members}
+        for row_idx in range(height):
+            row = region[row_idx, :]
+            matching_pixels = self._count_matching_pixels_in_row(row)
+            total_pixels = width
+            match_percentage = (matching_pixels / total_pixels) * 100
+            if row_idx in detected_rows:
+                if matching_pixels >= self.min_pixels_per_row:
+                    color = get_annotation_color("green")
                 else:
-                    # This row was not detected as a health bar
-                    if matching_pixels > 0:
-                        color = get_annotation_color("gray")  # Gray for some pixels but not detected
-                    else:
-                        color = get_annotation_color("dark_gray")  # Dark gray for no matching pixels
-
-                # Draw a thin line for the row
-                y1 = row_idx
-                x1 = 0
-                x2 = width
-
-                annotator.draw_line(
-                    start=(x1, y1),
-                    end=(x2, y1),
-                    color=color,
-                    thickness=1
-                )
-
-                # Add pixel count text for every row
-                pixel_text = f"R{row_idx}: {matching_pixels}/{total_pixels} ({match_percentage:.1f}%)"
-                annotator.draw_text(
-                    text=pixel_text,
-                    position=(x1, y1 - 2),
-                    color=color,
-                    font_scale=0.25,
-                    thickness=1
-                )
-
-            # Draw rectangles and detailed info for detected team members
-            for member_info in team_members:
-                row_idx = member_info["row_index"]
-                group = member_info["group"]
-                member_index = member_info["member_index"]
-
-                # Choose color based on group
-                if group == 1:
-                    color = get_annotation_color("green")  # Green for group1 (Same Map)
-                elif group == 2:
-                    color = get_annotation_color("red")  # Red for group2 (Different Map)
+                    color = get_annotation_color("yellow")
+            else:
+                if matching_pixels > 0:
+                    color = get_annotation_color("gray")
                 else:
-                    color = get_annotation_color("yellow")  # Yellow for unknown
-
-                # Draw rectangle for the entire row
-                y1 = row_idx
-                y2 = y1 + 1
-                x1 = 0
-                x2 = width
-
-                annotator.draw_rectangle(
-                    top_left=(x1, y1),
-                    bottom_right=(x2, y2),
-                    color=color,
-                    thickness=2
-                )
-
-                # Add text label with member info
-                label = f"M{member_index} G{group} ({member_info['matching_pixels']}px)"
-                annotator.draw_text(
-                    text=label,
-                    position=(x1, y1 - 25),
-                    color=(255, 255, 255),
-                    font_scale=0.4,
-                    thickness=1,
-                    background_color=color
-                )
-
-                # Add group name and local map status
-                group_label = member_info.get("group_name", f"Group{group}")
-                local_status = "Local" if member_info.get("is_local_map", False) else "Non-Local"
-                scan_direction = member_info.get("scan_direction", "unknown")
-                annotator.draw_text(
-                    text=f"{group_label} ({local_status}) {scan_direction}",
-                    position=(x1, y1 + 15),
-                    color=(255, 255, 255),
-                    font_scale=0.3,
-                    thickness=1,
-                    background_color=color
-                )
-
-                # Add HP offset coordinates (absolute screen coordinates)
-                hp_offset = member_info.get("hp_screen_offset", {})
-                offset_text = f"HP:({hp_offset.get('absolute_x', 0)},{hp_offset.get('absolute_y', 0)})"
-                annotator.draw_text(
-                    text=offset_text,
-                    position=(x1, y1 + 30),
-                    color=(255, 255, 255),
-                    font_scale=0.25,
-                    thickness=1,
-                    background_color=color
-                )
-
-            # Add summary text at the top
-            total_members = detection_result.get("total_members", 0)
-            group1_count = detection_result.get("group1_members", 0)
-            group2_count = detection_result.get("group2_members", 0)
-            local_map_count = detection_result.get("local_map_members", 0)
-            non_local_map_count = detection_result.get("non_local_map_members", 0)
-
-            summary_text = f"Team: {total_members} total (G1:{group1_count}, G2:{group2_count})"
-            annotator.draw_text(
-                text=summary_text,
-                position=(0, 15),
-                color=(255, 255, 255),
-                font_scale=0.5,
-                thickness=1,
-                background_color=get_annotation_color("green")
+                    color = get_annotation_color("dark_gray")
+            y1 = row_idx
+            x1 = 0
+            x2 = width
+            annotator.draw_line(
+                start=(x1, y1),
+                end=(x2, y1),
+                color=color,
+                thickness=1
             )
-
-            # Add map status text
-            map_text = f"Map: Local:{local_map_count}, Non-Local:{non_local_map_count}"
+            pixel_text = f"R{row_idx}: {matching_pixels}/{total_pixels} ({match_percentage:.1f}%)"
             annotator.draw_text(
-                text=map_text,
-                position=(0, 35),
-                color=(255, 255, 255),
-                font_scale=0.5,
-                thickness=1,
-                background_color=get_annotation_color("blue")
+                text=pixel_text,
+                position=(x1, y1 - 2),
+                color=color,
+                font_scale=0.25,
+                thickness=1
             )
-
-            # Get annotated image as PIL Image
-            return get_image_pil(annotator)
-
-        except Exception as e:
-            ColorPrint.red(f"[D4TeamHealthDetector] Error creating annotated image: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+        for member_info in team_members:
+            row_idx = member_info["row_index"]
+            group = member_info["group"]
+            member_index = member_info["member_index"]
+            if group == 1:
+                color = get_annotation_color("green")
+            elif group == 2:
+                color = get_annotation_color("red")
+            else:
+                color = get_annotation_color("yellow")
+            y1 = row_idx
+            y2 = y1 + 1
+            x1 = 0
+            x2 = width
+            annotator.draw_rectangle(
+                top_left=(x1, y1),
+                bottom_right=(x2, y2),
+                color=color,
+                thickness=2
+            )
+            label = f"M{member_index} G{group} ({member_info['matching_pixels']}px)"
+            annotator.draw_text(
+                text=label,
+                position=(x1, y1 - 25),
+                color=(255, 255, 255),
+                font_scale=0.4,
+                thickness=1,
+                background_color=color
+            )
+            group_label = member_info.get("group_name", f"Group{group}")
+            local_status = "Local" if member_info.get("is_local_map", False) else "Non-Local"
+            scan_direction = member_info.get("scan_direction", "unknown")
+            annotator.draw_text(
+                text=f"{group_label} ({local_status}) {scan_direction}",
+                position=(x1, y1 + 15),
+                color=(255, 255, 255),
+                font_scale=0.3,
+                thickness=1,
+                background_color=color
+            )
+            hp_offset = member_info.get("hp_screen_offset", {})
+            offset_text = f"HP:({hp_offset.get('absolute_x', 0)},{hp_offset.get('absolute_y', 0)})"
+            annotator.draw_text(
+                text=offset_text,
+                position=(x1, y1 + 30),
+                color=(255, 255, 255),
+                font_scale=0.25,
+                thickness=1,
+                background_color=color
+            )
+        total_members = detection_result.get("total_members", 0)
+        group1_count = detection_result.get("group1_members", 0)
+        group2_count = detection_result.get("group2_members", 0)
+        local_map_count = detection_result.get("local_map_members", 0)
+        non_local_map_count = detection_result.get("non_local_map_members", 0)
+        summary_text = f"Team: {total_members} total (G1:{group1_count}, G2:{group2_count})"
+        annotator.draw_text(
+            text=summary_text,
+            position=(0, 15),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=get_annotation_color("green")
+        )
+        map_text = f"Map: Local:{local_map_count}, Non-Local:{non_local_map_count}"
+        annotator.draw_text(
+            text=map_text,
+            position=(0, 35),
+            color=(255, 255, 255),
+            font_scale=0.5,
+            thickness=1,
+            background_color=get_annotation_color("blue")
+        )
+        return get_image_pil(annotator)
 
 
 # Global team health detector instance (singleton)

@@ -33,6 +33,8 @@ from providor.providor_index import D4_TEMPLATE_CONFIGS
 from share.game_interface_data import get_global_scale
 from share.game_interface_data import get_d4_interface_data
 from share.scaled_template_matcher_base import ScaledTemplateMatcherBase
+from d3utils.image_matcher_registry import get_image_matcher_for_method
+from d3utils.match_debug_notify import notify_match
 
 
 # D4 built-in constants (this module owns D4 standard resolution for scaling)
@@ -56,7 +58,12 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
             standard_height=D4_STANDARD_HEIGHT,
             get_scale_factors=get_global_scale,
             get_template_config=_d4_get_template_config,
+            get_matcher=lambda method: get_image_matcher_for_method(
+                method, D4_STANDARD_WIDTH, D4_STANDARD_HEIGHT,
+                ratio_thresh=0.80, min_inliers=4, nfeatures=10000,
+            ),
             log_prefix="[D4ScaledTemplateMatcher]",
+            on_after_match=notify_match,
         )
         self.d4_data = get_d4_interface_data()
         ColorPrint.green("[D4ScaledTemplateMatcher] Initialized")
@@ -95,190 +102,161 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         If use_shared_region True uses region image from shared D4 data; else crops from full image.
         """
         ColorPrint.blue(f"\n[D4ScaledTemplateMatcher] Matching template '{template_name}' in region '{region_name}'")
-        try:
-            if use_shared_region:
-                region_image = self._get_shared_region_image(region_name)
-                region_source = "shared_data"
-            else:
-                region_image = self._extract_region_from_full_image(region_name)
-                region_source = "full_image"
-
-            if region_image is None:
-                return {
-                    "total_matches": 0,
-                    "matches": [],
-                    "error": f"Failed to get region image for '{region_name}'",
-                    "region_used": region_name,
-                    "region_source": region_source,
-                }
-
-            scale_x, scale_y = self.get_scale_factors()
-            scaled_template_img = self._get_scaled_template_image(
-                template_name=template_name,
-                scale_x=scale_x,
-                scale_y=scale_y,
-                force_refresh=force_refresh_scale,
-            )
-            if scaled_template_img is None:
-                return {
-                    "total_matches": 0,
-                    "matches": [],
-                    "error": f"Failed to get scaled template: {template_name}",
-                    "region_used": region_name,
-                    "region_source": region_source,
-                }
-
-            template_config = self.get_template_config(template_name)
-            if not template_config:
-                return {
-                    "total_matches": 0,
-                    "matches": [],
-                    "error": f"D4 template config not found: {template_name}",
-                    "region_used": region_name,
-                    "region_source": region_source,
-                }
-
-            threshold = template_config["threshold"]
-            use_alpha = template_config.get("use_alpha", False)
-            match_method = template_config.get("match_method", "ORB")
-            matcher = self._get_matcher(match_method)
-
-            if isinstance(region_image, Image.Image):
-                region_array = np.array(region_image)
-            else:
-                region_array = region_image
-
-            ColorPrint.gray(
-                f"[D4ScaledTemplateMatcher] Calling {match_method} matcher in region (threshold: {threshold}, alpha: {use_alpha})"
-            )
-            match_result = matcher.match_single_template(
-                target_image=region_array,
-                template_image=scaled_template_img,
-                template_name=template_name,
-                custom_threshold=threshold,
-                use_alpha=use_alpha,
-                detection_method=match_method,
-            )
-
-            if DEBUG and match_result:
-                self._save_region_debug_image(
-                    region_array, scaled_template_img, match_result, template_name, region_name, output_dir
-                )
-
-            if match_result and match_result.get("success"):
-                ColorPrint.green(f"[D4ScaledTemplateMatcher] Region match found: {template_name} in {region_name}")
-                return {
-                    "total_matches": 1,
-                    "matches": [match_result],
-                    "error": None,
-                    "region_used": region_name,
-                    "region_source": region_source,
-                }
-            ColorPrint.yellow(f"[D4ScaledTemplateMatcher] No match found: {template_name} in {region_name}")
+        if use_shared_region:
+            region_image = self._get_shared_region_image(region_name)
+            region_source = "shared_data"
+        else:
+            region_image = self._extract_region_from_full_image(region_name)
+            region_source = "full_image"
+        if region_image is None:
             return {
                 "total_matches": 0,
                 "matches": [],
+                "error": f"Failed to get region image for '{region_name}'",
+                "region_used": region_name,
+                "region_source": region_source,
+            }
+        scale_x, scale_y = self.get_scale_factors()
+        scaled_template_img = self._get_scaled_template_image(
+            template_name=template_name,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            force_refresh=force_refresh_scale,
+        )
+        if scaled_template_img is None:
+            return {
+                "total_matches": 0,
+                "matches": [],
+                "error": f"Failed to get scaled template: {template_name}",
+                "region_used": region_name,
+                "region_source": region_source,
+            }
+        template_config = self.get_template_config(template_name)
+        if not template_config:
+            return {
+                "total_matches": 0,
+                "matches": [],
+                "error": f"D4 template config not found: {template_name}",
+                "region_used": region_name,
+                "region_source": region_source,
+            }
+        threshold = template_config["threshold"]
+        use_alpha = template_config.get("use_alpha", False)
+        match_method = template_config.get("match_method", "ORB")
+        matcher = self._get_matcher(match_method)
+        if isinstance(region_image, Image.Image):
+            region_array = np.array(region_image)
+        else:
+            region_array = region_image
+        ColorPrint.gray(
+            f"[D4ScaledTemplateMatcher] Calling {match_method} matcher in region (threshold: {threshold}, alpha: {use_alpha})"
+        )
+        match_result = matcher.match_single_template(
+            target_image=region_array,
+            template_image=scaled_template_img,
+            template_name=template_name,
+            custom_threshold=threshold,
+            use_alpha=use_alpha,
+            detection_method=match_method,
+        )
+        if DEBUG and match_result:
+            self._save_region_debug_image(
+                region_array, scaled_template_img, match_result, template_name, region_name, output_dir
+            )
+        if match_result and match_result.get("success"):
+            ColorPrint.green(f"[D4ScaledTemplateMatcher] Region match found: {template_name} in {region_name}")
+            return {
+                "total_matches": 1,
+                "matches": [match_result],
                 "error": None,
                 "region_used": region_name,
                 "region_source": region_source,
             }
-        except Exception as e:
-            error_msg = f"Error matching template in region: {e}"
-            ColorPrint.red(f"[D4ScaledTemplateMatcher] {error_msg}")
-            return {
-                "total_matches": 0,
-                "matches": [],
-                "error": error_msg,
-                "region_used": region_name,
-                "region_source": "error",
-            }
+        ColorPrint.yellow(f"[D4ScaledTemplateMatcher] No match found: {template_name} in {region_name}")
+        return {
+            "total_matches": 0,
+            "matches": [],
+            "error": None,
+            "region_used": region_name,
+            "region_source": region_source,
+        }
 
     def _get_shared_region_image(self, region_name: str) -> Optional[np.ndarray]:
         """Get region image from shared D4 data."""
-        try:
-            region_mapping = {
-                "minimap": "minimap_region_image",
-                "team_count": "team_count_region_image",
-                "team_vote": "team_vote_region_image",
-                "bag": "bag_region_image",
-                "blacksmith": "blacksmith_region_image",
-                "equipment_left": "equipment_left_region_image",
-                "equipment_right": "equipment_right_region_image",
-                "exp_bar": "exp_bar_region_image",
-                "map_name": "map_name_region_image",
-                "quest_text": "quest_text_region_image",
-            }
-            attribute_name = region_mapping.get(region_name)
-            if not attribute_name:
-                ColorPrint.yellow(f"[D4ScaledTemplateMatcher] Unknown region name: {region_name}")
-                return None
-            region_image = getattr(self.d4_data, attribute_name, None)
-            if region_image is None:
-                ColorPrint.yellow(f"[D4ScaledTemplateMatcher] No {region_name} region image in shared data")
-                return None
-            if isinstance(region_image, Image.Image):
-                return np.array(region_image)
-            return region_image
-        except Exception as e:
-            ColorPrint.red(f"[D4ScaledTemplateMatcher] Error getting shared region image: {e}")
+        region_mapping = {
+            "minimap": "minimap_region_image",
+            "team_count": "team_count_region_image",
+            "team_vote": "team_vote_region_image",
+            "bag": "bag_region_image",
+            "blacksmith": "blacksmith_region_image",
+            "equipment_left": "equipment_left_region_image",
+            "equipment_right": "equipment_right_region_image",
+            "exp_bar": "exp_bar_region_image",
+            "map_name": "map_name_region_image",
+            "quest_text": "quest_text_region_image",
+        }
+        attribute_name = region_mapping.get(region_name)
+        if not attribute_name:
+            ColorPrint.yellow(f"[D4ScaledTemplateMatcher] Unknown region name: {region_name}")
             return None
+        region_image = vars(self.d4_data).get(attribute_name) if hasattr(self.d4_data, attribute_name) else None
+        if region_image is None:
+            ColorPrint.yellow(f"[D4ScaledTemplateMatcher] No {region_name} region image in shared data")
+            return None
+        if isinstance(region_image, Image.Image):
+            return np.array(region_image)
+        return region_image
 
     def _extract_region_from_full_image(self, region_name: str) -> Optional[np.ndarray]:
         """Crop region from fullscreen game window image."""
-        try:
-            screenshot_data = self.d4_data.screenshot_data
-            if not screenshot_data or not screenshot_data.game_window_image:
-                ColorPrint.yellow("[D4ScaledTemplateMatcher] No screenshot data available")
-                return None
-            game_window_image = screenshot_data.game_window_image
-            game_window_size = screenshot_data.game_window_size
-            is_windowed = self.d4_data.is_windowed_mode()
-
-            from share.game_interface_data import (
-                D4_STANDARD_COORDS,
-                calculate_unified_scaled_coordinate,
-            )
-
-            region_coords = {
-                "minimap": (D4_STANDARD_COORDS.minimap_region_start, D4_STANDARD_COORDS.minimap_region_end),
-                "team_count": (D4_STANDARD_COORDS.team_count_region_start, D4_STANDARD_COORDS.team_count_region_end),
-                "team_vote": (D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
-                "bag": (D4_STANDARD_COORDS.bag_top_left, D4_STANDARD_COORDS.bag_bottom_right),
-                "blacksmith": (D4_STANDARD_COORDS.blacksmith_menu_start, D4_STANDARD_COORDS.blacksmith_menu_end),
-                "equipment_left": (
-                    D4_STANDARD_COORDS.equipment_left_region_start,
-                    D4_STANDARD_COORDS.equipment_left_region_end,
-                ),
-                "equipment_right": (
-                    D4_STANDARD_COORDS.equipment_right_region_start,
-                    D4_STANDARD_COORDS.equipment_right_region_end,
-                ),
-                "exp_bar": (D4_STANDARD_COORDS.exp_bar_region_start, D4_STANDARD_COORDS.exp_bar_region_end),
-                "map_name": (D4_STANDARD_COORDS.map_name_region_start, D4_STANDARD_COORDS.map_name_region_end),
-                "quest_text": (
-                    D4_STANDARD_COORDS.quest_text_region_start,
-                    D4_STANDARD_COORDS.quest_text_region_end,
-                ),
-            }
-            if region_name not in region_coords:
-                ColorPrint.yellow(f"[D4ScaledTemplateMatcher] Unknown region name: {region_name}")
-                return None
-            start_coord, end_coord = region_coords[region_name]
-            std_res = (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT)
-            scaled_start = calculate_unified_scaled_coordinate(
-                start_coord, game_window_size, std_res, is_windowed
-            )
-            scaled_end = calculate_unified_scaled_coordinate(
-                end_coord, game_window_size, std_res, is_windowed
-            )
-            from pycore.pyutils.image_crop import ImageCrop
-            region_crop = ImageCrop.crop_region(
-                game_window_image, scaled_start, scaled_end, output_format="numpy"
-            )
-            return region_crop
-        except Exception as e:
-            ColorPrint.red(f"[D4ScaledTemplateMatcher] Error extracting region from full image: {e}")
+        screenshot_data = self.d4_data.screenshot_data
+        if not screenshot_data or not screenshot_data.game_window_image:
+            ColorPrint.yellow("[D4ScaledTemplateMatcher] No screenshot data available")
             return None
+        game_window_image = screenshot_data.game_window_image
+        game_window_size = screenshot_data.game_window_size
+        is_windowed = self.d4_data.is_windowed_mode()
+        from share.game_interface_data import (
+            D4_STANDARD_COORDS,
+            calculate_unified_scaled_coordinate,
+        )
+        region_coords = {
+            "minimap": (D4_STANDARD_COORDS.minimap_region_start, D4_STANDARD_COORDS.minimap_region_end),
+            "team_count": (D4_STANDARD_COORDS.team_count_region_start, D4_STANDARD_COORDS.team_count_region_end),
+            "team_vote": (D4_STANDARD_COORDS.team_vote_region_start, D4_STANDARD_COORDS.team_vote_region_end),
+            "bag": (D4_STANDARD_COORDS.bag_top_left, D4_STANDARD_COORDS.bag_bottom_right),
+            "blacksmith": (D4_STANDARD_COORDS.blacksmith_menu_start, D4_STANDARD_COORDS.blacksmith_menu_end),
+            "equipment_left": (
+                D4_STANDARD_COORDS.equipment_left_region_start,
+                D4_STANDARD_COORDS.equipment_left_region_end,
+            ),
+            "equipment_right": (
+                D4_STANDARD_COORDS.equipment_right_region_start,
+                D4_STANDARD_COORDS.equipment_right_region_end,
+            ),
+            "exp_bar": (D4_STANDARD_COORDS.exp_bar_region_start, D4_STANDARD_COORDS.exp_bar_region_end),
+            "map_name": (D4_STANDARD_COORDS.map_name_region_start, D4_STANDARD_COORDS.map_name_region_end),
+            "quest_text": (
+                D4_STANDARD_COORDS.quest_text_region_start,
+                D4_STANDARD_COORDS.quest_text_region_end,
+            ),
+        }
+        if region_name not in region_coords:
+            ColorPrint.yellow(f"[D4ScaledTemplateMatcher] Unknown region name: {region_name}")
+            return None
+        start_coord, end_coord = region_coords[region_name]
+        std_res = (D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT)
+        scaled_start = calculate_unified_scaled_coordinate(
+            start_coord, game_window_size, std_res, is_windowed
+        )
+        scaled_end = calculate_unified_scaled_coordinate(
+            end_coord, game_window_size, std_res, is_windowed
+        )
+        from pycore.pyutils.image_crop import ImageCrop
+        region_crop = ImageCrop.crop_region(
+            game_window_image, scaled_start, scaled_end, output_format="numpy"
+        )
+        return region_crop
 
     def _save_region_debug_image(
         self,
@@ -290,38 +268,35 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         output_dir: Optional[Path] = None,
     ) -> None:
         """Save region match debug image when DEBUG is enabled."""
-        try:
-            if not DEBUG:
-                return
-            debug_dir = output_dir if output_dir else TMP_DIR / "d4_annotated"
-            debug_dir.mkdir(parents=True, exist_ok=True)
-            debug_image = region_image.copy()
-            if match_result and match_result.get("success"):
-                if "polygon" in match_result:
-                    polygon = match_result["polygon"]
-                    cv2.polylines(debug_image, [polygon.astype(np.int32)], True, (0, 255, 0), 2)
-                cv2.putText(debug_image, f"Template: {template_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                cv2.putText(debug_image, f"Region: {region_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                cv2.putText(debug_image, "MATCH FOUND", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                cv2.putText(
-                    debug_image,
-                    f"Confidence: {match_result.get('match_score', 0):.3f}",
-                    (10, 120),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 0),
-                    2,
-                )
-            else:
-                cv2.putText(debug_image, f"Template: {template_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                cv2.putText(debug_image, f"Region: {region_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-                cv2.putText(debug_image, "NO MATCH", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            debug_path = debug_dir / f"region_match_{region_name}_{template_name}_{ts}.png"
-            cv2.imwrite(str(debug_path), debug_image)
-            ColorPrint.green(f"[D4ScaledTemplateMatcher] Region debug image saved: {debug_path}")
-        except Exception as e:
-            ColorPrint.red(f"[D4ScaledTemplateMatcher] Error saving region debug image: {e}")
+        if not DEBUG:
+            return
+        debug_dir = output_dir if output_dir else TMP_DIR / "d4_annotated"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        debug_image = region_image.copy()
+        if match_result and match_result.get("success"):
+            if "polygon" in match_result:
+                polygon = match_result["polygon"]
+                cv2.polylines(debug_image, [polygon.astype(np.int32)], True, (0, 255, 0), 2)
+            cv2.putText(debug_image, f"Template: {template_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(debug_image, f"Region: {region_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(debug_image, "MATCH FOUND", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(
+                debug_image,
+                f"Confidence: {match_result.get('match_score', 0):.3f}",
+                (10, 120),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2,
+            )
+        else:
+            cv2.putText(debug_image, f"Template: {template_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            cv2.putText(debug_image, f"Region: {region_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            cv2.putText(debug_image, "NO MATCH", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        debug_path = debug_dir / f"region_match_{region_name}_{template_name}_{ts}.png"
+        cv2.imwrite(str(debug_path), debug_image)
+        ColorPrint.green(f"[D4ScaledTemplateMatcher] Region debug image saved: {debug_path}")
 
 
 _d4_scaled_template_matcher: Optional[D4ScaledTemplateMatcher] = None

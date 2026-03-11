@@ -1,0 +1,625 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\programing\\core_node\\dotapps\\d3check\\d3check.csproj": {}
+  },
+  "projects": {
+    "D:\\programing\\core_node\\dotapps\\d3check\\d3check.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3check\\d3check.csproj",
+        "projectName": "d3check",
+        "projectPath": "D:\\programing\\core_node\\dotapps\\d3check\\d3check.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotapps\\d3check\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {}
+        },
+        "frameworks": {
+          "net8.0-windows7.0": {
+            "targetAlias": "net8.0-windows",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\D3CheckCore.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\D3CheckCore.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\DotCore.Infrastructure.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\DotCore.Infrastructure.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0-windows7.0": {
+          "targetAlias": "net8.0-windows",
+          "dependencies": {
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.1, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            },
+            "Microsoft.WindowsDesktop.App.WPF": {
+              "privateAssets": "none"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\D3CheckCore.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\D3CheckCore.csproj",
+        "projectName": "D3CheckCore",
+        "projectPath": "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\D3CheckCore.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotapps\\d3check\\D3CheckCore\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj",
+        "projectName": "DotCore.Common",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
+        "projectName": "DotCore.Foundations",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\DotCore.Infrastructure.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\DotCore.Infrastructure.csproj",
+        "projectName": "DotCore.Infrastructure",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\DotCore.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Infrastructure\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj",
+        "projectName": "DotCore.UITheme",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\DotCore.UITheme.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.UITheme\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0-windows7.0": {
+            "targetAlias": "net8.0-windows",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0-windows7.0": {
+          "targetAlias": "net8.0-windows",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            },
+            "Microsoft.WindowsDesktop.App.WPF": {
+              "privateAssets": "none"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj",
+        "projectName": "DotCore.Utils",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\DotCore.Utils.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj",
+        "projectName": "DotCore.VocAnnotator",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              },
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

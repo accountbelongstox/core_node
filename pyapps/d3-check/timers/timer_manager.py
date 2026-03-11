@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Timer Manager
-Centralized timer management system for periodic task execution
+Centralized timer management system for periodic task execution.
+Single creator for TimerManagerThread (created on start()).
 """
 
 import os
@@ -54,7 +55,7 @@ class TimerManagerThread(threading.Thread):
     """Native thread for timer loop. Override run() to execute _timer_loop."""
 
     def __init__(self):
-        super().__init__(daemon=True, name="TimerManagerThread")
+        threading.Thread.__init__(self, daemon=True, name="TimerManagerThread")
 
     def run(self):
         _timer_loop()
@@ -277,8 +278,7 @@ def _timer_loop():
                 if current_time - task.last_run >= task.interval:
                     task.last_run = current_time
                     tasks_to_execute.append(task)
-            # Run log_monitor first so log-driven flow is not delayed by other tasks (1s tick)
-            for task in sorted(tasks_to_execute, key=lambda t: (0 if t.name == "log_monitor" else 1, t.name)):
+            for task in sorted(tasks_to_execute, key=lambda t: t.name):
                 _execute_task(task)
             time.sleep(0.05)
         except Exception as e:

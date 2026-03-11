@@ -1,0 +1,85 @@
+<Window x:Class="DotApps.d3check.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:main="clr-namespace:DotApps.d3check.Pages.Main"
+        xmlns:rosbot="clr-namespace:DotApps.d3check.Pages.Rosbot"
+        xmlns:d4="clr-namespace:DotApps.d3check.Pages.D4"
+        xmlns:calibration="clr-namespace:DotApps.d3check.Pages.Calibration"
+        xmlns:log="clr-namespace:DotApps.d3check.Pages.Log"
+        xmlns:components="clr-namespace:DotApps.d3check.Components"
+        Title="D3Check"
+        Width="800" Height="600"
+        WindowStartupLocation="Manual"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False">
+  <Grid x:Name="RootGrid" Background="{StaticResource BackgroundPrimaryBrush}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Reusable title bar: drag to move, double-click maximize, min/max/close -->
+    <components:TitleBarControl x:Name="TitleBar" Grid.Row="0" Title="D3Check"/>
+
+    <!-- Tabs: Main, Rosbot, D4, Calibration, Log -->
+    <TabControl x:Name="TabMain" Grid.Row="1" Background="{StaticResource BackgroundPrimaryBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0">
+      <TabItem x:Name="TabMainPage" Header="Main">
+        <main:MainPage/>
+      </TabItem>
+      <TabItem x:Name="TabRosbot" Header="Rosbot">
+        <rosbot:RosbotPage/>
+      </TabItem>
+      <TabItem x:Name="TabD4" Header="D4">
+        <d4:D4Page/>
+      </TabItem>
+      <TabItem x:Name="TabCalibration" Header="Calibration">
+        <calibration:CalibrationPage/>
+      </TabItem>
+      <TabItem x:Name="TabLog" Header="Log">
+        <log:LogPage/>
+      </TabItem>
+    </TabControl>
+
+    <!-- Bottom bar: exact 1:1 with PY. PY row1/row2 = pack(side=LEFT) from left; PY row3 = test_mode left, path icons + scan right. -->
+    <Border Grid.Row="2" Background="{StaticResource BackgroundDarkBrush}" Padding="8,4" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,1,0,0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- Row 0 = PY STATUS_ROW_1: left-aligned. PY has only BN,ROS,D3,Map,Stage; DOT adds TxtMacroStatus (config) at left for code-behind. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+          <TextBlock x:Name="TxtMacroStatus" Text="Macro area" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusBn" Text="Battle.net: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusRos" Text="ROS: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusD3" Text="D3: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusMap" Text="Map: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusStage" Text="Stage: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <!-- Row 1 = PY STATUS_ROW_2: left-aligned, order OAuth window_size -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,2,0,0">
+          <TextBlock x:Name="TxtStatusOauth" Text="OAuth: -" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBlock x:Name="TxtStatusWindowSize" Text="0x0" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <!-- Row 2 = PY row 3: left_f sticky=w test_mode | right_f sticky=e ○ BN ○ D3 ○ D4 ○ ROS extra_f(scan) -->
+        <Grid Grid.Row="2" Margin="0,2,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="TxtTestMode" Grid.Column="0" Text="" Foreground="{StaticResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+            <TextBlock x:Name="TxtPathBn" Text="○ BN" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtPathD3" Text="○ D3" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtPathD4" Text="○ D4" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtPathRos" Text="○ ROS" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,12,0" VerticalAlignment="Center"/>
+            <Button x:Name="BtnScanPaths" Content="One-Click Scan" MinWidth="80" Padding="8,4" Click="BtnScanPaths_Click" ToolTip="Scan drives for Battle.net, D3, ROSBOT and update config" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

@@ -1,0 +1,167 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImageMorphology\\DotCore.Utils.ImageMorphology.csproj": {}
+  },
+  "projects": {
+    "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
+        "projectName": "DotCore.Foundations",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0",
+            "OpenCvSharp4.Extensions": "4.10.0.20240616",
+            "OpenCvSharp4.Windows": "4.10.0.20240616",
+            "PaddleOCRSharp": "6.1.0",
+            "System.Drawing.Common": "8.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImageMorphology\\DotCore.Utils.ImageMorphology.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImageMorphology\\DotCore.Utils.ImageMorphology.csproj",
+        "projectName": "DotCore.Utils.ImageMorphology",
+        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImageMorphology\\DotCore.Utils.ImageMorphology.csproj",
+        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImageMorphology\\obj\\",
+        "projectStyle": "PackageReference",
+        "centralPackageVersionsManagementEnabled": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0-windows7.0": {
+            "targetAlias": "net8.0-windows",
+            "projectReferences": {
+              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0-windows7.0": {
+          "targetAlias": "net8.0-windows",
+          "dependencies": {
+            "OpenCvSharp4.Windows": {
+              "target": "Package",
+              "version": "[4.10.0.20240616, )",
+              "versionCentrallyManaged": true
+            }
+          },
+          "centralPackageVersions": {
+            "FlaUI.UIA3": "5.0.0",
+            "OpenCvSharp4.Extensions": "4.10.0.20240616",
+            "OpenCvSharp4.Windows": "4.10.0.20240616",
+            "PaddleOCRSharp": "6.1.0",
+            "System.Drawing.Common": "8.0.0"
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

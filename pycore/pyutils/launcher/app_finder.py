@@ -66,8 +66,9 @@ class AppFinder:
             ]
         },
         'wechat': {
-            'names': ['WeChat.exe', 'wechat.exe'],
+            'names': ['Weixin.exe', 'WeChat.exe', 'wechat.exe'],
             'search_paths': [
+                'C:\\Program Files\\Tencent\\Weixin',
                 'D:\\applications',
                 'C:\\Program Files\\Tencent\\WeChat',
                 'C:\\Users\\{username}\\AppData\\Roaming\\Tencent\\WeChat'

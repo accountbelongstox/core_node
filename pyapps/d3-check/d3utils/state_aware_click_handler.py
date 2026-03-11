@@ -13,7 +13,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
 from providor.providor_index import should_stop_assistant
 
 class StateAwareClickHandler:
@@ -28,7 +28,7 @@ class StateAwareClickHandler:
 
     def __init__(self):
         """Initialize state-aware click handler"""
-        self.click_handler = ClickHandler()
+        self.click_handler = get_click_handler()
 
     def _check_state(self, action_name: str) -> bool:
         """
@@ -135,7 +135,7 @@ class StateAwareClickHandler:
         if not self._check_state(f"move mouse to ({x}, {y})"):
             return False
 
-        return self.click_handler.move_mouse(x, y, duration)
+        return self.click_handler.move_mouse_to(x, y, duration)
 
     def move_mouse_curve(self, x: int, y: int, curve_type: str = 'bezier', duration: Optional[float] = None) -> bool:
         """

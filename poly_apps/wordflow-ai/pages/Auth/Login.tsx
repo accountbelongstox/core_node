@@ -236,7 +236,7 @@ const LoginPage = () => {
           </div>
         )}
 
-        <Button onClick={handleLogin} disabled={loading}>
+        <Button variant="pill" showSparkles onClick={handleLogin} disabled={loading}>
           {loading ? t('common.loading') : mode === 'login' ? t('auth.login') : t('auth.register')}
         </Button>
         <Button

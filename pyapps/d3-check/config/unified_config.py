@@ -107,36 +107,29 @@ class SkillConfig:
 
 @dataclass
 class SkillConfigSet:
-    """Skill configuration set"""
+    """Skill configuration set. Per-config hotkeys: see share.values.skill_config_hotkeys. Potion is one row in skills."""
     skills: Dict[str, SkillConfig] = field(default_factory=dict)
     quick_switch: str = "F1"
-    movement: str = "space"
-    potion: str = "Q"
-    potion_interval: int = 500
-    
+    water: str = "Q"
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary format"""
         return {
             'skills': {name: skill.to_dict() for name, skill in self.skills.items()},
             'quick_switch': self.quick_switch,
-            'movement': self.movement,
-            'potion': self.potion,
-            'potion_interval': self.potion_interval
+            'water': self.water,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SkillConfigSet':
         """Create skill config set from dictionary"""
         skills = {}
         for name, skill_data in data.get('skills', {}).items():
             skills[name] = SkillConfig.from_dict(name, skill_data)
-        
         return cls(
             skills=skills,
             quick_switch=data.get('quick_switch', 'F1'),
-            movement=data.get('movement', 'space'),
-            potion=data.get('potion', 'Q'),
-            potion_interval=data.get('potion_interval', 500)
+            water=data.get('water', 'Q'),
         )
     
     def add_skill(self, skill: SkillConfig):

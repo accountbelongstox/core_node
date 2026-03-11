@@ -10,12 +10,11 @@ Usage:
     # From file path
     result = d4_detect_red_portal("screenshot.png")
 
-    # From PIL Image
-    from PIL import Image
+    # From PIL Image (Image from pycore third_party at module head)
     img = Image.open("screenshot.png")
     result = d4_detect_red_portal(img)
 
-    # From numpy array
+    # From numpy/BGR array (cv2 from pycore third_party at module head)
     img = cv2.imread("screenshot.png")
     result = d4_detect_red_portal(img)
 
@@ -39,6 +38,7 @@ ensure_d3_check_in_sys_path()
 
 from share.game_interface_data import (
     D4StandardCoordinates,
+    D4_STANDARD_COORDS,
     calculate_unified_scaled_coordinate,
     D4_STANDARD_RESOLUTION_WIDTH,
     D4_STANDARD_RESOLUTION_HEIGHT,
@@ -270,8 +270,8 @@ def d4_detect_red_portal(image_input: Union[str, Image.Image, np.ndarray]) -> Op
     # Get current screen dimensions
     current_height, current_width = image_bgr.shape[:2]
 
-    # Get D4 standard coordinates
-    coords = D4StandardCoordinates()
+    # Get D4 standard coordinates (use shared singleton)
+    coords = D4_STANDARD_COORDS
 
     # Create color mask
     mask = _create_color_mask(image_bgr, TARGET_COLORS, COLOR_TOLERANCE)
@@ -291,29 +291,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
     image_path = sys.argv[1]
-
-    try:
-        result = d4_detect_red_portal(image_path)
-
-        if result:
-            x, y, w, h = result
-            print(f"Red portal detected!")
-            print(f"  Position: ({x}, {y})")
-            print(f"  Size: {w}x{h}")
-
-            # Draw result for visualization
-            img = cv2.imread(image_path)
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(img, f"Portal ({w}x{h})", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-            output_path = Path(image_path).parent / f"{Path(image_path).stem}_portal_detected.png"
-            cv2.imwrite(str(output_path), img)
-            print(f"  Visualization saved: {output_path}")
-        else:
-            print("No red portal detected.")
-
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    result = d4_detect_red_portal(image_path)
+    if result:
+        x, y, w, h = result
+        print(f"Red portal detected!")
+        print(f"  Position: ({x}, {y})")
+        print(f"  Size: {w}x{h}")
+        img = cv2.imread(image_path)
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(img, f"Portal ({w}x{h})", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        output_path = Path(image_path).parent / f"{Path(image_path).stem}_portal_detected.png"
+        cv2.imwrite(str(output_path), img)
+        print(f"  Visualization saved: {output_path}")
+    else:
+        print("No red portal detected.")

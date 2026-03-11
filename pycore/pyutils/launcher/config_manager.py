@@ -74,6 +74,12 @@ class ConfigManager:
                 'actual_height_px': 485,
                 'term_rows': 270
             },
+            # Reserve pixels for WT window chrome + safety so content fits in grid cell (avoids overlap)
+            'window_chrome': {
+                'title_bar_plus_padding_px': 56,
+                'horizontal_padding_px': 24,
+                'content_scale': 0.78
+            },
             'applications': self._get_applications_defaults()
         }
         

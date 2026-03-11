@@ -19,6 +19,7 @@ import math
 from typing import List, Dict, Tuple, Any, Optional
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyutils.common import ultralytics_comm
 
 PIL_Image = get_third_package_PIL_Image()
 
@@ -210,19 +211,11 @@ def generate_yolo_dataset(
                 lbl_path = lbl_dir / f"img_{idx:05d}.txt"
                 lbl_path.write_text("\n".join(lines), encoding="utf-8")
 
-        nc = len(class_names)
-        # path: use forward slashes for portability; train/val relative to path (images dirs)
-        # names: dict 0..nc-1 for compatibility with Ultralytics check_det_dataset
         path_str = Path(output_dir).resolve().as_posix()
-        names_dict = dict(enumerate(class_names))
-        data_yaml = (
-            f"path: {path_str}\n"
-            f"train: images/train\n"
-            f"val: images/val\n"
-            f"nc: {nc}\n"
-            f"names: {names_dict}\n"
+        data_yaml = ultralytics_comm.build_data_yaml_content(
+            path_str, "images/train", "images/val", class_names
         )
-        (output_dir / "data.yaml").write_text(data_yaml, encoding="utf-8")
+        (output_dir / ultralytics_comm.DATA_YAML_NAME).write_text(data_yaml, encoding="utf-8")
 
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)

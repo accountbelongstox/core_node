@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Flow state: single source of truth for flow_master and bn_only (FLOW_STATE_ARCHITECTURE).
-Syncs to game_interface_data for UI. Tick entry only invokes flow libraries; flow libraries
-call third-party libs and update state from return values (Approach 3).
+Syncs to game_interface_data for UI. On state change the flow controller skips logic; tick always runs, task is not disabled.
 """
 from share.game_interface_data import get_game_interface_data
 

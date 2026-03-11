@@ -6,6 +6,7 @@ Find windows: by exe (d3.d3_path) when configured, else by title; kill by PID of
 """
 
 import os
+import time
 from pathlib import Path
 from typing import List, Optional, Callable, Dict, Any, Set
 
@@ -93,12 +94,12 @@ class D3Manager:
             ColorPrint.yellow("[D3Manager] find_windows by exe: %s" % e)
         return out
 
-    def _find_windows_by_title(self) -> List[Dict]:
+    def _find_windows_by_title(self, use_cache: bool = True) -> List[Dict]:
         """Find D3 windows by title list. Returns list with hwnd."""
         return WindowFinder.find_windows_by_titles(
             titles=self._window_titles,
             match_mode="in",
-            use_cache=True,
+            use_cache=use_cache,
             skip_browser_if=self._skip_browser,
         )
 
@@ -108,11 +109,36 @@ class D3Manager:
             windows = self._find_windows_by_exe()
             if windows:
                 return windows
-        return self._find_windows_by_title()
+        return self._find_windows_by_title(use_cache=use_cache)
 
     def is_running(self) -> bool:
         """Return True if at least one D3 window exists."""
         return len(self.find_windows()) > 0
+
+    def poll_until_window_appears(
+        self,
+        timeout_sec: float = 8.0,
+        interval_sec: float = 0.5,
+        log_progress_every_n: int = 4,
+    ) -> bool:
+        """
+        After clicking Play, poll until D3 window appears (e.g. D12).
+        Always use_cache=False internally to avoid stale cache. Returns True when window found.
+        """
+        total_rounds = max(1, int(round(timeout_sec / interval_sec)))
+        deadline = time.monotonic() + timeout_sec
+        poll_i = 0
+        while time.monotonic() < deadline:
+            poll_i += 1
+            windows = self.find_windows(use_cache=False)
+            if windows:
+                if log_progress_every_n and (poll_i == 1 or poll_i % log_progress_every_n == 0):
+                    ColorPrint.gray("[D3Manager] poll D3 window #%d -> found" % poll_i)
+                return True
+            if log_progress_every_n and (poll_i == 1 or poll_i % log_progress_every_n == 0):
+                ColorPrint.gray("[D3Manager] poll D3 window #%d/%d -> not found" % (poll_i, total_rounds))
+            time.sleep(interval_sec)
+        return False
 
     def kill_if_running(self) -> bool:
         """

@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "skills": {
+    "cursor-agent": {
+      "source": "openclaw/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/skills.git",
+      "skillFolderHash": "",
+      "installedAt": "2026-02-26T21:25:13.800Z",
+      "updatedAt": "2026-02-26T21:29:20.362Z"
+    }
+  },
+  "dismissed": {}
+}

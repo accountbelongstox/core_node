@@ -7,6 +7,7 @@ Validates both classification and detection models automatically
 
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import argparse
@@ -23,6 +24,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 from pycore.pyfoundations.color_print import ColorPrint
+from d3utils.collectors.ui_region_collector_ultralytics import get_yolo_model
 
 
 class UnifiedValidator:
@@ -78,31 +80,25 @@ class UnifiedValidator:
 
             best_pt = model_dir / "weights" / "best.pt"
             if best_pt.exists():
-                try:
-                    from ultralytics import YOLO
-                    model = YOLO(str(best_pt))
-
-                    # Get model creation time
-                    import time
-                    mtime = best_pt.stat().st_mtime
-                    mtime_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
-
-                    self.classification_models[model_dir.name] = {
-                        'model': model,
-                        'path': best_pt,
-                        'type': 'classification',
-                        'window_size': 76,  # Default classification window size
-                        'mtime': mtime,
-                        'mtime_str': mtime_str
-                    }
-
-                    ColorPrint.green(f"\n✓ Loaded: {model_dir.name} (Classification)")
-                    ColorPrint.green(f"   Model: {best_pt}")
-                    ColorPrint.green(f"   Created: {mtime_str}")
-                    ColorPrint.green(f"   Window size: 76x76")
-                    model_count += 1
-                except Exception as e:
-                    ColorPrint.yellow(f"\n⚠️  Failed to load {best_pt}: {e}")
+                model = get_yolo_model(str(best_pt))
+                if model is None:
+                    ColorPrint.yellow(f"\n⚠️  Failed to load {best_pt}")
+                    continue
+                mtime = best_pt.stat().st_mtime
+                mtime_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
+                self.classification_models[model_dir.name] = {
+                    'model': model,
+                    'path': best_pt,
+                    'type': 'classification',
+                    'window_size': 76,
+                    'mtime': mtime,
+                    'mtime_str': mtime_str
+                }
+                ColorPrint.green(f"\n✓ Loaded: {model_dir.name} (Classification)")
+                ColorPrint.green(f"   Model: {best_pt}")
+                ColorPrint.green(f"   Created: {mtime_str}")
+                ColorPrint.green(f"   Window size: 76x76")
+                model_count += 1
 
         if not self.classification_models:
             ColorPrint.yellow("\n⚠️  No classification models found")
@@ -151,31 +147,25 @@ class UnifiedValidator:
                     except Exception as e:
                         ColorPrint.yellow(f"   Warning: Failed to parse {data_yaml}: {e}")
 
-                try:
-                    from ultralytics import YOLO
-                    model = YOLO(str(best_pt))
-
-                    # Get model creation time
-                    import time
-                    mtime = best_pt.stat().st_mtime
-                    mtime_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
-
-                    self.detection_models[model_dir.name] = {
-                        'model': model,
-                        'path': best_pt,
-                        'type': 'detection',
-                        'classes': classes if classes else ['unknown'],
-                        'mtime': mtime,
-                        'mtime_str': mtime_str
-                    }
-
-                    ColorPrint.green(f"\n✓ Loaded: {model_dir.name} (Detection)")
-                    ColorPrint.green(f"   Model: {best_pt}")
-                    ColorPrint.green(f"   Created: {mtime_str}")
-                    ColorPrint.green(f"   Classes: {', '.join(classes) if classes else 'unknown'}")
-                    model_count += 1
-                except Exception as e:
-                    ColorPrint.yellow(f"\n⚠️  Failed to load {best_pt}: {e}")
+                model = get_yolo_model(str(best_pt))
+                if model is None:
+                    ColorPrint.yellow(f"\n⚠️  Failed to load {best_pt}")
+                    continue
+                mtime = best_pt.stat().st_mtime
+                mtime_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
+                self.detection_models[model_dir.name] = {
+                    'model': model,
+                    'path': best_pt,
+                    'type': 'detection',
+                    'classes': classes if classes else ['unknown'],
+                    'mtime': mtime,
+                    'mtime_str': mtime_str
+                }
+                ColorPrint.green(f"\n✓ Loaded: {model_dir.name} (Detection)")
+                ColorPrint.green(f"   Model: {best_pt}")
+                ColorPrint.green(f"   Created: {mtime_str}")
+                ColorPrint.green(f"   Classes: {', '.join(classes) if classes else 'unknown'}")
+                model_count += 1
 
         if not self.detection_models:
             ColorPrint.yellow("\n⚠️  No detection models found")
@@ -779,7 +769,6 @@ class UnifiedValidator:
                 input()
 
         # Run detections with timing
-        import time
         all_detections = []
 
         ColorPrint.blue(f"\n{'='*80}")

@@ -36,4 +36,4 @@ Task/flow API: fire-and-forget; when status needed, read from shared snapshot. I
 
 ## 6. Related
 
-- Event center, thread registry, macro fallback / game-interface macro threads, system tray, DESIGN.md §4, shutdown (lazy import for extension getters: see PROJECT_STANDARDS §6).
+- Event center, thread registry, macro fallback / game-interface macro threads, system tray, DESIGN.md §4, shutdown.

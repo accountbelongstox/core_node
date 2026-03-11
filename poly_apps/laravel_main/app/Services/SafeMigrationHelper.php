@@ -1157,9 +1157,16 @@ class SafeMigrationHelper
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
         
         // 步骤3: 添加缺失字段
+        $driver = DB::connection($connection)->getDriverName();
         $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
         foreach ($missingColumns as $columnName) {
             $columnDef = $expectedStructure['columns'][$columnName];
+            $isPkOrIncrements = in_array($columnDef['type'] ?? '', ['increments', 'bigIncrements', 'id'], true)
+                || $columnName === 'id';
+            if ($driver === 'sqlite' && $isPkOrIncrements) {
+                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} already exists without {$columnName}. Recreate table or use migrate:fresh if needed."];
+                continue;
+            }
             $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
                 self::applyColumnDefinition($table, $colName, $columnDef);
             });

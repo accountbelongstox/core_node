@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Image Annotator Helper
-Common methods for drawing template match results
+Common methods for drawing template match results.
+pycore ImageAnnotator: singleton via get_pycore_image_annotator(); do not instantiate elsewhere.
 """
 
 import os
@@ -16,9 +17,13 @@ ensure_d3_check_in_sys_path()
 from datetime import datetime
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 from pycore.pyutils.image_annotator import ImageAnnotator
 from providor.constants.common import TMP_DIR
-from share.scaled_template_matcher_base import cv2, np, Image
+
+cv2 = get_third_package_cv2()
+np = get_third_package_numpy()
+Image = get_third_package_PIL_Image()
 
 # Built-in color palette for annotations (BGR format for OpenCV)
 ANNOTATION_COLORS = {
@@ -94,6 +99,17 @@ def get_auto_color(index: int) -> Tuple[int, int, int]:
     color_name = COLOR_SEQUENCE[index % len(COLOR_SEQUENCE)]
     return get_annotation_color(color_name)
 
+_pycore_annotator_instance: Optional[ImageAnnotator] = None
+
+
+def get_pycore_image_annotator() -> ImageAnnotator:
+    """Single pycore ImageAnnotator instance for the project."""
+    global _pycore_annotator_instance
+    if _pycore_annotator_instance is None:
+        _pycore_annotator_instance = ImageAnnotator()
+    return _pycore_annotator_instance
+
+
 def get_tmp_dir() -> Path:
     """Get the temporary directory for saving annotated images"""
     TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -105,7 +121,7 @@ def generate_timestamp() -> str:
 
 def create_annotator(image_source) -> ImageAnnotator:
     """
-    Create ImageAnnotator from various image sources
+    Create ImageAnnotator from various image sources (uses shared pycore annotator instance).
 
     Args:
         image_source: Can be:
@@ -116,30 +132,22 @@ def create_annotator(image_source) -> ImageAnnotator:
     Returns:
         ImageAnnotator instance
     """
-    try:
-        if isinstance(image_source, (str, Path)):
-            # File path
-            return ImageAnnotator(str(image_source))
-        elif isinstance(image_source, np.ndarray):
-            # Numpy array
-            annotator = ImageAnnotator()
-            annotator.set_image(image_source)
-            return annotator
+    annotator = get_pycore_image_annotator()
+    if isinstance(image_source, (str, Path)):
+        annotator.load_image(str(image_source))
+        return annotator
+    elif isinstance(image_source, np.ndarray):
+        annotator.set_image(image_source)
+        return annotator
+    else:
+        if hasattr(image_source, 'mode'):
+            img_array = np.array(image_source)
+            if image_source.mode == 'RGB':
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            annotator.set_image(img_array)
         else:
-            # Assume PIL Image or compatible
-            annotator = ImageAnnotator()
-            # Convert PIL to numpy if needed
-            if hasattr(image_source, 'mode'):  # PIL Image
-                img_array = np.array(image_source)
-                if image_source.mode == 'RGB':
-                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                annotator.set_image(img_array)
-            else:
-                annotator.set_image(image_source)
-            return annotator
-    except Exception as e:
-        ColorPrint.red(f"[ImageAnnotatorHelper] Error creating annotator: {e}")
-        raise
+            annotator.set_image(image_source)
+        return annotator
 
 def get_image_pil(annotator: ImageAnnotator) -> Image.Image:
     """
@@ -257,8 +265,6 @@ def draw_grid_overlay(
             )
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing grid overlay: {e}")
-        import traceback
-        traceback.print_exc()
 
 def draw_match_result(
     annotator: ImageAnnotator,
@@ -377,8 +383,6 @@ def draw_match_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match result: {e}")
-        import traceback
-        traceback.print_exc()
 
 
 def save_match_debug_image(
@@ -636,8 +640,6 @@ def draw_match_results(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing match results: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_anchor_detection_result(
     annotator: ImageAnnotator,
@@ -851,8 +853,6 @@ def save_anchor_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving anchor detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def save_bag_detection_result(
     annotator: ImageAnnotator,
@@ -934,8 +934,6 @@ def save_bag_detection_result(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error saving bag detection result: {e}")
-        import traceback
-        traceback.print_exc()
 
 def _draw_bag_layout_grid(
     annotator: ImageAnnotator,
@@ -1074,5 +1072,3 @@ def _draw_bag_layout_grid(
 
     except Exception as e:
         ColorPrint.red(f"[ImageAnnotatorHelper] Error drawing bag layout grid: {e}")
-        import traceback
-        traceback.print_exc()

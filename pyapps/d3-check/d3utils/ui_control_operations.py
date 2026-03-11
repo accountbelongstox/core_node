@@ -12,10 +12,13 @@ from typing import Optional, Any
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_uiautomation
 from pycore.pyutils.click_handler import ClickHandler
+from d3utils.click_handler_singleton import get_click_handler
+
+uiautomation = get_third_package_uiautomation()
 
 
 def _uia() -> Any:
-    return get_third_package_uiautomation()
+    return uiautomation
 
 
 def try_invoke(control: Any) -> bool:
@@ -24,23 +27,16 @@ def try_invoke(control: Any) -> bool:
     Returns True if InvokePattern is supported and Invoke() succeeded.
     """
     try:
-        auto = _uia()
-        if auto is None:
+        if _uia() is None:
             return False
-        get_invoke = getattr(control, "GetInvokePattern", None)
-        if get_invoke is None:
-            return False
-        pattern = get_invoke()
+        pattern = control.GetInvokePattern()
         if pattern is None:
             return False
         pattern.Invoke()
         return True
     except Exception as e:
-        try:
-            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
-                return False
-        except Exception:
-            pass
+        if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+            return False
         ColorPrint.gray(f"[UI_OP] InvokePattern failed: {e}")
         return False
 
@@ -54,23 +50,14 @@ def try_set_value(control: Any, value: str) -> bool:
     Returns True if ValuePattern.SetValue succeeded.
     """
     try:
-        get_pattern = getattr(control, "GetPattern", None)
-        if get_pattern is None:
-            return False
-        pattern = get_pattern(UIA_VALUE_PATTERN_ID)
+        pattern = control.GetPattern(UIA_VALUE_PATTERN_ID)
         if pattern is None:
             return False
-        set_val = getattr(pattern, "SetValue", None)
-        if set_val is None:
-            return False
-        set_val(value)
+        pattern.SetValue(value)
         return True
     except Exception as e:
-        try:
-            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
-                return False
-        except Exception:
-            pass
+        if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+            return False
         ColorPrint.gray(f"[UI_OP] ValuePattern.SetValue failed: {e}")
         return False
 
@@ -81,17 +68,11 @@ def try_set_focus(control: Any) -> bool:
     Returns True if SetFocus succeeded.
     """
     try:
-        set_focus = getattr(control, "SetFocus", None)
-        if set_focus is None:
-            return False
-        set_focus()
+        control.SetFocus()
         return True
     except Exception as e:
-        try:
-            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
-                return False
-        except Exception:
-            pass
+        if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+            return False
         ColorPrint.gray(f"[UI_OP] SetFocus failed: {e}")
         return False
 
@@ -102,23 +83,16 @@ def try_select_selection_item(control: Any) -> bool:
     Returns True if pattern is supported and Select() succeeded.
     """
     try:
-        auto = _uia()
-        if auto is None:
+        if _uia() is None:
             return False
-        get_sel = getattr(control, "GetSelectionItemPattern", None)
-        if get_sel is None:
-            return False
-        pattern = get_sel()
+        pattern = control.GetSelectionItemPattern()
         if pattern is None:
             return False
         pattern.Select()
         return True
     except Exception as e:
-        try:
-            if "COMError" in type(e).__name__ or "0x80004001" in str(e):
-                return False
-        except Exception:
-            pass
+        if "COMError" in type(e).__name__ or "0x80004001" in str(e):
+            return False
         ColorPrint.gray(f"[UI_OP] SelectionItemPattern failed: {e}")
         return False
 
@@ -137,7 +111,7 @@ def click_at_control_rect(
         r = control.BoundingRectangle
         cx = (r.left + r.right) // 2
         cy = (r.top + r.bottom) // 2
-        c = clicker if clicker is not None else ClickHandler()
+        c = clicker if clicker is not None else get_click_handler()
         return c.click(cx, cy, direct_click=direct_click, return_to_original=return_to_original, **kwargs)
     except Exception as e:
         ColorPrint.red(f"[UI_OP] Click at rect error: {e}")

@@ -816,9 +816,9 @@ pre_installation_check() {
         echo -e "${YELLOW}$SCRIPT_INDEX  Composer needs attention (state code: $composer_state_result)${NC}"
     fi
 
-    # Overall decision - but also check for symbolic link issues that need fixing
+    # Overall decision: do NOT skip any step when one succeeds. Idempotent repair = run all steps every time.
     if [ $php_state_result -eq 0 ] && [ $composer_state_result -eq 0 ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX All components are ready! Skipping installation to optimize performance.${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX All components reported ready; will still run ALL steps for idempotent repair (no skip).${NC}"
         return 0
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Some components require installation/repair. Proceeding with installation...${NC}"
@@ -932,9 +932,9 @@ setup_php_repository() {
     local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
     source "$repo_manager_script"
     
-    # Use PHP repository manager function (trust-based programming, direct call)
-    echo -e "${YELLOW}$SCRIPT_INDEX Using PHP repository manager with automatic backup/restore...${NC}"
-    add_php_repository_from_apt_repository_manager \
+    # Use PHP repository manager: add repo permanently so install_php_core and re-runs work (idempotent).
+    echo -e "${YELLOW}$SCRIPT_INDEX Using PHP repository manager (permanent repo for idempotent repair)...${NC}"
+    add_php_repository_permanent_from_apt_repository_manager \
         "$os_id" \
         "$os_codename" \
         "$USE_SUDO apt install -y php8.5 php8.5-cli php8.5-fpm php8.5-common php8.5-mysql php8.5-zip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
@@ -1147,6 +1147,7 @@ install_php_fpm() {
 # Configuration functions moved to 32_configure_php85.sh
 
 # 4.6 Main installation execution function
+# Idempotent: run every step every time. Do not skip a step because a previous step succeeded; only exit on hard failure.
 execute_installation() {
     echo -e "${CYAN}$SCRIPT_INDEX [EXECUTION] Starting PHP 8.5 installation process...${NC}"
 
@@ -1330,15 +1331,11 @@ main() {
         echo -e "${YELLOW}$SCRIPT_INDEX Old PHP cleanup completed with warnings${NC}"
     }
 
-    # STEP 2: ALWAYS try to fix missing extensions if PHP 8.5 exists (精细化修复第2�?
-    if command -v php8.5 >/dev/null 2>&1; then
-        echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Checking and fixing PHP extensions...${NC}"
-        fix_missing_extensions || {
-            echo -e "${YELLOW}$SCRIPT_INDEX Extension fix completed with warnings${NC}"
-        }
-    else
-        echo -e "${YELLOW}$SCRIPT_INDEX [STEP 2/5] PHP 8.5 not found, skipping extension fix${NC}"
-    fi
+    # STEP 2: ALWAYS run extension check/fix (idempotent; no-op if php8.5 not present).
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Checking and fixing PHP extensions...${NC}"
+    fix_missing_extensions || {
+        echo -e "${YELLOW}$SCRIPT_INDEX Extension fix completed with warnings${NC}"
+    }
 
     # STEP 3: ALWAYS fix symbolic link (精细化修复第3�?
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Fixing PHP symbolic link...${NC}"
@@ -1352,13 +1349,9 @@ main() {
         echo -e "${YELLOW}$SCRIPT_INDEX Symbolic link verification completed with warnings${NC}"
     }
 
-    # STEP 5: If not fully installed, run full installation (精细化修复第5�?
-    if [ $pre_check_result -ne 0 ]; then
-        echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Running full installation/repair...${NC}"
-        execute_installation
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX [STEP 5/5] PHP already installed, repairs completed${NC}"
-    fi
+    # STEP 5: ALWAYS run full installation/repair (idempotent). Do not skip because one step succeeded.
+    echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Running full installation/repair (idempotent)...${NC}"
+    execute_installation
 
     # Phase 3: Post-installation verification (ALWAYS run)
     echo -e "${BLUE}$SCRIPT_INDEX [FINAL] Running comprehensive verification...${NC}"

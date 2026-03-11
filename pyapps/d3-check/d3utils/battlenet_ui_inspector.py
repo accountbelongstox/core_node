@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Battle.net UI inspector: classify controls for automation (main window vs in-UI popup).
-Used by try_close_popup to close only in-UI ad/overlay popups, not the main window (login/client) close button.
+
+- In-UI floating popup (ad overlay): small overlay on main or login UI with a close button (Close or automation_id
+  containing winCloseButton but not the main title bar). try_close_popup clicks only these.
+- Main window (login client): the Battle.net main window; the title-bar X is main window close (automation_id
+  with topLayerContainer.TopLayer.buttonContainer and winCloseButton); never click it (would close the whole client).
 """
 from typing import List, Dict, Any, Tuple
 
@@ -40,7 +44,7 @@ def is_popup_close_button_by_automation_id(automation_id: str) -> bool:
 
 
 def is_popup_close_button_by_name(name: str) -> bool:
-    """True if control name matches Close/关闭 (for fallback when automation_id not used)."""
+    """True if control name matches popup close keywords (fallback when automation_id not used)."""
     if not (name or "").strip():
         return False
     n = (name or "").strip()

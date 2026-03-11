@@ -1,0 +1,54 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Shared WPF theme (semantic tokens). Source: d3check; aligned with DOT_D3CHECK_UI_LIBRARY §2. -->
+  <!-- Backgrounds -->
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="#1a1a2e"/>
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="#16213e"/>
+  <SolidColorBrush x:Key="BackgroundTertiaryBrush" Color="#0f3460"/>
+  <SolidColorBrush x:Key="BackgroundDarkBrush" Color="#0a0a0a"/>
+  <SolidColorBrush x:Key="BackgroundLightBrush" Color="#f0f0f0"/>
+  <SolidColorBrush x:Key="BackgroundHoverBrush" Color="#2a2a3e"/>
+  <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#2E3440"/>
+  <SolidColorBrush x:Key="PanelHeaderBrush" Color="#3B4252"/>
+  <!-- Text -->
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#e0e0e0"/>
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#00d4ff"/>
+  <SolidColorBrush x:Key="TextTertiaryBrush" Color="#a0a0a0"/>
+  <SolidColorBrush x:Key="TextMutedBrush" Color="#888888"/>
+  <SolidColorBrush x:Key="TextDarkBrush" Color="#1a1a1a"/>
+  <SolidColorBrush x:Key="TextAccentBrush" Color="#ff6b6b"/>
+  <SolidColorBrush x:Key="TextSuccessBrush" Color="#00ff88"/>
+  <SolidColorBrush x:Key="TextWarningBrush" Color="#ff9800"/>
+  <SolidColorBrush x:Key="TextErrorBrush" Color="#ff4444"/>
+  <!-- Buttons -->
+  <SolidColorBrush x:Key="ButtonPrimaryBrush" Color="#4CAF50"/>
+  <SolidColorBrush x:Key="ButtonPrimaryHoverBrush" Color="#45a049"/>
+  <SolidColorBrush x:Key="ButtonSecondaryBrush" Color="#f44336"/>
+  <SolidColorBrush x:Key="ButtonSuccessBrush" Color="#00ff88"/>
+  <SolidColorBrush x:Key="ButtonDangerBrush" Color="#ff4444"/>
+  <SolidColorBrush x:Key="ButtonAccentBrush" Color="#ff9800"/>
+  <SolidColorBrush x:Key="ButtonInfoBrush" Color="#2196F3"/>
+  <!-- Inputs -->
+  <SolidColorBrush x:Key="InputBackgroundBrush" Color="#2a2a3e"/>
+  <SolidColorBrush x:Key="InputTextBrush" Color="#e0e0e0"/>
+  <SolidColorBrush x:Key="InputBorderBrush" Color="#00d4ff"/>
+  <SolidColorBrush x:Key="InputFocusBorderBrush" Color="#2196F3"/>
+  <!-- Borders / decoration -->
+  <SolidColorBrush x:Key="BorderPrimaryBrush" Color="#00d4ff"/>
+  <SolidColorBrush x:Key="BorderSubtleBrush" Color="#2a2a3e"/>
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#2a2a3e"/>
+  <SolidColorBrush x:Key="PanelBorderBrush" Color="#4C566A"/>
+  <!-- Tabs -->
+  <SolidColorBrush x:Key="TabUnselectedBackgroundBrush" Color="#4C566A"/>
+  <SolidColorBrush x:Key="TabUnselectedForegroundBrush" Color="#ECEFF4"/>
+  <SolidColorBrush x:Key="TabSelectedBackgroundBrush" Color="#16213e"/>
+  <SolidColorBrush x:Key="TabSelectedForegroundBrush" Color="#e0e0e0"/>
+  <SolidColorBrush x:Key="TabHoverBackgroundBrush" Color="#4C566A"/>
+  <!-- Accents -->
+  <SolidColorBrush x:Key="AccentDefaultBrush" Color="#00d4ff"/>
+  <SolidColorBrush x:Key="AccentBlueBrush" Color="#2196F3"/>
+  <SolidColorBrush x:Key="AccentCyanBrush" Color="#00d4ff"/>
+  <SolidColorBrush x:Key="AccentRedBrush" Color="#ff6b6b"/>
+  <SolidColorBrush x:Key="AccentOrangeBrush" Color="#ff9800"/>
+  <SolidColorBrush x:Key="AccentGreenBrush" Color="#00ff88"/>
+</ResourceDictionary>

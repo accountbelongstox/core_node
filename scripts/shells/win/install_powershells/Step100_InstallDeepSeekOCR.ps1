@@ -162,14 +162,14 @@ function Install-DeepSeekOCRDependencies {
 
     Write-Host "$SCRIPT_INDEX Installing Python dependencies..." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX Using Python command: $PythonCommand" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires cuda11.8+torch2.6.0" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires cuda12+torch (latest)" -ForegroundColor White
 
     try {
         Push-Location $InstallDirectory
 
-        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch 2.6.0 with CUDA 11.8..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch (latest) with CUDA 12.6..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+        & $PythonCommand -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Step 2: Installing core dependencies..." -ForegroundColor Cyan
@@ -177,9 +177,9 @@ function Install-DeepSeekOCRDependencies {
         & $PythonCommand -m pip install transformers accelerate pillow einops timm sentencepiece protobuf
         Write-Host ""
 
-        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn 2.7.3..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn (latest)..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install flash-attn==2.7.3 --no-build-isolation
+        & $PythonCommand -m pip install flash-attn --no-build-isolation
         Write-Host ""
 
         Pop-Location
@@ -228,8 +228,7 @@ print('[INFO] Download timeout: 3600s (1 hour)')
 
 tokenizer = AutoTokenizer.from_pretrained(
     model_name,
-    trust_remote_code=True,
-    resume_download=True
+    trust_remote_code=True
 )
 print('[OK] Tokenizer loaded successfully')
 
@@ -238,8 +237,7 @@ model = AutoModel.from_pretrained(
     model_name,
     _attn_implementation='flash_attention_2',
     trust_remote_code=True,
-    use_safetensors=True,
-    resume_download=True
+    use_safetensors=True
 )
 print('[OK] Model loaded successfully')
 
@@ -297,77 +295,87 @@ function Test-DeepSeekOCRInstallation {
     Write-Host "$SCRIPT_INDEX DeepSeek-OCR is ready to use!" -ForegroundColor Green
     Write-Host ""
 
+    $hfDir = Join-Path $InstallDirectory "DeepSeek-OCR-master\DeepSeek-OCR-hf"
+    $vllmDir = Join-Path $InstallDirectory "DeepSeek-OCR-master\DeepSeek-OCR-vllm"
+
     $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
     if (-not (Test-Path $cacheDir)) {
         New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
     }
 
-    $batScriptPath = Join-Path $cacheDir "deepseek_ocr_usage.bat"
-    $batScript = @"
+    $batHfPath = Join-Path $cacheDir "deepseek_ocr_test_hf.bat"
+    $batHf = @"
 @echo off
 chcp 65001 >nul
-echo ========================================
-echo   DeepSeek-OCR Usage Guide
-echo ========================================
+echo For PowerShell use: Set-Location "`^`"$hfDir`^`"; python run_dpsk_ocr.py
 echo.
-echo This script shows you how to use DeepSeek-OCR
+cd /d "$hfDir"
+echo Running DeepSeek-OCR HuggingFace demo...
 echo.
-echo Press any key to see usage examples...
-pause >nul
-echo.
-echo ========================================
-echo   USAGE EXAMPLES
-echo ========================================
-echo.
-echo 1. HuggingFace Transformers (Basic):
-echo    cd /d "$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-hf"
-echo    python run_dpsk_ocr.py
-echo.
-echo 2. vLLM (Better Performance):
-echo    cd /d "$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-vllm"
-echo    python run_dpsk_ocr_image.py
-echo.
-echo ========================================
-echo   SUPPORTED MODES
-echo ========================================
-echo.
-echo - Native resolution: 512x512, 640x640, 1024x1024, 1280x1280
-echo - Dynamic resolution: Gundam mode
-echo - OCR, Document to Markdown, Figure parsing
-echo.
-echo ========================================
-echo.
-echo For more information, check the README in:
-echo $InstallDirectory
+python run_dpsk_ocr.py
 echo.
 pause
 "@
+    $batHf | Out-File -FilePath $batHfPath -Encoding ASCII
 
-    $batScript | Out-File -FilePath $batScriptPath -Encoding ASCII
+    $batVllmPath = Join-Path $cacheDir "deepseek_ocr_test_vllm.bat"
+    $batVllm = @"
+@echo off
+chcp 65001 >nul
+echo For PowerShell use: Set-Location "`^`"$vllmDir`^`"; python run_dpsk_ocr_image.py
+echo.
+cd /d "$vllmDir"
+echo Running DeepSeek-OCR vLLM demo...
+echo.
+python run_dpsk_ocr_image.py
+echo.
+pause
+"@
+    $batVllm | Out-File -FilePath $batVllmPath -Encoding ASCII
 
-    Write-Host "$SCRIPT_INDEX Usage guide script generated at: $batScriptPath" -ForegroundColor Cyan
-    Write-Host "$SCRIPT_INDEX Opening usage guide..." -ForegroundColor Cyan
+    $batUsagePath = Join-Path $cacheDir "deepseek_ocr_usage.bat"
+    $batUsage = @"
+@echo off
+chcp 65001 >nul
+echo ========================================
+echo   DeepSeek-OCR Usage
+echo ========================================
+echo.
+echo Auto-running HuggingFace demo (Basic)...
+echo For vLLM demo run: $batVllmPath
+echo.
+cd /d "$hfDir"
+python run_dpsk_ocr.py
+echo.
+pause
+"@
+    $batUsage | Out-File -FilePath $batUsagePath -Encoding ASCII
+
+    Write-Host "$SCRIPT_INDEX Test scripts generated:" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX   HF (Basic):   $batHfPath" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   vLLM:         $batVllmPath" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   Usage (runs HF): $batUsagePath" -ForegroundColor White
+    Write-Host ""
+    Write-Host "$SCRIPT_INDEX Opening HF test in new window..." -ForegroundColor Cyan
     Write-Host ""
 
-    Start-Process -FilePath $batScriptPath
-
-    Write-Host "$SCRIPT_INDEX Usage guide opened in new window" -ForegroundColor Green
-    Write-Host "$SCRIPT_INDEX You can refer to it for usage examples" -ForegroundColor Green
-    Write-Host ""
+    Start-Process -FilePath $batHfPath
 
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
-    Write-Host "$SCRIPT_INDEX   USAGE EXAMPLES" -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX   USAGE (PowerShell)" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "$SCRIPT_INDEX 1. HuggingFace Transformers (Basic):" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX    cd /d `"$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-hf`"" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX    python run_dpsk_ocr.py" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX Do NOT use 'cd /d' in PowerShell (CMD only). Use Set-Location:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "$SCRIPT_INDEX 2. vLLM (Better Performance):" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX    cd /d `"$InstallDirectory\DeepSeek-OCR-master\DeepSeek-OCR-vllm`"" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX    python run_dpsk_ocr_image.py" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX HF (Basic):" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   Set-Location `"$hfDir`"; python run_dpsk_ocr.py" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "$SCRIPT_INDEX For more information, check: $InstallDirectory" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX vLLM:" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   Set-Location `"$vllmDir`"; python run_dpsk_ocr_image.py" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "$SCRIPT_INDEX Or double-click / run in CMD:" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX   $batHfPath" -ForegroundColor Gray
+    Write-Host "$SCRIPT_INDEX   $batVllmPath" -ForegroundColor Gray
     Write-Host ""
 
     return $true

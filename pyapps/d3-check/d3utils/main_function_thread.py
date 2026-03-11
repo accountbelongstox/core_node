@@ -15,6 +15,8 @@ from typing import Callable, Optional
 from pycore.pyfoundations.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe
 from providor.constants.common import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
+from share.game_interface_data import get_game_interface_data
+from d3utils.macro_config_ops import run_one_skill_tick
 
 
 class MainFunctionThread(threading.Thread):
@@ -29,7 +31,7 @@ class MainFunctionThread(threading.Thread):
         on_macro_started: Optional[Callable[[], None]] = None,
         on_macro_stopped: Optional[Callable[[], None]] = None,
     ):
-        super().__init__(daemon=True)
+        threading.Thread.__init__(self, daemon=True)
         self._schedule = schedule_on_main_thread
         self._on_macro_started = on_macro_started
         self._on_macro_stopped = on_macro_stopped
@@ -37,6 +39,7 @@ class MainFunctionThread(threading.Thread):
         self._shutdown = threading.Event()
         self._macro_running = False
         self._current_skill_config = "config1"
+        self._last_skill_times: dict = {}
         self._log = logging.getLogger(__name__)
 
     def put_command(self, cmd: str) -> None:
@@ -78,35 +81,22 @@ class MainFunctionThread(threading.Thread):
         ColorPrint.yellow("[MainFunctionThread] Stopped")
 
     def _macro_loop_once(self) -> None:
-        """One iteration of macro loop (skill execution)."""
+        """One iteration of macro loop: send keys to D3 per current config (interval/delay/strategy)."""
         try:
+            hwnd = get_game_interface_data()._window_hwnd
+            if not hwnd:
+                time.sleep(0.1)
+                return
             skill_config = get_config_value_safe(
                 f"macro_configs.skill_configs.{self._current_skill_config}", {}
             ) or {}
             auxiliary_config = get_config_value_safe("macro_configs.auxiliary_config") or {}
             config = {**skill_config, **auxiliary_config}
-            skills = config.get("skills", {})
-
-            for skill_name, sc in skills.items():
-                if not self._macro_running or self._shutdown.is_set():
-                    break
-                if sc.get("strategy") == "禁用":  # Disabled (CN config value)
-                    continue
-                self._execute_skill(skill_name, sc)
-                time.sleep(0.01)
+            self._last_skill_times = run_one_skill_tick(hwnd, config, self._last_skill_times)
             time.sleep(0.1)
         except Exception as e:
             self._log.error("Macro loop: %s", e)
             time.sleep(1)
-
-    def _execute_skill(self, skill_name: str, skill_config: dict) -> None:
-        """Execute a single skill (placeholder)."""
-        self._log.debug(
-            "Executing %s: %s - Key: %s",
-            skill_name,
-            skill_config.get("strategy"),
-            skill_config.get("key"),
-        )
 
 
 _instance: Optional[MainFunctionThread] = None

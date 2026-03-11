@@ -56,50 +56,27 @@ class D4BlackScreenDetector:
         Returns:
             True if image is black screen, False otherwise
         """
-        try:
-            # Convert to numpy array if PIL Image
-            if isinstance(image, Image.Image):
-                img_array = np.array(image)
-            else:
-                img_array = image
-
-            # Ensure we have a valid image
-            if img_array is None or img_array.size == 0:
-                ColorPrint.yellow("[D4BlackScreenDetector] Invalid image provided")
-                return False
-
-            # Handle grayscale images (2D array)
-            if len(img_array.shape) == 2:
-                # Grayscale: check if all pixels are below threshold
-                black_mask = img_array <= threshold
-            # Handle color images (3D array)
-            elif len(img_array.shape) == 3:
-                # RGB/BGR: check if ALL channels are below threshold
-                # A pixel is black if R <= threshold AND G <= threshold AND B <= threshold
-                black_mask = np.all(img_array <= threshold, axis=2)
-            else:
-                ColorPrint.yellow(f"[D4BlackScreenDetector] Unexpected image shape: {img_array.shape}")
-                return False
-
-            # Calculate percentage of black pixels
-            total_pixels = black_mask.size
-            black_pixels = np.sum(black_mask)
-            black_ratio = black_pixels / total_pixels
-
-            # Check if enough pixels are black
-            is_black = black_ratio >= black_percentage
-
-            # Debug output
-            if is_black:
-                ColorPrint.blue(f"[D4BlackScreenDetector] Black screen detected: {black_ratio*100:.1f}% black pixels")
-
-            return is_black
-
-        except Exception as e:
-            ColorPrint.red(f"[D4BlackScreenDetector] Error detecting black screen: {e}")
-            import traceback
-            traceback.print_exc()
+        if isinstance(image, Image.Image):
+            img_array = np.array(image)
+        else:
+            img_array = image
+        if img_array is None or img_array.size == 0:
+            ColorPrint.yellow("[D4BlackScreenDetector] Invalid image provided")
             return False
+        if len(img_array.shape) == 2:
+            black_mask = img_array <= threshold
+        elif len(img_array.shape) == 3:
+            black_mask = np.all(img_array <= threshold, axis=2)
+        else:
+            ColorPrint.yellow(f"[D4BlackScreenDetector] Unexpected image shape: {img_array.shape}")
+            return False
+        total_pixels = black_mask.size
+        black_pixels = np.sum(black_mask)
+        black_ratio = black_pixels / total_pixels
+        is_black = black_ratio >= black_percentage
+        if is_black:
+            ColorPrint.blue(f"[D4BlackScreenDetector] Black screen detected: {black_ratio*100:.1f}% black pixels")
+        return is_black
 
     @staticmethod
     def get_brightness_stats(image: Union[Image.Image, np.ndarray]) -> dict:
@@ -118,29 +95,20 @@ class D4BlackScreenDetector:
                 'std': standard deviation
             }
         """
-        try:
-            # Convert to numpy array if PIL Image
-            if isinstance(image, Image.Image):
-                img_array = np.array(image)
-            else:
-                img_array = image
-
-            # Calculate brightness (average of all channels)
-            if len(img_array.shape) == 3:
-                brightness = np.mean(img_array, axis=2)
-            else:
-                brightness = img_array
-
-            return {
-                'mean': float(np.mean(brightness)),
-                'min': float(np.min(brightness)),
-                'max': float(np.max(brightness)),
-                'std': float(np.std(brightness))
-            }
-
-        except Exception as e:
-            ColorPrint.red(f"[D4BlackScreenDetector] Error getting brightness stats: {e}")
-            return {}
+        if isinstance(image, Image.Image):
+            img_array = np.array(image)
+        else:
+            img_array = image
+        if len(img_array.shape) == 3:
+            brightness = np.mean(img_array, axis=2)
+        else:
+            brightness = img_array
+        return {
+            'mean': float(np.mean(brightness)),
+            'min': float(np.min(brightness)),
+            'max': float(np.max(brightness)),
+            'std': float(np.std(brightness))
+        }
 
 
 # Convenience function for easy import

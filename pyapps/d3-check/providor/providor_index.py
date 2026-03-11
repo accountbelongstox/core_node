@@ -524,6 +524,16 @@ CACHE_DIR = os.path.join(CURRENT_USER_DATA_PATH, ".cache")
 
 # Global configuration object
 CONFIG = {}
+# Single control for first load: avoid dual "if not CONFIG" in load_config vs initialize_config
+_config_initialized = False
+
+
+def get_config_section(key: str, default: Optional[dict] = None) -> dict:
+    """Return CONFIG[key] only if it is a dict; otherwise return default or {}. Avoids 'str' object has no attribute 'get' when config value is wrong type."""
+    if default is None:
+        default = {}
+    val = CONFIG.get(key, default)
+    return val if isinstance(val, dict) else default
 
 # Dynamic path that needs DOCUMENTS_PATH
 DOCUMENTS_PATH = os.path.expanduser("~/Documents")
@@ -740,23 +750,15 @@ def sync_config():
 def fix_config_with_template():
     """Fix current CONFIG with template before saving"""
     try:
-        ColorPrint.print_min_interval("[DEBUG] Fixing CONFIG with template...", "1min", "gray")
-        
         # Load template config
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             template_config = json.load(f)
-        
         # Merge missing keys from template (template as source, CONFIG as target)
         # Only add missing keys, preserve existing user values
         modified = merge_template_to_config(template_config, CONFIG)
-        
         if modified:
-            ColorPrint.print_min_interval("[DEBUG] CONFIG fixed with missing keys from template", "1min", "gray")
-        else:
-            ColorPrint.print_min_interval("[DEBUG] CONFIG is already complete", "1min", "gray")
-            
+            ColorPrint.debug("[DEBUG] CONFIG fixed with missing keys from template")
         return modified
-        
     except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error fixing CONFIG with template: {e}")
         return False
@@ -821,6 +823,14 @@ def set_config_value_async(key_path: str, value: Any) -> None:
     CONFIG_QUEUE.put(("set", key_path, value, None))
 
 
+def queue_config_save() -> None:
+    """Request one save in background. Use from UI after direct CONFIG update so main thread never blocks on file I/O."""
+    try:
+        SAVE_QUEUE.put_nowait(None)
+    except queue.Full:
+        pass
+
+
 def get_config_value_safe(key_path: str, default: Any = None) -> Any:
     """Thread-safe get CONFIG value by dot path. Used by main thread and D3 extension thread."""
     result_q: queue.Queue = queue.Queue()
@@ -838,16 +848,16 @@ def set_config_value_safe(key_path: str, value: Any) -> bool:
 def save_config():
     """Save current CONFIG to user config file after fixing with template"""
     try:
-        ColorPrint.print_min_interval("[DEBUG] Saving current CONFIG to file...", "1min", "gray")
+        ColorPrint.gray("[DEBUG] Saving current CONFIG to file...")
 
         # Create user data directory if it doesn't exist
         if not os.path.exists(CURRENT_USER_DATA_PATH):
             os.makedirs(CURRENT_USER_DATA_PATH)
-            ColorPrint.print_min_interval(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}", "1min", "gray")
+            ColorPrint.gray(f"[DEBUG] Created user data directory: {CURRENT_USER_DATA_PATH}")
 
         # Clean up incorrect skill_configs at root level (legacy bug fix)
         if "skill_configs" in CONFIG and "macro_configs" in CONFIG:
-            ColorPrint.print_min_interval("[DEBUG] Removing incorrect root-level skill_configs", "1min", "gray")
+            ColorPrint.gray("[DEBUG] Removing incorrect root-level skill_configs")
             del CONFIG["skill_configs"]
 
         # Fix CONFIG with template before saving
@@ -857,64 +867,69 @@ def save_config():
         with open(CONFIG_USER_PATH, 'w', encoding='utf-8') as f:
             json.dump(CONFIG, f, indent=2, ensure_ascii=False)
 
-        ColorPrint.print_min_interval(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}", "1min", "gray")
+        ColorPrint.gray(f"[DEBUG] Current CONFIG saved to file: {CONFIG_USER_PATH}")
 
     except (OSError, json.JSONDecodeError) as e:
         ColorPrint.debug(f"[DEBUG] Error saving config: {e}")
         ColorPrint.red(f"Error saving config: {e}")
 
+def _do_initial_load():
+    """Single implementation for first-time config load: sync template then load file. Called by load_config and initialize_config."""
+    global CONFIG, _config_initialized
+    if _config_initialized:
+        return
+    ColorPrint.debug("[DEBUG] Initializing configuration (single entry)...")
+    sync_config()
+    try:
+        ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
+        with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+            CONFIG.update(json.load(f))
+        fix_config_with_template()
+        ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
+        ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
+        _config_initialized = True
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
+        ColorPrint.red(f"Error loading config: {e}")
+        CONFIG = {}
+
+
 def initialize_config():
-    """Initialize configuration with one-time fix on startup"""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Initializing configuration...")
-        
-        # Force sync on first load to ensure template fixes are applied
-        sync_config()
-        
-        try:
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
-            with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
-                CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
-        except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
+    """Initialize configuration with one-time fix on startup. Single entry: delegates to _do_initial_load."""
+    _do_initial_load()
+
 
 def load_config(force_sync: bool = False):
-    """Load configuration from JSON file if CONFIG is empty."""
-    global CONFIG
-    if not CONFIG:
-        ColorPrint.debug("[DEBUG] Starting config load...")
-        
-        # Only sync if explicitly requested or if user config doesn't exist
-        if force_sync or not os.path.exists(CONFIG_USER_PATH):
-            sync_config()
-        
+    """Load configuration: first load via _do_initial_load(); later force_sync only runs sync_config and reload from file."""
+    global CONFIG, _config_initialized
+    if not _config_initialized:
+        _do_initial_load()
+        return
+    if force_sync:
+        sync_config()
         try:
-            ColorPrint.debug(f"[DEBUG] Loading from user config file: {CONFIG_USER_PATH}")
             with open(CONFIG_USER_PATH, 'r', encoding='utf-8') as f:
+                CONFIG.clear()
                 CONFIG.update(json.load(f))
-            ColorPrint.debug(f"[DEBUG] Config file loaded successfully: {CONFIG_USER_PATH}")
-            ColorPrint.green(f"Configuration loaded from: {CONFIG_USER_PATH}")
+            ColorPrint.debug(f"[DEBUG] Config reloaded after sync: {CONFIG_USER_PATH}")
         except (OSError, json.JSONDecodeError) as e:
-            ColorPrint.debug(f"[DEBUG] Failed to load config file: {e}")
-            ColorPrint.red(f"Error loading config: {e}")
-            CONFIG = {}
-    else:
-        ColorPrint.debug("[DEBUG] Config file already loaded, skipping reload")
+            ColorPrint.debug(f"[DEBUG] Failed to reload config: {e}")
+
+# Fixed file paths under Documents (not configurable; log file vs history file are two distinct files)
+LOGS_FILE_RELATIVE = "RoS-BoT/Logs/logs.txt"
+HISTORY_FILE_RELATIVE = "RoS-BoT/Logs/history.txt"
+
 
 def get_dynamic_paths():
-    """Get paths that depend on DOCUMENTS_PATH"""
+    """Get paths that depend on DOCUMENTS_PATH."""
+    paths = get_config_section("paths")
     return {
-        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_relative", "RoS-BoT")),
-        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("rosbot_logs_relative", "RoS-BoT/Logs")),
-        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("d3check_temp_relative", ".d3check")),
-        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
-        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("logs_file_relative", "RoS-BoT/Logs/logs.txt")),
-        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, CONFIG.get("paths", {}).get("history_file_relative", "RoS-BoT/Logs/history.txt"))
+        'ROSBOT_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_relative", "RoS-BoT")),
+        'ROSBOT_LOGS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("rosbot_logs_relative", "RoS-BoT/Logs")),
+        'D3CHECK_TEMP_PATH': os.path.join(DOCUMENTS_PATH, paths.get("d3check_temp_relative", ".d3check")),
+        'ANNOTATED_SCREENSHOTS_PATH': os.path.join(DOCUMENTS_PATH, paths.get("annotated_screenshots_relative", ".d3check/annotated_screenshots")),
+        'LOGS_FILE_PATH': os.path.join(DOCUMENTS_PATH, LOGS_FILE_RELATIVE),
+        'HISTORY_FILE_PATH': os.path.join(DOCUMENTS_PATH, HISTORY_FILE_RELATIVE),
     }
 
 # Load configuration on import
@@ -946,7 +961,7 @@ PLAY_BUTTON_AUTO_ID = START_GAME_AUTOMATION_IDS[1]        # "play-btn"
 # ============================================================================
 # BATTLENET TEMPLATE CONFIGURATIONS - Battle.net client template paths and thresholds
 # ============================================================================
-# D3 small map: rename ScreenShot_2026-01-29_225845_569.png to d3_small_map.png under images/battlenet/
+# D3 small map: copy from images/logo.png (or login_try dir) to images/battlenet/d3_small_map.png when missing
 BATTLENET_TEMPLATE_CONFIGS = {
     "battlenet_d3_small_map": {
         "path": os.path.join(TEMPLATE_DIR, "battlenet", "d3_small_map.png"),

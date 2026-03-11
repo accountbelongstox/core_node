@@ -791,6 +791,24 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    # Step16 install source: this .ps1 only. ApplicationsList.xml/JSON are not loaded by install flow (see Step16 line 71).
+    # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
+    CursorAgent     = @{
+        Exec                = "agent.exe"
+        Name                = "CursorAgent"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Cursor Agent - AI-powered coding assistant (CLI)"
+        InstallType         = "powershell"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("agent", "cursor", "cursor-agent")
+        EnvVars             = @(
+            @{
+                Type = @("Path")
+            }
+        )
+        PowerShellCommand   = "irm 'https://cursor.com/install?win32=true' | iex"
+    }
     Bandizip        = @{
         PackageId            = "Bandisoft.Bandizip"
         Exec                = "Bandizip.exe"
@@ -1212,6 +1230,22 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    OpenClaw = @{
+        PackageId           = "openclaw"
+        Exec                = "openclaw"
+        Name                = "OpenClaw"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "OpenClaw - Personal AI assistant (https://openclaw.ai), WhatsApp/Telegram/Slack/Discord gateway with Pi RPC agent"
+        InstallType         = "npm"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AdditionalKeywords = @("openclaw", "claw", "openclaw-gateway")
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
         Exec               = "Tabby.exe"
@@ -1513,23 +1547,27 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
             }
         )
     }
-    # WeChat: use Step127_InstallWeChat.ps1 (official page download) instead of winget
-    # WeChat         = @{
-    #     PackageId           = "Tencent.WeChat"
-    #     Exec               = "WeChat.exe"
-    #     Name               = "WeChat"
-    #     DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
-    #     Description        = "Popular instant messaging and social media app"
-    #     InstallType        = "winget"
-    #     ForceToInstallDir  = $true
-    #     VerifySuffix       = ""
-    #     AdditionalKeywords = @($Global:CHINESE_WEIXIN, "WeChat", "Weixin")
-    #     DesktopShortcuts   = @(
-    #         @{
-    #             CreateDesktopShortcut = $true
-    #         }
-    #     )
-    # }
+    WeChat = @{
+        Exec               = "WeChat.exe"
+        Name               = "WeChat"
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
+        Description        = "Popular instant messaging and social media app"
+        InstallType        = "postscript"
+        InstallScript      = "WeChatInstallProcessor.ps1"
+        AdditionalKeywords = @($Global:CHINESE_WEIXIN, "WeChat", "Weixin")
+        InstallSearchPaths = @(
+            "C:\Program Files\Tencent\WeChat",
+            "C:\Program Files (x86)\Tencent\WeChat",
+            (Join-Path $env:LOCALAPPDATA "Tencent\WeChat"),
+            (Join-Path $env:APPDATA "Tencent\WeChat"),
+            (Join-Path $env:USERPROFILE "AppData\Roaming\Tencent\WeChat")
+        )
+        DesktopShortcuts   = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+    }
     OneTwoThreePan = @{
         PackageId           = "123.123pan"
         Exec               = "123pan.exe"

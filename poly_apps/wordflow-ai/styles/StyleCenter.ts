@@ -1,9 +1,31 @@
 /**
  * Style Center - Unified Style System
- * Centralized design tokens and style utilities
+ * Design Tokens: Blur-SM(4px) | Blur-MD(12px) | Blur-LG(24px). Border-Radius 24px, Shadow-Level.
  */
 
+const DesignTokens = {
+  glass: { opacity: 0.42, blur: '40px', borderHighlight: 'rgba(255, 255, 255, 0.22)' },
+  materialThin: { blur: '12px', opacity: 0.62 },
+  materialThick: { blur: '40px', opacity: 0.38 },
+  blur: { sm: '4px', md: '12px', lg: '24px', glass: '20px', ultra: '40px' },
+  radius: { sm: '8px', md: '16px', card: '24px', button: '24px', full: '9999px' },
+  shadow: {
+    sm: '0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02)',
+    md: '0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03)',
+    lg: '0 16px 48px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04)',
+    float: '0 24px 56px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04)',
+  },
+  layout: {
+    touchMin: 44,
+    gridUnit: 8,
+    pagePaddingH: 'var(--page-padding-h)',
+    pagePaddingV: 'var(--page-padding-v)',
+    barGap: 'var(--bar-gap)',
+  },
+};
+
 export const StyleCenter = {
+  tokens: DesignTokens,
   // Colors
   colors: {
     primary: '#3b82f6',      // blue-600
@@ -103,24 +125,27 @@ export const StyleCenter = {
     '3xl': '4rem',    // 64px
   },
 
-  // Border radius
+  // Border radius (align with Design Tokens)
   borderRadius: {
     none: '0',
-    sm: '0.25rem',    // 4px
-    md: '0.5rem',     // 8px
-    lg: '1rem',       // 16px
-    xl: '1.5rem',     // 24px
-    '2xl': '2rem',    // 32px
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+    xl: '1.5rem',
+    card: DesignTokens.radius.card,
+    button: DesignTokens.radius.button,
+    '2xl': '2rem',
     full: '9999px',
   },
 
-  // Shadows
+  // Shadows (Shadow-Level)
   shadows: {
-    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    md: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+    sm: DesignTokens.shadow.sm,
+    md: DesignTokens.shadow.md,
+    lg: DesignTokens.shadow.lg,
     xl: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
     '2xl': '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+    float: DesignTokens.shadow.float,
   },
 
   // Transitions
@@ -128,7 +153,9 @@ export const StyleCenter = {
     fast: '150ms',
     normal: '300ms',
     slow: '500ms',
-
+    easeSpring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    easeLiquid: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    easeSmooth: 'cubic-bezier(0.16, 1, 0.3, 1)',
     easing: {
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
@@ -157,13 +184,13 @@ export const StyleCenter = {
     '2xl': '1536px',
   },
 
-  // Common component styles
+  // Common component styles (base > personalized; use ds-* classes in CSS when possible)
   components: {
     button: {
       base: `
-        py-4 px-6 rounded-2xl font-bold tracking-wide
+        py-4 px-6 rounded-[var(--radius-button,24px)] font-bold tracking-wide
         transition-all duration-300 active:scale-[0.98]
-        flex items-center justify-center gap-2
+        flex items-center justify-center gap-2 ds-btn
       `,
       primary: `
         bg-blue-600 text-white
@@ -174,10 +201,10 @@ export const StyleCenter = {
       `,
       secondary: `
         bg-white/10 dark:bg-white/5
-        backdrop-blur-md
+        backdrop-blur-[var(--blur-md)]
         text-slate-700 dark:text-white
         hover:bg-white/20
-        border border-white/20 dark:border-white/10
+        border border-white/20 dark:border-white/10 ds-glass-edge
       `,
       danger: `
         bg-red-500/10 text-red-500
@@ -187,15 +214,12 @@ export const StyleCenter = {
     },
 
     card: `
-      holo-card rounded-[2rem] p-6
+      ds-card rounded-[var(--radius-card,24px)] p-6
       relative overflow-hidden group
-      border border-white/60 dark:border-white/10
-      bg-white/60 dark:bg-slate-800/40
     `,
 
     input: `
-      w-full px-4 py-3 rounded-xl
-      bg-white/5 dark:bg-white/5
+      w-full px-4 py-3 rounded-xl glass-input
       border border-white/20 dark:border-white/10
       text-slate-800 dark:text-white
       placeholder:text-slate-400

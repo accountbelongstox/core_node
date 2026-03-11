@@ -251,7 +251,7 @@ Response: {
             "model": "NVIDIA RTX 3070",
             "memory": 8192,  # MB
             "available": true,
-            "cuda_version": "11.8"
+            "cuda_version": "12.6"
         },
         "memory": {
             "total": 32768,  # MB

@@ -2,22 +2,37 @@
 # -*- coding: utf-8 -*-
 """
 Bottom Bar Component
-Row0 = macro + per-tab options, row1 = status, row2 = extra line (one line height).
-Uses BottomBarOptionsBlock and BottomBarStatusBlock sub-components.
+Row0 = macro + per-tab options, row1 = status block. Uses BottomBarOptionsBlock and BottomBarStatusBlock.
+Single creator for BottomBarOptionsBlock / BottomBarStatusBlock, instantiated only here.
 """
 
+import os
 import tkinter as tk
 import winsound
-from typing import Optional
+from typing import Callable, Optional
 from ..theme import UITheme
 from ..utils.tk_variables import var_bool, var_str
 from ..unified_styles import UnifiedStyles
-from d3utils.i18n_manager import I18nManager
+from providor.i18n_manager import i18n_manager
+from providor.providor_index import get_config_value_safe, set_config_value_async
+from providor.constants.common import BATTLE_NET_EXE_NAME
+from providor.constants.d3 import DIABLO_III_EXE_NAME, ROSBOT_DIR_NAMESPACE_ASIA, ROSBOT_DIR_NAMESPACE_CN
+from d3utils.rosbot_flow_f3_log_timeout import get_test_mode_display_string
+from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_update_manager import get_rosbot_update_manager
 from runtime import is_shutdown_requested
+from share.game_interface_data import get_game_interface_data
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 
-i18n_manager = I18nManager()
+_CONFIG_KEYS = ("config1", "config2", "config3", "config4")
+
+
+def _config_name_to_display(config_name: str) -> str:
+    """Return i18n display for config name (config1..config4); otherwise return as-is."""
+    if config_name in _CONFIG_KEYS:
+        return i18n_manager.get_ui_text("config_tabs." + config_name, default=config_name)
+    return config_name
 
 
 class BottomBar:
@@ -31,16 +46,24 @@ class BottomBar:
         self.custom_stand_var = var_bool(parent, False)
         self.custom_stand_key_var = var_str(parent, 'Shift')
         self.window_size = var_str(parent, "0x0")
-        self.config_name_var = var_str(parent, "Config 1")
+        _initial_config = get_config_value_safe("macro_configs.current_skill_config", "config1")
+        _config_display = _config_name_to_display(_initial_config)
+        self.config_name_var = var_str(parent, _config_display)
         self.battlenet_status = var_str(parent, "-")
+        self.battlenet_region = var_str(parent, "-")
         self.ros_status = var_str(parent, "-")
         self.ros_found_status = var_str(parent, "-")
         self.d3_status = var_str(parent, "-")
         self.map_status = var_str(parent, "-")
         self.stage_status = var_str(parent, "-")
         self.oauth_status = var_str(parent, "-")
+        self.test_mode_status = var_str(parent, "")
 
         self._value_labels = {}
+        self._path_icons = {}
+        self._row3_right_extra = None
+        self._region_changed_callback: Optional[Callable[[], None]] = None
+        self._mismatch_scan_triggered = False  # Trigger path scan at most once when version mismatch; reset when matched
 
         self.frame = tk.Frame(
             parent,
@@ -73,6 +96,7 @@ class BottomBar:
         status_container.grid_columnconfigure(0, weight=1)
         status_vars = {
             "battlenet": self.battlenet_status,
+            "battlenet_region": self.battlenet_region,
             "ros": self.ros_status,
             "ros_found": self.ros_found_status,
             "d3": self.d3_status,
@@ -80,23 +104,111 @@ class BottomBar:
             "stage": self.stage_status,
             "oauth": self.oauth_status,
             "window_size": self.window_size,
+            "test_mode": self.test_mode_status,
         }
-        self._status_block = BottomBarStatusBlock(status_container, status_vars, self._register_status_labels)
+        self._status_block = BottomBarStatusBlock(
+            status_container, status_vars, self._register_status_labels,
+            register_path_icons_cb=self._register_path_icons,
+            register_row3_right_extra_cb=self._register_row3_right_extra,
+        )
         self._status_block.frame.grid(row=0, column=0, sticky="ew")
 
-        # Row 2: extra line (one line height), placeholder
-        extra_line = tk.Frame(self.frame, bg=UITheme.get_color('bg_primary'), height=UnifiedStyles.LINE_HEIGHT)
-        extra_line.grid(row=2, column=0, columnspan=2, sticky="ew", padx=tab_pad, pady=(0, tab_pad))
-        extra_line.grid_propagate(False)
-        tk.Label(extra_line, text="—", bg=UITheme.get_color('bg_primary'), fg=UnifiedStyles.COLORS['text_muted'],
-                 font=UnifiedStyles.FONTS['small']).pack(side=tk.LEFT, anchor="w")
+        self._set_region_display_from_config()
+        self.refresh_path_icons()
+
+    def _region_display_text(self, region_key) -> str:
+        """Single source: region key -> display text (i18n)."""
+        i18n = i18n_manager
+        if region_key == "cn":
+            return i18n.get_ui_text("rosbot.server_cn") or "CN"
+        if region_key == "asia":
+            return i18n.get_ui_text("rosbot.server_asia") or "Asia"
+        return i18n.get_ui_text("rosbot.server_unknown") or "Unknown"
+
+    def _set_region_display_from_config(self) -> None:
+        """Set battlenet_region var from config/game_data so it shows at UI startup."""
+        g = get_game_interface_data()
+        region = g.get_battlenet_region()
+        if region is None:
+            region = get_config_value_safe("ros_settings.battlenet_region_cache")
+        self.battlenet_region.set(self._region_display_text(region) if region else self._region_display_text(None))
 
     def _register_status_labels(self, value_labels: dict):
         """Called by BottomBarStatusBlock: value_labels = var_key -> Label (for fg updates)."""
         self._value_labels = value_labels
 
+    def _register_path_icons(self, path_icons: dict):
+        """Called by BottomBarStatusBlock: path_icons = BN/D3/D4/ROS -> Label (fg = green when path found)."""
+        self._path_icons = path_icons
+
+    def _register_row3_right_extra(self, container: tk.Frame):
+        """Called by BottomBarStatusBlock: container for scan button etc."""
+        self._row3_right_extra = container
+
+    def get_row3_scan_container(self) -> Optional[tk.Frame]:
+        """Return the frame for row 3 right extra (scan button). Use as parent when creating the button so pack/grid are not mixed."""
+        return self._row3_right_extra
+
+    def set_region_changed_callback(self, cb: Optional[Callable[[], None]]) -> None:
+        """Set callback when Battle.net region changes; used to auto-trigger path scan to match ROSBOT."""
+        self._region_changed_callback = cb
+
+    def _ros_version_display_from_update_logic(self) -> str:
+        """ROS label: if parent of ros_dir is standard name (Asia_* or CN_* with version), use it; else fallback to parse version + Battle.net region."""
+        try:
+            ros_dir = get_rosbot_manager().get_ros_directory()
+            if not ros_dir:
+                return ""
+            parent = os.path.dirname(ros_dir)
+            parent_basename = os.path.basename(parent) if parent else ""
+            um = get_rosbot_update_manager()
+            # Standard dir = GameTools\\{Asia|CN}_{version}\\RosBot -> parent is Asia_36.0129 or CN_36.0129
+            is_standard = (
+                parent_basename.startswith(ROSBOT_DIR_NAMESPACE_ASIA + "_")
+                or parent_basename.startswith(ROSBOT_DIR_NAMESPACE_CN + "_")
+            ) and (um.parse_version_from_name(parent_basename) is not None)
+            if is_standard:
+                return parent_basename
+            # Non-standard dir (e.g. ros-bot7.18): parse version from path, prefix by Battle.net region if known
+            ver = um.parse_version_from_name(ros_dir)
+            if not ver:
+                return parent_basename or ""
+            version_str = um.version_to_str(ver)
+            region = get_game_interface_data().get_battlenet_region()
+            region_dir = ROSBOT_DIR_NAMESPACE_ASIA if region == "asia" else (ROSBOT_DIR_NAMESPACE_CN if region == "cn" else "")
+            if region_dir:
+                return f"{region_dir}_{version_str}"
+            return version_str
+        except Exception:
+            return ""
+
+    def refresh_path_icons(self):
+        """Update BN/D3/D4/ROS: check when path set, circle when not; ROS shows actual scanned dir name (e.g. Asia_36.0129); fg green/muted."""
+        if not self._path_icons:
+            return
+        C = UnifiedStyles.COLORS
+        check = "\u2713"  # check mark (has value)
+        circle = "\u25CB"  # circle (no value)
+        bn = (get_config_value_safe("battlenet.battlenet_path") or "").strip()
+        d3 = (get_config_value_safe("d3.d3_path") or "").strip()
+        ros = (get_config_value_safe("ros_settings.ros_directory") or "").strip()
+        bn_ok = bool(bn and os.path.isfile(bn) and os.path.basename(bn) == BATTLE_NET_EXE_NAME)
+        d3_ok = bool(d3 and os.path.isfile(d3) and os.path.basename(d3) == DIABLO_III_EXE_NAME)
+        ros_ok = bool(ros and (os.path.isdir(ros) or (os.path.isfile(ros) and ros.lower().endswith(".exe"))))
+        ros_ver = self._ros_version_display_from_update_logic()
+        ros_suffix = f" {ros_ver}" if ros_ver else ""
+        for key, lbl in self._path_icons.items():
+            if key == "BN":
+                lbl.config(text=f"{check if bn_ok else circle} BN", fg=C["success"] if bn_ok else C["text_muted"])
+            elif key == "D3":
+                lbl.config(text=f"{check if d3_ok else circle} D3", fg=C["success"] if d3_ok else C["text_muted"])
+            elif key == "D4":
+                lbl.config(text=f"{circle} D4", fg=C["text_muted"])
+            elif key == "ROS":
+                lbl.config(text=f"{check if ros_ok else circle} ROS{ros_suffix}", fg=C["success"] if ros_ok else C["text_muted"])
+
     def show_tab_content(self, tab_index: int):
-        """Show options row for the given main tab (0..5). Status row is shared, no change."""
+        """Show options row for the given main tab (0..4). Status row is shared, no change."""
         self._options_block.show_tab(tab_index)
 
     def pack(self, **kwargs):
@@ -106,7 +218,7 @@ class BottomBar:
         self.frame.grid(**kwargs)
 
     def update_config_status(self, config_name: str):
-        self.config_name_var.set(config_name)
+        self.config_name_var.set(_config_name_to_display(config_name))
         if self.sound_var.get():
             winsound.Beep(1000, 100)
 
@@ -124,10 +236,7 @@ class BottomBar:
     def on_window_status_update(self, window_info):
         if is_shutdown_requested():
             return
-        try:
-            self.parent.after(0, lambda w=window_info: self._do_window_status_ui_update(w))
-        except tk.TclError:
-            pass
+        self.parent.after(0, lambda w=window_info: self._do_window_status_ui_update(w))
 
     def _do_window_status_ui_update(self, window_info):
         if window_info:
@@ -138,14 +247,13 @@ class BottomBar:
         else:
             self.window_size.set("0x0")
         for key, lb in (self._value_labels or {}).items():
-            try:
-                if key == "window_size":
-                    lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
-            except tk.TclError:
-                pass
+            if key == "window_size":
+                lb.config(fg=UnifiedStyles.COLORS['success'] if window_info else UnifiedStyles.COLORS['error'])
 
     def update_status_from_state(self, state: dict):
         """Update all status vars and value label fg from state (state sync callback)."""
+        if not isinstance(state, dict):
+            return
         i18n = i18n_manager
         C = UnifiedStyles.COLORS
 
@@ -177,24 +285,42 @@ class BottomBar:
             bn_text = f"{bn_text}({region_suffix})"
         self.battlenet_status.set(bn_text)
 
+        self.battlenet_region.set(self._region_display_text(region_key))
+
+        # Rescan only when region changed: write cache and trigger scan when cache differs from current; UI uses async config write to avoid blocking main thread
+        if region_key in ("asia", "cn"):
+            cached = get_config_value_safe("ros_settings.battlenet_region_cache")
+            if cached != region_key:
+                set_config_value_async("ros_settings.battlenet_region_cache", region_key)
+                if cached is not None and self._region_changed_callback:
+                    self._region_changed_callback()
+            # When Battle.net and ROSBOT version mismatch, auto-scan once; trigger once, reset when matched
+            ros_dir = get_rosbot_manager().get_ros_directory() or ""
+            norm = os.path.normpath(ros_dir).lower()
+            match = (region_key == "asia" and (ROSBOT_DIR_NAMESPACE_ASIA.lower() in norm or "asia" in norm)) or (
+                region_key == "cn" and ROSBOT_DIR_NAMESPACE_CN.lower() in norm and ROSBOT_DIR_NAMESPACE_ASIA.lower() not in norm
+            )
+            if match:
+                self._mismatch_scan_triggered = False
+            elif ros_dir and not self._mismatch_scan_triggered and self._region_changed_callback:
+                self._mismatch_scan_triggered = True
+                self._region_changed_callback()
+
+        # ROS column: display only (ResetNum) per requirement; label "ROS:" from i18n.
         ros_ext = state.get("rosbot_extended_status") or "not_found"
-        exe_name = (state.get("rosbot_found_exe_name") or "").strip()
-        window_title = (state.get("rosbot_found_window_title") or "").strip()
-        ros_val = "-"
+        restart_count = state.get("rosbot_total_restart_count", 0)
+        if restart_count > 0:
+            fmt = i18n.get_ui_text("rosbot.restart_count_format") or "[R{count}]"
+            ros_val = fmt.format(count=restart_count)
+        else:
+            ros_val = "-"
         if ros_ext == "running":
-            ros_val = i18n.get_ui_text("rosbot.extended_running") or "运行中"
             ros_fg = C['success']
         elif ros_ext == "paused":
-            if exe_name or window_title:
-                fmt = i18n.get_ui_text("rosbot.ros_found_format", default="进程:{exe} 标题:{title}") or "进程:{exe} 标题:{title}"
-                ros_val = fmt.format(exe=exe_name or "-", title=window_title or "-")
-            else:
-                ros_val = i18n.get_ui_text("rosbot.extended_paused") or "暂停中"
             ros_fg = C['warning']
         else:
-            ros_val = i18n.get_ui_text("rosbot.not_found") or "未找到"
             ros_fg = C['error']
-        self.ros_status.set(ros_val or "-")
+        self.ros_status.set(ros_val)
 
         if not state.get("d3_running", False):
             self.d3_status.set(i18n.get_ui_text("rosbot.not_running"))
@@ -226,13 +352,18 @@ class BottomBar:
         )
         oauth_fg = C['success'] if oauth_connected else C['error']
 
+        region_fg = C['success'] if region_key in ("asia", "cn") else C['warning']
+
         fg_map = {
             "battlenet": bn_fg, "ros": ros_fg, "d3": d3_fg, "map": map_fg,
             "stage": stage_fg, "oauth": oauth_fg,
         }
         for key, lb in (self._value_labels or {}).items():
-            try:
-                if key in fg_map:
-                    lb.config(fg=fg_map[key])
-            except tk.TclError:
-                pass
+            if key in fg_map:
+                lb.config(fg=fg_map[key])
+
+        # Test mode row: always visible; left part shows elapsed/timeout/record when rosbot.test_mode is on
+        test_mode_on = bool(get_config_value_safe("rosbot.test_mode", False))
+        tm_text = (state.get("rosbot_test_mode_display") or get_test_mode_display_string() or "").strip() if test_mode_on else ""
+        self.test_mode_status.set(tm_text)
+        self.refresh_path_icons()

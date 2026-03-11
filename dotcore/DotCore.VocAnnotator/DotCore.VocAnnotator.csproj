@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotCore.VocAnnotator</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
+  </ItemGroup>
+</Project>

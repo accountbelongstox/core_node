@@ -7,6 +7,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.d3_manager import get_d3_manager
 from d3utils.key_send import send_f7_to_system
 from d3utils.rosbot_manager import get_rosbot_manager
+from d3utils.rosbot_flow_rosbot_exit_state import set_f7_sent_for_rosbot
 
 
 def run_f4_close_d3_send_f7() -> None:
@@ -14,7 +15,10 @@ def run_f4_close_d3_send_f7() -> None:
     get_d3_manager().kill_if_running()
     ColorPrint.blue("[F4] D3 process ended")
     if send_f7_to_system():
+        set_f7_sent_for_rosbot()
         ColorPrint.blue("[F4] F7 sent to system (close ROSBOT)")
     else:
         ColorPrint.yellow("[F4] F7 send failed")
-    get_rosbot_manager().kill_if_running()
+    mgr = get_rosbot_manager()
+    mgr.kill_if_running()  # synchronous (taskkill blocks); caller should refresh D3/ROSBOT so next tick gate sees gone
+    mgr.invalidate_lookup_cache()

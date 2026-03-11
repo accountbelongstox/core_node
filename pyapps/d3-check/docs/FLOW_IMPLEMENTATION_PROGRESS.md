@@ -129,7 +129,7 @@ BN 流内部可读 `get_bn_only_enabled()` 仅用于 no_activate 下的**提前�
 | 项 | 说明 |
 |----|------|
 | provider 返回值 | refresh_battlenet_status / refresh_d3_status / refresh_rosbot_status 当前为 void；若需流程根据「是否找到窗口」等做分支，可改为返回 bool 或结构体，流程根据返回值更新或重试。 |
-| 两流程状态显式分文件 | 当前 BN 流在 rosbot_flow_battlenet，Flow-master 逻辑在 process_task；若需「两个流程库」为两个独立模块（如 `flow_bn_only.py` 与 `flow_master.py` 各持状态并暴露 tick()），可再拆层，process_task 只调 flow_bn_only.tick() 或 flow_master.tick()。 |
+| 两流程状态显式分文件（**已由 `d3utils.rosbot_flow` 实现**） | 早期版本中 BN 流主要在 rosbot_flow_battlenet、Flow-master 逻辑主要在 process_task；现已按 [FLOW_ARCHITECTURE_DIRECTORY.md](FLOW_ARCHITECTURE_DIRECTORY.md) 拆出单一流程类库 `d3utils/rosbot_flow/`（含 BN-only 与 Flow-master 两个 flow 及其状态），Tick 入口仅调用 `tick_bn_only_flow()` / `tick_flow_master()`。今后如需新增流程状态/步骤，一律加在 `d3utils.rosbot_flow` 内，由该流程类库持有；不得在 controller/timers/UI 中自建流程状态。 |
 | 任务开关与 flow_state 严格同步 | 确保所有设置 rosbot_task 的地方（面板启动/停止、登录检查回调、扩展线程清理等）均仅根据 get_flow_master_enabled() / get_bn_only_enabled() 派生，不直接读 game_interface_data 的流程布尔。 |
 
 ### 5.3 状态与流程小结表

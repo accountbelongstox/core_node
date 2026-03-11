@@ -87,61 +87,36 @@ export const BottomTabNav = () => {
   };
 
   const handleTabClick = (tab: TabConfig) => {
-    // Navigate using the custom navigate function from AppContext
     const routePath = tab.route.startsWith('/') ? tab.route.slice(1) : tab.route;
     navigate(routePath);
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe">
-      <div className="w-full px-2">
-        <div className="flex items-center justify-around h-16">
+    <>
+      <nav className="ds-bar-pill" aria-label="Bottom navigation">
+        <div className="ds-bar-pill-inner">
           {tabs.map((tab) => {
             const isActive = isTabActive(tab);
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => handleTabClick(tab)}
-                className={`
-                  flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl
-                  transition-all duration-200 min-w-[64px] group
-                  ${isActive
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  }
-                `}
+                className={`ds-bar-tab ${isActive ? 'is-active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={tab.label}
               >
-                {/* Icon with active state animation */}
-                <div className={`
-                  transition-all duration-200
-                  ${isActive ? 'scale-110' : 'scale-100 group-hover:scale-105'}
-                `}>
+                <div className="ds-bar-tab-icon-wrap">
                   {isActive ? tab.activeIcon : tab.icon}
                 </div>
-
-                {/* Label */}
-                <span className={`
-                  text-xs font-medium transition-all duration-200
-                  ${isActive ? 'font-bold' : 'font-normal'}
-                `}>
-                  {tab.label}
-                </span>
-
-                {/* Active indicator */}
-                {isActive && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" />
-                )}
+                <span className="ds-bar-tab-label">{tab.label}</span>
               </button>
             );
           })}
         </div>
-      </div>
-
-      {/* Safe area spacer for iOS devices */}
-      <div className="h-safe" />
-    </nav>
+      </nav>
+    </>
   );
 };
 
-// Export default for convenience
 export default BottomTabNav;

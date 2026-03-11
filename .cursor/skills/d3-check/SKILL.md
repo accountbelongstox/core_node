@@ -76,7 +76,27 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
 - **SKILL.md format:** YAML frontmatter (required: `name`, `description`) then Markdown body. Use sections such as "When to Use" and "Instructions". Keep `name` matching the parent folder (e.g. `d3-check`).
 - **Adding or changing a norm:** (1) Add or edit the relevant subsection under Instructions in this SKILL.md. (2) If it is a project-wide standard, also add to `.cursor/rules` (e.g. `d3-check.mdc`) and keep `docs/PROJECT_STANDARDS.md` as canonical. (3) No duplicate wording across rules/skills/AGENTS; reference by section (e.g. §11) where possible.
 
-### 14. Summary
+### 15. Flow library vs. controllers（流程类库 vs 第三方）
+
+- **单一流程类库**：流程开关与所有步骤/节点状态只由 `d3utils.rosbot_flow*` 持有（见 `docs/FLOW_STATE_OWNERSHIP_DESIGN.md`、`docs/FLOW_ARCHITECTURE_DIRECTORY.md`、`docs/FLOW_IMPLEMENTATION_PROGRESS.md`）。  
+  - BN-only：`d3utils/rosbot_flow/flow_bn_only_state.py` + `flow_bn_only.py`  
+  - Flow-master：`d3utils/rosbot_flow/flow_master_driver.py` + `extension_flow_state.py`
+- **Tick 入口职责**：`d3utils.rosbot_task_processor.process_task()` 只读 `rosbot_flow_state`（flow_master_enabled / bn_only_enabled 等）并根据二次读结果调用 `tick_bn_only_flow()` / `tick_flow_master()`；**不在此新建流程状态**。
+- **controller / timers / UI 一律视为第三方**：例如 `controller/login_try_screenshot_controller.py`、`timers/one_shot_tasks.py`、`ui/panels/*`：  
+  - 只能调用 flow 层公开的 API（tick、F 步、BN helper 等），  
+  - **不得**自行维护 flow_master/bn_only/BN 步骤/extension_phase 等流程状态，也不得在流程外直接改这些状态。
+- 若需要新增流程步骤或状态：**只在 `d3utils.rosbot_flow*` 内扩展**，并同步上述三份文档；不要在 controller / timers / UI 里「补一个状态变量」。
+
+### 14. Code language and i18n (PROJECT_STANDARDS §11)
+
+- **Code**: Comments, docstrings, log messages, and identifiers in **English**.
+- **User-facing text**: Use **i18n** (e.g. `i18n_manager.get_ui_text(...)`); do not hardcode Chinese or other locale strings in feature code.
+- **Constants excepted**: Literal constants used for matching (e.g. UI keywords, window titles in `providor.constants`) remain as-is; do not change them for “code in English.”
+
+- **i18n single place**: Import only `from providor.i18n_manager import i18n_manager`; single init in providor.
+- **Reference UI JSON**: Docs reference JSON (e.g. Battle.net UI snapshot) is for human reference only; do not load at runtime; hardcode detection features in code (providor.constants).
+
+### 16. Summary
 
 | Need | Where |
 |------|--------|
@@ -87,6 +107,8 @@ Per Cursor docs (https://docs.cursor.com/context/skills):
 | One-shot | timers.one_shot_tasks.do_* |
 | Lifecycle/threads/events | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
+| Code language / i18n | §14 = PROJECT_STANDARDS §11: code English; UI via i18n; constants excepted |
+| i18n / reference JSON | §14: providor.i18n_manager only; do not load reference UI JSON; hardcode features |
 | Threads | THREAD_BUS_AND_REGISTRY.md |
 | Exception handling | §11: remove unnecessary catch; keep only websocket/task thread/Tk/queue/COM/network essentials |
 | Updating Cursor skills | §13: `.cursor/skills/<name>/SKILL.md`; frontmatter name+description; sync rules, PROJECT_STANDARDS |

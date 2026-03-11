@@ -185,11 +185,20 @@ pyapps/d3-check/
 
 ---
 
-## 六、导入规范
+## 六、导入规范与代码保证
+
+### 6.1 导入
 
 - **import 放在文件顶部**。除可选第三方包（如 `try: import pythoncom except ImportError: pythoncom = None` 在模块顶层）外，不在函数内写 import。
 - 禁止在业务逻辑中为“方便”在函数内写 import；新依赖一律顶部引入。
 - **出现循环引用时**：通过调整架构解决（拆模块、依赖注入、提取公共层等），不通过延迟导入规避。
+
+### 6.2 代码层面保证与异常
+
+- **禁止 getter 式/运行时再判断式调用**：不得用 `hasattr`/`callable`/`getattr(..., None)` 等方式在运行时判断再调用（如先判断是否有 `Exists` 再调用）。依赖的 API（如 uiautomation Control 的 `Exists()`、`GetChildren()`）在代码层面约定类型并直接调用，由调用方保证传入类型正确。
+- **可用性在代码层保证**：所用第三方/内部 API 的可用性通过架构与类型约定保证，不依赖运行时检测兜底。
+- **非必要的 catch 不使用**：仅在对进程/线程/COM/OS/网络等无法用前置条件完全避免异常的场景保留 try/except；其余用前置条件与直接调用。
+- **例外**：标准库/平台差异（如 `hasattr(signal, 'SIGBREAK')`）、非本模块控制的 polymorphic 数据（如外部模型输出、历史解析块的可选字段）可保留 hasattr/getattr，其余一律按上述直接调用。
 
 ---
 
@@ -233,9 +242,22 @@ pyapps/d3-check/
 | 流程步 | run_*；一次性 do_*；子步骤 step_* |
 | 重置 Flow-master BN 块 | reset_flow_master_bn_block() |
 | **流程禁止定时器** | 仅 tick 驱动；超时用 deadline/deadline_tick；流程步内禁止 time.sleep（§4.1） |
+| 代码语言 / 多语言 | §11：代码英文；用户可见文案 i18n；匹配/配置用常量除外 |
+| i18n 入口 | providor.i18n_manager 唯一；不加载参考用 UI JSON，特征硬编码 |
 
 ### D4 规范化核对清单
 
 - d4utils/：模块 **d4_*.py**；类名 **D4** + PascalCase；公开 getter **get_d4_***；日志标签与类名一致。
 - 包引用：仅 from d4utils.d4_* 或 controller.d4func；D4 不 import d3utils 流程/战网/ROSBOT；常量 D4_* 从 app_constants 或 share.game_interface_data。
 - 共用数据：get_d4_interface_data()、D4_STANDARD_COORDS 等在 share（迁移后 share.values）；公区功能 share.common。
+
+---
+
+## 十一、代码语言与多语言
+
+- **代码**：注释、文档字符串、日志文案、变量/函数命名等**一律使用英文**。
+- **其他（用户可见文案）**：界面文案、提示、按钮标签等**使用多语言**：通过 **providor i18n**（如 `i18n_manager.get_ui_text(...)`）获取，不在业务代码中写死中文或其它语言字符串。
+- **常量除外**：用于匹配、配置键、窗口标题关键字等**字面常量**（如 `providor.constants.common`、`providor.constants.d3` 中的元组/列表值）**保持现状**，不因“代码英文”而改动；新增匹配用常量仍可按需使用多语言字面量。
+- 与 §八 一致：字面常量进 providor；用户可见文案进 i18n JSON，代码侧仅引用 i18n key 或英文 fallback。
+- **i18n 单一入口**：`i18n_manager` 仅定义并初始化于 **providor/i18n_manager.py**；全项目统一 `from providor.i18n_manager import i18n_manager`，不在他处再实现或持有实例。
+- **参考用 UI 文档不加载**：docs 下用于“参考”的 UI 元素 JSON（如战网界面快照）仅供人工查阅；运行时**不得**读取该文件，检测用特征一律**硬编码**在代码中（如 `providor.constants.d3`）。

@@ -1,103 +1,154 @@
 """
-OCR CnOCR Engine Module
+OCR CnOCR Engine Module (pycore generic).
 Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, get_third_package_numpy.
-Supports 9-grid region recognition and offset calculation.
+Supports context (GPU/CPU) with CPU fallback, rec_model fallbacks (e.g. free doc model first), cand_alphabet for number-only.
 """
 import sys
-from typing import Optional, Tuple, List, Dict, Any, Union
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-# Add parent directory to path for ColorPrint
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
 from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
+from pycore.pyfoundations.cuda_detector import CUDADetector
+from pycore.pyfoundations.onnx_runtime_capability import is_onnx_cuda_usable
+from pycore.pyfoundations.ocr_prewarm_spec import REC_MORE_CONFIGS_CNOCR
 from pycore.pyfoundations.third_party import (
     get_third_package_cnocr,
     get_third_package_PIL_Image,
     get_third_package_numpy,
 )
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
 
 
+def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
+    """
+    Diagnose why CUDA is or is not loading. Returns (context_order, reason).
+    Ref: PyTorch torch.cuda.is_available(); CPU-only build has torch.version.cuda None/empty.
+    """
+    if torch is None:
+        return ("cpu",), "Could not import torch (install e.g. pip install torch)."
+    try:
+        cuda_compiled = getattr(torch.version, "cuda", None)
+        if cuda_compiled is None or (isinstance(cuda_compiled, str) and cuda_compiled.strip() == ""):
+            return ("cpu",), (
+                "PyTorch is CPU-only (not compiled with CUDA). "
+                "To use GPU: install CUDA build from https://pytorch.org/get-started/locally "
+                "(e.g. pip install torch --index-url https://download.pytorch.org/whl/cu126)."
+            )
+        if not torch.cuda.is_available():
+            return ("cpu",), (
+                "PyTorch is CUDA-built but torch.cuda.is_available() is False "
+                "(NVIDIA driver/CUDA runtime issue or no GPU). Check driver and nvidia-smi."
+            )
+        return ("gpu", "cpu"), "CUDA available; will try GPU first."
+    except Exception as e:
+        return ("cpu",), f"Could not check torch CUDA: {e}."
+
+
 class CnOCREngine:
     """
-    OCR Recognition Tool Class
-
-    Features:
-    1. Uses pycore third_party package manager for cnocr/Pillow/numpy
-    2. Support 9-grid region recognition (1-9)
-    3. Return recognition results and coordinate offsets
-    4. Default support for Chinese, Traditional Chinese, English, and numbers
-
-    Usage Example:
-        ocr = OCRTool()
-        ocr.init()
-
-        # Recognize entire image
-        result = ocr.ocr('image.png')
-
-        # Recognize grid position 5 (center)
-        result = ocr.ocr('image.png', grid_position=5)
+    OCR engine over CnOCR. Lazy-loaded via pycore third_party.
+    When prewarmed_instance is provided (from get_cnocr_prewarmed), uses it directly and skips init (per OCR_INIT doc).
+    - context: try GPU then CPU (fallback when no GPU / CUDA not available).
+    - rec_model_fallbacks: if primary rec model fails (e.g. paid model missing), try these (e.g. doc-densenet_lite_136-gru).
+    - cand_alphabet: optional, e.g. '0123456789' for number-only (use with number-densenet_lite_136-fc).
     """
 
-    def __init__(self, det_model_name: str = 'naive_det', rec_model_name: str = 'densenet_lite_136-gru'):
-        """
-        Initialize OCR Tool
-
-        Args:
-            det_model_name: Detection model name, default 'naive_det'
-            rec_model_name: Recognition model name, default 'densenet_lite_136-gru' (supports Chinese, English, numbers)
-        """
+    def __init__(
+        self,
+        det_model_name: str = "naive_det",
+        rec_model_name: str = "doc-densenet_lite_136-gru",
+        rec_model_fallbacks: Optional[List[str]] = None,
+        cand_alphabet: Optional[str] = None,
+        prewarmed_instance: Optional[Any] = None,
+    ):
         self.det_model_name = det_model_name
         self.rec_model_name = rec_model_name
+        self.rec_model_fallbacks = rec_model_fallbacks or []
+        self.cand_alphabet = cand_alphabet
         self._ocr_instance = None
         self._initialized = False
+        self._effective_context: Optional[str] = None
+        self._effective_rec_model: Optional[str] = None
+        if prewarmed_instance is not None:
+            self._ocr_instance = prewarmed_instance
+            self._initialized = True
+            self._effective_context = "gpu" if is_onnx_cuda_usable() else "cpu"
+            self._effective_rec_model = rec_model_name
 
     def init(self) -> bool:
         """
-        Initialize CnOCR engine.
-        Uses pycore third_party get_third_package_cnocr (DEPENDENCY_MAP: cnocr, PIL, numpy).
+        Initialize CnOCR engine. No-op when prewarmed_instance was provided. Otherwise tries (context, rec_model)
+        in order: gpu then cpu, primary rec_model then rec_model_fallbacks. First success wins.
         """
         if self._initialized:
-            ColorPrint.blue("[CnOCREngine] OCR already initialized, skipping re-initialization")
+            ColorPrint.blue("[CnOCREngine] OCR already initialized (prewarmed or previous init), skipping")
             return True
+
+        cnocr_module = get_third_package_cnocr()
+        if cnocr_module is None:
+            ColorPrint.red("[CnOCREngine] cnocr not available (install: pip install %s)" % get_cnocr_pip_package())
+            return False
 
         ColorPrint.yellow(f"\n{'=' * 60}")
         ColorPrint.yellow("[CnOCREngine] Initializing CnOCR Engine")
         ColorPrint.yellow(f"{'=' * 60}\n")
+        ColorPrint.blue("[CnOCREngine] Loading CnOCR models...")
+        ColorPrint.blue(f"[CnOCREngine] Detection model: {self.det_model_name}")
+        ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
 
-        try:
-            cnocr_module = get_third_package_cnocr()
-            if cnocr_module is None:
-                ColorPrint.red("[CnOCREngine] cnocr not available (install via third_party DEPENDENCY_MAP)")
-                return False
-            ColorPrint.blue(f"\n[CnOCREngine] Loading CnOCR models...")
-            ColorPrint.blue(f"[CnOCREngine] Detection model: {self.det_model_name}")
-            ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
+        CnOcr = cnocr_module.CnOcr
+        rec_models = [self.rec_model_name] + self.rec_model_fallbacks
+        last_error = None
+        context_order = ('gpu', 'cpu') if CUDADetector.is_cuda_available() else ('cpu',)
+        _, cuda_reason = _cuda_diagnostic()
+        ColorPrint.blue(f"[CnOCREngine] CUDA diagnostic: {cuda_reason}")
 
-            CnOcr = cnocr_module.CnOcr
-            self._ocr_instance = CnOcr(
-                det_model_name=self.det_model_name,
-                rec_model_name=self.rec_model_name
-            )
-            self._initialized = True
+        for context in context_order:
+            for rec in rec_models:
+                kwargs = {
+                    "det_model_name": self.det_model_name,
+                    "rec_model_name": rec,
+                    "context": context,
+                    "rec_more_configs": REC_MORE_CONFIGS_CNOCR,
+                }
+                if self.cand_alphabet is not None:
+                    kwargs["cand_alphabet"] = self.cand_alphabet
+                try:
+                    self._ocr_instance = CnOcr(**kwargs)
+                    self._initialized = True
+                    self._effective_context = context
+                    self._effective_rec_model = rec
+                    ColorPrint.green(f"\n{'=' * 60}")
+                    ColorPrint.green("[CnOCREngine] Engine initialized successfully!")
+                    ColorPrint.green(f"  Detection model: {self.det_model_name}")
+                    ColorPrint.green(f"  Recognition model: {self._effective_rec_model}")
+                    ColorPrint.green(f"  Context: {self._effective_context}")
+                    if self._effective_context == "gpu":
+                        ColorPrint.green("  CUDA loaded: yes")
+                    else:
+                        ColorPrint.green(f"  CUDA loaded: no. Reason: {cuda_reason}")
+                    ColorPrint.green(f"{'=' * 60}\n")
+                    return True
+                except Exception as e:
+                    last_error = e
+                    ColorPrint.gray(f"[CnOCREngine] Init failed (context={context}, rec={rec}): {e}")
+                    continue
 
-            ColorPrint.green(f"\n{'=' * 60}")
-            ColorPrint.green(f"[CnOCREngine] Engine initialized successfully!")
-            ColorPrint.green(f"  Detection model: {self.det_model_name}")
-            ColorPrint.green(f"  Recognition model: {self.rec_model_name}")
-            ColorPrint.green(f"{'=' * 60}\n")
-            return True
-        except Exception as e:
-            ColorPrint.red(f"\n{'=' * 60}")
-            ColorPrint.red(f"[CnOCREngine] Engine initialization failed: {e}")
-            ColorPrint.red(f"{'=' * 60}\n")
-            import traceback
-            traceback.print_exc()
-            return False
+        ColorPrint.red(f"\n{'=' * 60}")
+        ColorPrint.red(f"[CnOCREngine] Engine initialization failed: {last_error}")
+        ColorPrint.red(f"{'=' * 60}\n")
+        return False
 
     def _calculate_grid_region(
         self,
@@ -157,7 +208,8 @@ class CnOCREngine:
         Returns:
             Dict containing:
                 - text: Recognized text content
-                - raw_result: Raw OCR result
+                - raw_result: Raw OCR result (each item has 'text' and 'position' when det model is used;
+                  per cnocr doc, position is None when det_model_name=='naive_det')
                 - offset: Coordinate offset (x_offset, y_offset)
                 - region: Recognition region (left, top, right, bottom)
         """
@@ -191,15 +243,25 @@ class CnOCREngine:
             offset = (left, top)
             region = (left, top, right, bottom)
 
-        # Convert to numpy array
+        # Convert to numpy array and run OCR with already-initialized engine
         img_array = np.array(img)
-
-        # Perform OCR recognition
         ocr_result = self._ocr_instance.ocr(img_array)
 
+        # Normalize items: ensure 'position' is list of [x,y] (cnocr may return ndarray)
+        def _normalize_item(it: Dict) -> Dict:
+            out = dict(it)
+            pos = out.get("position")
+            if pos is not None and hasattr(pos, "tolist"):
+                out["position"] = pos.tolist()
+            elif pos is not None and isinstance(pos, (list, tuple)) and len(pos) >= 4:
+                out["position"] = [[float(p[0]), float(p[1])] for p in pos[:4]]
+            return out
+
+        ocr_result = [_normalize_item(it) for it in (ocr_result or [])]
+
         # Extract text content
-        text_lines = [item['text'] for item in ocr_result]
-        full_text = '\n'.join(text_lines)
+        text_lines = [item.get("text", "") for item in ocr_result]
+        full_text = "\n".join(text_lines)
 
         # Adjust coordinates if offset exists
         adjusted_result = ocr_result
@@ -207,20 +269,19 @@ class CnOCREngine:
             adjusted_result = []
             for item in ocr_result:
                 adjusted_item = item.copy()
-                if 'position' in adjusted_item:
-                    # Adjust position coordinates
-                    pos = adjusted_item['position']
-                    adjusted_item['position'] = [
+                if "position" in adjusted_item:
+                    pos = adjusted_item["position"]
+                    adjusted_item["position"] = [
                         [p[0] + offset[0], p[1] + offset[1]] for p in pos
                     ]
                 adjusted_result.append(adjusted_item)
 
         return {
-            'text': full_text,
-            'raw_result': adjusted_result,
-            'offset': offset,
-            'region': region,
-            'grid_position': grid_position
+            "text": full_text,
+            "raw_result": adjusted_result,
+            "offset": offset,
+            "region": region,
+            "grid_position": grid_position,
         }
 
     def ocr_for_single_line(
@@ -274,18 +335,30 @@ class CnOCREngine:
 
 
 # Convenience function
-def create_ocr(det_model_name: str = 'naive_det', rec_model_name: str = 'densenet_lite_136-gru') -> CnOCREngine:
+def create_ocr(
+    det_model_name: str = "naive_det",
+    rec_model_name: str = "doc-densenet_lite_136-gru",
+    rec_model_fallbacks: Optional[List[str]] = None,
+    cand_alphabet: Optional[str] = None,
+) -> CnOCREngine:
     """
-    Create and initialize OCR tool
+    Create and initialize OCR tool.
 
     Args:
         det_model_name: Detection model name
-        rec_model_name: Recognition model name
+        rec_model_name: Recognition model name (prefer free: doc-densenet_lite_136-gru)
+        rec_model_fallbacks: Fallback rec models if primary fails
+        cand_alphabet: Optional e.g. '0123456789' for number-only
 
     Returns:
         CnOCREngine: Initialized CnOCR engine instance
     """
-    ocr = CnOCREngine(det_model_name=det_model_name, rec_model_name=rec_model_name)
+    ocr = CnOCREngine(
+        det_model_name=det_model_name,
+        rec_model_name=rec_model_name,
+        rec_model_fallbacks=rec_model_fallbacks,
+        cand_alphabet=cand_alphabet,
+    )
     ocr.init()
     return ocr
 
