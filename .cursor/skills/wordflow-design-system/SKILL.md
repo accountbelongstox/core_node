@@ -46,7 +46,8 @@ Use this skill when working on **poly_apps/wordflow-ai** UI (手机 APP): mobile
 - **Surfaces:** `ds-glass`, **`ds-material-thin`**, **`ds-material-thick`**, `ds-glass-sm`, `ds-glass-md`, `ds-glass-lg`, `ds-glass-edge`
 - **Cards:** `ds-card`, `ds-card-flat`, `ds-card-elevated`
 - **Rows / lists:** `ds-row`
-- **Layout:** **`ds-page`** (adaptive full width + safe area, no max-width), **`ds-page-contained`** (optional max-width on ≥640px), **`ds-stack`**, **`ds-stack-tight`**, **`ds-grid-breathing`**, **`ds-touch-target`** (min 44×44px tap area)
+- **Layout:** **`ds-page`** (adaptive full width + safe area), **`ds-page-contained`**, **`ds-stack`**, **`ds-stack-tight`**, **`ds-grid-breathing`**, **`ds-touch-target`**
+- **Top bar (全局顶栏):** **AppLayout** wraps non-auth, non-immersive routes and provides **TopBar** (search capsule, **ThemeToggle**, **LanguageDropdown**, settings, avatar). **AuthLayout** provides **TopBar variant="minimal"** (theme + language only). **SearchOverlay** is used by AppLayout for full-screen search. Centralized components: **ThemeToggle**, **LanguageDropdown**, **TopBar**, **SearchOverlay**, **AppLayout**; all use ds-* base classes. Pages that need custom title/back can use **useTopBarOverrides** or keep **Header** (e.g. vocabulary_library).
 - **Empty state:** `ds-empty`
 - **Buttons:** `ds-btn`, **`ds-btn-pill`** (full stadium CTA), **`ds-btn-bento`** (Neo-Brutalism modular), **`ds-btn-fluid`** (Vibrant Fluidity gradient + motion)
 - **Labels:** `ds-section-label`
@@ -111,6 +112,14 @@ To keep glass and bar effects consistent:
 - **模糊步长 (Blur steps):** Use **`--glass-blur-sm`** 4px, **`--glass-blur-md`** 12px, **`--glass-blur-lg`** 20px for all backdrop-filter. No magic numbers.
 - **材质分层 (Material layers):** Every glass component = **Background (variable)** + **Backdrop-filter** + **Inner-border** (1px rgba white). Bar: `var(--bar-bg)` + `blur(var(--glass-blur-lg))` + `var(--bar-inner-border)`.
 - **Animation:** All tab/bar and card motion use **`--ease-spring`** / **`--ease-liquid`** (single cubic-bezier set). No linear easing.
+- **Mobile/adaptive:** Layout 自适应不限制宽度；padding 使用 `--page-padding-h/v` + `env(safe-area-inset-*)`；可点击区域 ≥ `--touch-min` (44px)。主题/组件/样式：基类 > 个性化。
+
+## 官方设计参考 (Official design references)
+
+- **iOS Human Interface Guidelines:** typography ≥17pt body, touch targets ≥44×44pt, safe area.
+- **Material Design 3:** 14pt minimum type, 48×48dp touch targets, breakpoints.
+- **WCAG 2.2:** contrast 4.5:1 (text), touch target ≥44×44px.
+- **Responsive/adaptive:** fluid grid (%), breakpoints (e.g. mobile ≤576px, tablet 577–768px), avoid fixed width for main content; use safe area for notched/foldable devices.
 
 ## 前沿设计要求 (Design Requirements for Replication)
 

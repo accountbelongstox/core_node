@@ -94,14 +94,34 @@ Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect Python executable (Windows prioritizes 'python' over 'python3')
+# Ensure GlobalVars loaded so $Global:PYTHON_EXE_PATH / $Global:PYTHON_DIR are available (same as DevInstaller / Run DevInstaller)
+$globalVarsPath = Join-Path $winCommonDirPath "GlobalVars.ps1"
+. $globalVarsPath
+
+# Resolve Python: prefer GLOBAL PYTHON EXE (DevInstaller), then python.exe in PATH (avoid Store "python" alias)
 $pythonExecutable = $null
-if (Get-Command python -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python"
-}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python3"
-}} else {{
-    Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
+if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {{
+    $pythonExecutable = $Global:PYTHON_EXE_PATH
+}} elseif ($Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {{
+    $pythonExeFromDir = Join-Path $Global:PYTHON_DIR "python.exe"
+    if (Test-Path -LiteralPath $pythonExeFromDir) {{
+        $pythonExecutable = $pythonExeFromDir
+    }}
+}}
+if (-not $pythonExecutable) {{
+    $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {{
+        $pythonExecutable = $pythonCmd.Source
+    }}
+}}
+if (-not $pythonExecutable) {{
+    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {{
+        $pythonExecutable = $pythonCmd.Source
+    }}
+}}
+if (-not $pythonExecutable) {{
+    Write-Host "[ERROR] Python not found. Cannot load SSH secrets. Run DevInstaller (dd menu -> Run DevInstaller) to install Python, or add python.exe to PATH." -ForegroundColor Red
 }}
 
 # Use relative path from script location to project root

@@ -111,12 +111,14 @@ export const Header = ({ title }: { title?: string }) => {
 
   return (
     <>
-        {/* Floating Header Island */}
-        <div className="fixed top-4 left-4 right-4 z-40 flex justify-center">
+        {/* Floating Header Island — adaptive (no max-width) */}
+        <div
+          className="fixed top-0 left-0 right-0 z-40 px-[max(var(--page-padding-h),env(safe-area-inset-left,0px))] pr-[max(var(--page-padding-h),env(safe-area-inset-right,0px))] pt-[env(safe-area-inset-top,0px)] pb-2"
+        >
             <div className={`
-                w-full max-w-md mx-auto rounded-full px-2 py-2 flex items-center gap-3 transition-all duration-500
+                w-full rounded-full px-2 py-2 flex items-center gap-3 transition-all duration-500
                 ${isScrolled 
-                   ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-lg border border-white/40 dark:border-white/10' 
+                   ? 'ds-glass ds-glass-edge' 
                    : 'bg-transparent border border-transparent'}
             `}>
                 <div className="flex-1 flex items-center justify-between gap-3 pl-2">
@@ -219,8 +221,8 @@ export const Header = ({ title }: { title?: string }) => {
             </div>
         </div>
 
-        {/* Announcement Ticker (Below Floating Header) */}
-        <div className="pt-20 px-6 pb-2 max-w-md mx-auto">
+        {/* Announcement Ticker — adaptive */}
+        <div className="pt-20 px-[max(var(--page-padding-h),env(safe-area-inset-left,0px))] pr-[max(var(--page-padding-h),env(safe-area-inset-right,0px))] pb-2">
              <div className="flex items-center gap-2 overflow-hidden py-1 opacity-80 hover:opacity-100 transition-opacity">
                  <span className="text-[10px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded shadow-sm shadow-blue-500/30">NEW</span>
                  <div className="flex-1 text-xs font-medium text-slate-600 dark:text-slate-400 truncate animate-slide-up">

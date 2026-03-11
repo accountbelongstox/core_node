@@ -2,7 +2,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons, Button } from '../../components/UI';
-import { Header } from '../../components/Header';
 import { api } from '../../services/api';
 import { WordGroup, Word } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../services/mockData';
@@ -205,12 +204,8 @@ const DashboardPage = () => {
   );
 
   return (
-    <div className="h-full flex flex-col bg-transparent">
-      <Header />
-
-      {/* Scrollable Content Container */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar pt-24 pb-32 animate-slide-up">
-        <div className="ds-page ds-stack">
+    <>
+    <div className="ds-stack pb-32">
         {/* Welcome Section */}
         <div className="mb-2">
             <span className="ds-section-label pl-1">
@@ -794,8 +789,7 @@ const DashboardPage = () => {
                 </div>
             )}
         </div>
-        </div>
-      </div>
+    </div>
 
       {/* Add to Group Modal */}
       {showAddToGroupModal && selectedLibraryForGroup && (
@@ -932,7 +926,7 @@ const DashboardPage = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
