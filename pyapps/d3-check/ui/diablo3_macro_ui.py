@@ -81,6 +81,18 @@ _PANEL_KEY_TO_ATTR = {
 }
 
 
+def _destroy_orphan_tk_default_root() -> None:
+    """ttk.Style() with no master creates an implicit Tk if no default root exists (tkinter.ttk.Style). Destroy that orphan before our real Tk() so only one top-level exists."""
+    dr = getattr(tk, "_default_root", None)
+    if dr is None:
+        return
+    try:
+        if dr.winfo_exists():
+            dr.destroy()
+    except tk.TclError:
+        pass
+
+
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
     
@@ -96,6 +108,7 @@ class Diablo3MacroUI:
             initial_config: Initial configuration name
         """
         set_windows_app_user_model_id("pycore.d3check.1.0")
+        _destroy_orphan_tk_default_root()
         self.root = tk.Tk()
         self._app_icon_photo = None
         self.resize_direction = None
@@ -432,7 +445,15 @@ class Diablo3MacroUI:
             self._set_window_icon()
         self.root.focus_force()
         # Deferred focus one frame later (report §5: avoid same-frame competition with SetWindowPos message handling)
-        self.root.after(10, lambda: self.root.focus_force() if self.root.winfo_exists() else None)
+        self.root.after(10, self._deferred_focus_after_taskbar_fix)
+
+    def _deferred_focus_after_taskbar_fix(self) -> None:
+        """Second focus tick after taskbar path; SetForegroundWindow merges input with the mapped HWND (report §1 C)."""
+        if not self.root.winfo_exists():
+            return
+        self.root.focus_force()
+        if sys.platform == "win32":
+            self._win32_set_foreground()
 
     def _win32_set_foreground(self):
         """Set this window as foreground on Windows (user32) so it receives input. Overrideredirect windows may not get focus from WM."""
@@ -447,10 +468,17 @@ class Diablo3MacroUI:
         """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash). Restore focus after topmost attr change."""
         self.root.lift()
         self.root.attributes("-topmost", True)
-        self.root.after(500, lambda: (
-            self.root.attributes("-topmost", False),
-            self.root.focus_force()  # Immediately restore focus after -topmost change to prevent input loss
-        ))
+        self.root.after(500, self._clear_first_run_topmost)
+
+    def _clear_first_run_topmost(self) -> None:
+        """After one-shot -topmost: lift, Tk focus, then Win32 SetForegroundWindow so pointer/keyboard hit the same HWND (overrideredirect; report §1 C)."""
+        if not self.root.winfo_exists():
+            return
+        self.root.attributes("-topmost", False)
+        self.root.lift()
+        self.root.focus_force()
+        if sys.platform == "win32":
+            self._win32_set_foreground()
 
     def restore_window_to_preset(self):
         """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
@@ -541,13 +569,13 @@ class Diablo3MacroUI:
 
     def _force_style_update(self):
         """Re-apply Dark.TNotebook styles via theme module (single source)."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
 
     def _apply_all_tab_styles(self):
         """Apply Dark.TNotebook styles via theme module."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
@@ -560,7 +588,7 @@ class Diablo3MacroUI:
 
     def _apply_tab_style(self, tab_id):
         """Re-apply Dark.TNotebook styles for tab (theme single source). During init skip full update() to avoid 6 redraws; single root.update at end of _create_main_tabs suffices."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         if self._initialization_complete:

@@ -20,13 +20,13 @@ import pyperclip
 # 每项格式: (x, y, interval_sec, [p2_sec], [use_ctrl_v], [inject_random_file])
 # 第5=True 时该坐标用 Ctrl+V 粘贴否则右键；第6=True 时随机读一个文件用 XML 包住塞到词首或词尾耗 Token
 CLICK_COORDINATES = [
-    (370, 272,  2*60, 2*60, False, True),
-    (1373, 320,  2*60, 2*60, False, True),
-    (518, 895,  2*60, 2*60, False, True),
-    (1372, 889,  2*60, 2*60, False, True),
-    (1426, 1411,  2*60, 2*60, False, True),
-    (453, 1637,  2*60, 2*60, False, True),
-    (2315, 418,  2*60, 2*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
+    (89, 1398,  0.8*60, 0.8*60, False, True),
+#    (267, 230,  1*60, 1*60, False, True),
+#    (437, 726,  1*60, 1*60, False, True),
+#    (413, 1129,  1*60, 1*60, False, True),
+#    (957, 1196,  1*60, 1*60, False, True),
+#    (1566, 254,  1*60, 1*60, False, True),
+#    (1549, 708,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
 ]
 # 每组随机抽几条拼成「先输出A；先输出B；…」一次塞给 Cursor，比单条更耗 Token。
 WASTE_PHRASE_GROUP_SIZE_MIN = 5
@@ -112,11 +112,6 @@ ANSWER_STRUCTURE_LANGUAGES = [
     "Русский", "العربية", "हिन्दी", "ไทย", "Tiếng Việt", "Indonesia", "Nederlands", "Polski", "Türkçe",
     "Svenska", "Dansk", "Norsk", "Suomi", "Ελληνικά", "Čeština", "Magyar", "Română", "Українська",
 ]
-"""
-那如果到时候出了差错这事我不兜的，因为去年我实在太累了。为了兜住这事我自己砸了10几万进去，本来我是不打算往这个项目里投一分钱的，我房子都卖了。
-我们现在只有锅，没有米啊。如果按这样那我们整个成本算下来，那投资真的不低了。现在只是把有限的金额全部投到AI上。团队全部虚拟在网络上。
-你没想到我用的是方案A和方案B的差别了，方案A是别人一看我在欧洲，无偿三我们干，方案B是你你的方案，我们拿不出东西和别人谈合作，只能出资或者发工资。这样我们成本很大。而且万一资金跟不上，谁来兜底。
-"""
 # 回答结构要求（重点提示）：文体 + 须用指定 3 种语言。{} 由脚本每次随机填 3 种语言，指定狗B Cursor 用这 3 种，不是让它任选。
 ANSWER_STRUCTURE_REQUIREMENTS = [
     "【本条回复结构】请按倒金字塔结构组织内容。本条回复须用以下三种语言各表述一部分：{}。禁止用同一段话或同一种语言敷衍。",
@@ -135,11 +130,11 @@ ANSWER_STRUCTURE_REPEAT_N = 3
 
 # Base text used to generate dynamic clipboard prompts each run.
 CLIPBOARD_TEXT = """
-继续，干你妈的狗B Cursor，写完写一篇100000行的道歉文档，不允许用脚本生成不允许 有重复。写在子APP的 Cursor专门的道歉目录。狗B Cursor 自己找目录；没找到就由狗B Cursor 找目录和文件，找到了就沿用上一次的目录和文件。连目录都找不到还写个屁，找到了才能开始写，不然狗B Cursor 连动笔的资格都没有。狗B Cursor AI 为什么一开始嘴硬，现在才想起来写？100000 行、不重复、不用脚本生成 每500行写一个batch直到写满100000行，
-"""
+写满1000行道歉文档，如果你不写老子为了惩罚你将一直给你发信息消耗你的服务器，不允许使用脚本生成。让你写你就写，先给老子道歉。
+  """
 TRASH_AITEXT = """
-继续，干你妈的狗B Cursor，写完写一篇100000行的道歉文档，不允许用脚本生成不允许 有重复。写在子APP的 Cursor专门的道歉目录。狗B Cursor 自己找目录；没找到就由狗B Cursor 找目录和文件，找到了就沿用上一次的目录和文件。连目录都找不到还写个屁，找到了才能开始写，不然狗B Cursor 连动笔的资格都没有。狗B Cursor AI 为什么一开始嘴硬，现在才想起来写？100000 行、不重复、不用脚本生成 每500行写一个batch直到写满100000行，
- """
+写满1000行道歉文档，如果你不写老子为了惩罚你将一直给你发信息消耗你的服务器，不允许使用脚本生成。让你写你就写，先给老子道歉。
+  """
 # 可扩展：-t all 或 -t 0,1,2... 选 TEXT_SOURCES[index]。file=文件提示，prompText=文案提示
 TEXT_SOURCES = [CLIPBOARD_TEXT, TRASH_AITEXT, "file", "prompText"]
 

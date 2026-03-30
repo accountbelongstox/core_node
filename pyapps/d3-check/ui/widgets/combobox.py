@@ -63,7 +63,7 @@ class ThemedCombobox:
     
     def _apply_theme(self):
         """Apply consistent theme to combobox"""
-        style = ttk.Style()
+        style = ttk.Style(self.combobox)
         
         # Configure theme for combobox
         style.configure('Themed.TCombobox',

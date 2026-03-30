@@ -18,6 +18,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private bool _rosbotHasMainUi = false;
     private string _rosbotExtendedStatus = "not_found";
     private bool _rosbotRunning;
+    private bool _rosbotDisconnectedFromLog;
     private bool _rosbotFlowMasterEnabled;
     private bool _ensureBattlenetOnlyEnabled;
     private bool _d3Running;
@@ -91,6 +92,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 RosbotHasMainUi = _rosbotHasMainUi,
                 RosbotExtendedStatus = _rosbotExtendedStatus,
                 RosbotRunning = _rosbotRunning,
+                RosbotDisconnectedFromLog = _rosbotDisconnectedFromLog,
                 RosbotFlowMasterEnabled = _rosbotFlowMasterEnabled,
                 EnsureBattlenetOnlyEnabled = _ensureBattlenetOnlyEnabled,
                 D3Running = _d3Running,
@@ -189,6 +191,43 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 _rosbotRunning = running;
                 ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotStatus(running={running}).");
             }
+        }
+    }
+
+    /// <summary>Set ROSBOT disconnected-from-log flag. 1:1 Python set_rosbot_disconnected_from_log.</summary>
+    public void SetRosbotDisconnectedFromLog(bool disconnected)
+    {
+        lock (_lock)
+        {
+            if (_rosbotDisconnectedFromLog != disconnected)
+            {
+                _rosbotDisconnectedFromLog = disconnected;
+                ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotDisconnectedFromLog({disconnected}).");
+            }
+        }
+    }
+
+    /// <summary>Set map type from ROSBOT log (e.g. town, echo, firstborn_temple). Returns true if value changed.</summary>
+    public bool SetMapType(string mapType)
+    {
+        lock (_lock)
+        {
+            string v = string.IsNullOrWhiteSpace(mapType) ? "unknown" : mapType.Trim();
+            if (_mapType == v) return false;
+            _mapType = v;
+            return true;
+        }
+    }
+
+    /// <summary>Set game stage from ROSBOT log. Returns true if value changed.</summary>
+    public bool SetGameStage(string gameStage)
+    {
+        lock (_lock)
+        {
+            string v = string.IsNullOrWhiteSpace(gameStage) ? "unknown" : gameStage.Trim();
+            if (_gameStage == v) return false;
+            _gameStage = v;
+            return true;
         }
     }
 

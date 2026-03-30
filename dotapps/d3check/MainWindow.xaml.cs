@@ -51,6 +51,7 @@ public partial class MainWindow : Window, IMainWindowHost
     private DispatcherTimer? _statePollTimer;
     /// <summary>2s tick for BN-only flow when EnsureBattlenetOnlyEnabled. 1:1 Python process_rosbot_task tick%2 + tick_bn_only_flow.</summary>
     private DispatcherTimer? _bnOnlyFlowTimer;
+    private RosbotLogFileWatcher? _rosbotLogWatcher;
     /// <summary>True after auto path scan was triggered once due to BN/ROSBOT mismatch; reset when path matches region. 1:1 Python _mismatch_scan_triggered.</summary>
     private bool _mismatchScanTriggered;
 
@@ -149,6 +150,11 @@ public partial class MainWindow : Window, IMainWindowHost
 
         TabMain.SelectionChanged += OnTabSelectionChanged;
         SwitchColorPrintToSelectedTab();
+
+        _rosbotLogWatcher = new RosbotLogFileWatcher();
+        _rosbotLogWatcher.Start(RosbotLogPaths.GetLogsFilePath());
+        RosbotLogLoginTryRegistry.LoginTryCallback = () =>
+            ColorPrinter.Blue("[LoginTry] Log line matched (wire screenshot controller like Python when needed).");
     }
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -178,6 +184,7 @@ public partial class MainWindow : Window, IMainWindowHost
         var dispatcher = Dispatcher;
         _ = Task.Run(() =>
         {
+            RosbotLogTickProcessor.ProcessPendingLines();
             var battlenet = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
             var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
             var ros = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
@@ -626,6 +633,10 @@ public partial class MainWindow : Window, IMainWindowHost
 
     protected override void OnClosed(EventArgs e)
     {
+        RosbotSmartEchoCoordinator.Shutdown();
+        RosbotLogLoginTryRegistry.LoginTryCallback = null;
+        _rosbotLogWatcher?.Dispose();
+        _rosbotLogWatcher = null;
         _statePollTimer?.Stop();
         _bnOnlyFlowTimer?.Stop();
         GameInterfaceData.Instance.UnregisterCallback(UpdateStatusFromState);

@@ -104,6 +104,48 @@ public static class InMemoryCentersCatalog
             Access: "D3CheckConfigChangeHub.Notifier; D3CheckConfigChangeHub.Notify(keyPath)",
             ThreadingContract: "Event dispatch must marshal to UI when handlers touch UI.",
             Responsibility: "Broadcasts config-change notifications (e.g., hotkey rebinding)."),
+        new Center(
+            Key: "i18n.d3check_i18n",
+            TypeName: "DotApps.d3check.I18n.D3CheckI18n",
+            Kind: InMemoryCenterKind.State,
+            Access: "D3CheckI18n.Provider; EnsureInitialized(); LanguageChanged event",
+            ThreadingContract: "UI thread for Provider and language combo; init at startup.",
+            Responsibility: "Current language and UI copy (i18n); single source for GetUiText."),
+        new Center(
+            Key: "infra.color_printer",
+            TypeName: "DotCore.Foundations.ColorPrinter",
+            Kind: InMemoryCenterKind.EventHub,
+            Access: "ColorPrinter.RegisterCallback/UnregisterCallback; Gray/Blue/... (no persistent store)",
+            ThreadingContract: "Callbacks may be invoked from any thread; handlers must marshal to UI if touching UI.",
+            Responsibility: "Log callback registration and dispatch to Log/ROS pages; not a data store."),
+        new Center(
+            Key: "ctl.rosbot_update_manager",
+            TypeName: "DotApps.d3check.RosbotUpdateManager",
+            Kind: InMemoryCenterKind.State,
+            Access: "RosbotUpdateManager.Instance; CheckUpdate/ApplyUpdate/GetDownloadsDir/GetBattlenetRegion",
+            ThreadingContract: "Instance is app-scoped; methods may run on background threads.",
+            Responsibility: "ROSBOT update check, Downloads dir, apply update; region for update."),
+        new Center(
+            Key: "ui.status_bar_display_builder",
+            TypeName: "DotApps.d3check.StatusBar.D3StatusBarDisplayBuilder",
+            Kind: InMemoryCenterKind.State,
+            Access: "D3StatusBarDisplayBuilder.Instance; Build(snapshot, i18n)",
+            ThreadingContract: "UI thread; stateless build from snapshot + i18n.",
+            Responsibility: "Status bar text and brush keys from snapshot + i18n."),
+        new Center(
+            Key: "ctl.rosbot_flow_controller",
+            TypeName: "DotApps.d3check.Ctl.RosbotFlowController",
+            Kind: InMemoryCenterKind.State,
+            Access: "RosbotFlowController.RunAsync/StopRosbot/SetShowCredentialsDialogAndWait/TickBnOnlyFlowAsync",
+            ThreadingContract: "RunAsync on thread pool; NotifyCallbacks via GameInterfaceData marshal to UI.",
+            Responsibility: "ROSBOT flow state and Run/EnsureBattlenet; depends on GameInterfaceData, AsiaCredentialsService."),
+        new Center(
+            Key: "config.asia_credentials_service",
+            TypeName: "DotApps.d3check.Config.AsiaCredentialsService",
+            Kind: InMemoryCenterKind.State,
+            Access: "AsiaCredentialsService.GetCredentials(region)/SaveCredentials/LoadCredentialsForUi; RegionAsia/RegionCn",
+            ThreadingContract: "Persisted in Config; decrypted values are in-memory; UI thread for LoadCredentialsForUi.",
+            Responsibility: "Asia/CN credentials read-write; persistence via Config, decrypted view as memory data."),
 
         // Presentation-level shared state (kept here as inventory only; do not introduce more globals)
         new Center(
@@ -113,6 +155,13 @@ public static class InMemoryCentersCatalog
             Access: "UiRegistry.RegisterMainUi/UnregisterMainUi/GetRoot/GetPage/RegisterCombatMacroController",
             ThreadingContract: "UI thread only.",
             Responsibility: "UI shell/page registry and combat macro controller access."),
+        new Center(
+            Key: "ui.combat_macro_controller",
+            TypeName: "DotApps.d3check.Ctl.CombatMacroController",
+            Kind: InMemoryCenterKind.State,
+            Access: "UiRegistry.GetCombatMacroController(); Toggle() etc.",
+            ThreadingContract: "UI thread for toggle; marshal if invoked from background.",
+            Responsibility: "Combat macro on/off state and execution; obtained via UiRegistry."),
         new Center(
             Key: "ui.rosbot_status_provider_cache",
             TypeName: "DotApps.d3check.Ctl.RosbotStatusProvider",

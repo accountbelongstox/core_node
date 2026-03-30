@@ -127,7 +127,7 @@ public class DataService
 | [DOT_TAB_UI_FREEZE_DESIGN.md](DOT_TAB_UI_FREEZE_DESIGN.md) | NotifyCallbacks 线程契约、SetMarshalToUi、Call sites 与 marshal 要求 |
 | [DOT_D3CHECK_COMPONENTIZATION_AND_ADJUSTMENTS.md](DOT_D3CHECK_COMPONENTIZATION_AND_ADJUSTMENTS.md) §4 | Keep marshal/Dispatcher 用法；新功能通过既有 getter，不新增全局状态 |
 
-**内存数据中心化代码规范化：** 已按推荐构架落实，并在**代码层**给出权威清单：`dotapps/d3check/Core/InMemoryCentersCatalog.cs`。运行时共享状态仅经 §5.2.1 一览表/清单中心访问（如 `GameInterfaceData.GetStateSnapshot/RegisterCallback/NotifyCallbacks`、`UiRegistry`、`BattlenetManager`、`RosbotDetection` 等）；MainWindow 已设置 `SetMarshalToUi`，后台线程调用 `NotifyCallbacks` 经 marshal 派发到 UI 线程；新增共享状态必须先登记到 `InMemoryCentersCatalog`，避免散落的非 readonly static 可变状态。完成率 **100%**。
+**内存数据中心化代码规范化：** 已按推荐构架落实，并在**代码层**给出权威清单：`dotapps/d3check/Core/InMemoryCentersCatalog.cs`。该清单已与 §5.2.1 一览表对齐，**收集所有要作为内存数据的中心经数据**（GameInterfaceData、UiRegistry、BattlenetManager、AssistantExecutionState、D3CheckI18n、ColorPrinter、RosbotUpdateManager、D3WindowFinder、MacroConfigLoader、MacroFallbackRunner、RosbotDetection、RosbotStatusProvider、DriveOrder、D3CheckConfigChangeHub、SkillRowViewModel.StrategyDisplayNames、MainFunctionThreadRegistry、D3StatusBarDisplayBuilder、CombatMacroController 经 UiRegistry、RosbotFlowController、AsiaCredentialsService）全部登记在册。运行时共享状态仅经 §5.2.1 一览表/清单中心访问；MainWindow 已设置 `SetMarshalToUi`，后台线程调用 `NotifyCallbacks` 经 marshal 派发到 UI 线程；新增共享状态必须先登记到 `InMemoryCentersCatalog`，避免散落的非 readonly static 可变状态。完成率 **100%**。
 
 **总结：** 配置中心化 = 文件 → IOptions；内存数据中心化 = 运行时单源服务 + 快照/回调 → ViewModel/UI。两者互补，不可混用。
 
