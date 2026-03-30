@@ -1,4 +1,15 @@
 Original APT Repository Backup
+<<<<<<< HEAD
+Backup Time: Wed Mar 11 09:50:01 CST 2026
+Backup Path: /www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original
+
+This is the original backup created on first use of the repository manager.
+Files backed up:
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list.d/mariadb.list
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/mariadb-keyring-2025.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/microsoft-edge.gpg
+=======
 Backup Time: Tue Feb 10 00:13:48 +07 2026
 Backup Path: /mnt/dev_nvme0n1p4/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original
 
@@ -25,3 +36,4 @@ Files backed up:
 /mnt/dev_nvme0n1p4/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list.d/ubuntu.sources.curtin.orig
 /mnt/dev_nvme0n1p4/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/ubuntu-keyring-2012-cdimage.gpg
 /mnt/dev_nvme0n1p4/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/ubuntu-keyring-2018-archive.gpg
+>>>>>>> 0aedefcb204f2f6e17cbe27be9b32e6b795487a4

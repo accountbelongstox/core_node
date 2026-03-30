@@ -21,6 +21,10 @@ class AppInitializationManager
         $results = [];
         
         foreach ($this->initializers as $appName => $initializer) {
+            // Basic CLI progress output for long-running sys:init
+            if (PHP_SAPI === 'cli') {
+                echo "  -> Initializing {$appName}...\n";
+            }
             Log::info("[AppInit] Starting initialization for: {$appName}");
             
             try {
@@ -29,8 +33,14 @@ class AppInitializationManager
                 
                 if ($result['success']) {
                     Log::info("[AppInit] Successfully initialized: {$appName}");
+                    if (PHP_SAPI === 'cli') {
+                        echo "     {$appName}: OK\n";
+                    }
                 } else {
                     Log::error("[AppInit] Failed to initialize {$appName}: " . ($result['error'] ?? 'Unknown error'));
+                    if (PHP_SAPI === 'cli') {
+                        echo "     {$appName}: FAILED\n";
+                    }
                 }
             } catch (\Exception $e) {
                 $errorMsg = $e->getMessage();
@@ -40,6 +50,9 @@ class AppInitializationManager
                     'error' => $errorMsg,
                     'exception' => get_class($e),
                 ];
+                if (PHP_SAPI === 'cli') {
+                    echo "     {$appName}: EXCEPTION - {$errorMsg}\n";
+                }
             }
         }
         

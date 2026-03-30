@@ -19,7 +19,8 @@ export enum ViewType {
   SERVER_MANAGER = 'server',
   AI_TOOLS = 'ai_tools',
   INVITE_CODE_MANAGER = 'invite_codes',
-  BANK_MANAGER = 'bank_manager'
+  BANK_MANAGER = 'bank_manager',
+  DATABASE_VIEWER = 'db_viewer'
 }
 
 export interface NavItem {
@@ -386,6 +387,29 @@ export interface VocabularyWord {
   audio_url?: string;
   learned: boolean;
   proficiency?: number;
+}
+
+/** Pagination object returned by vocabulary/statistics with include_words=1 */
+export interface VocabularyWordsPagination {
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+  has_more: boolean;
+}
+
+/** Single word row from vocabulary statistics word list API */
+export interface VocabularyStatisticsWordRow {
+  id?: number;
+  library_id?: number;
+  library_name?: string;
+  language?: string;
+  index?: number;
+  word: string;
+  translations?: string[] | null;
+  us_phonetic?: string | null;
+  uk_phonetic?: string | null;
+  [key: string]: any;
 }
 
 // ========== MCP Manager Types ==========

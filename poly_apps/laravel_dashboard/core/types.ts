@@ -7,6 +7,8 @@ export interface APIResponse<T = any> {
   error: string | null;
   status: number;
   message?: string;
+  /** Raw error body when success is false (e.g. error_code for auth). */
+  debugInfo?: { error_code?: string; [key: string]: any };
 }
 
 /**

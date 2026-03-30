@@ -45,7 +45,8 @@ export const TRANSLATIONS = {
       octane: "Octane Tasks",
       server: "Server Manager",
       inviteCodes: "Invite Codes",
-      bankManager: "Bank Manager"
+      bankManager: "Bank Manager",
+      dbViewer: "Database Viewer"
     },
     header: {
       system_online: "System Online",
@@ -67,6 +68,7 @@ export const TRANSLATIONS = {
         server: "Server Management Dashboard",
         invite_codes: "Invite Code Management",
         bank_manager: "Bank Data Management",
+        db_viewer: "Database Viewer",
         settings: "Settings"
       }
     },
@@ -89,7 +91,16 @@ export const TRANSLATIONS = {
       switch_to_login: "Already have an account? Login",
       switch_to_register: "Don't have an account? Register",
       login_success: "Login successful",
-      register_success: "Registration successful"
+      register_success: "Registration successful",
+      passwords_do_not_match: "Passwords do not match",
+      available_codes: "Available Codes:",
+      errors: {
+        AUTH_USER_NOT_FOUND: "Account does not exist. Please check your username or email.",
+        AUTH_INVALID_PASSWORD: "Incorrect password. Please try again.",
+        AUTH_INVALID_CREDENTIALS: "Invalid credentials. Please check and try again.",
+        AUTH_VALIDATION_FAILED: "Username and password are required.",
+        default: "Login failed. Please try again."
+      }
     },
     system: {
       title: "System Information",
@@ -276,6 +287,16 @@ export const TRANSLATIONS = {
     server_manager: {
       auth_required: "Server Manager requires authentication. Please login to continue."
     },
+    db_viewer: {
+      auth_required: "Database Viewer requires login. Please authenticate to view tables and data."
+    },
+    auth: {
+      login_hint: "Sign in to continue.",
+      use_login_window: "Use the login window to authenticate."
+    },
+    common: {
+      close: "Close"
+    },
     server: {
       title: "Server Manager",
       subtitle: "Nginx sites, SSL certificates, and system management",
@@ -403,7 +424,8 @@ export const TRANSLATIONS = {
       octane: "Octane 任务",
       server: "服务器管理",
       inviteCodes: "邀请码管理",
-      bankManager: "银行管理"
+      bankManager: "银行管理",
+      dbViewer: "数据库查看"
     },
     header: {
       system_online: "系统在线",
@@ -425,6 +447,7 @@ export const TRANSLATIONS = {
         server: "服务器管理仪表板",
         invite_codes: "邀请码管理",
         bank_manager: "银行数据管理",
+        db_viewer: "数据库查看",
         settings: "系统设置"
       }
     },
@@ -447,7 +470,16 @@ export const TRANSLATIONS = {
       switch_to_login: "已有账户？登录",
       switch_to_register: "没有账户？注册",
       login_success: "登录成功",
-      register_success: "注册成功"
+      register_success: "注册成功",
+      passwords_do_not_match: "两次密码输入不一致",
+      available_codes: "可用邀请码:",
+      errors: {
+        AUTH_USER_NOT_FOUND: "账号不存在，请检查用户名或邮箱。",
+        AUTH_INVALID_PASSWORD: "密码错误，请重试。",
+        AUTH_INVALID_CREDENTIALS: "凭证无效，请检查后重试。",
+        AUTH_VALIDATION_FAILED: "请输入用户名和密码。",
+        default: "登录失败，请重试。"
+      }
     },
     system: {
       title: "系统信息",
@@ -633,6 +665,16 @@ export const TRANSLATIONS = {
     },
     server_manager: {
       auth_required: "服务器管理需要身份验证。请登录后继续。"
+    },
+    db_viewer: {
+      auth_required: "数据库查看需要登录。请登录后查看表与数据。"
+    },
+    auth: {
+      login_hint: "请登录以继续。",
+      use_login_window: "请在弹出的登录窗口中完成验证。"
+    },
+    common: {
+      close: "关闭"
     },
     server: {
       title: "服务器管理",

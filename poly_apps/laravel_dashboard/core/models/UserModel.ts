@@ -18,13 +18,17 @@ export class UserModel {
   }
 
   /**
-   * Login - Use public authentication endpoint
+   * Login - Use public authentication endpoint.
+   * Throws Error with optional errorCode (from backend error_code) for UI to show localized message.
    */
   async login(username: string, password: string): Promise<void> {
     const response = await api.auth.login({ username, password });
 
     if (!response.success) {
-      throw new Error(response.error || 'Login failed');
+      const errorCode = response.debugInfo?.error_code;
+      const err = new Error(response.error || 'Login failed');
+      (err as Error & { errorCode?: string }).errorCode = errorCode;
+      throw err;
     }
 
     const token = response.data.token || response.data.data?.token;

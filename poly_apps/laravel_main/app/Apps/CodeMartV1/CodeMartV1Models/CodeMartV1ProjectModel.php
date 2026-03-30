@@ -2,13 +2,14 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CodeMartV1ProjectModel extends Model
 {
-    protected $connection = 'codemartv1';
+    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_projects';
 
     protected $fillable = [

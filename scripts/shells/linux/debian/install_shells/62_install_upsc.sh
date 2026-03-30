@@ -28,6 +28,12 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 INSTALL_UPSC=$(get_var "INSTALL_UPSC" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 
+# WSL: skip UPSC (no real block devices / systemd in typical WSL)
+if grep -qiE "microsoft|wsl" /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    print_info_from_common_functions "WSL detected: skipping UPSC script"
+    exit 0
+fi
+
 # Configuration file paths
 UPS_CONF="/etc/nut/ups.conf"
 UPSD_CONF="/etc/nut/upsd.conf"

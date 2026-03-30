@@ -37,6 +37,9 @@ php artisan route:list
 echo "Running migrations..."
 php artisan migrate
 
+echo "Initializing system (php artisan sys:init)..."
+php artisan sys:init
+
 echo "Detecting local IPs (excluding loopback)..."
 
 if command -v ip >/dev/null 2>&1; then

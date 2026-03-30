@@ -281,7 +281,10 @@ ApiClient.PointUrlKey = {
     TTS_GENERATE: '/tts/generate',
 
     // Translation
-    TRANSLATION_GOOGLE: '/translation/simple/google'
+    TRANSLATION_GOOGLE: '/translation/simple/google',
+
+    // Dashboard Database Viewer (auth required)
+    DB_VIEWER_TABLES: '/api/dashboard/db-viewer/tables'
 };
 
 const apiClientInstance = new ApiClient();
