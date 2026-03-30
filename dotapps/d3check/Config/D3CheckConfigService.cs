@@ -198,6 +198,10 @@ public sealed class D3CheckConfigService
                 ["auto_scroll"] = true,
                 ["log_level"] = "INFO"
             },
+            ["log_detection"] = new JsonObject
+            {
+                ["login_try"] = "Login try"
+            },
             ["coord_calibration"] = new JsonObject
             {
                 ["client_type"] = AppConstants.ClientTypeBattlenet,

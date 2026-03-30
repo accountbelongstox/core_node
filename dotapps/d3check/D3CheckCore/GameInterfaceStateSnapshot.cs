@@ -12,6 +12,8 @@ public sealed class GameInterfaceStateSnapshot
     public bool RosbotHasMainUi { get; init; }
     public string RosbotExtendedStatus { get; init; } = "not_found";
     public bool RosbotRunning { get; init; }
+    /// <summary>True when ROSBOT disconnect was inferred from logs (WARN Disconnected / session timeout). 1:1 Python rosbot_disconnected_from_log.</summary>
+    public bool RosbotDisconnectedFromLog { get; init; }
     /// <summary>Master state: true when user clicks Start ROSBOT, false when Stop. Logic 1:1 with Python rosbot_flow_master_enabled.</summary>
     public bool RosbotFlowMasterEnabled { get; init; }
     /// <summary>True when user has enabled "Ensure Battle.net only" (BN open + activated). Dot: set after flow runs; no tick.</summary>

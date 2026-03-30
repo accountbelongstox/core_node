@@ -36,6 +36,7 @@ public static class ConfigOptionsProvider
             BindAndConfigure<LogSettingsOptions>(services, config, "log_settings");
             BindAndConfigure<CoordCalibrationOptions>(services, config, "coord_calibration");
             BindAndConfigure<RosbotOptions>(services, config, "rosbot");
+            BindAndConfigure<LogDetectionOptions>(services, config, "log_detection");
             BindAndConfigure<MacroAuxiliaryOptions>(services, config, "macro_configs:auxiliary_config");
             BindAndConfigure<AntiStuckOptions>(services, config, "anti_stuck");
             BindAndConfigure<PathsOptions>(services, config, "paths");
