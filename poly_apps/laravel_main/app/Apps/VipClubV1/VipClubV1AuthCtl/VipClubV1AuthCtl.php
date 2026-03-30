@@ -48,7 +48,7 @@ class VipClubV1AuthCtl extends Controller
             ],
         ];
         
-        $result = UnifiedAuthService::register($credentials, 'vipclubv1');
+        $result = UnifiedAuthService::register($credentials, AppKeys::VIPCLUBV1);
         
         if (!$result['success']) {
             return VipClubV1ResponseUtils::error($result['error'], 422);
@@ -89,7 +89,7 @@ class VipClubV1AuthCtl extends Controller
             return VipClubV1ResponseUtils::validationError('Validation failed', $validator->errors());
         }
 
-        $authResult = UnifiedAuthService::login($request->email, $request->password, 'vipclubv1');
+        $authResult = UnifiedAuthService::login($request->email, $request->password, AppKeys::VIPCLUBV1);
         
         if (!$authResult['success']) {
             return VipClubV1ResponseUtils::unauthorized($authResult['error']);

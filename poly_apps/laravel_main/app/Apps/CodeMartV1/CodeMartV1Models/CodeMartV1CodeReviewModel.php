@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1CodeReviewModel extends Model
 {
-    protected $connection = 'codemartv1';
+    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_code_reviews';
 
     protected $fillable = [

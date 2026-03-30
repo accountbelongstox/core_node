@@ -14,3 +14,4 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
     });
 });
+

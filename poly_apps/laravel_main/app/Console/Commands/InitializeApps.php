@@ -248,7 +248,58 @@ class InitializeApps extends Command
         $this->newLine();
         
         $this->info('Initializing dictionary (Step 2: Extended words & translations)...');
-        $dictResults = \App\Services\UserSyncService::initializeDictionaryStep2();
+
+        $shouldRunDictInit = true;
+
+        // Fast pre-check: count existing EN dictionary rows
+        try {
+            $dictModel = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+            $dictConnection = $dictModel->getConnection();
+            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+
+            if (\Illuminate\Support\Facades\Schema::connection($dictConnection->getName())->hasTable($enDictTable)) {
+                $existingCount = $dictConnection->table($enDictTable)->count();
+
+                if ($existingCount > 0 && PHP_SAPI === 'cli') {
+                    $this->line("  <fg=gray>Current EN dictionary rows: {$existingCount}</>");
+
+                    $question = "  Detected existing dictionary data. Skip Step 2 re-initialization? [Y/n] (auto-skip in 30s): ";
+                    $this->output->write($question);
+
+                    $answer = 'y';
+                    $stdin = fopen('php://stdin', 'r');
+                    if ($stdin !== false) {
+                        $read = [$stdin];
+                        $write = null;
+                        $except = null;
+                        // 30-second timeout
+                        if (stream_select($read, $write, $except, 30) > 0) {
+                            $input = trim(fgets($stdin));
+                            if ($input !== '') {
+                                $answer = strtolower($input[0]);
+                            }
+                        } else {
+                            $this->line("\n  <fg=gray>No input in 30s, auto-skipping.</>");
+                            $answer = 'y';
+                        }
+                        fclose($stdin);
+                    }
+
+                    if ($answer === 'y') {
+                        $this->line("  ⏭️  Skipping dictionary Step 2 (user choice / auto-skip).");
+                        $shouldRunDictInit = false;
+                    } else {
+                        $this->line("  ▶️  Proceeding with dictionary Step 2...");
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->line("  <fg=yellow>Warning: dictionary pre-check failed: {$e->getMessage()}</>");
+        }
+
+        $dictResults = $shouldRunDictInit
+            ? \App\Services\UserSyncService::initializeDictionaryStep2()
+            : ['skipped' => true, 'message' => 'Dictionary Step 2 skipped by user / auto-skip'];
         
         if (isset($dictResults['step1_rename_7z'])) {
             $step1 = $dictResults['step1_rename_7z'];

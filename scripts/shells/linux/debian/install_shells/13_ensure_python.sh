@@ -885,15 +885,15 @@ check_urllib3_for_certbot() {
 
     # Fix urllib3 if needed
     print_step_from_common_functions "Fixing urllib3 compatibility for certbot..."
-    print_info_from_common_functions "Installing urllib3 1.26.18 (last version with DEFAULT_CIPHERS)..."
+    print_info_from_common_functions "Installing urllib3 (pip will resolve version)..."
 
     # Remove incompatible versions
     echo ">>> Uninstalling existing urllib3..."
     $USE_SUDO pip3 uninstall -y urllib3 2>&1 || true
 
-    # Install compatible version with real-time output
-    echo ">>> Installing urllib3==1.26.18..."
-    run_pip_install_realtime "python3" "urllib3==1.26.18" "" || true
+    # Install (no version pin; pip resolves)
+    echo ">>> Installing urllib3..."
+    run_pip_install_realtime "python3" "urllib3" "" || true
 
     # Verify DEFAULT_CIPHERS
     if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
@@ -935,9 +935,8 @@ check_and_fix_package_version() {
         return 0
     fi
 
-    # Package is installed - check if version constraint exists and needs verification
+    # Package is installed
     if [ -n "$version_constraint" ]; then
-        # For packages with version constraints, force reinstall to ensure correct version
         echo ">>> Verifying $pip_package version constraint: $version_constraint"
         run_pip_install_realtime "python3" "$pip_package$version_constraint" "--force-reinstall" || true
     fi
@@ -952,11 +951,10 @@ check_and_install_python_packages_from_dependency_map() {
     print_info_from_common_functions "Each package will be checked individually, even if others are correct"
 
     # Package mapping format: "import_name|pip_package|version_constraint"
-    # Version constraints use pip syntax: <11,>=10 or ==7.2.1
-    # Empty version_constraint means no specific version requirement
+    # version_constraint left empty so pip resolves versions automatically
     local packages=(
         # PIL/Pillow - required by tkhtmlview
-        "PIL|Pillow|<11,>=10"
+        "PIL|Pillow|"
 
         # Computer vision and automation
         "cv2|opencv-python|"
@@ -965,7 +963,7 @@ check_and_install_python_packages_from_dependency_map() {
         "mss|mss|"
 
         # Deep learning - required by opencv
-        "numpy|numpy|<2.3.0,>=2"
+        "numpy|numpy|"
         "torch|torch|"
         "ultralytics|ultralytics|"
 
@@ -1056,11 +1054,7 @@ check_and_install_python_packages_from_dependency_map() {
 
     # Optional packages - check but don't force install
     local optional_packages=(
-        # Edge TTS - CRITICAL: version 7.2.1 required (7.2.2+ has NoAudioReceived bug)
-        # Reference: https://github.com/rany2/edge-tts/issues/443
-        "edge_tts|edge-tts|==7.2.1"
-
-        # Whisper STT
+        "edge_tts|edge-tts|"
         "whisper|openai-whisper|"
     )
 
@@ -1084,62 +1078,12 @@ check_and_install_python_packages_from_dependency_map() {
 
     for package_spec in "${optional_packages[@]}"; do
         IFS='|' read -r import_name pip_package version_constraint <<< "$package_spec"
-
-        # Special handling for edge-tts with version checking (like in 30_install_edge.sh)
-        if [ "$pip_package" = "edge-tts" ]; then
-            # Use specialized function for edge-tts with version checking
-            check_and_fix_edge_tts_version_from_dependency_map
-        else
-            check_and_fix_package_version "$import_name" "$pip_package" "$version_constraint"
-        fi
+        check_and_fix_package_version "$import_name" "$pip_package" "$version_constraint"
     done
 
     # Summary
     print_info_from_common_functions "Package installation summary: $installed successful, $failed failed/skipped"
     print_success_from_common_functions "Python package installation from DEPENDENCY_MAP complete!"
-
-    return 0
-}
-
-# Function to check and fix edge-tts version (specialized version checking)
-# This is similar to the function in 30_install_edge.sh but adapted for 13_ensure_python.sh
-check_and_fix_edge_tts_version_from_dependency_map() {
-    local required_version="7.2.1"
-    local compatible_versions=("7.2.1" "7.2.0" "7.1.0" "7.0.0")
-
-    print_step_from_common_functions "Checking edge-tts Python package (TTS functionality)..."
-
-    # Check if edge-tts is installed
-    if ! python3 -c "import edge_tts" 2>/dev/null; then
-        echo ">>> edge-tts not installed, installing version $required_version..."
-        run_pip_install_realtime "python3" "edge-tts==$required_version" "" || true
-        return 0
-    fi
-
-    # Get current version
-    local current_version=$(python3 -c "import edge_tts; print(edge_tts.__version__)" 2>/dev/null || echo "unknown")
-    print_info_from_common_functions "Current edge-tts version: $current_version"
-
-    # Check if current version is compatible
-    local is_compatible=0
-    for ver in "${compatible_versions[@]}"; do
-        if [ "$current_version" = "$ver" ]; then
-            is_compatible=1
-            break
-        fi
-    done
-
-    if [ $is_compatible -eq 1 ]; then
-        return 0
-    fi
-
-    # Incompatible version detected (7.2.2+), need to downgrade
-    print_warning_from_common_functions "WARNING: edge-tts $current_version is incompatible (has NoAudioReceived bug)"
-    print_warning_from_common_functions "Reference: https://github.com/rany2/edge-tts/issues/443"
-    echo ">>> Downgrading edge-tts to $required_version..."
-
-    # Force reinstall with correct version
-    run_pip_install_realtime "python3" "edge-tts==$required_version" "--force-reinstall" || true
 
     return 0
 }
@@ -1177,9 +1121,7 @@ main() {
     check_urllib3_for_certbot
 
     # IDEMPOTENCY: Install/check all Python packages from third_party.py DEPENDENCY_MAP
-    # This replaces the old simple edge-tts installation with comprehensive package checking
-    # Each package will be checked individually, even if some are already installed
-    # Version constraints will be enforced (e.g., Pillow<11,>=10, numpy<2.3.0,>=2, edge-tts==7.2.1)
+    # No version constraints; pip resolves versions automatically.
     check_and_install_python_packages_from_dependency_map
 
     print_success_from_common_functions "Python environment setup complete!"

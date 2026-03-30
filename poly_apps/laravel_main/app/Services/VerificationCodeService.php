@@ -20,7 +20,7 @@ class VerificationCodeService
     protected $maxDailySends;
     protected $rateLimitSeconds;
 
-    public function __construct(string $connection = 'awyv0', string $tableName = 'awy_v0_verification_codes')
+    public function __construct(string $connection = AppKeys::AWYV0, string $tableName = 'awy_v0_verification_codes')
     {
         $this->connection = $connection;
         $this->tableName = $tableName;

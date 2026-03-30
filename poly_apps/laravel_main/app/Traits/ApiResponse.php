@@ -5,6 +5,7 @@ namespace App\Traits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\Validation\Validator;
 use App\Apps\AppQyV1\AppQyV1Constants\AppQyV1ErrorCodes;
+use App\Constants\AuthErrorCodes as AuthErrorCodesConstants;
 
 /**
  * API Response Trait
@@ -67,6 +68,23 @@ trait ApiResponse
             'code' => 422,
             'status' => 'error',
         ], 422);
+    }
+
+    /**
+     * Auth error response with error_code for frontend i18n (login/register).
+     */
+    protected function authErrorResponse(string $errorCode, int $httpCode = 422): JsonResponse
+    {
+        $message = AuthErrorCodesConstants::getMessage($errorCode);
+        return response()->json([
+            'success' => false,
+            'data' => null,
+            'error' => $message,
+            'message' => $message,
+            'error_code' => $errorCode,
+            'code' => $httpCode,
+            'status' => 'error',
+        ], $httpCode);
     }
 
     // ==================== 新增方法 ====================

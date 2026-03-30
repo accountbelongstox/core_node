@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1UserRoleModel extends Model
 {
-    protected $connection = 'codemartv1';
+    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_user_roles';
 
     protected $fillable = [

@@ -14,11 +14,12 @@
  * 4. Immediate Effect
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { ViewType, Language, Theme } from '../../types';
 import { User, UserPreferences } from '../types';
 import { StorageManager, StorageKeys } from '../persistence';
 import { userModel } from '../models';
+import { getAuthErrorMessage } from '../utils/authErrors';
 
 /**
  * Unified App State Interface
@@ -166,6 +167,9 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     return loadedState;
   });
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Auto-save state to storage
   useEffect(() => {
     saveStateToStorage(state);
@@ -262,9 +266,10 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       console.log('[UnifiedAppContext] Login successful:', user?.username);
       return true;
     } catch (err: any) {
-      const errorMessage = err.message || 'Login failed';
-      setState(prev => ({ ...prev, loading: false, error: errorMessage }));
-      console.error('[UnifiedAppContext] Login failed:', errorMessage);
+      const errorCode = err.errorCode as string | undefined;
+      const displayMessage = getAuthErrorMessage(errorCode, err.message || 'Login failed', stateRef.current.lang);
+      setState(prev => ({ ...prev, loading: false, error: displayMessage }));
+      console.error('[UnifiedAppContext] Login failed:', displayMessage);
       return false;
     }
   }, []);

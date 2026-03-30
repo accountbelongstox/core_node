@@ -208,6 +208,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
 
                     $this->logError("Cover generation failed", [
                         'cover_id' => $lockedCover->id,
+                        'library_id' => $lockedCover->library_id,
                         'attempts' => $lockedCover->attempts,
                         'will_retry' => $shouldRetry,
                         'error' => $result['error'] ?? 'Unknown',
@@ -220,6 +221,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
         } catch (\Throwable $e) {
             $this->logError("Cover processing exception", [
                 'cover_id' => $cover->id,
+                'library_id' => $cover->library_id,
                 'error' => $e->getMessage(),
             ]);
 
