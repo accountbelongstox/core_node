@@ -2,6 +2,12 @@
 
 基于 MCP 文档查询（Tkinter / Win32 API）与代码路径梳理，从**非线程阻塞**角度归纳可能导致主窗口无法接收键盘/鼠标输入的原因及对应思路。不假定必须维持现有代码结构。
 
+## 文档勘误（与当前代码）
+
+- 主窗口无边框在 Windows 上可能由 **`_make_frameless_win32`**（对 wrapper HWND 的 `GWL_STYLE` / `GWL_EXSTYLE`）实现，**不一定**再在 **`_create_ui()` 末尾**调用 **`overrideredirect(True)`**；表中旧行号（如 L319–321）与「`_create_ui` 末尾 overrideredirect」**可能已过期**。
+- 与「双窗口 / ghost wrapper」相关的调查见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
+- 下文仍用 **overrideredirect** 描述**无边框顶层窗**的语义与焦点风险；若实际为 Win32 去装饰，Win32 样式修改可能已在初始化阶段完成，与 **`ensure_tk_root_in_taskbar`** 的叠加关系以当前 `diablo3_macro_ui.py` 为准。
+
 ---
 
 ## 1. Win32 修改窗口样式导致 Tk 与系统焦点不同步（高）
@@ -143,13 +149,12 @@ overrideredirect + 后续 Win32 修改（任务栏修复）组合，触发了 Tk
 ### 10.1 代码中的 UI 构建与焦点时序（实际）
 
 1. **主窗口创建**（`ui/diablo3_macro_ui.py`）  
-   - `__init__`：`root = tk.Tk()` → geometry/title/minsize → theme → `_create_ui()`。  
-   - `_create_ui()` 末尾（在 _create_bottom_bar 等之后）：`root.update_idletasks()` → `root.overrideredirect(True)`（约 L319–321）。  
-   - 无边框后：`root.after(350, self._apply_taskbar_fix)`；`root.bind("<Map>", _on_map)`；`_apply_first_run_topmost()`（lift + topmost True，500ms 后 topmost False + focus_force）。
+   - `__init__`：`root = tk.Tk()` → geometry/title/minsize 等 → **`withdraw()`** → **`_make_frameless_win32`**（Windows）或 **`overrideredirect(True)`**（回退）→ **`UITheme.apply_to_root`** → **`_create_ui()`**（**不再**在 `_create_ui` 末尾调用 `overrideredirect`）。  
+   - 其后：`after(350, _apply_taskbar_fix)`；`bind("<Map>", _on_map)`；`_apply_first_run_topmost()`；`bind("<Configure>", ...)`；`_create_system_tray()`；条件 **`ensure_content_sync`**；**`deiconify()`**；**`register_main_thread_handlers`**。详见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
 
 2. **Map 与焦点**  
    - `_on_map`：仅处理一次（`_map_event_processed`），内部 `after(1, focus_force)`、`after(0, _deferred_after_map)`。  
-   - `_deferred_after_map`：`focus_force()` + `after(50, focus_force)`、`after(150, focus_force)`、`after(300, focus_force)`。  
+   - `_deferred_after_map`：以**当前源码**为准（通常为**单次** `focus_force()`，已简化多段 50/150/300ms）。  
    - 注释明确：Map 里**不**调用 `ensure_tk_root_in_taskbar`/SetForegroundWindow，避免“Win32 SetWindowLong/SetWindowPos in Map path can leave window unresponsive”。
 
 3. **任务栏修复**（350ms）  
@@ -175,7 +180,7 @@ overrideredirect + 后续 Win32 修改（任务栏修复）组合，触发了 Tk
 | 报告节 | 报告中的假设 | 代码实际 | 是否同一问题 | MCP 官方文档对照（tkdocs_pyref） |
 |--------|----------------|----------|--------------|----------------------------------|
 | **§1 Win32 SetWindowPos/SetWindowLong** | 350ms 一次 taskbar 修复仍可能使窗口无输入；注释已指出“第二次会 unresponsive”。 | 代码仅在 350ms 调用一次 `ensure_tk_root_in_taskbar`，且刻意不在 Map 中调用；注释与实现一致。 | **是**。报告针对的正是“当前这一次”SetWindowLong/SetWindowPos 与焦点/输入的交互；代码已规避“第二次”，但未规避“第一次”可能带来的输入丢失。 | Tk 文档仅说明 `wm_overrideredirect(True)` 移除装饰，未规定 Windows 上其后 Win32 改 ex-style 的行为；焦点/输入属平台行为，与报告机制一致。 |
-| **§2/§3 overrideredirect + 焦点时机** | 无边框窗口需在“真正映射后”再抢焦点；Map 内多次 focus_force 可能过早或与 SetWindowPos 冲突。 | 实际顺序：Map 内 after(1/0) 及 50/150/300ms 多次 focus_force；350ms 再 _apply_taskbar_fix（SetWindowPos + focus_force）；500ms 还有 topmost 取消 + focus_force。 | **是**。代码正是“多路、多时刻”focus_force，与报告描述的时机敏感、重叠一致。 | 文档：focus_force “Forces focus to the widget”；wm_overrideredirect 移除装饰；未说明 overrideredirect 下与 WM 的先后关系，与“时机敏感”假设不矛盾。 |
+| **§2/§3 overrideredirect + 焦点时机** | 无边框窗口需在“真正映射后”再抢焦点；Map 内多次 focus_force 可能过早或与 SetWindowPos 冲突。 | 实际顺序：Map 内 after(1/0) 与 `_deferred_after_map`；350ms `_apply_taskbar_fix`；500ms topmost 等（以当前源码为准）。 | **是**（若仍属多时刻 focus）。 | 文档：focus_force “Forces focus to the widget”；无边框语义含 Win32 路径；与“时机敏感”假设不矛盾。 |
 | **§4 grab 未释放** | 某处 Toplevel 未在关闭路径 grab_release；grab_current 可能返回单字符串，按 list 或类型判断不当会漏释。 | **rosbot 选择目录对话框**：on_ok/on_cancel 仅 `top.destroy()`，无 grab_release，与报告**一致**。asia_credentials 已正确 release。_release_any_grab 用 `isinstance(current,(list,tuple)) else [current]` 且只对 str 做 nametowidget。 | **是**。报告中的“未释放”在 rosbot 对话框中有对应实现；grab_current 返回值形态需在运行环境确认。 | 文档：grab_current() “Returns the widget that currently has the grab”；grab_release() “Releases the input grab”；destroy() 未写明是否自动释放 grab，故“显式 release 再 destroy”与文档不冲突。 |
 | **§6 after(0) 淹没** | 大量 after(0) 使用户事件被延后，表现为卡顿或点不动。 | event_center 与多处 panel 使用 root/container.after(0, ...)；_dispatch_pending_events 用 while 循环多次 after(0, trigger_event)。 | **是**。代码存在“成批 after(0)”的路径，与报告“主线程不阻塞但事件被延后”一致。 | 文档：after(ms, func) 在主事件循环中执行；未规定 0ms 与用户事件的优先级，与“队列延后”假设一致。 |
 | **§2 SetForegroundWindow** | 必要时需 SetForegroundWindow 补救；focus_force 可能被系统拒绝。 | 代码**从未**调用 `_win32_set_foreground()`（SetForegroundWindow）；仅多处 focus_force。 | **是**。若 Tk 的 focus_force 在 overrideredirect 下不足以让 Windows 交付输入，当前实现没有补救路径。 | 文档无 SetForegroundWindow（属 Win32）；focus_force 文档未保证 Windows 下 overrideredirect 窗口一定能收到输入。 |
@@ -183,7 +188,7 @@ overrideredirect + 后续 Win32 修改（任务栏修复）组合，触发了 Tk
 
 ### 10.3 小结：代码实际与报告是否针对同一问题
 
-- **§1、§2、§3、SetForegroundWindow**：代码实际与报告描述的是**同一类问题**——overrideredirect + 单次 Win32 任务栏修复 + 多路 focus_force、且无 SetForegroundWindow 补救；报告建议的“单点焦点恢复”“延后或取消 taskbar 修复验证”“必要时 SetForegroundWindow”均直接适用于当前代码。  
+- **§1、§2、§3、SetForegroundWindow**：代码实际与报告描述的是**同一类问题**——无边框（Win32 或 overrideredirect）+ 任务栏 Win32 修复 + Map/350ms 等路径上的 focus、且无 SetForegroundWindow 补救；报告建议的“单点焦点恢复”“延后或取消 taskbar 修复验证”“必要时 SetForegroundWindow”仍可用于对照。  
 - **§4 grab**：**是同一问题**。rosbot 目录选择对话框未在 on_ok/on_cancel 中 grab_release，与报告“某处 Toplevel 未释放 grab”对应；asia_credentials 已正确释放；grab_current 返回值处理在代码中按 list/str 做了防御，但文档未明确返回类型，需运行态确认。  
 - **§6 after(0)**：**是同一问题**。代码中 after(0) 的使用方式与报告“事件队列被占满”的假设一致。  
 - **§5**：报告与代码一致，均为低优先级、无明显异常配置。
@@ -201,18 +206,18 @@ overrideredirect + 后续 Win32 修改（任务栏修复）组合，触发了 Tk
 | 顺序 | 代码位置 | 行为 |
 |------|----------|------|
 | 1 | `__init__` 开头 | `set_windows_app_user_model_id("pycore.d3check.1.0")`（在创建 Tk 之前） |
-| 2 | | `self.root = tk.Tk()`，设置 title、geometry、minsize、theme 等 |
-| 3 | | `self._create_ui()`：resize 边框 → TitleBar → BottomBar → `_create_main_tabs()`（6 个 tab + panels）→ pack BottomBar → MacroControls grid → **`root.update_idletasks()` → `root.overrideredirect(True)`** |
+| 2 | | `self.root = tk.Tk()`，设置 title、geometry、minsize 等 |
+| 3 | | `withdraw()` → **`_make_frameless_win32`** 或 **`overrideredirect(True)`** → **`UITheme.apply_to_root`** → **`_create_ui()`**（无边框**不在**此处末尾设置） |
 | 4 | | `root.after(350, self._apply_taskbar_fix)` 登记 350ms 后执行 |
-| 5 | | `root.bind("<Map>", _on_map)`：Map 时 `_map_event_processed=True`，`after(1, focus_force)`，`after(0, _deferred_after_map)`；`_deferred_after_map` 内 `focus_force` + `after(50/150/300, focus_force)` |
+| 5 | | `root.bind("<Map>", _on_map)`：Map 时 `_map_event_processed=True`，`after(1, focus_force)`，`after(0, _deferred_after_map)`（`_deferred_after_map` 以当前源码为准） |
 | 6 | | `_apply_first_run_topmost()`：`lift()`，`attributes("-topmost", True)`，`after(500, ...)` 在 500ms 时 `attributes("-topmost", False)` 且 `focus_force` |
-| 7 | | `root.bind("<Configure>", _on_window_configure)`，`_create_system_tray()`，`register_main_thread_handlers(self)` |
+| 7 | | `bind("<Configure>", ...)`，`_create_system_tray()`，条件 ROSBOT **`ensure_content_sync`**，**`deiconify()`**，**`register_main_thread_handlers(self)`** |
 
 ### 10.2 延迟回调时间线（mainloop 前/中）
 
 | 时间 | 回调 | 行为 |
 |------|------|------|
-| Map 时 | `_on_map` | 仅首次：`after(1, focus_force)`，`after(0, _deferred_after_map)` → focus_force 立即 + 50/150/300ms 再 focus_force |
+| Map 时 | `_on_map` | 仅首次：`after(1, focus_force)`，`after(0, _deferred_after_map)`（以当前源码为准，未必仍有 50/150/300ms 多段） |
 | 350ms | `_apply_taskbar_fix` | `update_idletasks` → **`ensure_tk_root_in_taskbar(root)`**（SetWindowLong GWL_EXSTYLE、GWLP_HWNDPARENT，SetWindowPos HWND_TOP + SWP_FRAMECHANGED）→ `update_idletasks` → win32 时 `_set_window_icon()` → **`focus_force()`** |
 | 500ms | 来自 `_apply_first_run_topmost` | `attributes("-topmost", False)`，`focus_force()` |
 | 500ms | `start_system_tray_if_needed` | 启动托盘（若尚未启动） |
