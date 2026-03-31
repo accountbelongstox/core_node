@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://www.tcl.tk/man/tcl8.6/TkCmd/wm.htm\" 2>/dev/null | head -500)",
+      "Bash(curl -s \"https://wiki.tcl-lang.org/page/overrideredirect\" 2>/dev/null | head -500)",
+      "WebSearch",
+      "WebFetch(domain:www.tcl.tk)",
+      "WebFetch(domain:wiki.tcl-lang.org)",
+      "WebFetch(domain:www.tcl-lang.org)",
+      "WebFetch(domain:www.daniweb.com)",
+      "WebFetch(domain:windows-hexerror.linestarve.com)",
+      "WebFetch(domain:solutionfall.com)",
+      "WebFetch(domain:mail.python.org)",
+      "WebFetch(domain:blog.finxter.com)",
+      "WebFetch(domain:copyprogramming.com)",
+      "WebFetch(domain:www.pythonguis.com)",
+      "WebFetch(domain:core.tcl-lang.org)",
+      "WebFetch(domain:github.com)",
+      "Bash(cd \"D:\\\\programing\\\\core_node\" && python -c \"import py_compile; py_compile.compile\\('pyapps/d3-check/ui/diablo3_macro_ui.py', doraise=True\\); print\\('Syntax OK'\\)\")"
+    ]
+  }
+}

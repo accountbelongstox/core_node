@@ -2,6 +2,8 @@
 
 基于 MCP 文档查询（Tkinter / Win32 API）与代码路径梳理，从**非线程阻塞**角度归纳可能导致主窗口无法接收键盘/鼠标输入的原因及对应思路。不假定必须维持现有代码结构。
 
+**勘误**：与 `UNRESPONSIVE_UI_POSSIBILITY_REPORT.md` 同步；无边框实现与 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
+
 ---
 
 ## 1. Win32 修改窗口样式导致 Tk 与系统焦点不同步（高）

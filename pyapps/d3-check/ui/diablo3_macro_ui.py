@@ -93,6 +93,84 @@ def _destroy_orphan_tk_default_root() -> None:
         pass
 
 
+def _make_frameless_win32(root: tk.Tk) -> bool:
+    """Remove window decorations via Win32 GWL_STYLE instead of overrideredirect(True).
+
+    overrideredirect(True) triggers Tk's internal UpdateWrapper (tkWinWm.c) which
+    **destroys and recreates the wrapper HWND**.  On some Windows builds this causes
+    a ghost second window (old wrapper visible alongside new one).
+
+    This function avoids the rewrap entirely: it modifies the existing wrapper HWND's
+    style bits to strip the caption / thick-frame / system-menu, then asks the DWM to
+    recompose via SWP_FRAMECHANGED.  The wrapper HWND stays the same object; no ghost.
+
+    Falls back to overrideredirect(True) on non-Windows platforms.
+
+    Returns True if Win32 path succeeded.
+    """
+    if sys.platform != "win32":
+        root.overrideredirect(True)
+        return False
+
+    try:
+        # Ensure the wrapper HWND exists (Tk creates it on first map, i.e. Tk()).
+        root.update_idletasks()
+
+        # wm_frame() returns the outer *wrapper* HWND as hex string ("0x...").
+        # winfo_id() returns the inner *content* HWND.  We need the wrapper.
+        hwnd_hex = root.wm_frame()
+        hwnd = int(hwnd_hex, 16) if isinstance(hwnd_hex, str) else int(hwnd_hex)
+        if not hwnd:
+            root.overrideredirect(True)
+            return False
+
+        user32 = ctypes.windll.user32
+
+        # --- strip window-frame style bits from wrapper HWND ---
+        GWL_STYLE = -16
+        WS_CAPTION    = 0x00C00000   # title bar + border
+        WS_THICKFRAME = 0x00040000   # sizing border
+        WS_SYSMENU    = 0x00080000
+        WS_MINIMIZEBOX = 0x00020000
+        WS_MAXIMIZEBOX = 0x00010000
+
+        style = user32.GetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_STYLE)
+        new_style = style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU
+                              | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)
+        if new_style != style:
+            user32.SetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_STYLE, new_style)
+
+        # --- ensure taskbar visibility (WS_EX_APPWINDOW) ---
+        GWL_EXSTYLE     = -20
+        WS_EX_TOOLWINDOW = 0x00000080
+        WS_EX_APPWINDOW  = 0x00040000
+
+        ex = user32.GetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
+        new_ex = (ex & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+        if new_ex != ex:
+            user32.SetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_EXSTYLE, new_ex)
+
+        # --- tell DWM to recompose the frame ---
+        SWP_FRAMECHANGED = 0x0020
+        SWP_NOMOVE       = 0x0002
+        SWP_NOSIZE       = 0x0001
+        SWP_NOZORDER     = 0x0004
+        user32.SetWindowPos(
+            ctypes.c_void_p(hwnd), ctypes.c_void_p(0),
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        )
+
+        root.update_idletasks()
+        ColorPrint.blue("[UI] Frameless via Win32 GWL_STYLE (no overrideredirect rewrap)")
+        return True
+
+    except Exception as e:
+        ColorPrint.yellow(f"[UI] Win32 frameless failed ({e}), falling back to overrideredirect")
+        root.overrideredirect(True)
+        return False
+
+
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
     
@@ -133,8 +211,10 @@ class Diablo3MacroUI:
         self.root.configure(bg=UITheme.get_color('bg_dark'))
         # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build; tkdocs wm_withdraw/deiconify)
         self.root.withdraw()
-        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2)
-        self.root.overrideredirect(True)
+        # Make frameless: use Win32 GWL_STYLE to strip decorations from the *existing* wrapper HWND
+        # instead of overrideredirect(True) which destroys+recreates the wrapper HWND and can cause
+        # a ghost second window on Windows (tkWinWm.c UpdateWrapper).
+        self._frameless_via_win32 = _make_frameless_win32(self.root)
 
         # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 single style entry)
         UITheme.apply_to_root(self.root)
@@ -432,7 +512,11 @@ class Diablo3MacroUI:
 
     def _apply_taskbar_fix(self):
         """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls.
+        When _frameless_via_win32 succeeded, taskbar style is already applied (WS_EX_APPWINDOW set in _make_frameless_win32).
         When ui_settings.skip_taskbar_win32_fix is True, skip Win32 calls to verify if they cause unresponsive UI (report §1)."""
+        if self._frameless_via_win32:
+            # Taskbar style already applied in _make_frameless_win32; mark done.
+            self._taskbar_style_applied = True
         skip_win32 = get_config_value_safe("ui_settings.skip_taskbar_win32_fix", True)
         if not self._taskbar_style_applied and not skip_win32:
             self.root.update_idletasks()  # One pass so geometry is current for Win32 (docs/ui2 UI_REPEATED_PAINT: no second update_idletasks after Win32).

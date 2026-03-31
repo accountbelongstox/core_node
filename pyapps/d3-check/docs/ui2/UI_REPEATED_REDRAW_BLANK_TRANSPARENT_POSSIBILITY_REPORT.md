@@ -2,6 +2,8 @@
 
 Independent analysis with **code first → project docs → then MCP/official docs**. Focus: UI is restructured multiple times and never reaches a single “final” drawn state; instead repeated redraws produce blanks and transparent regions during the process. Not assumed to be thread blocking; structure and flow may be reworked (copy/move code, change architecture).
 
+**Errata (frameless)**：The main window may use **Win32 `GWL_STYLE`** on the **wrapper HWND** (`_make_frameless_win32`) instead of `overrideredirect(True)` on Windows. See **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**. Where this report says `overrideredirect(True)`, read it as “frameless top-level,” including that path.
+
 ---
 
 ## 1. Official Documentation (MCP / TkDocs / Tcl)
@@ -82,7 +84,7 @@ So the **“final” style is never drawn once**; it is drawn in **several steps
 | 1 | **Multiple `update()` / `update_idletasks()`** at end of create, language change, tab change, tray show, taskbar fix → multiple nested event loops / idle passes → **multiple draw phases** → user sees intermediate states (blank/transparent). | High | TkDocs: drawing only in event loop; update = nested loop; code: 6+ distinct call sites. |
 | 2 | **Lazy ROSBOT tab**: content created in **after(0)** (and again **after(0)**, then **after(100)**) so window is **shown with empty tab first**, then content in 2–3 steps → **repeated redraw**, blank in between. | High | TkDocs: idle and redraws; code: ensure_content → after(0) → _create_content_with_snapshot → after(0) → _create_control_and_log_then_sync → after(100). |
 | 3 | **Tab change** triggers **ensure_content** + **update_idletasks()** + **update()** → another full refresh and possible **blank/transparent** moment when switching to a tab that is still building. | Medium | Code: _deferred_after_tab_changed; TkDocs: update = nested loop. |
-| 4 | **overrideredirect** + **withdraw/deiconify**: first map may occur at **deiconify**; if layout is not yet complete (e.g. ROSBOT still deferred), first paint can be **incomplete** (blank/transparent areas) until later idle/update. | Medium | Code: overrideredirect(True) before content; deiconify once; Tk: map/redraw at display. |
+| 4 | **Frameless** + **withdraw/deiconify**: first map may occur at **deiconify**; if layout is not yet complete (e.g. ROSBOT still deferred), first paint can be **incomplete** (blank/transparent areas) until later idle/update. | Medium | Code: frameless (Win32 or overrideredirect) before content; deiconify once; Tk: map/redraw at display. |
 
 ---
 
@@ -110,7 +112,7 @@ So the **“final” style is never drawn once**; it is drawn in **several steps
 |-----------------------|----------------------------|----------------|
 | UI never reaches a single “final” drawn style; repeated redraws cause blank/transparent during draw. | Multiple `root.update_idletasks()` / `root.update()` at end of _create_main_tabs, _recreate_ui_for_language_change, _deferred_after_tab_changed, switch_to_tab, _apply_taskbar_fix (2×), run(). Each forces a draw phase (TkDocs: update = nested event loop; idletasks = idle queue = redraws). | **Yes.** Multiple refresh points → multiple draw phases → user can see intermediate states. |
 | Lazy ROSBOT tab: content built after window visible → empty tab first, then 2–3 steps. | ensure_content() schedules after(0) or timer one-shot → after(0); _create_content_with_snapshot had after(0, _create_control_and_log_then_sync) so two chunks. When last tab = ROSBOT, no sync build before deiconify in original flow. | **Yes.** First paint could show empty ROSBOT tab; then after(0) chunks added content → repeated draw, blank in between. |
-| Theme: ensure “一开始构建的就是应了主题的 UI”. | __init__: root.withdraw() → overrideredirect(True) → **UITheme.apply_to_root(root)** (theme_use('clam') + apply_ttk_style) → _create_ui() → ttk.Notebook(style='Dark.TNotebook'), ttk.Frame(style='Dark.TFrame'). No ttk created before apply_to_root. | **Yes, already correct.** First build uses Dark.* from style DB; no “native then theme” double build. |
+| Theme: ensure “一开始构建的就是应了主题的 UI”. | __init__: root.withdraw() → **frameless** (_make_frameless_win32 or overrideredirect) → **UITheme.apply_to_root(root)** (theme_use('clam') + apply_ttk_style) → _create_ui() → ttk.Notebook(style='Dark.TNotebook'), ttk.Frame(style='Dark.TFrame'). No ttk created before apply_to_root. | **Yes, already correct.** First build uses Dark.* from style DB; no “native then theme” double build. |
 
 Conclusion: The “repeated redraw / blank-transparent” issue corresponds to **multiple update/update_idletasks** and **deferred ROSBOT build**; the “theme from start” requirement was already satisfied by the existing order (apply_to_root before any ttk).
 
@@ -122,7 +124,7 @@ Process: read code → read project docs → MCP official docs (TkDocs Event Loo
 
 ### 6.1 Theme (unchanged: 一开始构建的就是应了主题的 UI)
 
-- **diablo3_macro_ui.__init__** (lines ~124–131): `root.withdraw()` → `root.overrideredirect(True)` → **`UITheme.apply_to_root(self.root)`** → `_create_ui()`. No ttk widgets exist before apply_to_root; notebook and tab frames are created with `style='Dark.TNotebook'` / `style='Dark.TFrame'`. First build is already themed.
+- **diablo3_macro_ui.__init__**: `root.withdraw()` → **frameless** (`_make_frameless_win32` or `overrideredirect(True)`) → **`UITheme.apply_to_root(self.root)`** → `_create_ui()`. No ttk widgets exist before apply_to_root; notebook and tab frames are created with `style='Dark.TNotebook'` / `style='Dark.TFrame'`. First build is already themed.
 
 ### 6.2 Single flush after first build
 

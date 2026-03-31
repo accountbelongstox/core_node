@@ -2,6 +2,8 @@
 
 本文档：① 按代码实际梳理主窗口 UI 的构建与事件流程；② 对照 `UNRESPONSIVE_UI_POSSIBILITY_REPORT.md` / `UNRESPONSIVE_POSSIBILITY_REPORT.md`，标出**代码是否就是在查的同一类问题**；③ 引用 MCP 查阅的 Tk 官方文档中对本代码所用 API 的说明。
 
+**勘误（架构变更，以 `diablo3_macro_ui.py` 为准）**：无边框在 **`__init__`** 中通过 **`_make_frameless_win32`**（Windows，Win32 `GWL_STYLE` / `wm_frame()`）或回退 **`overrideredirect(True)`** 完成，**不在** `_create_ui()` 末尾调用 `overrideredirect`。Windows 上「双窗口 / ghost wrapper」调查见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。下文若仍写「overrideredirect」，多指**无边框顶层窗**的语义（含 Win32 路径）。**Map 后 focus**：`_deferred_after_map` 已简化为单次 `focus_force`（非多段 50/150/300ms），以代码为准。
+
 ---
 
 ## 一、代码中的 UI 构建与事件流程（实际顺序）
@@ -18,26 +20,32 @@
 | 顺序 | 代码位置 | 行为 |
 |------|----------|------|
 | 1 | `set_windows_app_user_model_id(...)` | 进程级 AppUserModelID（Windows 任务栏分组）。 |
-| 2 | `self.root = tk.Tk()` | 创建根窗口。 |
-| 3 | `root.title(...)` / `root.geometry(...)` / `root.minsize(...)` / `root.resizable(...)` / `root.configure(bg=...)` | 标题、几何、主题背景。 |
-| 4 | `UITheme.apply_to_root(self.root)` | 应用主题。 |
-| 5 | `self._create_ui()` | 见下表。 |
-| 6 | `self.root.after(350, self._apply_taskbar_fix)` | **350ms 后**执行任务栏修复（Win32 SetWindowLong/SetWindowPos）。 |
-| 7 | `_on_map` / `_deferred_after_map` | `root.bind("<Map>", _on_map)`。Map 时：仅第一次处理（`_map_event_processed`），`after(1, focus_force)`，`after(0, _deferred_after_map)`；`_deferred_after_map` 内 `focus_force()` + `after(50/150/300, focus_force)`。**注释明确**：不在 Map 路径里调 ensure_tk_root_in_taskbar，避免 SetWindowPos 导致无输入。 |
-| 8 | `_apply_first_run_topmost()` | `lift()`；`attributes("-topmost", True)`；`after(500, ...)` 里设回 `False` 并 `focus_force()`。 |
-| 9 | `root.bind("<Configure>", _on_window_configure)` | 几何变化防抖保存。 |
-| 10 | `_create_system_tray()` | 托盘、`WM_DELETE_WINDOW`、`after(500, start_system_tray_if_needed)`。 |
-| 11 | `register_main_thread_handlers(self)` | 退出/重启/显示/最小化/最大化由 THREAD_BUS 派发到主线程 `root.after(0, ...)`。 |
+| 2 | `_destroy_orphan_tk_default_root()` | 避免 ttk 隐式创建的孤儿 `Tk`。 |
+| 3 | `self.root = tk.Tk()` | 创建根窗口。 |
+| 4 | `root.title` / `geometry` / `minsize` / `resizable` / `configure(bg=...)` / `_set_window_icon` 等 | 标题、几何、背景。 |
+| 5 | **`root.withdraw()`** | 构建完成前不显示。 |
+| 6 | **`_make_frameless_win32(self.root)`**（Windows）或回退 **`overrideredirect(True)`** | 无边框；见 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`。 |
+| 7 | **`UITheme.apply_to_root(self.root)`** | 在任何 ttk 控件创建前应用主题。 |
+| 8 | `self._create_ui()` | 见下表。 |
+| 9 | `self.root.after(350, self._apply_taskbar_fix)` | **350ms 后**任务栏修复（若未在 frameless 中已处理 EXSTYLE，则 `ensure_tk_root_in_taskbar`）。 |
+| 10 | `_on_map` / `_deferred_after_map` | `root.bind("<Map>", _on_map)`；首次 Map：`after(1, focus_force)`、`after(0, _deferred_after_map)`；`_deferred_after_map` 内通常**单次** `focus_force()`。 |
+| 11 | `_apply_first_run_topmost()` | 首次置顶后取消等。 |
+| 12 | `root.bind("<Configure>", _on_window_configure)` | 几何防抖保存。 |
+| 13 | `_create_system_tray()` | 托盘、`WM_DELETE_WINDOW`、`after(500, start_system_tray_if_needed)`。 |
+| 14 | 若上次 tab 为 ROSBOT：`ensure_content_sync()` | 首帧前同步建内容（见 ui2 REPEATED_PAINT）。 |
+| 15 | **`root.deiconify()`** | 首次显示主窗口。 |
+| 16 | **`register_main_thread_handlers(self)`** | THREAD_BUS → 主线程 `after`。 |
 
-### 1.3 _create_ui() 内（无边框 + 任务栏前提）
+### 1.3 _create_ui() 内
 
 | 顺序 | 代码 | 说明 |
 |------|------|------|
-| 1 | `_add_resize_borders()` | 顶部/底部/左右可拖拽边。 |
+| 1 | `_add_resize_borders()` | 可拖拽边。 |
 | 2 | `TitleBar(self)` / `BottomBar(root)` | 标题栏、底栏。 |
-| 3 | `_create_main_tabs()` | ttk.Notebook，`takefocus=0`；各 Tab（主功能/辅助/ROSBOT/D4/校准/日志）；`register_ui(self)`；末尾 `root.update_idletasks()` + `root.update()`。 |
-| 4 | **`root.update_idletasks()`** | 官方文档：Process idle tasks。 |
-| 5 | **`root.overrideredirect(True)`** | 官方文档：移除窗口管理器装饰（标题栏、边框）。 |
+| 3 | `_create_main_tabs()` | Notebook、各 Tab、`register_ui`；末尾 **`main_notebook.update_idletasks()`** + **`root.after(1, _flush_after_first_build)`**（首帧 flush 见 `_flush_after_first_build`）。 |
+| 4 | `bottom_bar.pack` / `MacroControls` | 底栏与宏控制区。 |
+
+无边框已在 **`__init__`** 中设置；**不再**在本函数末尾调用 **`overrideredirect(True)`**（与旧版文档不同）。
 
 ### 1.4 _apply_taskbar_fix()（350ms 时执行）
 
@@ -72,9 +80,9 @@
 
 | 报告中的可能性 | 代码里是否就是该问题 | 对照说明 |
 |----------------|----------------------|----------|
-| **1. Win32 修改窗口样式导致 Tk 与系统焦点不同步** | **是，同一问题** | 代码在 **overrideredirect(True)** 且窗口已 Map 后，在 **350ms** 调用 `ensure_tk_root_in_taskbar`（SetWindowLong + SetWindowPos）；注释已写明 “SetWindowLong/SetWindowPos in Map path can leave window unresponsive (no input)” 且要求 taskbar 修复只做一次。代码实际与报告描述的“在已显示的 overrideredirect 窗口上改 EXSTYLE + SetWindowPos”完全一致。 |
+| **1. Win32 修改窗口样式导致 Tk 与系统焦点不同步** | **是，同一问题** | 无边框窗口 Map 后，在 **350ms** 可能调用 `ensure_tk_root_in_taskbar`（依配置与 `_frameless_via_win32`）；注释已写明 SetWindowLong/SetWindowPos 与无输入风险。与报告“Win32 改 EXSTYLE + SetWindowPos”属同一类。 |
 | **2. Windows 前台锁定导致 focus_force 无效** | **是，同一类问题** | 代码在 Map 路径和 350ms 后多处使用 `focus_force()`；若启动时存在前台锁定，这些调用可能静默失败。报告中的“focus_force 与系统策略冲突”与代码实际一致。 |
-| **3. overrideredirect(True) 与无边框窗口输入行为** | **是，同一类问题** | 代码确实使用 `root.overrideredirect(True)` 且在之后做了 Win32 任务栏修复；与报告“overrideredirect + Win32 修改组合”一致。 |
+| **3. overrideredirect(True) 与无边框窗口输入行为** | **是，同一类问题** | 主窗口为无边框（Win32 `_make_frameless_win32` 或 `overrideredirect`）；仍可能与 350ms 任务栏 Win32 修改叠加；与报告“无边框 + Win32 修改”一致。 |
 | **4. Grab 未释放** | **部分一致，有实现差异** | 代码在 `run()` 前调用了 `_release_any_grab()`，且对 `grab_current()` 按“list 或单值”处理并只对 `str` path 做 `nametowidget` + `grab_release()`。官方文档写的是 “Returns the widget that currently has the grab”，未规定类型；若实际返回的是 widget 对象而非 path 字符串，当前实现会**漏释**，与报告“grab 未正确释放”可能对应。需在运行环境确认 `grab_current()` 的返回类型。 |
 | **5. Map 只处理一次与 350ms 二次 Map** | **是，同一类问题** | 代码用 `_map_event_processed` 只处理一次 Map；注释称 350ms 的 SetWindowPos 可能再次触发 Map。若二次 Map 导致焦点被清且未再拉回，与报告描述一致。 |
 | **6. 事件中心与 after(0) 调度** | **是，同一类机制** | 代码中 `schedule = lambda f: self.ui.root.after(0, f)`、ConfigChangeHub 与 THREAD_BUS 均使用 `root.after(0, ...)`；与报告“大量 after(0)”一致。报告侧重主线程被短时占满导致“点不动”，代码实际具备该机制，是否成问题取决于回调量与耗时。 |
@@ -89,15 +97,15 @@
 
 ### 3.1 窗口与装饰
 
-- **wm_overrideredirect(boolean)**  
-  - 文档：Controls whether the window manager's decorations (title bar, borders) are displayed. Setting it to **True removes them**.  
-  - 代码：`root.overrideredirect(True)` 在 `_create_ui()` 末尾、在 `update_idletasks()` 之后调用，与文档一致；无边框窗口在 Windows 上对焦点/输入更敏感，与报告 §3 一致。
+- **wm_overrideredirect(boolean)** / **无边框**  
+  - 文档：`wm_overrideredirect(True)` 去除窗口管理器装饰。  
+  - 代码：Windows 上可能用 **Win32 `GWL_STYLE`** 对 **wrapper HWND** 去装饰（`_make_frameless_win32`），**不再**仅在 `_create_ui()` 末尾调用 `overrideredirect`；非 Windows 或失败时仍可能 `overrideredirect(True)`。无边框窗口在 Windows 上对焦点/输入更敏感，与报告 §3 一致。
 
 ### 3.2 焦点与 Grab
 
 - **focus_force()**  
   - 文档：**Forces focus to the widget**.  
-  - 代码：在 Map 回调（after(1)、after(0) 及 50/150/300ms）、_apply_taskbar_fix 末尾、_apply_first_run_topmost 的 500ms 后调用；文档未涉及 Windows 前台锁定，与报告 §2 需结合系统行为理解。
+  - 代码：在 Map 回调（after(1)、after(0) 等）、_apply_taskbar_fix、_apply_first_run_topmost 等路径调用；以当前源码为准；文档未涉及 Windows 前台锁定，与报告 §2 需结合系统行为理解。
 
 - **grab_current()**  
   - 文档：**Returns the widget that currently has the grab**.  
@@ -111,16 +119,15 @@
 
 - **after(ms, func=None, *args)**  
   - 文档：**Call a function after a specified delay**.  
-  - 代码：用于 350ms 任务栏修复、Map 后 1/0/50/150/300ms 的 focus_force、500ms 的 topmost 与托盘、800ms 几何保存防抖等；与报告 §6 的“after(0) 调度”同属一类机制。
+  - 代码：用于 350ms 任务栏修复、Map 后延迟 focus、500ms 的 topmost 与托盘、几何保存防抖等；与报告 §6 的“after 调度”同属一类机制。
 
 - **mainloop(n=0)**  
   - 文档：**Start the Tkinter event loop**.  
-  - 代码：在 `run()` 中于 `_release_any_grab()` 和 `update_idletasks()` 之后调用，符合常规用法。
+  - 代码：在 `run()` 中于 `_release_any_grab()` 后调用（是否 `update_idletasks` 以当前源码为准），符合常规用法。
 
-- **update_idletasks()**  
-  - 文档：**Process idle tasks**.  
-  - 代码：在 overrideredirect 前、_apply_taskbar_fix 前后、run() 中 mainloop 前使用；与文档一致。  
-  - 文档另有 **update()**：Process pending events；代码在 _create_main_tabs 末尾使用 `root.update()`，用于一次完整刷新。
+- **update_idletasks()** / **update()**  
+  - 文档：**Process idle tasks** / **Process pending events**.  
+  - 代码：用于 _apply_taskbar_fix、_create_main_tabs 末、`_flush_after_first_build`、run() 等路径；首帧 flush 策略见 `docs/ui2` REPEATED_PAINT。
 
 ### 3.4 其他
 
@@ -132,8 +139,8 @@
 
 ## 四、结论（代码 vs 报告 vs 文档）
 
-1. **构建流程**：主窗口在 controller.run() 中唯一创建；先 `_create_ui()`（含 overrideredirect），再通过 after(350) 做任务栏修复并多次 focus_force；run() 入口释放 grab、update_idletasks 后 mainloop。  
-2. **是否同一问题**：报告中的 Win32 样式/焦点、overrideredirect、Map 只处理一次与二次 Map、after(0) 调度，与**代码实际完全或高度一致**；grab 与报告一致，但代码对 `grab_current()` 返回类型的处理存在**潜在漏释**，需在目标环境验证。  
-3. **文档与代码**：Tk 官方文档对 overrideredirect、focus_force、grab_current、after、mainloop、update_idletasks 的说明与当前用法一致；文档未规定 `grab_current()` 的返回类型，建议在运行环境中打印类型与值，确认与 `_release_any_grab()` 的假设一致。
+1. **构建流程**：主窗口在 controller.run() 中唯一创建；`__init__` 内 withdraw → 无边框（`_make_frameless_win32` 或 overrideredirect）→ apply_to_root → `_create_ui()` → deiconify；after(350) 任务栏修复；run() 入口释放 grab 后 mainloop。  
+2. **是否同一问题**：报告中的 Win32 样式/焦点、无边框窗口、Map 与 350ms 调度等与**当前代码仍属同一类排查维度**；grab 与报告一致，但代码对 `grab_current()` 返回类型的处理存在**潜在漏释**，需在目标环境验证。  
+3. **文档与代码**：Tk 官方文档对 `wm_overrideredirect`、focus、grab、after、mainloop 的说明仍适用；无边框的 Win32 路径见 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`；文档未规定 `grab_current()` 的返回类型，建议在运行环境中确认与 `_release_any_grab()` 的假设一致。
 
 （MCP 文档来源：Context7, library id: /websites/tkdocs_pyref）

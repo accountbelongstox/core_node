@@ -4,6 +4,8 @@
 
 **文档用法与流程**：先根据代码定位实际调用点（grab、overrideredirect、taskbar、focus_force、after 等），再通过 MCP 查询 Tk/Tcl 官方文档；在**附录**中对照“代码实际”与“文档/排查目标”，标明二者是否针对**同一问题**，便于在 UI 架构与排查中一致使用。
 
+**勘误**：附录里「`_create_ui` 末尾 `overrideredirect(True)`」等表述可能已过期；无边框与双窗口调查见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
+
 ---
 
 ## 1. Grab 未释放（Tk 文档：grab 子树独占指针直到 release）
