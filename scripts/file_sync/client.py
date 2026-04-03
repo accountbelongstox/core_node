@@ -236,18 +236,24 @@ class _WatchHandler(FileSystemEventHandler):
             self._queue(event.dest_path)
 
 
-def _connect(host: str, port: int) -> socket.socket:
+def _connect(host: str, port: int, connect_timeout: float = 15.0) -> socket.socket:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(3600.0)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    s.settimeout(connect_timeout)
+    print(f"connecting to {host}:{port} ...", flush=True)
     s.connect((host, port))
+    print(f"connected to {host}:{port}", flush=True)
+    s.settimeout(3600.0)
     return s
 
 
 def _auth(sock: socket.socket, pair: str) -> None:
+    print("authenticating ...", flush=True)
     write_json_frame(sock, {"cmd": "auth", "pair": pair})
     r = read_json_frame(sock)
     if r.get("cmd") != "auth_ok":
-        raise RuntimeError(r)
+        raise RuntimeError(f"auth failed: {r}")
+    print("auth ok", flush=True)
 
 
 def _send_file(sock: socket.socket, root: str, rel_unix: str, mtime: float) -> None:
@@ -273,13 +279,15 @@ def _manifest_round(
     files_payload: dict[str, dict[str, float | int]] = {}
     for rel, (mt, sz) in snap.items():
         files_payload[rel] = {"mtime": mt, "size": sz}
+    print(f"sending manifest ({len(files_payload)} files) ...", flush=True)
     write_json_frame(sock, {"cmd": "manifest", "files": files_payload})
     plan = read_json_frame(sock)
     if plan.get("cmd") != "sync_plan":
-        raise RuntimeError(plan)
+        raise RuntimeError(f"unexpected response: {plan}")
     up = plan.get("upload") or []
     if not isinstance(up, list):
         raise RuntimeError("sync_plan.upload must be list")
+    print(f"server requests {len(up)} file(s) to upload", flush=True)
     for rel in up:
         rel_s = str(rel).replace("\\", "/")
         if rel_s not in snap:
