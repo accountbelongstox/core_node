@@ -295,76 +295,90 @@ cleanup() {
     header "Stopping all services..."
     for i in "${!PIDS[@]}"; do
         if kill -0 "${PIDS[$i]}" 2>/dev/null; then
-            kill "${PIDS[$i]}" 2>/dev/null
-            info "Stopped: ${NAMES[$i]} (PID ${PIDS[$i]})"
+            kill -- -"${PIDS[$i]}" 2>/dev/null || kill "${PIDS[$i]}" 2>/dev/null
+            info "Stopped: ${NAMES[$i]} (PGID/PID ${PIDS[$i]})"
         fi
     done
     exit 0
 }
 trap cleanup SIGINT SIGTERM
 
-# ── Center Server [nodemon] ────────────────────────────────
-# Hot-reload: npx nodemon watches .js/.json files and auto-restarts
+# Sub-project script paths
+CENTER_SCRIPT="$GROUP_ROOT/webclaude_center_server/scripts/start.sh"
+GATEWAY_SCRIPT="$GROUP_ROOT/webclaude_go-gateway/scripts/start.sh"
+WEBSITE_SCRIPT="$GROUP_ROOT/webclaude_website/scripts/start.sh"
+HOST_SCRIPT="$CORE_NODE/pyapps/claude_host/scripts/start.sh"
+
+# ── Helper: wait for a TCP port to become ready ────────────
+wait_for_port() {
+    local host="$1" port="$2" label="$3" timeout="${4:-30}"
+    local elapsed=0
+    info "Waiting for $label to be ready on ${host}:${port} (timeout ${timeout}s)..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if (echo > /dev/tcp/"$host"/"$port") 2>/dev/null; then
+            ok "$label is ready on ${host}:${port}"
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    warn "$label did not become ready within ${timeout}s (continuing anyway)"
+    return 1
+}
+
+# ── 1. Center Server ──────────────────────────────────────
+# Start first; gateway and website may depend on it.
 if has_service center; then
+    if [ ! -f "$CENTER_SCRIPT" ]; then
+        fail "center_server start script not found: $CENTER_SCRIPT"
+        exit 1
+    fi
     CENTER_DIR="$GROUP_ROOT/webclaude_center_server"
     load_env "$CENTER_DIR/.env"
-    (cd "$CENTER_DIR" && npx nodemon src/control/app.js) > "$LOG_DIR/center.log" 2>&1 &
+    bash "$CENTER_SCRIPT" --skip-deps --no-build > "$LOG_DIR/center.log" 2>&1 &
     PIDS+=($!)
-    NAMES+=("Center Server [nodemon]")
-    ok "Started: Center Server [nodemon] (PID $!) → $LOG_DIR/center.log"
+    NAMES+=("Center Server")
+    ok "Started: Center Server (PID $!) -> $LOG_DIR/center.log"
+
+    # Wait for center to be listening before starting downstream services
+    CENTER_PORT=$(grep -E '^\s*PORT\s*=' "$CENTER_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2 | xargs || echo "18100")
+    wait_for_port "127.0.0.1" "$CENTER_PORT" "Center Server" 30 || true
 fi
 
-# ── Go Gateway [air / static] ──────────────────────────────
-# Hot-reload: air (if installed) watches .go files and auto-rebuilds
-# Fallback: run static binary (no hot-reload)
+# ── 2. Go Gateway ─────────────────────────────────────────
 if has_service gateway; then
-    GW_DIR="$GROUP_ROOT/webclaude_go-gateway"
-    load_env "$GW_DIR/.env"
-    if command -v air &>/dev/null; then
-        (cd "$GW_DIR" && air) > "$LOG_DIR/gateway.log" 2>&1 &
-        PIDS+=($!)
-        NAMES+=("Go Gateway [air]")
-        ok "Started: Go Gateway [air] (PID $!) → $LOG_DIR/gateway.log"
-    else
-        (cd "$GW_DIR" && ./relay-api) > "$LOG_DIR/gateway.log" 2>&1 &
-        PIDS+=($!)
-        NAMES+=("Go Gateway [static]")
-        ok "Started: Go Gateway [static] (PID $!) → $LOG_DIR/gateway.log"
+    if [ ! -f "$GATEWAY_SCRIPT" ]; then
+        fail "go-gateway start script not found: $GATEWAY_SCRIPT"
+        exit 1
     fi
+    bash "$GATEWAY_SCRIPT" --skip-deps --no-build > "$LOG_DIR/gateway.log" 2>&1 &
+    PIDS+=($!)
+    NAMES+=("Go Gateway")
+    ok "Started: Go Gateway (PID $!) -> $LOG_DIR/gateway.log"
 fi
 
-# ── Website [Vite HMR] ─────────────────────────────────────
-# Hot-reload: Vite HMR (built-in, instant browser updates)
+# ── 3. Website ────────────────────────────────────────────
 if has_service website; then
-    WEB_DIR="$GROUP_ROOT/webclaude_website"
-    (cd "$WEB_DIR" && pnpm run dev) > "$LOG_DIR/website.log" 2>&1 &
+    if [ ! -f "$WEBSITE_SCRIPT" ]; then
+        fail "website start script not found: $WEBSITE_SCRIPT"
+        exit 1
+    fi
+    bash "$WEBSITE_SCRIPT" --skip-deps > "$LOG_DIR/website.log" 2>&1 &
     PIDS+=($!)
     NAMES+=("Website [Vite HMR]")
-    ok "Started: Website [Vite HMR] (PID $!) → $LOG_DIR/website.log"
+    ok "Started: Website [Vite HMR] (PID $!) -> $LOG_DIR/website.log"
 fi
 
-# ── Claude Host [watchdog / direct] ────────────────────────
-# Hot-reload: dev_reload.py (watchdog-based) if available
-# Fallback: direct python execution (no hot-reload)
+# ── 4. Claude Host ────────────────────────────────────────
 if has_service host; then
-    PY_CMD="${PY_CMD:-python3}"
-    DEV_RELOAD="$CORE_NODE/pyapps/claude_host/scripts/dev_reload.py"
-    HAS_WATCHDOG=false
-    if $PY_CMD -c "import watchdog" 2>/dev/null && [ -f "$DEV_RELOAD" ]; then
-        HAS_WATCHDOG=true
+    if [ ! -f "$HOST_SCRIPT" ]; then
+        fail "claude_host start script not found: $HOST_SCRIPT"
+        exit 1
     fi
-
-    if [ "$HAS_WATCHDOG" = true ]; then
-        (cd "$CORE_NODE" && $PY_CMD -u "$DEV_RELOAD") > "$LOG_DIR/host.log" 2>&1 &
-        PIDS+=($!)
-        NAMES+=("Claude Host [watchdog]")
-        ok "Started: Claude Host [watchdog] (PID $!) → $LOG_DIR/host.log"
-    else
-        (cd "$CORE_NODE" && $PY_CMD -u scripts/pycore/pymain.py app=claude_host) > "$LOG_DIR/host.log" 2>&1 &
-        PIDS+=($!)
-        NAMES+=("Claude Host")
-        ok "Started: Claude Host (PID $!) → $LOG_DIR/host.log"
-    fi
+    bash "$HOST_SCRIPT" > "$LOG_DIR/host.log" 2>&1 &
+    PIDS+=($!)
+    NAMES+=("Claude Host")
+    ok "Started: Claude Host (PID $!) -> $LOG_DIR/host.log"
 fi
 
 # ══════════════════════════════════════════════════════════════
