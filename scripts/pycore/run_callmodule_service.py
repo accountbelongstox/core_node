@@ -14,8 +14,8 @@ import sys
 import os
 from pathlib import Path
 
-# Setup path
-CORE_NODE_ROOT = Path(__file__).parent
+# Setup path - go up two levels from scripts/pycore/ to reach the repo root
+CORE_NODE_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(CORE_NODE_ROOT))
 
 # Set environment variable to skip dependency check (must be before imports)

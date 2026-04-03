@@ -219,7 +219,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = "GIT_PUSH_BRANCH"
         Action            = {
-            $selectedValue = $script:MenuItems[8].Values[$script:MenuItems[8].CurrentValueIndex]
+            $selectedValue = $script:MenuItems[3].Values[$script:MenuItems[3].CurrentValueIndex]
             Set-GlobalVar -Key "GIT_PUSH_BRANCH" -Value $selectedValue
             Push-Git
         }
@@ -250,6 +250,17 @@ $script:MenuItems = @(
         Key               = $null
         Action            = {
             Show-SpecialSoftwareEnvMenu
+        }
+    },
+    @{
+        Text              = "AI Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $aiManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\claude_assistant\AIManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching AI Management (Claude Code Agent Teams)..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $aiManagementScript
         }
     },
     @{
