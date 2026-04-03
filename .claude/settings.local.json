@@ -16,7 +16,11 @@
       "WebFetch(domain:www.pythonguis.com)",
       "WebFetch(domain:core.tcl-lang.org)",
       "WebFetch(domain:github.com)",
-      "Bash(cd \"D:\\\\programing\\\\core_node\" && python -c \"import py_compile; py_compile.compile\\('pyapps/d3-check/ui/diablo3_macro_ui.py', doraise=True\\); print\\('Syntax OK'\\)\")"
+      "Bash(cd \"D:\\\\programing\\\\core_node\" && python -c \"import py_compile; py_compile.compile\\('pyapps/d3-check/ui/diablo3_macro_ui.py', doraise=True\\); print\\('Syntax OK'\\)\")",
+      "Bash(chmod +x /d/programing/webclaude_group/scripts/start.sh)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:medium.com)"
     ]
   }
 }

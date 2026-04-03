@@ -1,0 +1,12 @@
+{
+  "node": { "node_id": "", "name": "" },
+  "gateway": {
+    "url": "ws://localhost:18200/ws/host",
+    "host_api_token": "CHANGE_ME_host_32chars_token"
+  },
+  "center_server": {
+    "url": "http://localhost:18100",
+    "host_api_token": "CHANGE_ME_host_32chars_token"
+  },
+  "claude": { "users": [], "auto_create_users": true }
+}

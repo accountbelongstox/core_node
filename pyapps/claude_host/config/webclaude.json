@@ -1,0 +1,12 @@
+{
+  "node": { "node_id": "", "name": "" },
+  "gateway": {
+    "url": "ws://localhost:18200/ws/client",
+    "host_api_token": "webclaude-dev-host-token-2026"
+  },
+  "center_server": {
+    "url": "http://localhost:18100",
+    "host_api_token": "webclaude-dev-host-token-2026"
+  },
+  "claude": { "users": [], "auto_create_users": true }
+}
