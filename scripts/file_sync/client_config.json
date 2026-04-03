@@ -2,7 +2,7 @@
   "print_paths_only": false,
   "server_host": "api.si.12gm.com",
   "server_port": 18765,
-  "pair_code": "SET_PAIR_CODE",
+  "pair_code": "ACBF0631-033A-4DFF-ADC3-C71AEA9911A6",
   "local_dir": "../../",
   "use_watch": true,
   "watch_debounce_seconds": 0.35,
