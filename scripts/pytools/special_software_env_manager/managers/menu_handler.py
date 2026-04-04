@@ -50,6 +50,7 @@ class MenuHandler:
                 })
 
             menu_items.extend([
+                {'Text': 'Regenerate All Scripts', 'Action': 'regenerate_all', 'HasSubMenu': False},
                 {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
@@ -70,6 +71,10 @@ class MenuHandler:
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)
             elif action == 'refresh':
                 handlers['env_var_manager'].refresh_current_terminal_environment()
+            elif action == 'regenerate_all':
+                handlers['script_manager'].regenerate_all_scripts(
+                    self.config_manager, handlers.get('secret_manager_available', False)
+                )
             elif action == 'restore_scripts':
                 handlers['script_manager'].restore_scripts_from_secrets(
                     self.config_manager, handlers.get('secret_manager_available', False)

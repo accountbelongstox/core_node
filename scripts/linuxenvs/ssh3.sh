@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# SSH Connection Global File #1
+# SSH Connection Global File #3
 # =============================================================================
 #
 # Synopsis:
@@ -24,16 +24,16 @@
 #
 # Notes:
 #     - Configuration: SSH Connection
-#     - SSH Connection: Loaded dynamically from secret key SSH_CONNECTION_1
-#     - File Number: 1
-#     - File Name: ssh1.sh
+#     - SSH Connection: Loaded dynamically from secret key SSH_CONNECTION_3
+#     - File Number: 3
+#     - File Name: ssh3.sh
 # =============================================================================
 
 set -e
 
 echo ""
 echo "============================================================"
-echo "Running: ssh1.sh"
+echo "Running: ssh3.sh"
 echo "============================================================"
 echo ""
 
@@ -112,7 +112,7 @@ get_secret_value() {
     fi
 }
 
-SSH_CONNECTION=$(get_secret_value "SSH_CONNECTION_1")
+SSH_CONNECTION=$(get_secret_value "SSH_CONNECTION_3")
 if [ -n "$SSH_CONNECTION" ]; then
     echo "[SUCCESS] SSH Connection loaded: $SSH_CONNECTION"
 else
@@ -120,7 +120,7 @@ else
     exit 1
 fi
 
-SSH_PASSWORD=$(get_secret_value "SSH_PASSWORD_1")
+SSH_PASSWORD=$(get_secret_value "SSH_PASSWORD_3")
 if [ -n "$SSH_PASSWORD" ]; then
     echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
 else

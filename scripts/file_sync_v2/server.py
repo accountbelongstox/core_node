@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import socket
+import sys
 import threading
 import time
 
@@ -33,6 +34,7 @@ def _clear_pair_fail_streak() -> None:
 
 
 def _bump_pair_fail_streak() -> bool:
+    """Increment failed-auth streak; return True if server should exit (>= 2)."""
     global _PAIR_FAIL_STREAK
     with _PAIR_FAIL_LOCK:
         _PAIR_FAIL_STREAK += 1

@@ -19,6 +19,12 @@ try:
 
     _HAS_WATCHDOG = True
 except ImportError:
+    class FileSystemEventHandler:  # type: ignore[no-redef]
+        pass
+
+    class Observer:  # type: ignore[no-redef]
+        pass
+
     _HAS_WATCHDOG = False
 
 _DEFAULT_EXCLUDES = (
@@ -200,7 +206,182 @@ _CLIENT_CONFIG = os.path.join(_SCRIPT_DIR, "client_config.json")
 _STATE_FILE = os.path.join(_SCRIPT_DIR, ".sync_client_state.json")
 
 
-def _excluded(rel_unix: str, patterns: Iterable[str]) -> bool:
+def _target_key(host: str, port: int) -> str:
+    return f"{host}:{port}"
+
+
+def _parse_pattern_list(value: object, field: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise SystemExit(f"client_config.json: {field} must be array of strings")
+    out: list[str] = []
+    for j, item in enumerate(value):
+        if not isinstance(item, str):
+            raise SystemExit(f"client_config.json: {field}[{j}] must be string")
+        s = item.strip()
+        if not s:
+            raise SystemExit(f"client_config.json: {field}[{j}] must not be empty")
+        out.append(s)
+    return tuple(out)
+
+
+def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ...]]]:
+    default_include = _parse_pattern_list(cfg.get("include", []), "include")
+    default_exclude = _parse_pattern_list(cfg.get("exclude", []), "exclude")
+    raw_servers = cfg.get("servers")
+
+    targets: list[dict[str, str | int | bool | tuple[str, ...]]] = []
+    if isinstance(raw_servers, list):
+        if not raw_servers:
+            raise SystemExit("client_config.json: servers must not be empty")
+        for i, raw in enumerate(raw_servers):
+            if not isinstance(raw, dict):
+                raise SystemExit(f"client_config.json: servers[{i}] must be object")
+            host = str(raw.get("host", raw.get("server_host", ""))).strip()
+            if not host:
+                raise SystemExit(f"client_config.json: servers[{i}].host required")
+            try:
+                port = int(raw.get("port", raw.get("server_port", 18765)))
+            except (TypeError, ValueError):
+                raise SystemExit(f"client_config.json: servers[{i}].port must be integer")
+            enabled = raw.get("enabled", True)
+            if not isinstance(enabled, bool):
+                raise SystemExit(f"client_config.json: servers[{i}].enabled must be boolean")
+            include = (
+                _parse_pattern_list(raw.get("include"), f"servers[{i}].include")
+                if "include" in raw
+                else default_include
+            )
+            exclude = (
+                _parse_pattern_list(raw.get("exclude"), f"servers[{i}].exclude")
+                if "exclude" in raw
+                else default_exclude
+            )
+            targets.append(
+                {
+                    "host": host,
+                    "port": port,
+                    "pair": "",
+                    "enabled": enabled,
+                    "include": include,
+                    "exclude": exclude,
+                    "key": _target_key(host, port),
+                }
+            )
+        return targets
+
+    host = str(cfg.get("server_host", "api.si.12gm.com")).strip()
+    try:
+        port = int(cfg.get("server_port", 18765))
+    except (TypeError, ValueError):
+        raise SystemExit("client_config.json: server_port must be integer")
+    return [
+        {
+            "host": host,
+            "port": port,
+            "pair": "",
+            "enabled": True,
+            "include": default_include,
+            "exclude": default_exclude,
+            "key": _target_key(host, port),
+        }
+    ]
+
+
+def _try_pair_handshake(host: str, port: int, code: str) -> tuple[str, str]:
+    """Returns (kind, detail). kind is ok | auth_fail | net | proto."""
+    sock: socket.socket | None = None
+    try:
+        sock = _connect(host, port)
+        write_json_frame(sock, {"cmd": "auth", "pair": code})
+        r = read_json_frame(sock)
+    except (ConnectionError, OSError) as e:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        return "net", str(e)
+    except (ValueError, json.JSONDecodeError) as e:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        return "proto", str(e)
+    else:
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+    if r.get("cmd") == "auth_ok":
+        return "ok", ""
+    if r.get("cmd") == "auth_fail":
+        return "auth_fail", str(r.get("reason", "pair mismatch"))
+    return "proto", repr(r)
+
+
+def _interactive_acquire_pairs(enabled_targets: list[dict[str, str | int | bool | tuple[str, ...]]]) -> None:
+    for t in enabled_targets:
+        label = f"{t['host']}:{t['port']}"
+        wrong_pair = 0
+        while wrong_pair < 2:
+            raw = input(f"配对码 [{label}]（服务端控制台上的两位数字）: ").strip()
+            if len(raw) != 2 or not raw.isdigit():
+                print("请输入两位数字（00–99）。", flush=True)
+                continue
+            kind, detail = _try_pair_handshake(str(t["host"]), int(t["port"]), raw)
+            if kind == "ok":
+                t["pair"] = raw
+                print(f"已与 {label} 配对成功。", flush=True)
+                break
+            if kind == "net":
+                print(f"无法连接: {detail}", flush=True)
+                print("请确认该服务端已启动后再输入配对码。", flush=True)
+                continue
+            if kind == "proto":
+                print(f"协议错误: {detail}", flush=True)
+                wrong_pair += 1
+                continue
+            wrong_pair += 1
+            print(f"配对码错误: {detail}", flush=True)
+        else:
+            raise SystemExit(
+                "已连续两次输入错误配对码。服务端可能已自动退出，请重启服务端后重新运行本客户端。"
+            )
+
+
+def _target_initial_done(state: dict, key: str, single_target: bool) -> bool:
+    by_target = state.get("initial_sync_done_by_target")
+    if isinstance(by_target, dict):
+        return bool(by_target.get(key, False))
+    if single_target:
+        return bool(state.get("initial_sync_done", False))
+    return False
+
+
+def _mark_target_initial_done(state: dict, key: str) -> None:
+    by_target = state.get("initial_sync_done_by_target")
+    if not isinstance(by_target, dict):
+        by_target = {}
+    by_target[key] = True
+    state["initial_sync_done_by_target"] = by_target
+    if len(by_target) == 1:
+        state["initial_sync_done"] = True
+
+
+def _mark_target_requires_initial_sync(state: dict, key: str) -> None:
+    by_target = state.get("initial_sync_done_by_target")
+    if not isinstance(by_target, dict):
+        by_target = {}
+    by_target[key] = False
+    state["initial_sync_done_by_target"] = by_target
+    state["initial_sync_done"] = False
+
+
+def _matches_any_pattern(rel_unix: str, patterns: Iterable[str]) -> bool:
     rel = rel_unix.replace("\\", "/")
     parts = rel.split("/")
     name = parts[-1] if parts else ""
@@ -218,6 +399,57 @@ def _excluded(rel_unix: str, patterns: Iterable[str]) -> bool:
             if rel == pat_normalized or rel.startswith(pat_normalized + "/"):
                 return True
     return False
+
+
+def _excluded(rel_unix: str, patterns: Iterable[str]) -> bool:
+    return _matches_any_pattern(rel_unix, patterns)
+
+
+def _target_path_allowed(
+    rel_unix: str,
+    include_patterns: Iterable[str],
+    exclude_patterns: Iterable[str],
+) -> bool:
+    include = tuple(include_patterns)
+    exclude = tuple(exclude_patterns)
+    if include and not _matches_any_pattern(rel_unix, include):
+        return False
+    if exclude and _matches_any_pattern(rel_unix, exclude):
+        return False
+    return True
+
+
+def _target_patterns(target: dict[str, object]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    include_raw = target.get("include")
+    exclude_raw = target.get("exclude")
+    include = include_raw if isinstance(include_raw, tuple) else ()
+    exclude = exclude_raw if isinstance(exclude_raw, tuple) else ()
+    return include, exclude
+
+
+def _filter_snapshot_for_target(
+    snap: dict[str, tuple[float, int]],
+    target: dict[str, object],
+) -> dict[str, tuple[float, int]]:
+    include, exclude = _target_patterns(target)
+    if not include and not exclude:
+        return snap
+    out: dict[str, tuple[float, int]] = {}
+    for rel, meta in snap.items():
+        if _target_path_allowed(rel, include, exclude):
+            out[rel] = meta
+    return out
+
+
+def _filter_paths_for_target(paths: list[str], target: dict[str, object]) -> list[str]:
+    include, exclude = _target_patterns(target)
+    if not include and not exclude:
+        return paths
+    out: list[str] = []
+    for rel in paths:
+        if _target_path_allowed(rel, include, exclude):
+            out.append(rel)
+    return out
 
 
 def _remove_prefix(snap: dict[str, tuple[float, int]], rel: str) -> None:
@@ -452,66 +684,6 @@ def _auth(sock: socket.socket, pair: str) -> None:
     print("auth ok", flush=True)
 
 
-def _try_pair_handshake(host: str, port: int, code: str) -> tuple[str, str]:
-    sock: socket.socket | None = None
-    try:
-        sock = _connect(host, port)
-        write_json_frame(sock, {"cmd": "auth", "pair": code})
-        r = read_json_frame(sock)
-    except (ConnectionError, OSError) as e:
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
-        return "net", str(e)
-    except (ValueError, json.JSONDecodeError) as e:
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
-        return "proto", str(e)
-    else:
-        try:
-            sock.close()
-        except OSError:
-            pass
-
-    if r.get("cmd") == "auth_ok":
-        return "ok", ""
-    if r.get("cmd") == "auth_fail":
-        return "auth_fail", str(r.get("reason", "pair mismatch"))
-    return "proto", repr(r)
-
-
-def _interactive_acquire_pair(host: str, port: int) -> str:
-    label = f"{host}:{port}"
-    wrong_pair = 0
-    while wrong_pair < 2:
-        raw = input(f"配对码 [{label}]（服务端控制台上的两位数字）: ").strip()
-        if len(raw) != 2 or not raw.isdigit():
-            print("请输入两位数字（00–99）。", flush=True)
-            continue
-        kind, detail = _try_pair_handshake(host, port, raw)
-        if kind == "ok":
-            print(f"已与 {label} 配对成功。", flush=True)
-            return raw
-        if kind == "net":
-            print(f"无法连接: {detail}", flush=True)
-            print("请确认服务端已启动后再输入配对码。", flush=True)
-            continue
-        if kind == "proto":
-            print(f"协议错误: {detail}", flush=True)
-            wrong_pair += 1
-            continue
-        wrong_pair += 1
-        print(f"配对码错误: {detail}", flush=True)
-    raise SystemExit(
-        "已连续两次输入错误配对码。服务端可能已自动退出，请重启服务端后重新运行本客户端。"
-    )
-
-
 def _fmt_size(n: int) -> str:
     if n < 1024:
         return f"{n}B"
@@ -675,10 +847,10 @@ def _load_state() -> dict:
         return {}
 
 
-def _save_state(initial_done: bool) -> None:
+def _save_state(state: dict) -> None:
     try:
         with open(_STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump({"initial_sync_done": initial_done}, f)
+            json.dump(state, f)
     except OSError:
         pass
 
@@ -687,8 +859,10 @@ def _run_loop() -> None:
     if not os.path.isfile(_CLIENT_CONFIG):
         raise SystemExit(f"missing config: {_CLIENT_CONFIG}")
     cfg = load_json_config(_CLIENT_CONFIG)
-    host = str(cfg.get("server_host", "api.si.12gm.com"))
-    port = int(cfg.get("server_port", 18765))
+    targets = _parse_targets(cfg)
+    enabled_targets = [t for t in targets if bool(t.get("enabled", True))]
+    disabled_targets = [t for t in targets if not bool(t.get("enabled", True))]
+
     local_raw = cfg.get("local_dir", "../../")
     root = resolve_path_against(_SCRIPT_DIR, str(local_raw))
     root = os.path.abspath(root) if root else ""
@@ -696,15 +870,19 @@ def _run_loop() -> None:
         print(f"client_config={os.path.abspath(_CLIENT_CONFIG)}", flush=True)
         print(f"script_dir={os.path.abspath(_SCRIPT_DIR)}", flush=True)
         print(f"local_sync_root={root}", flush=True)
-        print(f"server_target={host}:{port}", flush=True)
+        print(f"server_targets={len(targets)}", flush=True)
+        for i, t in enumerate(targets, 1):
+            status = "enabled" if bool(t.get("enabled", True)) else "disabled"
+            print(f"target[{i}]={t['host']}:{t['port']} ({status})", flush=True)
         raise SystemExit(0)
     if not root:
         raise SystemExit("edit client_config.json: set local_dir")
     if not os.path.isdir(root):
         raise SystemExit(f"not a directory: {root}")
-    if not sys.stdin.isatty():
-        raise SystemExit("需要在终端中交互输入配对码（stdin 不是 tty）。")
-    pair = _interactive_acquire_pair(host, port)
+    if enabled_targets:
+        if not sys.stdin.isatty():
+            raise SystemExit("需要在终端中交互输入各服务端的配对码（stdin 不是 tty）。")
+        _interactive_acquire_pairs(enabled_targets)
     extra = cfg.get("exclude") or []
     if not isinstance(extra, list):
         extra = []
@@ -714,9 +892,29 @@ def _run_loop() -> None:
     debounce = float(cfg.get("watch_debounce_seconds", 0.35))
 
     state = _load_state()
-    was_initial_done = bool(state.get("initial_sync_done"))
+    single_target = len(targets) == 1
 
-    print(f"config: root={root}  server={host}:{port}  excludes={len(ex)}", flush=True)
+    disabled_state_updated = False
+    for t in disabled_targets:
+        key = str(t["key"])
+        if _target_initial_done(state, key, single_target):
+            _mark_target_requires_initial_sync(state, key)
+            disabled_state_updated = True
+    if disabled_state_updated:
+        _save_state(state)
+
+    print(
+        f"config: root={root}  targets={len(targets)} "
+        f"(enabled={len(enabled_targets)}, disabled={len(disabled_targets)})  excludes={len(ex)}",
+        flush=True,
+    )
+    for t in targets:
+        status = "enabled" if bool(t.get("enabled", True)) else "disabled"
+        print(f"  target: {t['key']} [{status}]", flush=True)
+
+    if not enabled_targets:
+        print("no enabled targets; set servers[].enabled=true to start syncing", flush=True)
+
     print("scanning local files ...", flush=True)
     t0 = time.time()
     snap: dict[str, tuple[float, int]] = _scan_local(root, ex)
@@ -726,26 +924,77 @@ def _run_loop() -> None:
         flush=True,
     )
 
-    def do_sync(s: dict[str, tuple[float, int]], label: str) -> None:
+    def do_sync_target(
+        target: dict[str, str | int | bool | tuple[str, ...]],
+        s: dict[str, tuple[float, int]],
+        label: str,
+    ) -> bool:
+        host = str(target["host"])
+        port = int(target["port"])
+        pair = str(target["pair"])
+        key = str(target["key"])
+        target_snap = _filter_snapshot_for_target(s, target)
         try:
-            _run_one_sync(host, port, pair, root, s)
-            print(f"ok {label}", flush=True)
+            _run_one_sync(host, port, pair, root, target_snap)
+            print(f"ok {label} [{key}] files={len(target_snap)}", flush=True)
+            return True
         except (OSError, RuntimeError, ValueError) as e:
-            print(f"sync failed ({label}): {e}", flush=True)
+            print(f"sync failed ({label}) [{key}]: {e}", flush=True)
+            return False
+
+    def push_target(
+        target: dict[str, str | int | bool | tuple[str, ...]],
+        changed: list[str],
+        deleted: list[str],
+        s: dict[str, tuple[float, int]],
+    ) -> bool:
+        host = str(target["host"])
+        port = int(target["port"])
+        pair = str(target["pair"])
+        key = str(target["key"])
+        target_changed = _filter_paths_for_target(changed, target)
+        target_deleted = _filter_paths_for_target(deleted, target)
+        target_snap = _filter_snapshot_for_target(s, target)
+        if not target_changed and not target_deleted:
+            print(f"  -> push target [{key}] skipped (no paths matched target rules)", flush=True)
+            return True
+        try:
+            print(
+                f"  -> push target [{key}] changed={len(target_changed)} deleted={len(target_deleted)}",
+                flush=True,
+            )
+            _run_incremental_push(host, port, pair, root, target_changed, target_deleted, target_snap)
+            return True
+        except (OSError, RuntimeError, ValueError) as e:
+            print(f"  push failed [{key}]: {e}", flush=True)
+            return False
+
+    pending_initial = [
+        t
+        for t in enabled_targets
+        if not _target_initial_done(state, str(t["key"]), single_target)
+    ]
 
     skip_first_poll = False
-    if not was_initial_done:
-        print("initial full sync (entire tree)", flush=True)
-        try:
-            _run_one_sync(host, port, pair, root, snap)
-            _save_state(True)
-            print("initial sync done; switching to incremental", flush=True)
+    if pending_initial:
+        print(f"initial full sync (entire tree) for {len(pending_initial)} target(s)", flush=True)
+        initial_ok = 0
+        for t in pending_initial:
+            if do_sync_target(t, snap, "initial"):
+                initial_ok += 1
+                _mark_target_initial_done(state, str(t["key"]))
+        _save_state(state)
+        if initial_ok == len(pending_initial):
+            print("initial sync done for all targets; switching to incremental", flush=True)
             skip_first_poll = True
-        except (OSError, RuntimeError, ValueError) as e:
-            print(f"initial sync failed: {e}", flush=True)
-            raise SystemExit(1)
+        else:
+            print(
+                f"initial sync partially failed ({initial_ok}/{len(pending_initial)}); will retry automatically",
+                flush=True,
+            )
     elif use_watch and _HAS_WATCHDOG:
-        do_sync(snap, "startup_reconcile")
+        for t in enabled_targets:
+            do_sync_target(t, snap, "startup_reconcile")
 
     if use_watch and _HAS_WATCHDOG:
         sync_lock = threading.Lock()
@@ -758,10 +1007,15 @@ def _run_loop() -> None:
                     print(f"  + {os.path.join(root, rel.replace('/', os.sep))}", flush=True)
                 for rel in deleted:
                     print(f"  - {os.path.join(root, rel.replace('/', os.sep))}", flush=True)
-                try:
-                    _run_incremental_push(host, port, pair, root, changed, deleted, snap)
-                except (OSError, RuntimeError, ValueError) as e:
-                    print(f"  push failed: {e}", flush=True)
+                for t in enabled_targets:
+                    key = str(t["key"])
+                    if not _target_initial_done(state, key, single_target):
+                        print(f"  [{key}] no successful initial sync yet, fallback to full sync", flush=True)
+                        if do_sync_target(t, snap, "watch_full_sync"):
+                            _mark_target_initial_done(state, key)
+                            _save_state(state)
+                        continue
+                    push_target(t, changed, deleted, snap)
 
         handler = _WatchHandler(root, ex, snap, debounce, on_flush)
         observer = Observer()
@@ -786,7 +1040,12 @@ def _run_loop() -> None:
             try:
                 snap.clear()
                 snap.update(_scan_local(root, ex))
-                do_sync(snap, "poll")
+                for t in enabled_targets:
+                    ok = do_sync_target(t, snap, "poll")
+                    key = str(t["key"])
+                    if ok and not _target_initial_done(state, key, single_target):
+                        _mark_target_initial_done(state, key)
+                        _save_state(state)
             except (OSError, RuntimeError, ValueError) as e:
                 print(f"sync round failed: {e}", flush=True)
         time.sleep(interval)

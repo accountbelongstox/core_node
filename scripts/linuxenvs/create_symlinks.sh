@@ -49,6 +49,11 @@ $USE_SUDO chmod +x "$SCRIPT_DIR/claude6.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/claude6.sh" /usr/local/bin/claude6
 echo "[LINK] claude6 -> $SCRIPT_DIR/claude6.sh"
 
+# Link claude9
+$USE_SUDO chmod +x "$SCRIPT_DIR/claude9.sh"
+$USE_SUDO ln -sf "$SCRIPT_DIR/claude9.sh" /usr/local/bin/claude9
+echo "[LINK] claude9 -> $SCRIPT_DIR/claude9.sh"
+
 # Link codex1
 $USE_SUDO chmod +x "$SCRIPT_DIR/codex1.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/codex1.sh" /usr/local/bin/codex1
@@ -69,6 +74,16 @@ $USE_SUDO chmod +x "$SCRIPT_DIR/ssh1.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/ssh1.sh" /usr/local/bin/ssh1
 echo "[LINK] ssh1 -> $SCRIPT_DIR/ssh1.sh"
 
+# Link ssh2
+$USE_SUDO chmod +x "$SCRIPT_DIR/ssh2.sh"
+$USE_SUDO ln -sf "$SCRIPT_DIR/ssh2.sh" /usr/local/bin/ssh2
+echo "[LINK] ssh2 -> $SCRIPT_DIR/ssh2.sh"
+
+# Link ssh3
+$USE_SUDO chmod +x "$SCRIPT_DIR/ssh3.sh"
+$USE_SUDO ln -sf "$SCRIPT_DIR/ssh3.sh" /usr/local/bin/ssh3
+echo "[LINK] ssh3 -> $SCRIPT_DIR/ssh3.sh"
+
 echo ""
 echo "Symlinks created successfully!"
 echo "You can now run these commands from anywhere:"
@@ -79,7 +94,10 @@ echo "  claude3"
 echo "  claude4"
 echo "  claude5"
 echo "  claude6"
+echo "  claude9"
 echo "  codex1"
 echo "  codex2"
 echo "  openai1"
 echo "  ssh1"
+echo "  ssh2"
+echo "  ssh3"

@@ -14,6 +14,12 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $AppRoot = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 $CoreNodeRoot = (Resolve-Path (Join-Path $ScriptDir "..\..\..")).Path
+$WcGroup = Join-Path $CoreNodeRoot "webclaude_group"
+if (Test-Path -LiteralPath $WcGroup) {
+    $dd = if ($env:WEBCLAUDE_DATA_DIR) { $env:WEBCLAUDE_DATA_DIR } else { Join-Path $WcGroup ".data" }
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $dd "cache") -ErrorAction SilentlyContinue
+    $env:WEBCLAUDE_DATA_DIR = $dd
+}
 $OriginalDir = (Get-Location).Path
 
 try {
@@ -52,7 +58,7 @@ try {
         Write-Host "[INFO] Starting in dev mode with hot-reload..."
         & $py -u (Join-Path $AppRoot "scripts\dev_reload.py")
     } else {
-        & $py -u (Join-Path $CoreNodeRoot "scripts\pycore\pymain.py") "app=claude_host"
+        & $py -u (Join-Path $CoreNodeRoot "pymain.py") "app=claude_host"
     }
 } finally {
     Set-Location -LiteralPath $OriginalDir

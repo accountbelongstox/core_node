@@ -1032,3 +1032,78 @@ Host → center_server:      absolute address (from host config, e.g. http://loc
 > Gateway→center, gateway→host, host→center all use absolute configured addresses.
 > Only frontend connections are dynamic (based on browser location).
 > Set all gateways to auto-detect mode for current deployment."
+
+### Phase 16: SQLite as Default Database (2026-04-03)
+
+**Requirement**: All services should default to SQLite, not MySQL. This enables zero-dependency deployment on any server (no MySQL/Redis setup needed).
+
+**Changes needed**:
+- center_server: `DB_TYPE=sqlite` as default in .env and config
+- go-gateway: `DB_TYPE=sqlite` as default
+- Start scripts: skip MySQL/Redis checks when DB_TYPE=sqlite
+- Redis: make optional (use in-memory fallback when not available)
+
+**Prompt excerpt**:
+> "Support sqlite, each service should prioritize sqlite. Modify all files and all services.
+> Deploy on Linux server without MySQL — should work out of the box with sqlite."
+
+### Phase 16b: Go Gateway SQLite Full Compatibility (2026-04-03)
+
+**Audit findings (41 files depend on MySQL)**:
+- `mysql.Pool` type doesn't exist — NewPool returns `*sqlx.DB`
+- 25+ services crash with nil db pointer when DB_TYPE=sqlite
+- 3 SQL queries use MySQL-specific JSON_SET/JSON_OBJECT (incompatible with SQLite)
+- sqlite.Store returns `*sql.DB` but services expect `*sqlx.DB`
+
+**Fix approach**:
+- SQLite mode opens via `sqlx.Open("sqlite", path)` for interface compatibility
+- All 41 dependent services receive a valid `*sqlx.DB` (not nil)
+- SQLite driver: `modernc.org/sqlite` (pure Go, no CGO)
+- MaxOpenConns=1 for SQLite single-writer constraint
+
+**Deployment issues fixed**:
+- CRLF line endings in .sh scripts (Windows→Linux): auto-fix via fix_scripts.py
+- `vite: not found`: add `node_modules/.bin` to PATH in start.sh
+- go-gateway unconditionally inits MySQL: conditional on DB_TYPE
+- All sub-scripts: remove `set -euo pipefail`, no exit codes
+
+**Prompt excerpt**:
+> "go-gateway mysql.Pool undefined — fix type to *sqlx.DB.
+> All scripts: no exit codes, real-time output, view startup logs live.
+> Go gateway must 100% work with SQLite replacing MySQL."
+
+### Phase 17: Redis Install via core_node Scripts + Debug Mode + Project Rules (2026-04-04)
+
+**Redis auto-install**:
+- Use existing `core_node/scripts/shells/linux/debian/install_shells/45_install_redis.sh`
+- Call from `start.sh` with `START_REDIS=true`, NOT from Python
+- ioredis retry limited to 3 attempts then STOP (no infinite loop)
+- Error log debounced to once per minute
+
+**Debug mode requirement**:
+- All services must show FULL debug output, no error suppression
+- Frontend must display all backend error details
+- Logs must capture everything for remote debugging
+
+**Development workflow / Project rules**:
+- Development is LOCAL (Windows or Linux)
+- Code syncs to REMOTE servers via sync software (not git deploy)
+- Website, gateway, center_server, host may run on DIFFERENT remote servers (all Debian)
+- Local dev is reference only — debug info comes from REMOTE logs
+- Don't search local paths for remote errors
+- Consider OS differences (Windows dev → Linux deploy)
+
+**Host keeps disconnecting every 30s**:
+- gateway `host_relay.go` disconnects host after WS tunnel metrics check
+- Need to investigate WebSocket keepalive/timeout settings
+
+**Login 500 error**: `POST /web/auth/login` returns Internal Server Error
+- Related to Redis not connected (admin session stored in Redis)
+- Need SQLite fallback for admin sessions
+
+**Prompt excerpt**:
+> "Redis install must use core_node/scripts/shells/linux sh scripts, NOT Python.
+> Show ALL debug errors in logs. No error suppression.
+> Define project rules: dev is local, deploy is remote Linux.
+> Code syncs via sync software. Debug info is from remote.
+> Search Claude Code docs for how to define project rules (CLAUDE.md)."
