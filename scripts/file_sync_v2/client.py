@@ -1,9 +1,11 @@
 # Pair-code sync client: first run full tree sync; then filesystem watch + debounced incremental updates.
 # Single-file: inlined protocol + pip/ensurepip + auto pip-install missing third-party (watchdog).
+# v2: persistent connections, batch_files, TCP_NODELAY, parallel targets, scandir, snap hash skip.
 
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import importlib
 import json
 import os
@@ -13,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Iterable
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -423,11 +426,7 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
 
 
 def _try_pair_handshake(host: str, port: int, code: str) -> tuple[str, str]:
-    """Returns (kind, detail). kind is ok | auth_fail | net | proto.
-
-    After auth_ok we must tell the server we are only verifying the pair code (not
-    starting a sync); otherwise the server waits for manifest/push and logs peer closed.
-    """
+    """Returns (kind, detail). kind is ok | auth_fail | net | proto."""
     sock: socket.socket | None = None
     try:
         sock = _connect(host, port)
@@ -522,14 +521,11 @@ def _matches_any_pattern(rel_unix: str, patterns: Iterable[str]) -> bool:
     parts = rel.split("/")
     name = parts[-1] if parts else ""
     for pat in patterns:
-        # match filename or full relative path
         if fnmatch.fnmatch(name, pat) or fnmatch.fnmatch(rel, pat):
             return True
-        # match any single path segment
         for part in parts:
             if fnmatch.fnmatch(part, pat):
                 return True
-        # match path prefix (e.g. "pyapps/d3-check" matches "pyapps/d3-check/foo/bar.py")
         if "/" in pat:
             pat_normalized = pat.replace("\\", "/").strip("/")
             if rel == pat_normalized or rel.startswith(pat_normalized + "/"):
@@ -595,34 +591,39 @@ def _remove_prefix(snap: dict[str, tuple[float, int]], rel: str) -> None:
             del snap[k]
 
 
+# ---------------------------------------------------------------------------
+# File scanning — uses os.scandir for better perf (Windows caches stat info)
+# ---------------------------------------------------------------------------
+
+def _scandir_recurse(
+    base_dir: str,
+    rel_prefix: str,
+    excludes: tuple[str, ...],
+    out: dict[str, tuple[float, int]],
+) -> None:
+    try:
+        it = os.scandir(base_dir)
+    except OSError:
+        return
+    with it:
+        for entry in it:
+            rel = f"{rel_prefix}/{entry.name}" if rel_prefix else entry.name
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    if not _excluded(rel, excludes):
+                        _scandir_recurse(entry.path, rel, excludes, out)
+                elif entry.is_file(follow_symlinks=False):
+                    if not _excluded(rel, excludes):
+                        st = entry.stat(follow_symlinks=False)
+                        out[rel] = (st.st_mtime, st.st_size)
+            except OSError:
+                pass
+
+
 def _scan_local(root: str, excludes: tuple[str, ...]) -> dict[str, tuple[float, int]]:
     root = os.path.abspath(root)
     out: dict[str, tuple[float, int]] = {}
-    for dirpath, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
-        rel_dir = os.path.relpath(dirpath, root)
-        if rel_dir == ".":
-            rel_dir = ""
-        rel_unix = rel_dir.replace(os.sep, "/") if rel_dir else ""
-        dirnames[:] = [
-            d
-            for d in dirnames
-            if not _excluded(
-                (rel_unix + "/" + d) if rel_unix else d,
-                excludes,
-            )
-        ]
-        for fn in filenames:
-            abs_f = os.path.join(dirpath, fn)
-            rel_u = f"{rel_unix}/{fn}" if rel_unix else fn
-            if _excluded(rel_u, excludes):
-                continue
-            try:
-                st = os.stat(abs_f)
-            except OSError:
-                continue
-            if not os.path.isfile(abs_f):
-                continue
-            out[rel_u] = (st.st_mtime, st.st_size)
+    _scandir_recurse(root, "", excludes, out)
     return out
 
 
@@ -632,28 +633,7 @@ def _scan_subtree(root: str, base_rel: str, excludes: tuple[str, ...]) -> dict[s
     if not os.path.isdir(base):
         return {}
     out: dict[str, tuple[float, int]] = {}
-    for dirpath, dirnames, filenames in os.walk(base, topdown=True, followlinks=False):
-        rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
-        dirnames[:] = [
-            d
-            for d in dirnames
-            if not _excluded(
-                (rel_dir + "/" + d) if rel_dir else d,
-                excludes,
-            )
-        ]
-        for fn in filenames:
-            abs_f = os.path.join(dirpath, fn)
-            rel_u = f"{rel_dir}/{fn}" if rel_dir else fn
-            if _excluded(rel_u, excludes):
-                continue
-            try:
-                st = os.stat(abs_f)
-            except OSError:
-                continue
-            if not os.path.isfile(abs_f):
-                continue
-            out[rel_u] = (st.st_mtime, st.st_size)
+    _scandir_recurse(base, base_rel, excludes, out)
     return out
 
 
@@ -708,6 +688,24 @@ def _path_entirely_excluded(rel: str, excludes: tuple[str, ...]) -> bool:
             return True
     return False
 
+
+# ---------------------------------------------------------------------------
+# Snapshot hashing (P2 — skip network sync when nothing changed)
+# ---------------------------------------------------------------------------
+
+def _snap_hash(snap: dict[str, tuple[float, int]]) -> str:
+    if not snap:
+        return ""
+    h = hashlib.md5()
+    for k in sorted(snap):
+        mt, sz = snap[k]
+        h.update(f"{k}\0{mt}\0{sz}\n".encode())
+    return h.hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Watch handler
+# ---------------------------------------------------------------------------
 
 class _WatchHandler(FileSystemEventHandler):
     def __init__(
@@ -768,14 +766,12 @@ class _WatchHandler(FileSystemEventHandler):
                     if rel in self.snap:
                         del self.snap[rel]
                         deleted.append(rel)
-                    # also clean entries under this prefix (directory deleted)
                     prefix = rel + "/"
                     for k in list(self.snap.keys()):
                         if k.startswith(prefix):
                             del self.snap[k]
                             deleted.append(k)
                 elif os.path.isdir(abs_p):
-                    # directory changed — scan for new/modified files in it
                     sub = _scan_subtree(self.root, rel, self.excludes)
                     for sr, (mt, sz) in sub.items():
                         old = self.snap.get(sr)
@@ -800,9 +796,14 @@ class _WatchHandler(FileSystemEventHandler):
             self._queue(event.dest_path)
 
 
+# ---------------------------------------------------------------------------
+# Networking — connect / auth / persistent connection
+# ---------------------------------------------------------------------------
+
 def _connect(host: str, port: int, connect_timeout: float = 15.0) -> socket.socket:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     s.settimeout(connect_timeout)
     print(f"connecting to {host}:{port} ...", flush=True)
     s.connect((host, port))
@@ -820,6 +821,56 @@ def _auth(sock: socket.socket, pair: str) -> None:
     print("auth ok", flush=True)
 
 
+class _PersistentConn:
+    """Manages a persistent TCP session to one server target."""
+
+    def __init__(self, host: str, port: int, pair: str) -> None:
+        self.host = host
+        self.port = port
+        self.pair = pair
+        self._sock: socket.socket | None = None
+        self._lock = threading.Lock()
+
+    def ensure_connected(self) -> socket.socket:
+        with self._lock:
+            if self._sock is not None:
+                return self._sock
+            self._sock = _connect(self.host, self.port)
+            _auth(self._sock, self.pair)
+            return self._sock
+
+    def invalidate(self) -> None:
+        with self._lock:
+            if self._sock is not None:
+                try:
+                    self._sock.close()
+                except OSError:
+                    pass
+                self._sock = None
+
+    def close_session(self) -> None:
+        with self._lock:
+            if self._sock is not None:
+                try:
+                    write_json_frame(self._sock, {"cmd": "session_bye"})
+                    self._sock.settimeout(3.0)
+                    try:
+                        read_json_frame(self._sock)
+                    except Exception:
+                        pass
+                except OSError:
+                    pass
+                try:
+                    self._sock.close()
+                except OSError:
+                    pass
+                self._sock = None
+
+
+# ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+
 def _fmt_size(n: int) -> str:
     if n < 1024:
         return f"{n}B"
@@ -828,8 +879,16 @@ def _fmt_size(n: int) -> str:
     return f"{n / 1024 / 1024:.1f}MB"
 
 
+# ---------------------------------------------------------------------------
+# File pushing — with batching for small files (P2)
+# ---------------------------------------------------------------------------
+
+_BATCH_FILE_THRESHOLD = 64 * 1024   # individual file smaller than this → batch
+_BATCH_TOTAL_LIMIT = 256 * 1024     # flush batch when accumulated payload exceeds this
+
+
 def _push_file(sock: socket.socket, root: str, rel_unix: str, mtime: float) -> int:
-    """Send file frame + payload, no ACK expected. Returns bytes sent."""
+    """Send one file frame + payload. Returns bytes sent."""
     dst = os.path.join(root, rel_unix.replace("/", os.sep))
     with open(dst, "rb") as f:
         data = f.read()
@@ -841,6 +900,72 @@ def _push_file(sock: socket.socket, root: str, rel_unix: str, mtime: float) -> i
         sock.sendall(data)
     return len(data)
 
+
+def _push_files_batched(
+    sock: socket.socket,
+    root: str,
+    files: list[str],
+    snap: dict[str, tuple[float, int]],
+    progress_cb: Callable[[int, int, str], None] | None = None,
+) -> tuple[int, int]:
+    """Push files with batching for small files. Returns (count, bytes)."""
+    batch_meta: list[dict[str, Any]] = []
+    batch_data = bytearray()
+    total_sent = 0
+    total_bytes = 0
+
+    def _flush_batch() -> None:
+        nonlocal total_sent, total_bytes
+        if not batch_meta:
+            return
+        write_json_frame(sock, {
+            "cmd": "batch_files",
+            "files": batch_meta,
+            "total_size": len(batch_data),
+        })
+        if batch_data:
+            sock.sendall(bytes(batch_data))
+        total_sent += len(batch_meta)
+        total_bytes += len(batch_data)
+        batch_meta.clear()
+        batch_data.clear()
+
+    for rel in files:
+        if rel not in snap:
+            continue
+        mt = snap[rel][0]
+        abs_p = os.path.join(root, rel.replace("/", os.sep))
+        try:
+            with open(abs_p, "rb") as f:
+                data = f.read()
+        except OSError:
+            continue
+        size = len(data)
+
+        if size <= _BATCH_FILE_THRESHOLD:
+            batch_meta.append({"path": rel, "size": size, "mtime": mt})
+            batch_data.extend(data)
+            if len(batch_data) >= _BATCH_TOTAL_LIMIT:
+                _flush_batch()
+                if progress_cb:
+                    progress_cb(total_sent, total_bytes, "")
+        else:
+            _flush_batch()
+            write_json_frame(sock, {"cmd": "file", "path": rel, "size": size, "mtime": mt})
+            if data:
+                sock.sendall(data)
+            total_sent += 1
+            total_bytes += size
+            if progress_cb:
+                progress_cb(total_sent, total_bytes, abs_p)
+
+    _flush_batch()
+    return total_sent, total_bytes
+
+
+# ---------------------------------------------------------------------------
+# Sync rounds — manifest & incremental push
+# ---------------------------------------------------------------------------
 
 def _manifest_round(
     sock: socket.socket,
@@ -865,30 +990,34 @@ def _manifest_round(
         _ = read_json_frame(sock)
         return
 
-    total_bytes = 0
     t_start = time.time()
     last_report = t_start
-    print(f"uploading {total_up} file(s) (no-ack pipeline) ...", flush=True)
-    for i, rel in enumerate(up, 1):
-        rel_s = str(rel).replace("\\", "/")
-        if rel_s not in snap:
-            raise RuntimeError(f"server asked unknown path: {rel_s}")
-        mt = snap[rel_s][0]
-        sz = _push_file(sock, local_root, rel_s, mt)
-        total_bytes += sz
+    print(f"uploading {total_up} file(s) (batched pipeline) ...", flush=True)
+
+    def _progress(sent: int, nbytes: int, path: str) -> None:
+        nonlocal last_report
         now = time.time()
-        if now - last_report >= 2.0 or i == total_up or i == 1:
+        if now - last_report >= 2.0 or sent == total_up or sent == 1:
             elapsed = now - t_start
-            pct = i * 100 // total_up
-            rate = total_bytes / elapsed if elapsed > 0 else 0
-            abs_p = os.path.join(local_root, rel_s.replace("/", os.sep))
+            pct = sent * 100 // total_up if total_up else 100
+            rate = nbytes / elapsed if elapsed > 0 else 0
             print(
-                f"  [{i}/{total_up}] {pct}%  {_fmt_size(total_bytes)} sent  {_fmt_size(int(rate))}/s  {abs_p}",
+                f"  [{sent}/{total_up}] {pct}%  {_fmt_size(nbytes)} sent  {_fmt_size(int(rate))}/s"
+                + (f"  {path}" if path else ""),
                 flush=True,
             )
             last_report = now
 
-    # all files pushed — send bye and wait for server summary
+    # validate all paths exist in snap
+    upload_list: list[str] = []
+    for rel in up:
+        rel_s = str(rel).replace("\\", "/")
+        if rel_s not in snap:
+            raise RuntimeError(f"server asked unknown path: {rel_s}")
+        upload_list.append(rel_s)
+
+    total_sent, total_bytes = _push_files_batched(sock, local_root, upload_list, snap, _progress)
+
     write_json_frame(sock, {"cmd": "bye"})
     print("all files sent, waiting for server confirmation ...", flush=True)
     result = read_json_frame(sock)
@@ -906,72 +1035,57 @@ def _manifest_round(
     elif result.get("cmd") == "error":
         raise RuntimeError(f"server error: {result.get('err')}")
     else:
-        print(f"upload done: {total_up} files, {_fmt_size(total_bytes)}, {elapsed:.1f}s", flush=True)
+        print(f"upload done: {total_sent} files, {_fmt_size(total_bytes)}, {elapsed:.1f}s", flush=True)
 
 
 def _run_one_sync(
-    host: str,
-    port: int,
-    pair: str,
+    conn: _PersistentConn,
     root: str,
     snap: dict[str, tuple[float, int]],
 ) -> None:
-    sock = _connect(host, port)
+    """Full manifest sync using persistent connection."""
+    sock = conn.ensure_connected()
     try:
-        _auth(sock, pair)
         _manifest_round(sock, root, snap)
-    finally:
-        try:
-            sock.close()
-        except OSError:
-            pass
+    except Exception:
+        conn.invalidate()
+        raise
 
 
 def _run_incremental_push(
-    host: str,
-    port: int,
-    pair: str,
+    conn: _PersistentConn,
     root: str,
     changed: list[str],
     deleted: list[str],
     snap: dict[str, tuple[float, int]],
 ) -> None:
-    """Push only changed/deleted files to server — no manifest, no comparison."""
-    sock = _connect(host, port)
+    """Push only changed/deleted files using persistent connection."""
+    sock = conn.ensure_connected()
     try:
-        _auth(sock, pair)
         write_json_frame(sock, {"cmd": "push", "deleted": deleted})
-        total_bytes = 0
         t_start = time.time()
-        sent = 0
-        for rel in changed:
-            if rel not in snap:
-                continue
-            mt = snap[rel][0]
-            abs_p = os.path.join(root, rel.replace("/", os.sep))
-            sz = _push_file(sock, root, rel, mt)
-            total_bytes += sz
-            sent += 1
-            print(f"  >> {abs_p} ({_fmt_size(sz)})", flush=True)
+        total_sent, total_bytes = _push_files_batched(sock, root, changed, snap)
         write_json_frame(sock, {"cmd": "bye"})
         result = read_json_frame(sock)
         elapsed = time.time() - t_start
         if result.get("cmd") == "sync_done":
             srv_errors = result.get("errors", [])
-            detail = f"{sent} pushed, {len(deleted)} deleted, {_fmt_size(total_bytes)}, {elapsed:.1f}s"
+            detail = f"{total_sent} pushed, {len(deleted)} deleted, {_fmt_size(total_bytes)}, {elapsed:.1f}s"
             if srv_errors:
                 detail += f", {len(srv_errors)} error(s)"
             print(f"  push ok: {detail}", flush=True)
         elif result.get("cmd") == "error":
             print(f"  push error: {result.get('err')}", flush=True)
         else:
-            print(f"  push done: {sent} files, {_fmt_size(total_bytes)}, {elapsed:.1f}s", flush=True)
-    finally:
-        try:
-            sock.close()
-        except OSError:
-            pass
+            print(f"  push done: {total_sent} files, {_fmt_size(total_bytes)}, {elapsed:.1f}s", flush=True)
+    except Exception:
+        conn.invalidate()
+        raise
 
+
+# ---------------------------------------------------------------------------
+# State persistence
+# ---------------------------------------------------------------------------
 
 def _load_state() -> dict:
     if not os.path.isfile(_STATE_FILE):
@@ -990,6 +1104,10 @@ def _save_state(state: dict) -> None:
     except OSError:
         pass
 
+
+# ---------------------------------------------------------------------------
+# Main loop
+# ---------------------------------------------------------------------------
 
 def _run_loop() -> None:
     if not os.path.isfile(_CLIENT_CONFIG):
@@ -1053,6 +1171,12 @@ def _run_loop() -> None:
     if not enabled_targets:
         print("no enabled targets; set servers[].enabled=true to start syncing", flush=True)
 
+    # --- create persistent connections ---
+    conns: dict[str, _PersistentConn] = {}
+    for t in enabled_targets:
+        key = str(t["key"])
+        conns[key] = _PersistentConn(str(t["host"]), int(t["port"]), str(t["pair"]))
+
     print("scanning local files ...", flush=True)
     t0 = time.time()
     snap: dict[str, tuple[float, int]] = _scan_local(root, ex)
@@ -1062,19 +1186,21 @@ def _run_loop() -> None:
         flush=True,
     )
 
+    # per-target snap hash for skip optimization
+    last_snap_hashes: dict[str, str] = {}
+
     def do_sync_target(
         target: dict[str, str | int | bool | tuple[str, ...]],
         s: dict[str, tuple[float, int]],
         label: str,
     ) -> bool:
-        host = str(target["host"])
-        port = int(target["port"])
-        pair = str(target["pair"])
         key = str(target["key"])
+        conn = conns[key]
         target_snap = _filter_snapshot_for_target(s, target)
         try:
-            _run_one_sync(host, port, pair, root, target_snap)
+            _run_one_sync(conn, root, target_snap)
             print(f"ok {label} [{key}] files={len(target_snap)}", flush=True)
+            last_snap_hashes[key] = _snap_hash(target_snap)
             return True
         except (OSError, RuntimeError, ValueError) as e:
             print(f"sync failed ({label}) [{key}]: {e}", flush=True)
@@ -1086,10 +1212,8 @@ def _run_loop() -> None:
         deleted: list[str],
         s: dict[str, tuple[float, int]],
     ) -> bool:
-        host = str(target["host"])
-        port = int(target["port"])
-        pair = str(target["pair"])
         key = str(target["key"])
+        conn = conns[key]
         target_changed = _filter_paths_for_target(changed, target)
         target_deleted = _filter_paths_for_target(deleted, target)
         target_snap = _filter_snapshot_for_target(s, target)
@@ -1101,26 +1225,78 @@ def _run_loop() -> None:
                 f"  -> push target [{key}] changed={len(target_changed)} deleted={len(target_deleted)}",
                 flush=True,
             )
-            _run_incremental_push(host, port, pair, root, target_changed, target_deleted, target_snap)
+            _run_incremental_push(conn, root, target_changed, target_deleted, target_snap)
+            last_snap_hashes[key] = _snap_hash(target_snap)
             return True
         except (OSError, RuntimeError, ValueError) as e:
             print(f"  push failed [{key}]: {e}", flush=True)
             return False
 
+    # --- initial sync ---
     pending_initial = [
         t
         for t in enabled_targets
         if not _target_initial_done(state, str(t["key"]), single_target)
     ]
 
+    max_workers = min(len(enabled_targets), 4) if len(enabled_targets) > 1 else 1
+    pool: ThreadPoolExecutor | None = ThreadPoolExecutor(max_workers=max_workers) if max_workers > 1 else None
+
+    def _parallel_sync(targets_list: list, label: str) -> int:
+        """Sync multiple targets in parallel. Returns count of successes."""
+        if not targets_list:
+            return 0
+        if pool is None or len(targets_list) == 1:
+            ok = 0
+            for t in targets_list:
+                if do_sync_target(t, snap, label):
+                    ok += 1
+            return ok
+        futures = {}
+        for t in targets_list:
+            f = pool.submit(do_sync_target, t, snap, label)
+            futures[f] = t
+        ok = 0
+        for f in as_completed(futures):
+            try:
+                if f.result():
+                    ok += 1
+            except Exception as e:
+                t = futures[f]
+                print(f"  sync exception [{t['key']}]: {e}", flush=True)
+        return ok
+
+    def _parallel_push(
+        targets_list: list,
+        changed: list[str],
+        deleted: list[str],
+    ) -> None:
+        if not targets_list:
+            return
+        if pool is None or len(targets_list) == 1:
+            for t in targets_list:
+                push_target(t, changed, deleted, snap)
+            return
+        futures = {}
+        for t in targets_list:
+            f = pool.submit(push_target, t, changed, deleted, snap)
+            futures[f] = t
+        for f in as_completed(futures):
+            try:
+                f.result()
+            except Exception as e:
+                t = futures[f]
+                print(f"  push exception [{t['key']}]: {e}", flush=True)
+
     skip_first_poll = False
     if pending_initial:
         print(f"initial full sync (entire tree) for {len(pending_initial)} target(s)", flush=True)
-        initial_ok = 0
+        initial_ok = _parallel_sync(pending_initial, "initial")
         for t in pending_initial:
-            if do_sync_target(t, snap, "initial"):
-                initial_ok += 1
-                _mark_target_initial_done(state, str(t["key"]))
+            key = str(t["key"])
+            # mark done if sync succeeded (check via last_snap_hashes)
+            if key in last_snap_hashes:
+                _mark_target_initial_done(state, key)
         _save_state(state)
         if initial_ok == len(pending_initial):
             print("initial sync done for all targets; switching to incremental", flush=True)
@@ -1131,9 +1307,9 @@ def _run_loop() -> None:
                 flush=True,
             )
     elif use_watch and _HAS_WATCHDOG:
-        for t in enabled_targets:
-            do_sync_target(t, snap, "startup_reconcile")
+        _parallel_sync(enabled_targets, "startup_reconcile")
 
+    # --- watch mode ---
     if use_watch and _HAS_WATCHDOG:
         sync_lock = threading.Lock()
 
@@ -1145,15 +1321,23 @@ def _run_loop() -> None:
                     print(f"  + {os.path.join(root, rel.replace('/', os.sep))}", flush=True)
                 for rel in deleted:
                     print(f"  - {os.path.join(root, rel.replace('/', os.sep))}", flush=True)
+                need_full: list = []
+                need_push: list = []
                 for t in enabled_targets:
                     key = str(t["key"])
                     if not _target_initial_done(state, key, single_target):
-                        print(f"  [{key}] no successful initial sync yet, fallback to full sync", flush=True)
-                        if do_sync_target(t, snap, "watch_full_sync"):
+                        need_full.append(t)
+                    else:
+                        need_push.append(t)
+                if need_full:
+                    ok = _parallel_sync(need_full, "watch_full_sync")
+                    for t in need_full:
+                        key = str(t["key"])
+                        if key in last_snap_hashes:
                             _mark_target_initial_done(state, key)
                             _save_state(state)
-                        continue
-                    push_target(t, changed, deleted, snap)
+                if need_push:
+                    _parallel_push(need_push, changed, deleted)
 
         handler = _WatchHandler(root, ex, snap, debounce, on_flush)
         observer = Observer()
@@ -1166,27 +1350,59 @@ def _run_loop() -> None:
         except KeyboardInterrupt:
             observer.stop()
         observer.join()
+        _cleanup_conns(conns, pool)
         return
 
+    # --- poll mode ---
     if use_watch and not _HAS_WATCHDOG:
         print("watchdog not installed; pip install watchdog  OR  set use_watch false", flush=True)
 
-    while True:
-        if skip_first_poll:
-            skip_first_poll = False
-        else:
-            try:
-                snap.clear()
-                snap.update(_scan_local(root, ex))
-                for t in enabled_targets:
-                    ok = do_sync_target(t, snap, "poll")
-                    key = str(t["key"])
-                    if ok and not _target_initial_done(state, key, single_target):
-                        _mark_target_initial_done(state, key)
-                        _save_state(state)
-            except (OSError, RuntimeError, ValueError) as e:
-                print(f"sync round failed: {e}", flush=True)
-        time.sleep(interval)
+    try:
+        while True:
+            if skip_first_poll:
+                skip_first_poll = False
+            else:
+                try:
+                    snap.clear()
+                    snap.update(_scan_local(root, ex))
+
+                    # P2: skip targets whose snap hash hasn't changed
+                    targets_to_sync: list = []
+                    for t in enabled_targets:
+                        key = str(t["key"])
+                        target_snap = _filter_snapshot_for_target(snap, t)
+                        h = _snap_hash(target_snap)
+                        if h == last_snap_hashes.get(key) and _target_initial_done(state, key, single_target):
+                            continue
+                        targets_to_sync.append(t)
+
+                    if targets_to_sync:
+                        ok = _parallel_sync(targets_to_sync, "poll")
+                        for t in targets_to_sync:
+                            key = str(t["key"])
+                            if key in last_snap_hashes and not _target_initial_done(state, key, single_target):
+                                _mark_target_initial_done(state, key)
+                                _save_state(state)
+                except (OSError, RuntimeError, ValueError) as e:
+                    print(f"sync round failed: {e}", flush=True)
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _cleanup_conns(conns, pool)
+
+
+def _cleanup_conns(
+    conns: dict[str, _PersistentConn],
+    pool: ThreadPoolExecutor | None,
+) -> None:
+    for conn in conns.values():
+        try:
+            conn.close_session()
+        except Exception:
+            pass
+    if pool is not None:
+        pool.shutdown(wait=False)
 
 
 def main() -> None:

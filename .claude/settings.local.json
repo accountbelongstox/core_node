@@ -20,7 +20,9 @@
       "Bash(chmod +x /d/programing/webclaude_group/scripts/start.sh)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:docs.claude.com)",
-      "WebFetch(domain:medium.com)"
+      "WebFetch(domain:medium.com)",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('server.py', doraise=True\\); print\\('server.py OK'\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('client.py', doraise=True\\); print\\('client.py OK'\\)\")"
     ]
   }
 }
