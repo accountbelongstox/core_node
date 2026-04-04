@@ -27,6 +27,36 @@ APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
 
+# Sanitize a file: remove git merge conflict markers (<<<<<<, ======, >>>>>>)
+# This prevents apt from breaking when synced files contain unresolved conflicts.
+sanitize_git_conflicts_from_apt_repository_manager() {
+    local file="$1"
+    [ -z "$file" ] && return 0
+    [ -f "$file" ] || return 0
+    if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
+        echo "WARNING: Removing git conflict markers from $file"
+        $USE_SUDO sed -i '/^<<<<<<< /d; /^=======/d; /^>>>>>>> /d' "$file" 2>/dev/null || true
+    fi
+}
+
+# Sanitize all apt source files to remove git conflict markers
+sanitize_all_apt_sources_from_apt_repository_manager() {
+    if [ -f "$APT_SOURCES_LIST" ]; then
+        sanitize_git_conflicts_from_apt_repository_manager "$APT_SOURCES_LIST"
+    fi
+    if [ -d "$APT_SOURCES_LIST_D" ]; then
+        for f in "$APT_SOURCES_LIST_D"/*; do
+            [ -f "$f" ] && sanitize_git_conflicts_from_apt_repository_manager "$f"
+        done
+    fi
+    # Also sanitize backup originals so restores don't reintroduce conflicts
+    if [ -d "$APT_ORIGINAL_BACKUP_DIR" ]; then
+        for f in "$APT_ORIGINAL_BACKUP_DIR"/sources.list "$APT_ORIGINAL_BACKUP_DIR"/sources.list.d/*; do
+            [ -f "$f" ] && sanitize_git_conflicts_from_apt_repository_manager "$f"
+        done
+    fi
+}
+
 # Source required files (trust-based programming)
 source "$APT_REPO_MANAGER_DIR/common_functions.sh"
 source "$APT_REPO_MANAGER_DIR/gvar_common.sh"
@@ -317,6 +347,9 @@ restore_apt_sources_from_apt_repository_manager() {
         }
     fi
     
+    # Sanitize restored files to remove any git conflict markers
+    sanitize_all_apt_sources_from_apt_repository_manager
+
     echo "Restore completed from: $backup_path"
     return 0
 }
