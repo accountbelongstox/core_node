@@ -180,6 +180,8 @@ backup_original_apt_sources_from_apt_repository_manager() {
         return 0
     fi
     
+    # Pre-sanitize live sources before backing up
+    sanitize_all_apt_sources_from_apt_repository_manager
     echo "Creating original APT sources backup (first time use)..."
     $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create original backup directory" >&2

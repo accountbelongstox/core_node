@@ -27,6 +27,21 @@ SCRIPT_INDEX="[INSTALL_LIB]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
+# Self-healing: remove git merge conflict markers from apt sources.
+# Synced files may contain unresolved <<<<<<< / ======= / >>>>>>> markers
+# which cause apt to fail with "Type '<<<<<<<' is not known".
+_sanitize_apt_sources() {
+    local fixed=0
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+        [ -f "$f" ] || continue
+        if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$f" 2>/dev/null; then
+            sed -i '/^<<<<<<< /d; /^=======/d; /^>>>>>>> /d' "$f" 2>/dev/null && fixed=1
+        fi
+    done
+    [ "$fixed" -eq 1 ] && echo "[SELF-HEAL] Removed git conflict markers from apt sources"
+}
+_sanitize_apt_sources
+
 # Logging function
 log_install() {
     local message="$1"
