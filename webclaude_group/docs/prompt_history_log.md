@@ -1107,3 +1107,24 @@ Host → center_server:      absolute address (from host config, e.g. http://loc
 > Define project rules: dev is local, deploy is remote Linux.
 > Code syncs via sync software. Debug info is from remote.
 > Search Claude Code docs for how to define project rules (CLAUDE.md)."
+
+### Phase 18: MySQL Hard Dependencies in @webclaude/shared (2026-04-04)
+
+**Problem**: Many services in `@webclaude/shared` directly `require('./mysqlPool')` instead of going through `db.js`. When `DB_TYPE=sqlite`, these services still try to connect to MySQL:3306 and fail.
+
+**Affected files** (from error logs):
+- `packages/webclaude-shared/models/repositories/apiKeyRepo.js` → `PromisePool.execute`
+- `packages/webclaude-shared/models/persistent/apiKeyStore.js`
+- `packages/webclaude-shared/services/billing/costRankService.js`
+- `src/services/payments/subscriptionHalfDoneReconcileService.js`
+- `src/services/ops/claudeCapacityMetricsService.js`
+- `src/services/ops/dispatchRecordsService.js`
+
+**Fix approach**: Make `mysqlPool.js` in the shared package route through `db.js` so it returns SQLite pool when `DB_TYPE=sqlite`.
+
+**pymain.py moved**: `scripts/pycore/pymain.py` → `core_node/pymain.py` (root level). All references updated.
+
+**Prompt excerpt**:
+> "Which services still haven't adapted to SQLite? Check ALL database-related code.
+> Many shared package files directly import mysqlPool bypassing db.js.
+> pymain.py should be at core_node root, not nested in scripts/pycore/."

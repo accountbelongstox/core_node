@@ -1,31 +1,165 @@
 # Pair-code sync client: first run full tree sync; then filesystem watch + debounced incremental updates.
+# Single-file: inlined protocol + pip/ensurepip + auto pip-install missing third-party (watchdog).
 
 from __future__ import annotations
 
 import fnmatch
+import importlib
 import json
 import os
 import socket
+import struct
+import subprocess
 import sys
 import threading
 import time
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
-from protocol import load_json_config, read_json_frame, resolve_path_against, write_json_frame
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 
-try:
+
+def _pip_bootstrap() -> None:
+    if os.environ.get("FILE_SYNC_V2_NO_AUTO_PIP", "").lower() in ("1", "true", "yes"):
+        return
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "--version"],
+            check=True,
+            timeout=30,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "ensurepip", "--upgrade"],
+                check=False,
+                timeout=120,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "pip"],
+            check=False,
+            timeout=300,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+
+_pip_bootstrap()
+
+
+def _ensure_pip_package(import_name: str, pip_name: str | None = None) -> bool:
+    pip_name = pip_name or import_name
+    try:
+        importlib.import_module(import_name)
+        return True
+    except ImportError:
+        pass
+    if os.environ.get("FILE_SYNC_V2_NO_AUTO_DEPS", "").lower() in ("1", "true", "yes"):
+        return False
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-q", pip_name],
+            check=False,
+            timeout=300,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    importlib.invalidate_caches()
+    try:
+        importlib.import_module(import_name)
+        return True
+    except ImportError:
+        return False
+
+
+# --- inlined protocol (framing + path helpers) ---
+_JSON_LEN = struct.Struct("!I")
+
+
+def recv_exact(sock, n: int) -> bytes:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError("peer closed")
+        buf += chunk
+    return bytes(buf)
+
+
+def read_json_frame(sock) -> dict[str, Any]:
+    raw_len = recv_exact(sock, _JSON_LEN.size)
+    (ln,) = _JSON_LEN.unpack(raw_len)
+    if ln > 256 * 1024 * 1024:
+        raise ValueError("json frame too large")
+    data = recv_exact(sock, ln)
+    return json.loads(data.decode("utf-8"))
+
+
+def read_file_payload(sock, size: int) -> bytes:
+    if size < 0 or size > 512 * 1024 * 1024:
+        raise ValueError("bad file size")
+    return recv_exact(sock, size)
+
+
+def write_json_frame(sock, obj: dict[str, Any]) -> None:
+    b = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    sock.sendall(_JSON_LEN.pack(len(b)) + b)
+
+
+def safe_rel(rel: str) -> str:
+    rel = rel.replace("\\", "/").strip("/")
+    parts: list[str] = []
+    for p in rel.split("/"):
+        if p in ("", "."):
+            continue
+        if p == "..":
+            raise ValueError("path traversal")
+        parts.append(p)
+    return "/".join(parts)
+
+
+def to_os_path(root: str, rel_unix: str) -> str:
+    rel = rel_unix.replace("/", os.sep)
+    return os.path.normpath(os.path.join(root, rel))
+
+
+def load_json_config(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def resolve_path_against(base_dir: str, p: str) -> str:
+    p = os.path.expanduser((p or "").strip())
+    if not p:
+        return ""
+    if os.path.isabs(p):
+        return os.path.normpath(p)
+    return os.path.normpath(os.path.join(base_dir, p))
+
+
+_HAS_WATCHDOG = False
+if _ensure_pip_package("watchdog"):
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
 
     _HAS_WATCHDOG = True
-except ImportError:
+else:
     class FileSystemEventHandler:  # type: ignore[no-redef]
         pass
 
     class Observer:  # type: ignore[no-redef]
         pass
-
-    _HAS_WATCHDOG = False
 
 _DEFAULT_EXCLUDES = (
     # --- git ---
@@ -201,7 +335,6 @@ _DEFAULT_EXCLUDES = (
     ".symlinks",
 )
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _CLIENT_CONFIG = os.path.join(_SCRIPT_DIR, "client_config.json")
 _STATE_FILE = os.path.join(_SCRIPT_DIR, ".sync_client_state.json")
 
@@ -290,37 +423,39 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
 
 
 def _try_pair_handshake(host: str, port: int, code: str) -> tuple[str, str]:
-    """Returns (kind, detail). kind is ok | auth_fail | net | proto."""
+    """Returns (kind, detail). kind is ok | auth_fail | net | proto.
+
+    After auth_ok we must tell the server we are only verifying the pair code (not
+    starting a sync); otherwise the server waits for manifest/push and logs peer closed.
+    """
     sock: socket.socket | None = None
     try:
         sock = _connect(host, port)
         write_json_frame(sock, {"cmd": "auth", "pair": code})
         r = read_json_frame(sock)
+        if r.get("cmd") == "auth_fail":
+            return "auth_fail", str(r.get("reason", "pair mismatch"))
+        if r.get("cmd") != "auth_ok":
+            return "proto", repr(r)
+        write_json_frame(sock, {"cmd": "pair_check_end"})
+        ack = read_json_frame(sock)
+        if ack.get("cmd") != "pair_check_ack":
+            return "proto", f"expected pair_check_ack, got {ack!r}"
+        return "ok", ""
     except (ConnectionError, OSError) as e:
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
         return "net", str(e)
     except (ValueError, json.JSONDecodeError) as e:
+        return "proto", str(e)
+    finally:
         if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             try:
                 sock.close()
             except OSError:
                 pass
-        return "proto", str(e)
-    else:
-        try:
-            sock.close()
-        except OSError:
-            pass
-
-    if r.get("cmd") == "auth_ok":
-        return "ok", ""
-    if r.get("cmd") == "auth_fail":
-        return "auth_fail", str(r.get("reason", "pair mismatch"))
-    return "proto", repr(r)
 
 
 def _interactive_acquire_pairs(enabled_targets: list[dict[str, str | int | bool | tuple[str, ...]]]) -> None:
@@ -328,28 +463,29 @@ def _interactive_acquire_pairs(enabled_targets: list[dict[str, str | int | bool 
         label = f"{t['host']}:{t['port']}"
         wrong_pair = 0
         while wrong_pair < 2:
-            raw = input(f"配对码 [{label}]（服务端控制台上的两位数字）: ").strip()
+            raw = input(f"Pair code [{label}] (two digits from server console): ").strip()
             if len(raw) != 2 or not raw.isdigit():
-                print("请输入两位数字（00–99）。", flush=True)
+                print("Enter two digits (00-99).", flush=True)
                 continue
             kind, detail = _try_pair_handshake(str(t["host"]), int(t["port"]), raw)
             if kind == "ok":
                 t["pair"] = raw
-                print(f"已与 {label} 配对成功。", flush=True)
+                print(f"Paired successfully with {label}.", flush=True)
                 break
             if kind == "net":
-                print(f"无法连接: {detail}", flush=True)
-                print("请确认该服务端已启动后再输入配对码。", flush=True)
+                print(f"Cannot connect: {detail}", flush=True)
+                print("Ensure the server is running, then enter the pair code again.", flush=True)
                 continue
             if kind == "proto":
-                print(f"协议错误: {detail}", flush=True)
+                print(f"Protocol error: {detail}", flush=True)
                 wrong_pair += 1
                 continue
             wrong_pair += 1
-            print(f"配对码错误: {detail}", flush=True)
+            print(f"Wrong pair code: {detail}", flush=True)
         else:
             raise SystemExit(
-                "已连续两次输入错误配对码。服务端可能已自动退出，请重启服务端后重新运行本客户端。"
+                "Wrong pair code twice in a row. The server may have exited; "
+                "restart the server and run this client again."
             )
 
 
@@ -881,7 +1017,9 @@ def _run_loop() -> None:
         raise SystemExit(f"not a directory: {root}")
     if enabled_targets:
         if not sys.stdin.isatty():
-            raise SystemExit("需要在终端中交互输入各服务端的配对码（stdin 不是 tty）。")
+            raise SystemExit(
+                "Interactive pair entry requires a TTY (stdin is not a terminal)."
+            )
         _interactive_acquire_pairs(enabled_targets)
     extra = cfg.get("exclude") or []
     if not isinstance(extra, list):

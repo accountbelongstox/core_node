@@ -1,4 +1,5 @@
 # Pair-code TCP sync server: manifest first (mtime/size), then file payloads only when needed.
+# Single-file: inlined protocol + pip/ensurepip bootstrap (no external protocol.py required).
 
 from __future__ import annotations
 
@@ -6,21 +7,122 @@ import json
 import os
 import secrets
 import socket
+import struct
+import subprocess
 import sys
 import threading
 import time
-
-from protocol import (
-    load_json_config,
-    read_file_payload,
-    read_json_frame,
-    resolve_path_against,
-    safe_rel,
-    to_os_path,
-    write_json_frame,
-)
+import traceback
+from typing import Any
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+
+def _pip_bootstrap() -> None:
+    """Ensure pip exists; upgrade pip. Prints steps; on failure logs traceback and continues."""
+    if os.environ.get("FILE_SYNC_V2_NO_AUTO_PIP", "").lower() in ("1", "true", "yes"):
+        print("[file_sync_v2] FILE_SYNC_V2_NO_AUTO_PIP set, skipping pip bootstrap", flush=True)
+        return
+    try:
+        print("[file_sync_v2] checking pip:", sys.executable, "-m pip --version", flush=True)
+        v = subprocess.run(
+            [sys.executable, "-m", "pip", "--version"],
+            timeout=60,
+            capture_output=True,
+            text=True,
+        )
+        if v.returncode != 0:
+            print("[file_sync_v2] pip not usable, running: python -m ensurepip --upgrade", flush=True)
+            subprocess.run(
+                [sys.executable, "-m", "ensurepip", "--upgrade"],
+                timeout=180,
+            )
+        print("[file_sync_v2] upgrading pip: python -m pip install -U pip", flush=True)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-U", "pip"],
+            timeout=600,
+        )
+        print("[file_sync_v2] pip bootstrap done", flush=True)
+    except Exception as e:
+        print(f"[file_sync_v2] pip bootstrap failed (server still starts): {e!r}", flush=True)
+        traceback.print_exc()
+
+
+_pip_bootstrap()
+
+# --- inlined from protocol.py (framing + path helpers) ---
+_JSON_LEN = struct.Struct("!I")
+
+
+def recv_exact(sock, n: int) -> bytes:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError("peer closed")
+        buf += chunk
+    return bytes(buf)
+
+
+def read_json_frame(sock) -> dict[str, Any]:
+    raw_len = recv_exact(sock, _JSON_LEN.size)
+    (ln,) = _JSON_LEN.unpack(raw_len)
+    if ln > 256 * 1024 * 1024:
+        raise ValueError("json frame too large")
+    data = recv_exact(sock, ln)
+    return json.loads(data.decode("utf-8"))
+
+
+def read_file_payload(sock, size: int) -> bytes:
+    if size < 0 or size > 512 * 1024 * 1024:
+        raise ValueError("bad file size")
+    return recv_exact(sock, size)
+
+
+def write_json_frame(sock, obj: dict[str, Any]) -> None:
+    b = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    sock.sendall(_JSON_LEN.pack(len(b)) + b)
+
+
+def write_json_then_bytes(sock, obj: dict[str, Any], payload: bytes) -> None:
+    write_json_frame(sock, obj)
+    if payload:
+        sock.sendall(payload)
+
+
+def safe_rel(rel: str) -> str:
+    rel = rel.replace("\\", "/").strip("/")
+    parts: list[str] = []
+    for p in rel.split("/"):
+        if p in ("", "."):
+            continue
+        if p == "..":
+            raise ValueError("path traversal")
+        parts.append(p)
+    return "/".join(parts)
+
+
+def to_os_path(root: str, rel_unix: str) -> str:
+    rel = rel_unix.replace("/", os.sep)
+    return os.path.normpath(os.path.join(root, rel))
+
+
+def load_json_config(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def resolve_path_against(base_dir: str, p: str) -> str:
+    p = os.path.expanduser((p or "").strip())
+    if not p:
+        return ""
+    if os.path.isabs(p):
+        return os.path.normpath(p)
+    return os.path.normpath(os.path.join(base_dir, p))
+
+
 _SERVER_CONFIG = os.path.join(_SCRIPT_DIR, "server_config.json")
 
 _PAIR_FAIL_LOCK = threading.Lock()
@@ -67,8 +169,8 @@ def _list_server_files(root: str) -> dict[str, tuple[float, int]]:
                 st = os.stat(abs_p)
                 if os.path.isfile(abs_p):
                     out[rel] = (st.st_mtime, st.st_size)
-            except OSError:
-                pass
+            except OSError as e:
+                print(f"[file_sync_v2] list_server_files skip {abs_p!r}: {e}", file=sys.stderr, flush=True)
     return out
 
 
@@ -103,8 +205,8 @@ def _delete_server_orphans(root: str, client_rels: set[str]) -> None:
         try:
             if os.path.isfile(abs_p):
                 os.remove(abs_p)
-        except OSError:
-            pass
+        except OSError as e:
+            print(f"[file_sync_v2] orphan delete failed {abs_p!r}: {e}", file=sys.stderr, flush=True)
     _prune_empty_dirs(root)
 
 
@@ -116,8 +218,8 @@ def _prune_empty_dirs(root: str) -> None:
         try:
             if not os.listdir(dirpath):
                 os.rmdir(dirpath)
-        except OSError:
-            pass
+        except OSError as e:
+            print(f"[file_sync_v2] rmdir skip {dirpath!r}: {e}", file=sys.stderr, flush=True)
 
 
 def _fmt_size(n: int) -> str:
@@ -218,8 +320,8 @@ def _handle_push(
             try:
                 os.remove(dst)
                 _log(addr, f"  deleted {dst}")
-            except OSError:
-                pass
+            except OSError as e:
+                _log(addr, f"  delete failed {dst!r}: {e}")
     received = 0
     received_bytes = 0
     errors: list[str] = []
@@ -249,8 +351,8 @@ def _handle_push(
             os.replace(tmp, dst)
             try:
                 os.utime(dst, (mtime, mtime))
-            except OSError:
-                pass
+            except OSError as e:
+                _log(addr, f"  utime failed {dst!r}: {e}")
             received += 1
             received_bytes += size
             now = time.time()
@@ -300,7 +402,13 @@ def handle_client(
         _clear_pair_fail_streak()
         _log(_addr, "auth ok")
         write_json_frame(conn, {"cmd": "auth_ok"})
+        _log(_addr, "waiting for next frame (manifest, push, pair_check_end, ...) ...")
         m = read_json_frame(conn)
+        _log(_addr, f"received cmd={m.get('cmd')!r}")
+        if m.get("cmd") == "pair_check_end":
+            write_json_frame(conn, {"cmd": "pair_check_ack"})
+            _log(_addr, "pair-check handshake done (client will close)")
+            return
         if m.get("cmd") == "push":
             _handle_push(conn, _addr, root, m)
             return
@@ -378,8 +486,8 @@ def handle_client(
                 os.replace(tmp, dst)
                 try:
                     os.utime(dst, (mtime, mtime))
-                except OSError:
-                    pass
+                except OSError as e:
+                    _log(_addr, f"  utime failed {dst!r}: {e}")
                 received += 1
                 received_bytes += size
                 now = time.time()
@@ -402,18 +510,29 @@ def handle_client(
                 })
                 return
             write_json_frame(conn, {"cmd": "error", "err": f"unknown cmd {cmd!r}"})
-    except (ConnectionError, OSError, ValueError, json.JSONDecodeError, KeyError) as e:
-        _log(_addr, f"error: {e}")
-        try:
-            write_json_frame(conn, {"cmd": "error", "err": str(e)})
-        except OSError:
-            pass
+    except ConnectionError as e:
+        _log(
+            _addr,
+            f"connection lost: {e!r} — client closed TCP before sending a full frame "
+            f"(after auth_ok, expect manifest or push). Check client logs, firewall, or idle timeout.",
+        )
+    except json.JSONDecodeError as e:
+        _log(_addr, f"invalid JSON in frame: {e!r}")
+        write_json_frame(conn, {"cmd": "error", "err": str(e)})
+    except (ValueError, KeyError) as e:
+        _log(_addr, f"protocol/data error: {type(e).__name__}: {e!r}")
+        write_json_frame(conn, {"cmd": "error", "err": str(e)})
+    except OSError as e:
+        _log(_addr, f"socket/os error: {e!r}")
+    except Exception as e:
+        _log(_addr, f"unexpected error: {type(e).__name__}: {e!r}")
+        traceback.print_exc()
     finally:
         _log(_addr, "disconnected")
         try:
             conn.close()
-        except OSError:
-            pass
+        except OSError as e:
+            print(f"[file_sync_v2] conn.close: {e!r}", file=sys.stderr, flush=True)
 
 
 def _serve() -> None:
