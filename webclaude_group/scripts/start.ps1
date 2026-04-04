@@ -5,8 +5,7 @@
     Checks/installs all dependencies, then starts all 4 services in parallel
     using separate PowerShell windows for easy debugging.
 .PARAMETER Services
-    Comma-separated list of services to start. Default: all
-    Options: center, gateway, website, host, all
+    Optional override (comma-separated). When empty, uses cached role under .data/deploy_role.json (interactive setup on first run).
 .PARAMETER SkipChecks
     Skip environment checks and dependency installation
 .PARAMETER BuildOnly
@@ -17,7 +16,7 @@
     .\start.ps1 -SkipChecks          # Skip checks, start immediately
 #>
 param(
-    [string]$Services = "all",
+    [string]$Services = "",
     [switch]$SkipChecks,
     [switch]$BuildOnly
 )
@@ -28,6 +27,45 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $GroupRoot = Split-Path -Parent $ScriptDir
 $DeployWin = Join-Path $ScriptDir "deploy_win"
 $CoreNode  = Split-Path -Parent $GroupRoot  # webclaude_group is inside core_node
+
+# ── Deploy role (data dir + cache) ───────────────────────────
+$DataDir = if ($env:WEBCLAUDE_DATA_DIR) { $env:WEBCLAUDE_DATA_DIR } else { Join-Path $GroupRoot ".data" }
+$null = New-Item -ItemType Directory -Force -Path (Join-Path $DataDir "cache") 2>$null
+$DeployPy = Join-Path $ScriptDir "pytools\deploy_role.py"
+$DeployPyCmd = $null
+foreach ($cmd in @("python", "python3", "py")) {
+    try {
+        $w = (cmd /c "where $cmd 2>nul" | Select-Object -First 1)
+        if ($w -and (Test-Path $w)) { $DeployPyCmd = $cmd; break }
+    } catch {}
+}
+
+$SelectedServices = @("center", "gateway", "website", "host")
+if ($DeployPyCmd -and (Test-Path $DeployPy)) {
+    $deployArgs = @($DeployPy, "--data-dir", $DataDir)
+    if ($Services) {
+        $deployArgs += @("--cli-services", $Services)
+    }
+    try {
+        $jsonText = & $DeployPyCmd @deployArgs
+        if ($jsonText) {
+            $role = $jsonText | ConvertFrom-Json
+            if ($role.data_dir) {
+                $env:WEBCLAUDE_DATA_DIR = [string]$role.data_dir
+                $DataDir = $env:WEBCLAUDE_DATA_DIR
+            }
+            if ($role.services) {
+                $svc = $role.services
+                if ($svc -isnot [System.Array]) { $svc = @($svc) }
+                $SelectedServices = [string[]]$svc
+            }
+        }
+    } catch {
+        Write-Warn "deploy_role.py failed, using full stack: $_"
+    }
+} else {
+    Write-Warn "Python not found for deploy_role.py; using all services."
+}
 
 # ── Colors ──────────────────────────────────────────────────
 function Write-Header($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
@@ -44,30 +82,29 @@ $Paths = @{
     host    = Split-Path -Parent $GroupRoot  # core_node (claude_host is at core_node/pyapps/claude_host)
 }
 
-# ── Parse services to start ─────────────────────────────────
-$AllServices = @("center", "gateway", "website", "host")
-if ($Services -eq "all") {
-    $SelectedServices = $AllServices
-} else {
-    $SelectedServices = $Services -split "," | ForEach-Object {
-        switch ($_.Trim().ToLower()) {
-            "center"  { "center" }
-            "server"  { "center" }
-            "gateway" { "gateway" }
-            "gw"      { "gateway" }
-            "website" { "website" }
-            "web"     { "website" }
-            "host"    { "host" }
-            "claude"  { "host" }
-            default   { Write-Warn "Unknown service: $_"; $null }
-        }
-    } | Where-Object { $_ -ne $null }
-}
-
 Write-Host ""
 Write-Host "  WebClaude Group - Unified Debug Launcher" -ForegroundColor Magenta
+Write-Host "  Data: $DataDir" -ForegroundColor Magenta
 Write-Host "  Services: $($SelectedServices -join ', ')" -ForegroundColor Magenta
 Write-Host ""
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 0: Auto-initialize environment (.env, configs, permissions)
+# ══════════════════════════════════════════════════════════════
+
+$initScript = Join-Path $ScriptDir "pytools\init_env.py"
+if (Test-Path $initScript) {
+    # Find python
+    $initPy = $null
+    foreach ($cmd in @("python", "python3", "py")) {
+        $testExe = $null
+        try { $testExe = (cmd /c "where $cmd 2>nul" | Select-Object -First 1) } catch {}
+        if ($testExe) { $initPy = $cmd; break }
+    }
+    if ($initPy) {
+        $null = cmd /c "$initPy `"$initScript`" 2>&1"
+    }
+}
 
 # ══════════════════════════════════════════════════════════════
 # PHASE 1: Environment Checks
@@ -310,15 +347,8 @@ if (-not $SkipChecks) {
         if ($tcpOk) {
             Write-Ok "Redis reachable at ${redisHost}:${redisPort}"
         } else {
-            Write-Warn "Redis not reachable at ${redisHost}:${redisPort}"
-            $installer = Join-Path $DeployWin "install-redis.ps1"
-            if (Test-Path $installer) {
-                Write-Info "Running Redis auto-installer..."
-                & $installer
-            } else {
-                Write-Fail "Redis installer not found at $installer"
-                $phase1Errors++
-            }
+            Write-Warn "Redis not reachable at ${redisHost}:${redisPort} (optional, running in degraded mode)"
+            Write-Info "Start Redis for full functionality"
         }
     }
 
@@ -563,7 +593,7 @@ if ($SelectedServices -contains "host") {
         if (-not $pyCmd) { $pyCmd = "python" }
         Start-Process powershell -ArgumentList @(
             "-NoExit", "-Command",
-            "Set-Location '$($Paths.host)'; `$Host.UI.RawUI.WindowTitle = '$title'; $pyCmd -u scripts/pycore/pymain.py app=claude_host"
+            "Set-Location '$($Paths.host)'; `$Host.UI.RawUI.WindowTitle = '$title'; $pyCmd -u pymain.py app=claude_host"
         )
     }
     $launched += $title

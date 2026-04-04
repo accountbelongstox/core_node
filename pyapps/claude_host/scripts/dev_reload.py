@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 WATCH_DIR = Path("pyapps/claude_host")
-APP_CMD = [sys.executable, "-u", "scripts/pycore/pymain.py", "app=claude_host"]
+APP_CMD = [sys.executable, "-u", "pymain.py", "app=claude_host"]
 
 try:
     from watchdog.observers import Observer
