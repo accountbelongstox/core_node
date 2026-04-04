@@ -1,5 +1,6 @@
 # Pair-code TCP sync server: manifest first (mtime/size), then file payloads only when needed.
 # Single-file: inlined protocol + pip/ensurepip bootstrap (no external protocol.py required).
+# v2: persistent sessions (loop after auth), batch_files, TCP_NODELAY.
 
 from __future__ import annotations
 
@@ -303,16 +304,72 @@ def _log(addr: tuple, msg: str) -> None:
     print(f"[{ts}] [{addr[0]}:{addr[1]}] {msg}", flush=True)
 
 
+# ---------------------------------------------------------------------------
+# Helpers shared by push / manifest handlers
+# ---------------------------------------------------------------------------
+
+def _write_file_to_disk(
+    root: str, rel: str, data: bytes, mtime: float, addr: tuple,
+) -> str | None:
+    """Write one file to disk. Returns error string or None on success."""
+    dst = to_os_path(root, rel)
+    if not _under_root(root, dst):
+        return f"bad path: {rel}"
+    parent = os.path.dirname(dst)
+    if parent and not os.path.isdir(parent):
+        os.makedirs(parent, exist_ok=True)
+    if _is_text_file(rel):
+        data = _fix_line_endings(data)
+    tmp = dst + ".part"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, dst)
+    try:
+        os.utime(dst, (mtime, mtime))
+    except OSError as e:
+        _log(addr, f"  utime failed {dst!r}: {e}")
+    return None
+
+
+def _receive_batch(
+    conn: socket.socket, meta: dict, root: str, addr: tuple,
+) -> tuple[int, int, list[str]]:
+    """Receive a batch_files frame payload. Returns (count, bytes, errors)."""
+    files_meta = meta.get("files", [])
+    total_size = int(meta.get("total_size", 0))
+    all_data = recv_exact(conn, total_size) if total_size > 0 else b""
+    offset = 0
+    received = 0
+    received_bytes = 0
+    errors: list[str] = []
+    for finfo in files_meta:
+        frel = safe_rel(str(finfo.get("path", "")))
+        fsize = int(finfo.get("size", 0))
+        fmtime = float(finfo.get("mtime", time.time()))
+        fdata = all_data[offset:offset + fsize]
+        offset += fsize
+        err = _write_file_to_disk(root, frel, fdata, fmtime, addr)
+        if err:
+            errors.append(err)
+        else:
+            received += 1
+            received_bytes += fsize
+    _log(addr, f"  << batch {len(files_meta)} files ({_fmt_size(total_size)})")
+    return received, received_bytes, errors
+
+
+# ---------------------------------------------------------------------------
+# Push handler (incremental: client sends files directly)
+# ---------------------------------------------------------------------------
+
 def _handle_push(
     conn: socket.socket,
     addr: tuple,
     root: str,
     first_msg: dict,
 ) -> None:
-    """Incremental push mode: client sends files directly, no manifest comparison."""
     deleted = first_msg.get("deleted") or []
     _log(addr, f"push mode, {len(deleted)} delete(s) queued")
-    # handle deletions
     for rel_raw in deleted:
         rel = safe_rel(str(rel_raw))
         dst = to_os_path(root, rel)
@@ -326,7 +383,6 @@ def _handle_push(
     received_bytes = 0
     errors: list[str] = []
     t_start = time.time()
-    last_report = t_start
     while True:
         m = read_json_frame(conn)
         cmd = m.get("cmd")
@@ -334,30 +390,20 @@ def _handle_push(
             rel = safe_rel(str(m.get("path", "")))
             size = int(m.get("size", -1))
             mtime = float(m.get("mtime", time.time()))
-            dst = to_os_path(root, rel)
-            if not _under_root(root, dst):
-                errors.append(f"bad path: {rel}")
-                read_file_payload(conn, size)
-                continue
-            parent = os.path.dirname(dst)
-            if parent and not os.path.isdir(parent):
-                os.makedirs(parent, exist_ok=True)
             data = read_file_payload(conn, size)
-            if _is_text_file(rel):
-                data = _fix_line_endings(data)
-            tmp = dst + ".part"
-            with open(tmp, "wb") as f:
-                f.write(data)
-            os.replace(tmp, dst)
-            try:
-                os.utime(dst, (mtime, mtime))
-            except OSError as e:
-                _log(addr, f"  utime failed {dst!r}: {e}")
-            received += 1
-            received_bytes += size
-            now = time.time()
-            _log(addr, f"  << {dst} ({_fmt_size(size)})")
-            last_report = now
+            err = _write_file_to_disk(root, rel, data, mtime, addr)
+            if err:
+                errors.append(err)
+            else:
+                received += 1
+                received_bytes += size
+                _log(addr, f"  << {to_os_path(root, rel)} ({_fmt_size(size)})")
+            continue
+        if cmd == "batch_files":
+            br, bb, be = _receive_batch(conn, m, root, addr)
+            received += br
+            received_bytes += bb
+            errors.extend(be)
             continue
         if cmd == "bye":
             elapsed = time.time() - t_start
@@ -373,6 +419,114 @@ def _handle_push(
         write_json_frame(conn, {"cmd": "error", "err": f"unknown cmd {cmd!r}"})
 
 
+# ---------------------------------------------------------------------------
+# Manifest handler (full-tree comparison)
+# ---------------------------------------------------------------------------
+
+def _handle_manifest_round(
+    conn: socket.socket,
+    addr: tuple,
+    root: str,
+    first_msg: dict,
+) -> None:
+    raw_files = first_msg.get("files")
+    if not isinstance(raw_files, dict):
+        write_json_frame(conn, {"cmd": "error", "err": "manifest.files must be object"})
+        return
+    _log(addr, f"manifest received: {len(raw_files)} files")
+    client_map: dict[str, tuple[float, int]] = {}
+    for k, v in raw_files.items():
+        rel = safe_rel(str(k))
+        if not isinstance(v, dict):
+            write_json_frame(
+                conn,
+                {"cmd": "error", "err": f"manifest.files[{k!r}] must be object with mtime,size"},
+            )
+            return
+        try:
+            c_mtime = float(v["mtime"])
+            c_size = int(v["size"])
+        except (KeyError, TypeError, ValueError):
+            write_json_frame(
+                conn,
+                {"cmd": "error", "err": f"manifest.files[{k!r}] needs numeric mtime,size"},
+            )
+            return
+        client_map[rel] = (c_mtime, c_size)
+    client_rels = set(client_map.keys())
+    _delete_server_orphans(root, client_rels)
+    server_files = _list_server_files(root)
+    _log(addr, f"server has {len(server_files)} files locally")
+    upload: list[str] = []
+    for rel, (c_mtime, c_size) in client_map.items():
+        if _needs_upload(server_files, rel, c_mtime, c_size):
+            upload.append(rel)
+    upload.sort()
+    new_count = sum(1 for r in upload if r not in server_files)
+    update_count = len(upload) - new_count
+    _log(addr, f"sync plan: {len(upload)} to upload ({new_count} new, {update_count} changed), {len(client_map) - len(upload)} up-to-date")
+    write_json_frame(conn, {"cmd": "sync_plan", "upload": upload})
+    received = 0
+    received_bytes = 0
+    errors: list[str] = []
+    total_up = len(upload)
+    t_start = time.time()
+    last_report = t_start
+    while True:
+        m = read_json_frame(conn)
+        cmd = m.get("cmd")
+        if cmd == "ping":
+            write_json_frame(conn, {"cmd": "pong"})
+            continue
+        if cmd == "file":
+            rel = safe_rel(str(m.get("path", "")))
+            size = int(m.get("size", -1))
+            mtime = float(m.get("mtime", time.time()))
+            data = read_file_payload(conn, size)
+            err = _write_file_to_disk(root, rel, data, mtime, addr)
+            if err:
+                errors.append(err)
+            else:
+                received += 1
+                received_bytes += size
+                now = time.time()
+                if now - last_report >= 2.0 or received == total_up or received == 1:
+                    elapsed = now - t_start
+                    pct = received * 100 // total_up if total_up else 100
+                    rate = received_bytes / elapsed if elapsed > 0 else 0
+                    _log(addr, f"  recv [{received}/{total_up}] {pct}%  {_fmt_size(received_bytes)}  {_fmt_size(int(rate))}/s  {to_os_path(root, rel)}")
+                    last_report = now
+            continue
+        if cmd == "batch_files":
+            br, bb, be = _receive_batch(conn, m, root, addr)
+            received += br
+            received_bytes += bb
+            errors.extend(be)
+            now = time.time()
+            if now - last_report >= 2.0 or received >= total_up:
+                elapsed = now - t_start
+                pct = received * 100 // total_up if total_up else 100
+                rate = received_bytes / elapsed if elapsed > 0 else 0
+                _log(addr, f"  recv [{received}/{total_up}] {pct}%  {_fmt_size(received_bytes)}  {_fmt_size(int(rate))}/s")
+                last_report = now
+            continue
+        if cmd == "bye":
+            elapsed = time.time() - t_start
+            _log(addr, f"sync done: {received} files, {_fmt_size(received_bytes)}, {elapsed:.1f}s")
+            write_json_frame(conn, {
+                "cmd": "sync_done",
+                "received": received,
+                "bytes": received_bytes,
+                "errors": errors,
+            })
+            return
+        write_json_frame(conn, {"cmd": "error", "err": f"unknown cmd {cmd!r}"})
+
+
+# ---------------------------------------------------------------------------
+# Per-connection handler — auth once, then loop commands (persistent session)
+# ---------------------------------------------------------------------------
+
 def handle_client(
     conn: socket.socket,
     _addr: tuple,
@@ -381,7 +535,9 @@ def handle_client(
 ) -> None:
     try:
         conn.settimeout(3600.0)
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         _log(_addr, "connected")
+        # --- auth (once per connection) ---
         msg = read_json_frame(conn)
         if msg.get("cmd") != "auth":
             _log(_addr, "rejected: no auth cmd")
@@ -400,128 +556,38 @@ def handle_client(
                 os._exit(1)
             return
         _clear_pair_fail_streak()
-        _log(_addr, "auth ok")
+        _log(_addr, "auth ok (persistent session)")
         write_json_frame(conn, {"cmd": "auth_ok"})
-        _log(_addr, "waiting for next frame (manifest, push, pair_check_end, ...) ...")
-        m = read_json_frame(conn)
-        _log(_addr, f"received cmd={m.get('cmd')!r}")
-        if m.get("cmd") == "pair_check_end":
-            write_json_frame(conn, {"cmd": "pair_check_ack"})
-            _log(_addr, "pair-check handshake done (client will close)")
-            return
-        if m.get("cmd") == "push":
-            _handle_push(conn, _addr, root, m)
-            return
-        if m.get("cmd") != "manifest":
-            write_json_frame(conn, {"cmd": "error", "err": "expected manifest or push after auth"})
-            return
-        raw_files = m.get("files")
-        if not isinstance(raw_files, dict):
-            write_json_frame(conn, {"cmd": "error", "err": "manifest.files must be object"})
-            return
-        _log(_addr, f"manifest received: {len(raw_files)} files")
-        client_map: dict[str, tuple[float, int]] = {}
-        for k, v in raw_files.items():
-            rel = safe_rel(str(k))
-            if not isinstance(v, dict):
-                write_json_frame(
-                    conn,
-                    {"cmd": "error", "err": f"manifest.files[{k!r}] must be object with mtime,size"},
-                )
-                return
-            try:
-                c_mtime = float(v["mtime"])
-                c_size = int(v["size"])
-            except (KeyError, TypeError, ValueError):
-                write_json_frame(
-                    conn,
-                    {"cmd": "error", "err": f"manifest.files[{k!r}] needs numeric mtime,size"},
-                )
-                return
-            client_map[rel] = (c_mtime, c_size)
-        client_rels = set(client_map.keys())
-        _delete_server_orphans(root, client_rels)
-        server_files = _list_server_files(root)
-        _log(_addr, f"server has {len(server_files)} files locally")
-        upload: list[str] = []
-        for rel, (c_mtime, c_size) in client_map.items():
-            if _needs_upload(server_files, rel, c_mtime, c_size):
-                upload.append(rel)
-        upload.sort()
-        new_count = sum(1 for r in upload if r not in server_files)
-        update_count = len(upload) - new_count
-        _log(_addr, f"sync plan: {len(upload)} to upload ({new_count} new, {update_count} changed), {len(client_map) - len(upload)} up-to-date")
-        write_json_frame(conn, {"cmd": "sync_plan", "upload": upload})
-        received = 0
-        received_bytes = 0
-        errors: list[str] = []
-        total_up = len(upload)
-        t_start = time.time()
-        last_report = t_start
+        # --- persistent command loop ---
         while True:
+            _log(_addr, "waiting for command ...")
             m = read_json_frame(conn)
             cmd = m.get("cmd")
+            _log(_addr, f"cmd={cmd!r}")
+            if cmd == "pair_check_end":
+                write_json_frame(conn, {"cmd": "pair_check_ack"})
+                _log(_addr, "pair-check handshake done")
+                return
+            if cmd == "manifest":
+                _handle_manifest_round(conn, _addr, root, m)
+                continue
+            if cmd == "push":
+                _handle_push(conn, _addr, root, m)
+                continue
             if cmd == "ping":
                 write_json_frame(conn, {"cmd": "pong"})
                 continue
-            if cmd == "file":
-                rel = safe_rel(str(m.get("path", "")))
-                size = int(m.get("size", -1))
-                mtime = float(m.get("mtime", time.time()))
-                dst = to_os_path(root, rel)
-                if not _under_root(root, dst):
-                    errors.append(f"bad path: {rel}")
-                    # still must consume the payload
-                    read_file_payload(conn, size)
-                    continue
-                parent = os.path.dirname(dst)
-                if parent and not os.path.isdir(parent):
-                    os.makedirs(parent, exist_ok=True)
-                data = read_file_payload(conn, size)
-                if _is_text_file(rel):
-                    data = _fix_line_endings(data)
-                tmp = dst + ".part"
-                with open(tmp, "wb") as f:
-                    f.write(data)
-                os.replace(tmp, dst)
-                try:
-                    os.utime(dst, (mtime, mtime))
-                except OSError as e:
-                    _log(_addr, f"  utime failed {dst!r}: {e}")
-                received += 1
-                received_bytes += size
-                now = time.time()
-                if now - last_report >= 2.0 or received == total_up or received == 1:
-                    elapsed = now - t_start
-                    pct = received * 100 // total_up if total_up else 100
-                    rate = received_bytes / elapsed if elapsed > 0 else 0
-                    _log(_addr, f"  recv [{received}/{total_up}] {pct}%  {_fmt_size(received_bytes)}  {_fmt_size(int(rate))}/s  {dst}")
-                    last_report = now
-                # no per-file ACK — final summary sent on "bye"
-                continue
-            if cmd == "bye":
-                elapsed = time.time() - t_start
-                _log(_addr, f"sync done: {received} files, {_fmt_size(received_bytes)}, {elapsed:.1f}s")
-                write_json_frame(conn, {
-                    "cmd": "sync_done",
-                    "received": received,
-                    "bytes": received_bytes,
-                    "errors": errors,
-                })
+            if cmd == "session_bye":
+                _log(_addr, "session ended by client")
+                write_json_frame(conn, {"cmd": "session_bye_ack"})
                 return
             write_json_frame(conn, {"cmd": "error", "err": f"unknown cmd {cmd!r}"})
     except ConnectionError as e:
-        _log(
-            _addr,
-            f"connection lost: {e!r} — client closed TCP before sending a full frame "
-            f"(after auth_ok, expect manifest or push). Check client logs, firewall, or idle timeout.",
-        )
+        _log(_addr, f"connection lost: {e!r}")
     except json.JSONDecodeError as e:
         _log(_addr, f"invalid JSON in frame: {e!r}")
-        write_json_frame(conn, {"cmd": "error", "err": str(e)})
     except (ValueError, KeyError) as e:
         _log(_addr, f"protocol/data error: {type(e).__name__}: {e!r}")
-        write_json_frame(conn, {"cmd": "error", "err": str(e)})
     except OSError as e:
         _log(_addr, f"socket/os error: {e!r}")
     except Exception as e:
